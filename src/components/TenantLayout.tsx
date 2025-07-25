@@ -39,14 +39,14 @@ export const TenantLayout = ({ children }: TenantLayoutProps) => {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full">
+      <div className="min-h-screen flex w-full bg-background">
         <TenantSidebar />
-        <main className="flex-1 flex flex-col">
-          <header className="h-16 border-b bg-background flex items-center px-4">
+        <main className="flex-1 flex flex-col overflow-hidden">
+          <header className="h-16 border-b bg-background flex items-center px-4 shrink-0">
             <SidebarTrigger className="mr-4" />
             <h1 className="text-xl font-semibold">Mieter Portal</h1>
           </header>
-          <div className="flex-1 p-6 bg-muted/30">
+          <div className="flex-1 p-6 bg-muted/30 overflow-auto">
             {children}
           </div>
         </main>
