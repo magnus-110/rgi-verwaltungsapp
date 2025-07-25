@@ -8,9 +8,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/hooks/useAuth";
+import { useManagementMode } from "@/hooks/useManagementMode";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { Plus, Users, Building2, Home } from "lucide-react";
+import { Plus, Users, Building2, Home, Edit, Trash2, User } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 interface Building {
   id: string;
@@ -30,13 +32,30 @@ interface WegOwner {
   created_at: string;
 }
 
+interface Tenant {
+  id: string;
+  user_id: string;
+  building_id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  created_at: string;
+}
+
 export const Buildings = () => {
   const { profile } = useAuth();
+  const { managementMode } = useManagementMode();
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [wegOwners, setWegOwners] = useState<{ [buildingId: string]: WegOwner[] }>({});
+  const [tenants, setTenants] = useState<{ [buildingId: string]: Tenant[] }>({});
   const [isCreateBuildingOpen, setIsCreateBuildingOpen] = useState(false);
-  const [isCreateOwnerOpen, setIsCreateOwnerOpen] = useState(false);
+  const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
+  const [isEditBuildingOpen, setIsEditBuildingOpen] = useState(false);
+  const [isEditUserOpen, setIsEditUserOpen] = useState(false);
   const [selectedBuildingId, setSelectedBuildingId] = useState<string>("");
+  const [editingBuilding, setEditingBuilding] = useState<Building | null>(null);
+  const [editingUser, setEditingUser] = useState<WegOwner | Tenant | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Building form state
@@ -44,47 +63,58 @@ export const Buildings = () => {
     name: string;
     address: string;
     type: string;
-    management_mode: "weg" | "rent";
   }>({
     name: "",
     address: "",
     type: "weg",
-    management_mode: "weg"
   });
 
-  // Owner form state
-  const [ownerForm, setOwnerForm] = useState({
+  // User form state
+  const [userForm, setUserForm] = useState<{
+    email: string;
+    password: string;
+    first_name: string;
+    last_name: string;
+    phone: string;
+  }>({
     email: "",
+    password: "",
     first_name: "",
     last_name: "",
     phone: "",
-    password: ""
   });
 
   useEffect(() => {
     if (profile?.role === 'admin') {
       fetchBuildings();
     }
-  }, [profile]);
+  }, [profile, managementMode]);
 
   const fetchBuildings = async () => {
     try {
-      const { data, error } = await supabase
-        .from('buildings')
-        .select('*')
-        .order('created_at', { ascending: false });
+      setLoading(true);
+      const { data: buildingsData, error } = await supabase
+        .from("buildings")
+        .select("*")
+        .eq("management_mode", managementMode)
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setBuildings(data || []);
-      
-      // Fetch WEG owners for each building
-      for (const building of data || []) {
-        if (building.management_mode === 'weg') {
-          await fetchWegOwners(building.id);
+
+      setBuildings(buildingsData || []);
+
+      // Fetch users for each building
+      if (buildingsData) {
+        for (const building of buildingsData) {
+          if (managementMode === 'weg') {
+            await fetchWegOwners(building.id);
+          } else {
+            await fetchTenants(building.id);
+          }
         }
       }
-    } catch (error) {
-      console.error('Error fetching buildings:', error);
+    } catch (error: any) {
+      console.error("Error fetching buildings:", error);
       toast({
         title: "Fehler",
         description: "Gebäude konnten nicht geladen werden.",
@@ -98,41 +128,72 @@ export const Buildings = () => {
   const fetchWegOwners = async (buildingId: string) => {
     try {
       const { data, error } = await supabase
-        .from('weg_owners')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .from("weg_owners")
+        .select("*")
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
-      
+
       setWegOwners(prev => ({
         ...prev,
         [buildingId]: data || []
       }));
-    } catch (error) {
-      console.error('Error fetching WEG owners:', error);
+    } catch (error: any) {
+      console.error("Error fetching WEG owners:", error);
+    }
+  };
+
+  const fetchTenants = async (buildingId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("tenants")
+        .select("*")
+        .eq("building_id", buildingId)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      setTenants(prev => ({
+        ...prev,
+        [buildingId]: data || []
+      }));
+    } catch (error: any) {
+      console.error("Error fetching tenants:", error);
     }
   };
 
   const createBuilding = async () => {
+    if (!buildingForm.name || !buildingForm.address) {
+      toast({
+        title: "Fehler",
+        description: "Bitte füllen Sie alle Pflichtfelder aus.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       const { data, error } = await supabase
-        .from('buildings')
-        .insert([buildingForm])
+        .from("buildings")
+        .insert([{
+          ...buildingForm,
+          management_mode: managementMode
+        }])
         .select()
         .single();
 
       if (error) throw error;
 
       setBuildings(prev => [data, ...prev]);
-      setBuildingForm({ name: "", address: "", type: "weg", management_mode: "weg" });
+      setBuildingForm({ name: "", address: "", type: "weg" });
       setIsCreateBuildingOpen(false);
       
       toast({
-        title: "Gebäude erstellt",
-        description: "Das Gebäude wurde erfolgreich erstellt.",
+        title: "Erfolg",
+        description: "Gebäude wurde erfolgreich erstellt.",
       });
-    } catch (error) {
-      console.error('Error creating building:', error);
+    } catch (error: any) {
+      console.error("Error creating building:", error);
       toast({
         title: "Fehler",
         description: "Gebäude konnte nicht erstellt werden.",
@@ -141,79 +202,257 @@ export const Buildings = () => {
     }
   };
 
-  const createWegOwner = async () => {
-    if (!ownerForm.email || !ownerForm.first_name || !ownerForm.last_name || !ownerForm.phone || !ownerForm.password) {
+  const updateBuilding = async () => {
+    if (!editingBuilding) return;
+
+    try {
+      const { data, error } = await supabase
+        .from("buildings")
+        .update({
+          name: buildingForm.name,
+          address: buildingForm.address,
+          type: buildingForm.type
+        })
+        .eq("id", editingBuilding.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setBuildings(prev => prev.map(b => b.id === editingBuilding.id ? data : b));
+      setIsEditBuildingOpen(false);
+      setEditingBuilding(null);
+      
+      toast({
+        title: "Erfolg",
+        description: "Gebäude wurde erfolgreich aktualisiert.",
+      });
+    } catch (error: any) {
+      console.error("Error updating building:", error);
       toast({
         title: "Fehler",
-        description: "Bitte füllen Sie alle Felder aus.",
+        description: "Gebäude konnte nicht aktualisiert werden.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const deleteBuilding = async (buildingId: string) => {
+    try {
+      const { error } = await supabase
+        .from("buildings")
+        .delete()
+        .eq("id", buildingId);
+
+      if (error) throw error;
+
+      setBuildings(prev => prev.filter(b => b.id !== buildingId));
+      
+      toast({
+        title: "Erfolg",
+        description: "Gebäude wurde erfolgreich gelöscht.",
+      });
+    } catch (error: any) {
+      console.error("Error deleting building:", error);
+      toast({
+        title: "Fehler",
+        description: "Gebäude konnte nicht gelöscht werden.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const createUser = async () => {
+    if (!userForm.email || !userForm.password || !selectedBuildingId) {
+      toast({
+        title: "Fehler",
+        description: "Bitte füllen Sie alle Pflichtfelder aus.",
         variant: "destructive",
       });
       return;
     }
 
-    if (ownerForm.password.length < 8) {
+    if (userForm.password.length < 6) {
       toast({
         title: "Fehler",
-        description: "Das Passwort muss mindestens 8 Zeichen lang sein.",
+        description: "Das Passwort muss mindestens 6 Zeichen lang sein.",
         variant: "destructive",
       });
       return;
     }
 
     try {
-      const { data, error } = await supabase
-        .from('weg_owners')
-        .insert([{
-          email: ownerForm.email,
-          first_name: ownerForm.first_name,
-          last_name: ownerForm.last_name,
-          phone: ownerForm.phone
-        }])
-        .select()
-        .single();
+      // Create user in auth
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        email: userForm.email,
+        password: userForm.password,
+        email_confirm: true,
+        user_metadata: {
+          first_name: userForm.first_name,
+          last_name: userForm.last_name,
+        }
+      });
 
-      if (error) throw error;
+      if (authError) throw authError;
 
-      // Update local state
-      setWegOwners(prev => ({
-        ...prev,
-        [selectedBuildingId]: [data, ...(prev[selectedBuildingId] || [])]
-      }));
-      
-      setOwnerForm({ email: "", first_name: "", last_name: "", phone: "", password: "" });
-      setIsCreateOwnerOpen(false);
+      if (managementMode === 'weg') {
+        // Create WEG owner
+        const { data, error } = await supabase
+          .from("weg_owners")
+          .insert([{
+            email: userForm.email,
+            first_name: userForm.first_name,
+            last_name: userForm.last_name,
+            phone: userForm.phone,
+          }])
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        setWegOwners(prev => ({
+          ...prev,
+          [selectedBuildingId]: [...(prev[selectedBuildingId] || []), data]
+        }));
+      } else {
+        // Create tenant with profile
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .insert([{
+            user_id: authData.user.id,
+            email: userForm.email,
+            first_name: userForm.first_name,
+            last_name: userForm.last_name,
+            role: 'tenant',
+            building_id: selectedBuildingId,
+            force_password_change: false
+          }]);
+
+        if (profileError) throw profileError;
+
+        const { data, error } = await supabase
+          .from("tenants")
+          .insert([{
+            user_id: authData.user.id,
+            building_id: selectedBuildingId,
+            email: userForm.email,
+            first_name: userForm.first_name,
+            last_name: userForm.last_name,
+            phone: userForm.phone,
+          }])
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        setTenants(prev => ({
+          ...prev,
+          [selectedBuildingId]: [...(prev[selectedBuildingId] || []), data]
+        }));
+      }
+
+      setUserForm({ email: "", password: "", first_name: "", last_name: "", phone: "" });
+      setIsCreateUserOpen(false);
       setSelectedBuildingId("");
       
       toast({
-        title: "WEG-Eigentümer erstellt",
-        description: "Der WEG-Eigentümer wurde erfolgreich erstellt.",
+        title: "Erfolg",
+        description: `${managementMode === 'weg' ? 'WEG-Eigentümer' : 'Mieter'} wurde erfolgreich erstellt.`,
       });
-    } catch (error) {
-      console.error('Error creating WEG owner:', error);
+    } catch (error: any) {
+      console.error("Error creating user:", error);
       toast({
         title: "Fehler",
-        description: "WEG-Eigentümer konnte nicht erstellt werden.",
+        description: `${managementMode === 'weg' ? 'WEG-Eigentümer' : 'Mieter'} konnte nicht erstellt werden.`,
         variant: "destructive",
       });
     }
   };
 
+  const deleteUser = async (userId: string, userType: 'weg' | 'tenant') => {
+    try {
+      if (userType === 'weg') {
+        const { error } = await supabase
+          .from("weg_owners")
+          .delete()
+          .eq("id", userId);
+
+        if (error) throw error;
+
+        setWegOwners(prev => {
+          const updated = { ...prev };
+          Object.keys(updated).forEach(buildingId => {
+            updated[buildingId] = updated[buildingId].filter(owner => owner.id !== userId);
+          });
+          return updated;
+        });
+      } else {
+        const { error } = await supabase
+          .from("tenants")
+          .delete()
+          .eq("id", userId);
+
+        if (error) throw error;
+
+        setTenants(prev => {
+          const updated = { ...prev };
+          Object.keys(updated).forEach(buildingId => {
+            updated[buildingId] = updated[buildingId].filter(tenant => tenant.id !== userId);
+          });
+          return updated;
+        });
+      }
+      
+      toast({
+        title: "Erfolg",
+        description: `${userType === 'weg' ? 'WEG-Eigentümer' : 'Mieter'} wurde erfolgreich gelöscht.`,
+      });
+    } catch (error: any) {
+      console.error("Error deleting user:", error);
+      toast({
+        title: "Fehler",
+        description: `${userType === 'weg' ? 'WEG-Eigentümer' : 'Mieter'} konnte nicht gelöscht werden.`,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const openEditBuilding = (building: Building) => {
+    setEditingBuilding(building);
+    setBuildingForm({
+      name: building.name,
+      address: building.address,
+      type: building.type
+    });
+    setIsEditBuildingOpen(true);
+  };
+
+  const openEditUser = (user: WegOwner | Tenant) => {
+    setEditingUser(user);
+    setUserForm({
+      email: user.email,
+      password: "",
+      first_name: user.first_name || "",
+      last_name: user.last_name || "",
+      phone: user.phone || "",
+    });
+    setIsEditUserOpen(true);
+  };
+
   const getTypeBadge = (type: string) => {
-    const variants = {
-      weg: "default",
-      rent: "secondary"
-    } as const;
-    
-    const labels = {
-      weg: "WEG",
-      rent: "Mietverwaltung"
-    };
-    
     return (
-      <Badge variant={variants[type as keyof typeof variants]}>
-        {labels[type as keyof typeof labels]}
+      <Badge variant={type === "weg" ? "default" : "secondary"}>
+        {type === "weg" ? "WEG" : "Miete"}
       </Badge>
     );
+  };
+
+  const getUserCount = () => {
+    if (managementMode === 'weg') {
+      return Object.values(wegOwners).flat().length;
+    } else {
+      return Object.values(tenants).flat().length;
+    }
   };
 
   if (profile?.role !== 'admin') {
@@ -237,255 +476,426 @@ export const Buildings = () => {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Gebäude</h1>
-          <p className="text-muted-foreground">Verwalten Sie Ihre Gebäude und WEG-Eigentümer</p>
+          <h1 className="text-3xl font-bold tracking-tight">
+            {managementMode === 'weg' ? 'WEG-Verwaltung' : 'Mietverwaltung'}
+          </h1>
+          <p className="text-muted-foreground">
+            Verwalten Sie Ihre {managementMode === 'weg' ? 'WEG-Gebäude und Eigentümer' : 'Mietgebäude und Mieter'}
+          </p>
         </div>
         <Dialog open={isCreateBuildingOpen} onOpenChange={setIsCreateBuildingOpen}>
           <DialogTrigger asChild>
-            <Button className="btn-apple">
-              <Plus className="mr-2 h-4 w-4" />
+            <Button className="bg-gradient-primary text-white hover:scale-105 transition-all duration-200">
+              <Plus className="h-4 w-4 mr-2" />
               Neues Gebäude
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
               <DialogTitle>Neues Gebäude erstellen</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="name">Name</Label>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="name">Name *</Label>
                 <Input
                   id="name"
                   value={buildingForm.name}
-                  onChange={(e) => setBuildingForm(prev => ({ ...prev, name: e.target.value }))}
-                  placeholder="Gebäudename eingeben"
+                  onChange={(e) => setBuildingForm(prev => ({...prev, name: e.target.value}))}
+                  placeholder="Gebäudename"
                 />
               </div>
-              <div>
-                <Label htmlFor="address">Adresse</Label>
+              <div className="grid gap-2">
+                <Label htmlFor="address">Adresse *</Label>
                 <Input
                   id="address"
                   value={buildingForm.address}
-                  onChange={(e) => setBuildingForm(prev => ({ ...prev, address: e.target.value }))}
-                  placeholder="Adresse eingeben"
+                  onChange={(e) => setBuildingForm(prev => ({...prev, address: e.target.value}))}
+                  placeholder="Straße, PLZ Ort"
                 />
               </div>
-              <div>
-                <Label htmlFor="management_mode">Verwaltungsart</Label>
-                <Select
-                  value={buildingForm.management_mode}
-                  onValueChange={(value: "weg" | "rent") => setBuildingForm(prev => ({ 
-                    ...prev, 
-                    management_mode: value,
-                    type: value
-                  }))}
+              <div className="grid gap-2">
+                <Label htmlFor="type">Typ</Label>
+                <Select 
+                  value={buildingForm.type} 
+                  onValueChange={(value) => setBuildingForm(prev => ({...prev, type: value}))}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="weg">WEG-Verwaltung</SelectItem>
-                    <SelectItem value="rent">Mietverwaltung</SelectItem>
+                    <SelectItem value="weg">WEG</SelectItem>
+                    <SelectItem value="rent">Miete</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={createBuilding} className="w-full btn-apple">
-                Gebäude erstellen
+            </div>
+            <div className="flex gap-2">
+              <Button 
+                onClick={createBuilding}
+                className="flex-1 bg-gradient-primary text-white hover:scale-105 transition-all duration-200"
+              >
+                Erstellen
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={() => setIsCreateBuildingOpen(false)}
+                className="flex-1"
+              >
+                Abbrechen
               </Button>
             </div>
           </DialogContent>
         </Dialog>
       </div>
 
-      {/* Statistics Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {/* Statistics */}
+      <div className="grid gap-4 md:grid-cols-4">
         <Card className="dashboard-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Gesamt Gebäude</CardTitle>
+            <CardTitle className="text-sm font-medium">Gebäude gesamt</CardTitle>
             <Building2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{buildings.length}</div>
           </CardContent>
         </Card>
+        
         <Card className="dashboard-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">WEG Gebäude</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              {managementMode === 'weg' ? 'WEG-Gebäude' : 'Mietgebäude'}
+            </CardTitle>
             <Home className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {buildings.filter(b => b.management_mode === 'weg').length}
-            </div>
+            <div className="text-2xl font-bold">{buildings.filter(b => b.type === managementMode).length}</div>
           </CardContent>
         </Card>
+        
         <Card className="dashboard-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Mietgebäude</CardTitle>
-            <Building2 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {buildings.filter(b => b.management_mode === 'rent').length}
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="dashboard-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">WEG-Eigentümer</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              {managementMode === 'weg' ? 'WEG-Eigentümer' : 'Mieter'} gesamt
+            </CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {Object.values(wegOwners).reduce((total, owners) => total + owners.length, 0)}
-            </div>
+            <div className="text-2xl font-bold">{getUserCount()}</div>
+          </CardContent>
+        </Card>
+
+        <Card className="dashboard-card">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Aktive Verwaltung</CardTitle>
+            <User className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{managementMode === 'weg' ? 'WEG' : 'Miete'}</div>
           </CardContent>
         </Card>
       </div>
 
       {/* Buildings List */}
-      <div className="space-y-4">
-        {buildings.map((building) => (
-          <Card key={building.id} className="dashboard-card">
-            <CardHeader>
-              <div className="flex justify-between items-start">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    {building.name}
-                    {getTypeBadge(building.type)}
-                  </CardTitle>
-                  <CardDescription>{building.address}</CardDescription>
+      {buildings.length === 0 ? (
+        <Card className="dashboard-card">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Keine Gebäude gefunden</h3>
+            <p className="text-muted-foreground text-center mb-4">
+              Erstellen Sie Ihr erstes {managementMode === 'weg' ? 'WEG-' : 'Miet-'}Gebäude, um zu beginnen.
+            </p>
+            <Dialog open={isCreateBuildingOpen} onOpenChange={setIsCreateBuildingOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-gradient-primary text-white hover:scale-105 transition-all duration-200">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Erstes Gebäude erstellen
+                </Button>
+              </DialogTrigger>
+            </Dialog>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-6">
+          {buildings.map((building) => (
+            <Card key={building.id} className="dashboard-card">
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      {building.name}
+                      {getTypeBadge(building.type)}
+                    </CardTitle>
+                    <CardDescription>{building.address}</CardDescription>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openEditBuilding(building)}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Gebäude löschen</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Sind Sie sicher, dass Sie dieses Gebäude löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => deleteBuilding(building.id)}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            Löschen
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 </div>
-                {building.management_mode === 'weg' && (
-                  <Dialog open={isCreateOwnerOpen && selectedBuildingId === building.id} 
-                         onOpenChange={(open) => {
-                           setIsCreateOwnerOpen(open);
-                           if (open) setSelectedBuildingId(building.id);
-                           else setSelectedBuildingId("");
-                         }}>
+              </CardHeader>
+              <CardContent>
+                <div className="flex justify-between items-center mb-4">
+                  <h4 className="font-medium">
+                    {managementMode === 'weg' ? 'WEG-Eigentümer' : 'Mieter'} ({managementMode === 'weg' 
+                      ? (wegOwners[building.id]?.length || 0) 
+                      : (tenants[building.id]?.length || 0)})
+                  </h4>
+                  <Dialog open={isCreateUserOpen} onOpenChange={setIsCreateUserOpen}>
                     <DialogTrigger asChild>
-                      <Button variant="outline" size="sm" className="btn-apple">
-                        <Plus className="mr-2 h-4 w-4" />
-                        WEG-Eigentümer hinzufügen
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => setSelectedBuildingId(building.id)}
+                        className="hover:scale-105 transition-all duration-200"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        {managementMode === 'weg' ? 'Eigentümer hinzufügen' : 'Mieter hinzufügen'}
                       </Button>
                     </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>WEG-Eigentümer hinzufügen</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <div>
-                          <Label htmlFor="owner-email">E-Mail</Label>
-                          <Input
-                            id="owner-email"
-                            type="email"
-                            value={ownerForm.email}
-                            onChange={(e) => setOwnerForm(prev => ({ ...prev, email: e.target.value }))}
-                            placeholder="E-Mail-Adresse eingeben"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="owner-first-name">Vorname</Label>
-                          <Input
-                            id="owner-first-name"
-                            value={ownerForm.first_name}
-                            onChange={(e) => setOwnerForm(prev => ({ ...prev, first_name: e.target.value }))}
-                            placeholder="Vorname eingeben"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="owner-last-name">Nachname</Label>
-                          <Input
-                            id="owner-last-name"
-                            value={ownerForm.last_name}
-                            onChange={(e) => setOwnerForm(prev => ({ ...prev, last_name: e.target.value }))}
-                            placeholder="Nachname eingeben"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="owner-phone">Telefonnummer</Label>
-                          <Input
-                            id="owner-phone"
-                            type="tel"
-                            value={ownerForm.phone}
-                            onChange={(e) => setOwnerForm(prev => ({ ...prev, phone: e.target.value }))}
-                            placeholder="+49 123 456789"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="owner-password">Passwort</Label>
-                          <Input
-                            id="owner-password"
-                            type="password"
-                            value={ownerForm.password}
-                            onChange={(e) => setOwnerForm(prev => ({ ...prev, password: e.target.value }))}
-                            placeholder="Mindestens 8 Zeichen"
-                          />
-                        </div>
-                        <Button onClick={createWegOwner} className="w-full btn-apple">
-                          WEG-Eigentümer erstellen
-                        </Button>
-                      </div>
-                    </DialogContent>
                   </Dialog>
-                )}
-              </div>
-            </CardHeader>
-            {building.management_mode === 'weg' && wegOwners[building.id] && wegOwners[building.id].length > 0 && (
-              <CardContent>
-                <div className="space-y-2">
-                  <h4 className="font-medium">WEG-Eigentümer ({wegOwners[building.id].length})</h4>
+                </div>
+
+                {/* Users Table */}
+                {((managementMode === 'weg' && wegOwners[building.id]?.length > 0) || 
+                  (managementMode === 'rent' && tenants[building.id]?.length > 0)) && (
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Name</TableHead>
                         <TableHead>E-Mail</TableHead>
                         <TableHead>Telefon</TableHead>
-                        <TableHead>Erstellt am</TableHead>
+                        <TableHead className="text-right">Aktionen</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {wegOwners[building.id].map((owner) => (
-                        <TableRow key={owner.id}>
+                      {(managementMode === 'weg' ? wegOwners[building.id] || [] : tenants[building.id] || []).map((user) => (
+                        <TableRow key={user.id}>
                           <TableCell>
-                            {owner.first_name || owner.last_name 
-                              ? `${owner.first_name || ''} ${owner.last_name || ''}`.trim()
-                              : '-'
-                            }
+                            {user.first_name || user.last_name 
+                              ? `${user.first_name || ''} ${user.last_name || ''}`.trim()
+                              : '-'}
                           </TableCell>
-                          <TableCell>{owner.email}</TableCell>
-                          <TableCell>{owner.phone || '-'}</TableCell>
-                          <TableCell>
-                            {new Date(owner.created_at).toLocaleDateString('de-DE')}
+                          <TableCell>{user.email}</TableCell>
+                          <TableCell>{user.phone || '-'}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex gap-2 justify-end">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => openEditUser(user)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="outline" size="sm">
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>
+                                      {managementMode === 'weg' ? 'WEG-Eigentümer' : 'Mieter'} löschen
+                                    </AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Sind Sie sicher, dass Sie diesen {managementMode === 'weg' ? 'WEG-Eigentümer' : 'Mieter'} löschen möchten?
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => deleteUser(user.id, managementMode === 'weg' ? 'weg' : 'tenant')}
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    >
+                                      Löschen
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
                   </Table>
-                </div>
+                )}
               </CardContent>
-            )}
-          </Card>
-        ))}
-      </div>
-
-      {buildings.length === 0 && (
-        <Card className="dashboard-card">
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
-            <h3 className="text-lg font-medium mb-2">Keine Gebäude vorhanden</h3>
-            <p className="text-muted-foreground text-center mb-4">
-              Erstellen Sie Ihr erstes Gebäude, um mit der Verwaltung zu beginnen.
-            </p>
-            <Button onClick={() => setIsCreateBuildingOpen(true)} className="btn-apple">
-              <Plus className="mr-2 h-4 w-4" />
-              Erstes Gebäude erstellen
-            </Button>
-          </CardContent>
-        </Card>
+            </Card>
+          ))}
+        </div>
       )}
+
+      {/* Create User Dialog */}
+      <Dialog open={isCreateUserOpen} onOpenChange={setIsCreateUserOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>
+              {managementMode === 'weg' ? 'Neuen WEG-Eigentümer hinzufügen' : 'Neuen Mieter hinzufügen'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="email">E-Mail *</Label>
+              <Input
+                id="email"
+                type="email"
+                value={userForm.email}
+                onChange={(e) => setUserForm(prev => ({...prev, email: e.target.value}))}
+                placeholder="user@example.com"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="password">Passwort *</Label>
+              <Input
+                id="password"
+                type="password"
+                value={userForm.password}
+                onChange={(e) => setUserForm(prev => ({...prev, password: e.target.value}))}
+                placeholder="Mindestens 6 Zeichen"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="first_name">Vorname</Label>
+                <Input
+                  id="first_name"
+                  value={userForm.first_name}
+                  onChange={(e) => setUserForm(prev => ({...prev, first_name: e.target.value}))}
+                  placeholder="Vorname"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="last_name">Nachname</Label>
+                <Input
+                  id="last_name"
+                  value={userForm.last_name}
+                  onChange={(e) => setUserForm(prev => ({...prev, last_name: e.target.value}))}
+                  placeholder="Nachname"
+                />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="phone">Telefon</Label>
+              <Input
+                id="phone"
+                value={userForm.phone}
+                onChange={(e) => setUserForm(prev => ({...prev, phone: e.target.value}))}
+                placeholder="+49 123 456789"
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button 
+              onClick={createUser}
+              className="flex-1 bg-gradient-primary text-white hover:scale-105 transition-all duration-200"
+            >
+              Erstellen
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setIsCreateUserOpen(false);
+                setSelectedBuildingId("");
+                setUserForm({ email: "", password: "", first_name: "", last_name: "", phone: "" });
+              }}
+              className="flex-1"
+            >
+              Abbrechen
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Building Dialog */}
+      <Dialog open={isEditBuildingOpen} onOpenChange={setIsEditBuildingOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Gebäude bearbeiten</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-name">Name *</Label>
+              <Input
+                id="edit-name"
+                value={buildingForm.name}
+                onChange={(e) => setBuildingForm(prev => ({...prev, name: e.target.value}))}
+                placeholder="Gebäudename"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-address">Adresse *</Label>
+              <Input
+                id="edit-address"
+                value={buildingForm.address}
+                onChange={(e) => setBuildingForm(prev => ({...prev, address: e.target.value}))}
+                placeholder="Straße, PLZ Ort"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-type">Typ</Label>
+              <Select 
+                value={buildingForm.type} 
+                onValueChange={(value) => setBuildingForm(prev => ({...prev, type: value}))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="weg">WEG</SelectItem>
+                  <SelectItem value="rent">Miete</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button 
+              onClick={updateBuilding}
+              className="flex-1 bg-gradient-primary text-white hover:scale-105 transition-all duration-200"
+            >
+              Speichern
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsEditBuildingOpen(false)}
+              className="flex-1"
+            >
+              Abbrechen
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
