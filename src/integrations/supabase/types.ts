@@ -21,6 +21,7 @@ export type Database = {
           id: string
           management_mode: Database["public"]["Enums"]["management_mode"]
           name: string
+          type: string | null
           updated_at: string | null
         }
         Insert: {
@@ -29,6 +30,7 @@ export type Database = {
           id?: string
           management_mode: Database["public"]["Enums"]["management_mode"]
           name: string
+          type?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -37,6 +39,7 @@ export type Database = {
           id?: string
           management_mode?: Database["public"]["Enums"]["management_mode"]
           name?: string
+          type?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -114,6 +117,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          building_id: string | null
           created_at: string | null
           email: string
           first_name: string | null
@@ -125,6 +129,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          building_id?: string | null
           created_at?: string | null
           email: string
           first_name?: string | null
@@ -136,6 +141,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          building_id?: string | null
           created_at?: string | null
           email?: string
           first_name?: string | null
@@ -146,7 +152,15 @@ export type Database = {
           updated_at?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       reports: {
         Row: {
@@ -160,6 +174,7 @@ export type Database = {
           status: string | null
           title: string
           updated_at: string | null
+          weg_owner_id: string | null
         }
         Insert: {
           building_id?: string | null
@@ -172,6 +187,7 @@ export type Database = {
           status?: string | null
           title: string
           updated_at?: string | null
+          weg_owner_id?: string | null
         }
         Update: {
           building_id?: string | null
@@ -184,6 +200,7 @@ export type Database = {
           status?: string | null
           title?: string
           updated_at?: string | null
+          weg_owner_id?: string | null
         }
         Relationships: [
           {
@@ -193,7 +210,41 @@ export type Database = {
             referencedRelation: "buildings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "reports_weg_owner_id_fkey"
+            columns: ["weg_owner_id"]
+            isOneToOne: false
+            referencedRelation: "weg_owners"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      weg_owners: {
+        Row: {
+          created_at: string | null
+          email: string
+          first_name: string | null
+          id: string
+          last_name: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
     }
     Views: {
