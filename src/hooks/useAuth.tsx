@@ -87,7 +87,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   useEffect(() => {
     if (user && !profile) {
-      fetchProfile();
+      setTimeout(() => {
+        fetchProfile();
+      }, 0);
     } else if (!user) {
       setProfile(null);
     }

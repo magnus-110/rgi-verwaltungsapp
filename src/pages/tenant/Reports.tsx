@@ -80,7 +80,7 @@ export const TenantReports = () => {
           description: reportForm.description,
           priority: reportForm.priority,
           reported_by: profile?.user_id,
-          building_id: profile?.user_id,
+          building_id: profile?.user_id, // Mieter sind mit ihrem Gebäude verknüpft
           management_mode: 'rent',
           status: 'open'
         }])

@@ -13,8 +13,8 @@ export const Login = () => {
   const { signIn, user, profile } = useAuth();
 
   // Redirect authenticated users
-  if (user) {
-    if (profile?.force_password_change) {
+  if (user && profile) {
+    if (profile.force_password_change) {
       return <Navigate to="/change-password" replace />;
     }
     return <Navigate to="/" replace />;

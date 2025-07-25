@@ -83,6 +83,20 @@ export const TenantDashboard = () => {
         <p className="text-lg text-muted-foreground">
           Hier finden Sie eine Übersicht über Ihre Meldungen und Aktivitäten.
         </p>
+        {/* Building Info */}
+        <Card className="bg-primary/5 border-primary/20">
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <Building2 className="h-5 w-5 text-primary" />
+              <div>
+                <p className="font-medium">Ihr Gebäude</p>
+                <p className="text-sm text-muted-foreground">
+                  Gebäude-ID: {profile?.user_id ? profile.user_id.slice(-8) : 'Nicht zugeordnet'}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Statistics Cards */}
