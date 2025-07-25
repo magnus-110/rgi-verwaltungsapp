@@ -41,12 +41,16 @@ export const WegOwnerSidebar = () => {
     <Sidebar className="border-r border-border bg-card">
       <SidebarHeader className="p-6">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-sm">RGI</span>
-          </div>
-          <div>
-            <h2 className="font-semibold text-foreground">RGI Immobilien</h2>
-            <p className="text-xs text-muted-foreground">WEG-Eigentümer</p>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-orange-600 rounded-md flex items-center justify-center">
+              <span className="text-white font-bold text-xs">RGI</span>
+            </div>
+            <div>
+              <h2 className="font-bold text-foreground text-base leading-tight">
+                <span className="text-orange-500">RGI</span> <span className="text-gray-700">IMMOBILIEN</span>
+              </h2>
+              <p className="text-xs text-muted-foreground leading-tight">WEG-Eigentümer</p>
+            </div>
           </div>
         </div>
       </SidebarHeader>
