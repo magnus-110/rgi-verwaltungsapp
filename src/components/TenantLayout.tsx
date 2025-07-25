@@ -1,13 +1,13 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { WegOwnerSidebar } from "./WegOwnerSidebar";
+import { TenantSidebar } from "./TenantSidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 
-interface WegOwnerLayoutProps {
+interface TenantLayoutProps {
   children: React.ReactNode;
 }
 
-export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
+export const TenantLayout = ({ children }: TenantLayoutProps) => {
   const { user, profile, loading } = useAuth();
 
   if (loading) {
@@ -26,7 +26,7 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
     return <Navigate to="/change-password" replace />;
   }
 
-  if (profile?.role !== 'weg_owner') {
+  if (profile?.role !== 'tenant') {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -40,11 +40,11 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
-        <WegOwnerSidebar />
+        <TenantSidebar />
         <main className="flex-1 flex flex-col">
           <header className="h-16 border-b bg-background flex items-center px-4">
             <SidebarTrigger className="mr-4" />
-            <h1 className="text-xl font-semibold">WEG-Eigentümer Portal</h1>
+            <h1 className="text-xl font-semibold">Mieter Portal</h1>
           </header>
           <div className="flex-1 p-6 bg-muted/30">
             {children}

@@ -47,7 +47,7 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
           onModeChange={setManagementMode} 
         />
         <main className="flex-1 flex flex-col">
-          <header className="h-14 border-b bg-background flex items-center px-4">
+          <header className="h-16 border-b bg-background flex items-center px-4">
             <SidebarTrigger className="mr-4" />
             <h1 className="text-xl font-semibold">
               {managementMode === 'weg' ? 'WEG-Verwaltung' : 'Mietverwaltung'}

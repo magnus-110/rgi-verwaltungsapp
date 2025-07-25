@@ -13,26 +13,28 @@ import {
 import { 
   Home, 
   AlertCircle, 
+  MessageSquare,
   Bot, 
   Settings,
   LogOut 
 } from "lucide-react";
 
-export const WegOwnerSidebar = () => {
+export const TenantSidebar = () => {
   const { signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   const menuItems = [
-    { icon: Home, label: "Dashboard", path: "/weg-owner" },
-    { icon: AlertCircle, label: "Meldungen", path: "/weg-owner/reports" },
-    { icon: Bot, label: "KI-Chatbot", path: "/weg-owner/chatbot" },
-    { icon: Settings, label: "Einstellungen", path: "/weg-owner/settings" },
+    { icon: Home, label: "Dashboard", path: "/tenant" },
+    { icon: AlertCircle, label: "Meldungen", path: "/tenant/reports" },
+    { icon: MessageSquare, label: "Forum", path: "/tenant/forum" },
+    { icon: Bot, label: "KI-Chatbot", path: "/tenant/chatbot" },
+    { icon: Settings, label: "Einstellungen", path: "/tenant/settings" },
   ];
 
   const isActivePath = (path: string) => {
-    if (path === "/weg-owner") {
-      return location.pathname === "/weg-owner";
+    if (path === "/tenant") {
+      return location.pathname === "/tenant";
     }
     return location.pathname.startsWith(path);
   };
@@ -45,11 +47,11 @@ export const WegOwnerSidebar = () => {
             <img 
               src="/lovable-uploads/c277a1e9-0f05-4981-b003-702e438b2faa.png" 
               alt="RGI Immobilien Logo" 
-              className="h-8 w-auto object-contain"
+              className="h-10 w-auto object-contain"
             />
           </div>
         </div>
-        <p className="text-xs text-muted-foreground mt-2">WEG-Eigentümer Portal</p>
+        <p className="text-xs text-muted-foreground mt-2">Mieter Portal</p>
       </SidebarHeader>
 
       <SidebarContent className="px-3">

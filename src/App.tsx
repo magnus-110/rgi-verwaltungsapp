@@ -18,6 +18,12 @@ import { WegOwnerLayout } from "./components/WegOwnerLayout";
 import { WegOwnerDashboard } from "./pages/weg-owner/Dashboard";
 import { WegOwnerReports } from "./pages/weg-owner/Reports";
 import { WegOwnerChatbot } from "./pages/weg-owner/Chatbot";
+import { TenantLayout } from "./components/TenantLayout";
+import { TenantDashboard } from "./pages/tenant/Dashboard";
+import { TenantReports } from "./pages/tenant/Reports";
+import { TenantForum } from "./pages/tenant/Forum";
+import { TenantChatbot } from "./pages/tenant/Chatbot";
+import { TenantSettings } from "./pages/tenant/Settings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -56,6 +62,13 @@ const App = () => (
             <Route path="/weg-owner/reports" element={<WegOwnerLayout><WegOwnerReports /></WegOwnerLayout>} />
             <Route path="/weg-owner/chatbot" element={<WegOwnerLayout><WegOwnerChatbot /></WegOwnerLayout>} />
             <Route path="/weg-owner/settings" element={<WegOwnerLayout><Settings /></WegOwnerLayout>} />
+            
+            {/* Tenant Routes */}
+            <Route path="/tenant" element={<TenantLayout><TenantDashboard /></TenantLayout>} />
+            <Route path="/tenant/reports" element={<TenantLayout><TenantReports /></TenantLayout>} />
+            <Route path="/tenant/forum" element={<TenantLayout><TenantForum /></TenantLayout>} />
+            <Route path="/tenant/chatbot" element={<TenantLayout><TenantChatbot /></TenantLayout>} />
+            <Route path="/tenant/settings" element={<TenantLayout><TenantSettings /></TenantLayout>} />
             
             <Route path="*" element={<NotFound />} />
           </Routes>

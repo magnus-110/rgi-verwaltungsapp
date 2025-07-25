@@ -297,6 +297,24 @@ export const Buildings = () => {
       if (authError) throw authError;
 
       if (managementMode === 'weg') {
+        // For WEG owners, create profile entry if user was created
+        if (authData.user) {
+          const { error: profileError } = await supabase
+            .from("profiles")
+            .insert([{
+              user_id: authData.user.id,
+              email: userForm.email,
+              first_name: userForm.first_name,
+              last_name: userForm.last_name,
+              role: 'weg_owner',
+              force_password_change: false
+            }]);
+
+          if (profileError) {
+            console.warn("Profile creation failed:", profileError);
+          }
+        }
+
         // Create WEG owner entry
         const { data, error } = await supabase
           .from("weg_owners")
