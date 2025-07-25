@@ -29,14 +29,31 @@ export const TenantDashboard = () => {
 
   const fetchTenantInfo = async () => {
     try {
+      // Try to get building info from profile first (using type assertion since building_id exists in DB)
+      const profileWithBuilding = profile as any;
+      if (profileWithBuilding?.building_id) {
+        const { data: buildingData, error: buildingError } = await supabase
+          .from("buildings")
+          .select("id, name, address")
+          .eq("id", profileWithBuilding.building_id)
+          .single();
+
+        if (!buildingError && buildingData) {
+          setTenantInfo({ buildings: buildingData });
+          return;
+        }
+      }
+
+      // Fallback: try to get from tenants table
       const { data: tenantData, error: tenantError } = await supabase
         .from("tenants")
         .select("*, buildings(id, name, address)")
         .eq("user_id", profile?.user_id)
-        .single();
+        .maybeSingle();
 
-      if (tenantError) throw tenantError;
-      setTenantInfo(tenantData);
+      if (!tenantError && tenantData) {
+        setTenantInfo(tenantData);
+      }
     } catch (error) {
       console.error("Error fetching tenant info:", error);
     }

@@ -1,40 +1,24 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertCircle, Clock, CheckCircle, Plus } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useManagementMode } from "@/hooks/useManagementMode";
 
-const reportsMockData = [
-  {
-    id: 1,
-    title: "Heizungsausfall Gebäude A",
-    description: "Kompletter Heizungsausfall in der Wohnanlage Musterstraße 123",
-    status: "open",
-    priority: "high",
-    building: "Musterstraße 123",
-    reporter: "Hans Müller",
-    created: "2024-01-24 09:15",
-  },
-  {
-    id: 2,
-    title: "Wasserschaden im Keller",
-    description: "Wasserrohrbruch im Kellergeschoss, Notfallreparatur erforderlich",
-    status: "in_progress",
-    priority: "critical",
-    building: "Gartenweg 45",
-    reporter: "Maria Schmidt",
-    created: "2024-01-23 16:45",
-  },
-  {
-    id: 3,
-    title: "Aufzug Wartung überfällig",
-    description: "Regelmäßige Wartung des Aufzugs ist überfällig",
-    status: "resolved",
-    priority: "medium",
-    building: "Parkstraße 67",
-    reporter: "System",
-    created: "2024-01-22 10:30",
-  },
-];
+interface Report {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  priority: string;
+  contact_name: string;
+  contact_email: string;
+  contact_phone: string;
+  contact_address: string;
+  created_at: string;
+  updated_at: string;
+}
 
 const getStatusBadge = (status: string) => {
   switch (status) {
@@ -65,6 +49,36 @@ const getPriorityBadge = (priority: string) => {
 };
 
 export const Reports = () => {
+  const { managementMode } = useManagementMode();
+  const [reports, setReports] = useState<Report[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchReports();
+  }, [managementMode]);
+
+  const fetchReports = async () => {
+    try {
+      setLoading(true);
+      const tableName = managementMode === "weg" ? "weg_reports" : "miete_reports";
+      
+      const { data, error } = await supabase
+        .from(tableName)
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setReports(data || []);
+    } catch (error) {
+      console.error("Error fetching reports:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openReports = reports.filter(r => r.status === "open").length;
+  const inProgressReports = reports.filter(r => r.status === "in_progress").length;
+  const resolvedReports = reports.filter(r => r.status === "resolved").length;
   return (
     <div className="space-y-6">
         <div className="flex justify-between items-center">
@@ -87,7 +101,7 @@ export const Reports = () => {
               <CardTitle className="text-sm font-medium">Gesamt</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-primary">23</div>
+              <div className="text-2xl font-bold text-primary">{reports.length}</div>
             </CardContent>
           </Card>
           <Card>
@@ -95,7 +109,7 @@ export const Reports = () => {
               <CardTitle className="text-sm font-medium">Offen</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-500">8</div>
+              <div className="text-2xl font-bold text-red-500">{openReports}</div>
             </CardContent>
           </Card>
           <Card>
@@ -103,7 +117,7 @@ export const Reports = () => {
               <CardTitle className="text-sm font-medium">In Bearbeitung</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-500">7</div>
+              <div className="text-2xl font-bold text-orange-500">{inProgressReports}</div>
             </CardContent>
           </Card>
           <Card>
@@ -111,54 +125,65 @@ export const Reports = () => {
               <CardTitle className="text-sm font-medium">Erledigt</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-500">8</div>
+              <div className="text-2xl font-bold text-green-500">{resolvedReports}</div>
             </CardContent>
           </Card>
         </div>
 
         {/* Meldungen Liste */}
         <div className="space-y-4">
-          {reportsMockData.map((report) => (
-            <Card key={report.id} className="hover:shadow-elegant transition-shadow">
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div className="space-y-1">
-                    <CardTitle className="text-lg">{report.title}</CardTitle>
-                    <CardDescription>{report.description}</CardDescription>
+          {loading ? (
+            <div className="text-center py-8">Laden...</div>
+          ) : reports.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">Keine Meldungen vorhanden.</p>
+            </div>
+          ) : (
+            reports.map((report) => (
+              <Card key={report.id} className="hover:shadow-elegant transition-shadow">
+                <CardHeader>
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-1">
+                      <CardTitle className="text-lg">{report.title}</CardTitle>
+                      <CardDescription>{report.description}</CardDescription>
+                    </div>
+                    <div className="flex space-x-2">
+                      {getStatusBadge(report.status)}
+                      {getPriorityBadge(report.priority)}
+                    </div>
                   </div>
-                  <div className="flex space-x-2">
-                    {getStatusBadge(report.status)}
-                    {getPriorityBadge(report.priority)}
+                </CardHeader>
+                <CardContent>
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div>
+                      <p className="text-sm font-medium">Kontakt</p>
+                      <p className="text-sm text-muted-foreground">{report.contact_name}</p>
+                      <p className="text-sm text-muted-foreground">{report.contact_email}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Telefon</p>
+                      <p className="text-sm text-muted-foreground">{report.contact_phone || 'Nicht angegeben'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">Erstellt</p>
+                      <p className="text-sm text-muted-foreground">
+                        {new Date(report.created_at).toLocaleDateString('de-DE')}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div>
-                    <p className="text-sm font-medium">Gebäude</p>
-                    <p className="text-sm text-muted-foreground">{report.building}</p>
+                  <div className="flex space-x-2 mt-4">
+                    <Button variant="outline" size="sm">Details</Button>
+                    <Button variant="outline" size="sm">Bearbeiten</Button>
+                    {report.status === "open" && (
+                      <Button size="sm" className="bg-gradient-primary hover:opacity-90">
+                        Bearbeitung starten
+                      </Button>
+                    )}
                   </div>
-                  <div>
-                    <p className="text-sm font-medium">Gemeldet von</p>
-                    <p className="text-sm text-muted-foreground">{report.reporter}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">Erstellt</p>
-                    <p className="text-sm text-muted-foreground">{report.created}</p>
-                  </div>
-                </div>
-                <div className="flex space-x-2 mt-4">
-                  <Button variant="outline" size="sm">Details</Button>
-                  <Button variant="outline" size="sm">Bearbeiten</Button>
-                  {report.status === "open" && (
-                    <Button size="sm" className="bg-gradient-primary hover:opacity-90">
-                      Bearbeitung starten
-                    </Button>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
     </div>
   );

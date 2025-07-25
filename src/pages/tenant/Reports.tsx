@@ -58,31 +58,51 @@ export const TenantReports = () => {
 
   const fetchTenantInfo = async () => {
     try {
+      // Pre-fill contact info from profile
+      setReportForm(prev => ({
+        ...prev,
+        contact_name: `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim(),
+        contact_email: profile?.email || '',
+      }));
+
+      // Try to get building info from profile first
+      const profileWithBuilding = profile as any;
+      if (profileWithBuilding?.building_id) {
+        const { data: buildingData, error: buildingError } = await supabase
+          .from("buildings")
+          .select("id, name, address")
+          .eq("id", profileWithBuilding.building_id)
+          .single();
+
+        if (!buildingError && buildingData) {
+          setTenantInfo({ buildings: buildingData });
+          setReportForm(prev => ({
+            ...prev,
+            contact_address: buildingData.address || '',
+            building_name: buildingData.name || '',
+          }));
+          return;
+        }
+      }
+
+      // Fallback: try to get from tenants table
       const { data: tenantData, error: tenantError } = await supabase
         .from("tenants")
         .select("*, buildings(id, name, address)")
         .eq("user_id", profile?.user_id)
-        .single();
+        .maybeSingle();
 
-      if (tenantError) throw tenantError;
-
-      setTenantInfo(tenantData);
-      
-      // Prefill contact information from user profile and building data
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("user_id", profile?.user_id)
-        .single();
-
-      setReportForm(prev => ({
-        ...prev,
-        contact_name: `${profileData?.first_name || tenantData.first_name || ''} ${profileData?.last_name || tenantData.last_name || ''}`.trim(),
-        contact_email: profileData?.email || tenantData.email || '',
-        contact_phone: profileData?.phone || tenantData.phone || '',
-        contact_address: tenantData.buildings?.address || '',
-        building_name: tenantData.buildings?.name || '',
-      }));
+      if (!tenantError && tenantData) {
+        setTenantInfo(tenantData);
+        setReportForm(prev => ({
+          ...prev,
+          contact_name: `${tenantData.first_name || ''} ${tenantData.last_name || ''}`.trim() || prev.contact_name,
+          contact_email: tenantData.email || prev.contact_email,
+          contact_phone: tenantData.phone || '',
+          contact_address: tenantData.buildings?.address || '',
+          building_name: tenantData.buildings?.name || '',
+        }));
+      }
     } catch (error) {
       console.error("Error fetching tenant info:", error);
     }

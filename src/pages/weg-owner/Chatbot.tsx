@@ -13,6 +13,42 @@ interface Message {
   timestamp: Date;
 }
 
+const generateResponse = (input: string, buildingId: string): string => {
+  const lowerInput = input.toLowerCase();
+  
+  if (lowerInput.includes("meldung") || lowerInput.includes("problem") || lowerInput.includes("defekt")) {
+    return "Für Meldungen und Reparaturanfragen können Sie im Menü 'Meldungen' eine neue Meldung erstellen. Dort können Sie das Problem detailliert beschreiben und die Priorität festlegen.";
+  }
+  
+  if (lowerInput.includes("verwaltung") || lowerInput.includes("verwalter")) {
+    return buildingId ? 
+      `Verwaltungsinformationen für Gebäude ${buildingId}: Kontaktieren Sie die Hausverwaltung über das Meldungssystem oder direkt per E-Mail.` :
+      "Für Verwaltungsangelegenheiten wenden Sie sich bitte an Ihre Hausverwaltung oder nutzen Sie das Meldungssystem.";
+  }
+  
+  if (lowerInput.includes("kosten") || lowerInput.includes("hausgeld") || lowerInput.includes("nebenkosten")) {
+    return "Fragen zu Hausgeld und Nebenkosten können Sie über das Meldungssystem stellen oder direkt mit der Hausverwaltung klären.";
+  }
+  
+  if (lowerInput.includes("eigentümer") || lowerInput.includes("wohnung")) {
+    return buildingId ? 
+      `Für Gebäude ${buildingId}: Eigentümerinformationen werden aus Datenschutzgründen nur direkt an berechtigte Personen weitergegeben.` :
+      "Eigentümerinformationen können bei der Hausverwaltung erfragt werden. Bitte geben Sie Ihre Gebäude-ID für spezifische Auskünfte an.";
+  }
+  
+  if (lowerInput.includes("heizung") || lowerInput.includes("wartung") || lowerInput.includes("reparatur")) {
+    return "Für Wartungs- und Reparaturangelegenheiten erstellen Sie bitte eine Meldung mit entsprechender Priorität. Bei Notfällen wenden Sie sich direkt an die Hausverwaltung.";
+  }
+  
+  if (buildingId && (lowerInput.includes("gebäude") || lowerInput.includes("information"))) {
+    return `Für Gebäude ${buildingId}: Spezifische Gebäudeinformationen können aus der Datenbank abgerufen werden. Welche Details benötigen Sie?`;
+  }
+  
+  return buildingId ? 
+    `Vielen Dank für Ihre Anfrage zu Gebäude ${buildingId}. Ich helfe Ihnen gerne bei Fragen zu Verwaltung, Meldungen und allgemeinen Informationen. Für spezifische Angelegenheiten nutzen Sie bitte das Meldungssystem.` :
+    "Vielen Dank für Ihre Frage! Ich kann Ihnen bei Verwaltungsangelegenheiten, Meldungen und allgemeinen Informationen helfen. Für gebäudespezifische Auskünfte geben Sie bitte Ihre Gebäude-ID ein.";
+};
+
 export const WegOwnerChatbot = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -40,11 +76,11 @@ export const WegOwnerChatbot = () => {
     setCurrentMessage("");
     setIsTyping(true);
 
-    // Simulate AI response
+    // Simulate AI response based on user input
     setTimeout(() => {
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
-        content: `Vielen Dank für Ihre Anfrage. ${buildingId ? `Für Gebäude ${buildingId}: ` : ''}Ich kann Ihnen bei Fragen zu Ihrem Gebäude, Verwaltungsangelegenheiten und allgemeinen Informationen helfen. Bitte beachten Sie, dass für spezifische Gebäudedaten eine gültige Gebäude-ID erforderlich ist.`,
+        content: generateResponse(currentMessage, buildingId),
         isUser: false,
         timestamp: new Date()
       };
