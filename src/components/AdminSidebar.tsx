@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { 
   LayoutDashboard, 
   AlertCircle, 
@@ -25,7 +25,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import rgiLogo from "@/assets/rgi-logo.png";
 
 const menuItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -64,25 +64,25 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
         <div className="p-6 border-b border-sidebar-border bg-gradient-to-r from-primary/5 to-transparent">
           {!collapsed ? (
             <div className="flex items-center space-x-3 animate-fade-in">
-              <div className="w-10 h-10 bg-gradient-primary rounded-xl flex items-center justify-center shadow-md">
+              <div className="w-12 h-12 bg-gradient-primary rounded-xl flex items-center justify-center shadow-md p-2">
                 <img 
-                  src="/lovable-uploads/8cc4ac02-ecfc-41ef-945a-738115d31106.png" 
-                  alt="RGI" 
-                  className="h-6 w-auto"
+                  src={rgiLogo} 
+                  alt="RGI Immobilien" 
+                  className="w-full h-full object-contain"
                 />
               </div>
               <div>
-                <span className="font-bold text-xl text-foreground">RGI</span>
-                <p className="text-xs text-muted-foreground">Admin Portal</p>
+                <span className="font-bold text-xl text-foreground">RGI Immobilien</span>
+                <p className="text-sm text-muted-foreground">Verwaltungsportal</p>
               </div>
             </div>
           ) : (
             <div className="flex justify-center">
-              <div className="w-10 h-10 bg-gradient-primary rounded-xl flex items-center justify-center shadow-md">
+              <div className="w-12 h-12 bg-gradient-primary rounded-xl flex items-center justify-center shadow-md p-2">
                 <img 
-                  src="/lovable-uploads/8cc4ac02-ecfc-41ef-945a-738115d31106.png" 
-                  alt="RGI" 
-                  className="h-6 w-auto"
+                  src={rgiLogo} 
+                  alt="RGI Immobilien" 
+                  className="w-full h-full object-contain"
                 />
               </div>
             </div>

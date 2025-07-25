@@ -281,8 +281,23 @@ export const Buildings = () => {
     }
 
     try {
+      // Create regular user signup (they need to confirm their email)
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: userForm.email,
+        password: userForm.password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/`,
+          data: {
+            first_name: userForm.first_name,
+            last_name: userForm.last_name,
+          }
+        }
+      });
+
+      if (authError) throw authError;
+
       if (managementMode === 'weg') {
-        // For WEG owners, just create entry in weg_owners table
+        // Create WEG owner entry
         const { data, error } = await supabase
           .from("weg_owners")
           .insert([{
@@ -301,27 +316,44 @@ export const Buildings = () => {
           [selectedBuildingId]: [...(prev[selectedBuildingId] || []), data]
         }));
       } else {
-        // For tenants, we'll just create entry in tenants table for now
-        // Note: In production, you would need to handle user creation through Supabase Admin API
-        const { data, error } = await supabase
-          .from("tenants")
-          .insert([{
-            user_id: crypto.randomUUID(), // Temporary user ID
-            building_id: selectedBuildingId,
-            email: userForm.email,
-            first_name: userForm.first_name,
-            last_name: userForm.last_name,
-            phone: userForm.phone,
-          }])
-          .select()
-          .single();
+        // For tenants, create profile entry if user was created
+        if (authData.user) {
+          const { error: profileError } = await supabase
+            .from("profiles")
+            .insert([{
+              user_id: authData.user.id,
+              email: userForm.email,
+              first_name: userForm.first_name,
+              last_name: userForm.last_name,
+              role: 'tenant',
+              building_id: selectedBuildingId,
+              force_password_change: false
+            }]);
 
-        if (error) throw error;
+          if (profileError) {
+            console.warn("Profile creation failed:", profileError);
+          }
 
-        setTenants(prev => ({
-          ...prev,
-          [selectedBuildingId]: [...(prev[selectedBuildingId] || []), data]
-        }));
+          const { data, error } = await supabase
+            .from("tenants")
+            .insert([{
+              user_id: authData.user.id,
+              building_id: selectedBuildingId,
+              email: userForm.email,
+              first_name: userForm.first_name,
+              last_name: userForm.last_name,
+              phone: userForm.phone,
+            }])
+            .select()
+            .single();
+
+          if (error) throw error;
+
+          setTenants(prev => ({
+            ...prev,
+            [selectedBuildingId]: [...(prev[selectedBuildingId] || []), data]
+          }));
+        }
       }
 
       setUserForm({ email: "", password: "", first_name: "", last_name: "", phone: "" });
@@ -330,13 +362,13 @@ export const Buildings = () => {
       
       toast({
         title: "Erfolg",
-        description: `${managementMode === 'weg' ? 'WEG-Eigentümer' : 'Mieter'} wurde erfolgreich erstellt.`,
+        description: `${managementMode === 'weg' ? 'WEG-Eigentümer' : 'Mieter'} wurde erfolgreich erstellt. ${authData.user?.email_confirmed_at ? 'Sie können sich sofort anmelden.' : 'Eine Bestätigungs-E-Mail wurde gesendet.'}`,
       });
     } catch (error: any) {
       console.error("Error creating user:", error);
       toast({
         title: "Fehler",
-        description: `${managementMode === 'weg' ? 'WEG-Eigentümer' : 'Mieter'} konnte nicht erstellt werden.`,
+        description: `${managementMode === 'weg' ? 'WEG-Eigentümer' : 'Mieter'} konnte nicht erstellt werden: ${error.message}`,
         variant: "destructive",
       });
     }
@@ -447,21 +479,21 @@ export const Buildings = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-7xl mx-auto space-y-6 p-4">
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+        <div className="space-y-2">
+          <h1 className="text-4xl font-bold tracking-tight">
             {managementMode === 'weg' ? 'WEG-Verwaltung' : 'Mietverwaltung'}
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-lg text-muted-foreground">
             Verwalten Sie Ihre {managementMode === 'weg' ? 'WEG-Gebäude und Eigentümer' : 'Mietgebäude und Mieter'}
           </p>
         </div>
         <Dialog open={isCreateBuildingOpen} onOpenChange={setIsCreateBuildingOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-gradient-primary text-white hover:scale-105 transition-all duration-200">
-              <Plus className="h-4 w-4 mr-2" />
+          <Button className="bg-gradient-primary text-white hover:scale-105 transition-all duration-200 text-base px-6 py-3">
+            <Plus className="h-5 w-5 mr-2" />
               Neues Gebäude
             </Button>
           </DialogTrigger>
@@ -516,8 +548,7 @@ export const Buildings = () => {
         </Dialog>
       </div>
 
-      {/* Statistics */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card className="dashboard-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Gebäude gesamt</CardTitle>
