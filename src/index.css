@@ -116,7 +116,7 @@ All colors MUST be HSL.
 @layer components {
   /* Apple-inspired card style */
   .dashboard-card {
-    @apply bg-card border-border shadow-card rounded-lg transition-apple hover:shadow-apple;
+    @apply bg-card border border-border rounded-lg transition-all duration-200 ease-out hover:shadow-lg;
   }
   
   /* Glass effect for special elements */
@@ -129,7 +129,7 @@ All colors MUST be HSL.
   
   /* Button enhancements */
   .btn-apple {
-    @apply transition-apple hover:scale-[1.02] active:scale-[0.98];
+    @apply transition-all duration-200 ease-out hover:scale-[1.02] active:scale-[0.98];
   }
   
   /* Smooth line clamp utility */

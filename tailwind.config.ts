@@ -18,12 +18,10 @@ export default {
 			}
 		},
 		extend: {
+			fontFamily: {
+				sans: ['-apple-system', 'BlinkMacSystemFont', 'San Francisco', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'sans-serif'],
+			},
 			colors: {
-				/* RGI Brand Colors */
-				'rgi-orange': 'hsl(var(--rgi-orange))',
-				'rgi-gray': 'hsl(var(--rgi-gray))',
-				'rgi-white': 'hsl(var(--rgi-white))',
-				
 				/* Design System */
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
@@ -58,6 +56,8 @@ export default {
 					DEFAULT: 'hsl(var(--card))',
 					foreground: 'hsl(var(--card-foreground))'
 				},
+				success: 'hsl(var(--success))',
+				warning: 'hsl(var(--warning))',
 				sidebar: {
 					DEFAULT: 'hsl(var(--sidebar-background))',
 					foreground: 'hsl(var(--sidebar-foreground))',
@@ -70,13 +70,14 @@ export default {
 				}
 			},
 			backgroundImage: {
-				'gradient-primary': 'var(--gradient-primary)'
+				'gradient-primary': 'var(--gradient-primary)',
+				'gradient-warm': 'var(--gradient-warm)'
 			},
 			boxShadow: {
-				'elegant': 'var(--shadow-elegant)'
+				'apple': 'var(--shadow-apple)'
 			},
-			transitionProperty: {
-				'smooth': 'var(--transition-smooth)'
+			transitionTimingFunction: {
+				'apple': 'cubic-bezier(0.4, 0, 0.2, 1)'
 			},
 			borderRadius: {
 				lg: 'var(--radius)',
