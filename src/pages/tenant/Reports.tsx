@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { Plus, AlertCircle } from "lucide-react";
+import { Plus, AlertCircle, Upload, X } from "lucide-react";
 
 interface Report {
   id: string;
@@ -20,6 +20,13 @@ interface Report {
   priority: string;
   created_at: string;
   building_id: string;
+  contact_name: string;
+  contact_email: string;
+  contact_phone: string;
+  contact_address: string;
+  attachments: any;
+  reported_by?: string;
+  updated_at?: string;
 }
 
 export const TenantReports = () => {
@@ -32,18 +39,32 @@ export const TenantReports = () => {
     title: "",
     description: "",
     priority: "medium",
+    contact_name: "",
+    contact_email: "",
+    contact_phone: "",
+    contact_address: "",
   });
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (profile) {
       fetchReports();
+      // Prefill contact information
+      setReportForm(prev => ({
+        ...prev,
+        contact_name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim(),
+        contact_email: profile.email || '',
+        contact_phone: '', // Would need to add phone to profile
+        contact_address: '', // Would need to add address to profile
+      }));
     }
   }, [profile]);
 
   const fetchReports = async () => {
     try {
       const { data, error } = await supabase
-        .from("reports")
+        .from("miete_reports")
         .select("*")
         .eq("reported_by", profile?.user_id)
         .order("created_at", { ascending: false });
@@ -62,8 +83,40 @@ export const TenantReports = () => {
     }
   };
 
+  const uploadAttachments = async (reportId: string) => {
+    if (attachments.length === 0) return [];
+
+    const uploadedFiles = [];
+    setUploading(true);
+
+    for (const file of attachments) {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${reportId}/${Date.now()}.${fileExt}`;
+      const filePath = `${profile?.user_id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('report-attachments')
+        .upload(filePath, file);
+
+      if (uploadError) {
+        console.error('Error uploading file:', uploadError);
+        continue;
+      }
+
+      uploadedFiles.push({
+        name: file.name,
+        path: filePath,
+        size: file.size,
+        type: file.type,
+      });
+    }
+
+    setUploading(false);
+    return uploadedFiles;
+  };
+
   const createReport = async () => {
-    if (!reportForm.title || !reportForm.description) {
+    if (!reportForm.title || !reportForm.description || !reportForm.contact_name || !reportForm.contact_email) {
       toast({
         title: "Fehler",
         description: "Bitte füllen Sie alle Pflichtfelder aus.",
@@ -74,14 +127,17 @@ export const TenantReports = () => {
 
     try {
       const { data, error } = await supabase
-        .from("reports")
+        .from("miete_reports")
         .insert([{
           title: reportForm.title,
           description: reportForm.description,
           priority: reportForm.priority,
           reported_by: profile?.user_id,
-          building_id: profile?.user_id, // Mieter sind mit ihrem Gebäude verknüpft
-          management_mode: 'rent',
+          building_id: profile?.user_id,
+          contact_name: reportForm.contact_name,
+          contact_email: reportForm.contact_email,
+          contact_phone: reportForm.contact_phone,
+          contact_address: reportForm.contact_address,
           status: 'open'
         }])
         .select()
@@ -89,8 +145,26 @@ export const TenantReports = () => {
 
       if (error) throw error;
 
-      setReports(prev => [data, ...prev]);
-      setReportForm({ title: "", description: "", priority: "medium" });
+      // Upload attachments
+      const uploadedFiles = await uploadAttachments(data.id);
+      if (uploadedFiles.length > 0) {
+        await supabase
+          .from("miete_reports")
+          .update({ attachments: uploadedFiles })
+          .eq("id", data.id);
+      }
+
+      setReports(prev => [{ ...data, attachments: uploadedFiles }, ...prev]);
+      setReportForm({ 
+        title: "", 
+        description: "", 
+        priority: "medium",
+        contact_name: `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim(),
+        contact_email: profile?.email || '',
+        contact_phone: '',
+        contact_address: '',
+      });
+      setAttachments([]);
       setIsCreateReportOpen(false);
       
       toast({
@@ -105,6 +179,17 @@ export const TenantReports = () => {
         variant: "destructive",
       });
     }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const files = Array.from(e.target.files);
+      setAttachments(prev => [...prev, ...files]);
+    }
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
   };
 
   const getStatusBadge = (status: string) => {
@@ -162,7 +247,52 @@ export const TenantReports = () => {
             <DialogHeader>
               <DialogTitle>Neue Meldung erstellen</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto">
+              {/* Contact Information */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="contact_name">Name *</Label>
+                  <Input
+                    id="contact_name"
+                    value={reportForm.contact_name}
+                    onChange={(e) => setReportForm(prev => ({ ...prev, contact_name: e.target.value }))}
+                    placeholder="Ihr Name"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="contact_email">E-Mail *</Label>
+                  <Input
+                    id="contact_email"
+                    type="email"
+                    value={reportForm.contact_email}
+                    onChange={(e) => setReportForm(prev => ({ ...prev, contact_email: e.target.value }))}
+                    placeholder="Ihre E-Mail Adresse"
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="contact_phone">Telefon</Label>
+                  <Input
+                    id="contact_phone"
+                    value={reportForm.contact_phone}
+                    onChange={(e) => setReportForm(prev => ({ ...prev, contact_phone: e.target.value }))}
+                    placeholder="Ihre Telefonnummer"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="contact_address">Adresse</Label>
+                  <Input
+                    id="contact_address"
+                    value={reportForm.contact_address}
+                    onChange={(e) => setReportForm(prev => ({ ...prev, contact_address: e.target.value }))}
+                    placeholder="Ihre Adresse"
+                  />
+                </div>
+              </div>
+
+              {/* Report Information */}
               <div>
                 <Label htmlFor="title">Titel *</Label>
                 <Input
@@ -195,8 +325,40 @@ export const TenantReports = () => {
                   </SelectContent>
                 </Select>
               </div>
-              <Button onClick={createReport} className="w-full">
-                Meldung erstellen
+
+              {/* Attachments */}
+              <div>
+                <Label htmlFor="attachments">Anhänge</Label>
+                <div className="space-y-2">
+                  <Input
+                    id="attachments"
+                    type="file"
+                    multiple
+                    accept="image/*,.pdf,.doc,.docx"
+                    onChange={handleFileChange}
+                    className="cursor-pointer"
+                  />
+                  {attachments.length > 0 && (
+                    <div className="space-y-2">
+                      {attachments.map((file, index) => (
+                        <div key={index} className="flex items-center justify-between p-2 bg-muted rounded">
+                          <span className="text-sm">{file.name}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeAttachment(index)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <Button onClick={createReport} className="w-full" disabled={uploading}>
+                {uploading ? "Wird erstellt..." : "Meldung erstellen"}
               </Button>
             </div>
           </DialogContent>

@@ -118,8 +118,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
-    setProfile(null);
+    try {
+      await supabase.auth.signOut();
+      setProfile(null);
+      setUser(null);
+      setSession(null);
+      // Force page reload for clean state
+      window.location.href = '/login';
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   };
 
   const updatePassword = async (newPassword: string) => {

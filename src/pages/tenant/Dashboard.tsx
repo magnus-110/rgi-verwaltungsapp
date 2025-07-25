@@ -28,7 +28,7 @@ export const TenantDashboard = () => {
   const fetchReports = async () => {
     try {
       const { data, error } = await supabase
-        .from("reports")
+        .from("miete_reports")
         .select("*")
         .eq("reported_by", profile?.user_id)
         .order("created_at", { ascending: false })

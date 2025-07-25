@@ -115,6 +115,57 @@ export type Database = {
           },
         ]
       }
+      miete_reports: {
+        Row: {
+          attachments: Json | null
+          building_id: string | null
+          contact_address: string | null
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string
+          description: string | null
+          id: string
+          priority: string
+          reported_by: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          attachments?: Json | null
+          building_id?: string | null
+          contact_address?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          priority?: string
+          reported_by?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          attachments?: Json | null
+          building_id?: string | null
+          contact_address?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          priority?: string
+          reported_by?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           building_id: string | null
@@ -158,63 +209,6 @@ export type Database = {
             columns: ["building_id"]
             isOneToOne: false
             referencedRelation: "buildings"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      reports: {
-        Row: {
-          building_id: string | null
-          created_at: string | null
-          description: string | null
-          id: string
-          management_mode: Database["public"]["Enums"]["management_mode"]
-          priority: string | null
-          reported_by: string | null
-          status: string | null
-          title: string
-          updated_at: string | null
-          weg_owner_id: string | null
-        }
-        Insert: {
-          building_id?: string | null
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          management_mode: Database["public"]["Enums"]["management_mode"]
-          priority?: string | null
-          reported_by?: string | null
-          status?: string | null
-          title: string
-          updated_at?: string | null
-          weg_owner_id?: string | null
-        }
-        Update: {
-          building_id?: string | null
-          created_at?: string | null
-          description?: string | null
-          id?: string
-          management_mode?: Database["public"]["Enums"]["management_mode"]
-          priority?: string | null
-          reported_by?: string | null
-          status?: string | null
-          title?: string
-          updated_at?: string | null
-          weg_owner_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "reports_building_id_fkey"
-            columns: ["building_id"]
-            isOneToOne: false
-            referencedRelation: "buildings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "reports_weg_owner_id_fkey"
-            columns: ["weg_owner_id"]
-            isOneToOne: false
-            referencedRelation: "weg_owners"
             referencedColumns: ["id"]
           },
         ]
@@ -290,6 +284,60 @@ export type Database = {
           last_name?: string | null
           phone?: string | null
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      weg_reports: {
+        Row: {
+          attachments: Json | null
+          building_id: string | null
+          contact_address: string | null
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          created_at: string
+          description: string | null
+          id: string
+          priority: string
+          reported_by: string | null
+          status: string
+          title: string
+          updated_at: string
+          weg_owner_id: string | null
+        }
+        Insert: {
+          attachments?: Json | null
+          building_id?: string | null
+          contact_address?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          priority?: string
+          reported_by?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          weg_owner_id?: string | null
+        }
+        Update: {
+          attachments?: Json | null
+          building_id?: string | null
+          contact_address?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          priority?: string
+          reported_by?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          weg_owner_id?: string | null
         }
         Relationships: []
       }

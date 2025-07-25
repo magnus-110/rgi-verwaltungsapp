@@ -1,27 +1,121 @@
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { Plus, AlertCircle } from "lucide-react";
+import { Plus, Upload, X, AlertCircle } from "lucide-react";
+
+interface Report {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  priority: string;
+  created_at: string;
+  building_id: string;
+  contact_name: string;
+  contact_email: string;
+  contact_phone: string;
+  contact_address: string;
+  attachments: any;
+  reported_by?: string;
+  updated_at?: string;
+}
 
 export const WegOwnerReports = () => {
-  const [isCreating, setIsCreating] = useState(false);
-  const [formData, setFormData] = useState({
+  const { profile } = useAuth();
+  const [reports, setReports] = useState<Report[]>([]);
+  const [isCreateReportOpen, setIsCreateReportOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  
+  const [reportForm, setReportForm] = useState({
     title: "",
     description: "",
     priority: "medium",
-    building_id: ""
+    contact_name: "",
+    contact_email: "",
+    contact_phone: "",
+    contact_address: "",
   });
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Basic validation
-    if (!formData.title || !formData.description) {
+  useEffect(() => {
+    if (profile) {
+      fetchReports();
+      // Prefill contact information
+      setReportForm(prev => ({
+        ...prev,
+        contact_name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim(),
+        contact_email: profile.email || '',
+        contact_phone: '', // Would need to add phone to profile
+      }));
+    }
+  }, [profile]);
+
+  const fetchReports = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("weg_reports")
+        .select("*")
+        .eq("reported_by", profile?.user_id)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setReports(data || []);
+    } catch (error) {
+      console.error("Error fetching reports:", error);
+      toast({
+        title: "Fehler",
+        description: "Meldungen konnten nicht geladen werden.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const uploadAttachments = async (reportId: string) => {
+    if (attachments.length === 0) return [];
+
+    const uploadedFiles = [];
+    setUploading(true);
+
+    for (const file of attachments) {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${reportId}/${Date.now()}.${fileExt}`;
+      const filePath = `${profile?.user_id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('report-attachments')
+        .upload(filePath, file);
+
+      if (uploadError) {
+        console.error('Error uploading file:', uploadError);
+        continue;
+      }
+
+      uploadedFiles.push({
+        name: file.name,
+        path: filePath,
+        size: file.size,
+        type: file.type,
+      });
+    }
+
+    setUploading(false);
+    return uploadedFiles;
+  };
+
+  const createReport = async () => {
+    if (!reportForm.title || !reportForm.description || !reportForm.contact_name || !reportForm.contact_email || !reportForm.contact_address) {
       toast({
         title: "Fehler",
         description: "Bitte füllen Sie alle Pflichtfelder aus.",
@@ -31,104 +125,197 @@ export const WegOwnerReports = () => {
     }
 
     try {
-      // TODO: Implement Supabase insert
-      toast({
-        title: "Meldung erstellt",
-        description: "Ihre Meldung wurde erfolgreich erstellt.",
+      const { data, error } = await supabase
+        .from("weg_reports")
+        .insert([{
+          title: reportForm.title,
+          description: reportForm.description,
+          priority: reportForm.priority,
+          reported_by: profile?.user_id,
+          weg_owner_id: profile?.user_id,
+          contact_name: reportForm.contact_name,
+          contact_email: reportForm.contact_email,
+          contact_phone: reportForm.contact_phone,
+          contact_address: reportForm.contact_address,
+          status: 'open'
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Upload attachments
+      const uploadedFiles = await uploadAttachments(data.id);
+      if (uploadedFiles.length > 0) {
+        await supabase
+          .from("weg_reports")
+          .update({ attachments: uploadedFiles })
+          .eq("id", data.id);
+      }
+
+      setReports(prev => [{ ...data, attachments: uploadedFiles }, ...prev]);
+      setReportForm({ 
+        title: "", 
+        description: "", 
+        priority: "medium",
+        contact_name: `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim(),
+        contact_email: profile?.email || '',
+        contact_phone: '',
+        contact_address: '',
       });
+      setAttachments([]);
+      setIsCreateReportOpen(false);
       
-      setFormData({ title: "", description: "", priority: "medium", building_id: "" });
-      setIsCreating(false);
-    } catch (error) {
+      toast({
+        title: "Erfolg",
+        description: "Meldung wurde erfolgreich erstellt.",
+      });
+    } catch (error: any) {
+      console.error("Error creating report:", error);
       toast({
         title: "Fehler",
-        description: "Beim Erstellen der Meldung ist ein Fehler aufgetreten.",
+        description: "Meldung konnte nicht erstellt werden.",
         variant: "destructive",
       });
     }
   };
 
-  const mockReports = [
-    {
-      id: "1",
-      title: "Heizungsausfall in Wohnung 12",
-      description: "Die Heizung ist seit 2 Tagen defekt",
-      status: "open",
-      priority: "high",
-      created_at: "2024-01-15T10:00:00Z"
-    },
-    {
-      id: "2",
-      title: "Wasserschaden im Keller",
-      description: "Wasser tritt aus dem Hauptrohr aus",
-      status: "in_progress",
-      priority: "high",
-      created_at: "2024-01-14T15:30:00Z"
-    }
-  ];
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "high": return "text-red-600";
-      case "medium": return "text-yellow-600";
-      case "low": return "text-green-600";
-      default: return "text-gray-600";
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const files = Array.from(e.target.files);
+      setAttachments(prev => [...prev, ...files]);
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const getStatusBadge = (status: string) => {
     switch (status) {
-      case "open": return "bg-red-100 text-red-800";
-      case "in_progress": return "bg-yellow-100 text-yellow-800";
-      case "closed": return "bg-green-100 text-green-800";
-      default: return "bg-gray-100 text-gray-800";
+      case "open":
+        return <Badge variant="destructive">Offen</Badge>;
+      case "in_progress":
+        return <Badge variant="secondary">In Bearbeitung</Badge>;
+      case "resolved":
+        return <Badge variant="default">Erledigt</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
     }
   };
 
-  if (isCreating) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold">Neue Meldung erstellen</h1>
-          <Button variant="outline" onClick={() => setIsCreating(false)}>
-            Zurück
-          </Button>
-        </div>
+  const getPriorityBadge = (priority: string) => {
+    switch (priority) {
+      case "low":
+        return <Badge variant="outline">Niedrig</Badge>;
+      case "medium":
+        return <Badge variant="secondary">Mittel</Badge>;
+      case "high":
+        return <Badge variant="destructive">Hoch</Badge>;
+      default:
+        return <Badge variant="outline">{priority}</Badge>;
+    }
+  };
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Meldungsdetails</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-lg">Laden...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+        <div className="space-y-2">
+          <h1 className="text-4xl font-bold tracking-tight">Meldungen</h1>
+          <p className="text-lg text-muted-foreground">
+            Erstellen und verwalten Sie Ihre WEG-Meldungen
+          </p>
+        </div>
+        <Dialog open={isCreateReportOpen} onOpenChange={setIsCreateReportOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-gradient-primary text-white hover:scale-105 transition-all duration-200 text-base px-6 py-3">
+              <Plus className="h-5 w-5 mr-2" />
+              Neue Meldung
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle>Neue WEG-Meldung erstellen</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto">
+              {/* Contact Information */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="contact_name">Name *</Label>
+                  <Input
+                    id="contact_name"
+                    value={reportForm.contact_name}
+                    onChange={(e) => setReportForm(prev => ({ ...prev, contact_name: e.target.value }))}
+                    placeholder="Ihr Name"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="contact_email">E-Mail *</Label>
+                  <Input
+                    id="contact_email"
+                    type="email"
+                    value={reportForm.contact_email}
+                    onChange={(e) => setReportForm(prev => ({ ...prev, contact_email: e.target.value }))}
+                    placeholder="Ihre E-Mail Adresse"
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="contact_phone">Telefon</Label>
+                  <Input
+                    id="contact_phone"
+                    value={reportForm.contact_phone}
+                    onChange={(e) => setReportForm(prev => ({ ...prev, contact_phone: e.target.value }))}
+                    placeholder="Ihre Telefonnummer"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="contact_address">Adresse *</Label>
+                  <Input
+                    id="contact_address"
+                    value={reportForm.contact_address}
+                    onChange={(e) => setReportForm(prev => ({ ...prev, contact_address: e.target.value }))}
+                    placeholder="Adresse des Problems"
+                  />
+                </div>
+              </div>
+
+              {/* Report Information */}
               <div>
                 <Label htmlFor="title">Titel *</Label>
                 <Input
                   id="title"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  value={reportForm.title}
+                  onChange={(e) => setReportForm(prev => ({ ...prev, title: e.target.value }))}
                   placeholder="Kurze Beschreibung des Problems"
-                  required
                 />
               </div>
-
               <div>
                 <Label htmlFor="description">Beschreibung *</Label>
                 <Textarea
                   id="description"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  value={reportForm.description}
+                  onChange={(e) => setReportForm(prev => ({ ...prev, description: e.target.value }))}
                   placeholder="Detaillierte Beschreibung des Problems"
                   rows={4}
-                  required
                 />
               </div>
-
               <div>
                 <Label htmlFor="priority">Priorität</Label>
-                <Select value={formData.priority} onValueChange={(value) => setFormData({ ...formData, priority: value })}>
+                <Select value={reportForm.priority} onValueChange={(value) => setReportForm(prev => ({ ...prev, priority: value }))}>
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="Priorität auswählen" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="low">Niedrig</SelectItem>
@@ -138,85 +325,83 @@ export const WegOwnerReports = () => {
                 </Select>
               </div>
 
+              {/* Attachments */}
               <div>
-                <Label htmlFor="building_id">Gebäude-ID (optional)</Label>
-                <Input
-                  id="building_id"
-                  value={formData.building_id}
-                  onChange={(e) => setFormData({ ...formData, building_id: e.target.value })}
-                  placeholder="Falls bekannt, geben Sie Ihre Gebäude-ID ein"
-                />
-              </div>
-
-              <div className="flex gap-3">
-                <Button type="submit" className="gap-2">
-                  <Plus className="w-4 h-4" />
-                  Meldung erstellen
-                </Button>
-                <Button type="button" variant="outline" onClick={() => setIsCreating(false)}>
-                  Abbrechen
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Meine Meldungen</h1>
-        <Button onClick={() => setIsCreating(true)} className="gap-2">
-          <Plus className="w-4 h-4" />
-          Neue Meldung
-        </Button>
-      </div>
-
-      <div className="space-y-4">
-        {mockReports.map((report) => (
-          <Card key={report.id} className="hover:shadow-md transition-shadow">
-            <CardHeader className="pb-3">
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className={`w-5 h-5 mt-0.5 ${getPriorityColor(report.priority)}`} />
-                  <div>
-                    <CardTitle className="text-lg">{report.title}</CardTitle>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {new Date(report.created_at).toLocaleDateString('de-DE')}
-                    </p>
-                  </div>
+                <Label htmlFor="attachments">Anhänge</Label>
+                <div className="space-y-2">
+                  <Input
+                    id="attachments"
+                    type="file"
+                    multiple
+                    accept="image/*,.pdf,.doc,.docx"
+                    onChange={handleFileChange}
+                    className="cursor-pointer"
+                  />
+                  {attachments.length > 0 && (
+                    <div className="space-y-2">
+                      {attachments.map((file, index) => (
+                        <div key={index} className="flex items-center justify-between p-2 bg-muted rounded">
+                          <span className="text-sm">{file.name}</span>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeAttachment(index)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(report.status)}`}>
-                  {report.status === 'open' ? 'Offen' : 
-                   report.status === 'in_progress' ? 'In Bearbeitung' : 
-                   'Geschlossen'}
-                </span>
               </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground">{report.description}</p>
+
+              <Button onClick={createReport} className="w-full" disabled={uploading}>
+                {uploading ? "Wird erstellt..." : "Meldung erstellen"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Reports List */}
+      <div className="space-y-4">
+        {reports.length === 0 ? (
+          <Card>
+            <CardContent className="text-center py-8">
+              <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground">Noch keine Meldungen erstellt.</p>
             </CardContent>
           </Card>
-        ))}
+        ) : (
+          reports.map((report) => (
+            <Card key={report.id}>
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <CardTitle className="text-xl">{report.title}</CardTitle>
+                    <CardDescription className="mt-2">
+                      Erstellt am: {new Date(report.created_at).toLocaleDateString('de-DE')}
+                    </CardDescription>
+                  </div>
+                  <div className="flex gap-2">
+                    {getStatusBadge(report.status)}
+                    {getPriorityBadge(report.priority)}
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">{report.description}</p>
+                {report.contact_name && (
+                  <div className="mt-4 text-sm text-muted-foreground">
+                    Kontakt: {report.contact_name} ({report.contact_email})
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
-
-      {mockReports.length === 0 && (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Keine Meldungen vorhanden</h3>
-            <p className="text-muted-foreground mb-4">
-              Sie haben noch keine Meldungen erstellt.
-            </p>
-            <Button onClick={() => setIsCreating(true)} className="gap-2">
-              <Plus className="w-4 h-4" />
-              Erste Meldung erstellen
-            </Button>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 };
