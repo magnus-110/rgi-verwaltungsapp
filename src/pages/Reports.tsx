@@ -1,4 +1,3 @@
-import { AdminLayout } from "@/components/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -67,8 +66,7 @@ const getPriorityBadge = (priority: string) => {
 
 export const Reports = () => {
   return (
-    <AdminLayout>
-      <div className="space-y-6">
+    <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div>
             <h2 className="text-3xl font-bold tracking-tight">Meldungen</h2>
@@ -162,7 +160,6 @@ export const Reports = () => {
             </Card>
           ))}
         </div>
-      </div>
-    </AdminLayout>
+    </div>
   );
 };

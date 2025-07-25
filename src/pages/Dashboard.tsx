@@ -1,4 +1,3 @@
-import { AdminLayout } from "@/components/AdminLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertCircle, MessageSquare, Building2, Users, Bot, TrendingUp } from "lucide-react";
 
@@ -35,14 +34,13 @@ const DashboardWidget = ({
 
 export const Dashboard = () => {
   return (
-    <AdminLayout>
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-          <p className="text-muted-foreground">
-            Überblick über Ihre Verwaltungsaktivitäten
-          </p>
-        </div>
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+        <p className="text-muted-foreground">
+          Überblick über Ihre Verwaltungsaktivitäten
+        </p>
+      </div>
 
         {/* Statistik Widgets */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -160,7 +158,6 @@ export const Dashboard = () => {
             </div>
           </CardContent>
         </Card>
-      </div>
-    </AdminLayout>
+    </div>
   );
 };

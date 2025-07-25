@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { AdminLayout } from "@/components/AdminLayout";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -56,7 +56,9 @@ export const Buildings = () => {
   const [ownerForm, setOwnerForm] = useState({
     email: "",
     first_name: "",
-    last_name: ""
+    last_name: "",
+    phone: "",
+    password: ""
   });
 
   useEffect(() => {
@@ -140,10 +142,33 @@ export const Buildings = () => {
   };
 
   const createWegOwner = async () => {
+    if (!ownerForm.email || !ownerForm.first_name || !ownerForm.last_name || !ownerForm.phone || !ownerForm.password) {
+      toast({
+        title: "Fehler",
+        description: "Bitte füllen Sie alle Felder aus.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (ownerForm.password.length < 8) {
+      toast({
+        title: "Fehler",
+        description: "Das Passwort muss mindestens 8 Zeichen lang sein.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from('weg_owners')
-        .insert([ownerForm])
+        .insert([{
+          email: ownerForm.email,
+          first_name: ownerForm.first_name,
+          last_name: ownerForm.last_name,
+          phone: ownerForm.phone
+        }])
         .select()
         .single();
 
@@ -155,7 +180,7 @@ export const Buildings = () => {
         [selectedBuildingId]: [data, ...(prev[selectedBuildingId] || [])]
       }));
       
-      setOwnerForm({ email: "", first_name: "", last_name: "" });
+      setOwnerForm({ email: "", first_name: "", last_name: "", phone: "", password: "" });
       setIsCreateOwnerOpen(false);
       setSelectedBuildingId("");
       
@@ -204,17 +229,14 @@ export const Buildings = () => {
 
   if (loading) {
     return (
-      <AdminLayout>
-        <div className="min-h-screen flex items-center justify-center">
-          <div className="text-lg">Laden...</div>
-        </div>
-      </AdminLayout>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-lg">Laden...</div>
+      </div>
     );
   }
 
   return (
-    <AdminLayout>
-      <div className="space-y-6">
+    <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold">Gebäude</h1>
@@ -373,18 +395,38 @@ export const Buildings = () => {
                               placeholder="Vorname eingeben"
                             />
                           </div>
-                          <div>
-                            <Label htmlFor="owner-last-name">Nachname</Label>
-                            <Input
-                              id="owner-last-name"
-                              value={ownerForm.last_name}
-                              onChange={(e) => setOwnerForm(prev => ({ ...prev, last_name: e.target.value }))}
-                              placeholder="Nachname eingeben"
-                            />
-                          </div>
-                          <Button onClick={createWegOwner} className="w-full">
-                            WEG-Eigentümer erstellen
-                          </Button>
+                           <div>
+                             <Label htmlFor="owner-last-name">Nachname</Label>
+                             <Input
+                               id="owner-last-name"
+                               value={ownerForm.last_name}
+                               onChange={(e) => setOwnerForm(prev => ({ ...prev, last_name: e.target.value }))}
+                               placeholder="Nachname eingeben"
+                             />
+                           </div>
+                           <div>
+                             <Label htmlFor="owner-phone">Telefonnummer</Label>
+                             <Input
+                               id="owner-phone"
+                               type="tel"
+                               value={ownerForm.phone}
+                               onChange={(e) => setOwnerForm(prev => ({ ...prev, phone: e.target.value }))}
+                               placeholder="+49 123 456789"
+                             />
+                           </div>
+                           <div>
+                             <Label htmlFor="owner-password">Passwort</Label>
+                             <Input
+                               id="owner-password"
+                               type="password"
+                               value={ownerForm.password}
+                               onChange={(e) => setOwnerForm(prev => ({ ...prev, password: e.target.value }))}
+                               placeholder="Mindestens 8 Zeichen"
+                             />
+                           </div>
+                           <Button onClick={createWegOwner} className="w-full btn-apple">
+                             WEG-Eigentümer erstellen
+                           </Button>
                         </div>
                       </DialogContent>
                     </Dialog>
@@ -443,6 +485,6 @@ export const Buildings = () => {
           </Card>
         )}
       </div>
-    </AdminLayout>
+    </div>
   );
 };
