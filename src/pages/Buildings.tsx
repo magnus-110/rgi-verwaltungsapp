@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +26,7 @@ interface WegOwner {
   email: string;
   first_name: string | null;
   last_name: string | null;
+  phone: string | null;
   created_at: string;
 }
 
@@ -237,254 +237,255 @@ export const Buildings = () => {
 
   return (
     <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold">Gebäude</h1>
-            <p className="text-muted-foreground">Verwalten Sie Ihre Gebäude und WEG-Eigentümer</p>
-          </div>
-          <Dialog open={isCreateBuildingOpen} onOpenChange={setIsCreateBuildingOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Neues Gebäude
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold">Gebäude</h1>
+          <p className="text-muted-foreground">Verwalten Sie Ihre Gebäude und WEG-Eigentümer</p>
+        </div>
+        <Dialog open={isCreateBuildingOpen} onOpenChange={setIsCreateBuildingOpen}>
+          <DialogTrigger asChild>
+            <Button className="btn-apple">
+              <Plus className="mr-2 h-4 w-4" />
+              Neues Gebäude
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Neues Gebäude erstellen</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="name">Name</Label>
+                <Input
+                  id="name"
+                  value={buildingForm.name}
+                  onChange={(e) => setBuildingForm(prev => ({ ...prev, name: e.target.value }))}
+                  placeholder="Gebäudename eingeben"
+                />
+              </div>
+              <div>
+                <Label htmlFor="address">Adresse</Label>
+                <Input
+                  id="address"
+                  value={buildingForm.address}
+                  onChange={(e) => setBuildingForm(prev => ({ ...prev, address: e.target.value }))}
+                  placeholder="Adresse eingeben"
+                />
+              </div>
+              <div>
+                <Label htmlFor="management_mode">Verwaltungsart</Label>
+                <Select
+                  value={buildingForm.management_mode}
+                  onValueChange={(value: "weg" | "rent") => setBuildingForm(prev => ({ 
+                    ...prev, 
+                    management_mode: value,
+                    type: value
+                  }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="weg">WEG-Verwaltung</SelectItem>
+                    <SelectItem value="rent">Mietverwaltung</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button onClick={createBuilding} className="w-full btn-apple">
+                Gebäude erstellen
               </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Neues Gebäude erstellen</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Label htmlFor="name">Name</Label>
-                  <Input
-                    id="name"
-                    value={buildingForm.name}
-                    onChange={(e) => setBuildingForm(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="Gebäudename eingeben"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="address">Adresse</Label>
-                  <Input
-                    id="address"
-                    value={buildingForm.address}
-                    onChange={(e) => setBuildingForm(prev => ({ ...prev, address: e.target.value }))}
-                    placeholder="Adresse eingeben"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="management_mode">Verwaltungsart</Label>
-                  <Select
-                    value={buildingForm.management_mode}
-                    onValueChange={(value: "weg" | "rent") => setBuildingForm(prev => ({ 
-                      ...prev, 
-                      management_mode: value,
-                      type: value
-                    }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="weg">WEG-Verwaltung</SelectItem>
-                      <SelectItem value="rent">Mietverwaltung</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button onClick={createBuilding} className="w-full">
-                  Gebäude erstellen
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        {/* Statistics Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Gesamt Gebäude</CardTitle>
-              <Building2 className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{buildings.length}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">WEG Gebäude</CardTitle>
-              <Home className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {buildings.filter(b => b.management_mode === 'weg').length}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Mietgebäude</CardTitle>
-              <Building2 className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {buildings.filter(b => b.management_mode === 'rent').length}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">WEG-Eigentümer</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {Object.values(wegOwners).reduce((total, owners) => total + owners.length, 0)}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Buildings List */}
-        <div className="space-y-4">
-          {buildings.map((building) => (
-            <Card key={building.id}>
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      {building.name}
-                      {getTypeBadge(building.type)}
-                    </CardTitle>
-                    <CardDescription>{building.address}</CardDescription>
-                  </div>
-                  {building.management_mode === 'weg' && (
-                    <Dialog open={isCreateOwnerOpen && selectedBuildingId === building.id} 
-                           onOpenChange={(open) => {
-                             setIsCreateOwnerOpen(open);
-                             if (open) setSelectedBuildingId(building.id);
-                             else setSelectedBuildingId("");
-                           }}>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm">
-                          <Plus className="mr-2 h-4 w-4" />
-                          WEG-Eigentümer hinzufügen
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>WEG-Eigentümer hinzufügen</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-4">
-                          <div>
-                            <Label htmlFor="owner-email">E-Mail</Label>
-                            <Input
-                              id="owner-email"
-                              type="email"
-                              value={ownerForm.email}
-                              onChange={(e) => setOwnerForm(prev => ({ ...prev, email: e.target.value }))}
-                              placeholder="E-Mail-Adresse eingeben"
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="owner-first-name">Vorname</Label>
-                            <Input
-                              id="owner-first-name"
-                              value={ownerForm.first_name}
-                              onChange={(e) => setOwnerForm(prev => ({ ...prev, first_name: e.target.value }))}
-                              placeholder="Vorname eingeben"
-                            />
-                          </div>
-                           <div>
-                             <Label htmlFor="owner-last-name">Nachname</Label>
-                             <Input
-                               id="owner-last-name"
-                               value={ownerForm.last_name}
-                               onChange={(e) => setOwnerForm(prev => ({ ...prev, last_name: e.target.value }))}
-                               placeholder="Nachname eingeben"
-                             />
-                           </div>
-                           <div>
-                             <Label htmlFor="owner-phone">Telefonnummer</Label>
-                             <Input
-                               id="owner-phone"
-                               type="tel"
-                               value={ownerForm.phone}
-                               onChange={(e) => setOwnerForm(prev => ({ ...prev, phone: e.target.value }))}
-                               placeholder="+49 123 456789"
-                             />
-                           </div>
-                           <div>
-                             <Label htmlFor="owner-password">Passwort</Label>
-                             <Input
-                               id="owner-password"
-                               type="password"
-                               value={ownerForm.password}
-                               onChange={(e) => setOwnerForm(prev => ({ ...prev, password: e.target.value }))}
-                               placeholder="Mindestens 8 Zeichen"
-                             />
-                           </div>
-                           <Button onClick={createWegOwner} className="w-full btn-apple">
-                             WEG-Eigentümer erstellen
-                           </Button>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-                  )}
-                </div>
-              </CardHeader>
-              {building.management_mode === 'weg' && wegOwners[building.id] && wegOwners[building.id].length > 0 && (
-                <CardContent>
-                  <div className="space-y-2">
-                    <h4 className="font-medium">WEG-Eigentümer ({wegOwners[building.id].length})</h4>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Name</TableHead>
-                          <TableHead>E-Mail</TableHead>
-                          <TableHead>Erstellt am</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {wegOwners[building.id].map((owner) => (
-                          <TableRow key={owner.id}>
-                            <TableCell>
-                              {owner.first_name || owner.last_name 
-                                ? `${owner.first_name || ''} ${owner.last_name || ''}`.trim()
-                                : '-'
-                              }
-                            </TableCell>
-                            <TableCell>{owner.email}</TableCell>
-                            <TableCell>
-                              {new Date(owner.created_at).toLocaleDateString('de-DE')}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              )}
-            </Card>
-          ))}
-        </div>
-
-        {buildings.length === 0 && (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-2">Keine Gebäude vorhanden</h3>
-              <p className="text-muted-foreground text-center mb-4">
-                Erstellen Sie Ihr erstes Gebäude, um mit der Verwaltung zu beginnen.
-              </p>
-              <Button onClick={() => setIsCreateBuildingOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Erstes Gebäude erstellen
-              </Button>
-            </CardContent>
-          </Card>
-        )}
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
+
+      {/* Statistics Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card className="dashboard-card">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Gesamt Gebäude</CardTitle>
+            <Building2 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{buildings.length}</div>
+          </CardContent>
+        </Card>
+        <Card className="dashboard-card">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">WEG Gebäude</CardTitle>
+            <Home className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {buildings.filter(b => b.management_mode === 'weg').length}
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="dashboard-card">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Mietgebäude</CardTitle>
+            <Building2 className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {buildings.filter(b => b.management_mode === 'rent').length}
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="dashboard-card">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">WEG-Eigentümer</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {Object.values(wegOwners).reduce((total, owners) => total + owners.length, 0)}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Buildings List */}
+      <div className="space-y-4">
+        {buildings.map((building) => (
+          <Card key={building.id} className="dashboard-card">
+            <CardHeader>
+              <div className="flex justify-between items-start">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    {building.name}
+                    {getTypeBadge(building.type)}
+                  </CardTitle>
+                  <CardDescription>{building.address}</CardDescription>
+                </div>
+                {building.management_mode === 'weg' && (
+                  <Dialog open={isCreateOwnerOpen && selectedBuildingId === building.id} 
+                         onOpenChange={(open) => {
+                           setIsCreateOwnerOpen(open);
+                           if (open) setSelectedBuildingId(building.id);
+                           else setSelectedBuildingId("");
+                         }}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="btn-apple">
+                        <Plus className="mr-2 h-4 w-4" />
+                        WEG-Eigentümer hinzufügen
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>WEG-Eigentümer hinzufügen</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="owner-email">E-Mail</Label>
+                          <Input
+                            id="owner-email"
+                            type="email"
+                            value={ownerForm.email}
+                            onChange={(e) => setOwnerForm(prev => ({ ...prev, email: e.target.value }))}
+                            placeholder="E-Mail-Adresse eingeben"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="owner-first-name">Vorname</Label>
+                          <Input
+                            id="owner-first-name"
+                            value={ownerForm.first_name}
+                            onChange={(e) => setOwnerForm(prev => ({ ...prev, first_name: e.target.value }))}
+                            placeholder="Vorname eingeben"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="owner-last-name">Nachname</Label>
+                          <Input
+                            id="owner-last-name"
+                            value={ownerForm.last_name}
+                            onChange={(e) => setOwnerForm(prev => ({ ...prev, last_name: e.target.value }))}
+                            placeholder="Nachname eingeben"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="owner-phone">Telefonnummer</Label>
+                          <Input
+                            id="owner-phone"
+                            type="tel"
+                            value={ownerForm.phone}
+                            onChange={(e) => setOwnerForm(prev => ({ ...prev, phone: e.target.value }))}
+                            placeholder="+49 123 456789"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="owner-password">Passwort</Label>
+                          <Input
+                            id="owner-password"
+                            type="password"
+                            value={ownerForm.password}
+                            onChange={(e) => setOwnerForm(prev => ({ ...prev, password: e.target.value }))}
+                            placeholder="Mindestens 8 Zeichen"
+                          />
+                        </div>
+                        <Button onClick={createWegOwner} className="w-full btn-apple">
+                          WEG-Eigentümer erstellen
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                )}
+              </div>
+            </CardHeader>
+            {building.management_mode === 'weg' && wegOwners[building.id] && wegOwners[building.id].length > 0 && (
+              <CardContent>
+                <div className="space-y-2">
+                  <h4 className="font-medium">WEG-Eigentümer ({wegOwners[building.id].length})</h4>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>E-Mail</TableHead>
+                        <TableHead>Telefon</TableHead>
+                        <TableHead>Erstellt am</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {wegOwners[building.id].map((owner) => (
+                        <TableRow key={owner.id}>
+                          <TableCell>
+                            {owner.first_name || owner.last_name 
+                              ? `${owner.first_name || ''} ${owner.last_name || ''}`.trim()
+                              : '-'
+                            }
+                          </TableCell>
+                          <TableCell>{owner.email}</TableCell>
+                          <TableCell>{owner.phone || '-'}</TableCell>
+                          <TableCell>
+                            {new Date(owner.created_at).toLocaleDateString('de-DE')}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            )}
+          </Card>
+        ))}
+      </div>
+
+      {buildings.length === 0 && (
+        <Card className="dashboard-card">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-medium mb-2">Keine Gebäude vorhanden</h3>
+            <p className="text-muted-foreground text-center mb-4">
+              Erstellen Sie Ihr erstes Gebäude, um mit der Verwaltung zu beginnen.
+            </p>
+            <Button onClick={() => setIsCreateBuildingOpen(true)} className="btn-apple">
+              <Plus className="mr-2 h-4 w-4" />
+              Erstes Gebäude erstellen
+            </Button>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

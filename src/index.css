@@ -131,4 +131,12 @@ All colors MUST be HSL.
   .btn-apple {
     @apply transition-apple hover:scale-[1.02] active:scale-[0.98];
   }
+  
+  /* Smooth line clamp utility */
+  .line-clamp-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
 }
