@@ -35,7 +35,16 @@ const App = () => (
             <Route path="/change-password" element={<ChangePassword />} />
             
             {/* Admin Routes */}
+            <Route path="/dashboard" element={<AdminLayout><Dashboard /></AdminLayout>} />
+            <Route path="/reports" element={<AdminLayout><Reports /></AdminLayout>} />
+            <Route path="/buildings" element={<AdminLayout><Buildings /></AdminLayout>} />
+            <Route path="/forum" element={<AdminLayout><Forum /></AdminLayout>} />
+            <Route path="/chatbot" element={<AdminLayout><ChatbotSettings /></AdminLayout>} />
+            <Route path="/settings" element={<AdminLayout><Settings /></AdminLayout>} />
+            
+            {/* Legacy admin routes for compatibility */}
             <Route path="/admin" element={<AdminLayout><Dashboard /></AdminLayout>} />
+            <Route path="/admin/dashboard" element={<AdminLayout><Dashboard /></AdminLayout>} />
             <Route path="/admin/reports" element={<AdminLayout><Reports /></AdminLayout>} />
             <Route path="/admin/buildings" element={<AdminLayout><Buildings /></AdminLayout>} />
             <Route path="/admin/forum" element={<AdminLayout><Forum /></AdminLayout>} />

@@ -1,16 +1,16 @@
-import { useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { AdminSidebar } from "./AdminSidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { ManagementModeProvider, useManagementMode } from "@/hooks/useManagementMode";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
 }
 
-export const AdminLayout = ({ children }: AdminLayoutProps) => {
+const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
   const { user, profile, loading } = useAuth();
-  const [managementMode, setManagementMode] = useState<'weg' | 'rent'>('weg');
+  const { managementMode, setManagementMode } = useManagementMode();
 
   if (loading) {
     return (
@@ -59,5 +59,13 @@ export const AdminLayout = ({ children }: AdminLayoutProps) => {
         </main>
       </div>
     </SidebarProvider>
+  );
+};
+
+export const AdminLayout = ({ children }: AdminLayoutProps) => {
+  return (
+    <ManagementModeProvider>
+      <AdminLayoutContent>{children}</AdminLayoutContent>
+    </ManagementModeProvider>
   );
 };
