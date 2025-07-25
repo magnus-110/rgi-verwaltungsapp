@@ -10,6 +10,14 @@ import { ChangePassword } from "./pages/ChangePassword";
 import { Dashboard } from "./pages/Dashboard";
 import { Reports } from "./pages/Reports";
 import { Buildings } from "./pages/Buildings";
+import { Forum } from "./pages/Forum";
+import { ChatbotSettings } from "./pages/ChatbotSettings";
+import { Settings } from "./pages/Settings";
+import { AdminLayout } from "./components/AdminLayout";
+import { WegOwnerLayout } from "./components/WegOwnerLayout";
+import { WegOwnerDashboard } from "./pages/weg-owner/Dashboard";
+import { WegOwnerReports } from "./pages/weg-owner/Reports";
+import { WegOwnerChatbot } from "./pages/weg-owner/Chatbot";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -25,9 +33,21 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/change-password" element={<ChangePassword />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/buildings" element={<Buildings />} />
+            
+            {/* Admin Routes */}
+            <Route path="/admin" element={<AdminLayout><Dashboard /></AdminLayout>} />
+            <Route path="/admin/reports" element={<AdminLayout><Reports /></AdminLayout>} />
+            <Route path="/admin/buildings" element={<AdminLayout><Buildings /></AdminLayout>} />
+            <Route path="/admin/forum" element={<AdminLayout><Forum /></AdminLayout>} />
+            <Route path="/admin/chatbot-settings" element={<AdminLayout><ChatbotSettings /></AdminLayout>} />
+            <Route path="/admin/settings" element={<AdminLayout><Settings /></AdminLayout>} />
+            
+            {/* WEG-Eigentümer Routes */}
+            <Route path="/weg-owner" element={<WegOwnerLayout><WegOwnerDashboard /></WegOwnerLayout>} />
+            <Route path="/weg-owner/reports" element={<WegOwnerLayout><WegOwnerReports /></WegOwnerLayout>} />
+            <Route path="/weg-owner/chatbot" element={<WegOwnerLayout><WegOwnerChatbot /></WegOwnerLayout>} />
+            <Route path="/weg-owner/settings" element={<WegOwnerLayout><Settings /></WegOwnerLayout>} />
+            
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

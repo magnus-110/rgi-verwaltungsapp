@@ -2,7 +2,7 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 
 const Index = () => {
-  const { user, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
 
   if (loading) {
     return (
@@ -12,8 +12,13 @@ const Index = () => {
     );
   }
 
-  if (user) {
-    return <Navigate to="/dashboard" replace />;
+  if (user && profile) {
+    if (profile.role === 'admin') {
+      return <Navigate to="/admin" replace />;
+    } else if (profile.role === 'weg_owner') {
+      return <Navigate to="/weg-owner" replace />;
+    }
+    return <Navigate to="/login" replace />;
   }
 
   return <Navigate to="/login" replace />;
