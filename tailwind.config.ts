@@ -74,10 +74,23 @@ export default {
 				'gradient-warm': 'var(--gradient-warm)'
 			},
 			boxShadow: {
-				'apple': 'var(--shadow-apple)'
+				'apple': 'var(--shadow-apple)',
+				'card': 'var(--shadow-card)',
+				'glow': '0 0 20px hsl(var(--primary) / 0.3)'
 			},
-			transitionTimingFunction: {
-				'apple': 'cubic-bezier(0.4, 0, 0.2, 1)'
+			animation: {
+				'fade-in': 'fadeIn 0.3s ease-out',
+				'slide-up': 'slideUp 0.4s ease-out'
+			},
+			keyframes: {
+				fadeIn: {
+					'0%': { opacity: '0', transform: 'translateY(10px)' },
+					'100%': { opacity: '1', transform: 'translateY(0)' }
+				},
+				slideUp: {
+					'0%': { opacity: '0', transform: 'translateY(20px)' },
+					'100%': { opacity: '1', transform: 'translateY(0)' }
+				}
 			},
 			borderRadius: {
 				lg: 'var(--radius)',

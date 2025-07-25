@@ -58,15 +58,13 @@ export const Buildings = () => {
   const [editingUser, setEditingUser] = useState<WegOwner | Tenant | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Building form state
+  // Building form state - type automatically set based on management mode
   const [buildingForm, setBuildingForm] = useState<{
     name: string;
     address: string;
-    type: string;
   }>({
     name: "",
     address: "",
-    type: "weg",
   });
 
   // User form state
@@ -177,6 +175,7 @@ export const Buildings = () => {
         .from("buildings")
         .insert([{
           ...buildingForm,
+          type: managementMode, // Automatically set type based on management mode
           management_mode: managementMode
         }])
         .select()
@@ -185,7 +184,7 @@ export const Buildings = () => {
       if (error) throw error;
 
       setBuildings(prev => [data, ...prev]);
-      setBuildingForm({ name: "", address: "", type: "weg" });
+      setBuildingForm({ name: "", address: "" });
       setIsCreateBuildingOpen(false);
       
       toast({
@@ -211,7 +210,7 @@ export const Buildings = () => {
         .update({
           name: buildingForm.name,
           address: buildingForm.address,
-          type: buildingForm.type
+          type: managementMode // Update type based on current management mode
         })
         .eq("id", editingBuilding.id)
         .select()
@@ -282,21 +281,8 @@ export const Buildings = () => {
     }
 
     try {
-      // Create user in auth
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email: userForm.email,
-        password: userForm.password,
-        email_confirm: true,
-        user_metadata: {
-          first_name: userForm.first_name,
-          last_name: userForm.last_name,
-        }
-      });
-
-      if (authError) throw authError;
-
       if (managementMode === 'weg') {
-        // Create WEG owner
+        // For WEG owners, just create entry in weg_owners table
         const { data, error } = await supabase
           .from("weg_owners")
           .insert([{
@@ -315,25 +301,12 @@ export const Buildings = () => {
           [selectedBuildingId]: [...(prev[selectedBuildingId] || []), data]
         }));
       } else {
-        // Create tenant with profile
-        const { error: profileError } = await supabase
-          .from("profiles")
-          .insert([{
-            user_id: authData.user.id,
-            email: userForm.email,
-            first_name: userForm.first_name,
-            last_name: userForm.last_name,
-            role: 'tenant',
-            building_id: selectedBuildingId,
-            force_password_change: false
-          }]);
-
-        if (profileError) throw profileError;
-
+        // For tenants, we'll just create entry in tenants table for now
+        // Note: In production, you would need to handle user creation through Supabase Admin API
         const { data, error } = await supabase
           .from("tenants")
           .insert([{
-            user_id: authData.user.id,
+            user_id: crypto.randomUUID(), // Temporary user ID
             building_id: selectedBuildingId,
             email: userForm.email,
             first_name: userForm.first_name,
@@ -421,8 +394,7 @@ export const Buildings = () => {
     setEditingBuilding(building);
     setBuildingForm({
       name: building.name,
-      address: building.address,
-      type: building.type
+      address: building.address
     });
     setIsEditBuildingOpen(true);
   };
@@ -516,20 +488,13 @@ export const Buildings = () => {
                   placeholder="Straße, PLZ Ort"
                 />
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="type">Typ</Label>
-                <Select 
-                  value={buildingForm.type} 
-                  onValueChange={(value) => setBuildingForm(prev => ({...prev, type: value}))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="weg">WEG</SelectItem>
-                    <SelectItem value="rent">Miete</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="bg-muted/30 p-4 rounded-lg">
+                <Label className="text-sm font-medium text-muted-foreground">
+                  Typ: {managementMode === 'weg' ? 'WEG-Verwaltung' : 'Mietverwaltung'}
+                </Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Der Gebäudetyp wird automatisch basierend auf dem aktuellen Verwaltungsmodus gesetzt.
+                </p>
               </div>
             </div>
             <div className="flex gap-2">
@@ -863,20 +828,13 @@ export const Buildings = () => {
                 placeholder="Straße, PLZ Ort"
               />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="edit-type">Typ</Label>
-              <Select 
-                value={buildingForm.type} 
-                onValueChange={(value) => setBuildingForm(prev => ({...prev, type: value}))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="weg">WEG</SelectItem>
-                  <SelectItem value="rent">Miete</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="bg-muted/30 p-4 rounded-lg">
+              <Label className="text-sm font-medium text-muted-foreground">
+                Typ: {managementMode === 'weg' ? 'WEG-Verwaltung' : 'Mietverwaltung'}
+              </Label>
+              <p className="text-xs text-muted-foreground mt-1">
+                Der Gebäudetyp wird automatisch basierend auf dem aktuellen Verwaltungsmodus gesetzt.
+              </p>
             </div>
           </div>
           <div className="flex gap-2">

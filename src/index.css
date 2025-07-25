@@ -41,15 +41,15 @@ All colors MUST be HSL.
 
     --radius: 0.75rem;               /* Apple-like rounded corners */
 
-    /* Apple-inspired sidebar */
-    --sidebar-background: 220 15% 12%;  /* Deep warm dark */
-    --sidebar-foreground: 28 15% 95%;   /* Warm light text */
-    --sidebar-primary: 28 100% 52%;     /* Warm orange */
+    /* Modern light sidebar */
+    --sidebar-background: 0 0% 100%;       /* Pure white */
+    --sidebar-foreground: 220 10% 15%;     /* Dark gray text */
+    --sidebar-primary: 28 100% 52%;        /* Warm orange */
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 12% 18%;      /* Lighter dark */
-    --sidebar-accent-foreground: 28 15% 95%;
-    --sidebar-border: 220 15% 20%;      /* Subtle border */
-    --sidebar-ring: 28 100% 52%;        /* Orange focus */
+    --sidebar-accent: 28 20% 96%;          /* Very light warm accent */
+    --sidebar-accent-foreground: 220 10% 15%;
+    --sidebar-border: 28 25% 90%;          /* Warm border */
+    --sidebar-ring: 28 100% 52%;           /* Orange focus */
     
     /* Apple-inspired effects */
     --gradient-primary: linear-gradient(135deg, hsl(28 100% 52%), hsl(32 100% 48%));

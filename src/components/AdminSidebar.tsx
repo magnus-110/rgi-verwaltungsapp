@@ -58,43 +58,54 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
   };
 
   return (
-    <Sidebar className={collapsed ? "w-14" : "w-64"}>
+    <Sidebar className={`${collapsed ? "w-16" : "w-72"} sidebar-enhanced`}>
       <SidebarContent className="bg-sidebar text-sidebar-foreground">
         {/* Header with Logo */}
-        <div className="p-4 border-b border-sidebar-border">
+        <div className="p-6 border-b border-sidebar-border bg-gradient-to-r from-primary/5 to-transparent">
           {!collapsed ? (
-            <div className="flex items-center space-x-3">
-              <img 
-                src="/lovable-uploads/8cc4ac02-ecfc-41ef-945a-738115d31106.png" 
-                alt="RGI" 
-                className="h-8 w-auto"
-              />
-              <span className="font-bold text-lg">RGI Admin</span>
+            <div className="flex items-center space-x-3 animate-fade-in">
+              <div className="w-10 h-10 bg-gradient-primary rounded-xl flex items-center justify-center shadow-md">
+                <img 
+                  src="/lovable-uploads/8cc4ac02-ecfc-41ef-945a-738115d31106.png" 
+                  alt="RGI" 
+                  className="h-6 w-auto"
+                />
+              </div>
+              <div>
+                <span className="font-bold text-xl text-foreground">RGI</span>
+                <p className="text-xs text-muted-foreground">Admin Portal</p>
+              </div>
             </div>
           ) : (
             <div className="flex justify-center">
-              <img 
-                src="/lovable-uploads/8cc4ac02-ecfc-41ef-945a-738115d31106.png" 
-                alt="RGI" 
-                className="h-8 w-auto"
-              />
+              <div className="w-10 h-10 bg-gradient-primary rounded-xl flex items-center justify-center shadow-md">
+                <img 
+                  src="/lovable-uploads/8cc4ac02-ecfc-41ef-945a-738115d31106.png" 
+                  alt="RGI" 
+                  className="h-6 w-auto"
+                />
+              </div>
             </div>
           )}
         </div>
 
         {/* Management Mode Toggle */}
-        <div className="p-4 border-b border-sidebar-border">
+        <div className="p-6 border-b border-sidebar-border">
           {!collapsed ? (
-            <div className="space-y-3">
-              <label className="text-sm font-medium text-sidebar-foreground">
+            <div className="space-y-4 animate-slide-up">
+              <label className="text-sm font-semibold text-foreground">
                 Verwaltungsmodus
               </label>
-              <div className="flex items-center justify-between">
+              <div className="flex bg-muted rounded-xl p-1 gap-1">
                 <Button
                   variant={managementMode === 'weg' ? 'default' : 'ghost'}
                   size="sm"
                   onClick={() => onModeChange('weg')}
-                  className={managementMode === 'weg' ? 'bg-sidebar-primary text-sidebar-primary-foreground' : ''}
+                  className={`flex-1 rounded-lg transition-all duration-200 ${
+                    managementMode === 'weg' 
+                      ? 'bg-primary text-primary-foreground shadow-md' 
+                      : 'hover:bg-accent text-muted-foreground hover:text-foreground'
+                  }`}
                 >
                   WEG
                 </Button>
@@ -102,14 +113,20 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
                   variant={managementMode === 'rent' ? 'default' : 'ghost'}
                   size="sm"
                   onClick={() => onModeChange('rent')}
-                  className={managementMode === 'rent' ? 'bg-sidebar-primary text-sidebar-primary-foreground' : ''}
+                  className={`flex-1 rounded-lg transition-all duration-200 ${
+                    managementMode === 'rent' 
+                      ? 'bg-primary text-primary-foreground shadow-md' 
+                      : 'hover:bg-accent text-muted-foreground hover:text-foreground'
+                  }`}
                 >
                   Miete
                 </Button>
               </div>
-              <Badge variant="outline" className="w-full justify-center">
-                {managementMode === 'weg' ? 'WEG-Verwaltung' : 'Mietverwaltung'}
-              </Badge>
+              <div className="text-center">
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                  {managementMode === 'weg' ? 'WEG-Verwaltung' : 'Mietverwaltung'}
+                </span>
+              </div>
             </div>
           ) : (
             <div className="flex justify-center">
