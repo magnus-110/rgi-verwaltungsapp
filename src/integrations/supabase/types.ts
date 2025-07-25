@@ -47,28 +47,34 @@ export type Database = {
       chatbot_settings: {
         Row: {
           id: string
+          knowledge_base: string | null
           management_mode: Database["public"]["Enums"]["management_mode"]
           max_tokens: number | null
           model: string | null
           openai_api_key: string | null
+          system_prompt: string | null
           temperature: number | null
           updated_at: string | null
         }
         Insert: {
           id?: string
+          knowledge_base?: string | null
           management_mode: Database["public"]["Enums"]["management_mode"]
           max_tokens?: number | null
           model?: string | null
           openai_api_key?: string | null
+          system_prompt?: string | null
           temperature?: number | null
           updated_at?: string | null
         }
         Update: {
           id?: string
+          knowledge_base?: string | null
           management_mode?: Database["public"]["Enums"]["management_mode"]
           max_tokens?: number | null
           model?: string | null
           openai_api_key?: string | null
+          system_prompt?: string | null
           temperature?: number | null
           updated_at?: string | null
         }
@@ -175,6 +181,7 @@ export type Database = {
           force_password_change: boolean | null
           id: string
           last_name: string | null
+          phone: string | null
           role: Database["public"]["Enums"]["app_role"]
           updated_at: string | null
           user_id: string
@@ -187,6 +194,7 @@ export type Database = {
           force_password_change?: boolean | null
           id?: string
           last_name?: string | null
+          phone?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           updated_at?: string | null
           user_id: string
@@ -199,6 +207,7 @@ export type Database = {
           force_password_change?: boolean | null
           id?: string
           last_name?: string | null
+          phone?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           updated_at?: string | null
           user_id?: string

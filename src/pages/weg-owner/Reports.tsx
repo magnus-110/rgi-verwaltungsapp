@@ -50,15 +50,29 @@ export const WegOwnerReports = () => {
   useEffect(() => {
     if (profile) {
       fetchReports();
+      fetchProfileInfo();
+    }
+  }, [profile]);
+
+  const fetchProfileInfo = async () => {
+    try {
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("user_id", profile?.user_id)
+        .single();
+
       // Prefill contact information from profile
       setReportForm(prev => ({
         ...prev,
-        contact_name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim(),
-        contact_email: profile.email || '',
-        contact_phone: '', // Could be added to profile later
+        contact_name: `${profileData?.first_name || ''} ${profileData?.last_name || ''}`.trim(),
+        contact_email: profileData?.email || '',
+        contact_phone: profileData?.phone || '',
       }));
+    } catch (error) {
+      console.error("Error fetching profile info:", error);
     }
-  }, [profile]);
+  };
 
   const fetchReports = async () => {
     try {

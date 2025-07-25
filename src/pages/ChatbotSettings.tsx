@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Bot, Settings, Eye, EyeOff } from "lucide-react";
 
@@ -16,8 +18,42 @@ export const ChatbotSettings = () => {
     openai_api_key: "",
     model: "gpt-4o-mini",
     temperature: [0.7],
-    max_tokens: [500]
+    max_tokens: [500],
+    system_prompt: "Sie sind ein hilfreicher Assistent für die Immobilienverwaltung.",
+    knowledge_base: ""
   });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchChatbotSettings();
+  }, []);
+
+  const fetchChatbotSettings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("chatbot_settings")
+        .select("*")
+        .eq("management_mode", "weg")
+        .single();
+
+      if (error && error.code !== 'PGRST116') throw error;
+
+      if (data) {
+        setSettings({
+          openai_api_key: "", // Never show actual API key
+          model: data.model || "gpt-4o-mini",
+          temperature: [data.temperature || 0.7],
+          max_tokens: [data.max_tokens || 500],
+          system_prompt: data.system_prompt || "Sie sind ein hilfreicher Assistent für die Immobilienverwaltung.",
+          knowledge_base: data.knowledge_base || ""
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching chatbot settings:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const isAdmin = profile?.role === 'admin';
 
@@ -34,12 +70,34 @@ export const ChatbotSettings = () => {
 
   const handleSave = async () => {
     try {
-      // TODO: Implement Supabase update
+      const settingsData: any = {
+        model: settings.model,
+        temperature: settings.temperature[0],
+        max_tokens: settings.max_tokens[0],
+        system_prompt: settings.system_prompt,
+        knowledge_base: settings.knowledge_base,
+        management_mode: "weg" as const
+      };
+
+      // Only include API key if it's been entered
+      if (settings.openai_api_key) {
+        settingsData.openai_api_key = settings.openai_api_key;
+      }
+
+      const { error } = await supabase
+        .from("chatbot_settings")
+        .upsert([settingsData], {
+          onConflict: "management_mode"
+        });
+
+      if (error) throw error;
+
       toast({
         title: "Einstellungen gespeichert",
         description: "Die Chatbot-Einstellungen wurden erfolgreich aktualisiert.",
       });
     } catch (error) {
+      console.error("Error saving settings:", error);
       toast({
         title: "Fehler",
         description: "Beim Speichern der Einstellungen ist ein Fehler aufgetreten.",
@@ -139,6 +197,41 @@ export const ChatbotSettings = () => {
               <Button variant="outline" onClick={handleTestConnection}>
                 Verbindung testen
               </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>System Prompt & Wissensbasis</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <Label htmlFor="system-prompt">System Prompt</Label>
+              <Textarea
+                id="system-prompt"
+                value={settings.system_prompt}
+                onChange={(e) => setSettings({ ...settings, system_prompt: e.target.value })}
+                placeholder="Definieren Sie hier das Verhalten des Chatbots..."
+                rows={4}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Beschreibt die Rolle und das Verhalten des Chatbots.
+              </p>
+            </div>
+
+            <div>
+              <Label htmlFor="knowledge-base">Wissensbasis</Label>
+              <Textarea
+                id="knowledge-base"
+                value={settings.knowledge_base}
+                onChange={(e) => setSettings({ ...settings, knowledge_base: e.target.value })}
+                placeholder="Geben Sie hier zusätzliche Informationen ein, die der Chatbot verwenden soll..."
+                rows={8}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Zusätzliche Kontextinformationen für präzisere Antworten.
+              </p>
             </div>
           </CardContent>
         </Card>

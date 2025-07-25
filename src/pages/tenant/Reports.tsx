@@ -68,12 +68,18 @@ export const TenantReports = () => {
 
       setTenantInfo(tenantData);
       
-      // Prefill contact information
+      // Prefill contact information from user profile and building data
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("user_id", profile?.user_id)
+        .single();
+
       setReportForm(prev => ({
         ...prev,
-        contact_name: `${tenantData.first_name || ''} ${tenantData.last_name || ''}`.trim(),
-        contact_email: tenantData.email || '',
-        contact_phone: tenantData.phone || '',
+        contact_name: `${profileData?.first_name || tenantData.first_name || ''} ${profileData?.last_name || tenantData.last_name || ''}`.trim(),
+        contact_email: profileData?.email || tenantData.email || '',
+        contact_phone: profileData?.phone || tenantData.phone || '',
         contact_address: tenantData.buildings?.address || '',
         building_name: tenantData.buildings?.name || '',
       }));
