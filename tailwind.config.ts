@@ -19,6 +19,12 @@ export default {
 		},
 		extend: {
 			colors: {
+				/* RGI Brand Colors */
+				'rgi-orange': 'hsl(var(--rgi-orange))',
+				'rgi-gray': 'hsl(var(--rgi-gray))',
+				'rgi-white': 'hsl(var(--rgi-white))',
+				
+				/* Design System */
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
 				ring: 'hsl(var(--ring))',
@@ -62,6 +68,15 @@ export default {
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
 				}
+			},
+			backgroundImage: {
+				'gradient-primary': 'var(--gradient-primary)'
+			},
+			boxShadow: {
+				'elegant': 'var(--shadow-elegant)'
+			},
+			transitionProperty: {
+				'smooth': 'var(--transition-smooth)'
 			},
 			borderRadius: {
 				lg: 'var(--radius)',
