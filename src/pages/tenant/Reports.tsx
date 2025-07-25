@@ -43,23 +43,44 @@ export const TenantReports = () => {
     contact_email: "",
     contact_phone: "",
     contact_address: "",
+    building_name: "",
   });
+  const [tenantInfo, setTenantInfo] = useState<any>(null);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (profile) {
       fetchReports();
+      fetchTenantInfo();
+    }
+  }, [profile]);
+
+  const fetchTenantInfo = async () => {
+    try {
+      const { data: tenantData, error: tenantError } = await supabase
+        .from("tenants")
+        .select("*, buildings(id, name, address)")
+        .eq("user_id", profile?.user_id)
+        .single();
+
+      if (tenantError) throw tenantError;
+
+      setTenantInfo(tenantData);
+      
       // Prefill contact information
       setReportForm(prev => ({
         ...prev,
-        contact_name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim(),
-        contact_email: profile.email || '',
-        contact_phone: '', // Would need to add phone to profile
-        contact_address: '', // Would need to add address to profile
+        contact_name: `${tenantData.first_name || ''} ${tenantData.last_name || ''}`.trim(),
+        contact_email: tenantData.email || '',
+        contact_phone: tenantData.phone || '',
+        contact_address: tenantData.buildings?.address || '',
+        building_name: tenantData.buildings?.name || '',
       }));
+    } catch (error) {
+      console.error("Error fetching tenant info:", error);
     }
-  }, [profile]);
+  };
 
   const fetchReports = async () => {
     try {
@@ -133,7 +154,7 @@ export const TenantReports = () => {
           description: reportForm.description,
           priority: reportForm.priority,
           reported_by: profile?.user_id,
-          building_id: profile?.user_id,
+          building_id: tenantInfo?.building_id,
           contact_name: reportForm.contact_name,
           contact_email: reportForm.contact_email,
           contact_phone: reportForm.contact_phone,
@@ -159,10 +180,11 @@ export const TenantReports = () => {
         title: "", 
         description: "", 
         priority: "medium",
-        contact_name: `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim(),
-        contact_email: profile?.email || '',
-        contact_phone: '',
-        contact_address: '',
+        contact_name: `${tenantInfo?.first_name || ''} ${tenantInfo?.last_name || ''}`.trim(),
+        contact_email: tenantInfo?.email || '',
+        contact_phone: tenantInfo?.phone || '',
+        contact_address: tenantInfo?.buildings?.address || '',
+        building_name: tenantInfo?.buildings?.name || '',
       });
       setAttachments([]);
       setIsCreateReportOpen(false);
@@ -290,6 +312,19 @@ export const TenantReports = () => {
                     placeholder="Ihre Adresse"
                   />
                 </div>
+              </div>
+
+              {/* Building Information */}
+              <div>
+                <Label htmlFor="building_name">Gebäude</Label>
+                <Input
+                  id="building_name"
+                  value={reportForm.building_name}
+                  onChange={(e) => setReportForm(prev => ({ ...prev, building_name: e.target.value }))}
+                  placeholder="Gebäudename"
+                  readOnly
+                  className="bg-muted"
+                />
               </div>
 
               {/* Report Information */}

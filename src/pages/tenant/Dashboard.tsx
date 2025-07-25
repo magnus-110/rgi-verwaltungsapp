@@ -17,13 +17,30 @@ interface Report {
 export const TenantDashboard = () => {
   const { profile } = useAuth();
   const [reports, setReports] = useState<Report[]>([]);
+  const [tenantInfo, setTenantInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (profile) {
       fetchReports();
+      fetchTenantInfo();
     }
   }, [profile]);
+
+  const fetchTenantInfo = async () => {
+    try {
+      const { data: tenantData, error: tenantError } = await supabase
+        .from("tenants")
+        .select("*, buildings(id, name, address)")
+        .eq("user_id", profile?.user_id)
+        .single();
+
+      if (tenantError) throw tenantError;
+      setTenantInfo(tenantData);
+    } catch (error) {
+      console.error("Error fetching tenant info:", error);
+    }
+  };
 
   const fetchReports = async () => {
     try {
@@ -91,7 +108,7 @@ export const TenantDashboard = () => {
               <div>
                 <p className="font-medium">Ihr Gebäude</p>
                 <p className="text-sm text-muted-foreground">
-                  Gebäude-ID: {profile?.user_id ? profile.user_id.slice(-8) : 'Nicht zugeordnet'}
+                  {tenantInfo ? `${tenantInfo.buildings?.name || 'Unbekannt'} - ${tenantInfo.buildings?.address || 'Keine Adresse'}` : 'Laden...'}
                 </p>
               </div>
             </div>

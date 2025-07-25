@@ -50,12 +50,12 @@ export const WegOwnerReports = () => {
   useEffect(() => {
     if (profile) {
       fetchReports();
-      // Prefill contact information
+      // Prefill contact information from profile
       setReportForm(prev => ({
         ...prev,
         contact_name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim(),
         contact_email: profile.email || '',
-        contact_phone: '', // Would need to add phone to profile
+        contact_phone: '', // Could be added to profile later
       }));
     }
   }, [profile]);

@@ -1,5 +1,9 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { AlertCircle, MessageSquare, Building2, Users, Bot, TrendingUp } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useManagementMode } from "@/hooks/useManagementMode";
 
 const DashboardWidget = ({ 
   title, 
@@ -33,102 +37,182 @@ const DashboardWidget = ({
 );
 
 export const Dashboard = () => {
+  const { managementMode } = useManagementMode();
+  const [reports, setReports] = useState<any[]>([]);
+  const [buildings, setBuildings] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchData();
+  }, [managementMode]);
+
+  const fetchData = async () => {
+    try {
+      // Fetch reports based on management mode
+      const reportsTable = managementMode === 'weg' ? 'weg_reports' : 'miete_reports';
+      const { data: reportsData, error: reportsError } = await supabase
+        .from(reportsTable)
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(10);
+
+      if (reportsError) throw reportsError;
+
+      // Fetch buildings
+      const { data: buildingsData, error: buildingsError } = await supabase
+        .from("buildings")
+        .select("*")
+        .eq("management_mode", managementMode)
+        .order("created_at", { ascending: false });
+
+      if (buildingsError) throw buildingsError;
+
+      setReports(reportsData || []);
+      setBuildings(buildingsData || []);
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case "open":
+        return <Badge variant="destructive">Offen</Badge>;
+      case "in_progress":
+        return <Badge variant="secondary">In Bearbeitung</Badge>;
+      case "resolved":
+        return <Badge variant="default">Erledigt</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case "high":
+        return "border-red-500";
+      case "medium":
+        return "border-yellow-500";
+      case "low":
+        return "border-blue-500";
+      default:
+        return "border-gray-300";
+    }
+  };
+
+  const openReports = reports.filter(r => r.status === "open").length;
+  const inProgressReports = reports.filter(r => r.status === "in_progress").length;
+  const resolvedReports = reports.filter(r => r.status === "resolved").length;
+
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+        <h2 className="text-3xl font-bold tracking-tight">
+          {managementMode === 'weg' ? 'WEG-Verwaltung' : 'Mietverwaltung'} Dashboard
+        </h2>
         <p className="text-muted-foreground">
-          Überblick über Ihre Verwaltungsaktivitäten
+          Überblick über Ihre {managementMode === 'weg' ? 'WEG-' : 'Miet-'}Verwaltungsaktivitäten
         </p>
       </div>
 
-        {/* Statistik Widgets */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <DashboardWidget
-            title="Offene Tickets"
-            value="23"
-            description="3 kritisch, 12 hoch, 8 normal"
-            icon={AlertCircle}
-            trend="+2 seit gestern"
-          />
-          <DashboardWidget
-            title="Neue Meldungen"
-            value="8"
-            description="Heute eingegangen"
-            icon={MessageSquare}
-            trend="+12% zur Vorwoche"
-          />
-          <DashboardWidget
-            title="Verwaltete Gebäude"
-            value="45"
-            description="32 WEG, 13 Mietgebäude"
-            icon={Building2}
-          />
-          <DashboardWidget
-            title="Aktive Nutzer"
-            value="156"
-            description="89 WEG-Eigentümer, 67 Mieter"
-            icon={Users}
-            trend="+5 neue diese Woche"
-          />
-        </div>
+      {/* Statistik Widgets */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <DashboardWidget
+          title="Offene Meldungen"
+          value={openReports.toString()}
+          description={`${reports.filter(r => r.priority === "high").length} hoch, ${reports.filter(r => r.priority === "medium").length} mittel, ${reports.filter(r => r.priority === "low").length} niedrig`}
+          icon={AlertCircle}
+          trend={`${openReports > 0 ? '+' : ''}${openReports} offen`}
+        />
+        <DashboardWidget
+          title="In Bearbeitung"
+          value={inProgressReports.toString()}
+          description="Meldungen werden bearbeitet"
+          icon={MessageSquare}
+          trend={`${inProgressReports} aktiv`}
+        />
+        <DashboardWidget
+          title="Verwaltete Gebäude"
+          value={buildings.length.toString()}
+          description={`${managementMode === 'weg' ? 'WEG-' : 'Miet-'}Gebäude`}
+          icon={Building2}
+        />
+        <DashboardWidget
+          title="Erledigte Meldungen"
+          value={resolvedReports.toString()}
+          description="Erfolgreich abgeschlossen"
+          icon={Users}
+          trend={`${resolvedReports} erledigt`}
+        />
+      </div>
 
-        {/* Hauptbereiche */}
-        <div className="grid gap-6 md:grid-cols-2">
-          {/* Aktuelle Meldungen */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <AlertCircle className="mr-2 h-5 w-5" />
-                Aktuelle Meldungen
-              </CardTitle>
-              <CardDescription>
-                Die neuesten eingegangenen Meldungen
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="border-l-4 border-red-500 pl-4">
-                <h4 className="font-medium">Heizungsausfall Gebäude A</h4>
-                <p className="text-sm text-muted-foreground">Eingegangen heute, 09:15</p>
+      {/* Hauptbereiche */}
+      <div className="grid gap-6 md:grid-cols-2">
+        {/* Aktuelle Meldungen */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <AlertCircle className="mr-2 h-5 w-5" />
+              Aktuelle {managementMode === 'weg' ? 'WEG-' : 'Miet-'}Meldungen
+            </CardTitle>
+            <CardDescription>
+              Die neuesten eingegangenen Meldungen
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {loading ? (
+              <div className="text-center py-4">Laden...</div>
+            ) : reports.length === 0 ? (
+              <div className="text-center py-4 text-muted-foreground">
+                Keine Meldungen vorhanden
               </div>
-              <div className="border-l-4 border-yellow-500 pl-4">
-                <h4 className="font-medium">Wasserschaden Keller</h4>
-                <p className="text-sm text-muted-foreground">Eingegangen gestern, 16:45</p>
-              </div>
-              <div className="border-l-4 border-blue-500 pl-4">
-                <h4 className="font-medium">Aufzug Wartung erforderlich</h4>
-                <p className="text-sm text-muted-foreground">Eingegangen vor 2 Tagen</p>
-              </div>
-            </CardContent>
-          </Card>
+            ) : (
+              reports.slice(0, 5).map((report) => (
+                <div key={report.id} className={`border-l-4 ${getPriorityColor(report.priority)} pl-4`}>
+                  <div className="flex justify-between items-start mb-1">
+                    <h4 className="font-medium">{report.title}</h4>
+                    {getStatusBadge(report.status)}
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {report.contact_name} • {new Date(report.created_at).toLocaleDateString('de-DE')}
+                  </p>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
 
-          {/* Forum Aktivitäten */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <MessageSquare className="mr-2 h-5 w-5" />
-                Forum Aktivitäten
-              </CardTitle>
-              <CardDescription>
-                Neueste Diskussionen und Beiträge
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <h4 className="font-medium">Hausverwaltung Neuerungen 2024</h4>
-                <p className="text-sm text-muted-foreground">15 Antworten • Letzter Beitrag vor 2 Stunden</p>
+        {/* Gebäude Übersicht */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Building2 className="mr-2 h-5 w-5" />
+              Verwaltete Gebäude
+            </CardTitle>
+            <CardDescription>
+              Übersicht Ihrer {managementMode === 'weg' ? 'WEG-' : 'Miet-'}Gebäude
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {loading ? (
+              <div className="text-center py-4">Laden...</div>
+            ) : buildings.length === 0 ? (
+              <div className="text-center py-4 text-muted-foreground">
+                Keine Gebäude vorhanden
               </div>
-              <div className="space-y-2">
-                <h4 className="font-medium">Energiekosten-Abrechnung</h4>
-                <p className="text-sm text-muted-foreground">8 Antworten • Letzter Beitrag vor 5 Stunden</p>
-              </div>
-              <div className="space-y-2">
-                <h4 className="font-medium">Gemeinschaftsraum Buchung</h4>
-                <p className="text-sm text-muted-foreground">3 Antworten • Letzter Beitrag gestern</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+            ) : (
+              buildings.slice(0, 5).map((building) => (
+                <div key={building.id} className="space-y-2">
+                  <h4 className="font-medium">{building.name}</h4>
+                  <p className="text-sm text-muted-foreground">{building.address}</p>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+      </div>
 
         {/* Chatbot Status */}
         <Card>
