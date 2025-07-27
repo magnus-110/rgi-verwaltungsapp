@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { Bot, Send, MessageSquare } from "lucide-react";
 
 interface Message {
@@ -50,6 +52,7 @@ const generateResponse = (input: string, buildingId: string): string => {
 };
 
 export const WegOwnerChatbot = () => {
+  const { profile } = useAuth();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
@@ -62,6 +65,116 @@ export const WegOwnerChatbot = () => {
   const [buildingId, setBuildingId] = useState("");
   const [isTyping, setIsTyping] = useState(false);
 
+  const getBotResponse = async (input: string): Promise<string> => {
+    try {
+      // Fetch chatbot settings for WEG mode
+      const { data: settings } = await supabase
+        .from('chatbot_settings')
+        .select('*')
+        .eq('management_mode', 'weg')
+        .single();
+
+      if (!settings?.openai_api_key) {
+        return "Entschuldigung, der Chatbot-Service ist momentan nicht verfügbar. Bitte wenden Sie sich direkt an die Hausverwaltung.";
+      }
+
+      // Fetch all relevant data for context
+      let contextData = "";
+      
+      // Get buildings information
+      const { data: buildings } = await supabase
+        .from('buildings')
+        .select('*')
+        .eq('management_mode', 'weg')
+        .order('created_at', { ascending: false });
+
+      if (buildings && buildings.length > 0) {
+        contextData += `\n\nVerfügbare Gebäude:\n`;
+        buildings.forEach(building => {
+          contextData += `- ${building.name} (${building.address})\n`;
+        });
+      }
+
+      // Get user's reports
+      const { data: userReports } = await supabase
+        .from('weg_reports')
+        .select('*')
+        .eq('reported_by', profile?.user_id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (userReports && userReports.length > 0) {
+        contextData += `\n\nIhre letzten Meldungen:\n`;
+        userReports.forEach(report => {
+          contextData += `- ${report.title} (Status: ${report.status}, Priorität: ${report.priority}, Erstellt: ${new Date(report.created_at).toLocaleDateString('de-DE')})\n`;
+          if (report.admin_notes) {
+            contextData += `  Verwalter-Notiz: ${report.admin_notes}\n`;
+          }
+        });
+      }
+
+      // Get forum posts for additional context
+      const { data: forumPosts } = await supabase
+        .from('forum_posts')
+        .select('*')
+        .eq('management_mode', 'weg')
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (forumPosts && forumPosts.length > 0) {
+        contextData += `\n\nAktuelle Forum-Beiträge:\n`;
+        forumPosts.forEach(post => {
+          contextData += `- ${post.title}: ${post.content.substring(0, 100)}...\n`;
+        });
+      }
+
+      // Add building ID context if provided
+      if (buildingId) {
+        const { data: specificBuilding } = await supabase
+          .from('buildings')
+          .select('*')
+          .ilike('name', `%${buildingId}%`)
+          .or(`id.eq.${buildingId}`)
+          .maybeSingle();
+
+        if (specificBuilding) {
+          contextData += `\n\nSpezifisches Gebäude (${buildingId}):\n`;
+          contextData += `- Name: ${specificBuilding.name}\n- Adresse: ${specificBuilding.address}\n- Typ: ${specificBuilding.type}\n`;
+        }
+      }
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${settings.openai_api_key}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: settings.model,
+          messages: [
+            { 
+              role: 'system', 
+              content: `${settings.system_prompt}\n\nWissensdatenbank:\n${settings.knowledge_base}\n\nAktuelle Kontextdaten:${contextData}\n\nSie sprechen mit: ${profile?.first_name} ${profile?.last_name} (${profile?.email}) - WEG-Eigentümer. ${buildingId ? `Gebäude-ID: ${buildingId}` : 'Keine spezifische Gebäude-ID angegeben - bitten Sie um die Gebäude-ID für spezifische Informationen.'}`
+            },
+            { role: 'user', content: input }
+          ],
+          temperature: settings.temperature,
+          max_tokens: settings.max_tokens,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('API request failed');
+      }
+
+      const data = await response.json();
+      return data.choices[0].message.content;
+    } catch (error) {
+      console.error('Error generating response:', error);
+      return "Entschuldigung, es gab einen Fehler bei der Verarbeitung Ihrer Anfrage. Bitte wenden Sie sich direkt an die Hausverwaltung unter info@rgi-immobilien.de oder Tel: 08362-123456.";
+    }
+  };
+
   const handleSendMessage = async () => {
     if (!currentMessage.trim()) return;
 
@@ -73,20 +186,30 @@ export const WegOwnerChatbot = () => {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const inputText = currentMessage;
     setCurrentMessage("");
     setIsTyping(true);
 
-    // Simulate AI response based on user input
-    setTimeout(() => {
+    try {
+      const response = await getBotResponse(inputText);
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
-        content: generateResponse(currentMessage, buildingId),
+        content: response,
         isUser: false,
         timestamp: new Date()
       };
       setMessages(prev => [...prev, aiResponse]);
+    } catch (error) {
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: "Entschuldigung, es gab einen Fehler. Bitte versuchen Sie es erneut.",
+        isUser: false,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
       setIsTyping(false);
-    }, 1500);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {

@@ -33,8 +33,8 @@ const getStatusBadge = (status: string) => {
       return <Badge variant="destructive"><AlertCircle className="mr-1 h-3 w-3" />Offen</Badge>;
     case "in_progress":
       return <Badge variant="secondary"><Clock className="mr-1 h-3 w-3" />In Bearbeitung</Badge>;
-    case "resolved":
-      return <Badge variant="default"><CheckCircle className="mr-1 h-3 w-3" />Erledigt</Badge>;
+      case "resolved":
+        return <Badge variant="default"><CheckCircle className="mr-1 h-3 w-3" />Bearbeitet</Badge>;
     default:
       return <Badge variant="outline">{status}</Badge>;
   }
@@ -227,6 +227,22 @@ export const Reports = () => {
                       </p>
                     </div>
                   </div>
+                  
+                  {/* Admin Notes - visible to both admin and tenant/owner */}
+                  {report.admin_notes && (
+                    <div className="mt-4 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+                      <p className="text-sm font-medium text-primary mb-1">Verwalter-Notiz:</p>
+                      <p className="text-sm">{report.admin_notes}</p>
+                    </div>
+                  )}
+                  
+                  {/* Internal Notes - only visible to admins */}
+                  {report.internal_notes && (
+                    <div className="mt-4 p-3 bg-muted border rounded-lg">
+                      <p className="text-sm font-medium mb-1">Interne Notiz (nur Admin):</p>
+                      <p className="text-sm text-muted-foreground">{report.internal_notes}</p>
+                    </div>
+                  )}
                   <div className="flex space-x-2 mt-4">
                     <Dialog>
                       <DialogTrigger asChild>
@@ -252,8 +268,7 @@ export const Reports = () => {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="open">Offen</SelectItem>
-                                <SelectItem value="in_progress">In Bearbeitung</SelectItem>
-                                <SelectItem value="resolved">Erledigt</SelectItem>
+                                <SelectItem value="resolved">Bearbeitet</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>

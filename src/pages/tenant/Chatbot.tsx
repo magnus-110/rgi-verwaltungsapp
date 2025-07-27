@@ -77,24 +77,54 @@ export const TenantChatbot = () => {
         return "Entschuldigung, der Chatbot-Service ist momentan nicht verfügbar. Bitte wenden Sie sich direkt an die Hausverwaltung.";
       }
 
-      // Fetch building information
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('building_id')
-        .eq('user_id', profile?.user_id)
-        .single();
-
-      let buildingInfo = "";
-      if (profileData?.building_id) {
+      // Fetch all relevant data for context
+      let contextData = "";
+      
+      // Get building information
+      const profileWithBuilding = profile as any;
+      if (profileWithBuilding?.building_id) {
         const { data: building } = await supabase
           .from('buildings')
           .select('*')
-          .eq('id', profileData.building_id)
-          .single();
+          .eq('id', profileWithBuilding.building_id)
+          .maybeSingle();
         
         if (building) {
-          buildingInfo = `\n\nGebäudeinformationen:\nName: ${building.name}\nAdresse: ${building.address}`;
+          contextData += `\n\nGebäudeinformationen:\nName: ${building.name}\nAdresse: ${building.address}\nTyp: ${building.type}\nVerwaltungsmodus: ${building.management_mode}`;
         }
+      }
+
+      // Get user's reports
+      const { data: userReports } = await supabase
+        .from('miete_reports')
+        .select('*')
+        .eq('reported_by', profile?.user_id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (userReports && userReports.length > 0) {
+        contextData += `\n\nIhre letzten Meldungen:\n`;
+        userReports.forEach(report => {
+          contextData += `- ${report.title} (Status: ${report.status}, Priorität: ${report.priority}, Erstellt: ${new Date(report.created_at).toLocaleDateString('de-DE')})\n`;
+          if (report.admin_notes) {
+            contextData += `  Verwalter-Notiz: ${report.admin_notes}\n`;
+          }
+        });
+      }
+
+      // Get forum posts for additional context
+      const { data: forumPosts } = await supabase
+        .from('forum_posts')
+        .select('*')
+        .eq('management_mode', 'rent')
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (forumPosts && forumPosts.length > 0) {
+        contextData += `\n\nAktuelle Forum-Beiträge:\n`;
+        forumPosts.forEach(post => {
+          contextData += `- ${post.title}: ${post.content.substring(0, 100)}...\n`;
+        });
       }
 
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -108,7 +138,7 @@ export const TenantChatbot = () => {
           messages: [
             { 
               role: 'system', 
-              content: settings.system_prompt + "\n\nWissensdatenbank:\n" + settings.knowledge_base + buildingInfo
+              content: `${settings.system_prompt}\n\nWissensdatenbank:\n${settings.knowledge_base}\n\nAktuelle Kontextdaten:${contextData}\n\nSie sprechen mit: ${profile?.first_name} ${profile?.last_name} (${profile?.email})`
             },
             { role: 'user', content: input }
           ],

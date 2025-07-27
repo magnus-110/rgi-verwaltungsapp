@@ -36,7 +36,7 @@ export const TenantDashboard = () => {
           .from("buildings")
           .select("id, name, address")
           .eq("id", profileWithBuilding.building_id)
-          .single();
+          .maybeSingle();
 
         if (!buildingError && buildingData) {
           setTenantInfo({ buildings: buildingData });
