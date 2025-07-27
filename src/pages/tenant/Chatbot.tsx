@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { Bot, User, Send } from "lucide-react";
 
 interface Message {
@@ -37,46 +38,95 @@ export const TenantChatbot = () => {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const currentMessage = inputMessage;
     setInputMessage("");
     setIsLoading(true);
 
-    // Simulate bot response
-    setTimeout(() => {
+    try {
+      const response = await getBotResponse(currentMessage);
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
-        content: getBotResponse(inputMessage),
+        content: response,
         isBot: true,
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, botMessage]);
+    } catch (error) {
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        content: "Entschuldigung, es gab einen Fehler. Bitte versuchen Sie es erneut oder wenden Sie sich direkt an die Hausverwaltung.",
+        isBot: true,
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
-  const getBotResponse = (input: string): string => {
-    const lowerInput = input.toLowerCase();
-    
-    if (lowerInput.includes("meldung") || lowerInput.includes("problem") || lowerInput.includes("defekt")) {
-      return "Für Meldungen und Reparaturanfragen können Sie im Menü 'Meldungen' eine neue Meldung erstellen. Dort können Sie das Problem detailliert beschreiben und die Priorität festlegen.";
+  const getBotResponse = async (input: string): Promise<string> => {
+    try {
+      // Fetch chatbot settings for rent mode
+      const { data: settings } = await supabase
+        .from('chatbot_settings')
+        .select('*')
+        .eq('management_mode', 'rent')
+        .single();
+
+      if (!settings?.openai_api_key) {
+        return "Entschuldigung, der Chatbot-Service ist momentan nicht verfügbar. Bitte wenden Sie sich direkt an die Hausverwaltung.";
+      }
+
+      // Fetch building information
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('building_id')
+        .eq('user_id', profile?.user_id)
+        .single();
+
+      let buildingInfo = "";
+      if (profileData?.building_id) {
+        const { data: building } = await supabase
+          .from('buildings')
+          .select('*')
+          .eq('id', profileData.building_id)
+          .single();
+        
+        if (building) {
+          buildingInfo = `\n\nGebäudeinformationen:\nName: ${building.name}\nAdresse: ${building.address}`;
+        }
+      }
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${settings.openai_api_key}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: settings.model,
+          messages: [
+            { 
+              role: 'system', 
+              content: settings.system_prompt + "\n\nWissensdatenbank:\n" + settings.knowledge_base + buildingInfo
+            },
+            { role: 'user', content: input }
+          ],
+          temperature: settings.temperature,
+          max_tokens: settings.max_tokens,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('API request failed');
+      }
+
+      const data = await response.json();
+      return data.choices[0].message.content;
+    } catch (error) {
+      console.error('Error generating response:', error);
+      return "Entschuldigung, es gab einen Fehler bei der Verarbeitung Ihrer Anfrage. Bitte wenden Sie sich direkt an die Hausverwaltung unter info@rgi-immobilien.de oder Tel: 08362-123456.";
     }
-    
-    if (lowerInput.includes("miete") || lowerInput.includes("zahlung") || lowerInput.includes("überweisung")) {
-      return "Fragen zur Miete und Zahlungen können Sie über das Meldungssystem stellen oder direkt mit der Hausverwaltung Kontakt aufnehmen.";
-    }
-    
-    if (lowerInput.includes("hausordnung") || lowerInput.includes("regel")) {
-      return "Informationen zur Hausordnung finden Sie im Forum oder können bei der Hausverwaltung angefragt werden.";
-    }
-    
-    if (lowerInput.includes("nachbar") || lowerInput.includes("lärm") || lowerInput.includes("störung")) {
-      return "Bei Problemen mit Nachbarn oder Lärmbelästigung empfehle ich zunächst das direkte Gespräch. Falls das nicht hilft, können Sie eine Meldung über das System erstellen.";
-    }
-    
-    if (lowerInput.includes("heizung") || lowerInput.includes("warm") || lowerInput.includes("kalt")) {
-      return "Heizungsprobleme sollten schnell gemeldet werden. Erstellen Sie bitte eine Meldung mit hoher Priorität im Meldungssystem.";
-    }
-    
-    return "Vielen Dank für Ihre Frage! Für spezifische Anliegen empfehle ich Ihnen, eine Meldung über das Meldungssystem zu erstellen oder im Forum nach ähnlichen Themen zu suchen. Bei dringenden Problemen wenden Sie sich bitte direkt an die Hausverwaltung.";
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {

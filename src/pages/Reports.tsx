@@ -2,9 +2,14 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, Clock, CheckCircle, Plus } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { AlertCircle, Clock, CheckCircle, Plus, Edit } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useManagementMode } from "@/hooks/useManagementMode";
+import { toast } from "sonner";
 
 interface Report {
   id: string;
@@ -18,6 +23,8 @@ interface Report {
   contact_address: string;
   created_at: string;
   updated_at: string;
+  internal_notes?: string;
+  admin_notes?: string;
 }
 
 const getStatusBadge = (status: string) => {
@@ -52,6 +59,10 @@ export const Reports = () => {
   const { managementMode } = useManagementMode();
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedReport, setSelectedReport] = useState<Report | null>(null);
+  const [editingStatus, setEditingStatus] = useState("");
+  const [internalNotes, setInternalNotes] = useState("");
+  const [adminNotes, setAdminNotes] = useState("");
 
   useEffect(() => {
     fetchReports();
@@ -79,6 +90,51 @@ export const Reports = () => {
   const openReports = reports.filter(r => r.status === "open").length;
   const inProgressReports = reports.filter(r => r.status === "in_progress").length;
   const resolvedReports = reports.filter(r => r.status === "resolved").length;
+
+  const handleEditReport = (report: Report) => {
+    setSelectedReport(report);
+    setEditingStatus(report.status);
+    setInternalNotes(report.internal_notes || "");
+    setAdminNotes(report.admin_notes || "");
+  };
+
+  const handleUpdateReport = async () => {
+    if (!selectedReport) return;
+
+    try {
+      const tableName = managementMode === "weg" ? "weg_reports" : "miete_reports";
+      
+      const { error } = await supabase
+        .from(tableName)
+        .update({
+          status: editingStatus,
+          internal_notes: internalNotes,
+          admin_notes: adminNotes,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", selectedReport.id);
+
+      if (error) throw error;
+
+      // Update local state
+      setReports(reports.map(report => 
+        report.id === selectedReport.id 
+          ? { 
+              ...report, 
+              status: editingStatus, 
+              internal_notes: internalNotes, 
+              admin_notes: adminNotes 
+            }
+          : report
+      ));
+      
+      setSelectedReport(null);
+      toast.success("Meldung erfolgreich aktualisiert");
+    } catch (error) {
+      console.error("Error updating report:", error);
+      toast.error("Fehler beim Aktualisieren der Meldung");
+    }
+  };
   return (
     <div className="space-y-6">
         <div className="flex justify-between items-center">
@@ -172,13 +228,63 @@ export const Reports = () => {
                     </div>
                   </div>
                   <div className="flex space-x-2 mt-4">
-                    <Button variant="outline" size="sm">Details</Button>
-                    <Button variant="outline" size="sm">Bearbeiten</Button>
-                    {report.status === "open" && (
-                      <Button size="sm" className="bg-gradient-primary hover:opacity-90">
-                        Bearbeitung starten
-                      </Button>
-                    )}
+                    <Dialog>
+                      <DialogTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => handleEditReport(report)}
+                        >
+                          <Edit className="mr-1 h-3 w-3" />
+                          Bearbeiten
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-2xl">
+                        <DialogHeader>
+                          <DialogTitle>Meldung bearbeiten</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div>
+                            <Label htmlFor="status">Status</Label>
+                            <Select value={editingStatus} onValueChange={setEditingStatus}>
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="open">Offen</SelectItem>
+                                <SelectItem value="in_progress">In Bearbeitung</SelectItem>
+                                <SelectItem value="resolved">Erledigt</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label htmlFor="internal_notes">Interne Notizen (nur für Admins)</Label>
+                            <Textarea
+                              id="internal_notes"
+                              value={internalNotes}
+                              onChange={(e) => setInternalNotes(e.target.value)}
+                              placeholder="Interne Notizen eingeben..."
+                              rows={3}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="admin_notes">Verwalter-Notizen (sichtbar für Mieter/Eigentümer)</Label>
+                            <Textarea
+                              id="admin_notes"
+                              value={adminNotes}
+                              onChange={(e) => setAdminNotes(e.target.value)}
+                              placeholder="Notizen für Mieter/Eigentümer eingeben..."
+                              rows={3}
+                            />
+                          </div>
+                          <div className="flex space-x-2">
+                            <Button onClick={handleUpdateReport} className="bg-gradient-primary hover:opacity-90">
+                              Änderungen speichern
+                            </Button>
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
                   </div>
                 </CardContent>
               </Card>

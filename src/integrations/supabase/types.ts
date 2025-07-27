@@ -123,6 +123,7 @@ export type Database = {
       }
       miete_reports: {
         Row: {
+          admin_notes: string | null
           attachments: Json | null
           building_id: string | null
           contact_address: string | null
@@ -132,6 +133,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          internal_notes: string | null
           priority: string
           reported_by: string | null
           status: string
@@ -139,6 +141,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          admin_notes?: string | null
           attachments?: Json | null
           building_id?: string | null
           contact_address?: string | null
@@ -148,6 +151,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          internal_notes?: string | null
           priority?: string
           reported_by?: string | null
           status?: string
@@ -155,6 +159,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          admin_notes?: string | null
           attachments?: Json | null
           building_id?: string | null
           contact_address?: string | null
@@ -164,6 +169,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          internal_notes?: string | null
           priority?: string
           reported_by?: string | null
           status?: string
@@ -298,6 +304,7 @@ export type Database = {
       }
       weg_reports: {
         Row: {
+          admin_notes: string | null
           attachments: Json | null
           building_id: string | null
           contact_address: string | null
@@ -307,6 +314,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          internal_notes: string | null
           priority: string
           reported_by: string | null
           status: string
@@ -315,6 +323,7 @@ export type Database = {
           weg_owner_id: string | null
         }
         Insert: {
+          admin_notes?: string | null
           attachments?: Json | null
           building_id?: string | null
           contact_address?: string | null
@@ -324,6 +333,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          internal_notes?: string | null
           priority?: string
           reported_by?: string | null
           status?: string
@@ -332,6 +342,7 @@ export type Database = {
           weg_owner_id?: string | null
         }
         Update: {
+          admin_notes?: string | null
           attachments?: Json | null
           building_id?: string | null
           contact_address?: string | null
@@ -341,6 +352,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          internal_notes?: string | null
           priority?: string
           reported_by?: string | null
           status?: string
