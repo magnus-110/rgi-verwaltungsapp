@@ -19,9 +19,16 @@ export default {
 		},
 		extend: {
 			fontFamily: {
-				sans: ['-apple-system', 'BlinkMacSystemFont', 'San Francisco', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'sans-serif'],
+				sans: ['Inter', 'system-ui', 'sans-serif'],
+				'inter': ['Inter', 'system-ui', 'sans-serif'],
 			},
 			colors: {
+				/* RGI Specific Colors */
+				'rgi-orange': 'hsl(25 94% 48%)',
+				'rgi-orange-dark': 'hsl(25 85% 42%)',
+				'rgi-anthracite': 'hsl(0 3% 29%)',
+				'rgi-cream': 'hsl(35 20% 98%)',
+				
 				/* Design System */
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
@@ -74,7 +81,7 @@ export default {
 				'gradient-warm': 'var(--gradient-warm)'
 			},
 			boxShadow: {
-				'apple': 'var(--shadow-apple)',
+				'rgi': 'var(--shadow-rgi)',
 				'card': 'var(--shadow-card)',
 				'glow': '0 0 20px hsl(var(--primary) / 0.3)'
 			},

@@ -8,59 +8,62 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Apple-inspired warm color system */
-    --background: 0 0% 98%;          /* Warm white background */
-    --foreground: 220 10% 15%;       /* Deep warm gray */
+    /* RGI Immobilien Design System */
+    --background: 35 20% 98%;           /* Cremeweiß (#faf8f5) background */
+    --foreground: 0 3% 29%;             /* Anthrazit (#4a4849) */
 
-    --card: 0 0% 100%;               /* Pure white cards */
-    --card-foreground: 220 10% 15%;
+    --card: 0 0% 100%;                  /* Pure white cards */
+    --card-foreground: 0 3% 29%;        /* Anthrazit text */
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 10% 15%;
+    --popover-foreground: 0 3% 29%;
 
-    --primary: 28 100% 52%;          /* Warm orange primary */
+    --primary: 25 94% 48%;              /* RGI Orange (#ee7202) */
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 28 30% 95%;         /* Warm cream */
-    --secondary-foreground: 220 10% 20%;
+    --secondary: 35 30% 95%;            /* Light cream */
+    --secondary-foreground: 0 3% 29%;
 
-    --muted: 28 20% 96%;             /* Very warm light background */
-    --muted-foreground: 220 8% 45%;
+    --muted: 35 25% 96%;                /* Very light warm background */
+    --muted-foreground: 0 3% 50%;
 
-    --accent: 28 70% 92%;            /* Warm accent */
-    --accent-foreground: 220 10% 20%;
+    --accent: 35 50% 92%;               /* Warm accent */
+    --accent-foreground: 0 3% 29%;
 
-    --success: 120 60% 50%;          /* Success green */
-    --warning: 45 100% 51%;          /* Warning amber */
+    --success: 120 60% 50%;             /* Success green */
+    --warning: 45 100% 51%;             /* Warning amber */
     --destructive: 0 75% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 28 25% 90%;            /* Warm border */
-    --input: 28 25% 94%;             /* Warm input background */
-    --ring: 28 100% 52%;             /* Primary color for focus rings */
+    --border: 35 20% 88%;               /* Warm subtle border */
+    --input: 35 20% 96%;                /* Warm input background */
+    --ring: 25 94% 48%;                 /* Orange focus rings */
 
-    --radius: 0.75rem;               /* Apple-like rounded corners */
+    --radius: 0.5rem;                   /* RGI standard border-radius */
 
-    /* Modern light sidebar */
-    --sidebar-background: 0 0% 100%;       /* Pure white */
-    --sidebar-foreground: 220 10% 15%;     /* Dark gray text */
-    --sidebar-primary: 28 100% 52%;        /* Warm orange */
+    /* RGI Sidebar Colors */
+    --sidebar-background: 0 0% 100%;           /* Pure white */
+    --sidebar-foreground: 0 3% 29%;            /* Anthrazit */
+    --sidebar-primary: 25 94% 48%;             /* RGI Orange */
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 28 20% 96%;          /* Very light warm accent */
-    --sidebar-accent-foreground: 220 10% 15%;
-    --sidebar-border: 28 25% 90%;          /* Warm border */
-    --sidebar-ring: 28 100% 52%;           /* Orange focus */
+    --sidebar-accent: 35 25% 96%;              /* Light warm accent */
+    --sidebar-accent-foreground: 0 3% 29%;
+    --sidebar-border: 35 20% 88%;              /* Warm border */
+    --sidebar-ring: 25 94% 48%;                /* Orange focus */
     
-    /* Apple-inspired effects */
-    --gradient-primary: linear-gradient(135deg, hsl(28 100% 52%), hsl(32 100% 48%));
-    --gradient-warm: linear-gradient(180deg, hsl(28 20% 99%), hsl(28 15% 96%));
-    --shadow-apple: 0 8px 32px -8px hsl(220 10% 15% / 0.12);
-    --shadow-card: 0 2px 12px -2px hsl(220 10% 15% / 0.08);
-    --transition-apple: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    /* RGI Effects */
+    --gradient-primary: linear-gradient(135deg, hsl(25 94% 48%), hsl(25 85% 42%));
+    --gradient-warm: linear-gradient(180deg, hsl(35 20% 99%), hsl(35 20% 96%));
+    --shadow-rgi: 0 8px 32px -8px hsl(25 94% 48% / 0.15);
+    --shadow-card: 0 2px 12px -2px hsl(0 3% 29% / 0.08);
+    --transition-rgi: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    
+    /* RGI Hover Effects */
+    --orange-hover: 25 85% 42%;         /* Orange-Dark (#d6650b) */
     
     /* Glass effect for modern look */
-    --glass-bg: hsl(0 0% 100% / 0.8);
-    --glass-border: hsl(28 25% 90% / 0.5);
+    --glass-bg: hsl(0 0% 100% / 0.9);
+    --glass-border: hsl(35 20% 88% / 0.5);
   }
 
   .dark {
@@ -132,9 +135,18 @@ All colors MUST be HSL.
 }
 
 @layer components {
-  /* Apple-inspired card style */
-  .dashboard-card {
-    @apply bg-card border border-border rounded-lg transition-all duration-200 ease-out hover:shadow-lg;
+  /* RGI-inspired card style */
+  .rgi-card {
+    @apply bg-card border border-border rounded-lg transition-all duration-200 ease-out hover:shadow-rgi hover:scale-[1.01];
+  }
+  
+  /* RGI Button styles */
+  .rgi-button {
+    @apply transition-all duration-200 ease-out hover:scale-[1.02] active:scale-[0.98] rounded-lg;
+  }
+  
+  .rgi-button-primary {
+    @apply bg-primary text-primary-foreground hover:bg-rgi-orange-dark;
   }
   
   /* Glass effect for special elements */
@@ -145,9 +157,17 @@ All colors MUST be HSL.
     -webkit-backdrop-filter: blur(20px);
   }
   
-  /* Button enhancements */
-  .btn-apple {
-    @apply transition-all duration-200 ease-out hover:scale-[1.02] active:scale-[0.98];
+  /* RGI Header styles */
+  .rgi-header {
+    @apply bg-gradient-warm border-b border-border backdrop-blur-md;
+  }
+  
+  /* RGI Text styles */
+  .rgi-text-gradient {
+    background: var(--gradient-primary);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
   
   /* Smooth line clamp utility */
