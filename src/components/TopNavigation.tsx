@@ -46,7 +46,7 @@ export const TopNavigation = ({ userRole }: TopNavigationProps) => {
           active: location.pathname.startsWith('/tenant/forum')
         },
         { 
-          icon: Bot, 
+          icon: MessageSquare, 
           label: "Chat", 
           path: '/tenant/chatbot',
           active: location.pathname.startsWith('/tenant/chatbot')
@@ -62,7 +62,7 @@ export const TopNavigation = ({ userRole }: TopNavigationProps) => {
           active: location.pathname.startsWith('/weg-owner/reports')
         },
         { 
-          icon: Bot, 
+          icon: MessageSquare, 
           label: "Chat", 
           path: '/weg-owner/chatbot',
           active: location.pathname.startsWith('/weg-owner/chatbot')
@@ -82,7 +82,7 @@ export const TopNavigation = ({ userRole }: TopNavigationProps) => {
             <img 
               src="/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png" 
               alt="RGI Immobilien Logo" 
-              className="h-8 w-auto object-contain"
+              className="h-10 w-auto object-contain"
             />
           </div>
 
