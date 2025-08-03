@@ -29,34 +29,51 @@ export const TenantDashboard = () => {
 
   const fetchTenantInfo = async () => {
     try {
+      console.log('fetchTenantInfo started, profile:', profile);
+      
       // Try to get building info from profile first (using type assertion since building_id exists in DB)
       const profileWithBuilding = profile as any;
+      console.log('profileWithBuilding:', profileWithBuilding);
+      
       if (profileWithBuilding?.building_id) {
+        console.log('Found building_id in profile:', profileWithBuilding.building_id);
+        
         const { data: buildingData, error: buildingError } = await supabase
           .from("buildings")
           .select("id, name, address")
           .eq("id", profileWithBuilding.building_id)
           .maybeSingle();
 
+        console.log('Building query result:', { buildingData, buildingError });
+
         if (!buildingError && buildingData) {
-          console.log('Building data from profile:', buildingData);
+          console.log('Setting tenantInfo from profile building data:', buildingData);
           setTenantInfo({ buildings: buildingData });
           return;
         }
       }
 
       // Fallback: try to get from tenants table
+      console.log('Trying fallback: tenants table for user_id:', profile?.user_id);
+      
       const { data: tenantData, error: tenantError } = await supabase
         .from("tenants")
         .select("*, buildings(id, name, address)")
         .eq("user_id", profile?.user_id)
         .maybeSingle();
 
+      console.log('Tenant query result:', { tenantData, tenantError });
+
       if (!tenantError && tenantData) {
+        console.log('Setting tenantInfo from tenant data:', tenantData);
         setTenantInfo(tenantData);
+      } else {
+        console.log('No building data found');
+        setTenantInfo(null);
       }
     } catch (error) {
       console.error("Error fetching tenant info:", error);
+      setTenantInfo(null);
     }
   };
 
