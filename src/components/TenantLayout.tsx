@@ -1,7 +1,6 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { TenantSidebar } from "./TenantSidebar";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { TopNavigation } from "./TopNavigation";
 
 interface TenantLayoutProps {
   children: React.ReactNode;
@@ -38,19 +37,13 @@ export const TenantLayout = ({ children }: TenantLayoutProps) => {
   }
 
   return (
-    <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-background">
-        <TenantSidebar />
-        <main className="flex-1 flex flex-col overflow-hidden">
-          <header className="h-16 border-b bg-background flex items-center px-4 shrink-0">
-            <SidebarTrigger className="mr-4" />
-            <h1 className="text-xl font-semibold">Mieter Portal</h1>
-          </header>
-          <div className="flex-1 p-6 bg-muted/30 overflow-auto">
-            {children}
-          </div>
-        </main>
-      </div>
-    </SidebarProvider>
+    <div className="min-h-screen bg-background">
+      <TopNavigation userRole="tenant" />
+      <main className="pt-6 pb-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {children}
+        </div>
+      </main>
+    </div>
   );
 };

@@ -1,9 +1,21 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { 
+  AlertTriangle, 
+  Plus, 
+  Bot, 
+  Building2, 
+  MessageSquare,
+  Phone,
+  Mail,
+  Clock,
+  AlertCircle,
+  CheckCircle
+} from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { AlertCircle, MessageSquare, Building2, CheckCircle } from "lucide-react";
 
 interface Report {
   id: string;
@@ -14,61 +26,85 @@ interface Report {
   created_at: string;
 }
 
+interface ForumPost {
+  id: string;
+  title: string;
+  content: string;
+  created_at: string;
+}
+
 export const TenantDashboard = () => {
   const { profile } = useAuth();
+  const navigate = useNavigate();
   const [reports, setReports] = useState<Report[]>([]);
+  const [forumPosts, setForumPosts] = useState<ForumPost[]>([]);
   const [tenantInfo, setTenantInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (profile) {
-      fetchReports();
-      fetchTenantInfo();
+      fetchData();
     }
   }, [profile]);
 
+  const fetchData = async () => {
+    try {
+      // Fetch reports
+      const { data: reportsData, error: reportsError } = await supabase
+        .from("miete_reports")
+        .select("*")
+        .eq("reported_by", profile?.user_id)
+        .order("created_at", { ascending: false });
+
+      if (reportsError) throw reportsError;
+      setReports(reportsData || []);
+
+      // Fetch forum posts
+      const { data: forumData, error: forumError } = await supabase
+        .from("forum_posts")
+        .select("id, title, content, created_at")
+        .eq("management_mode", "rent")
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      if (forumError) throw forumError;
+      setForumPosts(forumData || []);
+
+      // Fetch tenant info
+      await fetchTenantInfo();
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const fetchTenantInfo = async () => {
     try {
-      console.log('fetchTenantInfo started, profile:', profile);
-      
-      // Try to get building info from profile first (using type assertion since building_id exists in DB)
       const profileWithBuilding = profile as any;
-      console.log('profileWithBuilding:', profileWithBuilding);
       
       if (profileWithBuilding?.building_id) {
-        console.log('Found building_id in profile:', profileWithBuilding.building_id);
-        
         const { data: buildingData, error: buildingError } = await supabase
           .from("buildings")
           .select("id, name, address")
           .eq("id", profileWithBuilding.building_id)
           .maybeSingle();
 
-        console.log('Building query result:', { buildingData, buildingError });
-
         if (!buildingError && buildingData) {
-          console.log('Setting tenantInfo from profile building data:', buildingData);
           setTenantInfo({ buildings: buildingData });
           return;
         }
       }
 
-      // Fallback: try to get from tenants table
-      console.log('Trying fallback: tenants table for user_id:', profile?.user_id);
-      
       const { data: tenantData, error: tenantError } = await supabase
         .from("tenants")
         .select("*, buildings(id, name, address)")
         .eq("user_id", profile?.user_id)
         .maybeSingle();
 
-      console.log('Tenant query result:', { tenantData, tenantError });
-
       if (!tenantError && tenantData) {
-        console.log('Setting tenantInfo from tenant data:', tenantData);
         setTenantInfo(tenantData);
       } else {
-        console.log('No building data found');
         setTenantInfo(null);
       }
     } catch (error) {
@@ -77,159 +113,233 @@ export const TenantDashboard = () => {
     }
   };
 
-  const fetchReports = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("miete_reports")
-        .select("*")
-        .eq("reported_by", profile?.user_id)
-        .order("created_at", { ascending: false })
-        .limit(5);
-
-      if (error) throw error;
-      setReports(data || []);
-    } catch (error) {
-      console.error("Error fetching reports:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "open":
-        return <Badge variant="destructive">Offen</Badge>;
-      case "in_progress":
-        return <Badge variant="secondary">In Bearbeitung</Badge>;
-      case "resolved":
-        return <Badge variant="default">Erledigt</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
-  const getPriorityBadge = (priority: string) => {
-    switch (priority) {
-      case "low":
-        return <Badge variant="outline">Niedrig</Badge>;
-      case "medium":
-        return <Badge variant="secondary">Mittel</Badge>;
-      case "high":
-        return <Badge variant="destructive">Hoch</Badge>;
-      default:
-        return <Badge variant="outline">{priority}</Badge>;
-    }
-  };
-
   const openReports = reports.filter(r => r.status === "open").length;
-  const inProgressReports = reports.filter(r => r.status === "in_progress").length;
   const resolvedReports = reports.filter(r => r.status === "resolved").length;
+
+  const currentDate = new Date().toLocaleDateString('de-DE', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      {/* Welcome Header */}
-      <div className="space-y-2">
-        <h1 className="text-4xl font-bold tracking-tight">
-          Willkommen, {profile?.first_name || 'Mieter'}!
-        </h1>
-        <p className="text-lg text-muted-foreground">
-          Hier finden Sie eine Übersicht über Ihre Meldungen und Aktivitäten.
-        </p>
-        {/* Building Info */}
-        <Card className="bg-primary/5 border-primary/20">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <Building2 className="h-5 w-5 text-primary" />
+      {/* Welcome Section */}
+      <div className="bg-background border-b border-border pb-6">
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="text-3xl font-bold text-foreground">
+            Willkommen zurück!
+          </h1>
+          <div className="text-right text-sm text-muted-foreground">
+            <div>Heute</div>
+            <div className="font-medium">{currentDate}</div>
+          </div>
+        </div>
+        
+        {tenantInfo && (
+          <div className="text-muted-foreground">
+            {tenantInfo.buildings ? 
+              `${tenantInfo.buildings.name} • ${tenantInfo.buildings.address}` : 
+              'Gebäude wird geladen...'}
+          </div>
+        )}
+      </div>
+
+      {/* Status Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Offen Card */}
+        <Card className="border-red-200 bg-red-50">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium">Ihr Gebäude</p>
-                <p className="text-sm text-muted-foreground">
-                  {tenantInfo ? `${tenantInfo.buildings?.name || 'Unbekannt'} - ${tenantInfo.buildings?.address || 'Keine Adresse'}` : 'Laden...'}
-                </p>
+                <div className="text-sm text-red-600 mb-1">Offen</div>
+                <div className="text-3xl font-bold text-red-700">{openReports}</div>
+                <div className="text-sm text-red-600">Warten auf Bearbeitung</div>
               </div>
+              <AlertCircle className="w-8 h-8 text-red-500" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Erledigt Card */}
+        <Card className="border-green-200 bg-green-50">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm text-green-600 mb-1">Erledigt</div>
+                <div className="text-3xl font-bold text-green-700">{resolvedReports}</div>
+                <div className="text-sm text-green-600">Abgeschlossen</div>
+              </div>
+              <CheckCircle className="w-8 h-8 text-green-500" />
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Schnellaktionen */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Offene Meldungen</CardTitle>
-            <AlertCircle className="h-4 w-4 text-destructive" />
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <div className="w-6 h-6 bg-primary/10 rounded flex items-center justify-center">
+                <span className="text-primary text-sm">⚡</span>
+              </div>
+              Schnellaktionen
+            </CardTitle>
+            <div className="text-sm text-muted-foreground">Häufig benötigte Funktionen</div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{openReports}</div>
-            <p className="text-xs text-muted-foreground">
-              Meldungen warten auf Bearbeitung
-            </p>
+          <CardContent className="space-y-3">
+            <Button 
+              variant="outline" 
+              className="w-full justify-start gap-3 h-12"
+              onClick={() => navigate("/tenant/reports/new")}
+            >
+              <AlertTriangle className="w-5 h-5 text-orange-500" />
+              <div className="text-left">
+                <div className="font-medium">Problem melden</div>
+                <div className="text-xs text-muted-foreground">Technische oder organisatorische Probleme melden</div>
+              </div>
+            </Button>
+            
+            <Button 
+              variant="outline" 
+              className="w-full justify-start gap-3 h-12"
+              onClick={() => navigate("/tenant/chatbot")}
+            >
+              <Bot className="w-5 h-5 text-blue-500" />
+              <div className="text-left">
+                <div className="font-medium">Frage stellen</div>
+                <div className="text-xs text-muted-foreground">Allgemeine Fragen über den Chatbot</div>
+              </div>
+            </Button>
+
+            <Button 
+              variant="outline" 
+              className="w-full justify-start gap-3 h-12"
+              onClick={() => navigate("/tenant/forum")}
+            >
+              <MessageSquare className="w-5 h-5 text-green-500" />
+              <div className="text-left">
+                <div className="font-medium">Forum besuchen</div>
+                <div className="text-xs text-muted-foreground">Diskussionen und Ankündigungen lesen</div>
+              </div>
+            </Button>
           </CardContent>
         </Card>
 
+        {/* Wichtige Hinweise */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">In Bearbeitung</CardTitle>
-            <Building2 className="h-4 w-4 text-orange-600" />
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-orange-500" />
+              Wichtige Hinweise
+            </CardTitle>
+            <div className="text-sm text-muted-foreground">Neueste Ankündigungen und Diskussionen für Ihr Gebäude</div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{inProgressReports}</div>
-            <p className="text-xs text-muted-foreground">
-              Meldungen werden bearbeitet
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Erledigt</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{resolvedReports}</div>
-            <p className="text-xs text-muted-foreground">
-              Erfolgreich bearbeitete Meldungen
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Recent Reports */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Aktuelle Meldungen</CardTitle>
-          <CardDescription>
-            Ihre letzten Meldungen im Überblick
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="text-center py-4">Laden...</div>
-          ) : reports.length === 0 ? (
-            <div className="text-center py-8">
-              <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">Noch keine Meldungen erstellt.</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {reports.map((report) => (
-                <div key={report.id} className="border rounded-lg p-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="font-semibold">{report.title}</h3>
-                    <div className="flex gap-2">
-                      {getStatusBadge(report.status)}
-                      {getPriorityBadge(report.priority)}
+            {loading ? (
+              <div className="text-center py-8 text-muted-foreground">Laden...</div>
+            ) : forumPosts.length === 0 ? (
+              <div className="text-center py-8">
+                <MessageSquare className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                <p className="text-muted-foreground mb-4">Noch keine Beiträge vorhanden</p>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => navigate("/tenant/forum")}
+                >
+                  Alle Ankündigungen anzeigen
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {forumPosts.slice(0, 3).map((post) => (
+                  <div key={post.id} className="border-b border-border pb-3 last:border-b-0">
+                    <div className="font-medium text-sm mb-1">
+                      {post.title}
+                    </div>
+                    <div className="text-xs text-muted-foreground mb-2 line-clamp-2">
+                      {post.content}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {new Date(post.created_at).toLocaleDateString('de-DE')}
                     </div>
                   </div>
-                  <p className="text-sm text-muted-foreground mb-2">
-                    {report.description}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    Erstellt am: {new Date(report.created_at).toLocaleDateString('de-DE')}
-                  </p>
-                </div>
-              ))}
+                ))}
+                
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full"
+                  onClick={() => navigate("/tenant/forum")}
+                >
+                  Alle Ankündigungen anzeigen
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Kontakt & Service */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <div className="w-6 h-6 bg-primary/10 rounded flex items-center justify-center">
+              <Phone className="w-4 h-4 text-primary" />
             </div>
-          )}
+            Kontakt & Service
+          </CardTitle>
+          <div className="text-sm text-muted-foreground">Wichtige Kontaktdaten für Notfälle und Anfragen</div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Bürozeiten */}
+            <div>
+              <h4 className="font-medium mb-3 text-sm">Bürozeiten</h4>
+              <div className="space-y-1 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-4 h-4" />
+                  Mo-Fr: 09:00 - 17:00 Uhr
+                </div>
+                <div className="text-xs">Termine nach Vereinbarung</div>
+              </div>
+            </div>
+
+            {/* Kontakt */}
+            <div>
+              <h4 className="font-medium mb-3 text-sm">Kontakt</h4>
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Phone className="w-4 h-4" />
+                  <span>08362340656</span>
+                </div>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Mail className="w-4 h-4" />
+                  <span>info@rgi-immobilien.de</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Notfall */}
+            <div>
+              <h4 className="font-medium mb-3 text-sm">Notfall</h4>
+              <div className="space-y-2">
+                <Button 
+                  size="sm" 
+                  className="bg-orange-600 hover:bg-orange-700 text-white gap-2"
+                  onClick={() => navigate("/tenant/chatbot")}
+                >
+                  <AlertTriangle className="w-4 h-4" />
+                  Schreiben Sie in den Chat Notfall
+                </Button>
+                <div className="text-xs text-muted-foreground">
+                  Wasserschäden, Heizungsausfall
+                </div>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>
