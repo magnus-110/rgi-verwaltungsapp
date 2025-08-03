@@ -39,6 +39,7 @@ export const TenantDashboard = () => {
           .maybeSingle();
 
         if (!buildingError && buildingData) {
+          console.log('Building data from profile:', buildingData);
           setTenantInfo({ buildings: buildingData });
           return;
         }
