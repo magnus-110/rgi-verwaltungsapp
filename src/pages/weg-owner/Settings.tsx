@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -23,11 +24,13 @@ export const WegOwnerSettings = () => {
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
   const [newBuildingId, setNewBuildingId] = useState("");
   const [buildings, setBuildings] = useState<WegOwnerBuilding[]>([]);
+  const [availableBuildings, setAvailableBuildings] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (profile?.user_id) {
       fetchBuildingAssignments();
+      fetchAvailableBuildings();
     }
   }, [profile?.user_id]);
 
@@ -36,7 +39,14 @@ export const WegOwnerSettings = () => {
       setIsLoading(true);
       const { data, error } = await supabase
         .from("weg_owner_buildings")
-        .select("*")
+        .select(`
+          *,
+          buildings:building_id (
+            id,
+            name,
+            address
+          )
+        `)
         .eq("user_id", profile?.user_id)
         .order("created_at", { ascending: false });
 
@@ -54,11 +64,26 @@ export const WegOwnerSettings = () => {
     }
   };
 
+  const fetchAvailableBuildings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("buildings")
+        .select("id, name, address")
+        .eq("management_mode", "weg")
+        .order("name");
+
+      if (error) throw error;
+      setAvailableBuildings(data || []);
+    } catch (error: any) {
+      console.error("Error fetching available buildings:", error);
+    }
+  };
+
   const addBuildingAssignment = async () => {
-    if (!newBuildingId.trim()) {
+    if (!newBuildingId) {
       toast({
         title: "Fehler",
-        description: "Bitte geben Sie eine gültige Gebäude-ID ein.",
+        description: "Bitte wählen Sie ein Gebäude aus.",
         variant: "destructive",
       });
       return;
@@ -69,9 +94,16 @@ export const WegOwnerSettings = () => {
         .from("weg_owner_buildings")
         .insert([{
           user_id: profile?.user_id,
-          building_id: newBuildingId.trim()
+          building_id: newBuildingId
         }])
-        .select()
+        .select(`
+          *,
+          buildings:building_id (
+            id,
+            name,
+            address
+          )
+        `)
         .single();
 
       if (error) throw error;
@@ -81,20 +113,20 @@ export const WegOwnerSettings = () => {
       
       toast({
         title: "Erfolg",
-        description: "Gebäude-ID wurde erfolgreich hinzugefügt.",
+        description: "Gebäude wurde erfolgreich hinzugefügt.",
       });
     } catch (error: any) {
       console.error("Error adding building assignment:", error);
       if (error.code === '23505') {
         toast({
           title: "Fehler",
-          description: "Diese Gebäude-ID ist bereits in Ihrer Liste.",
+          description: "Dieses Gebäude ist bereits in Ihrer Liste.",
           variant: "destructive",
         });
       } else {
         toast({
           title: "Fehler",
-          description: "Gebäude-ID konnte nicht hinzugefügt werden.",
+          description: "Gebäude konnte nicht hinzugefügt werden.",
           variant: "destructive",
         });
       }
@@ -194,14 +226,22 @@ export const WegOwnerSettings = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Add New Building ID */}
+          {/* Add New Building */}
           <div className="flex gap-2">
-            <Input
-              placeholder="Neue Gebäude-ID eingeben (z.B. GEB-2024-001)"
-              value={newBuildingId}
-              onChange={(e) => setNewBuildingId(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && addBuildingAssignment()}
-            />
+            <Select value={newBuildingId} onValueChange={setNewBuildingId}>
+              <SelectTrigger className="flex-1">
+                <SelectValue placeholder="Gebäude auswählen..." />
+              </SelectTrigger>
+              <SelectContent>
+                {availableBuildings
+                  .filter(building => !buildings.some(b => b.building_id === building.id))
+                  .map((building) => (
+                    <SelectItem key={building.id} value={building.id}>
+                      {building.name} - {building.address}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
             <Button onClick={addBuildingAssignment} className="flex items-center gap-2">
               <Plus className="w-4 h-4" />
               Hinzufügen
@@ -216,9 +256,9 @@ export const WegOwnerSettings = () => {
           ) : buildings.length === 0 ? (
             <div className="text-center py-8 border border-dashed rounded-lg">
               <Building2 className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">Noch keine Gebäude-IDs hinterlegt</p>
+              <p className="text-muted-foreground">Noch keine Gebäude zugeordnet</p>
               <p className="text-sm text-muted-foreground mt-2">
-                Fügen Sie Ihre erste Gebäude-ID hinzu, um den KI-Chatbot nutzen zu können.
+                Fügen Sie Ihr erstes Gebäude hinzu, um den KI-Chatbot nutzen zu können.
               </p>
             </div>
           ) : (
@@ -227,7 +267,10 @@ export const WegOwnerSettings = () => {
                 <div key={building.id} className="flex items-center justify-between p-3 border rounded-lg">
                   <div className="flex items-center gap-3">
                     <Building2 className="w-4 h-4 text-muted-foreground" />
-                    <span className="font-mono text-sm">{building.building_id}</span>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{(building as any).buildings?.name || 'Unbekanntes Gebäude'}</span>
+                      <span className="text-sm text-muted-foreground">{(building as any).buildings?.address}</span>
+                    </div>
                   </div>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
@@ -239,7 +282,7 @@ export const WegOwnerSettings = () => {
                       <AlertDialogHeader>
                         <AlertDialogTitle>Gebäude-ID entfernen</AlertDialogTitle>
                         <AlertDialogDescription>
-                          Möchten Sie die Gebäude-ID "{building.building_id}" wirklich aus Ihrer Liste entfernen?
+                          Möchten Sie das Gebäude "{(building as any).buildings?.name}" wirklich aus Ihrer Liste entfernen?
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>

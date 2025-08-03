@@ -168,13 +168,20 @@ export const WegOwnerReports = () => {
       }
 
       setReports(prev => [{ ...data, attachments: uploadedFiles }, ...prev]);
+      // Reset form but keep contact info from profile
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("user_id", profile?.user_id)
+        .single();
+
       setReportForm({ 
         title: "", 
         description: "", 
         priority: "medium",
-        contact_name: `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim(),
-        contact_email: profile?.email || '',
-        contact_phone: '',
+        contact_name: `${profileData?.first_name || ''} ${profileData?.last_name || ''}`.trim(),
+        contact_email: profileData?.email || '',
+        contact_phone: profileData?.phone || '',
         contact_address: '',
       });
       setAttachments([]);
