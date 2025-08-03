@@ -20,6 +20,7 @@ interface Building {
   address: string;
   type: string;
   management_mode: "weg" | "rent";
+  building_code?: string;
   created_at: string;
 }
 
@@ -62,9 +63,11 @@ export const Buildings = () => {
   const [buildingForm, setBuildingForm] = useState<{
     name: string;
     address: string;
+    building_code: string;
   }>({
     name: "",
     address: "",
+    building_code: "",
   });
 
   // User form state
@@ -184,7 +187,7 @@ export const Buildings = () => {
       if (error) throw error;
 
       setBuildings(prev => [data, ...prev]);
-      setBuildingForm({ name: "", address: "" });
+      setBuildingForm({ name: "", address: "", building_code: "" });
       setIsCreateBuildingOpen(false);
       
       toast({
@@ -210,6 +213,7 @@ export const Buildings = () => {
         .update({
           name: buildingForm.name,
           address: buildingForm.address,
+          building_code: buildingForm.building_code,
           type: managementMode // Update type based on current management mode
         })
         .eq("id", editingBuilding.id)
@@ -469,7 +473,8 @@ export const Buildings = () => {
     setEditingBuilding(building);
     setBuildingForm({
       name: building.name,
-      address: building.address
+      address: building.address,
+      building_code: building.building_code || ""
     });
     setIsEditBuildingOpen(true);
   };
@@ -562,6 +567,18 @@ export const Buildings = () => {
                   onChange={(e) => setBuildingForm(prev => ({...prev, address: e.target.value}))}
                   placeholder="Straße, PLZ Ort"
                 />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="building-code">Gebäude-Code (optional)</Label>
+                <Input
+                  id="building-code"
+                  value={buildingForm.building_code}
+                  onChange={(e) => setBuildingForm(prev => ({...prev, building_code: e.target.value}))}
+                  placeholder="z.B. WEG-123456"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Ein eindeutiger Code für einfachere Identifikation durch WEG-Eigentümer.
+                </p>
               </div>
               <div className="bg-muted/30 p-4 rounded-lg">
                 <Label className="text-sm font-medium text-muted-foreground">
@@ -901,14 +918,26 @@ export const Buildings = () => {
                 onChange={(e) => setBuildingForm(prev => ({...prev, address: e.target.value}))}
                 placeholder="Straße, PLZ Ort"
               />
-            </div>
-            <div className="bg-muted/30 p-4 rounded-lg">
-              <Label className="text-sm font-medium text-muted-foreground">
-                Typ: {managementMode === 'weg' ? 'WEG-Verwaltung' : 'Mietverwaltung'}
-              </Label>
-              <p className="text-xs text-muted-foreground mt-1">
-                Der Gebäudetyp wird automatisch basierend auf dem aktuellen Verwaltungsmodus gesetzt.
-              </p>
+             </div>
+             <div className="grid gap-2">
+               <Label htmlFor="edit-building-code">Gebäude-Code (optional)</Label>
+               <Input
+                 id="edit-building-code"
+                 value={buildingForm.building_code}
+                 onChange={(e) => setBuildingForm(prev => ({...prev, building_code: e.target.value}))}
+                 placeholder="z.B. WEG-123456"
+               />
+               <p className="text-xs text-muted-foreground">
+                 Ein eindeutiger Code für einfachere Identifikation durch WEG-Eigentümer.
+               </p>
+             </div>
+             <div className="bg-muted/30 p-4 rounded-lg">
+               <Label className="text-sm font-medium text-muted-foreground">
+                 Typ: {managementMode === 'weg' ? 'WEG-Verwaltung' : 'Mietverwaltung'}
+               </Label>
+               <p className="text-xs text-muted-foreground mt-1">
+                 Der Gebäudetyp wird automatisch basierend auf dem aktuellen Verwaltungsmodus gesetzt.
+               </p>
             </div>
           </div>
           <div className="flex gap-2">
@@ -921,6 +950,138 @@ export const Buildings = () => {
             <Button 
               variant="outline" 
               onClick={() => setIsEditBuildingOpen(false)}
+              className="flex-1"
+            >
+              Abbrechen
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit User Dialog */}
+      <Dialog open={isEditUserOpen} onOpenChange={setIsEditUserOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>
+              {managementMode === 'weg' ? 'WEG-Eigentümer bearbeiten' : 'Mieter bearbeiten'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-email">E-Mail</Label>
+              <Input
+                id="edit-email"
+                type="email"
+                value={userForm.email}
+                onChange={(e) => setUserForm(prev => ({...prev, email: e.target.value}))}
+                placeholder="user@example.com"
+                disabled
+              />
+              <p className="text-xs text-muted-foreground">
+                Die E-Mail-Adresse kann nicht geändert werden.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit-first_name">Vorname</Label>
+                <Input
+                  id="edit-first_name"
+                  value={userForm.first_name}
+                  onChange={(e) => setUserForm(prev => ({...prev, first_name: e.target.value}))}
+                  placeholder="Vorname"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-last_name">Nachname</Label>
+                <Input
+                  id="edit-last_name"
+                  value={userForm.last_name}
+                  onChange={(e) => setUserForm(prev => ({...prev, last_name: e.target.value}))}
+                  placeholder="Nachname"
+                />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-phone">Telefon</Label>
+              <Input
+                id="edit-phone"
+                value={userForm.phone}
+                onChange={(e) => setUserForm(prev => ({...prev, phone: e.target.value}))}
+                placeholder="+49 123 456789"
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button 
+              onClick={async () => {
+                if (!editingUser) return;
+                
+                try {
+                  const table = managementMode === 'weg' ? 'weg_owners' : 'tenants';
+                  const { error } = await supabase
+                    .from(table)
+                    .update({
+                      first_name: userForm.first_name,
+                      last_name: userForm.last_name,
+                      phone: userForm.phone,
+                    })
+                    .eq("id", editingUser.id);
+
+                  if (error) throw error;
+
+                  // Update local state
+                  if (managementMode === 'weg') {
+                    setWegOwners(prev => {
+                      const updated = { ...prev };
+                      Object.keys(updated).forEach(buildingId => {
+                        updated[buildingId] = updated[buildingId].map(owner => 
+                          owner.id === editingUser.id 
+                            ? { ...owner, first_name: userForm.first_name, last_name: userForm.last_name, phone: userForm.phone }
+                            : owner
+                        );
+                      });
+                      return updated;
+                    });
+                  } else {
+                    setTenants(prev => {
+                      const updated = { ...prev };
+                      Object.keys(updated).forEach(buildingId => {
+                        updated[buildingId] = updated[buildingId].map(tenant => 
+                          tenant.id === editingUser.id 
+                            ? { ...tenant, first_name: userForm.first_name, last_name: userForm.last_name, phone: userForm.phone }
+                            : tenant
+                        );
+                      });
+                      return updated;
+                    });
+                  }
+
+                  setIsEditUserOpen(false);
+                  setEditingUser(null);
+
+                  toast({
+                    title: "Erfolg",
+                    description: `${managementMode === 'weg' ? 'WEG-Eigentümer' : 'Mieter'} wurde erfolgreich aktualisiert.`,
+                  });
+                } catch (error: any) {
+                  console.error("Error updating user:", error);
+                  toast({
+                    title: "Fehler",
+                    description: `${managementMode === 'weg' ? 'WEG-Eigentümer' : 'Mieter'} konnte nicht aktualisiert werden.`,
+                    variant: "destructive",
+                  });
+                }
+              }}
+              className="flex-1 bg-gradient-primary text-white hover:scale-105 transition-all duration-200"
+            >
+              Speichern
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setIsEditUserOpen(false);
+                setEditingUser(null);
+              }}
               className="flex-1"
             >
               Abbrechen
