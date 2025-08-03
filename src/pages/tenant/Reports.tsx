@@ -59,10 +59,12 @@ export const TenantReports = () => {
   const fetchTenantInfo = async () => {
     try {
       // Pre-fill contact info from profile
+      const profileWithPhone = profile as any;
       setReportForm(prev => ({
         ...prev,
         contact_name: `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim(),
         contact_email: profile?.email || '',
+        contact_phone: profileWithPhone?.phone || '',
       }));
 
       // Try to get building info from profile first
