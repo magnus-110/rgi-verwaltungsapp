@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { Bot, User, Send } from "lucide-react";
+import { ChatMessage } from "@/components/chat/ChatMessage";
+import { ChatInput } from "@/components/chat/ChatInput";
+import { ChatHeader } from "@/components/chat/ChatHeader";
+import { TypingIndicator } from "@/components/chat/TypingIndicator";
 
 interface Message {
   id: string;
@@ -24,10 +25,9 @@ export const TenantChatbot = () => {
       timestamp: new Date(),
     },
   ]);
-  const [inputMessage, setInputMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  const sendMessage = async () => {
+  const sendMessage = async (inputMessage: string) => {
     if (!inputMessage.trim()) return;
 
     const userMessage: Message = {
@@ -38,12 +38,10 @@ export const TenantChatbot = () => {
     };
 
     setMessages(prev => [...prev, userMessage]);
-    const currentMessage = inputMessage;
-    setInputMessage("");
     setIsLoading(true);
 
     try {
-      const response = await getBotResponse(currentMessage);
+      const response = await getBotResponse(inputMessage);
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
         content: response,
@@ -159,98 +157,32 @@ export const TenantChatbot = () => {
     }
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  };
-
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-4xl font-bold tracking-tight">KI-Chatbot</h1>
-        <p className="text-lg text-muted-foreground">
-          Stellen Sie Fragen rund um Ihr Gebäude und Mietangelegenheiten
-        </p>
-      </div>
-
-      {/* Chat Interface */}
-      <Card className="h-[600px] flex flex-col">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Bot className="h-5 w-5" />
-            Mieter-Assistent
-          </CardTitle>
-          <CardDescription>
-            Ich helfe Ihnen bei Fragen zu Ihrem Gebäude und Mietangelegenheiten
-          </CardDescription>
-        </CardHeader>
+    <div className="h-full flex flex-col animate-fade-in">
+      {/* Modern Chat Interface */}
+      <Card className="flex-1 flex flex-col shadow-apple border-0 bg-card">
+        <ChatHeader 
+          title="Mieter-Assistent"
+          subtitle="Ich helfe Ihnen bei Fragen zu Ihrem Gebäude und Mietangelegenheiten"
+        />
         
-        <CardContent className="flex-1 flex flex-col">
-          <ScrollArea className="flex-1 pr-4">
-            <div className="space-y-4">
+        <div className="flex-1 flex flex-col min-h-0">
+          <ScrollArea className="flex-1">
+            <div className="divide-y divide-border/50">
               {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex gap-3 ${message.isBot ? "justify-start" : "justify-end"}`}
-                >
-                  {message.isBot && (
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <Bot className="h-4 w-4 text-primary" />
-                    </div>
-                  )}
-                  <div
-                    className={`max-w-[80%] p-3 rounded-lg ${
-                      message.isBot
-                        ? "bg-muted text-foreground"
-                        : "bg-primary text-primary-foreground"
-                    }`}
-                  >
-                    <p className="text-sm">{message.content}</p>
-                    <p className="text-xs opacity-70 mt-1">
-                      {message.timestamp.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                  </div>
-                  {!message.isBot && (
-                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
-                      <User className="h-4 w-4 text-primary-foreground" />
-                    </div>
-                  )}
-                </div>
+                <ChatMessage key={message.id} message={message} />
               ))}
               
-              {isLoading && (
-                <div className="flex gap-3 justify-start">
-                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <Bot className="h-4 w-4 text-primary" />
-                  </div>
-                  <div className="bg-muted p-3 rounded-lg">
-                    <div className="flex space-x-1">
-                      <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce"></div>
-                      <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0.1s" }}></div>
-                      <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
-                    </div>
-                  </div>
-                </div>
-              )}
+              {isLoading && <TypingIndicator />}
             </div>
           </ScrollArea>
           
-          <div className="flex gap-2 mt-4">
-            <Input
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Schreiben Sie eine Nachricht..."
-              disabled={isLoading}
-            />
-            <Button onClick={sendMessage} disabled={isLoading || !inputMessage.trim()}>
-              <Send className="h-4 w-4" />
-            </Button>
-          </div>
-        </CardContent>
+          <ChatInput 
+            onSendMessage={sendMessage}
+            isLoading={isLoading}
+            placeholder="Stellen Sie Fragen zu Ihrem Gebäude und Mietangelegenheiten..."
+          />
+        </div>
       </Card>
     </div>
   );

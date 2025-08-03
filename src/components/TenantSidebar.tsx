@@ -40,18 +40,17 @@ export const TenantSidebar = () => {
   };
 
   return (
-    <Sidebar className="border-r border-border bg-card">
-      <SidebarHeader className="p-6">
+    <Sidebar className="border-r border-border/50 bg-gradient-warm shadow-apple">
+      <SidebarHeader className="p-6 border-b border-border/20">
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <img 
-              src="/lovable-uploads/c277a1e9-0f05-4981-b003-702e438b2faa.png" 
-              alt="RGI Immobilien Logo" 
-              className="h-10 w-auto object-contain"
-            />
+          <div className="w-10 h-10 bg-gradient-primary rounded-xl flex items-center justify-center shadow-card">
+            <Home className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <h1 className="text-lg font-bold text-foreground">RGI</h1>
+            <p className="text-xs text-muted-foreground">Mieter Portal</p>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground mt-2">Mieter Portal</p>
       </SidebarHeader>
 
       <SidebarContent className="px-3">
