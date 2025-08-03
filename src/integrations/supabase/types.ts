@@ -272,6 +272,30 @@ export type Database = {
           },
         ]
       }
+      weg_owner_buildings: {
+        Row: {
+          building_id: string
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          building_id: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          building_id?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       weg_owners: {
         Row: {
           created_at: string | null

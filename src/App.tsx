@@ -18,6 +18,7 @@ import { WegOwnerLayout } from "./components/WegOwnerLayout";
 import { WegOwnerDashboard } from "./pages/weg-owner/Dashboard";
 import { WegOwnerReports } from "./pages/weg-owner/Reports";
 import { WegOwnerChatbot } from "./pages/weg-owner/Chatbot";
+import { WegOwnerSettings } from "./pages/weg-owner/Settings";
 import { TenantLayout } from "./components/TenantLayout";
 import { TenantDashboard } from "./pages/tenant/Dashboard";
 import { TenantReports } from "./pages/tenant/Reports";
@@ -61,7 +62,7 @@ const App = () => (
             <Route path="/weg-owner" element={<WegOwnerLayout><WegOwnerDashboard /></WegOwnerLayout>} />
             <Route path="/weg-owner/reports" element={<WegOwnerLayout><WegOwnerReports /></WegOwnerLayout>} />
             <Route path="/weg-owner/chatbot" element={<WegOwnerLayout><WegOwnerChatbot /></WegOwnerLayout>} />
-            <Route path="/weg-owner/settings" element={<WegOwnerLayout><Settings /></WegOwnerLayout>} />
+            <Route path="/weg-owner/settings" element={<WegOwnerLayout><WegOwnerSettings /></WegOwnerLayout>} />
             
             {/* Tenant Routes */}
             <Route path="/tenant" element={<TenantLayout><TenantDashboard /></TenantLayout>} />

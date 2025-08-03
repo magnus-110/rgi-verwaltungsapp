@@ -1,11 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { MessageSquare, Building2 } from "lucide-react";
+import { MessageSquare, Building2, Settings } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
@@ -18,12 +21,95 @@ interface Message {
   timestamp: Date;
 }
 
+interface WegOwnerBuilding {
+  id: string;
+  building_id: string;
+  created_at: string;
+}
+
 export const WegOwnerChatbot = () => {
   const { profile } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [buildingId, setBuildingId] = useState("");
+  const [selectedBuildingId, setSelectedBuildingId] = useState("");
+  const [newBuildingId, setNewBuildingId] = useState("");
+  const [buildings, setBuildings] = useState<WegOwnerBuilding[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [hasStartedChat, setHasStartedChat] = useState(false);
+
+  useEffect(() => {
+    if (profile?.user_id) {
+      fetchBuildingAssignments();
+    }
+  }, [profile?.user_id]);
+
+  const fetchBuildingAssignments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("weg_owner_buildings")
+        .select("*")
+        .eq("user_id", profile?.user_id)
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setBuildings(data || []);
+      
+      // Auto-select first building if available and none selected
+      if (data && data.length > 0 && !selectedBuildingId) {
+        setSelectedBuildingId(data[0].building_id);
+      }
+    } catch (error: any) {
+      console.error("Error fetching building assignments:", error);
+    }
+  };
+
+  const addQuickBuildingId = async () => {
+    if (!newBuildingId.trim()) {
+      toast({
+        title: "Fehler",
+        description: "Bitte geben Sie eine gültige Gebäude-ID ein.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from("weg_owner_buildings")
+        .insert([{
+          user_id: profile?.user_id,
+          building_id: newBuildingId.trim()
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setBuildings(prev => [data, ...prev]);
+      setSelectedBuildingId(newBuildingId.trim());
+      setNewBuildingId("");
+      
+      toast({
+        title: "Erfolg",
+        description: "Gebäude-ID wurde hinzugefügt und ausgewählt.",
+      });
+    } catch (error: any) {
+      if (error.code === '23505') {
+        // Building already exists, just select it
+        setSelectedBuildingId(newBuildingId.trim());
+        setNewBuildingId("");
+        toast({
+          title: "Info",
+          description: "Gebäude-ID bereits vorhanden und wurde ausgewählt.",
+        });
+      } else {
+        toast({
+          title: "Fehler",
+          description: "Gebäude-ID konnte nicht hinzugefügt werden.",
+          variant: "destructive",
+        });
+      }
+    }
+  };
 
   const getBotResponse = async (input: string): Promise<string> => {
     try {
@@ -37,7 +123,7 @@ export const WegOwnerChatbot = () => {
           message: input,
           userId: profile.user_id,
           managementMode: 'weg',
-          buildingId: buildingId || undefined
+          buildingId: selectedBuildingId || undefined
         }
       });
 
@@ -128,24 +214,62 @@ export const WegOwnerChatbot = () => {
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center gap-2">
               <Building2 className="w-5 h-5 text-primary" />
-              Gebäude-ID
+              Gebäude auswählen
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              <Label htmlFor="building-id" className="text-sm font-medium">
-                Ihre Gebäude-ID eingeben
-              </Label>
-              <Input
-                id="building-id"
-                value={buildingId}
-                onChange={(e) => setBuildingId(e.target.value)}
-                placeholder="z.B. GEB-2024-001"
-                className="focus:ring-2 focus:ring-primary/20"
-              />
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Die Gebäude-ID erhalten Sie von Ihrem Administrator für spezifische Gebäudeinformationen.
-              </p>
+              {buildings.length > 0 ? (
+                <>
+                  <Label className="text-sm font-medium">
+                    Ihre hinterlegten Gebäude
+                  </Label>
+                  <Select value={selectedBuildingId} onValueChange={setSelectedBuildingId}>
+                    <SelectTrigger className="focus:ring-2 focus:ring-primary/20">
+                      <SelectValue placeholder="Gebäude auswählen" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {buildings.map((building) => (
+                        <SelectItem key={building.id} value={building.building_id}>
+                          {building.building_id}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="pt-2 border-t">
+                    <Label className="text-sm font-medium">Neue ID hinzufügen</Label>
+                    <div className="flex gap-2 mt-2">
+                      <Input
+                        placeholder="z.B. GEB-2024-001"
+                        value={newBuildingId}
+                        onChange={(e) => setNewBuildingId(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && addQuickBuildingId()}
+                        className="text-sm"
+                      />
+                      <Button onClick={addQuickBuildingId} size="sm">+</Button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Label className="text-sm font-medium">
+                    Erste Gebäude-ID hinzufügen
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="z.B. GEB-2024-001"
+                      value={newBuildingId}
+                      onChange={(e) => setNewBuildingId(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && addQuickBuildingId()}
+                      className="focus:ring-2 focus:ring-primary/20"
+                    />
+                    <Button onClick={addQuickBuildingId} size="sm">+</Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Die Gebäude-ID erhalten Sie von Ihrem Administrator. Einmal hinzugefügt, können Sie diese jederzeit in den Einstellungen verwalten.
+                  </p>
+                </>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -159,7 +283,7 @@ export const WegOwnerChatbot = () => {
               <div className="flex items-start gap-3">
                 <MessageSquare className="w-4 h-4 mt-0.5 text-primary flex-shrink-0" />
                 <p className="text-muted-foreground leading-relaxed">
-                  Fragen Sie nach Gebäudeinformationen mit Ihrer ID
+                  Wählen Sie ein Gebäude aus, um spezifische Informationen zu erhalten
                 </p>
               </div>
               <div className="flex items-start gap-3">
@@ -171,7 +295,13 @@ export const WegOwnerChatbot = () => {
               <div className="flex items-start gap-3">
                 <MessageSquare className="w-4 h-4 mt-0.5 text-primary flex-shrink-0" />
                 <p className="text-muted-foreground leading-relaxed">
-                  Erfragen Sie allgemeine Informationen zu Ihren Objekten
+                  Verwalten Sie Ihre Gebäude-IDs in den Einstellungen
+                </p>
+              </div>
+              <div className="flex items-start gap-3">
+                <Settings className="w-4 h-4 mt-0.5 text-primary flex-shrink-0" />
+                <p className="text-muted-foreground leading-relaxed">
+                  Besuchen Sie die Einstellungen für erweiterte Gebäude-Verwaltung
                 </p>
               </div>
             </div>

@@ -134,16 +134,41 @@ serve(async (req) => {
 
       // Add building ID context if provided
       if (buildingId) {
-        const { data: specificBuilding } = await supabase
-          .from('buildings')
-          .select('*')
-          .or(`name.ilike.%${buildingId}%,id.eq.${buildingId}`)
+        // First check if this user has access to this building ID
+        const { data: buildingAccess } = await supabase
+          .from('weg_owner_buildings')
+          .select('building_id')
+          .eq('user_id', userId)
+          .eq('building_id', buildingId)
           .maybeSingle();
 
-        if (specificBuilding) {
-          contextData += `\n\nSpezifisches Gebäude (${buildingId}):\n`;
-          contextData += `- Name: ${specificBuilding.name}\n- Adresse: ${specificBuilding.address}\n- Typ: ${specificBuilding.type}\n`;
+        if (buildingAccess) {
+          const { data: specificBuilding } = await supabase
+            .from('buildings')
+            .select('*')
+            .or(`name.ilike.%${buildingId}%,id.eq.${buildingId}`)
+            .maybeSingle();
+
+          if (specificBuilding) {
+            contextData += `\n\nSpezifisches Gebäude (${buildingId}):\n`;
+            contextData += `- Name: ${specificBuilding.name}\n- Adresse: ${specificBuilding.address}\n- Typ: ${specificBuilding.type}\n`;
+          }
+        } else {
+          contextData += `\n\nHinweis: Sie haben keinen Zugriff auf Gebäude-ID "${buildingId}". Bitte überprüfen Sie Ihre Gebäude-Zuordnungen in den Einstellungen.\n`;
         }
+      }
+
+      // Add user's assigned buildings context
+      const { data: userBuildings } = await supabase
+        .from('weg_owner_buildings')
+        .select('building_id')
+        .eq('user_id', userId);
+
+      if (userBuildings && userBuildings.length > 0) {
+        contextData += `\n\nIhre zugewiesenen Gebäude-IDs:\n`;
+        userBuildings.forEach(building => {
+          contextData += `- ${building.building_id}\n`;
+        });
       }
     }
 
