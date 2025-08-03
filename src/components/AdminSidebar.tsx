@@ -64,19 +64,19 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
         <div className="p-6 border-b border-border/20 bg-gradient-warm">
           {!collapsed ? (
             <div className="flex items-center space-x-3 animate-fade-in">
-              <div className="w-10 h-10 bg-gradient-primary rounded-xl flex items-center justify-center shadow-card">
-                <Building2 className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <h1 className="text-lg font-bold text-foreground">RGI</h1>
-                <p className="text-xs text-muted-foreground">Immobilien</p>
-              </div>
+              <img 
+                src="/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png" 
+                alt="RGI Immobilien Logo" 
+                className="h-12 w-auto object-contain"
+              />
             </div>
           ) : (
             <div className="flex justify-center">
-              <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center shadow-card">
-                <Building2 className="h-5 w-5 text-white" />
-              </div>
+              <img 
+                src="/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png" 
+                alt="RGI Immobilien Logo" 
+                className="h-8 w-auto object-contain"
+              />
             </div>
           )}
         </div>
