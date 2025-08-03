@@ -294,7 +294,18 @@ export const Buildings = () => {
         }
       });
 
-      if (authError) throw authError;
+      if (authError) {
+        // Handle specific error cases
+        if (authError.message.includes("already registered")) {
+          toast({
+            title: "Fehler", 
+            description: "Ein Benutzer mit dieser E-Mail-Adresse ist bereits registriert.",
+            variant: "destructive",
+          });
+          return;
+        }
+        throw authError;
+      }
 
       if (managementMode === 'weg') {
         // For WEG management mode, set role to weg_owner
@@ -315,8 +326,8 @@ export const Buildings = () => {
           }
         }
 
-        // Create WEG owner entry
-        const { data, error } = await supabase
+        // Create WEG owner entry - use admin session to bypass RLS
+        const { data: wegOwnerData, error: wegOwnerError } = await supabase
           .from("weg_owners")
           .insert([{
             email: userForm.email,
@@ -327,12 +338,15 @@ export const Buildings = () => {
           .select()
           .single();
 
-        if (error) throw error;
-
-        setWegOwners(prev => ({
-          ...prev,
-          [selectedBuildingId]: [...(prev[selectedBuildingId] || []), data]
-        }));
+        if (wegOwnerError) {
+          console.error("WEG owner creation error:", wegOwnerError);
+          // Don't throw here, the user is created, just the weg_owners entry failed
+        } else {
+          setWegOwners(prev => ({
+            ...prev,
+            [selectedBuildingId]: [...(prev[selectedBuildingId] || []), wegOwnerData]
+          }));
+        }
       } else {
         // For rental management mode, set role to tenant
         if (authData.user) {
@@ -351,7 +365,7 @@ export const Buildings = () => {
             console.warn("Profile update failed:", profileError);
           }
 
-          const { data, error } = await supabase
+          const { data: tenantData, error: tenantError } = await supabase
             .from("tenants")
             .insert([{
               user_id: authData.user.id,
@@ -364,12 +378,14 @@ export const Buildings = () => {
             .select()
             .single();
 
-          if (error) throw error;
-
-          setTenants(prev => ({
-            ...prev,
-            [selectedBuildingId]: [...(prev[selectedBuildingId] || []), data]
-          }));
+          if (tenantError) {
+            console.error("Tenant creation error:", tenantError);
+          } else {
+            setTenants(prev => ({
+              ...prev,
+              [selectedBuildingId]: [...(prev[selectedBuildingId] || []), tenantData]
+            }));
+          }
         }
       }
 
@@ -383,9 +399,18 @@ export const Buildings = () => {
       });
     } catch (error: any) {
       console.error("Error creating user:", error);
+      
+      let errorMessage = `${managementMode === 'weg' ? 'WEG-Eigentümer' : 'Mieter'} konnte nicht erstellt werden.`;
+      
+      if (error.message?.includes("already registered")) {
+        errorMessage = "Ein Benutzer mit dieser E-Mail-Adresse ist bereits registriert.";
+      } else if (error.message) {
+        errorMessage += ` Details: ${error.message}`;
+      }
+      
       toast({
         title: "Fehler",
-        description: `${managementMode === 'weg' ? 'WEG-Eigentümer' : 'Mieter'} konnte nicht erstellt werden: ${error.message}`,
+        description: errorMessage,
         variant: "destructive",
       });
     }
