@@ -17,7 +17,7 @@ export type Database = {
       buildings: {
         Row: {
           address: string
-          building_code: string | null
+          building_code: string
           created_at: string | null
           id: string
           management_mode: Database["public"]["Enums"]["management_mode"]
@@ -27,7 +27,7 @@ export type Database = {
         }
         Insert: {
           address: string
-          building_code?: string | null
+          building_code: string
           created_at?: string | null
           id?: string
           management_mode: Database["public"]["Enums"]["management_mode"]
@@ -37,7 +37,7 @@ export type Database = {
         }
         Update: {
           address?: string
-          building_code?: string | null
+          building_code?: string
           created_at?: string | null
           id?: string
           management_mode?: Database["public"]["Enums"]["management_mode"]
@@ -297,7 +297,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "fk_weg_owner_buildings_building_id"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       weg_owners: {
         Row: {

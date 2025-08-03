@@ -35,22 +35,42 @@ export const WegOwnerSettings = () => {
   const fetchBuildingAssignments = async () => {
     try {
       setIsLoading(true);
-      const { data, error } = await supabase
+      
+      // First, get the building assignments
+      const { data: assignments, error: assignmentsError } = await supabase
         .from("weg_owner_buildings")
-        .select(`
-          *,
-          buildings:building_id (
-            id,
-            name,
-            address,
-            building_code
-          )
-        `)
+        .select("id, building_id, created_at")
         .eq("user_id", profile?.user_id)
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
-      setBuildings(data || []);
+      if (assignmentsError) throw assignmentsError;
+
+      if (!assignments || assignments.length === 0) {
+        setBuildings([]);
+        return;
+      }
+
+      // Get building IDs
+      const buildingIds = assignments.map(a => a.building_id);
+
+      // Fetch building details separately
+      const { data: buildingsData, error: buildingsError } = await supabase
+        .from("buildings")
+        .select("id, name, address, building_code")
+        .in("id", buildingIds);
+
+      if (buildingsError) throw buildingsError;
+
+      // Combine assignments with building data
+      const combinedData = assignments.map(assignment => {
+        const building = buildingsData?.find(b => b.id === assignment.building_id);
+        return {
+          ...assignment,
+          buildings: building
+        };
+      });
+
+      setBuildings(combinedData);
     } catch (error: any) {
       console.error("Error fetching building assignments:", error);
       toast({
@@ -115,20 +135,18 @@ export const WegOwnerSettings = () => {
           user_id: profile?.user_id,
           building_id: buildingData.id
         }])
-        .select(`
-          *,
-          buildings:building_id (
-            id,
-            name,
-            address,
-            building_code
-          )
-        `)
+        .select("id, building_id, created_at")
         .single();
 
       if (error) throw error;
 
-      setBuildings(prev => [data, ...prev]);
+      // Add the new assignment with building data to the state
+      const newAssignment = {
+        ...data,
+        buildings: buildingData
+      };
+
+      setBuildings(prev => [newAssignment, ...prev]);
       setNewBuildingCode("");
       
       toast({
