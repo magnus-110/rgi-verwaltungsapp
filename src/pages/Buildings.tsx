@@ -297,15 +297,15 @@ export const Buildings = () => {
       if (authError) throw authError;
 
       if (managementMode === 'weg') {
-        // For WEG owners, create profile entry if user was created
+        // For WEG management mode, set role to weg_owner
         if (authData.user) {
-          // Update the profile created by the trigger to have the correct role
+          // Update the profile created by the trigger to have the correct role based on management mode
           const { error: profileError } = await supabase
             .from("profiles")
             .update({
               first_name: userForm.first_name,
               last_name: userForm.last_name,
-              role: 'weg_owner',
+              role: 'weg_owner', // Always weg_owner in WEG mode
               force_password_change: false
             })
             .eq("user_id", authData.user.id);
@@ -334,14 +334,14 @@ export const Buildings = () => {
           [selectedBuildingId]: [...(prev[selectedBuildingId] || []), data]
         }));
       } else {
-        // For tenants, update profile entry created by trigger
+        // For rental management mode, set role to tenant
         if (authData.user) {
           const { error: profileError } = await supabase
             .from("profiles")
             .update({
               first_name: userForm.first_name,
               last_name: userForm.last_name,
-              role: 'tenant',
+              role: 'tenant', // Always tenant in rental mode
               building_id: selectedBuildingId,
               force_password_change: false
             })
