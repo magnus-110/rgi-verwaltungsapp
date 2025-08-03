@@ -326,10 +326,11 @@ export const Buildings = () => {
           }
         }
 
-        // Create WEG owner entry - use admin session to bypass RLS
+        // Create WEG owner entry
         const { data: wegOwnerData, error: wegOwnerError } = await supabase
           .from("weg_owners")
           .insert([{
+            user_id: authData.user.id,
             email: userForm.email,
             first_name: userForm.first_name,
             last_name: userForm.last_name,
