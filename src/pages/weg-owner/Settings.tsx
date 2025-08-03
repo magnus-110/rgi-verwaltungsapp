@@ -22,15 +22,13 @@ export const WegOwnerSettings = () => {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
-  const [newBuildingId, setNewBuildingId] = useState("");
+  const [newBuildingCode, setNewBuildingCode] = useState("");
   const [buildings, setBuildings] = useState<WegOwnerBuilding[]>([]);
-  const [availableBuildings, setAvailableBuildings] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     if (profile?.user_id) {
       fetchBuildingAssignments();
-      fetchAvailableBuildings();
     }
   }, [profile?.user_id]);
 
@@ -44,7 +42,8 @@ export const WegOwnerSettings = () => {
           buildings:building_id (
             id,
             name,
-            address
+            address,
+            building_code
           )
         `)
         .eq("user_id", profile?.user_id)
@@ -64,44 +63,65 @@ export const WegOwnerSettings = () => {
     }
   };
 
-  const fetchAvailableBuildings = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("buildings")
-        .select("id, name, address")
-        .eq("management_mode", "weg")
-        .order("name");
-
-      if (error) throw error;
-      setAvailableBuildings(data || []);
-    } catch (error: any) {
-      console.error("Error fetching available buildings:", error);
-    }
-  };
-
   const addBuildingAssignment = async () => {
-    if (!newBuildingId) {
+    if (!newBuildingCode.trim()) {
       toast({
         title: "Fehler",
-        description: "Bitte wählen Sie ein Gebäude aus.",
+        description: "Bitte geben Sie einen Gebäude-Code ein.",
         variant: "destructive",
       });
       return;
     }
 
     try {
+      // First, find the building ID by the code
+      const { data: buildingData, error: buildingError } = await supabase
+        .from("buildings")
+        .select("id, name, address, building_code")
+        .eq("building_code", newBuildingCode.trim())
+        .eq("management_mode", "weg")
+        .single();
+
+      if (buildingError || !buildingData) {
+        toast({
+          title: "Fehler",
+          description: "Gebäude-Code nicht gefunden oder ungültig.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Check if already assigned
+      const { data: existingAssignment } = await supabase
+        .from("weg_owner_buildings")
+        .select("id")
+        .eq("user_id", profile?.user_id)
+        .eq("building_id", buildingData.id)
+        .single();
+
+      if (existingAssignment) {
+        toast({
+          title: "Fehler",
+          description: "Dieses Gebäude ist bereits in Ihrer Liste.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Add the assignment
       const { data, error } = await supabase
         .from("weg_owner_buildings")
         .insert([{
           user_id: profile?.user_id,
-          building_id: newBuildingId
+          building_id: buildingData.id
         }])
         .select(`
           *,
           buildings:building_id (
             id,
             name,
-            address
+            address,
+            building_code
           )
         `)
         .single();
@@ -109,27 +129,19 @@ export const WegOwnerSettings = () => {
       if (error) throw error;
 
       setBuildings(prev => [data, ...prev]);
-      setNewBuildingId("");
+      setNewBuildingCode("");
       
       toast({
         title: "Erfolg",
-        description: "Gebäude wurde erfolgreich hinzugefügt.",
+        description: `Gebäude "${buildingData.name}" wurde erfolgreich hinzugefügt.`,
       });
     } catch (error: any) {
       console.error("Error adding building assignment:", error);
-      if (error.code === '23505') {
-        toast({
-          title: "Fehler",
-          description: "Dieses Gebäude ist bereits in Ihrer Liste.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Fehler",
-          description: "Gebäude konnte nicht hinzugefügt werden.",
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: "Fehler",
+        description: "Gebäude konnte nicht hinzugefügt werden.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -222,30 +234,28 @@ export const WegOwnerSettings = () => {
             Gebäude-Verwaltung
           </CardTitle>
           <CardDescription>
-            Verwalten Sie Ihre Gebäude-IDs für den KI-Chatbot. Diese IDs erhalten Sie von Ihrem Administrator.
+            Geben Sie die Gebäude-Codes ein, die Sie von Ihrem Administrator erhalten haben.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Add New Building */}
           <div className="flex gap-2">
-            <Select value={newBuildingId} onValueChange={setNewBuildingId}>
-              <SelectTrigger className="flex-1">
-                <SelectValue placeholder="Gebäude auswählen..." />
-              </SelectTrigger>
-              <SelectContent>
-                {availableBuildings
-                  .filter(building => !buildings.some(b => b.building_id === building.id))
-                  .map((building) => (
-                    <SelectItem key={building.id} value={building.id}>
-                      {building.name} - {building.address}
-                    </SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-            <Button onClick={addBuildingAssignment} className="flex items-center gap-2">
-              <Plus className="w-4 h-4" />
-              Hinzufügen
-            </Button>
+            <div className="flex-1 space-y-2">
+              <Label htmlFor="building-code">Gebäude-Code</Label>
+              <Input
+                id="building-code"
+                placeholder="z.B. WEG-123456"
+                value={newBuildingCode}
+                onChange={(e) => setNewBuildingCode(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addBuildingAssignment()}
+              />
+            </div>
+            <div className="flex items-end">
+              <Button onClick={addBuildingAssignment} className="flex items-center gap-2">
+                <Plus className="w-4 h-4" />
+                Hinzufügen
+              </Button>
+            </div>
           </div>
 
           {/* Building List */}
@@ -270,6 +280,7 @@ export const WegOwnerSettings = () => {
                     <div className="flex flex-col">
                       <span className="font-medium">{(building as any).buildings?.name || 'Unbekanntes Gebäude'}</span>
                       <span className="text-sm text-muted-foreground">{(building as any).buildings?.address}</span>
+                      <span className="text-xs font-mono text-muted-foreground">Code: {(building as any).buildings?.building_code}</span>
                     </div>
                   </div>
                   <AlertDialog>

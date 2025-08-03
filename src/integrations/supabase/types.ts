@@ -17,6 +17,7 @@ export type Database = {
       buildings: {
         Row: {
           address: string
+          building_code: string | null
           created_at: string | null
           id: string
           management_mode: Database["public"]["Enums"]["management_mode"]
@@ -26,6 +27,7 @@ export type Database = {
         }
         Insert: {
           address: string
+          building_code?: string | null
           created_at?: string | null
           id?: string
           management_mode: Database["public"]["Enums"]["management_mode"]
@@ -35,6 +37,7 @@ export type Database = {
         }
         Update: {
           address?: string
+          building_code?: string | null
           created_at?: string | null
           id?: string
           management_mode?: Database["public"]["Enums"]["management_mode"]
