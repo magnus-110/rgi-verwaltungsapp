@@ -32,6 +32,7 @@ interface Report {
 export const WegOwnerReports = () => {
   const { profile } = useAuth();
   const [reports, setReports] = useState<Report[]>([]);
+  const [buildings, setBuildings] = useState<any[]>([]);
   const [isCreateReportOpen, setIsCreateReportOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   
@@ -43,6 +44,7 @@ export const WegOwnerReports = () => {
     contact_email: "",
     contact_phone: "",
     contact_address: "",
+    building_id: "",
   });
   const [attachments, setAttachments] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -50,27 +52,81 @@ export const WegOwnerReports = () => {
   useEffect(() => {
     if (profile) {
       fetchReports();
-      fetchProfileInfo();
+      fetchBuildings();
+      prefillContactInfo();
     }
   }, [profile]);
 
-  const fetchProfileInfo = async () => {
+  const fetchBuildings = async () => {
     try {
+      // Fetch building assignments
+      const { data: assignments, error: assignmentsError } = await supabase
+        .from("weg_owner_buildings")
+        .select("id, building_id, created_at")
+        .eq("user_id", profile?.user_id);
+
+      if (assignmentsError) throw assignmentsError;
+
+      if (assignments && assignments.length > 0) {
+        const buildingIds = assignments.map(a => a.building_id);
+        
+        // Fetch building details
+        const { data: buildingsData, error: buildingsError } = await supabase
+          .from("buildings")
+          .select("id, name, address, building_code")
+          .in("id", buildingIds);
+
+        if (buildingsError) throw buildingsError;
+        
+        setBuildings(buildingsData || []);
+      }
+    } catch (error) {
+      console.error("Error fetching buildings:", error);
+    }
+  };
+
+  const prefillContactInfo = async () => {
+    try {
+      // First try to get from WEG owners table
+      const { data: wegOwnerData } = await supabase
+        .from("weg_owners")
+        .select("*")
+        .eq("user_id", profile?.user_id)
+        .single();
+
+      if (wegOwnerData) {
+        setReportForm(prev => ({
+          ...prev,
+          contact_name: `${wegOwnerData.first_name || ''} ${wegOwnerData.last_name || ''}`.trim(),
+          contact_email: wegOwnerData.email || profile?.email || '',
+          contact_phone: wegOwnerData.phone || '',
+        }));
+        return;
+      }
+
+      // Fallback to profiles table
       const { data: profileData } = await supabase
         .from("profiles")
         .select("*")
         .eq("user_id", profile?.user_id)
         .single();
 
-      // Prefill contact information from profile
+      if (profileData) {
+        setReportForm(prev => ({
+          ...prev,
+          contact_name: `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim() || 'WEG-Eigentümer',
+          contact_email: profileData.email || '',
+          contact_phone: profileData.phone || '',
+        }));
+      }
+    } catch (error) {
+      console.error("Error fetching contact info:", error);
+      // Set default values
       setReportForm(prev => ({
         ...prev,
-        contact_name: `${profileData?.first_name || ''} ${profileData?.last_name || ''}`.trim(),
-        contact_email: profileData?.email || '',
-        contact_phone: profileData?.phone || '',
+        contact_name: 'WEG-Eigentümer',
+        contact_email: profile?.email || '',
       }));
-    } catch (error) {
-      console.error("Error fetching profile info:", error);
     }
   };
 
@@ -129,7 +185,7 @@ export const WegOwnerReports = () => {
   };
 
   const createReport = async () => {
-    if (!reportForm.title || !reportForm.description || !reportForm.contact_name || !reportForm.contact_email || !reportForm.contact_address) {
+    if (!reportForm.title || !reportForm.description || !reportForm.contact_name || !reportForm.contact_email) {
       toast({
         title: "Fehler",
         description: "Bitte füllen Sie alle Pflichtfelder aus.",
@@ -147,6 +203,7 @@ export const WegOwnerReports = () => {
           priority: reportForm.priority,
           reported_by: profile?.user_id,
           weg_owner_id: profile?.user_id,
+          building_id: reportForm.building_id || null,
           contact_name: reportForm.contact_name,
           contact_email: reportForm.contact_email,
           contact_phone: reportForm.contact_phone,
@@ -168,22 +225,18 @@ export const WegOwnerReports = () => {
       }
 
       setReports(prev => [{ ...data, attachments: uploadedFiles }, ...prev]);
-      // Reset form but keep contact info from profile
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("user_id", profile?.user_id)
-        .single();
-
-      setReportForm({ 
+      
+      // Reset form but keep contact info
+      setReportForm(prev => ({ 
         title: "", 
         description: "", 
         priority: "medium",
-        contact_name: `${profileData?.first_name || ''} ${profileData?.last_name || ''}`.trim(),
-        contact_email: profileData?.email || '',
-        contact_phone: profileData?.phone || '',
+        contact_name: prev.contact_name, // Keep current contact info
+        contact_email: prev.contact_email,
+        contact_phone: prev.contact_phone,
         contact_address: '',
-      });
+        building_id: '',
+      }));
       setAttachments([]);
       setIsCreateReportOpen(false);
       
@@ -302,13 +355,38 @@ export const WegOwnerReports = () => {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="contact_address">Adresse *</Label>
-                  <Input
-                    id="contact_address"
-                    value={reportForm.contact_address}
-                    onChange={(e) => setReportForm(prev => ({ ...prev, contact_address: e.target.value }))}
-                    placeholder="Adresse des Problems"
-                  />
+                  <Label htmlFor="contact_address">Adresse</Label>
+                  {buildings.length > 0 ? (
+                    <Select 
+                      value={reportForm.building_id} 
+                      onValueChange={(value) => {
+                        const selectedBuilding = buildings.find(b => b.id === value);
+                        setReportForm(prev => ({ 
+                          ...prev, 
+                          building_id: value,
+                          contact_address: selectedBuilding ? `${selectedBuilding.name} - ${selectedBuilding.address}` : ''
+                        }));
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Gebäude auswählen" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {buildings.map((building) => (
+                          <SelectItem key={building.id} value={building.id}>
+                            {building.name} - {building.address}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      id="contact_address"
+                      value={reportForm.contact_address}
+                      onChange={(e) => setReportForm(prev => ({ ...prev, contact_address: e.target.value }))}
+                      placeholder="Adresse des Problems"
+                    />
+                  )}
                 </div>
               </div>
 
