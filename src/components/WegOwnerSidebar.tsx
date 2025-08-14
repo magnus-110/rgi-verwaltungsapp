@@ -13,6 +13,7 @@ import {
 import { 
   Home, 
   AlertCircle, 
+  MessageSquare,
   Bot, 
   Settings,
   LogOut 
@@ -26,6 +27,7 @@ export const WegOwnerSidebar = () => {
   const menuItems = [
     { icon: Home, label: "Dashboard", path: "/weg-owner" },
     { icon: AlertCircle, label: "Meldungen", path: "/weg-owner/reports" },
+    { icon: MessageSquare, label: "Forum", path: "/weg-owner/forum" },
     { icon: Bot, label: "KI-Chatbot", path: "/weg-owner/chatbot" },
     { icon: Settings, label: "Einstellungen", path: "/weg-owner/settings" },
   ];

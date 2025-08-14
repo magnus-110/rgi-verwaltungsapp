@@ -17,6 +17,7 @@ import { AdminLayout } from "./components/AdminLayout";
 import { WegOwnerLayout } from "./components/WegOwnerLayout";
 import { WegOwnerDashboard } from "./pages/weg-owner/Dashboard";
 import { WegOwnerReports } from "./pages/weg-owner/Reports";
+import { WegOwnerForum } from "./pages/weg-owner/Forum";
 import { WegOwnerChatbot } from "./pages/weg-owner/Chatbot";
 import { WegOwnerSettings } from "./pages/weg-owner/Settings";
 import { TenantLayout } from "./components/TenantLayout";
@@ -61,6 +62,7 @@ const App = () => (
             {/* WEG-Eigentümer Routes */}
             <Route path="/weg-owner" element={<WegOwnerLayout><WegOwnerDashboard /></WegOwnerLayout>} />
             <Route path="/weg-owner/reports" element={<WegOwnerLayout><WegOwnerReports /></WegOwnerLayout>} />
+            <Route path="/weg-owner/forum" element={<WegOwnerLayout><WegOwnerForum /></WegOwnerLayout>} />
             <Route path="/weg-owner/chatbot" element={<WegOwnerLayout><WegOwnerChatbot /></WegOwnerLayout>} />
             <Route path="/weg-owner/settings" element={<WegOwnerLayout><WegOwnerSettings /></WegOwnerLayout>} />
             
