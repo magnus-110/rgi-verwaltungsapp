@@ -145,19 +145,17 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
             <SidebarMenu className="space-y-1">
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink 
-                      to={item.url} 
-                      className={({ isActive }) =>
-                        isActive
-                          ? "bg-primary text-primary-foreground group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors"
-                          : "text-gray-700 hover:bg-muted group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors"
-                      }
-                    >
-                      <item.icon className="h-4 w-4 mr-3 flex-shrink-0" />
-                      {!collapsed && <span className="font-medium">{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
+                  <NavLink 
+                    to={item.url} 
+                    className={({ isActive }) =>
+                      isActive
+                        ? "bg-primary text-primary-foreground group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors"
+                        : "text-gray-700 hover:bg-muted hover:text-gray-700 group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors"
+                    }
+                  >
+                    <item.icon className="h-4 w-4 mr-3 flex-shrink-0" />
+                    {!collapsed && <span className="font-medium">{item.title}</span>}
+                  </NavLink>
                 </SidebarMenuItem>
               ))}
             </SidebarMenu>

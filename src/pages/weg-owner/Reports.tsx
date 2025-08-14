@@ -96,6 +96,12 @@ export const WegOwnerReports = () => {
 
       if (wegOwnerData) {
         const fullName = `${wegOwnerData.first_name || ''} ${wegOwnerData.last_name || ''}`.trim();
+        console.log('WEG Owner Data:', { 
+          first_name: wegOwnerData.first_name, 
+          last_name: wegOwnerData.last_name, 
+          fullName, 
+          email: wegOwnerData.email 
+        });
         setReportForm(prev => ({
           ...prev,
           contact_name: fullName || wegOwnerData.email || 'WEG-Eigentümer',
