@@ -58,16 +58,16 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
   };
 
   return (
-    <Sidebar className={`${collapsed ? "w-16" : "w-72"} sidebar-enhanced border-r border-border/50 shadow-apple`}>
-      <SidebarContent className="bg-gradient-warm text-foreground">
+    <Sidebar className={`${collapsed ? "w-16" : "w-64"} border-r border-border`}>
+      <SidebarContent className="bg-background">
         {/* Header with Logo */}
-        <div className="p-6 border-b border-border/20 bg-gradient-warm">
+        <div className="p-4 border-b border-border">
           {!collapsed ? (
-            <div className="flex items-center space-x-3 animate-fade-in">
+            <div className="flex items-center space-x-3">
               <img 
                 src="/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png" 
                 alt="RGI Immobilien Logo" 
-                className="h-12 w-auto object-contain"
+                className="h-10 w-auto object-contain"
               />
             </div>
           ) : (
@@ -82,41 +82,41 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
         </div>
 
         {/* Management Mode Toggle */}
-        <div className="p-6 border-b border-border/20">
+        <div className="p-4 border-b border-border">
           {!collapsed ? (
-            <div className="space-y-4 animate-slide-up">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            <div className="space-y-3">
+              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                 Verwaltungsmodus
               </label>
-              <div className="flex bg-muted/50 rounded-xl p-1 gap-1">
+              <div className="flex bg-muted rounded-lg p-1">
                 <Button
-                  variant={managementMode === 'weg' ? 'default' : 'ghost'}
+                  variant="ghost"
                   size="sm"
                   onClick={() => onModeChange('weg')}
-                  className={`flex-1 rounded-lg transition-all duration-200 ${
+                  className={`flex-1 rounded-md transition-colors ${
                     managementMode === 'weg' 
-                      ? 'bg-gradient-primary text-white shadow-apple' 
-                      : 'hover:bg-background text-muted-foreground hover:text-foreground'
+                      ? 'bg-primary text-primary-foreground' 
+                      : 'hover:bg-background text-muted-foreground'
                   }`}
                 >
                   WEG
                 </Button>
                 <Button
-                  variant={managementMode === 'rent' ? 'default' : 'ghost'}
+                  variant="ghost"
                   size="sm"
                   onClick={() => onModeChange('rent')}
-                  className={`flex-1 rounded-lg transition-all duration-200 ${
+                  className={`flex-1 rounded-md transition-colors ${
                     managementMode === 'rent' 
-                      ? 'bg-gradient-primary text-white shadow-apple' 
-                      : 'hover:bg-background text-muted-foreground hover:text-foreground'
+                      ? 'bg-primary text-primary-foreground' 
+                      : 'hover:bg-background text-muted-foreground'
                   }`}
                 >
                   Miete
                 </Button>
               </div>
               <div className="text-center">
-                <span className="inline-flex items-center px-3 py-2 rounded-xl text-xs font-semibold bg-gradient-primary text-white shadow-card">
-                  <div className="w-2 h-2 bg-white rounded-full mr-2 animate-pulse" />
+                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-primary text-primary-foreground">
+                  <div className="w-1.5 h-1.5 bg-primary-foreground rounded-full mr-2" />
                   {managementMode === 'weg' ? 'WEG-Verwaltung' : 'Mietverwaltung'}
                 </span>
               </div>
@@ -127,7 +127,7 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
                 variant="ghost"
                 size="sm"
                 onClick={() => onModeChange(managementMode === 'weg' ? 'rent' : 'weg')}
-                className="p-2 rounded-lg hover:bg-muted"
+                className="p-2 rounded-md hover:bg-muted"
               >
                 {managementMode === 'weg' ? (
                   <ToggleLeft className="h-4 w-4 text-primary" />
@@ -140,9 +140,9 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
         </div>
 
         {/* Navigation Menu */}
-        <SidebarGroup className="px-4">
+        <SidebarGroup className="px-4 flex-1">
           <SidebarGroupContent>
-            <SidebarMenu className="space-y-2">
+            <SidebarMenu className="space-y-1">
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
@@ -150,11 +150,11 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
                       to={item.url} 
                       className={({ isActive }) =>
                         isActive
-                          ? "bg-white shadow-card text-foreground group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 border border-border/50"
-                          : "text-muted-foreground hover:bg-white/50 hover:text-foreground group flex items-center px-4 py-3 text-sm font-medium rounded-xl transition-all duration-200 hover:shadow-card"
+                          ? "bg-primary text-primary-foreground group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors"
+                          : "text-foreground hover:bg-muted hover:text-foreground group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors"
                       }
                     >
-                      <item.icon className="h-5 w-5 mr-3" />
+                      <item.icon className="h-4 w-4 mr-3 flex-shrink-0" />
                       {!collapsed && <span>{item.title}</span>}
                     </NavLink>
                   </SidebarMenuButton>
@@ -165,20 +165,20 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
         </SidebarGroup>
 
         {/* User Section */}
-        <div className="mt-auto p-4 border-t border-border/20">
+        <div className="p-4 border-t border-border">
           {!collapsed ? (
             <div className="space-y-3">
-              <div className="bg-white/50 rounded-xl p-3 border border-border/50">
+              <div className="bg-muted rounded-lg p-3">
                 <div className="text-sm">
-                  <div className="font-semibold text-foreground">{profile?.first_name || 'Admin'}</div>
-                  <div className="text-xs text-muted-foreground">{profile?.email}</div>
+                  <div className="font-medium text-foreground">{profile?.first_name || 'Admin'}</div>
+                  <div className="text-xs text-muted-foreground truncate">{profile?.email}</div>
                 </div>
               </div>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleSignOut}
-                className="w-full justify-start text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-200"
+                className="w-full justify-start text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md"
               >
                 <LogOut className="h-4 w-4 mr-2" />
                 Abmelden
@@ -189,7 +189,7 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
               variant="ghost"
               size="sm"
               onClick={handleSignOut}
-              className="w-full p-2 rounded-lg hover:bg-destructive/10 hover:text-destructive"
+              className="w-full p-2 rounded-md hover:bg-destructive/10 hover:text-destructive"
             >
               <LogOut className="h-4 w-4" />
             </Button>
