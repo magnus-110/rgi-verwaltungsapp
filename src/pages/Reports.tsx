@@ -31,10 +31,8 @@ const getStatusBadge = (status: string) => {
   switch (status) {
     case "open":
       return <Badge variant="destructive"><AlertCircle className="mr-1 h-3 w-3" />Offen</Badge>;
-    case "in_progress":
-      return <Badge variant="secondary"><Clock className="mr-1 h-3 w-3" />In Bearbeitung</Badge>;
-      case "resolved":
-        return <Badge variant="default"><CheckCircle className="mr-1 h-3 w-3" />Bearbeitet</Badge>;
+    case "resolved":
+      return <Badge className="bg-success text-white"><CheckCircle className="mr-1 h-3 w-3" />Bearbeitet</Badge>;
     default:
       return <Badge variant="outline">{status}</Badge>;
   }
@@ -88,7 +86,6 @@ export const Reports = () => {
   };
 
   const openReports = reports.filter(r => r.status === "open").length;
-  const inProgressReports = reports.filter(r => r.status === "in_progress").length;
   const resolvedReports = reports.filter(r => r.status === "resolved").length;
 
   const handleEditReport = (report: Report) => {
@@ -144,14 +141,14 @@ export const Reports = () => {
               Verwalten Sie alle eingegangenen Meldungen
             </p>
           </div>
-          <Button className="bg-gradient-primary hover:opacity-90">
+          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
             <Plus className="mr-2 h-4 w-4" />
             Neue Meldung
           </Button>
         </div>
 
         {/* Statistiken */}
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-3">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium">Gesamt</CardTitle>
@@ -165,23 +162,15 @@ export const Reports = () => {
               <CardTitle className="text-sm font-medium">Offen</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-500">{openReports}</div>
+              <div className="text-2xl font-bold text-destructive">{openReports}</div>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">In Bearbeitung</CardTitle>
+              <CardTitle className="text-sm font-medium">Bearbeitet</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-500">{inProgressReports}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Erledigt</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-500">{resolvedReports}</div>
+              <div className="text-2xl font-bold text-success">{resolvedReports}</div>
             </CardContent>
           </Card>
         </div>
@@ -293,7 +282,7 @@ export const Reports = () => {
                             />
                           </div>
                           <div className="flex space-x-2">
-                            <Button onClick={handleUpdateReport} className="bg-gradient-primary hover:opacity-90">
+                            <Button onClick={handleUpdateReport} className="bg-primary hover:bg-primary/90 text-primary-foreground">
                               Änderungen speichern
                             </Button>
                           </div>
