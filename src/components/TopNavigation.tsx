@@ -63,6 +63,12 @@ export const TopNavigation = ({ userRole }: TopNavigationProps) => {
         },
         { 
           icon: MessageSquare, 
+          label: "Forum", 
+          path: '/weg-owner/forum',
+          active: location.pathname.startsWith('/weg-owner/forum')
+        },
+        { 
+          icon: Bot, 
           label: "Chat", 
           path: '/weg-owner/chatbot',
           active: location.pathname.startsWith('/weg-owner/chatbot')
