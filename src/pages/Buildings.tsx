@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/hooks/useAuth";
 import { useManagementMode } from "@/hooks/useManagementMode";
+import { BulkUpload } from "@/components/BulkUpload";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Plus, Users, Building2, Home, Edit, Trash2, User } from "lucide-react";
@@ -728,19 +729,26 @@ export const Buildings = () => {
                       ? (wegOwners[building.id]?.length || 0) 
                       : (tenants[building.id]?.length || 0)})
                   </h4>
-                  <Dialog open={isCreateUserOpen} onOpenChange={setIsCreateUserOpen}>
-                    <DialogTrigger asChild>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => setSelectedBuildingId(building.id)}
-                        className="hover:scale-105 transition-all duration-200"
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        {managementMode === 'weg' ? 'Eigentümer hinzufügen' : 'Mieter hinzufügen'}
-                      </Button>
-                    </DialogTrigger>
-                  </Dialog>
+                  <div className="flex gap-2">
+                    <Dialog open={isCreateUserOpen} onOpenChange={setIsCreateUserOpen}>
+                      <DialogTrigger asChild>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => setSelectedBuildingId(building.id)}
+                          className="hover:scale-105 transition-all duration-200"
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          {managementMode === 'weg' ? 'Eigentümer hinzufügen' : 'Mieter hinzufügen'}
+                        </Button>
+                      </DialogTrigger>
+                    </Dialog>
+                    <BulkUpload
+                      buildingId={building.id}
+                      managementMode={managementMode}
+                      onUploadComplete={fetchBuildings}
+                    />
+                  </div>
                 </div>
 
                 {/* Users Table */}

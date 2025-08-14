@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { Plus, AlertCircle, Upload, X } from "lucide-react";
+import { Plus, AlertCircle, Upload, X, FileText } from "lucide-react";
 
 interface Report {
   id: string;
@@ -455,7 +455,29 @@ export const TenantReports = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground">{report.description}</p>
+                <p className="text-muted-foreground mb-4">{report.description}</p>
+                
+                {/* Attachments Display */}
+                {report.attachments && report.attachments.length > 0 && (
+                  <div className="mb-4">
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">Anhänge:</h4>
+                    <div className="grid grid-cols-2 gap-2">
+                      {report.attachments.map((attachment: any, index: number) => (
+                        <div key={index} className="flex items-center p-2 bg-muted rounded-lg">
+                          <FileText className="h-4 w-4 mr-2 text-blue-600" />
+                          <a
+                            href={`https://eebphowrbarzawwixqcc.supabase.co/storage/v1/object/public/report-attachments/${attachment.path}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-blue-600 hover:text-blue-800 truncate"
+                          >
+                            {attachment.name}
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))
