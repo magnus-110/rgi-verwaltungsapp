@@ -103,7 +103,7 @@ export const WegOwnerDashboard = () => {
           <div className="text-muted-foreground">
             {buildings.map((building, index) => (
               <div key={building.id}>
-                Gebäude {building.building?.building_code} • {building.building?.name}
+                {building.building?.name}
                 {index < buildings.length - 1 && ', '}
               </div>
             ))}

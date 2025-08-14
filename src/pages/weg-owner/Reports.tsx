@@ -95,9 +95,10 @@ export const WegOwnerReports = () => {
         .single();
 
       if (wegOwnerData) {
+        const fullName = `${wegOwnerData.first_name || ''} ${wegOwnerData.last_name || ''}`.trim();
         setReportForm(prev => ({
           ...prev,
-          contact_name: `${wegOwnerData.first_name || ''} ${wegOwnerData.last_name || ''}`.trim(),
+          contact_name: fullName || wegOwnerData.email || 'WEG-Eigentümer',
           contact_email: wegOwnerData.email || profile?.email || '',
           contact_phone: wegOwnerData.phone || '',
         }));
@@ -112,9 +113,10 @@ export const WegOwnerReports = () => {
         .single();
 
       if (profileData) {
+        const fullName = `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim();
         setReportForm(prev => ({
           ...prev,
-          contact_name: `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim() || 'WEG-Eigentümer',
+          contact_name: fullName || profileData.email || 'WEG-Eigentümer',
           contact_email: profileData.email || '',
           contact_phone: profileData.phone || '',
         }));

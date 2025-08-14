@@ -378,38 +378,6 @@ export const WegOwnerSettings = () => {
         </CardContent>
       </Card>
 
-      {/* Profile Information */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Profil-Informationen</CardTitle>
-          <CardDescription>
-            Ihre aktuellen Kontodaten. Änderungen können nur durch den Administrator vorgenommen werden.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Vorname</Label>
-              <Input value={profile?.first_name || "Nicht gesetzt"} disabled />
-            </div>
-            <div className="space-y-2">
-              <Label>Nachname</Label>
-              <Input value={profile?.last_name || "Nicht gesetzt"} disabled />
-            </div>
-            <div className="space-y-2">
-              <Label>E-Mail</Label>
-              <Input value={profile?.email || ""} disabled />
-            </div>
-            <div className="space-y-2">
-              <Label>Telefon</Label>
-              <Input value={(profile as any)?.phone || "Nicht gesetzt"} disabled />
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Für Änderungen an Ihren Profildaten wenden Sie sich bitte an Ihren Administrator.
-          </p>
-        </CardContent>
-      </Card>
     </div>
   );
 };
