@@ -6,10 +6,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { AlertCircle, Clock, CheckCircle, Plus, Edit } from "lucide-react";
+import { AlertCircle, Clock, CheckCircle, Plus, Edit, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useManagementMode } from "@/hooks/useManagementMode";
 import { toast } from "sonner";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface Report {
   id: string;
@@ -61,6 +62,7 @@ export const Reports = () => {
   const [editingStatus, setEditingStatus] = useState("");
   const [internalNotes, setInternalNotes] = useState("");
   const [adminNotes, setAdminNotes] = useState("");
+  const [showResolved, setShowResolved] = useState(false);
 
   useEffect(() => {
     fetchReports();
@@ -85,8 +87,8 @@ export const Reports = () => {
     }
   };
 
-  const openReports = reports.filter(r => r.status === "open").length;
-  const resolvedReports = reports.filter(r => r.status === "resolved").length;
+  const openReports = reports.filter(r => r.status === "open");
+  const resolvedReports = reports.filter(r => r.status === "resolved");
 
   const handleEditReport = (report: Report) => {
     setSelectedReport(report);
@@ -162,7 +164,7 @@ export const Reports = () => {
               <CardTitle className="text-sm font-medium">Offen</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-destructive">{openReports}</div>
+              <div className="text-2xl font-bold text-destructive">{openReports.length}</div>
             </CardContent>
           </Card>
           <Card>
@@ -170,21 +172,22 @@ export const Reports = () => {
               <CardTitle className="text-sm font-medium">Bearbeitet</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-success">{resolvedReports}</div>
+              <div className="text-2xl font-bold text-success">{resolvedReports.length}</div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Meldungen Liste */}
+        {/* Offene Meldungen */}
         <div className="space-y-4">
+          <h3 className="text-lg font-semibold">Offene Meldungen</h3>
           {loading ? (
             <div className="text-center py-8">Laden...</div>
-          ) : reports.length === 0 ? (
+          ) : openReports.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-muted-foreground">Keine Meldungen vorhanden.</p>
+              <p className="text-muted-foreground">Keine offenen Meldungen vorhanden.</p>
             </div>
           ) : (
-            reports.map((report) => (
+            openReports.map((report) => (
               <Card key={report.id} className="hover:shadow-elegant transition-shadow">
                 <CardHeader>
                   <div className="flex justify-between items-start">
@@ -295,6 +298,78 @@ export const Reports = () => {
             ))
           )}
         </div>
+
+        {/* Bearbeitete Meldungen - Collapsible */}
+        {resolvedReports.length > 0 && (
+          <Collapsible open={showResolved} onOpenChange={setShowResolved}>
+            <div className="border-t pt-6">
+              <CollapsibleTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  className="flex items-center justify-between w-full mb-4"
+                >
+                  <span className="text-lg font-semibold">
+                    Bearbeitete Meldungen ({resolvedReports.length})
+                  </span>
+                  {showResolved ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-4">
+                {resolvedReports.map((report) => (
+                  <Card key={report.id} className="opacity-75 hover:opacity-100 hover:shadow-elegant transition-all">
+                    <CardHeader>
+                      <div className="flex justify-between items-start">
+                        <div className="space-y-1">
+                          <CardTitle className="text-lg">{report.title}</CardTitle>
+                          <CardDescription>{report.description}</CardDescription>
+                        </div>
+                        <div className="flex space-x-2">
+                          {getStatusBadge(report.status)}
+                          {getPriorityBadge(report.priority)}
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid gap-4 md:grid-cols-3">
+                        <div>
+                          <p className="text-sm font-medium">Kontakt</p>
+                          <p className="text-sm text-muted-foreground">{report.contact_name}</p>
+                          <p className="text-sm text-muted-foreground">{report.contact_email}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">Telefon</p>
+                          <p className="text-sm text-muted-foreground">{report.contact_phone || 'Nicht angegeben'}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">Erstellt</p>
+                          <p className="text-sm text-muted-foreground">
+                            {new Date(report.created_at).toLocaleDateString('de-DE')}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      {/* Admin Notes */}
+                      {report.admin_notes && (
+                        <div className="mt-4 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+                          <p className="text-sm font-medium text-primary mb-1">Verwalter-Notiz:</p>
+                          <p className="text-sm">{report.admin_notes}</p>
+                        </div>
+                      )}
+                      
+                      {/* Internal Notes */}
+                      {report.internal_notes && (
+                        <div className="mt-4 p-3 bg-muted border rounded-lg">
+                          <p className="text-sm font-medium mb-1">Interne Notiz (nur Admin):</p>
+                          <p className="text-sm text-muted-foreground">{report.internal_notes}</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
+        )}
     </div>
   );
 };
