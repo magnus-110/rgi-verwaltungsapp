@@ -155,7 +155,7 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
                       }
                     >
                       <item.icon className="h-4 w-4 mr-3 flex-shrink-0" />
-                      {!collapsed && <span className="font-medium">{item.title}</span>}
+                      {!collapsed && <span className="font-medium text-current">{item.title}</span>}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
