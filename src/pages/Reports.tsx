@@ -70,6 +70,7 @@ export const Reports = () => {
   const [internalNotes, setInternalNotes] = useState("");
   const [adminNotes, setAdminNotes] = useState("");
   const [showResolved, setShowResolved] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
@@ -89,8 +90,7 @@ export const Reports = () => {
       filtered = filtered.filter(report => 
         report.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         report.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        report.contact_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        report.buildings?.address?.toLowerCase().includes(searchTerm.toLowerCase())
+        report.contact_name?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
 
@@ -112,13 +112,7 @@ export const Reports = () => {
       
       const { data, error } = await supabase
         .from(tableName)
-        .select(`
-          *,
-          buildings (
-            name,
-            address
-          )
-        `)
+        .select("*")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -186,51 +180,65 @@ export const Reports = () => {
               Verwalten Sie alle eingegangenen Meldungen
             </p>
           </div>
-          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-            <Plus className="mr-2 h-4 w-4" />
-            Neue Meldung
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowFilters(!showFilters)}
+              className="flex items-center gap-2"
+            >
+              <Filter className="h-4 w-4" />
+              Filter {showFilters ? 'ausblenden' : 'anzeigen'}
+            </Button>
+            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
+              <Plus className="mr-2 h-4 w-4" />
+              Neue Meldung
+            </Button>
+          </div>
         </div>
 
-        {/* Filter Section */}
-        <Card className="p-4">
-          <div className="flex items-center gap-4 flex-wrap">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Filter:</span>
-            </div>
-            <div className="flex-1 min-w-64">
-              <Input
-                placeholder="Suchen nach Titel, Beschreibung, Kontakt oder Adresse..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full"
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-32">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Alle Status</SelectItem>
-                <SelectItem value="open">Offen</SelectItem>
-                <SelectItem value="resolved">Bearbeitet</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-              <SelectTrigger className="w-32">
-                <SelectValue placeholder="Priorität" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Alle Prioritäten</SelectItem>
-                <SelectItem value="critical">Kritisch</SelectItem>
-                <SelectItem value="high">Hoch</SelectItem>
-                <SelectItem value="medium">Mittel</SelectItem>
-                <SelectItem value="low">Niedrig</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </Card>
+        {/* Filter Section - Collapsible */}
+        <Collapsible open={showFilters} onOpenChange={setShowFilters}>
+          <CollapsibleContent>
+            <Card className="p-4">
+              <div className="flex items-center gap-4 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">Filter:</span>
+                </div>
+                <div className="flex-1 min-w-64">
+                  <Input
+                    placeholder="Suchen nach Titel, Beschreibung oder Kontakt..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Alle Status</SelectItem>
+                    <SelectItem value="open">Offen</SelectItem>
+                    <SelectItem value="resolved">Bearbeitet</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue placeholder="Priorität" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Alle Prioritäten</SelectItem>
+                    <SelectItem value="critical">Kritisch</SelectItem>
+                    <SelectItem value="high">Hoch</SelectItem>
+                    <SelectItem value="medium">Mittel</SelectItem>
+                    <SelectItem value="low">Niedrig</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </Card>
+          </CollapsibleContent>
+        </Collapsible>
 
         {/* Statistiken */}
         <div className="grid gap-4 md:grid-cols-3">
@@ -277,11 +285,6 @@ export const Reports = () => {
                     <div className="space-y-1">
                       <CardTitle className="text-lg">{report.title}</CardTitle>
                       <CardDescription>{report.description}</CardDescription>
-                      {report.buildings && (
-                        <div className="text-sm text-muted-foreground">
-                          <strong>Gebäude:</strong> {report.buildings.name} - {report.buildings.address}
-                        </div>
-                      )}
                     </div>
                     <div className="flex space-x-2">
                       {getStatusBadge(report.status)}
@@ -419,11 +422,6 @@ export const Reports = () => {
                         <div className="space-y-1">
                           <CardTitle className="text-lg">{report.title}</CardTitle>
                           <CardDescription>{report.description}</CardDescription>
-                          {report.buildings && (
-                            <div className="text-sm text-muted-foreground">
-                              <strong>Gebäude:</strong> {report.buildings.name} - {report.buildings.address}
-                            </div>
-                          )}
                         </div>
                         <div className="flex space-x-2">
                           {getStatusBadge(report.status)}
