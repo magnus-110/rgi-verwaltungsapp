@@ -114,12 +114,6 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
                   Miete
                 </Button>
               </div>
-              <div className="text-center">
-                <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-primary text-primary-foreground">
-                  <div className="w-1.5 h-1.5 bg-primary-foreground rounded-full mr-2" />
-                  {managementMode === 'weg' ? 'WEG-Verwaltung' : 'Mietverwaltung'}
-                </span>
-              </div>
             </div>
           ) : (
             <div className="flex justify-center">

@@ -6,7 +6,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { AlertCircle, Clock, CheckCircle, Plus, Edit, ChevronDown, ChevronUp } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { AlertCircle, Clock, CheckCircle, Plus, Edit, ChevronDown, ChevronUp, Filter } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useManagementMode } from "@/hooks/useManagementMode";
 import { toast } from "sonner";
@@ -26,6 +27,11 @@ interface Report {
   updated_at: string;
   internal_notes?: string;
   admin_notes?: string;
+  building_id?: string;
+  buildings?: {
+    name: string;
+    address: string;
+  } | null;
 }
 
 const getStatusBadge = (status: string) => {
@@ -57,16 +63,47 @@ const getPriorityBadge = (priority: string) => {
 export const Reports = () => {
   const { managementMode } = useManagementMode();
   const [reports, setReports] = useState<Report[]>([]);
+  const [filteredReports, setFilteredReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
   const [editingStatus, setEditingStatus] = useState("");
   const [internalNotes, setInternalNotes] = useState("");
   const [adminNotes, setAdminNotes] = useState("");
   const [showResolved, setShowResolved] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [priorityFilter, setPriorityFilter] = useState("all");
 
   useEffect(() => {
     fetchReports();
   }, [managementMode]);
+
+  useEffect(() => {
+    filterReports();
+  }, [reports, searchTerm, statusFilter, priorityFilter]);
+
+  const filterReports = () => {
+    let filtered = [...reports];
+
+    if (searchTerm) {
+      filtered = filtered.filter(report => 
+        report.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        report.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        report.contact_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        report.buildings?.address?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    if (statusFilter !== "all") {
+      filtered = filtered.filter(report => report.status === statusFilter);
+    }
+
+    if (priorityFilter !== "all") {
+      filtered = filtered.filter(report => report.priority === priorityFilter);
+    }
+
+    setFilteredReports(filtered);
+  };
 
   const fetchReports = async () => {
     try {
@@ -75,11 +112,17 @@ export const Reports = () => {
       
       const { data, error } = await supabase
         .from(tableName)
-        .select("*")
+        .select(`
+          *,
+          buildings (
+            name,
+            address
+          )
+        `)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setReports(data || []);
+      setReports((data as any) || []);
     } catch (error) {
       console.error("Error fetching reports:", error);
     } finally {
@@ -87,8 +130,8 @@ export const Reports = () => {
     }
   };
 
-  const openReports = reports.filter(r => r.status === "open");
-  const resolvedReports = reports.filter(r => r.status === "resolved");
+  const openReports = filteredReports.filter(r => r.status === "open");
+  const resolvedReports = filteredReports.filter(r => r.status === "resolved");
 
   const handleEditReport = (report: Report) => {
     setSelectedReport(report);
@@ -149,6 +192,46 @@ export const Reports = () => {
           </Button>
         </div>
 
+        {/* Filter Section */}
+        <Card className="p-4">
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Filter:</span>
+            </div>
+            <div className="flex-1 min-w-64">
+              <Input
+                placeholder="Suchen nach Titel, Beschreibung, Kontakt oder Adresse..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full"
+              />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-32">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alle Status</SelectItem>
+                <SelectItem value="open">Offen</SelectItem>
+                <SelectItem value="resolved">Bearbeitet</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+              <SelectTrigger className="w-32">
+                <SelectValue placeholder="Priorität" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alle Prioritäten</SelectItem>
+                <SelectItem value="critical">Kritisch</SelectItem>
+                <SelectItem value="high">Hoch</SelectItem>
+                <SelectItem value="medium">Mittel</SelectItem>
+                <SelectItem value="low">Niedrig</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </Card>
+
         {/* Statistiken */}
         <div className="grid gap-4 md:grid-cols-3">
           <Card>
@@ -194,6 +277,11 @@ export const Reports = () => {
                     <div className="space-y-1">
                       <CardTitle className="text-lg">{report.title}</CardTitle>
                       <CardDescription>{report.description}</CardDescription>
+                      {report.buildings && (
+                        <div className="text-sm text-muted-foreground">
+                          <strong>Gebäude:</strong> {report.buildings.name} - {report.buildings.address}
+                        </div>
+                      )}
                     </div>
                     <div className="flex space-x-2">
                       {getStatusBadge(report.status)}
@@ -254,15 +342,24 @@ export const Reports = () => {
                         <div className="space-y-4">
                           <div>
                             <Label htmlFor="status">Status</Label>
-                            <Select value={editingStatus} onValueChange={setEditingStatus}>
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="open">Offen</SelectItem>
-                                <SelectItem value="resolved">Bearbeitet</SelectItem>
-                              </SelectContent>
-                            </Select>
+                            <div className="flex gap-2 mt-2">
+                              <Button
+                                type="button"
+                                variant={editingStatus === "open" ? "default" : "outline"}
+                                onClick={() => setEditingStatus("open")}
+                                className="flex-1"
+                              >
+                                Offen
+                              </Button>
+                              <Button
+                                type="button"
+                                variant={editingStatus === "resolved" ? "default" : "outline"}
+                                onClick={() => setEditingStatus("resolved")}
+                                className="flex-1"
+                              >
+                                Bearbeitet
+                              </Button>
+                            </div>
                           </div>
                           <div>
                             <Label htmlFor="internal_notes">Interne Notizen (nur für Admins)</Label>
@@ -322,6 +419,11 @@ export const Reports = () => {
                         <div className="space-y-1">
                           <CardTitle className="text-lg">{report.title}</CardTitle>
                           <CardDescription>{report.description}</CardDescription>
+                          {report.buildings && (
+                            <div className="text-sm text-muted-foreground">
+                              <strong>Gebäude:</strong> {report.buildings.name} - {report.buildings.address}
+                            </div>
+                          )}
                         </div>
                         <div className="flex space-x-2">
                           {getStatusBadge(report.status)}
