@@ -118,8 +118,8 @@ export const Reports = () => {
   const [selectedAdminNote, setSelectedAdminNote] = useState("");
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [exportFilters, setExportFilters] = useState({
-    status: "",
-    priority: "",
+    status: "all",
+    priority: "all",
     dateFrom: "",
     dateTo: ""
   });
@@ -144,11 +144,11 @@ export const Reports = () => {
       );
     }
 
-    if (statusFilter) {
+    if (statusFilter && statusFilter !== "all") {
       filtered = filtered.filter(report => report.status === statusFilter);
     }
 
-    if (priorityFilter) {
+    if (priorityFilter && priorityFilter !== "all") {
       filtered = filtered.filter(report => report.priority === priorityFilter);
     }
 
@@ -244,10 +244,10 @@ export const Reports = () => {
     let dataToExport = reports;
     
     // Apply filters
-    if (exportFilters.status) {
+    if (exportFilters.status && exportFilters.status !== "all") {
       dataToExport = dataToExport.filter(report => report.status === exportFilters.status);
     }
-    if (exportFilters.priority) {
+    if (exportFilters.priority && exportFilters.priority !== "all") {
       dataToExport = dataToExport.filter(report => report.priority === exportFilters.priority);
     }
     if (exportFilters.dateFrom) {
@@ -365,7 +365,7 @@ export const Reports = () => {
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent className="bg-background border border-border shadow-lg z-50">
-                  <SelectItem value="">Alle Status</SelectItem>
+                  <SelectItem value="all">Alle Status</SelectItem>
                   <SelectItem value="open">Offen</SelectItem>
                   <SelectItem value="resolved">Erledigt</SelectItem>
                 </SelectContent>
@@ -375,7 +375,7 @@ export const Reports = () => {
                   <SelectValue placeholder="Priorität" />
                 </SelectTrigger>
                 <SelectContent className="bg-background border border-border shadow-lg z-50">
-                  <SelectItem value="">Alle Prioritäten</SelectItem>
+                  <SelectItem value="all">Alle Prioritäten</SelectItem>
                   <SelectItem value="high">Hoch</SelectItem>
                   <SelectItem value="medium">Mittel</SelectItem>
                   <SelectItem value="low">Niedrig</SelectItem>
@@ -693,7 +693,7 @@ export const Reports = () => {
                   <SelectValue placeholder="Alle Status" />
                 </SelectTrigger>
                 <SelectContent className="bg-background border border-border shadow-lg z-50">
-                  <SelectItem value="">Alle Status</SelectItem>
+                  <SelectItem value="all">Alle Status</SelectItem>
                   <SelectItem value="open">Offen</SelectItem>
                   <SelectItem value="resolved">Erledigt</SelectItem>
                 </SelectContent>
@@ -710,7 +710,7 @@ export const Reports = () => {
                   <SelectValue placeholder="Alle Prioritäten" />
                 </SelectTrigger>
                 <SelectContent className="bg-background border border-border shadow-lg z-50">
-                  <SelectItem value="">Alle Prioritäten</SelectItem>
+                  <SelectItem value="all">Alle Prioritäten</SelectItem>
                   <SelectItem value="low">Niedrig</SelectItem>
                   <SelectItem value="medium">Mittel</SelectItem>
                   <SelectItem value="high">Hoch</SelectItem>
