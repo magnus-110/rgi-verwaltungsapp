@@ -28,10 +28,12 @@ interface Report {
   internal_notes?: string;
   admin_notes?: string;
   building_id?: string;
-  buildings?: {
-    name: string;
-    address: string;
-  } | null;
+}
+
+interface Building {
+  id: string;
+  name: string;
+  address: string;
 }
 
 const getStatusBadge = (status: string) => {
@@ -64,6 +66,7 @@ export const Reports = () => {
   const { managementMode } = useManagementMode();
   const [reports, setReports] = useState<Report[]>([]);
   const [filteredReports, setFilteredReports] = useState<Report[]>([]);
+  const [buildings, setBuildings] = useState<Building[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
   const [editingStatus, setEditingStatus] = useState("");
@@ -74,9 +77,11 @@ export const Reports = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
+  const [timeFilter, setTimeFilter] = useState("7days"); // New time filter for resolved reports
 
   useEffect(() => {
     fetchReports();
+    fetchBuildings();
   }, [managementMode]);
 
   useEffect(() => {
@@ -124,8 +129,51 @@ export const Reports = () => {
     }
   };
 
+  const fetchBuildings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("buildings")
+        .select("id, name, address");
+
+      if (error) throw error;
+      setBuildings(data || []);
+    } catch (error) {
+      console.error("Error fetching buildings:", error);
+    }
+  };
+
+  const getBuildingAddress = (buildingId?: string) => {
+    if (!buildingId) return "Nicht zugeordnet";
+    const building = buildings.find(b => b.id === buildingId);
+    return building ? building.address : "Nicht zugeordnet";
+  };
+
+  const getFilteredResolvedReports = () => {
+    const resolved = filteredReports.filter(r => r.status === "resolved");
+    
+    if (timeFilter === "today") {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return resolved.filter(r => new Date(r.updated_at) >= today);
+    }
+    
+    if (timeFilter === "7days") {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      return resolved.filter(r => new Date(r.updated_at) >= sevenDaysAgo);
+    }
+    
+    if (timeFilter === "30days") {
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      return resolved.filter(r => new Date(r.updated_at) >= thirtyDaysAgo);
+    }
+    
+    return resolved;
+  };
+
   const openReports = filteredReports.filter(r => r.status === "open");
-  const resolvedReports = filteredReports.filter(r => r.status === "resolved");
+  const resolvedReports = getFilteredResolvedReports();
 
   const handleEditReport = (report: Report) => {
     setSelectedReport(report);
@@ -292,24 +340,28 @@ export const Reports = () => {
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <div>
-                      <p className="text-sm font-medium">Kontakt</p>
-                      <p className="text-sm text-muted-foreground">{report.contact_name}</p>
-                      <p className="text-sm text-muted-foreground">{report.contact_email}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">Telefon</p>
-                      <p className="text-sm text-muted-foreground">{report.contact_phone || 'Nicht angegeben'}</p>
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">Erstellt</p>
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(report.created_at).toLocaleDateString('de-DE')}
-                      </p>
-                    </div>
-                  </div>
+                 <CardContent>
+                   <div className="grid gap-4 md:grid-cols-4">
+                     <div>
+                       <p className="text-sm font-medium">Kontakt</p>
+                       <p className="text-sm text-muted-foreground">{report.contact_name}</p>
+                       <p className="text-sm text-muted-foreground">{report.contact_email}</p>
+                     </div>
+                     <div>
+                       <p className="text-sm font-medium">Telefon</p>
+                       <p className="text-sm text-muted-foreground">{report.contact_phone || 'Nicht angegeben'}</p>
+                     </div>
+                     <div>
+                       <p className="text-sm font-medium">Gebäude</p>
+                       <p className="text-sm text-muted-foreground">{getBuildingAddress(report.building_id)}</p>
+                     </div>
+                     <div>
+                       <p className="text-sm font-medium">Erstellt</p>
+                       <p className="text-sm text-muted-foreground">
+                         {new Date(report.created_at).toLocaleDateString('de-DE')}
+                       </p>
+                     </div>
+                   </div>
                   
                   {/* Admin Notes - visible to both admin and tenant/owner */}
                   {report.admin_notes && (
@@ -400,76 +452,106 @@ export const Reports = () => {
         </div>
 
         {/* Bearbeitete Meldungen - Collapsible */}
-        {resolvedReports.length > 0 && (
-          <Collapsible open={showResolved} onOpenChange={setShowResolved}>
-            <div className="border-t pt-6">
-              <CollapsibleTrigger asChild>
-                <Button 
-                  variant="outline" 
-                  className="flex items-center justify-between w-full mb-4"
+        <div className="border-t pt-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-4">
+              <span className="text-lg font-semibold">
+                Bearbeitete Meldungen ({resolvedReports.length})
+              </span>
+              <div className="flex gap-2">
+                <Button
+                  variant={timeFilter === "today" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setTimeFilter("today")}
                 >
-                  <span className="text-lg font-semibold">
-                    Bearbeitete Meldungen ({resolvedReports.length})
-                  </span>
-                  {showResolved ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  Heute
                 </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-4">
-                {resolvedReports.map((report) => (
-                  <Card key={report.id} className="opacity-75 hover:opacity-100 hover:shadow-elegant transition-all">
-                    <CardHeader>
-                      <div className="flex justify-between items-start">
-                        <div className="space-y-1">
-                          <CardTitle className="text-lg">{report.title}</CardTitle>
-                          <CardDescription>{report.description}</CardDescription>
-                        </div>
-                        <div className="flex space-x-2">
-                          {getStatusBadge(report.status)}
-                          {getPriorityBadge(report.priority)}
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid gap-4 md:grid-cols-3">
-                        <div>
-                          <p className="text-sm font-medium">Kontakt</p>
-                          <p className="text-sm text-muted-foreground">{report.contact_name}</p>
-                          <p className="text-sm text-muted-foreground">{report.contact_email}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">Telefon</p>
-                          <p className="text-sm text-muted-foreground">{report.contact_phone || 'Nicht angegeben'}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">Erstellt</p>
-                          <p className="text-sm text-muted-foreground">
-                            {new Date(report.created_at).toLocaleDateString('de-DE')}
-                          </p>
-                        </div>
-                      </div>
-                      
-                      {/* Admin Notes */}
-                      {report.admin_notes && (
-                        <div className="mt-4 p-3 bg-primary/5 border border-primary/20 rounded-lg">
-                          <p className="text-sm font-medium text-primary mb-1">Verwalter-Notiz:</p>
-                          <p className="text-sm">{report.admin_notes}</p>
-                        </div>
-                      )}
-                      
-                      {/* Internal Notes */}
-                      {report.internal_notes && (
-                        <div className="mt-4 p-3 bg-muted border rounded-lg">
-                          <p className="text-sm font-medium mb-1">Interne Notiz (nur Admin):</p>
-                          <p className="text-sm text-muted-foreground">{report.internal_notes}</p>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-              </CollapsibleContent>
+                <Button
+                  variant={timeFilter === "7days" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setTimeFilter("7days")}
+                >
+                  Letzte 7 Tage
+                </Button>
+                <Button
+                  variant={timeFilter === "30days" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setTimeFilter("30days")}
+                >
+                  Letzte 30 Tage
+                </Button>
+              </div>
             </div>
+            <Button
+              variant="outline"
+              onClick={() => setShowResolved(!showResolved)}
+              className="flex items-center gap-2"
+            >
+              {showResolved ? 'Ausblenden' : 'Anzeigen'}
+              {showResolved ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+          </div>
+          
+          <Collapsible open={showResolved} onOpenChange={setShowResolved}>
+            <CollapsibleContent className="space-y-4">
+              {resolvedReports.map((report) => (
+                <Card key={report.id} className="opacity-75 hover:opacity-100 hover:shadow-elegant transition-all">
+                  <CardHeader>
+                    <div className="flex justify-between items-start">
+                      <div className="space-y-1">
+                        <CardTitle className="text-lg">{report.title}</CardTitle>
+                        <CardDescription>{report.description}</CardDescription>
+                      </div>
+                      <div className="flex space-x-2">
+                        {getStatusBadge(report.status)}
+                        {getPriorityBadge(report.priority)}
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid gap-4 md:grid-cols-4">
+                      <div>
+                        <p className="text-sm font-medium">Kontakt</p>
+                        <p className="text-sm text-muted-foreground">{report.contact_name}</p>
+                        <p className="text-sm text-muted-foreground">{report.contact_email}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">Telefon</p>
+                        <p className="text-sm text-muted-foreground">{report.contact_phone || 'Nicht angegeben'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">Gebäude</p>
+                        <p className="text-sm text-muted-foreground">{getBuildingAddress(report.building_id)}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">Bearbeitet am</p>
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(report.updated_at).toLocaleDateString('de-DE')}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {/* Admin Notes */}
+                    {report.admin_notes && (
+                      <div className="mt-4 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+                        <p className="text-sm font-medium text-primary mb-1">Verwalter-Notiz:</p>
+                        <p className="text-sm">{report.admin_notes}</p>
+                      </div>
+                    )}
+                    
+                    {/* Internal Notes */}
+                    {report.internal_notes && (
+                      <div className="mt-4 p-3 bg-muted border rounded-lg">
+                        <p className="text-sm font-medium mb-1">Interne Notiz (nur Admin):</p>
+                        <p className="text-sm text-muted-foreground">{report.internal_notes}</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </CollapsibleContent>
           </Collapsible>
-        )}
+        </div>
     </div>
   );
 };
