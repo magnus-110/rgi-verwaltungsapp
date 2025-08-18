@@ -28,6 +28,7 @@ interface Report {
   internal_notes?: string;
   admin_notes?: string;
   building_id?: string;
+  attachments?: any[];
 }
 
 interface Building {
@@ -308,7 +309,19 @@ export const Reports = () => {
           </Card>
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Bearbeitet</CardTitle>
+              <div className="flex justify-between items-center">
+                <CardTitle className="text-sm font-medium">Bearbeitet</CardTitle>
+                <Select value={timeFilter} onValueChange={setTimeFilter}>
+                  <SelectTrigger className="w-24 h-6 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="today">Heute</SelectItem>
+                    <SelectItem value="7days">7 Tage</SelectItem>
+                    <SelectItem value="30days">30 Tage</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-success">{resolvedReports.length}</div>
@@ -355,13 +368,33 @@ export const Reports = () => {
                        <p className="text-sm font-medium">Gebäude</p>
                        <p className="text-sm text-muted-foreground">{getBuildingAddress(report.building_id)}</p>
                      </div>
-                     <div>
-                       <p className="text-sm font-medium">Erstellt</p>
-                       <p className="text-sm text-muted-foreground">
-                         {new Date(report.created_at).toLocaleDateString('de-DE')}
-                       </p>
-                     </div>
-                   </div>
+                      <div>
+                        <p className="text-sm font-medium">Erstellt</p>
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(report.created_at).toLocaleDateString('de-DE')}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    {/* Attachments */}
+                    {report.attachments && report.attachments.length > 0 && (
+                      <div className="mt-4">
+                        <p className="text-sm font-medium mb-2">Anhänge:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {report.attachments.map((attachment: any, index: number) => (
+                            <a
+                              key={index}
+                              href={attachment.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs px-2 py-1 bg-primary/10 text-primary rounded hover:bg-primary/20 transition-colors"
+                            >
+                              {attachment.name || `Anhang ${index + 1}`}
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   
                   {/* Admin Notes - visible to both admin and tenant/owner */}
                   {report.admin_notes && (
