@@ -119,7 +119,7 @@ export const Reports = () => {
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [exportFilters, setExportFilters] = useState({
     status: "all",
-    priority: "all",
+    building: "all",
     dateFrom: "",
     dateTo: ""
   });
@@ -247,8 +247,8 @@ export const Reports = () => {
     if (exportFilters.status && exportFilters.status !== "all") {
       dataToExport = dataToExport.filter(report => report.status === exportFilters.status);
     }
-    if (exportFilters.priority && exportFilters.priority !== "all") {
-      dataToExport = dataToExport.filter(report => report.priority === exportFilters.priority);
+    if (exportFilters.building && exportFilters.building !== "all") {
+      dataToExport = dataToExport.filter(report => report.building_id === exportFilters.building);
     }
     if (exportFilters.dateFrom) {
       dataToExport = dataToExport.filter(report => 
@@ -263,7 +263,7 @@ export const Reports = () => {
 
     // Create CSV content
     const headers = [
-      "ID", "Titel", "Beschreibung", "Status", "Priorität", "Kontakt Name", 
+      "ID", "Titel", "Beschreibung", "Status", "Priorität", "Gebäude", "Kontakt Name", 
       "Kontakt Email", "Kontakt Telefon", "Erstellt am", "Aktualisiert am",
       "Verwalter-Notizen", "Interne Notizen"
     ];
@@ -276,6 +276,7 @@ export const Reports = () => {
         `"${report.description?.replace(/"/g, '""') || ''}"`,
         report.status,
         report.priority,
+        `"${getBuildingAddress(report.building_id).replace(/"/g, '""')}"`,
         `"${report.contact_name?.replace(/"/g, '""') || ''}"`,
         report.contact_email || '',
         report.contact_phone || '',
@@ -701,19 +702,21 @@ export const Reports = () => {
             </div>
 
             <div>
-              <Label htmlFor="export_priority">Priorität Filter</Label>
+              <Label htmlFor="export_building">Gebäude Filter</Label>
               <Select 
-                value={exportFilters.priority} 
-                onValueChange={(value) => setExportFilters(prev => ({...prev, priority: value}))}
+                value={exportFilters.building} 
+                onValueChange={(value) => setExportFilters(prev => ({...prev, building: value}))}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Alle Prioritäten" />
+                  <SelectValue placeholder="Alle Gebäude" />
                 </SelectTrigger>
                 <SelectContent className="bg-background border border-border shadow-lg z-50">
-                  <SelectItem value="all">Alle Prioritäten</SelectItem>
-                  <SelectItem value="low">Niedrig</SelectItem>
-                  <SelectItem value="medium">Mittel</SelectItem>
-                  <SelectItem value="high">Hoch</SelectItem>
+                  <SelectItem value="all">Alle Gebäude</SelectItem>
+                  {buildings.map((building) => (
+                    <SelectItem key={building.id} value={building.id}>
+                      {building.name} - {building.address}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
