@@ -13,6 +13,36 @@ import { useManagementMode } from "@/hooks/useManagementMode";
 import { toast } from "sonner";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
+// Component to handle async attachment URL loading
+const AttachmentLink = ({ attachment, index }: { attachment: any; index: number }) => {
+  const [url, setUrl] = useState("#");
+
+  useEffect(() => {
+    const loadUrl = async () => {
+      if (attachment.url) {
+        setUrl(attachment.url);
+      } else if (attachment.path) {
+        const { data } = await supabase.storage
+          .from('report-attachments')
+          .createSignedUrl(attachment.path, 3600);
+        setUrl(data?.signedUrl || "#");
+      }
+    };
+    loadUrl();
+  }, [attachment]);
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-xs px-2 py-1 bg-primary/10 text-primary rounded hover:bg-primary/20 transition-colors"
+    >
+      {attachment.name || `Anhang ${index + 1}`}
+    </a>
+  );
+};
+
 interface Report {
   id: string;
   title: string;
@@ -111,15 +141,6 @@ export const Reports = () => {
     setFilteredReports(filtered);
   };
 
-  const getAttachmentUrl = (attachment: any) => {
-    if (attachment.url) {
-      return attachment.url;
-    }
-    if (attachment.path) {
-      return `https://eebphowrbarzawwixqcc.supabase.co/storage/v1/object/public/report-attachments/${attachment.path}`;
-    }
-    return "#";
-  };
 
   const fetchReports = async () => {
     try {
@@ -395,25 +416,21 @@ export const Reports = () => {
                       </div>
                     </div>
                     
-                    {/* Attachments */}
-                    {report.attachments && report.attachments.length > 0 && (
-                      <div className="mt-4">
-                        <p className="text-sm font-medium mb-2">Anhänge:</p>
-                        <div className="flex flex-wrap gap-2">
-                          {report.attachments.map((attachment: any, index: number) => (
-                            <a
-                              key={index}
-                              href={getAttachmentUrl(attachment)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs px-2 py-1 bg-primary/10 text-primary rounded hover:bg-primary/20 transition-colors"
-                            >
-                              {attachment.name || `Anhang ${index + 1}`}
-                            </a>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                     {/* Attachments */}
+                     {report.attachments && report.attachments.length > 0 && (
+                       <div className="mt-4">
+                         <p className="text-sm font-medium mb-2">Anhänge:</p>
+                         <div className="flex flex-wrap gap-2">
+                           {report.attachments.map((attachment: any, index: number) => (
+                             <AttachmentLink 
+                               key={index}
+                               attachment={attachment}
+                               index={index}
+                             />
+                           ))}
+                         </div>
+                       </div>
+                     )}
                   
                   {/* Admin Notes - visible to both admin and tenant/owner */}
                   {report.admin_notes && (
@@ -583,25 +600,21 @@ export const Reports = () => {
                       </div>
                      </div>
                      
-                     {/* Attachments */}
-                     {report.attachments && report.attachments.length > 0 && (
-                       <div className="mt-4">
-                         <p className="text-sm font-medium mb-2">Anhänge:</p>
-                         <div className="flex flex-wrap gap-2">
-                           {report.attachments.map((attachment: any, index: number) => (
-                             <a
-                               key={index}
-                               href={getAttachmentUrl(attachment)}
-                               target="_blank"
-                               rel="noopener noreferrer"
-                               className="text-xs px-2 py-1 bg-primary/10 text-primary rounded hover:bg-primary/20 transition-colors"
-                             >
-                               {attachment.name || `Anhang ${index + 1}`}
-                             </a>
-                           ))}
-                         </div>
-                       </div>
-                     )}
+                      {/* Attachments */}
+                      {report.attachments && report.attachments.length > 0 && (
+                        <div className="mt-4">
+                          <p className="text-sm font-medium mb-2">Anhänge:</p>
+                          <div className="flex flex-wrap gap-2">
+                            {report.attachments.map((attachment: any, index: number) => (
+                              <AttachmentLink 
+                                key={index}
+                                attachment={attachment}
+                                index={index}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      )}
                      
                      {/* Admin Notes */}
                      {report.admin_notes && (

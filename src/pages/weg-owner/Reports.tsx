@@ -194,7 +194,7 @@ export const WegOwnerReports = () => {
     }
   };
 
-  const uploadAttachments = async (reportId: string) => {
+  const uploadAttachments = async () => {
     if (attachments.length === 0) return [];
 
     const uploadedFiles = [];
@@ -202,7 +202,7 @@ export const WegOwnerReports = () => {
 
     for (const file of attachments) {
       const fileExt = file.name.split('.').pop();
-      const fileName = `${reportId}/${Date.now()}.${fileExt}`;
+      const fileName = `${Date.now()}.${fileExt}`;
       const filePath = `${profile?.user_id}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
@@ -237,6 +237,9 @@ export const WegOwnerReports = () => {
     }
 
     try {
+      // Upload attachments first
+      const uploadedFiles = await uploadAttachments();
+      
       const { data, error } = await supabase
         .from("weg_reports")
         .insert([{
@@ -250,21 +253,13 @@ export const WegOwnerReports = () => {
           contact_email: reportForm.contact_email,
           contact_phone: reportForm.contact_phone,
           contact_address: reportForm.contact_address,
+          attachments: uploadedFiles,
           status: 'open'
         }])
         .select()
         .single();
 
       if (error) throw error;
-
-      // Upload attachments
-      const uploadedFiles = await uploadAttachments(data.id);
-      if (uploadedFiles.length > 0) {
-        await supabase
-          .from("weg_reports")
-          .update({ attachments: uploadedFiles })
-          .eq("id", data.id);
-      }
 
       setReports(prev => [{ ...data, attachments: uploadedFiles }, ...prev]);
       
