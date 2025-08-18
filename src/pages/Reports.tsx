@@ -111,6 +111,16 @@ export const Reports = () => {
     setFilteredReports(filtered);
   };
 
+  const getAttachmentUrl = (attachment: any) => {
+    if (attachment.url) {
+      return attachment.url;
+    }
+    if (attachment.path) {
+      return `https://eebphowrbarzawwixqcc.supabase.co/storage/v1/object/public/report-attachments/${attachment.path}`;
+    }
+    return "#";
+  };
+
   const fetchReports = async () => {
     try {
       setLoading(true);
@@ -122,7 +132,16 @@ export const Reports = () => {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setReports((data as any) || []);
+      
+      // Parse attachments if they are stored as strings
+      const processedData = (data as any)?.map((report: any) => ({
+        ...report,
+        attachments: typeof report.attachments === 'string' 
+          ? JSON.parse(report.attachments || '[]') 
+          : report.attachments || []
+      })) || [];
+      
+      setReports(processedData);
     } catch (error) {
       console.error("Error fetching reports:", error);
     } finally {
@@ -384,7 +403,7 @@ export const Reports = () => {
                           {report.attachments.map((attachment: any, index: number) => (
                             <a
                               key={index}
-                              href={attachment.url}
+                              href={getAttachmentUrl(attachment)}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-xs px-2 py-1 bg-primary/10 text-primary rounded hover:bg-primary/20 transition-colors"
@@ -562,23 +581,43 @@ export const Reports = () => {
                           {new Date(report.updated_at).toLocaleDateString('de-DE')}
                         </p>
                       </div>
-                    </div>
-                    
-                    {/* Admin Notes */}
-                    {report.admin_notes && (
-                      <div className="mt-4 p-3 bg-primary/5 border border-primary/20 rounded-lg">
-                        <p className="text-sm font-medium text-primary mb-1">Verwalter-Notiz:</p>
-                        <p className="text-sm">{report.admin_notes}</p>
-                      </div>
-                    )}
-                    
-                    {/* Internal Notes */}
-                    {report.internal_notes && (
-                      <div className="mt-4 p-3 bg-muted border rounded-lg">
-                        <p className="text-sm font-medium mb-1">Interne Notiz (nur Admin):</p>
-                        <p className="text-sm text-muted-foreground">{report.internal_notes}</p>
-                      </div>
-                    )}
+                     </div>
+                     
+                     {/* Attachments */}
+                     {report.attachments && report.attachments.length > 0 && (
+                       <div className="mt-4">
+                         <p className="text-sm font-medium mb-2">Anhänge:</p>
+                         <div className="flex flex-wrap gap-2">
+                           {report.attachments.map((attachment: any, index: number) => (
+                             <a
+                               key={index}
+                               href={getAttachmentUrl(attachment)}
+                               target="_blank"
+                               rel="noopener noreferrer"
+                               className="text-xs px-2 py-1 bg-primary/10 text-primary rounded hover:bg-primary/20 transition-colors"
+                             >
+                               {attachment.name || `Anhang ${index + 1}`}
+                             </a>
+                           ))}
+                         </div>
+                       </div>
+                     )}
+                     
+                     {/* Admin Notes */}
+                     {report.admin_notes && (
+                       <div className="mt-4 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+                         <p className="text-sm font-medium text-primary mb-1">Verwalter-Notiz:</p>
+                         <p className="text-sm">{report.admin_notes}</p>
+                       </div>
+                     )}
+                     
+                     {/* Internal Notes */}
+                     {report.internal_notes && (
+                       <div className="mt-4 p-3 bg-muted border rounded-lg">
+                         <p className="text-sm font-medium mb-1">Interne Notiz (nur Admin):</p>
+                         <p className="text-sm text-muted-foreground">{report.internal_notes}</p>
+                       </div>
+                     )}
                   </CardContent>
                 </Card>
               ))}
