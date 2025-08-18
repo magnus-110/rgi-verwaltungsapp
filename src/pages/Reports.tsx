@@ -83,6 +83,8 @@ const getStatusBadge = (status: string) => {
   switch (status) {
     case "open":
       return <Badge variant="destructive"><AlertCircle className="mr-1 h-3 w-3" />Offen</Badge>;
+    case "in_progress":
+      return <Badge variant="secondary"><Clock className="mr-1 h-3 w-3" />In Bearbeitung</Badge>;
     case "resolved":
       return <Badge className="bg-success text-white"><CheckCircle className="mr-1 h-3 w-3" />Erledigt</Badge>;
     default:
@@ -114,6 +116,7 @@ export const Reports = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
+  const [timeFilter, setTimeFilter] = useState("all");
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [selectedAdminNote, setSelectedAdminNote] = useState("");
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
@@ -131,7 +134,7 @@ export const Reports = () => {
 
   useEffect(() => {
     filterReports();
-  }, [reports, searchTerm, statusFilter, priorityFilter]);
+  }, [reports, searchTerm, statusFilter, priorityFilter, timeFilter]);
 
   const filterReports = () => {
     let filtered = [...reports];
@@ -150,6 +153,26 @@ export const Reports = () => {
 
     if (priorityFilter && priorityFilter !== "all") {
       filtered = filtered.filter(report => report.priority === priorityFilter);
+    }
+
+    if (timeFilter && timeFilter !== "all") {
+      const now = new Date();
+      const filterDate = new Date();
+      
+      switch (timeFilter) {
+        case "today":
+          filterDate.setHours(0, 0, 0, 0);
+          filtered = filtered.filter(report => new Date(report.created_at) >= filterDate);
+          break;
+        case "week":
+          filterDate.setDate(now.getDate() - 7);
+          filtered = filtered.filter(report => new Date(report.created_at) >= filterDate);
+          break;
+        case "month":
+          filterDate.setMonth(now.getMonth() - 1);
+          filtered = filtered.filter(report => new Date(report.created_at) >= filterDate);
+          break;
+      }
     }
 
     setFilteredReports(filtered);
@@ -311,6 +334,7 @@ export const Reports = () => {
   }
 
   const openReports = filteredReports.filter(r => r.status === "open");
+  const inProgressReports = filteredReports.filter(r => r.status === "in_progress");
   const resolvedReports = filteredReports.filter(r => r.status === "resolved");
 
   return (
@@ -368,6 +392,7 @@ export const Reports = () => {
                 <SelectContent className="bg-background border border-border shadow-lg z-50">
                   <SelectItem value="all">Alle Status</SelectItem>
                   <SelectItem value="open">Offen</SelectItem>
+                  <SelectItem value="in_progress">In Bearbeitung</SelectItem>
                   <SelectItem value="resolved">Erledigt</SelectItem>
                 </SelectContent>
               </Select>
@@ -382,13 +407,24 @@ export const Reports = () => {
                   <SelectItem value="low">Niedrig</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={timeFilter} onValueChange={setTimeFilter}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Zeitraum" />
+                </SelectTrigger>
+                <SelectContent className="bg-background border border-border shadow-lg z-50">
+                  <SelectItem value="all">Alle Zeiträume</SelectItem>
+                  <SelectItem value="today">Heute</SelectItem>
+                  <SelectItem value="week">Letzte Woche</SelectItem>
+                  <SelectItem value="month">Letzter Monat</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </Card>
         </CollapsibleContent>
       </Collapsible>
 
       {/* Summary Statistics */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Gesamt</CardTitle>
@@ -403,6 +439,14 @@ export const Reports = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-destructive">{openReports.length}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">In Bearbeitung</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-yellow-600">{inProgressReports.length}</div>
           </CardContent>
         </Card>
         <Card>
@@ -476,6 +520,99 @@ export const Reports = () => {
                   </div>
                 )}
               
+                {/* Admin Notes */}
+                {report.admin_notes && (
+                  <div className="mt-4 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+                    <p className="text-sm font-medium text-primary mb-1">Verwalter-Notiz:</p>
+                    <p className="text-sm">{report.admin_notes}</p>
+                  </div>
+                )}
+                
+                {/* Internal Notes */}
+                {report.internal_notes && (
+                  <div className="mt-4 p-3 bg-muted border rounded-lg">
+                    <p className="text-sm font-medium mb-1">Interne Notiz (nur Admin):</p>
+                    <p className="text-sm text-muted-foreground">{report.internal_notes}</p>
+                  </div>
+                )}
+
+                <div className="flex space-x-2 mt-4">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => handleEditReport(report)}
+                  >
+                    <Edit className="mr-1 h-3 w-3" />
+                    Bearbeiten
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
+
+      {/* In Progress Reports */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold">Meldungen in Bearbeitung</h3>
+        {inProgressReports.length === 0 ? (
+          <div className="text-center py-4">
+            <p className="text-muted-foreground">Keine Meldungen in Bearbeitung.</p>
+          </div>
+        ) : (
+          inProgressReports.map((report) => (
+            <Card key={report.id} className="hover:shadow-md transition-shadow border-yellow-200">
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                  <div className="space-y-1">
+                    <CardTitle className="text-lg">{report.title}</CardTitle>
+                    <CardDescription>{report.description}</CardDescription>
+                  </div>
+                  <div className="flex space-x-2">
+                    {getStatusBadge(report.status)}
+                    {getPriorityBadge(report.priority)}
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 md:grid-cols-4">
+                  <div>
+                    <p className="text-sm font-medium">Kontakt</p>
+                    <p className="text-sm text-muted-foreground">{report.contact_name}</p>
+                    <p className="text-sm text-muted-foreground">{report.contact_email}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Telefon</p>
+                    <p className="text-sm text-muted-foreground">{report.contact_phone || 'Nicht angegeben'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Gebäude</p>
+                    <p className="text-sm text-muted-foreground">{getBuildingAddress(report.building_id)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Erstellt</p>
+                    <p className="text-sm text-muted-foreground">
+                      {new Date(report.created_at).toLocaleDateString('de-DE')}
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Attachments */}
+                {report.attachments && report.attachments.length > 0 && (
+                  <div className="mt-4">
+                    <p className="text-sm font-medium mb-2">Anhänge:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {report.attachments.map((attachment: any, index: number) => (
+                        <AttachmentLink 
+                          key={index}
+                          attachment={attachment}
+                          index={index}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
                 {/* Admin Notes */}
                 {report.admin_notes && (
                   <div className="mt-4 p-3 bg-primary/5 border border-primary/20 rounded-lg">
@@ -601,18 +738,35 @@ export const Reports = () => {
             <div className="space-y-4">
               <div>
                 <Label htmlFor="status">Status</Label>
-                <Select 
-                  value={editingReport?.status || ""} 
-                  onValueChange={(value) => setEditingReport(prev => prev ? {...prev, status: value} : null)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Status auswählen" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-background border border-border shadow-lg z-50">
-                    <SelectItem value="open">Offen</SelectItem>
-                    <SelectItem value="resolved">Erledigt</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2 mt-1">
+                  <Button 
+                    type="button"
+                    variant={editingReport?.status === "open" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setEditingReport(prev => prev ? {...prev, status: "open"} : null)}
+                  >
+                    <AlertCircle className="mr-1 h-3 w-3" />
+                    Offen
+                  </Button>
+                  <Button 
+                    type="button"
+                    variant={editingReport?.status === "in_progress" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setEditingReport(prev => prev ? {...prev, status: "in_progress"} : null)}
+                  >
+                    <Clock className="mr-1 h-3 w-3" />
+                    In Bearbeitung
+                  </Button>
+                  <Button 
+                    type="button"
+                    variant={editingReport?.status === "resolved" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setEditingReport(prev => prev ? {...prev, status: "resolved"} : null)}
+                  >
+                    <CheckCircle className="mr-1 h-3 w-3" />
+                    Erledigt
+                  </Button>
+                </div>
               </div>
 
               <div>
@@ -696,6 +850,7 @@ export const Reports = () => {
                 <SelectContent className="bg-background border border-border shadow-lg z-50">
                   <SelectItem value="all">Alle Status</SelectItem>
                   <SelectItem value="open">Offen</SelectItem>
+                  <SelectItem value="in_progress">In Bearbeitung</SelectItem>
                   <SelectItem value="resolved">Erledigt</SelectItem>
                 </SelectContent>
               </Select>
