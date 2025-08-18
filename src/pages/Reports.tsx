@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { AlertCircle, Clock, CheckCircle, Plus, Edit, ChevronDown, ChevronUp, Filter } from "lucide-react";
+import { AlertCircle, Clock, CheckCircle, Plus, Edit, ChevronDown, ChevronUp, Filter, Download, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useManagementMode } from "@/hooks/useManagementMode";
 import { toast } from "sonner";
@@ -43,6 +43,18 @@ const AttachmentLink = ({ attachment, index }: { attachment: any; index: number 
   );
 };
 
+// Predefined admin note responses
+const predefinedAdminNotes = [
+  "Handwerker wurde informiert und meldet sich bei Ihnen.",
+  "Reparatur wurde veranlasst und wird zeitnah durchgeführt.",
+  "Hausmeister wurde beauftragt, das Problem zu lösen.",
+  "Wartungsarbeiten sind für nächste Woche geplant.",
+  "Problem wurde an zuständige Firma weitergeleitet.",
+  "Ersatzteile wurden bestellt, Reparatur erfolgt nach Lieferung.",
+  "Termine für Besichtigung wurde vereinbart.",
+  "Kostenvoranschlag wird eingeholt und Ihnen mitgeteilt."
+];
+
 interface Report {
   id: string;
   title: string;
@@ -72,7 +84,7 @@ const getStatusBadge = (status: string) => {
     case "open":
       return <Badge variant="destructive"><AlertCircle className="mr-1 h-3 w-3" />Offen</Badge>;
     case "resolved":
-      return <Badge className="bg-success text-white"><CheckCircle className="mr-1 h-3 w-3" />Bearbeitet</Badge>;
+      return <Badge className="bg-success text-white"><CheckCircle className="mr-1 h-3 w-3" />Erledigt</Badge>;
     default:
       return <Badge variant="outline">{status}</Badge>;
   }
@@ -80,14 +92,12 @@ const getStatusBadge = (status: string) => {
 
 const getPriorityBadge = (priority: string) => {
   switch (priority) {
-    case "critical":
-      return <Badge className="bg-red-500 text-white">Kritisch</Badge>;
     case "high":
-      return <Badge className="bg-orange-500 text-white">Hoch</Badge>;
+      return <Badge variant="destructive">Hoch</Badge>;
     case "medium":
-      return <Badge className="bg-yellow-500 text-black">Mittel</Badge>;
+      return <Badge variant="secondary">Mittel</Badge>;
     case "low":
-      return <Badge className="bg-green-500 text-white">Niedrig</Badge>;
+      return <Badge variant="outline">Niedrig</Badge>;
     default:
       return <Badge variant="outline">{priority}</Badge>;
   }
@@ -99,16 +109,20 @@ export const Reports = () => {
   const [filteredReports, setFilteredReports] = useState<Report[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedReport, setSelectedReport] = useState<Report | null>(null);
-  const [editingStatus, setEditingStatus] = useState("");
-  const [internalNotes, setInternalNotes] = useState("");
-  const [adminNotes, setAdminNotes] = useState("");
-  const [showResolved, setShowResolved] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingReport, setEditingReport] = useState<Report | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [priorityFilter, setPriorityFilter] = useState("all");
-  const [timeFilter, setTimeFilter] = useState("7days"); // New time filter for resolved reports
+  const [statusFilter, setStatusFilter] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState("");
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+  const [selectedAdminNote, setSelectedAdminNote] = useState("");
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [exportFilters, setExportFilters] = useState({
+    status: "",
+    priority: "",
+    dateFrom: "",
+    dateTo: ""
+  });
 
   useEffect(() => {
     fetchReports();
@@ -130,17 +144,16 @@ export const Reports = () => {
       );
     }
 
-    if (statusFilter !== "all") {
+    if (statusFilter) {
       filtered = filtered.filter(report => report.status === statusFilter);
     }
 
-    if (priorityFilter !== "all") {
+    if (priorityFilter) {
       filtered = filtered.filter(report => report.priority === priorityFilter);
     }
 
     setFilteredReports(filtered);
   };
-
 
   const fetchReports = async () => {
     try {
@@ -189,42 +202,14 @@ export const Reports = () => {
     return building ? building.address : "Nicht zugeordnet";
   };
 
-  const getFilteredResolvedReports = () => {
-    const resolved = filteredReports.filter(r => r.status === "resolved");
-    
-    if (timeFilter === "today") {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      return resolved.filter(r => new Date(r.updated_at) >= today);
-    }
-    
-    if (timeFilter === "7days") {
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      return resolved.filter(r => new Date(r.updated_at) >= sevenDaysAgo);
-    }
-    
-    if (timeFilter === "30days") {
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      return resolved.filter(r => new Date(r.updated_at) >= thirtyDaysAgo);
-    }
-    
-    return resolved;
-  };
-
-  const openReports = filteredReports.filter(r => r.status === "open");
-  const resolvedReports = getFilteredResolvedReports();
-
   const handleEditReport = (report: Report) => {
-    setSelectedReport(report);
-    setEditingStatus(report.status);
-    setInternalNotes(report.internal_notes || "");
-    setAdminNotes(report.admin_notes || "");
+    setEditingReport({ ...report });
+    setSelectedAdminNote("");
+    setIsEditDialogOpen(true);
   };
 
   const handleUpdateReport = async () => {
-    if (!selectedReport) return;
+    if (!editingReport) return;
 
     try {
       const tableName = managementMode === "weg" ? "weg_reports" : "miete_reports";
@@ -232,411 +217,540 @@ export const Reports = () => {
       const { error } = await supabase
         .from(tableName)
         .update({
-          status: editingStatus,
-          internal_notes: internalNotes,
-          admin_notes: adminNotes,
+          status: editingReport.status,
+          internal_notes: editingReport.internal_notes,
+          admin_notes: editingReport.admin_notes,
           updated_at: new Date().toISOString()
         })
-        .eq("id", selectedReport.id);
+        .eq("id", editingReport.id);
 
       if (error) throw error;
 
       // Update local state
       setReports(reports.map(report => 
-        report.id === selectedReport.id 
-          ? { 
-              ...report, 
-              status: editingStatus, 
-              internal_notes: internalNotes, 
-              admin_notes: adminNotes 
-            }
-          : report
+        report.id === editingReport.id ? editingReport : report
       ));
       
-      setSelectedReport(null);
+      setIsEditDialogOpen(false);
+      setEditingReport(null);
       toast.success("Meldung erfolgreich aktualisiert");
     } catch (error) {
       console.error("Error updating report:", error);
       toast.error("Fehler beim Aktualisieren der Meldung");
     }
   };
-  return (
-    <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight">Meldungen</h2>
-            <p className="text-muted-foreground">
-              Verwalten Sie alle eingegangenen Meldungen
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button 
-              variant="outline" 
-              onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center gap-2"
-            >
-              <Filter className="h-4 w-4" />
-              Filter {showFilters ? 'ausblenden' : 'anzeigen'}
-            </Button>
-            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-              <Plus className="mr-2 h-4 w-4" />
-              Neue Meldung
-            </Button>
-          </div>
-        </div>
 
-        {/* Filter Section - Collapsible */}
-        <Collapsible open={showFilters} onOpenChange={setShowFilters}>
-          <CollapsibleContent>
-            <Card className="p-4">
-              <div className="flex items-center gap-4 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">Filter:</span>
+  const exportToCSV = () => {
+    let dataToExport = reports;
+    
+    // Apply filters
+    if (exportFilters.status) {
+      dataToExport = dataToExport.filter(report => report.status === exportFilters.status);
+    }
+    if (exportFilters.priority) {
+      dataToExport = dataToExport.filter(report => report.priority === exportFilters.priority);
+    }
+    if (exportFilters.dateFrom) {
+      dataToExport = dataToExport.filter(report => 
+        new Date(report.created_at) >= new Date(exportFilters.dateFrom)
+      );
+    }
+    if (exportFilters.dateTo) {
+      dataToExport = dataToExport.filter(report => 
+        new Date(report.created_at) <= new Date(exportFilters.dateTo)
+      );
+    }
+
+    // Create CSV content
+    const headers = [
+      "ID", "Titel", "Beschreibung", "Status", "Priorität", "Kontakt Name", 
+      "Kontakt Email", "Kontakt Telefon", "Erstellt am", "Aktualisiert am",
+      "Verwalter-Notizen", "Interne Notizen"
+    ];
+    
+    const csvContent = [
+      headers.join(","),
+      ...dataToExport.map(report => [
+        report.id,
+        `"${report.title.replace(/"/g, '""')}"`,
+        `"${report.description?.replace(/"/g, '""') || ''}"`,
+        report.status,
+        report.priority,
+        `"${report.contact_name?.replace(/"/g, '""') || ''}"`,
+        report.contact_email || '',
+        report.contact_phone || '',
+        new Date(report.created_at).toLocaleDateString('de-DE'),
+        new Date(report.updated_at).toLocaleDateString('de-DE'),
+        `"${report.admin_notes?.replace(/"/g, '""') || ''}"`,
+        `"${report.internal_notes?.replace(/"/g, '""') || ''}"`
+      ].join(","))
+    ].join("\n");
+
+    // Download CSV
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `meldungen_export_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    setIsExportDialogOpen(false);
+    toast.success("Export erfolgreich heruntergeladen");
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-lg">Laden...</div>
+      </div>
+    );
+  }
+
+  const openReports = filteredReports.filter(r => r.status === "open");
+  const resolvedReports = filteredReports.filter(r => r.status === "resolved");
+
+  return (
+    <div className="max-w-7xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+        <div className="space-y-2">
+          <h1 className="text-4xl font-bold tracking-tight">Meldungen</h1>
+          <p className="text-lg text-muted-foreground">
+            Verwalten Sie alle eingehenden Meldungen
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button 
+            onClick={() => setIsExportDialogOpen(true)}
+            variant="outline"
+            className="bg-secondary/50 hover:bg-secondary"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Exportieren
+          </Button>
+          <Button 
+            onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+            variant="outline"
+            className="bg-secondary/50 hover:bg-secondary"
+          >
+            <Filter className="h-4 w-4 mr-2" />
+            Filter
+            {isFiltersOpen ? <ChevronUp className="h-4 w-4 ml-2" /> : <ChevronDown className="h-4 w-4 ml-2" />}
+          </Button>
+        </div>
+      </div>
+
+      {/* Filter Section */}
+      <Collapsible open={isFiltersOpen} onOpenChange={setIsFiltersOpen}>
+        <CollapsibleContent>
+          <Card className="p-4">
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Filter:</span>
+              </div>
+              <div className="flex-1 min-w-64">
+                <Input
+                  placeholder="Suchen nach Titel, Beschreibung oder Kontakt..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-32">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent className="bg-background border border-border shadow-lg z-50">
+                  <SelectItem value="">Alle Status</SelectItem>
+                  <SelectItem value="open">Offen</SelectItem>
+                  <SelectItem value="resolved">Erledigt</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={priorityFilter} onValueChange={setPriorityFilter}>
+                <SelectTrigger className="w-32">
+                  <SelectValue placeholder="Priorität" />
+                </SelectTrigger>
+                <SelectContent className="bg-background border border-border shadow-lg z-50">
+                  <SelectItem value="">Alle Prioritäten</SelectItem>
+                  <SelectItem value="high">Hoch</SelectItem>
+                  <SelectItem value="medium">Mittel</SelectItem>
+                  <SelectItem value="low">Niedrig</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </Card>
+        </CollapsibleContent>
+      </Collapsible>
+
+      {/* Summary Statistics */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Gesamt</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-primary">{reports.length}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Offen</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-destructive">{openReports.length}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Erledigt</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{resolvedReports.length}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Open Reports */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold">Offene Meldungen</h3>
+        {openReports.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-muted-foreground">Keine offenen Meldungen vorhanden.</p>
+          </div>
+        ) : (
+          openReports.map((report) => (
+            <Card key={report.id} className="hover:shadow-md transition-shadow">
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                  <div className="space-y-1">
+                    <CardTitle className="text-lg">{report.title}</CardTitle>
+                    <CardDescription>{report.description}</CardDescription>
+                  </div>
+                  <div className="flex space-x-2">
+                    {getStatusBadge(report.status)}
+                    {getPriorityBadge(report.priority)}
+                  </div>
                 </div>
-                <div className="flex-1 min-w-64">
-                  <Input
-                    placeholder="Suchen nach Titel, Beschreibung oder Kontakt..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full"
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 md:grid-cols-4">
+                  <div>
+                    <p className="text-sm font-medium">Kontakt</p>
+                    <p className="text-sm text-muted-foreground">{report.contact_name}</p>
+                    <p className="text-sm text-muted-foreground">{report.contact_email}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Telefon</p>
+                    <p className="text-sm text-muted-foreground">{report.contact_phone || 'Nicht angegeben'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Gebäude</p>
+                    <p className="text-sm text-muted-foreground">{getBuildingAddress(report.building_id)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Erstellt</p>
+                    <p className="text-sm text-muted-foreground">
+                      {new Date(report.created_at).toLocaleDateString('de-DE')}
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Attachments */}
+                {report.attachments && report.attachments.length > 0 && (
+                  <div className="mt-4">
+                    <p className="text-sm font-medium mb-2">Anhänge:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {report.attachments.map((attachment: any, index: number) => (
+                        <AttachmentLink 
+                          key={index}
+                          attachment={attachment}
+                          index={index}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              
+                {/* Admin Notes */}
+                {report.admin_notes && (
+                  <div className="mt-4 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+                    <p className="text-sm font-medium text-primary mb-1">Verwalter-Notiz:</p>
+                    <p className="text-sm">{report.admin_notes}</p>
+                  </div>
+                )}
+                
+                {/* Internal Notes */}
+                {report.internal_notes && (
+                  <div className="mt-4 p-3 bg-muted border rounded-lg">
+                    <p className="text-sm font-medium mb-1">Interne Notiz (nur Admin):</p>
+                    <p className="text-sm text-muted-foreground">{report.internal_notes}</p>
+                  </div>
+                )}
+
+                <div className="flex space-x-2 mt-4">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => handleEditReport(report)}
+                  >
+                    <Edit className="mr-1 h-3 w-3" />
+                    Bearbeiten
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
+
+      {/* Resolved Reports */}
+      <Collapsible>
+        <CollapsibleTrigger asChild>
+          <Button variant="outline" className="w-full justify-between">
+            <span>Erledigte Meldungen ({resolvedReports.length})</span>
+            <ChevronDown className="h-4 w-4" />
+          </Button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-4 mt-4">
+          {resolvedReports.map((report) => (
+            <Card key={report.id} className="opacity-75 hover:opacity-100 transition-opacity">
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                  <div className="space-y-1">
+                    <CardTitle className="text-lg">{report.title}</CardTitle>
+                    <CardDescription>{report.description}</CardDescription>
+                  </div>
+                  <div className="flex space-x-2">
+                    {getStatusBadge(report.status)}
+                    {getPriorityBadge(report.priority)}
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 md:grid-cols-4">
+                  <div>
+                    <p className="text-sm font-medium">Kontakt</p>
+                    <p className="text-sm text-muted-foreground">{report.contact_name}</p>
+                    <p className="text-sm text-muted-foreground">{report.contact_email}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Telefon</p>
+                    <p className="text-sm text-muted-foreground">{report.contact_phone || 'Nicht angegeben'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Gebäude</p>
+                    <p className="text-sm text-muted-foreground">{getBuildingAddress(report.building_id)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Erledigt am</p>
+                    <p className="text-sm text-muted-foreground">
+                      {new Date(report.updated_at).toLocaleDateString('de-DE')}
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Attachments */}
+                {report.attachments && report.attachments.length > 0 && (
+                  <div className="mt-4">
+                    <p className="text-sm font-medium mb-2">Anhänge:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {report.attachments.map((attachment: any, index: number) => (
+                        <AttachmentLink 
+                          key={index}
+                          attachment={attachment}
+                          index={index}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Admin Notes */}
+                {report.admin_notes && (
+                  <div className="mt-4 p-3 bg-primary/5 border border-primary/20 rounded-lg">
+                    <p className="text-sm font-medium text-primary mb-1">Verwalter-Notiz:</p>
+                    <p className="text-sm">{report.admin_notes}</p>
+                  </div>
+                )}
+                
+                {/* Internal Notes */}
+                {report.internal_notes && (
+                  <div className="mt-4 p-3 bg-muted border rounded-lg">
+                    <p className="text-sm font-medium mb-1">Interne Notiz (nur Admin):</p>
+                    <p className="text-sm text-muted-foreground">{report.internal_notes}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </CollapsibleContent>
+      </Collapsible>
+
+      {/* Edit Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Meldung bearbeiten</DialogTitle>
+          </DialogHeader>
+          {editingReport && (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="status">Status</Label>
+                <Select 
+                  value={editingReport?.status || ""} 
+                  onValueChange={(value) => setEditingReport(prev => prev ? {...prev, status: value} : null)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Status auswählen" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-background border border-border shadow-lg z-50">
+                    <SelectItem value="open">Offen</SelectItem>
+                    <SelectItem value="resolved">Erledigt</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label htmlFor="internal_notes">Interne Notizen (nur für Admins)</Label>
+                <Textarea
+                  id="internal_notes"
+                  placeholder="Interne Notizen eingeben..."
+                  value={editingReport?.internal_notes || ""}
+                  onChange={(e) => setEditingReport(prev => prev ? {...prev, internal_notes: e.target.value} : null)}
+                  rows={3}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="admin_notes">Verwalter-Notizen (sichtbar für Mieter/Eigentümer)</Label>
+                <div className="space-y-2">
+                  <Select 
+                    value={selectedAdminNote} 
+                    onValueChange={(value) => {
+                      setSelectedAdminNote(value);
+                      if (value && editingReport) {
+                        const currentNotes = editingReport.admin_notes || "";
+                        const newNotes = currentNotes ? `${currentNotes}\n${value}` : value;
+                        setEditingReport(prev => prev ? {...prev, admin_notes: newNotes} : null);
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Vorgefertigte Antwort auswählen (optional)" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background border border-border shadow-lg z-50 max-h-60 overflow-y-auto">
+                      {predefinedAdminNotes.map((note, index) => (
+                        <SelectItem key={index} value={note}>
+                          {note}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Textarea
+                    id="admin_notes"
+                    placeholder="Notizen für Mieter/Eigentümer eingeben..."
+                    value={editingReport?.admin_notes || ""}
+                    onChange={(e) => setEditingReport(prev => prev ? {...prev, admin_notes: e.target.value} : null)}
+                    rows={3}
                   />
                 </div>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-32">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Alle Status</SelectItem>
-                    <SelectItem value="open">Offen</SelectItem>
-                    <SelectItem value="resolved">Bearbeitet</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                  <SelectTrigger className="w-32">
-                    <SelectValue placeholder="Priorität" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Alle Prioritäten</SelectItem>
-                    <SelectItem value="critical">Kritisch</SelectItem>
-                    <SelectItem value="high">Hoch</SelectItem>
-                    <SelectItem value="medium">Mittel</SelectItem>
-                    <SelectItem value="low">Niedrig</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
-            </Card>
-          </CollapsibleContent>
-        </Collapsible>
 
-        {/* Statistiken */}
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Gesamt</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-primary">{reports.length}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium">Offen</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-destructive">{openReports.length}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <div className="flex justify-between items-center">
-                <CardTitle className="text-sm font-medium">Bearbeitet</CardTitle>
-                <Select value={timeFilter} onValueChange={setTimeFilter}>
-                  <SelectTrigger className="w-24 h-6 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="today">Heute</SelectItem>
-                    <SelectItem value="7days">7 Tage</SelectItem>
-                    <SelectItem value="30days">30 Tage</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+                  Abbrechen
+                </Button>
+                <Button onClick={handleUpdateReport}>
+                  Änderungen speichern
+                </Button>
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-success">{resolvedReports.length}</div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Offene Meldungen */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold">Offene Meldungen</h3>
-          {loading ? (
-            <div className="text-center py-8">Laden...</div>
-          ) : openReports.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">Keine offenen Meldungen vorhanden.</p>
             </div>
-          ) : (
-            openReports.map((report) => (
-              <Card key={report.id} className="hover:shadow-elegant transition-shadow">
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div className="space-y-1">
-                      <CardTitle className="text-lg">{report.title}</CardTitle>
-                      <CardDescription>{report.description}</CardDescription>
-                    </div>
-                    <div className="flex space-x-2">
-                      {getStatusBadge(report.status)}
-                      {getPriorityBadge(report.priority)}
-                    </div>
-                  </div>
-                </CardHeader>
-                 <CardContent>
-                   <div className="grid gap-4 md:grid-cols-4">
-                     <div>
-                       <p className="text-sm font-medium">Kontakt</p>
-                       <p className="text-sm text-muted-foreground">{report.contact_name}</p>
-                       <p className="text-sm text-muted-foreground">{report.contact_email}</p>
-                     </div>
-                     <div>
-                       <p className="text-sm font-medium">Telefon</p>
-                       <p className="text-sm text-muted-foreground">{report.contact_phone || 'Nicht angegeben'}</p>
-                     </div>
-                     <div>
-                       <p className="text-sm font-medium">Gebäude</p>
-                       <p className="text-sm text-muted-foreground">{getBuildingAddress(report.building_id)}</p>
-                     </div>
-                      <div>
-                        <p className="text-sm font-medium">Erstellt</p>
-                        <p className="text-sm text-muted-foreground">
-                          {new Date(report.created_at).toLocaleDateString('de-DE')}
-                        </p>
-                      </div>
-                    </div>
-                    
-                     {/* Attachments */}
-                     {report.attachments && report.attachments.length > 0 && (
-                       <div className="mt-4">
-                         <p className="text-sm font-medium mb-2">Anhänge:</p>
-                         <div className="flex flex-wrap gap-2">
-                           {report.attachments.map((attachment: any, index: number) => (
-                             <AttachmentLink 
-                               key={index}
-                               attachment={attachment}
-                               index={index}
-                             />
-                           ))}
-                         </div>
-                       </div>
-                     )}
-                  
-                  {/* Admin Notes - visible to both admin and tenant/owner */}
-                  {report.admin_notes && (
-                    <div className="mt-4 p-3 bg-primary/5 border border-primary/20 rounded-lg">
-                      <p className="text-sm font-medium text-primary mb-1">Verwalter-Notiz:</p>
-                      <p className="text-sm">{report.admin_notes}</p>
-                    </div>
-                  )}
-                  
-                  {/* Internal Notes - only visible to admins */}
-                  {report.internal_notes && (
-                    <div className="mt-4 p-3 bg-muted border rounded-lg">
-                      <p className="text-sm font-medium mb-1">Interne Notiz (nur Admin):</p>
-                      <p className="text-sm text-muted-foreground">{report.internal_notes}</p>
-                    </div>
-                  )}
-                  <div className="flex space-x-2 mt-4">
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleEditReport(report)}
-                        >
-                          <Edit className="mr-1 h-3 w-3" />
-                          Bearbeiten
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent className="max-w-2xl">
-                        <DialogHeader>
-                          <DialogTitle>Meldung bearbeiten</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-4">
-                          <div>
-                            <Label htmlFor="status">Status</Label>
-                            <div className="flex gap-2 mt-2">
-                              <Button
-                                type="button"
-                                variant={editingStatus === "open" ? "default" : "outline"}
-                                onClick={() => setEditingStatus("open")}
-                                className="flex-1"
-                              >
-                                Offen
-                              </Button>
-                              <Button
-                                type="button"
-                                variant={editingStatus === "resolved" ? "default" : "outline"}
-                                onClick={() => setEditingStatus("resolved")}
-                                className="flex-1"
-                              >
-                                Bearbeitet
-                              </Button>
-                            </div>
-                          </div>
-                          <div>
-                            <Label htmlFor="internal_notes">Interne Notizen (nur für Admins)</Label>
-                            <Textarea
-                              id="internal_notes"
-                              value={internalNotes}
-                              onChange={(e) => setInternalNotes(e.target.value)}
-                              placeholder="Interne Notizen eingeben..."
-                              rows={3}
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="admin_notes">Verwalter-Notizen (sichtbar für Mieter/Eigentümer)</Label>
-                            <Textarea
-                              id="admin_notes"
-                              value={adminNotes}
-                              onChange={(e) => setAdminNotes(e.target.value)}
-                              placeholder="Notizen für Mieter/Eigentümer eingeben..."
-                              rows={3}
-                            />
-                          </div>
-                          <div className="flex space-x-2">
-                            <Button onClick={handleUpdateReport} className="bg-primary hover:bg-primary/90 text-primary-foreground">
-                              Änderungen speichern
-                            </Button>
-                          </div>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
           )}
-        </div>
+        </DialogContent>
+      </Dialog>
 
-        {/* Bearbeitete Meldungen - Collapsible */}
-        <div className="border-t pt-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-4">
-              <span className="text-lg font-semibold">
-                Bearbeitete Meldungen ({resolvedReports.length})
-              </span>
-              <div className="flex gap-2">
-                <Button
-                  variant={timeFilter === "today" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setTimeFilter("today")}
-                >
-                  Heute
-                </Button>
-                <Button
-                  variant={timeFilter === "7days" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setTimeFilter("7days")}
-                >
-                  Letzte 7 Tage
-                </Button>
-                <Button
-                  variant={timeFilter === "30days" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setTimeFilter("30days")}
-                >
-                  Letzte 30 Tage
-                </Button>
+      {/* Export Dialog */}
+      <Dialog open={isExportDialogOpen} onOpenChange={setIsExportDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Meldungen exportieren
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="export_status">Status Filter</Label>
+              <Select 
+                value={exportFilters.status} 
+                onValueChange={(value) => setExportFilters(prev => ({...prev, status: value}))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Alle Status" />
+                </SelectTrigger>
+                <SelectContent className="bg-background border border-border shadow-lg z-50">
+                  <SelectItem value="">Alle Status</SelectItem>
+                  <SelectItem value="open">Offen</SelectItem>
+                  <SelectItem value="resolved">Erledigt</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="export_priority">Priorität Filter</Label>
+              <Select 
+                value={exportFilters.priority} 
+                onValueChange={(value) => setExportFilters(prev => ({...prev, priority: value}))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Alle Prioritäten" />
+                </SelectTrigger>
+                <SelectContent className="bg-background border border-border shadow-lg z-50">
+                  <SelectItem value="">Alle Prioritäten</SelectItem>
+                  <SelectItem value="low">Niedrig</SelectItem>
+                  <SelectItem value="medium">Mittel</SelectItem>
+                  <SelectItem value="high">Hoch</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label htmlFor="date_from">Von Datum</Label>
+                <Input
+                  id="date_from"
+                  type="date"
+                  value={exportFilters.dateFrom}
+                  onChange={(e) => setExportFilters(prev => ({...prev, dateFrom: e.target.value}))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="date_to">Bis Datum</Label>
+                <Input
+                  id="date_to"
+                  type="date"
+                  value={exportFilters.dateTo}
+                  onChange={(e) => setExportFilters(prev => ({...prev, dateTo: e.target.value}))}
+                />
               </div>
             </div>
-            <Button
-              variant="outline"
-              onClick={() => setShowResolved(!showResolved)}
-              className="flex items-center gap-2"
-            >
-              {showResolved ? 'Ausblenden' : 'Anzeigen'}
-              {showResolved ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </Button>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setIsExportDialogOpen(false)}>
+                Abbrechen
+              </Button>
+              <Button onClick={exportToCSV} className="bg-primary text-primary-foreground">
+                <Download className="h-4 w-4 mr-2" />
+                CSV exportieren
+              </Button>
+            </div>
           </div>
-          
-          <Collapsible open={showResolved} onOpenChange={setShowResolved}>
-            <CollapsibleContent className="space-y-4">
-              {resolvedReports.map((report) => (
-                <Card key={report.id} className="opacity-75 hover:opacity-100 hover:shadow-elegant transition-all">
-                  <CardHeader>
-                    <div className="flex justify-between items-start">
-                      <div className="space-y-1">
-                        <CardTitle className="text-lg">{report.title}</CardTitle>
-                        <CardDescription>{report.description}</CardDescription>
-                      </div>
-                      <div className="flex space-x-2">
-                        {getStatusBadge(report.status)}
-                        {getPriorityBadge(report.priority)}
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid gap-4 md:grid-cols-4">
-                      <div>
-                        <p className="text-sm font-medium">Kontakt</p>
-                        <p className="text-sm text-muted-foreground">{report.contact_name}</p>
-                        <p className="text-sm text-muted-foreground">{report.contact_email}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">Telefon</p>
-                        <p className="text-sm text-muted-foreground">{report.contact_phone || 'Nicht angegeben'}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">Gebäude</p>
-                        <p className="text-sm text-muted-foreground">{getBuildingAddress(report.building_id)}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">Bearbeitet am</p>
-                        <p className="text-sm text-muted-foreground">
-                          {new Date(report.updated_at).toLocaleDateString('de-DE')}
-                        </p>
-                      </div>
-                     </div>
-                     
-                      {/* Attachments */}
-                      {report.attachments && report.attachments.length > 0 && (
-                        <div className="mt-4">
-                          <p className="text-sm font-medium mb-2">Anhänge:</p>
-                          <div className="flex flex-wrap gap-2">
-                            {report.attachments.map((attachment: any, index: number) => (
-                              <AttachmentLink 
-                                key={index}
-                                attachment={attachment}
-                                index={index}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                     
-                     {/* Admin Notes */}
-                     {report.admin_notes && (
-                       <div className="mt-4 p-3 bg-primary/5 border border-primary/20 rounded-lg">
-                         <p className="text-sm font-medium text-primary mb-1">Verwalter-Notiz:</p>
-                         <p className="text-sm">{report.admin_notes}</p>
-                       </div>
-                     )}
-                     
-                     {/* Internal Notes */}
-                     {report.internal_notes && (
-                       <div className="mt-4 p-3 bg-muted border rounded-lg">
-                         <p className="text-sm font-medium mb-1">Interne Notiz (nur Admin):</p>
-                         <p className="text-sm text-muted-foreground">{report.internal_notes}</p>
-                       </div>
-                     )}
-                  </CardContent>
-                </Card>
-              ))}
-            </CollapsibleContent>
-          </Collapsible>
-        </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
