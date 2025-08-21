@@ -11,7 +11,8 @@ import {
   LogOut,
   UserRound,
   Menu,
-  MessageSquare
+  MessageSquare,
+  ClipboardList
 } from "lucide-react";
 
 interface WegOwnerLayoutProps {
@@ -55,7 +56,7 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
       active: location.pathname === '/weg-owner'
     },
     { 
-      icon: Shield, 
+      icon: ClipboardList, 
       label: "Meine Meldungen", 
       path: '/weg-owner/reports',
       active: location.pathname.startsWith('/weg-owner/reports')

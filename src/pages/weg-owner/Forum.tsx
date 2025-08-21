@@ -131,141 +131,127 @@ export const WegOwnerForum = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Schwarzes Brett</h1>
-          <p className="text-muted-foreground">
-            Beiträge aus dem Schwarzen Brett Ihrer verwalteten Gebäude
+    <div className="min-h-screen bg-background p-6">
+      <div className="max-w-2xl mx-auto space-y-8">
+        {/* Header */}
+        <div className="text-center space-y-4 py-8">
+          <h1 className="text-4xl font-light text-foreground">Schwarzes Brett</h1>
+          <p className="text-lg text-muted-foreground">
+            Nachrichten und Ankündigungen
           </p>
+          
+          {buildings.length > 1 && (
+            <div className="flex gap-2 flex-wrap justify-center mt-6">
+              <Button
+                variant={selectedBuilding === "all" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSelectedBuilding("all")}
+              >
+                Alle Gebäude
+              </Button>
+              {buildings.map((building) => (
+                <Button
+                  key={building.id}
+                  variant={selectedBuilding === building.id ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedBuilding(building.id)}
+                >
+                  {building.name}
+                </Button>
+              ))}
+            </div>
+          )}
         </div>
 
-        {buildings.length > 1 && (
-          <div className="flex gap-2 flex-wrap">
-            <button
-              onClick={() => setSelectedBuilding("all")}
-              className={`px-3 py-1 rounded-md text-sm ${
-                selectedBuilding === "all"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted hover:bg-muted-foreground/10"
-              }`}
-            >
-              Alle Gebäude
-            </button>
-            {buildings.map((building) => (
-              <button
-                key={building.id}
-                onClick={() => setSelectedBuilding(building.id)}
-                className={`px-3 py-1 rounded-md text-sm ${
-                  selectedBuilding === building.id
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted hover:bg-muted-foreground/10"
-                }`}
-              >
-                {building.name}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {buildings.length === 0 ? (
-        <Card>
-          <CardContent className="py-8">
-            <div className="text-center">
+        {buildings.length === 0 ? (
+          <Card className="border-0 shadow-sm bg-white">
+            <CardContent className="p-8 text-center">
               <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Keine Gebäude zugewiesen</h3>
+              <h3 className="text-lg font-medium mb-2">Keine Gebäude zugewiesen</h3>
               <p className="text-muted-foreground">
                 Sie sind noch keinem Gebäude als WEG-Eigentümer zugeordnet.
               </p>
-            </div>
-          </CardContent>
-        </Card>
-      ) : filteredPosts.length === 0 ? (
-        <Card>
-          <CardContent className="py-8">
-            <div className="text-center">
+            </CardContent>
+          </Card>
+        ) : filteredPosts.length === 0 ? (
+          <Card className="border-0 shadow-sm bg-white">
+            <CardContent className="p-8 text-center">
               <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Keine Beiträge gefunden</h3>
+              <h3 className="text-lg font-medium mb-2">Keine Beiträge vorhanden</h3>
               <p className="text-muted-foreground">
                 Es gibt noch keine Schwarzes Brett-Beiträge für die ausgewählten Gebäude.
               </p>
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-6">
-          {Object.entries(groupedPosts).map(([buildingId, buildingPosts]) => {
-            const building = buildings.find(b => b.id === buildingId);
-            if (!building) return null;
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-6">
+            {Object.entries(groupedPosts).map(([buildingId, buildingPosts]) => {
+              const building = buildings.find(b => b.id === buildingId);
+              if (!building) return null;
 
-            return (
-              <div key={buildingId} className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Building className="h-5 w-5 text-primary" />
-                  <h2 className="text-xl font-semibold">{building.name}</h2>
-                  <Badge variant="outline">{buildingPosts.length} Beiträge</Badge>
-                </div>
+              return (
+                <div key={buildingId} className="space-y-4">
+                  {buildings.length > 1 && selectedBuilding === "all" && (
+                    <div className="text-center">
+                      <h2 className="text-xl font-medium text-foreground">{building.name}</h2>
+                      <p className="text-sm text-muted-foreground">{building.address}</p>
+                    </div>
+                  )}
 
-                <div className="space-y-4">
-                  {buildingPosts.map((post) => (
-                    <Card key={post.id}>
-                      <CardHeader>
-                        <div className="flex items-start justify-between">
-                          <CardTitle className="text-lg">{post.title}</CardTitle>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Calendar className="h-4 w-4" />
-                            {format(new Date(post.created_at), 'dd.MM.yyyy HH:mm')}
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="prose prose-sm max-w-none">
-                          <p className="whitespace-pre-wrap">{post.content}</p>
-                        </div>
-                        {/* Render attachments if available */}
-                        {post.attachments && post.attachments.length > 0 && (
-                          <div className="mt-4">
-                            <p className="text-sm font-medium mb-2">Anhänge:</p>
-                            <div className="flex flex-wrap gap-2">
-                              {post.attachments.map((attachment: any, index: number) => (
-                                <Button
-                                  key={index}
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    supabase.storage
-                                      .from('forum-attachments')
-                                      .createSignedUrl(attachment.path, 3600)
-                                      .then(({ data }) => {
-                                        if (data?.signedUrl) {
-                                          window.open(data.signedUrl, '_blank');
-                                        }
-                                      });
-                                  }}
-                                  className="h-8 text-xs"
-                                >
-                                  <FileText className="h-3 w-3 mr-1" />
-                                  {attachment.name}
-                                </Button>
-                              ))}
+                  <div className="space-y-4">
+                    {buildingPosts.map((post) => (
+                      <Card key={post.id} className="border-0 shadow-sm bg-white">
+                        <CardContent className="p-6">
+                          <div className="space-y-4">
+                            <div className="text-center">
+                              <h3 className="text-lg font-medium text-foreground">{post.title}</h3>
+                              <p className="text-sm text-muted-foreground">
+                                {format(new Date(post.created_at), 'dd.MM.yyyy HH:mm')}
+                              </p>
                             </div>
+                            
+                            <div className="text-center">
+                              <p className="text-muted-foreground whitespace-pre-wrap">{post.content}</p>
+                            </div>
+                            
+                            {post.attachments && post.attachments.length > 0 && (
+                              <div className="text-center space-y-2">
+                                <p className="text-sm font-medium">Anhänge:</p>
+                                <div className="flex flex-wrap gap-2 justify-center">
+                                  {post.attachments.map((attachment: any, index: number) => (
+                                    <Button
+                                      key={index}
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => {
+                                        supabase.storage
+                                          .from('forum-attachments')
+                                          .createSignedUrl(attachment.path, 3600)
+                                          .then(({ data }) => {
+                                            if (data?.signedUrl) {
+                                              window.open(data.signedUrl, '_blank');
+                                            }
+                                          });
+                                      }}
+                                    >
+                                      <FileText className="h-3 w-3 mr-1" />
+                                      {attachment.name}
+                                    </Button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        )}
-                        <Separator className="my-4" />
-                        <div className="flex items-center justify-between text-sm text-muted-foreground">
-                          <span>Verfasst von Administrator</span>
-                          <span>{building.address}</span>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
