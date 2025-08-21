@@ -1,15 +1,28 @@
-import { Navigate } from "react-router-dom";
+import { useState } from "react";
+import { Navigate, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { TenantSidebar } from "./TenantSidebar";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { MobileHeader } from "./MobileHeader";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { 
+  House, 
+  Shield, 
+  Newspaper, 
+  Sparkles, 
+  Crown,
+  LogOut,
+  UserRound,
+  Menu
+} from "lucide-react";
 
 interface TenantLayoutProps {
   children: React.ReactNode;
 }
 
 export const TenantLayout = ({ children }: TenantLayoutProps) => {
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, signOut } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [isOpen, setIsOpen] = useState(false);
 
   if (loading) {
     return (
@@ -23,8 +36,6 @@ export const TenantLayout = ({ children }: TenantLayoutProps) => {
     return <Navigate to="/login" replace />;
   }
 
-  // Tenants are not required to change password
-
   if (profile?.role !== 'tenant') {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -36,29 +47,127 @@ export const TenantLayout = ({ children }: TenantLayoutProps) => {
     );
   }
 
+  const navigationItems = [
+    { 
+      icon: House, 
+      label: "Dashboard", 
+      path: '/tenant',
+      active: location.pathname === '/tenant'
+    },
+    { 
+      icon: Shield, 
+      label: "Meine Tickets", 
+      path: '/tenant/reports',
+      active: location.pathname.startsWith('/tenant/reports')
+    },
+    { 
+      icon: Newspaper, 
+      label: "Schwarzes Brett", 
+      path: '/tenant/forum',
+      active: location.pathname.startsWith('/tenant/forum')
+    },
+    { 
+      icon: Sparkles, 
+      label: "Chat", 
+      path: '/tenant/chatbot',
+      active: location.pathname.startsWith('/tenant/chatbot')
+    }
+  ];
+
+  const handleNavigation = (path: string) => {
+    navigate(path);
+    setIsOpen(false);
+  };
+
   return (
-    <>
-      <div className="md:hidden">
-        <MobileHeader userRole="tenant" />
-      </div>
-      <SidebarProvider>
-        <div className="min-h-screen flex w-full bg-background pt-16 md:pt-0">
-          <TenantSidebar />
-          <main className="flex-1 flex flex-col overflow-hidden">
-            <header className="h-16 border-b bg-background flex items-center px-4 shrink-0 hidden md:flex">
-              <SidebarTrigger className="mr-4" />
-              <img 
-                src="/lovable-uploads/2f4fde3b-f4b0-4829-9fcb-a148e37bae43.png" 
-                alt="RGI Logo"
-                className="w-8 h-8"
-              />
-            </header>
-            <div className="flex-1 overflow-auto">
-              {children}
-            </div>
-          </main>
+    <div className="min-h-screen bg-background">
+      <header className="bg-white border-b border-border shadow-sm fixed top-0 left-0 right-0 z-50">
+        <div className="flex items-center justify-between h-16 px-4">
+          <div className="flex items-center">
+            <img 
+              src="/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png" 
+              alt="RGI Immobilien Logo" 
+              className="h-12 w-auto object-contain"
+            />
+          </div>
+
+          <Sheet open={isOpen} onOpenChange={setIsOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <Menu className="w-5 h-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-80 p-0">
+              <div className="flex flex-col h-full">
+                <div className="flex items-center justify-between p-4 border-b">
+                  <img 
+                    src="/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png" 
+                    alt="RGI Immobilien Logo" 
+                    className="h-8 w-auto object-contain"
+                  />
+                </div>
+
+                <div className="p-4 border-b">
+                  <div className="flex items-center gap-3">
+                    <UserRound className="w-8 h-8 text-muted-foreground" />
+                    <div>
+                      <div className="font-semibold text-foreground">{profile?.first_name || 'Benutzer'}</div>
+                      <div className="text-sm text-muted-foreground">Mieter</div>
+                    </div>
+                  </div>
+                </div>
+
+                <nav className="flex-1 p-4">
+                  <div className="space-y-2">
+                    {navigationItems.map((item) => (
+                      <Button
+                        key={item.path}
+                        variant={item.active ? "default" : "ghost"}
+                        className={`w-full justify-start gap-3 h-12 ${
+                          item.active 
+                            ? 'bg-primary text-primary-foreground' 
+                            : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+                        }`}
+                        onClick={() => handleNavigation(item.path)}
+                      >
+                        <item.icon className="w-5 h-5" />
+                        {item.label}
+                      </Button>
+                    ))}
+                  </div>
+                </nav>
+
+                <div className="p-4 border-t space-y-2">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start gap-3 h-12"
+                    onClick={() => handleNavigation('/tenant/settings')}
+                  >
+                    <Crown className="w-5 h-5" />
+                    Einstellungen
+                  </Button>
+                  
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start gap-3 h-12 text-destructive hover:text-destructive"
+                    onClick={() => {
+                      signOut();
+                      setIsOpen(false);
+                    }}
+                  >
+                    <LogOut className="w-5 h-5" />
+                    Abmelden
+                  </Button>
+                </div>
+              </div>
+            </SheetContent>
+          </Sheet>
         </div>
-      </SidebarProvider>
-    </>
+      </header>
+      
+      <main className="pt-16">
+        {children}
+      </main>
+    </div>
   );
 };
