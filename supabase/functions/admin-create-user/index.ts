@@ -43,15 +43,9 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Create regular Supabase client to verify admin privileges
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
-    )
-
-    // Set the auth token
+    // Use admin client to verify user privileges
     const token = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
 
     if (authError || !user) {
       return new Response(
@@ -60,8 +54,8 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Check if user is admin
-    const { data: profile, error: profileError } = await supabase
+    // Check if user is admin using admin client
+    const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
       .select('role')
       .eq('user_id', user.id)
@@ -119,8 +113,7 @@ Deno.serve(async (req) => {
 
     const { error: profileUpdateError } = await supabaseAdmin
       .from('profiles')
-      .update(profileUpdate)
-      .eq('user_id', newUser.user.id)
+      .upsert(profileUpdate, { onConflict: 'user_id' })
 
     if (profileUpdateError) {
       console.error('Profile update error:', profileUpdateError)

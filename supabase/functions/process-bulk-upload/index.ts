@@ -184,7 +184,7 @@ serve(async (req) => {
 
           const { error: tenantError } = await supabaseClient
             .from('tenants')
-            .upsert(tenantData, { onConflict: 'user_id' })
+            .upsert(tenantData, { onConflict: 'user_id,building_id' })
 
           if (tenantError) {
             errors.push(`Row ${processed}: Failed to update tenant - ${tenantError.message}`);
