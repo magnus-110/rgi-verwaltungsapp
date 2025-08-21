@@ -8,13 +8,15 @@ interface ChatInputProps {
   isLoading?: boolean;
   placeholder?: string;
   disabled?: boolean;
+  setIsHelpOpen?: (open: boolean) => void;
 }
 
 export const ChatInput = ({ 
   onSendMessage, 
   isLoading = false, 
   placeholder = "Stellen Sie irgendeine Frage",
-  disabled = false 
+  disabled = false,
+  setIsHelpOpen
 }: ChatInputProps) => {
   const [message, setMessage] = useState("");
 
@@ -39,6 +41,7 @@ export const ChatInput = ({
           <Button
             variant="ghost"
             size="icon"
+            onClick={() => setIsHelpOpen && setIsHelpOpen(true)}
             className="h-11 w-11 text-muted-foreground/60 hover:text-muted-foreground hover:bg-transparent shrink-0"
           >
             <HelpCircle className="w-6 h-6" />
@@ -50,7 +53,7 @@ export const ChatInput = ({
               onKeyDown={handleKeyPress}
               placeholder={placeholder}
               disabled={isLoading || disabled}
-              className="min-h-[44px] max-h-32 resize-none bg-muted border-muted focus:border-muted focus:ring-0 pr-12"
+              className="min-h-[44px] max-h-32 resize-none bg-muted border-transparent focus:border-transparent focus:ring-0 pr-12"
               rows={1}
             />
             <Button

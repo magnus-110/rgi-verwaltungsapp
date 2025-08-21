@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 
 interface MobileHeaderProps {
-  userRole: 'tenant' | 'weg_owner';
+  userRole: 'tenant' | 'weg_owner' | 'admin';
 }
 
 export const MobileHeader = ({ userRole }: MobileHeaderProps) => {
@@ -26,6 +26,35 @@ export const MobileHeader = ({ userRole }: MobileHeaderProps) => {
   const [isOpen, setIsOpen] = useState(false);
 
   const getNavigationItems = () => {
+    if (userRole === 'admin') {
+      return [
+        { 
+          icon: House, 
+          label: "Dashboard", 
+          path: '/dashboard',
+          active: location.pathname === '/dashboard'
+        },
+        { 
+          icon: Shield, 
+          label: "Gebäude", 
+          path: '/buildings',
+          active: location.pathname.startsWith('/buildings')
+        },
+        { 
+          icon: Newspaper, 
+          label: "Meldungen", 
+          path: '/reports',
+          active: location.pathname.startsWith('/reports')
+        },
+        { 
+          icon: Sparkles, 
+          label: "Forum", 
+          path: '/forum',
+          active: location.pathname.startsWith('/forum')
+        }
+      ];
+    }
+
     const baseItems = [
       { 
         icon: House, 
@@ -126,7 +155,7 @@ export const MobileHeader = ({ userRole }: MobileHeaderProps) => {
                   <div>
                     <div className="font-semibold text-foreground">{profile?.first_name || 'Benutzer'}</div>
                     <div className="text-sm text-muted-foreground">
-                      {userRole === 'tenant' ? 'Mieter' : 'WEG-Eigentümer'}
+                      {userRole === 'tenant' ? 'Mieter' : userRole === 'weg_owner' ? 'WEG-Eigentümer' : 'Administrator'}
                     </div>
                   </div>
                 </div>
@@ -158,7 +187,7 @@ export const MobileHeader = ({ userRole }: MobileHeaderProps) => {
                 <Button
                   variant="ghost"
                   className="w-full justify-start gap-3 h-12"
-                  onClick={() => handleNavigation(userRole === 'tenant' ? '/tenant/settings' : '/weg-owner/settings')}
+                  onClick={() => handleNavigation(userRole === 'tenant' ? '/tenant/settings' : userRole === 'weg_owner' ? '/weg-owner/settings' : '/settings')}
                 >
                   <Crown className="w-5 h-5" />
                   Einstellungen

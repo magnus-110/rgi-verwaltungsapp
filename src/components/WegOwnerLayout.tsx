@@ -1,6 +1,7 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { TopNavigation } from "./TopNavigation";
+import { MobileHeader } from "./MobileHeader";
 
 interface WegOwnerLayoutProps {
   children: React.ReactNode;
@@ -36,8 +37,11 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
 
   return (
     <div className="min-h-screen bg-background">
-      <TopNavigation userRole="weg_owner" />
-      <main className="pt-6 pb-8">
+      <MobileHeader userRole="weg_owner" />
+      <div className="hidden md:block">
+        <TopNavigation userRole="weg_owner" />
+      </div>
+      <main className="pt-16 md:pt-6 pb-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {children}
         </div>

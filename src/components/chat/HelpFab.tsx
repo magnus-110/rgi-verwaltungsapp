@@ -19,11 +19,12 @@ interface HelpFabProps {
   selectedBuildingId?: string;
   onBuildingChange?: (buildingId: string) => void;
   userName?: string;
+  isOpen?: boolean;
+  setIsOpen?: (open: boolean) => void;
 }
 
-export const HelpFab = ({ userType, selectedBuildingId, onBuildingChange, userName }: HelpFabProps) => {
+export const HelpFab = ({ userType, selectedBuildingId, onBuildingChange, userName, isOpen = false, setIsOpen }: HelpFabProps) => {
   const { profile } = useAuth();
-  const [isOpen, setIsOpen] = useState(false);
   const [buildings, setBuildings] = useState<Building[]>([]);
 
   useEffect(() => {
@@ -103,17 +104,7 @@ export const HelpFab = ({ userType, selectedBuildingId, onBuildingChange, userNa
   const tips = userType === "tenant" ? tenantTips : wegOwnerTips;
 
   if (!isOpen) {
-    return (
-      <div className="fixed bottom-6 right-6 z-50 mb-28 md:mb-0">
-        <Button
-          onClick={() => setIsOpen(true)}
-          size="icon"
-          className="w-14 h-14 rounded-full shadow-lg bg-primary hover:bg-primary/90 text-white border-2 border-white/20"
-        >
-          <HelpCircle className="w-6 h-6" />
-        </Button>
-      </div>
-    );
+    return null;
   }
 
   return (
@@ -121,7 +112,7 @@ export const HelpFab = ({ userType, selectedBuildingId, onBuildingChange, userNa
       {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-black/20 backdrop-blur-sm"
-        onClick={() => setIsOpen(false)}
+        onClick={() => setIsOpen && setIsOpen(false)}
       />
       
       {/* Help Panel */}
@@ -141,7 +132,7 @@ export const HelpFab = ({ userType, selectedBuildingId, onBuildingChange, userNa
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setIsOpen(false)}
+              onClick={() => setIsOpen && setIsOpen(false)}
               className="w-8 h-8"
             >
               <X className="w-4 h-4" />

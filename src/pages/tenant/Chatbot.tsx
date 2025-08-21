@@ -7,9 +7,7 @@ import { ChatInput } from "@/components/chat/ChatInput";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { WelcomeScreen } from "@/components/chat/WelcomeScreen";
 import { MobileHeader } from "@/components/MobileHeader";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { ArrowUp, HelpCircle } from "lucide-react";
+import { HelpFab } from "@/components/chat/HelpFab";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface Message {
@@ -25,6 +23,7 @@ export const TenantChatbot = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [hasStartedChat, setHasStartedChat] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
 
   const sendMessage = async (inputMessage: string) => {
     if (!inputMessage.trim()) return;
@@ -99,61 +98,11 @@ export const TenantChatbot = () => {
       
       <div className="flex-1 flex flex-col pt-16 pb-28 md:pt-0 md:pb-0">
         {!hasStartedChat ? (
-          <>
-            <WelcomeScreen 
-              userName={profile?.first_name}
-              userType="tenant"
-              onSuggestionClick={sendMessage}
-            />
-            {/* Centered input for desktop/tablet on welcome */}
-            <div className="hidden md:flex justify-center items-end flex-1 p-4">
-              <div className="w-full max-w-2xl">
-                <div className="relative flex items-center gap-2">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-11 w-11 text-muted-foreground/60 hover:text-muted-foreground hover:bg-transparent shrink-0"
-                  >
-                    <HelpCircle className="w-6 h-6" />
-                  </Button>
-                  <div className="relative flex-1">
-                    <Textarea
-                      placeholder="Stellen Sie irgendeine Frage"
-                      className="min-h-[44px] max-h-32 resize-none bg-muted border-muted focus:border-muted focus:ring-0 pr-12"
-                      rows={1}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          const target = e.target as HTMLTextAreaElement;
-                          if (target.value.trim()) {
-                            sendMessage(target.value.trim());
-                            target.value = "";
-                          }
-                        }
-                      }}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 text-primary hover:text-primary/80 hover:bg-transparent"
-                      onClick={(e) => {
-                        const textarea = (e.currentTarget.parentElement?.querySelector('textarea') as HTMLTextAreaElement);
-                        if (textarea?.value.trim()) {
-                          sendMessage(textarea.value.trim());
-                          textarea.value = "";
-                        }
-                      }}
-                    >
-                      <ArrowUp className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-                <p className="text-xs text-muted-foreground text-center mt-3">
-                  RGI KI kann Fehler machen. Bitte prüfen Sie wichtige Informationen.
-                </p>
-              </div>
-            </div>
-          </>
+          <WelcomeScreen 
+            userName={profile?.first_name}
+            userType="tenant"
+            onSuggestionClick={sendMessage}
+          />
         ) : (
           <div className="flex-1 flex flex-col">
             <ScrollArea className="flex-1">
@@ -169,11 +118,18 @@ export const TenantChatbot = () => {
         )}
       </div>
       
-      {/* Fixed input always visible on mobile, only after first message on desktop */}
-      {(hasStartedChat || isMobile) && (
-        <ChatInput 
-          onSendMessage={sendMessage}
-          isLoading={isLoading}
+      <ChatInput 
+        onSendMessage={sendMessage}
+        isLoading={isLoading}
+        setIsHelpOpen={setIsHelpOpen}
+      />
+      
+      {isHelpOpen && (
+        <HelpFab 
+          userType="tenant"
+          userName={profile?.first_name}
+          isOpen={isHelpOpen}
+          setIsOpen={setIsHelpOpen}
         />
       )}
     </div>

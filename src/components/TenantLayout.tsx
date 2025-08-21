@@ -1,6 +1,7 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { TopNavigation } from "./TopNavigation";
+import { MobileHeader } from "./MobileHeader";
 
 interface TenantLayoutProps {
   children: React.ReactNode;
@@ -36,8 +37,11 @@ export const TenantLayout = ({ children }: TenantLayoutProps) => {
 
   return (
     <div className="min-h-screen bg-background">
-      <TopNavigation userRole="tenant" />
-      <main className="pt-6 pb-8">
+      <MobileHeader userRole="tenant" />
+      <div className="hidden md:block">
+        <TopNavigation userRole="tenant" />
+      </div>
+      <main className="pt-16 md:pt-6 pb-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {children}
         </div>
