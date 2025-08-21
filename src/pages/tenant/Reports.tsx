@@ -272,211 +272,213 @@ export const TenantReports = () => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-        <div className="space-y-2">
-          <h1 className="text-4xl font-bold tracking-tight">Meldungen</h1>
+    <div className="min-h-screen bg-background p-6">
+      <div className="max-w-2xl mx-auto space-y-8">
+        {/* Header */}
+        <div className="text-center space-y-4 py-8">
+          <h1 className="text-4xl font-light text-foreground">Meldungen</h1>
           <p className="text-lg text-muted-foreground">
             Erstellen und verwalten Sie Ihre Meldungen
           </p>
         </div>
-        <Dialog open={isCreateReportOpen} onOpenChange={setIsCreateReportOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-gradient-primary text-white hover:scale-105 transition-all duration-200 text-base px-6 py-3">
-              <Plus className="h-5 w-5 mr-2" />
-              Neue Meldung
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Neue Meldung erstellen</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 max-h-[70vh] overflow-y-auto">
-              {/* Contact Information */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="contact_name">Name *</Label>
-                  <Input
-                    id="contact_name"
-                    value={reportForm.contact_name}
-                    onChange={(e) => setReportForm(prev => ({ ...prev, contact_name: e.target.value }))}
-                    placeholder="Ihr Name"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="contact_email">E-Mail *</Label>
-                  <Input
-                    id="contact_email"
-                    type="email"
-                    value={reportForm.contact_email}
-                    onChange={(e) => setReportForm(prev => ({ ...prev, contact_email: e.target.value }))}
-                    placeholder="Ihre E-Mail Adresse"
-                  />
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="contact_phone">Telefon</Label>
-                  <Input
-                    id="contact_phone"
-                    value={reportForm.contact_phone}
-                    onChange={(e) => setReportForm(prev => ({ ...prev, contact_phone: e.target.value }))}
-                    placeholder="Ihre Telefonnummer"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="contact_address">Adresse</Label>
-                  <Input
-                    id="contact_address"
-                    value={reportForm.contact_address}
-                    onChange={(e) => setReportForm(prev => ({ ...prev, contact_address: e.target.value }))}
-                    placeholder="Ihre Adresse"
-                  />
-                </div>
-              </div>
 
-              {/* Building Information */}
-              <div>
-                <Label htmlFor="building_name">Gebäude</Label>
-                <Input
-                  id="building_name"
-                  value={reportForm.building_name}
-                  onChange={(e) => setReportForm(prev => ({ ...prev, building_name: e.target.value }))}
-                  placeholder="Gebäudename"
-                  readOnly
-                  className="bg-muted"
-                />
-              </div>
+        {/* Create Button */}
+        <div className="text-center">
+          <Dialog open={isCreateReportOpen} onOpenChange={setIsCreateReportOpen}>
+            <DialogTrigger asChild>
+              <Button className="bg-primary text-primary-foreground hover:bg-primary/90 text-base px-8 py-3 rounded-full shadow-sm">
+                <Plus className="h-5 w-5 mr-2" />
+                Neue Meldung
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+              <DialogHeader>
+                <DialogTitle>Neue Meldung erstellen</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 max-h-[70vh] overflow-y-auto">
+                {/* Contact Information */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="contact_name">Name *</Label>
+                    <Input
+                      id="contact_name"
+                      value={reportForm.contact_name}
+                      onChange={(e) => setReportForm(prev => ({ ...prev, contact_name: e.target.value }))}
+                      placeholder="Ihr Name"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="contact_email">E-Mail *</Label>
+                    <Input
+                      id="contact_email"
+                      type="email"
+                      value={reportForm.contact_email}
+                      onChange={(e) => setReportForm(prev => ({ ...prev, contact_email: e.target.value }))}
+                      placeholder="Ihre E-Mail Adresse"
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="contact_phone">Telefon</Label>
+                    <Input
+                      id="contact_phone"
+                      value={reportForm.contact_phone}
+                      onChange={(e) => setReportForm(prev => ({ ...prev, contact_phone: e.target.value }))}
+                      placeholder="Ihre Telefonnummer"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="contact_address">Adresse</Label>
+                    <Input
+                      id="contact_address"
+                      value={reportForm.contact_address}
+                      onChange={(e) => setReportForm(prev => ({ ...prev, contact_address: e.target.value }))}
+                      placeholder="Ihre Adresse"
+                    />
+                  </div>
+                </div>
 
-              {/* Report Information */}
-              <div>
-                <Label htmlFor="title">Titel *</Label>
-                <Input
-                  id="title"
-                  value={reportForm.title}
-                  onChange={(e) => setReportForm(prev => ({ ...prev, title: e.target.value }))}
-                  placeholder="Kurze Beschreibung des Problems"
-                />
-              </div>
-              <div>
-                <Label htmlFor="description">Beschreibung *</Label>
-                <Textarea
-                  id="description"
-                  value={reportForm.description}
-                  onChange={(e) => setReportForm(prev => ({ ...prev, description: e.target.value }))}
-                  placeholder="Detaillierte Beschreibung des Problems"
-                  rows={4}
-                />
-              </div>
-              <div>
-                <Label htmlFor="priority">Priorität</Label>
-                <Select value={reportForm.priority} onValueChange={(value) => setReportForm(prev => ({ ...prev, priority: value }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Priorität auswählen" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">Niedrig</SelectItem>
-                    <SelectItem value="medium">Mittel</SelectItem>
-                    <SelectItem value="high">Hoch</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Attachments */}
-              <div>
-                <Label htmlFor="attachments">Anhänge</Label>
-                <div className="space-y-2">
+                {/* Building Information */}
+                <div>
+                  <Label htmlFor="building_name">Gebäude</Label>
                   <Input
-                    id="attachments"
-                    type="file"
-                    multiple
-                    accept="image/*,.pdf,.doc,.docx"
-                    onChange={handleFileChange}
-                    className="cursor-pointer"
+                    id="building_name"
+                    value={reportForm.building_name}
+                    onChange={(e) => setReportForm(prev => ({ ...prev, building_name: e.target.value }))}
+                    placeholder="Gebäudename"
+                    readOnly
+                    className="bg-muted"
                   />
-                  {attachments.length > 0 && (
+                </div>
+
+                {/* Report Information */}
+                <div>
+                  <Label htmlFor="title">Titel *</Label>
+                  <Input
+                    id="title"
+                    value={reportForm.title}
+                    onChange={(e) => setReportForm(prev => ({ ...prev, title: e.target.value }))}
+                    placeholder="Kurze Beschreibung des Problems"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="description">Beschreibung *</Label>
+                  <Textarea
+                    id="description"
+                    value={reportForm.description}
+                    onChange={(e) => setReportForm(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="Detaillierte Beschreibung des Problems"
+                    rows={4}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="priority">Priorität</Label>
+                  <Select value={reportForm.priority} onValueChange={(value) => setReportForm(prev => ({ ...prev, priority: value }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Priorität auswählen" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Niedrig</SelectItem>
+                      <SelectItem value="medium">Mittel</SelectItem>
+                      <SelectItem value="high">Hoch</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Attachments */}
+                <div>
+                  <Label htmlFor="attachments">Anhänge</Label>
+                  <div className="space-y-2">
+                    <Input
+                      id="attachments"
+                      type="file"
+                      multiple
+                      accept="image/*,.pdf,.doc,.docx"
+                      onChange={handleFileChange}
+                      className="cursor-pointer"
+                    />
+                    {attachments.length > 0 && (
+                      <div className="space-y-2">
+                        {attachments.map((file, index) => (
+                          <div key={index} className="flex items-center justify-between p-2 bg-muted rounded">
+                            <span className="text-sm">{file.name}</span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeAttachment(index)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <Button onClick={createReport} className="w-full" disabled={uploading}>
+                  {uploading ? "Wird erstellt..." : "Meldung erstellen"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        {/* Reports List */}
+        <div className="space-y-4">
+          {reports.length === 0 ? (
+            <div className="text-center py-16">
+              <AlertCircle className="h-16 w-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+              <p className="text-muted-foreground text-lg mb-2">Noch keine Meldungen</p>
+              <p className="text-sm text-muted-foreground">Erstellen Sie Ihre erste Meldung</p>
+            </div>
+          ) : (
+            reports.map((report) => (
+              <Card key={report.id} className="border-0 shadow-sm bg-white">
+                <CardContent className="p-6">
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h3 className="text-lg font-medium mb-1">{report.title}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {new Date(report.created_at).toLocaleDateString('de-DE')}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      {getStatusBadge(report.status)}
+                      {getPriorityBadge(report.priority)}
+                    </div>
+                  </div>
+                  
+                  <p className="text-muted-foreground mb-4">{report.description}</p>
+                  
+                  {/* Attachments Display */}
+                  {report.attachments && report.attachments.length > 0 && (
                     <div className="space-y-2">
-                      {attachments.map((file, index) => (
-                        <div key={index} className="flex items-center justify-between p-2 bg-muted rounded">
-                          <span className="text-sm">{file.name}</span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeAttachment(index)}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
+                      <h4 className="text-sm font-medium">Anhänge:</h4>
+                      <div className="grid grid-cols-2 gap-2">
+                        {report.attachments.map((attachment: any, index: number) => (
+                          <div key={index} className="flex items-center p-2 bg-muted rounded-lg">
+                            <FileText className="h-4 w-4 mr-2 text-blue-600" />
+                            <a
+                              href={`https://eebphowrbarzawwixqcc.supabase.co/storage/v1/object/public/report-attachments/${attachment.path}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-blue-600 hover:text-blue-800 truncate"
+                            >
+                              {attachment.name}
+                            </a>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
-                </div>
-              </div>
-
-              <Button onClick={createReport} className="w-full" disabled={uploading}>
-                {uploading ? "Wird erstellt..." : "Meldung erstellen"}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {/* Reports List */}
-      <div className="space-y-4">
-        {reports.length === 0 ? (
-          <Card>
-            <CardContent className="text-center py-8">
-              <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">Noch keine Meldungen erstellt.</p>
-            </CardContent>
-          </Card>
-        ) : (
-          reports.map((report) => (
-            <Card key={report.id}>
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="text-xl">{report.title}</CardTitle>
-                    <CardDescription className="mt-2">
-                      Erstellt am: {new Date(report.created_at).toLocaleDateString('de-DE')}
-                    </CardDescription>
-                  </div>
-                  <div className="flex gap-2">
-                    {getStatusBadge(report.status)}
-                    {getPriorityBadge(report.priority)}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground mb-4">{report.description}</p>
-                
-                {/* Attachments Display */}
-                {report.attachments && report.attachments.length > 0 && (
-                  <div className="mb-4">
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">Anhänge:</h4>
-                    <div className="grid grid-cols-2 gap-2">
-                      {report.attachments.map((attachment: any, index: number) => (
-                        <div key={index} className="flex items-center p-2 bg-muted rounded-lg">
-                          <FileText className="h-4 w-4 mr-2 text-blue-600" />
-                          <a
-                            href={`https://eebphowrbarzawwixqcc.supabase.co/storage/v1/object/public/report-attachments/${attachment.path}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm text-blue-600 hover:text-blue-800 truncate"
-                          >
-                            {attachment.name}
-                          </a>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))
-        )}
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

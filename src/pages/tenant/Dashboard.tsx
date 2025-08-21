@@ -114,234 +114,112 @@ export const TenantDashboard = () => {
   };
 
   const openReports = reports.filter(r => r.status === "open").length;
-  const resolvedReports = reports.filter(r => r.status === "resolved").length;
 
-  const currentDate = new Date().toLocaleDateString('de-DE', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-lg text-muted-foreground animate-fade-in">Laden...</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      {/* Welcome Section */}
-      <div className="bg-background border-b border-border pb-6">
-        <div className="flex items-center justify-between mb-2">
-          <h1 className="text-3xl font-bold text-foreground">
-            Willkommen zurück!
+    <div className="min-h-screen bg-background p-6">
+      <div className="max-w-2xl mx-auto space-y-8">
+        {/* Welcome Section */}
+        <div className="text-center space-y-4 py-8">
+          <h1 className="text-4xl font-light text-foreground">
+            Willkommen zurück, {profile?.first_name}
           </h1>
-          <div className="text-right text-sm text-muted-foreground">
-            <div>Heute</div>
-            <div className="font-medium">{currentDate}</div>
+          
+          {tenantInfo && (
+            <p className="text-lg text-muted-foreground">
+              {tenantInfo.buildings ? 
+                `${tenantInfo.buildings.name}` : 
+                'Ihr Dashboard'}
+            </p>
+          )}
+        </div>
+
+        {/* Status */}
+        {openReports > 0 && (
+          <Card className="border-0 shadow-sm bg-red-50 border-red-100">
+            <CardContent className="p-6 text-center">
+              <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-2" />
+              <div className="text-2xl font-semibold text-red-700 mb-1">{openReports}</div>
+              <div className="text-red-600">offene Meldungen</div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Actions */}
+        <div className="space-y-3">
+          <Button 
+            variant="outline" 
+            className="w-full h-16 text-left justify-start border-0 bg-white shadow-sm hover:shadow-md transition-all duration-200"
+            onClick={() => navigate("/tenant/reports")}
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-orange-600" />
+              </div>
+              <div>
+                <div className="font-medium">Problem melden</div>
+                <div className="text-sm text-muted-foreground">Meldung erstellen oder verwalten</div>
+              </div>
+            </div>
+          </Button>
+          
+          <Button 
+            variant="outline" 
+            className="w-full h-16 text-left justify-start border-0 bg-white shadow-sm hover:shadow-md transition-all duration-200"
+            onClick={() => navigate("/tenant/chatbot")}
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                <Bot className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <div className="font-medium">Frage stellen</div>
+                <div className="text-sm text-muted-foreground">RGI KI Assistent</div>
+              </div>
+            </div>
+          </Button>
+
+          <Button 
+            variant="outline" 
+            className="w-full h-16 text-left justify-start border-0 bg-white shadow-sm hover:shadow-md transition-all duration-200"
+            onClick={() => navigate("/tenant/forum")}
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                <MessageSquare className="w-5 h-5 text-green-600" />
+              </div>
+              <div>
+                <div className="font-medium">Schwarzes Brett</div>
+                <div className="text-sm text-muted-foreground">Ankündigungen lesen</div>
+              </div>
+            </div>
+          </Button>
+        </div>
+
+        {/* Contact */}
+        <div className="mt-12 pt-8 border-t border-border">
+          <div className="text-center space-y-4">
+            <h3 className="text-lg font-medium">Kontakt & Notfall</h3>
+            <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
+              <div className="flex items-center justify-center gap-2">
+                <Phone className="w-4 h-4" />
+                <span>08362340656</span>
+              </div>
+              <div className="flex items-center justify-center gap-2">
+                <Mail className="w-4 h-4" />
+                <span>info@rgi-immobilien.de</span>
+              </div>
+            </div>
           </div>
         </div>
-        
-        {tenantInfo && (
-          <div className="text-muted-foreground">
-            {tenantInfo.buildings ? 
-              `${tenantInfo.buildings.name} • ${tenantInfo.buildings.address}` : 
-              'Gebäude wird geladen...'}
-          </div>
-        )}
       </div>
-
-      {/* Status Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Offen Card */}
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm text-red-600 mb-1">Offen</div>
-                <div className="text-3xl font-bold text-red-700">{openReports}</div>
-                <div className="text-sm text-red-600">Warten auf Bearbeitung</div>
-              </div>
-              <AlertCircle className="w-8 h-8 text-red-500" />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Erledigt Card */}
-        <Card className="border-green-200 bg-green-50">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm text-green-600 mb-1">Erledigt</div>
-                <div className="text-3xl font-bold text-green-700">{resolvedReports}</div>
-                <div className="text-sm text-green-600">Abgeschlossen</div>
-              </div>
-              <CheckCircle className="w-8 h-8 text-green-500" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Schnellaktionen */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-primary/10 rounded flex items-center justify-center">
-                <span className="text-primary text-sm">⚡</span>
-              </div>
-              Schnellaktionen
-            </CardTitle>
-            <div className="text-sm text-muted-foreground">Häufig benötigte Funktionen</div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Button 
-              variant="outline" 
-              className="w-full justify-start gap-3 h-12"
-              onClick={() => navigate("/tenant/reports/new")}
-            >
-              <AlertTriangle className="w-5 h-5 text-orange-500" />
-              <div className="text-left">
-                <div className="font-medium">Problem melden</div>
-                <div className="text-xs text-muted-foreground">Technische oder organisatorische Probleme melden</div>
-              </div>
-            </Button>
-            
-            <Button 
-              variant="outline" 
-              className="w-full justify-start gap-3 h-12"
-              onClick={() => navigate("/tenant/chatbot")}
-            >
-              <Bot className="w-5 h-5 text-blue-500" />
-              <div className="text-left">
-                <div className="font-medium">Frage stellen</div>
-                <div className="text-xs text-muted-foreground">Allgemeine Fragen über den Chatbot</div>
-              </div>
-            </Button>
-
-            <Button 
-              variant="outline" 
-              className="w-full justify-start gap-3 h-12"
-              onClick={() => navigate("/tenant/forum")}
-            >
-              <MessageSquare className="w-5 h-5 text-green-500" />
-              <div className="text-left">
-                <div className="font-medium">Schwarzes Brett besuchen</div>
-                <div className="text-xs text-muted-foreground">Diskussionen und Ankündigungen lesen</div>
-              </div>
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Wichtige Hinweise */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-orange-500" />
-              Wichtige Hinweise
-            </CardTitle>
-            <div className="text-sm text-muted-foreground">Neueste Ankündigungen und Diskussionen für Ihr Gebäude</div>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="text-center py-8 text-muted-foreground">Laden...</div>
-            ) : forumPosts.length === 0 ? (
-              <div className="text-center py-8">
-                <MessageSquare className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground mb-4">Noch keine Beiträge vorhanden</p>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => navigate("/tenant/forum")}
-                >
-                  Alle Ankündigungen anzeigen
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {forumPosts.slice(0, 3).map((post) => (
-                  <div key={post.id} className="border-b border-border pb-3 last:border-b-0">
-                    <div className="font-medium text-sm mb-1">
-                      {post.title}
-                    </div>
-                    <div className="text-xs text-muted-foreground mb-2 line-clamp-2">
-                      {post.content}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {new Date(post.created_at).toLocaleDateString('de-DE')}
-                    </div>
-                  </div>
-                ))}
-                
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="w-full"
-                  onClick={() => navigate("/tenant/forum")}
-                >
-                  Alle Ankündigungen anzeigen
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Kontakt & Service */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-primary/10 rounded flex items-center justify-center">
-              <Phone className="w-4 h-4 text-primary" />
-            </div>
-            Kontakt & Service
-          </CardTitle>
-          <div className="text-sm text-muted-foreground">Wichtige Kontaktdaten für Notfälle und Anfragen</div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Bürozeiten */}
-            <div>
-              <h4 className="font-medium mb-3 text-sm">Bürozeiten</h4>
-              <div className="space-y-1 text-sm text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4" />
-                  Mo-Fr: 09:00 - 17:00 Uhr
-                </div>
-                <div className="text-xs">Termine nach Vereinbarung</div>
-              </div>
-            </div>
-
-            {/* Kontakt */}
-            <div>
-              <h4 className="font-medium mb-3 text-sm">Kontakt</h4>
-              <div className="space-y-2 text-sm">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Phone className="w-4 h-4" />
-                  <span>08362340656</span>
-                </div>
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Mail className="w-4 h-4" />
-                  <span>info@rgi-immobilien.de</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Notfall */}
-            <div>
-              <h4 className="font-medium mb-3 text-sm">Notfall</h4>
-              <div className="space-y-2">
-                <Button 
-                  size="sm" 
-                  className="bg-orange-600 hover:bg-orange-700 text-white gap-2"
-                  onClick={() => navigate("/tenant/chatbot")}
-                >
-                  <AlertTriangle className="w-4 h-4" />
-                  Schreiben Sie in den Chat Notfall
-                </Button>
-                <div className="text-xs text-muted-foreground">
-                  Wasserschäden, Heizungsausfall
-                </div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 };
