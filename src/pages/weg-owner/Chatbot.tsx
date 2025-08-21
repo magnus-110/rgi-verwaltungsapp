@@ -8,6 +8,7 @@ import { ChatInput } from "@/components/chat/ChatInput";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { WelcomeScreen } from "@/components/chat/WelcomeScreen";
 import { HelpFab } from "@/components/chat/HelpFab";
+import { MobileHeader } from "@/components/MobileHeader";
 
 interface Message {
   id: string;
@@ -155,43 +156,47 @@ export const WegOwnerChatbot = () => {
 
   return (
     <div className="h-full flex flex-col bg-background">
-      {!hasStartedChat ? (
-        <WelcomeScreen 
-          userName={profile?.first_name}
+      <MobileHeader userRole="weg_owner" />
+      
+      <div className="flex-1 flex flex-col pt-16 md:pt-0">
+        {!hasStartedChat ? (
+          <WelcomeScreen 
+            userName={profile?.first_name}
+            userType="weg_owner"
+            onSuggestionClick={handleSendMessage}
+          />
+        ) : (
+          <div className="flex-1 flex flex-col pb-28 md:pb-0">
+            <ScrollArea className="flex-1">
+              <div className="min-h-full py-4">
+                {messages.map((message) => (
+                  <ChatMessage key={message.id} message={message} />
+                ))}
+                
+                {isTyping && <TypingIndicator />}
+              </div>
+            </ScrollArea>
+          </div>
+        )}
+        
+        {hasStartedChat && (
+          <ChatInput 
+            onSendMessage={handleSendMessage}
+            isLoading={isTyping}
+            disabled={buildings.length === 0}
+            placeholder={buildings.length === 0 ? 
+              "Keine Gebäude zugeordnet. Wenden Sie sich an die Verwaltung." : 
+              undefined}
+          />
+        )}
+        
+        <HelpFab 
           userType="weg_owner"
-          onSuggestionClick={handleSendMessage}
+          userName={profile?.first_name}
+          selectedBuildingId={selectedBuildingId}
+          onBuildingChange={setSelectedBuildingId}
         />
-      ) : (
-        <div className="flex-1 flex flex-col pb-28">
-          <ScrollArea className="flex-1">
-            <div className="min-h-full py-4">
-              {messages.map((message) => (
-                <ChatMessage key={message.id} message={message} />
-              ))}
-              
-              {isTyping && <TypingIndicator />}
-            </div>
-          </ScrollArea>
-        </div>
-      )}
-      
-      {hasStartedChat && (
-        <ChatInput 
-          onSendMessage={handleSendMessage}
-          isLoading={isTyping}
-          disabled={buildings.length === 0}
-          placeholder={buildings.length === 0 ? 
-            "Keine Gebäude zugeordnet. Wenden Sie sich an die Verwaltung." : 
-            undefined}
-        />
-      )}
-      
-      <HelpFab 
-        userType="weg_owner"
-        userName={profile?.first_name}
-        selectedBuildingId={selectedBuildingId}
-        onBuildingChange={setSelectedBuildingId}
-      />
+      </div>
     </div>
   );
 };

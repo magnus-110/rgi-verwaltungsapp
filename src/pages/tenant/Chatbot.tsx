@@ -7,6 +7,7 @@ import { ChatInput } from "@/components/chat/ChatInput";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { WelcomeScreen } from "@/components/chat/WelcomeScreen";
 import { HelpFab } from "@/components/chat/HelpFab";
+import { MobileHeader } from "@/components/MobileHeader";
 
 interface Message {
   id: string;
@@ -90,37 +91,41 @@ export const TenantChatbot = () => {
 
   return (
     <div className="h-full flex flex-col bg-background">
-      {!hasStartedChat ? (
-        <WelcomeScreen 
-          userName={profile?.first_name}
+      <MobileHeader userRole="tenant" />
+      
+      <div className="flex-1 flex flex-col pt-16 md:pt-0">
+        {!hasStartedChat ? (
+          <WelcomeScreen 
+            userName={profile?.first_name}
+            userType="tenant"
+            onSuggestionClick={sendMessage}
+          />
+        ) : (
+          <div className="flex-1 flex flex-col pb-28 md:pb-0">
+            <ScrollArea className="flex-1">
+              <div className="min-h-full py-4">
+                {messages.map((message) => (
+                  <ChatMessage key={message.id} message={message} />
+                ))}
+                
+                {isLoading && <TypingIndicator />}
+              </div>
+            </ScrollArea>
+          </div>
+        )}
+        
+        {hasStartedChat && (
+          <ChatInput 
+            onSendMessage={sendMessage}
+            isLoading={isLoading}
+          />
+        )}
+        
+        <HelpFab 
           userType="tenant"
-          onSuggestionClick={sendMessage}
+          userName={profile?.first_name}
         />
-      ) : (
-        <div className="flex-1 flex flex-col pb-28">
-          <ScrollArea className="flex-1">
-            <div className="min-h-full py-4">
-              {messages.map((message) => (
-                <ChatMessage key={message.id} message={message} />
-              ))}
-              
-              {isLoading && <TypingIndicator />}
-            </div>
-          </ScrollArea>
-        </div>
-      )}
-      
-      {hasStartedChat && (
-        <ChatInput 
-          onSendMessage={sendMessage}
-          isLoading={isLoading}
-        />
-      )}
-      
-      <HelpFab 
-        userType="tenant"
-        userName={profile?.first_name}
-      />
+      </div>
     </div>
   );
 };
