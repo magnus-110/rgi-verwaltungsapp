@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { AlertCircle, Clock, CheckCircle, Plus, Edit, ChevronDown, ChevronUp, Filter, Download, FileText } from "lucide-react";
+import { AlertCircle, Clock, CheckCircle, Plus, Edit, ChevronDown, ChevronUp, Filter, Download, FileText, Copy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useManagementMode } from "@/hooks/useManagementMode";
 import { toast } from "sonner";
@@ -258,6 +258,33 @@ export const Reports = () => {
     } catch (error) {
       console.error("Error updating report:", error);
       toast.error("Fehler beim Aktualisieren der Meldung");
+    }
+  };
+
+  const copyReportToClipboard = async (report: Report) => {
+    const formattedText = `Meldung: ${report.title}
+
+Kontakt: ${report.contact_name || 'Nicht angegeben'}
+Erstellt am: ${new Date(report.created_at).toLocaleDateString('de-DE')}
+
+Beschreibung:
+${report.description || 'Keine Beschreibung'}
+
+Kontakt-Informationen:
+E-Mail: ${report.contact_email || 'Nicht angegeben'}
+Telefon: ${report.contact_phone || 'Nicht angegeben'}
+Adresse: ${report.contact_address || 'Nicht angegeben'}
+
+Gebäude: ${getBuildingAddress(report.building_id)}
+Status: ${report.status === 'open' ? 'Offen' : report.status === 'in_progress' ? 'Bearbeitet' : report.status}
+Priorität: ${report.priority === 'high' ? 'Hoch' : report.priority === 'medium' ? 'Mittel' : report.priority === 'low' ? 'Niedrig' : report.priority}`;
+
+    try {
+      await navigator.clipboard.writeText(formattedText);
+      toast.success("Meldungsdetails in die Zwischenablage kopiert");
+    } catch (error) {
+      console.error("Error copying to clipboard:", error);
+      toast.error("Fehler beim Kopieren in die Zwischenablage");
     }
   };
 
@@ -539,6 +566,14 @@ export const Reports = () => {
                   <Button 
                     variant="outline" 
                     size="sm"
+                    onClick={() => copyReportToClipboard(report)}
+                  >
+                    <Copy className="mr-1 h-3 w-3" />
+                    Kopieren
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
                     onClick={() => handleEditReport(report)}
                   >
                     <Edit className="mr-1 h-3 w-3" />
@@ -629,6 +664,14 @@ export const Reports = () => {
                 )}
 
                 <div className="flex space-x-2 mt-4">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => copyReportToClipboard(report)}
+                  >
+                    <Copy className="mr-1 h-3 w-3" />
+                    Kopieren
+                  </Button>
                   <Button 
                     variant="outline" 
                     size="sm"
