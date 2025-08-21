@@ -158,7 +158,7 @@ export const WegOwnerChatbot = () => {
     <div className="h-full flex flex-col bg-background">
       <MobileHeader userRole="weg_owner" />
       
-      <div className="flex-1 flex flex-col pt-16 md:pt-0">
+      <div className="flex-1 flex flex-col pt-16 pb-28 md:pt-0 md:pb-0">
         {!hasStartedChat ? (
           <WelcomeScreen 
             userName={profile?.first_name}
@@ -166,9 +166,9 @@ export const WegOwnerChatbot = () => {
             onSuggestionClick={handleSendMessage}
           />
         ) : (
-          <div className="flex-1 flex flex-col pb-28 md:pb-0">
+          <div className="flex-1 flex flex-col">
             <ScrollArea className="flex-1">
-              <div className="min-h-full py-4">
+              <div className="min-h-full py-4 pb-28 md:pb-4">
                 {messages.map((message) => (
                   <ChatMessage key={message.id} message={message} />
                 ))}
@@ -178,25 +178,23 @@ export const WegOwnerChatbot = () => {
             </ScrollArea>
           </div>
         )}
-        
-        {hasStartedChat && (
-          <ChatInput 
-            onSendMessage={handleSendMessage}
-            isLoading={isTyping}
-            disabled={buildings.length === 0}
-            placeholder={buildings.length === 0 ? 
-              "Keine Gebäude zugeordnet. Wenden Sie sich an die Verwaltung." : 
-              undefined}
-          />
-        )}
-        
-        <HelpFab 
-          userType="weg_owner"
-          userName={profile?.first_name}
-          selectedBuildingId={selectedBuildingId}
-          onBuildingChange={setSelectedBuildingId}
-        />
       </div>
+      
+      <ChatInput 
+        onSendMessage={handleSendMessage}
+        isLoading={isTyping}
+        disabled={buildings.length === 0}
+        placeholder={buildings.length === 0 ? 
+          "Keine Gebäude zugeordnet. Wenden Sie sich an die Verwaltung." : 
+          undefined}
+      />
+      
+      <HelpFab 
+        userType="weg_owner"
+        userName={profile?.first_name}
+        selectedBuildingId={selectedBuildingId}
+        onBuildingChange={setSelectedBuildingId}
+      />
     </div>
   );
 };

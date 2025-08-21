@@ -104,7 +104,7 @@ export const HelpFab = ({ userType, selectedBuildingId, onBuildingChange, userNa
 
   if (!isOpen) {
     return (
-      <div className="fixed bottom-6 right-6 z-50">
+      <div className="fixed bottom-6 right-6 z-50 mb-28 md:mb-0">
         <Button
           onClick={() => setIsOpen(true)}
           size="icon"
