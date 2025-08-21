@@ -41,33 +41,30 @@ export const UsersList = ({ buildingId, userType, count }: UsersListProps) => {
         if (error) throw error;
         return (data || []).map(user => ({ ...user, id: user.user_id }));
       } else {
-        // For WEG owners, we need to join through the junction table differently
-        const { data, error } = await supabase
+        // For WEG owners, first get the user_ids from junction table
+        const { data: junctionData, error: junctionError } = await supabase
           .from('weg_owner_buildings')
-          .select(`
-            user_id,
-            created_at,
-            weg_owners!inner (
-              email,
-              first_name,
-              last_name,
-              phone,
-              created_at
-            )
-          `)
+          .select('user_id')
           .eq('building_id', buildingId)
           .order('created_at', { ascending: false })
           .range(page * pageSize, (page + 1) * pageSize - 1);
         
+        if (junctionError) throw junctionError;
+        
+        if (!junctionData || junctionData.length === 0) {
+          return [];
+        }
+        
+        const userIds = junctionData.map(item => item.user_id);
+        
+        // Then get the weg_owners data for these user_ids
+        const { data, error } = await supabase
+          .from('weg_owners')
+          .select('user_id, email, first_name, last_name, phone, created_at')
+          .in('user_id', userIds);
+        
         if (error) throw error;
-        return (data || []).map(item => ({ 
-          id: item.user_id,
-          email: item.weg_owners.email,
-          first_name: item.weg_owners.first_name,
-          last_name: item.weg_owners.last_name,
-          phone: item.weg_owners.phone,
-          created_at: item.weg_owners.created_at
-        }));
+        return (data || []).map(user => ({ ...user, id: user.user_id }));
       }
     },
     enabled: isExpanded,
