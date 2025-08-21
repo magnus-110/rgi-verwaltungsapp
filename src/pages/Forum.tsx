@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useManagementMode } from "@/hooks/useManagementMode";
-import { MessageSquare, Plus, User, Calendar, Building2, Trash2, FileText, Download } from "lucide-react";
+import { MessageSquare, Plus, User, Calendar, Building2, Trash2, FileText, Download, Settings, Edit, Filter } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -52,6 +52,10 @@ export const Forum = () => {
   const [attachments, setAttachments] = useState<{ name: string; path: string; size: number; type: string }[]>([]);
   const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
   const [newTemplate, setNewTemplate] = useState({ title: "", content: "" });
+  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
+  const [isEditTemplateOpen, setIsEditTemplateOpen] = useState(false);
+  const [buildingFilter, setBuildingFilter] = useState<string>("all");
+  const [buildingSearch, setBuildingSearch] = useState("");
 
   const canCreatePosts = profile?.role === 'admin';
 
@@ -242,6 +246,62 @@ export const Forum = () => {
     }
   };
 
+  const handleUpdateTemplate = async () => {
+    if (!editingTemplate || !editingTemplate.title || !editingTemplate.content) {
+      toast.error('Bitte füllen Sie alle Felder aus');
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('forum_post_templates')
+        .update({
+          title: editingTemplate.title,
+          content: editingTemplate.content
+        })
+        .eq('id', editingTemplate.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setTemplates(templates.map(t => t.id === editingTemplate.id ? data : t));
+      setEditingTemplate(null);
+      setIsEditTemplateOpen(false);
+      toast.success('Vorlage erfolgreich aktualisiert');
+    } catch (error) {
+      console.error('Error updating template:', error);
+      toast.error('Fehler beim Aktualisieren der Vorlage');
+    }
+  };
+
+  const handleDeleteTemplate = async (templateId: string) => {
+    try {
+      const { error } = await supabase
+        .from('forum_post_templates')
+        .delete()
+        .eq('id', templateId);
+
+      if (error) throw error;
+
+      setTemplates(templates.filter(t => t.id !== templateId));
+      toast.success('Vorlage erfolgreich gelöscht');
+    } catch (error) {
+      console.error('Error deleting template:', error);
+      toast.error('Fehler beim Löschen der Vorlage');
+    }
+  };
+
+  const filteredPosts = posts.filter(post => {
+    if (buildingFilter === "all") return true;
+    return post.building_id === buildingFilter;
+  });
+
+  const filteredBuildings = buildings.filter(building =>
+    building.name.toLowerCase().includes(buildingSearch.toLowerCase()) ||
+    building.address.toLowerCase().includes(buildingSearch.toLowerCase())
+  );
+
   const renderAttachments = (attachments?: { name: string; path: string; size: number; type: string }[]) => {
     if (!attachments || attachments.length === 0) return null;
 
@@ -285,53 +345,9 @@ export const Forum = () => {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-bold">Neuen Schwarzes Brett-Beitrag erstellen</h1>
-          <div className="flex gap-2">
-            <Dialog open={isTemplateDialogOpen} onOpenChange={setIsTemplateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Neue Vorlage
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Neue Vorlage erstellen</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="template-title">Titel</Label>
-                    <Input
-                      id="template-title"
-                      value={newTemplate.title}
-                      onChange={(e) => setNewTemplate({ ...newTemplate, title: e.target.value })}
-                      placeholder="Vorlagen-Titel"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="template-content">Inhalt</Label>
-                    <Textarea
-                      id="template-content"
-                      value={newTemplate.content}
-                      onChange={(e) => setNewTemplate({ ...newTemplate, content: e.target.value })}
-                      placeholder="Vorlagen-Inhalt (verwenden Sie [Platzhalter] für variable Inhalte)"
-                      rows={8}
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button onClick={handleCreateTemplate} disabled={!newTemplate.title || !newTemplate.content}>
-                      Vorlage erstellen
-                    </Button>
-                    <Button variant="outline" onClick={() => setIsTemplateDialogOpen(false)}>
-                      Abbrechen
-                    </Button>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
-            <Button variant="outline" onClick={() => setIsCreating(false)}>
-              Abbrechen
-            </Button>
-          </div>
+          <Button variant="outline" onClick={() => setIsCreating(false)}>
+            Abbrechen
+          </Button>
         </div>
 
         <Card>
@@ -426,12 +442,144 @@ export const Forum = () => {
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Schwarzes Brett</h1>
         {canCreatePosts && (
-          <Button onClick={() => setIsCreating(true)} className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
-            <Plus className="w-4 h-4" />
-            Neuer Beitrag
-          </Button>
+          <div className="flex gap-2">
+            <Dialog open={isTemplateDialogOpen} onOpenChange={setIsTemplateDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="gap-2">
+                  <Settings className="w-4 h-4" />
+                  Vorlagen verwalten
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Vorlagen verwalten</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => {
+                        setNewTemplate({ title: "", content: "" });
+                        setEditingTemplate(null);
+                        setIsEditTemplateOpen(true);
+                      }}
+                      className="gap-2"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Neue Vorlage
+                    </Button>
+                  </div>
+
+                  <div className="grid gap-3">
+                    {templates.map((template) => (
+                      <Card key={template.id} className="p-4">
+                        <div className="flex justify-between items-start gap-4">
+                          <div className="flex-1">
+                            <h4 className="font-semibold">{template.title}</h4>
+                            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                              {template.content}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setEditingTemplate(template);
+                                setIsEditTemplateOpen(true);
+                              }}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="sm">
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Vorlage löschen</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Sind Sie sicher, dass Sie diese Vorlage löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => handleDeleteTemplate(template.id)}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  >
+                                    Löschen
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+
+                  {templates.length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground">
+                      Noch keine Vorlagen erstellt.
+                    </div>
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+            <Button onClick={() => setIsCreating(true)} className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
+              <Plus className="w-4 h-4" />
+              Neuer Beitrag
+            </Button>
+          </div>
         )}
       </div>
+
+      {/* Building Filter */}
+      {canCreatePosts && (
+        <Card className="p-4">
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Filter nach Gebäude:</span>
+            </div>
+            <div className="flex gap-2 flex-1 min-w-64">
+              <Input
+                placeholder="Gebäude suchen..."
+                value={buildingSearch}
+                onChange={(e) => setBuildingSearch(e.target.value)}
+                className="max-w-xs"
+              />
+              <Select value={buildingFilter} onValueChange={setBuildingFilter}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Gebäude auswählen" />
+                </SelectTrigger>
+                <SelectContent className="bg-background border border-border shadow-lg z-50 max-h-60 overflow-y-auto">
+                  <SelectItem value="all">Alle Gebäude</SelectItem>
+                  {filteredBuildings.map((building) => (
+                    <SelectItem key={building.id} value={building.id}>
+                      <div className="flex items-center gap-2">
+                        <Building2 className="h-4 w-4" />
+                        <span className="truncate">{building.name} - {building.address}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {buildingFilter !== "all" && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setBuildingFilter("all")}
+              >
+                Filter zurücksetzen
+              </Button>
+            )}
+          </div>
+        </Card>
+      )}
 
       {!canCreatePosts && profile?.role === 'weg_owner' && (
         <Card className="border-amber-200 bg-amber-50">
@@ -479,7 +627,7 @@ export const Forum = () => {
             </CardContent>
           </Card>
         ) : (
-          posts.map((post) => (
+          filteredPosts.map((post) => (
             <Card key={post.id} className="hover:shadow-md transition-shadow">
               <CardHeader>
                 <div className="flex items-start justify-between">
@@ -538,6 +686,68 @@ export const Forum = () => {
           ))
         )}
       </div>
+
+      {/* Template Edit/Create Dialog */}
+      <Dialog open={isEditTemplateOpen} onOpenChange={setIsEditTemplateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editingTemplate ? 'Vorlage bearbeiten' : 'Neue Vorlage erstellen'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="template-title">Titel</Label>
+              <Input
+                id="template-title"
+                value={editingTemplate?.title || newTemplate.title}
+                onChange={(e) => {
+                  if (editingTemplate) {
+                    setEditingTemplate({ ...editingTemplate, title: e.target.value });
+                  } else {
+                    setNewTemplate({ ...newTemplate, title: e.target.value });
+                  }
+                }}
+                placeholder="Vorlagen-Titel"
+              />
+            </div>
+            <div>
+              <Label htmlFor="template-content">Inhalt</Label>
+              <Textarea
+                id="template-content"
+                value={editingTemplate?.content || newTemplate.content}
+                onChange={(e) => {
+                  if (editingTemplate) {
+                    setEditingTemplate({ ...editingTemplate, content: e.target.value });
+                  } else {
+                    setNewTemplate({ ...newTemplate, content: e.target.value });
+                  }
+                }}
+                placeholder="Vorlagen-Inhalt (verwenden Sie [Platzhalter] für variable Inhalte)"
+                rows={8}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                onClick={editingTemplate ? handleUpdateTemplate : handleCreateTemplate}
+                disabled={editingTemplate ? (!editingTemplate.title || !editingTemplate.content) : (!newTemplate.title || !newTemplate.content)}
+              >
+                {editingTemplate ? 'Aktualisieren' : 'Erstellen'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsEditTemplateOpen(false);
+                  setEditingTemplate(null);
+                  setNewTemplate({ title: "", content: "" });
+                }}
+              >
+                Abbrechen
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
