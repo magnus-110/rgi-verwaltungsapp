@@ -4,9 +4,8 @@ import { Button } from "@/components/ui/button";
 import { 
   AlertTriangle, 
   Plus, 
-  Bot, 
+  MessageCircle, 
   Building2, 
-  MessageSquare,
   Phone,
   Mail,
   Clock,
@@ -137,7 +136,7 @@ export const WegOwnerDashboard = () => {
           >
             <div className="flex items-center gap-4">
               <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                <Bot className="w-5 h-5 text-blue-600" />
+                <MessageCircle className="w-5 h-5 text-blue-600" />
               </div>
               <div>
                 <div className="font-medium">Frage stellen</div>
@@ -175,19 +174,23 @@ export const WegOwnerDashboard = () => {
 
         {/* Contact */}
         <div className="mt-12 pt-8 border-t border-border">
-          <div className="text-center space-y-4">
-            <h3 className="text-lg font-medium">Kontakt & Notfall</h3>
-            <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
-              <div className="flex items-center justify-center gap-2">
-                <Phone className="w-4 h-4" />
-                <span>08362340656</span>
+            <div className="text-center space-y-4">
+              <h3 className="text-lg font-medium">Kontakt & Notfall</h3>
+              <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
+                <div className="flex items-center justify-center gap-2">
+                  <Phone className="w-4 h-4" />
+                  <span>08363 960656</span>
+                </div>
+                <div className="flex items-center justify-center gap-2">
+                  <Mail className="w-4 h-4" />
+                  <span>info@rgi-immobilien.de</span>
+                </div>
               </div>
-              <div className="flex items-center justify-center gap-2">
-                <Mail className="w-4 h-4" />
-                <span>info@rgi-immobilien.de</span>
+              <div className="text-xs text-muted-foreground">
+                <div>Mo-Fr: 09:00 - 17:00 Uhr</div>
+                <div>Termine nach Vereinbarung</div>
               </div>
             </div>
-          </div>
         </div>
       </div>
     </div>
