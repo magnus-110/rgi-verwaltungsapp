@@ -67,7 +67,7 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
               <img 
                 src="/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png" 
                 alt="RGI Immobilien Logo" 
-                className="h-10 w-auto object-contain"
+                className="h-14 w-auto object-contain"
               />
             </div>
           ) : (
@@ -75,7 +75,7 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
               <img 
                 src="/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png" 
                 alt="RGI Immobilien Logo" 
-                className="h-8 w-auto object-contain"
+                className="h-10 w-auto object-contain"
               />
             </div>
           )}
