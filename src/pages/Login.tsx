@@ -14,7 +14,8 @@ export const Login = () => {
 
   // Redirect authenticated users
   if (user && profile) {
-    if (profile.force_password_change) {
+    // Only admins need to change password on first login
+    if (profile.force_password_change && profile.role === 'admin') {
       return <Navigate to="/change-password" replace />;
     }
     return <Navigate to="/" replace />;

@@ -7,7 +7,7 @@ const corsHeaders = {
 
 interface UserData {
   email: string
-  password: string
+  password?: string  // Optional, defaults to "RGI-2025"
   first_name: string
   last_name: string
   phone: string
@@ -70,10 +70,13 @@ Deno.serve(async (req) => {
 
     const userData: UserData = await req.json()
 
+    // Set default password if none provided
+    const password = userData.password || 'RGI-2025'
+
     // Create user with admin client (bypasses RLS)
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email: userData.email,
-      password: userData.password,
+      password: password,
       email_confirm: true, // Auto-confirm email for admin-created users
       user_metadata: {
         first_name: userData.first_name,
@@ -99,11 +102,13 @@ Deno.serve(async (req) => {
     // Update profile with correct role and building assignment
     const role = userData.management_mode === 'weg' ? 'weg_owner' : 'tenant'
     const profileUpdate: any = {
+      user_id: newUser.user.id,  // Essential for upsert
+      email: userData.email,
       first_name: userData.first_name,
       last_name: userData.last_name,
       phone: userData.phone,
       role: role,
-      force_password_change: true
+      force_password_change: false  // No forced password change for tenants/owners
     }
 
     // For tenants, also set building_id in profile

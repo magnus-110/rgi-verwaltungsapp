@@ -74,13 +74,11 @@ export const Buildings = () => {
   // User form state
   const [userForm, setUserForm] = useState<{
     email: string;
-    password: string;
     first_name: string;
     last_name: string;
     phone: string;
   }>({
     email: "",
-    password: "",
     first_name: "",
     last_name: "",
     phone: "",
@@ -287,7 +285,7 @@ export const Buildings = () => {
   };
 
   const createUser = async () => {
-    if (!userForm.email || !userForm.password || !selectedBuildingId) {
+    if (!userForm.email || !selectedBuildingId) {
       toast({
         title: "Fehler",
         description: "Bitte füllen Sie alle Pflichtfelder aus.",
@@ -296,21 +294,12 @@ export const Buildings = () => {
       return;
     }
 
-    if (userForm.password.length < 6) {
-      toast({
-        title: "Fehler",
-        description: "Das Passwort muss mindestens 6 Zeichen lang sein.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     try {
       // Use admin edge function to create user with proper privileges
+      // Password will default to "RGI-2025" in the edge function
       const { data, error } = await supabase.functions.invoke('admin-create-user', {
         body: {
           email: userForm.email,
-          password: userForm.password,
           first_name: userForm.first_name,
           last_name: userForm.last_name,
           phone: userForm.phone,
@@ -347,13 +336,12 @@ export const Buildings = () => {
       
       toast({
         title: "Erfolg",
-        description: `${managementMode === 'weg' ? 'WEG-Eigentümer' : 'Mieter'} wurde erfolgreich erstellt.`,
+        description: `${managementMode === 'weg' ? 'WEG-Eigentümer' : 'Mieter'} wurde erfolgreich erstellt mit Standardpasswort "RGI-2025".`,
       });
 
       // Reset form and close dialog
       setUserForm({
         email: "",
-        password: "",
         first_name: "",
         last_name: "",
         phone: "",
@@ -432,7 +420,6 @@ export const Buildings = () => {
     setEditingUser(user);
     setUserForm({
       email: user.email,
-      password: "",
       first_name: user.first_name || "",
       last_name: user.last_name || "",
       phone: user.phone || "",
@@ -788,15 +775,13 @@ export const Buildings = () => {
                 placeholder="user@example.com"
               />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="password">Passwort *</Label>
-              <Input
-                id="password"
-                type="password"
-                value={userForm.password}
-                onChange={(e) => setUserForm(prev => ({...prev, password: e.target.value}))}
-                placeholder="Mindestens 6 Zeichen"
-              />
+            <div className="bg-muted/30 p-4 rounded-lg">
+              <Label className="text-sm font-medium text-muted-foreground">
+                Standardpasswort: RGI-2025
+              </Label>
+              <p className="text-xs text-muted-foreground mt-1">
+                Der Benutzer kann das Passwort später ändern.
+              </p>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="grid gap-2">
@@ -840,7 +825,7 @@ export const Buildings = () => {
               onClick={() => {
                 setIsCreateUserOpen(false);
                 setSelectedBuildingId("");
-                setUserForm({ email: "", password: "", first_name: "", last_name: "", phone: "" });
+                setUserForm({ email: "", first_name: "", last_name: "", phone: "" });
               }}
               className="flex-1"
             >

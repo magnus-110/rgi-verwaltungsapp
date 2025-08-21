@@ -21,9 +21,7 @@ export const TenantLayout = ({ children }: TenantLayoutProps) => {
     return <Navigate to="/login" replace />;
   }
 
-  if (profile?.force_password_change) {
-    return <Navigate to="/change-password" replace />;
-  }
+  // Tenants are not required to change password
 
   if (profile?.role !== 'tenant') {
     return (
