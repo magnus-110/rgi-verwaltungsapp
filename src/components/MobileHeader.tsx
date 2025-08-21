@@ -69,7 +69,7 @@ export const MobileHeader = ({ userRole }: MobileHeaderProps) => {
         ...baseItems,
         { 
           icon: Shield, 
-          label: "Meine Tickets", 
+          label: "Meine Meldungen", 
           path: '/tenant/reports',
           active: location.pathname.startsWith('/tenant/reports')
         },
@@ -91,7 +91,7 @@ export const MobileHeader = ({ userRole }: MobileHeaderProps) => {
         ...baseItems,
         { 
           icon: Shield, 
-          label: "Meine Tickets", 
+          label: "Meine Meldungen", 
           path: '/weg-owner/reports',
           active: location.pathname.startsWith('/weg-owner/reports')
         },

@@ -348,7 +348,7 @@ export const WegOwnerReports = () => {
               </DialogHeader>
               <div className="space-y-4 max-h-[70vh] overflow-y-auto">
                 {/* Contact Information */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="contact_name">Name *</Label>
                     <Input
@@ -370,7 +370,7 @@ export const WegOwnerReports = () => {
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="contact_phone">Telefon</Label>
                     <Input

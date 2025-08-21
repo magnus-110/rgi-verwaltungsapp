@@ -56,7 +56,7 @@ export const TenantLayout = ({ children }: TenantLayoutProps) => {
     },
     { 
       icon: Shield, 
-      label: "Meine Tickets", 
+      label: "Meine Meldungen", 
       path: '/tenant/reports',
       active: location.pathname.startsWith('/tenant/reports')
     },

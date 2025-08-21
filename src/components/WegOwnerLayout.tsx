@@ -55,7 +55,7 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
     },
     { 
       icon: Shield, 
-      label: "Meine Tickets", 
+      label: "Meine Meldungen", 
       path: '/weg-owner/reports',
       active: location.pathname.startsWith('/weg-owner/reports')
     },
