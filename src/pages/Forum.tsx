@@ -191,6 +191,17 @@ export const Forum = () => {
   };
 
   const handleTemplateSelect = (templateId: string) => {
+    if (templateId === "none") {
+      // Reset to empty template
+      setNewPost({ 
+        ...newPost, 
+        title: "", 
+        content: "", 
+        template_id: "" 
+      });
+      return;
+    }
+    
     const template = templates.find(t => t.id === templateId);
     if (template) {
       setNewPost({ 
@@ -336,7 +347,7 @@ export const Forum = () => {
                     <SelectValue placeholder="Vorlage auswählen..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Keine Vorlage</SelectItem>
+                    <SelectItem value="none">Keine Vorlage</SelectItem>
                     {templates.map((template) => (
                       <SelectItem key={template.id} value={template.id}>
                         {template.title}
