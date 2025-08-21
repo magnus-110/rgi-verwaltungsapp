@@ -14,10 +14,7 @@ import { FileText, Edit, Trash2, Plus } from "lucide-react";
 
 interface ReportTemplate {
   id: string;
-  title: string;
-  description: string;
-  priority: string;
-  category?: string;
+  name: string;
   created_at: string;
   updated_at: string;
 }
@@ -33,10 +30,7 @@ export const ReportTemplatesManager = ({ onTemplateSelect }: ReportTemplatesMana
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<ReportTemplate | null>(null);
   const [formData, setFormData] = useState({
-    title: "",
-    description: "",
-    priority: "medium",
-    category: ""
+    name: ""
   });
 
   useEffect(() => {
@@ -63,8 +57,8 @@ export const ReportTemplatesManager = ({ onTemplateSelect }: ReportTemplatesMana
   };
 
   const handleCreateTemplate = async () => {
-    if (!formData.title || !formData.description) {
-      toast.error("Titel und Beschreibung sind erforderlich");
+    if (!formData.name.trim()) {
+      toast.error("Name ist erforderlich");
       return;
     }
 
@@ -72,10 +66,7 @@ export const ReportTemplatesManager = ({ onTemplateSelect }: ReportTemplatesMana
       const { error } = await supabase
         .from("report_templates")
         .insert({
-          title: formData.title,
-          description: formData.description,
-          priority: formData.priority,
-          category: formData.category,
+          name: formData.name.trim(),
           management_mode: managementMode
         });
 
@@ -98,10 +89,7 @@ export const ReportTemplatesManager = ({ onTemplateSelect }: ReportTemplatesMana
       const { error } = await supabase
         .from("report_templates")
         .update({
-          title: formData.title,
-          description: formData.description,
-          priority: formData.priority,
-          category: formData.category,
+          name: formData.name.trim(),
           updated_at: new Date().toISOString()
         })
         .eq("id", editingTemplate.id);
@@ -140,46 +128,22 @@ export const ReportTemplatesManager = ({ onTemplateSelect }: ReportTemplatesMana
   const openEditDialog = (template: ReportTemplate) => {
     setEditingTemplate(template);
     setFormData({
-      title: template.title,
-      description: template.description,
-      priority: template.priority,
-      category: template.category || ""
+      name: template.name
     });
   };
 
   const resetForm = () => {
     setFormData({
-      title: "",
-      description: "",
-      priority: "medium",
-      category: ""
+      name: ""
     });
   };
 
   const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "high":
-        return "destructive";
-      case "medium":
-        return "secondary";
-      case "low":
-        return "outline";
-      default:
-        return "outline";
-    }
+    return "outline";
   };
 
   const getPriorityLabel = (priority: string) => {
-    switch (priority) {
-      case "high":
-        return "Hoch";
-      case "medium":
-        return "Mittel";
-      case "low":
-        return "Niedrig";
-      default:
-        return priority;
-    }
+    return priority;
   };
 
   return (
@@ -199,47 +163,13 @@ export const ReportTemplatesManager = ({ onTemplateSelect }: ReportTemplatesMana
             </DialogHeader>
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="title">Titel</Label>
+                <Label htmlFor="name">Name der Vorlage</Label>
                 <Input
-                  id="title"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="Titel der Vorlage"
+                  id="name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="z.B. Heizungsausfall, Wasserrohrbruch..."
                 />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="description">Beschreibung</Label>
-                <Textarea
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Beschreibung der Vorlage"
-                  rows={4}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="priority">Priorität</Label>
-                  <Select value={formData.priority} onValueChange={(value) => setFormData({ ...formData, priority: value })}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="low">Niedrig</SelectItem>
-                      <SelectItem value="medium">Mittel</SelectItem>
-                      <SelectItem value="high">Hoch</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="category">Kategorie (optional)</Label>
-                  <Input
-                    id="category"
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    placeholder="z.B. Heizung, Sanitär"
-                  />
-                </div>
               </div>
               <div className="flex justify-end space-x-2 pt-4">
                 <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
@@ -262,12 +192,12 @@ export const ReportTemplatesManager = ({ onTemplateSelect }: ReportTemplatesMana
           <p>Keine Vorlagen vorhanden. Erstellen Sie Ihre erste Vorlage.</p>
         </div>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-3">
           {templates.map((template) => (
             <Card key={template.id} className="hover:shadow-md transition-shadow">
               <CardHeader className="pb-2">
                 <div className="flex justify-between items-start">
-                  <CardTitle className="text-sm font-medium">{template.title}</CardTitle>
+                  <CardTitle className="text-sm font-medium">{template.name}</CardTitle>
                   <div className="flex space-x-1">
                     <Button
                       variant="ghost"
@@ -290,28 +220,19 @@ export const ReportTemplatesManager = ({ onTemplateSelect }: ReportTemplatesMana
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground line-clamp-2">
-                    {template.description}
+                  <p className="text-xs text-muted-foreground">
+                    Erstellt: {new Date(template.created_at).toLocaleDateString("de-DE")}
                   </p>
-                  <div className="flex justify-between items-center">
-                    <div className="flex gap-2">
-                      <Badge variant={getPriorityColor(template.priority) as "destructive" | "secondary" | "outline"}>
-                        {getPriorityLabel(template.priority)}
-                      </Badge>
-                      {template.category && (
-                        <Badge variant="outline">{template.category}</Badge>
-                      )}
-                    </div>
-                    {onTemplateSelect && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => onTemplateSelect(template)}
-                      >
-                        Verwenden
-                      </Button>
-                    )}
-                  </div>
+                  {onTemplateSelect && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onTemplateSelect(template)}
+                      className="w-full"
+                    >
+                      Verwenden
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -327,47 +248,13 @@ export const ReportTemplatesManager = ({ onTemplateSelect }: ReportTemplatesMana
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="edit-title">Titel</Label>
+              <Label htmlFor="edit-name">Name der Vorlage</Label>
               <Input
-                id="edit-title"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                placeholder="Titel der Vorlage"
+                id="edit-name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="z.B. Heizungsausfall, Wasserrohrbruch..."
               />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-description">Beschreibung</Label>
-              <Textarea
-                id="edit-description"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Beschreibung der Vorlage"
-                rows={4}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-priority">Priorität</Label>
-                <Select value={formData.priority} onValueChange={(value) => setFormData({ ...formData, priority: value })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">Niedrig</SelectItem>
-                    <SelectItem value="medium">Mittel</SelectItem>
-                    <SelectItem value="high">Hoch</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-category">Kategorie (optional)</Label>
-                <Input
-                  id="edit-category"
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  placeholder="z.B. Heizung, Sanitär"
-                />
-              </div>
             </div>
             <div className="flex justify-end space-x-2 pt-4">
               <Button variant="outline" onClick={() => setEditingTemplate(null)}>

@@ -33,6 +33,7 @@ export const WegOwnerReports = () => {
   const { profile } = useAuth();
   const [reports, setReports] = useState<Report[]>([]);
   const [buildings, setBuildings] = useState<any[]>([]);
+  const [templates, setTemplates] = useState<any[]>([]);
   const [isCreateReportOpen, setIsCreateReportOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   
@@ -44,6 +45,7 @@ export const WegOwnerReports = () => {
     contact_phone: "",
     contact_address: "",
     building_id: "",
+    template_id: "",
   });
   const [attachments, setAttachments] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -52,6 +54,7 @@ export const WegOwnerReports = () => {
     if (profile) {
       fetchReports();
       fetchBuildings();
+      fetchTemplates();
       prefillContactInfo();
     }
   }, [profile]);
@@ -81,6 +84,21 @@ export const WegOwnerReports = () => {
       }
     } catch (error) {
       console.error("Error fetching buildings:", error);
+    }
+  };
+
+  const fetchTemplates = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("report_templates")
+        .select("*")
+        .eq("management_mode", "weg")
+        .order("name");
+
+      if (error) throw error;
+      setTemplates(data || []);
+    } catch (error) {
+      console.error("Error fetching templates:", error);
     }
   };
 
@@ -271,6 +289,7 @@ export const WegOwnerReports = () => {
         contact_phone: prev.contact_phone,
         contact_address: '',
         building_id: '',
+        template_id: "",
       }));
       setAttachments([]);
       setIsCreateReportOpen(false);
@@ -298,6 +317,22 @@ export const WegOwnerReports = () => {
 
   const removeAttachment = (index: number) => {
     setAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleTemplateSelect = (templateId: string) => {
+    const template = templates.find(t => t.id === templateId);
+    if (template) {
+      setReportForm(prev => ({
+        ...prev,
+        title: template.name,
+        template_id: templateId
+      }));
+    } else {
+      setReportForm(prev => ({
+        ...prev,
+        template_id: templateId
+      }));
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -415,6 +450,27 @@ export const WegOwnerReports = () => {
                       />
                     )}
                   </div>
+                </div>
+
+                {/* Report Information */}
+                <div>
+                  <Label htmlFor="template">Vorlage (optional)</Label>
+                  <Select 
+                    value={reportForm.template_id} 
+                    onValueChange={handleTemplateSelect}
+                  >
+                    <SelectTrigger className="bg-background border border-border shadow-lg z-50">
+                      <SelectValue placeholder="Vorlage auswählen..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background border border-border shadow-lg z-50">
+                      <SelectItem value="">Keine Vorlage</SelectItem>
+                      {templates.map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          {template.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 {/* Report Information */}
