@@ -6,6 +6,7 @@ import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { WelcomeScreen } from "@/components/chat/WelcomeScreen";
+import { HelpFab } from "@/components/chat/HelpFab";
 
 interface Message {
   id: string;
@@ -113,6 +114,11 @@ export const TenantChatbot = () => {
         onSendMessage={sendMessage}
         isLoading={isLoading}
         placeholder="Stellen Sie Fragen zu Ihrem Gebäude und Mietangelegenheiten..."
+      />
+      
+      <HelpFab 
+        userType="tenant"
+        userName={profile?.first_name}
       />
     </div>
   );

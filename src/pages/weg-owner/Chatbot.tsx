@@ -1,18 +1,13 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { MessageSquare, Building2, Settings } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { WelcomeScreen } from "@/components/chat/WelcomeScreen";
+import { HelpFab } from "@/components/chat/HelpFab";
 
 interface Message {
   id: string;
@@ -159,110 +154,40 @@ export const WegOwnerChatbot = () => {
   };
 
   return (
-    <div className="h-full flex flex-col lg:flex-row bg-gradient-warm min-h-screen">
-      {/* Main Chat Interface */}
-      <div className="flex-1 flex flex-col">
-        {!hasStartedChat ? (
-          <WelcomeScreen 
-            userName={profile?.first_name}
-            userType="weg_owner"
-            onSuggestionClick={handleSendMessage}
-          />
-        ) : (
-          <ScrollArea className="flex-1 bg-muted/10">
-            <div className="min-h-full">
-              {messages.map((message) => (
-                <ChatMessage key={message.id} message={message} />
-              ))}
-              
-              {isTyping && <TypingIndicator />}
-            </div>
-          </ScrollArea>
-        )}
-        
-        <ChatInput 
-          onSendMessage={handleSendMessage}
-          isLoading={isTyping}
-          disabled={buildings.length === 0}
-          placeholder={buildings.length === 0 ? 
-            "Keine Gebäude zugeordnet. Wenden Sie sich an die Verwaltung." : 
-            "Stellen Sie Fragen zu Ihren Gebäuden und Verwaltungsangelegenheiten..."}
+    <div className="h-full flex flex-col bg-gradient-warm min-h-screen">
+      {!hasStartedChat ? (
+        <WelcomeScreen 
+          userName={profile?.first_name}
+          userType="weg_owner"
+          onSuggestionClick={handleSendMessage}
         />
-      </div>
-
-      {/* Sidebar */}
-      <div className="w-full lg:w-80 space-y-4 p-4 bg-background/50 backdrop-blur-sm">
-        <Card className="shadow-card border-border/50">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Building2 className="w-5 h-5 text-primary" />
-              Gebäude auswählen
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {buildings.length > 0 ? (
-                <>
-                  <Label className="text-sm font-medium">
-                    Ihre zugeordneten Gebäude
-                  </Label>
-                  <Select value={selectedBuildingId} onValueChange={setSelectedBuildingId}>
-                    <SelectTrigger className="focus:ring-2 focus:ring-primary/20">
-                      <SelectValue placeholder="Gebäude auswählen" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {buildings.map((building) => (
-                        <SelectItem key={building.id} value={building.building_id}>
-                          {(building as any).buildings?.name || building.building_id} - {(building as any).buildings?.address}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </>
-              ) : (
-                <div className="text-center py-4">
-                  <Building2 className="w-8 h-8 mx-auto text-muted-foreground mb-3" />
-                  <Label className="text-sm font-medium block mb-2">
-                    Keine Gebäude zugeordnet
-                  </Label>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Wenden Sie sich an die Verwaltung, um Gebäude zugeordnet zu bekommen. 
-                    Ohne Gebäude-Zuordnung ist der Chatbot nicht verfügbar.
-                  </p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-card border-border/50">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Hilfe & Tipps</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4 text-sm">
-              <div className="flex items-start gap-3">
-                <MessageSquare className="w-4 h-4 mt-0.5 text-primary flex-shrink-0" />
-                <p className="text-muted-foreground leading-relaxed">
-                  Wählen Sie ein Gebäude aus, um spezifische Informationen zu erhalten
-                </p>
-              </div>
-              <div className="flex items-start gap-3">
-                <MessageSquare className="w-4 h-4 mt-0.5 text-primary flex-shrink-0" />
-                <p className="text-muted-foreground leading-relaxed">
-                  Stellen Sie Fragen zu Verwaltungsangelegenheiten
-                </p>
-              </div>
-              <div className="flex items-start gap-3">
-                <Settings className="w-4 h-4 mt-0.5 text-primary flex-shrink-0" />
-                <p className="text-muted-foreground leading-relaxed">
-                  Gebäude-Zuordnungen werden durch die Verwaltung vorgenommen
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      ) : (
+        <ScrollArea className="flex-1 bg-muted/10">
+          <div className="min-h-full">
+            {messages.map((message) => (
+              <ChatMessage key={message.id} message={message} />
+            ))}
+            
+            {isTyping && <TypingIndicator />}
+          </div>
+        </ScrollArea>
+      )}
+      
+      <ChatInput 
+        onSendMessage={handleSendMessage}
+        isLoading={isTyping}
+        disabled={buildings.length === 0}
+        placeholder={buildings.length === 0 ? 
+          "Keine Gebäude zugeordnet. Wenden Sie sich an die Verwaltung." : 
+          "Stellen Sie Fragen zu Ihren Gebäuden und Verwaltungsangelegenheiten..."}
+      />
+      
+      <HelpFab 
+        userType="weg_owner"
+        userName={profile?.first_name}
+        selectedBuildingId={selectedBuildingId}
+        onBuildingChange={setSelectedBuildingId}
+      />
     </div>
   );
 };
