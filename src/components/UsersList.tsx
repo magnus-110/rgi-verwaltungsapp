@@ -1,14 +1,16 @@
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Users, Mail, Phone } from "lucide-react";
+import { ChevronDown, ChevronRight, Users, Mail, Phone, Edit } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { EditUserDialog } from "./EditUserDialog";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface User {
   id: string;
+  user_id: string;
   email: string;
   first_name?: string;
   last_name?: string;
@@ -25,6 +27,9 @@ interface UsersListProps {
 export const UsersList = ({ buildingId, userType, count }: UsersListProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [page, setPage] = useState(0);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const queryClient = useQueryClient();
   const pageSize = 10;
 
   const { data: users = [], isLoading } = useQuery({
@@ -39,7 +44,7 @@ export const UsersList = ({ buildingId, userType, count }: UsersListProps) => {
           .range(page * pageSize, (page + 1) * pageSize - 1);
         
         if (error) throw error;
-        return (data || []).map(user => ({ ...user, id: user.user_id }));
+        return (data || []).map(user => ({ ...user, id: user.user_id, user_id: user.user_id }));
       } else {
         // For WEG owners, first get the user_ids from junction table
         const { data: junctionData, error: junctionError } = await supabase
@@ -64,7 +69,7 @@ export const UsersList = ({ buildingId, userType, count }: UsersListProps) => {
           .in('user_id', userIds);
         
         if (error) throw error;
-        return (data || []).map(user => ({ ...user, id: user.user_id }));
+        return (data || []).map(user => ({ ...user, id: user.user_id, user_id: user.user_id }));
       }
     },
     enabled: isExpanded,
@@ -82,6 +87,17 @@ export const UsersList = ({ buildingId, userType, count }: UsersListProps) => {
 
   const hasMore = users.length === pageSize;
   const canLoadPrevious = page > 0;
+
+  const handleEditUser = (user: User) => {
+    setEditingUser(user);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleUpdate = () => {
+    // Refresh user data
+    queryClient.invalidateQueries({ queryKey: ['building-users', buildingId, userType] });
+    queryClient.invalidateQueries({ queryKey: ['building-user-counts', buildingId] });
+  };
 
   return (
     <div className="space-y-2">
@@ -134,8 +150,18 @@ export const UsersList = ({ buildingId, userType, count }: UsersListProps) => {
                       )}
                     </div>
                   </div>
-                  <div className="text-xs text-muted-foreground">
-                    {new Date(user.created_at).toLocaleDateString('de-DE')}
+                  <div className="flex items-center space-x-2">
+                    <div className="text-xs text-muted-foreground">
+                      {new Date(user.created_at).toLocaleDateString('de-DE')}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleEditUser(user)}
+                      className="h-8 w-8 p-0"
+                    >
+                      <Edit className="h-3 w-3" />
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -168,6 +194,17 @@ export const UsersList = ({ buildingId, userType, count }: UsersListProps) => {
           )}
         </Card>
       )}
+      
+      <EditUserDialog
+        user={editingUser}
+        userType={userType}
+        isOpen={isEditDialogOpen}
+        onClose={() => {
+          setIsEditDialogOpen(false);
+          setEditingUser(null);
+        }}
+        onUpdate={handleUpdate}
+      />
     </div>
   );
 };

@@ -264,6 +264,39 @@ export type Database = {
           },
         ]
       }
+      report_templates: {
+        Row: {
+          category: string | null
+          created_at: string
+          description: string
+          id: string
+          management_mode: Database["public"]["Enums"]["management_mode"]
+          priority: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          description: string
+          id?: string
+          management_mode: Database["public"]["Enums"]["management_mode"]
+          priority?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          description?: string
+          id?: string
+          management_mode?: Database["public"]["Enums"]["management_mode"]
+          priority?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       tenants: {
         Row: {
           building_id: string

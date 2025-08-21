@@ -7,11 +7,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { AlertCircle, Clock, CheckCircle, Plus, Edit, ChevronDown, ChevronUp, Filter, Download, FileText, Copy } from "lucide-react";
+import { AlertCircle, Clock, CheckCircle, Plus, Edit, ChevronDown, ChevronUp, Filter, Download, FileText, Copy, Settings } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useManagementMode } from "@/hooks/useManagementMode";
 import { toast } from "sonner";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ReportTemplatesManager } from "@/components/ReportTemplatesManager";
 
 // Component to handle async attachment URL loading
 const AttachmentLink = ({ attachment, index }: { attachment: any; index: number }) => {
@@ -333,45 +335,60 @@ Beschreibung: ${report.description || 'Keine Beschreibung'}`;
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-        <div className="space-y-2">
-          <h1 className="text-4xl font-bold tracking-tight">Meldungen</h1>
-          <p className="text-lg text-muted-foreground">
-            Verwalten Sie alle eingehenden Meldungen
-          </p>
+      <Tabs defaultValue="reports" className="w-full">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+          <div className="space-y-2">
+            <h1 className="text-4xl font-bold tracking-tight">Meldungen</h1>
+            <p className="text-lg text-muted-foreground">
+              Verwalten Sie alle eingehenden Meldungen und Vorlagen
+            </p>
+          </div>
+          <TabsList className="grid w-full sm:w-auto grid-cols-2">
+            <TabsTrigger value="reports" className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Meldungen
+            </TabsTrigger>
+            <TabsTrigger value="templates" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              Vorlagen
+            </TabsTrigger>
+          </TabsList>
         </div>
-        <div className="flex gap-2 items-center">
-          <Select value={timeFilter} onValueChange={setTimeFilter}>
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Zeitraum" />
-            </SelectTrigger>
-            <SelectContent className="bg-background border border-border shadow-lg z-50">
-              <SelectItem value="all">Alle Zeiträume</SelectItem>
-              <SelectItem value="today">Heute</SelectItem>
-              <SelectItem value="week">Letzte Woche</SelectItem>
-              <SelectItem value="month">Letzter Monat</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button 
-            onClick={() => setIsExportDialogOpen(true)}
-            variant="outline"
-            className="bg-secondary/50 hover:bg-secondary"
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Exportieren
-          </Button>
-          <Button 
-            onClick={() => setIsFiltersOpen(!isFiltersOpen)}
-            variant="outline"
-            className="bg-secondary/50 hover:bg-secondary"
-          >
-            <Filter className="h-4 w-4 mr-2" />
-            Filter
-            {isFiltersOpen ? <ChevronUp className="h-4 w-4 ml-2" /> : <ChevronDown className="h-4 w-4 ml-2" />}
-          </Button>
-        </div>
-      </div>
+
+        <TabsContent value="reports" className="space-y-6">
+          {/* Header */}
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+            <div className="flex gap-2 items-center">
+              <Select value={timeFilter} onValueChange={setTimeFilter}>
+                <SelectTrigger className="w-40">
+                  <SelectValue placeholder="Zeitraum" />
+                </SelectTrigger>
+                <SelectContent className="bg-background border border-border shadow-lg z-50">
+                  <SelectItem value="all">Alle Zeiträume</SelectItem>
+                  <SelectItem value="today">Heute</SelectItem>
+                  <SelectItem value="week">Letzte Woche</SelectItem>
+                  <SelectItem value="month">Letzter Monat</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button 
+                onClick={() => setIsExportDialogOpen(true)}
+                variant="outline"
+                className="bg-secondary/50 hover:bg-secondary"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Exportieren
+              </Button>
+              <Button 
+                onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+                variant="outline"
+                className="bg-secondary/50 hover:bg-secondary"
+              >
+                <Filter className="h-4 w-4 mr-2" />
+                Filter
+                {isFiltersOpen ? <ChevronUp className="h-4 w-4 ml-2" /> : <ChevronDown className="h-4 w-4 ml-2" />}
+              </Button>
+            </div>
+          </div>
 
       {/* Filter Section */}
       <Collapsible open={isFiltersOpen} onOpenChange={setIsFiltersOpen}>
@@ -818,6 +835,12 @@ Beschreibung: ${report.description || 'Keine Beschreibung'}`;
           </div>
         </DialogContent>
       </Dialog>
+        </TabsContent>
+
+        <TabsContent value="templates" className="space-y-6">
+          <ReportTemplatesManager />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

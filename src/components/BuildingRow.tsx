@@ -1,12 +1,13 @@
 
 import { useState } from "react";
-import { Building2, MapPin, Hash, Calendar, ChevronDown, ChevronRight } from "lucide-react";
+import { Building2, MapPin, Hash, Calendar, ChevronDown, ChevronRight, Edit } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { UsersList } from "./UsersList";
+import { EditBuildingDialog } from "./EditBuildingDialog";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 interface Building {
   id: string;
@@ -23,6 +24,8 @@ interface BuildingRowProps {
 
 export const BuildingRow = ({ building }: BuildingRowProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const queryClient = useQueryClient();
 
   // Get user counts for this building
   const { data: userCounts } = useQuery({
@@ -47,6 +50,11 @@ export const BuildingRow = ({ building }: BuildingRowProps) => {
   });
 
   const totalUsers = (userCounts?.tenants || 0) + (userCounts?.wegOwners || 0);
+
+  const handleUpdate = () => {
+    // Refresh building data
+    queryClient.invalidateQueries({ queryKey: ['buildings-paginated'] });
+  };
 
   return (
     <Card className="hover:shadow-md transition-shadow">
@@ -85,6 +93,14 @@ export const BuildingRow = ({ building }: BuildingRowProps) => {
             <Badge variant="secondary">
               {totalUsers} Nutzer
             </Badge>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsEditDialogOpen(true)}
+              className="h-8 w-8 p-0"
+            >
+              <Edit className="h-3 w-3" />
+            </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -128,6 +144,13 @@ export const BuildingRow = ({ building }: BuildingRowProps) => {
           </div>
         </CardContent>
       )}
+      
+      <EditBuildingDialog
+        building={building}
+        isOpen={isEditDialogOpen}
+        onClose={() => setIsEditDialogOpen(false)}
+        onUpdate={handleUpdate}
+      />
     </Card>
   );
 };
