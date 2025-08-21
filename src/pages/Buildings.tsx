@@ -129,9 +129,29 @@ export const Buildings = () => {
 
   const fetchWegOwners = async (buildingId: string) => {
     try {
+      // First get user_ids assigned to this building
+      const { data: assignments, error: assignmentError } = await supabase
+        .from("weg_owner_buildings")
+        .select("user_id")
+        .eq("building_id", buildingId);
+
+      if (assignmentError) throw assignmentError;
+
+      if (!assignments || assignments.length === 0) {
+        setWegOwners(prev => ({
+          ...prev,
+          [buildingId]: []
+        }));
+        return;
+      }
+
+      const userIds = assignments.map(a => a.user_id);
+
+      // Then get weg_owners for those user_ids
       const { data, error } = await supabase
         .from("weg_owners")
         .select("*")
+        .in("user_id", userIds)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -331,28 +351,37 @@ export const Buildings = () => {
           }
         }
 
-        // Create WEG owner entry
+        // Create WEG owner entry (upsert to handle existing users)
         const { data: wegOwnerData, error: wegOwnerError } = await supabase
           .from("weg_owners")
-          .insert([{
+          .upsert({
             user_id: authData.user.id,
             email: userForm.email,
             first_name: userForm.first_name,
             last_name: userForm.last_name,
             phone: userForm.phone,
-          }])
+          })
           .select()
           .single();
 
         if (wegOwnerError) {
           console.error("WEG owner creation error:", wegOwnerError);
-          // Don't throw here, the user is created, just the weg_owners entry failed
-        } else {
-          setWegOwners(prev => ({
-            ...prev,
-            [selectedBuildingId]: [...(prev[selectedBuildingId] || []), wegOwnerData]
-          }));
         }
+
+        // Create building assignment (upsert to handle existing assignments)
+        const { error: assignmentError } = await supabase
+          .from("weg_owner_buildings")
+          .upsert({
+            user_id: authData.user.id,
+            building_id: selectedBuildingId
+          });
+
+        if (assignmentError) {
+          console.error("Building assignment error:", assignmentError);
+        }
+
+        // Refresh the owners list for this building
+        await fetchWegOwners(selectedBuildingId);
       } else {
         // For rental management mode, set role to tenant
         if (authData.user) {
@@ -406,19 +435,78 @@ export const Buildings = () => {
     } catch (error: any) {
       console.error("Error creating user:", error);
       
-      let errorMessage = `${managementMode === 'weg' ? 'WEG-Eigentümer' : 'Mieter'} konnte nicht erstellt werden.`;
-      
+      // Handle case where user already exists
       if (error.message?.includes("already registered")) {
-        errorMessage = "Ein Benutzer mit dieser E-Mail-Adresse ist bereits registriert.";
-      } else if (error.message) {
-        errorMessage += ` Details: ${error.message}`;
+        if (managementMode === 'weg') {
+          try {
+            // Find existing user by email
+            const { data: existingProfile } = await supabase
+              .from("profiles")
+              .select("user_id, first_name, last_name, phone")
+              .eq("email", userForm.email)
+              .single();
+
+            if (existingProfile) {
+              // Update role to weg_owner
+              await supabase
+                .from("profiles")
+                .update({ role: 'weg_owner' })
+                .eq("user_id", existingProfile.user_id);
+
+              // Upsert WEG owner entry
+              await supabase
+                .from("weg_owners")
+                .upsert({
+                  user_id: existingProfile.user_id,
+                  email: userForm.email,
+                  first_name: userForm.first_name || existingProfile.first_name,
+                  last_name: userForm.last_name || existingProfile.last_name,
+                  phone: userForm.phone || existingProfile.phone,
+                });
+
+              // Create building assignment
+              await supabase
+                .from("weg_owner_buildings")
+                .upsert({
+                  user_id: existingProfile.user_id,
+                  building_id: selectedBuildingId
+                });
+
+              // Refresh the owners list
+              await fetchWegOwners(selectedBuildingId);
+
+              setUserForm({ email: "", password: "", first_name: "", last_name: "", phone: "" });
+              setIsCreateUserOpen(false);
+              setSelectedBuildingId("");
+              
+              toast({
+                title: "Erfolg",
+                description: "Bestehender Benutzer wurde dem Gebäude zugeordnet.",
+              });
+              return;
+            }
+          } catch (assignError: any) {
+            console.error("Error assigning existing user:", assignError);
+          }
+        }
+        
+        toast({
+          title: "Fehler", 
+          description: "Ein Benutzer mit dieser E-Mail-Adresse ist bereits registriert.",
+          variant: "destructive",
+        });
+      } else {
+        let errorMessage = `${managementMode === 'weg' ? 'WEG-Eigentümer' : 'Mieter'} konnte nicht erstellt werden.`;
+        if (error.message) {
+          errorMessage += ` Details: ${error.message}`;
+        }
+        
+        toast({
+          title: "Fehler",
+          description: errorMessage,
+          variant: "destructive",
+        });
       }
-      
-      toast({
-        title: "Fehler",
-        description: errorMessage,
-        variant: "destructive",
-      });
     }
   };
 
