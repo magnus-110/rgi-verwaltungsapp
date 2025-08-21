@@ -39,9 +39,9 @@ export const ChatInput = ({
           <Button
             variant="ghost"
             size="icon"
-            className="w-8 h-8 text-muted-foreground/60 hover:text-muted-foreground hover:bg-transparent shrink-0"
+            className="h-11 w-11 text-muted-foreground/60 hover:text-muted-foreground hover:bg-transparent shrink-0"
           >
-            <HelpCircle className="w-5 h-5" />
+            <HelpCircle className="w-6 h-6" />
           </Button>
           <div className="relative flex-1">
             <Textarea
@@ -50,14 +50,15 @@ export const ChatInput = ({
               onKeyDown={handleKeyPress}
               placeholder={placeholder}
               disabled={isLoading || disabled}
-              className="min-h-[44px] max-h-32 resize-none bg-muted border-border focus:border-border focus:ring-0 pr-12"
+              className="min-h-[44px] max-h-32 resize-none bg-muted border-muted focus:border-muted focus:ring-0 pr-12"
               rows={1}
             />
             <Button
               onClick={handleSend}
               disabled={!message.trim() || isLoading || disabled}
+              variant="ghost"
               size="icon"
-              className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 bg-primary hover:bg-primary/90 text-white rounded-full"
+              className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 text-primary hover:text-primary/80 hover:bg-transparent"
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
