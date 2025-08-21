@@ -19,7 +19,7 @@ export const ChangePassword = () => {
   }
 
   if (profile && !profile.force_password_change) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/" replace />;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
