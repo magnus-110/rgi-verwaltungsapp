@@ -39,7 +39,6 @@ export const WegOwnerReports = () => {
   const [reportForm, setReportForm] = useState({
     title: "",
     description: "",
-    priority: "medium",
     contact_name: "",
     contact_email: "",
     contact_phone: "",
@@ -227,10 +226,10 @@ export const WegOwnerReports = () => {
   };
 
   const createReport = async () => {
-    if (!reportForm.title || !reportForm.description || !reportForm.contact_name || !reportForm.contact_email) {
+    if (!reportForm.title || !reportForm.description || !reportForm.contact_name || !reportForm.contact_email || !reportForm.building_id) {
       toast({
         title: "Fehler",
-        description: "Bitte füllen Sie alle Pflichtfelder aus.",
+        description: "Bitte füllen Sie alle Pflichtfelder aus, einschließlich Gebäude-Auswahl.",
         variant: "destructive",
       });
       return;
@@ -245,10 +244,10 @@ export const WegOwnerReports = () => {
         .insert([{
           title: reportForm.title,
           description: reportForm.description,
-          priority: reportForm.priority,
+          priority: "medium",
           reported_by: profile?.user_id,
           weg_owner_id: profile?.user_id,
-          building_id: reportForm.building_id || null,
+          building_id: reportForm.building_id,
           contact_name: reportForm.contact_name,
           contact_email: reportForm.contact_email,
           contact_phone: reportForm.contact_phone,
@@ -267,7 +266,6 @@ export const WegOwnerReports = () => {
       setReportForm(prev => ({ 
         title: "", 
         description: "", 
-        priority: "medium",
         contact_name: prev.contact_name, // Keep current contact info
         contact_email: prev.contact_email,
         contact_phone: prev.contact_phone,
@@ -315,18 +313,6 @@ export const WegOwnerReports = () => {
     }
   };
 
-  const getPriorityBadge = (priority: string) => {
-    switch (priority) {
-      case "low":
-        return <Badge variant="outline">Niedrig</Badge>;
-      case "medium":
-        return <Badge variant="secondary">Mittel</Badge>;
-      case "high":
-        return <Badge variant="destructive">Hoch</Badge>;
-      default:
-        return <Badge variant="outline">{priority}</Badge>;
-    }
-  };
 
   if (loading) {
     return (
@@ -392,7 +378,7 @@ export const WegOwnerReports = () => {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="contact_address">Adresse</Label>
+                  <Label htmlFor="contact_address">Gebäude *</Label>
                   {buildings.length > 0 ? (
                     <Select 
                       value={reportForm.building_id} 
@@ -404,9 +390,10 @@ export const WegOwnerReports = () => {
                           contact_address: selectedBuilding ? `${selectedBuilding.name} - ${selectedBuilding.address}` : ''
                         }));
                       }}
+                      required
                     >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Gebäude auswählen" />
+                      <SelectTrigger className="border-2">
+                        <SelectValue placeholder="Gebäude auswählen *" />
                       </SelectTrigger>
                       <SelectContent>
                         {buildings.map((building) => (
@@ -446,19 +433,6 @@ export const WegOwnerReports = () => {
                   placeholder="Detaillierte Beschreibung des Problems"
                   rows={4}
                 />
-              </div>
-              <div>
-                <Label htmlFor="priority">Priorität</Label>
-                <Select value={reportForm.priority} onValueChange={(value) => setReportForm(prev => ({ ...prev, priority: value }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Priorität auswählen" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">Niedrig</SelectItem>
-                    <SelectItem value="medium">Mittel</SelectItem>
-                    <SelectItem value="high">Hoch</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
 
               {/* Attachments */}
@@ -522,7 +496,6 @@ export const WegOwnerReports = () => {
                   </div>
                   <div className="flex gap-2">
                     {getStatusBadge(report.status)}
-                    {getPriorityBadge(report.priority)}
                   </div>
                 </div>
               </CardHeader>

@@ -90,18 +90,6 @@ const getStatusBadge = (status: string) => {
   }
 };
 
-const getPriorityBadge = (priority: string) => {
-  switch (priority) {
-    case "high":
-      return <Badge variant="destructive">Hoch</Badge>;
-    case "medium":
-      return <Badge variant="secondary">Mittel</Badge>;
-    case "low":
-      return <Badge variant="outline">Niedrig</Badge>;
-    default:
-      return <Badge variant="outline">{priority}</Badge>;
-  }
-};
 
 export const Reports = () => {
   const { managementMode } = useManagementMode();
@@ -113,7 +101,6 @@ export const Reports = () => {
   const [editingReport, setEditingReport] = useState<Report | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [priorityFilter, setPriorityFilter] = useState("");
   const [timeFilter, setTimeFilter] = useState("all");
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [selectedAdminNote, setSelectedAdminNote] = useState("");
@@ -132,7 +119,7 @@ export const Reports = () => {
 
   useEffect(() => {
     filterReports();
-  }, [reports, searchTerm, statusFilter, priorityFilter, timeFilter]);
+  }, [reports, searchTerm, statusFilter, timeFilter]);
 
   const filterReports = () => {
     let filtered = [...reports];
@@ -147,10 +134,6 @@ export const Reports = () => {
 
     if (statusFilter && statusFilter !== "all") {
       filtered = filtered.filter(report => report.status === statusFilter);
-    }
-
-    if (priorityFilter && priorityFilter !== "all") {
-      filtered = filtered.filter(report => report.priority === priorityFilter);
     }
 
     if (timeFilter && timeFilter !== "all") {
@@ -299,7 +282,7 @@ Beschreibung: ${report.description || 'Keine Beschreibung'}`;
 
     // Create CSV content
     const headers = [
-      "ID", "Titel", "Beschreibung", "Status", "Priorität", "Gebäude", "Kontakt Name", 
+      "ID", "Titel", "Beschreibung", "Status", "Gebäude", "Kontakt Name", 
       "Kontakt Email", "Kontakt Telefon", "Erstellt am", "Aktualisiert am",
       "Verwalter-Notizen", "Interne Notizen"
     ];
@@ -311,7 +294,6 @@ Beschreibung: ${report.description || 'Keine Beschreibung'}`;
         `"${report.title.replace(/"/g, '""')}"`,
         `"${report.description?.replace(/"/g, '""') || ''}"`,
         report.status,
-        report.priority,
         `"${getBuildingAddress(report.building_id).replace(/"/g, '""')}"`,
         `"${report.contact_name?.replace(/"/g, '""') || ''}"`,
         report.contact_email || '',
@@ -418,17 +400,6 @@ Beschreibung: ${report.description || 'Keine Beschreibung'}`;
                   <SelectItem value="in_progress">Bearbeitet</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={priorityFilter} onValueChange={setPriorityFilter}>
-                <SelectTrigger className="w-32">
-                  <SelectValue placeholder="Priorität" />
-                </SelectTrigger>
-                <SelectContent className="bg-background border border-border shadow-lg z-50">
-                  <SelectItem value="all">Alle Prioritäten</SelectItem>
-                  <SelectItem value="high">Hoch</SelectItem>
-                  <SelectItem value="medium">Mittel</SelectItem>
-                  <SelectItem value="low">Niedrig</SelectItem>
-                </SelectContent>
-              </Select>
               <Select value={timeFilter} onValueChange={setTimeFilter}>
                 <SelectTrigger className="w-40">
                   <SelectValue placeholder="Zeitraum" />
@@ -492,7 +463,6 @@ Beschreibung: ${report.description || 'Keine Beschreibung'}`;
                   <div className="flex flex-col items-end space-y-2">
                     <div className="flex space-x-2">
                       {getStatusBadge(report.status)}
-                      {getPriorityBadge(report.priority)}
                     </div>
                     <Button 
                       variant="outline" 
@@ -595,7 +565,6 @@ Beschreibung: ${report.description || 'Keine Beschreibung'}`;
                   <div className="flex flex-col items-end space-y-2">
                     <div className="flex space-x-2">
                       {getStatusBadge(report.status)}
-                      {getPriorityBadge(report.priority)}
                     </div>
                     <Button 
                       variant="outline" 
