@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowUp, Loader2 } from "lucide-react";
+import { ArrowUp, Loader2, HelpCircle } from "lucide-react";
 
 interface ChatInputProps {
   onSendMessage: (message: string) => void;
@@ -35,28 +35,37 @@ export const ChatInput = ({
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-background border-t border-border z-40 md:relative md:border-t-0">
       <div className="max-w-3xl mx-auto p-4">
-        <div className="relative">
-          <Textarea
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={handleKeyPress}
-            placeholder={placeholder}
-            disabled={isLoading || disabled}
-            className="min-h-[44px] max-h-32 resize-none bg-muted border-border focus:border-border focus:ring-0 pr-12"
-            rows={1}
-          />
+        <div className="relative flex items-center gap-2">
           <Button
-            onClick={handleSend}
-            disabled={!message.trim() || isLoading || disabled}
+            variant="ghost"
             size="icon"
-            className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 bg-primary hover:bg-primary/90 text-white rounded-full"
+            className="w-8 h-8 text-muted-foreground/60 hover:text-muted-foreground hover:bg-transparent shrink-0"
           >
-            {isLoading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <ArrowUp className="w-4 h-4" />
-            )}
+            <HelpCircle className="w-5 h-5" />
           </Button>
+          <div className="relative flex-1">
+            <Textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onKeyDown={handleKeyPress}
+              placeholder={placeholder}
+              disabled={isLoading || disabled}
+              className="min-h-[44px] max-h-32 resize-none bg-muted border-border focus:border-border focus:ring-0 pr-12"
+              rows={1}
+            />
+            <Button
+              onClick={handleSend}
+              disabled={!message.trim() || isLoading || disabled}
+              size="icon"
+              className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 bg-primary hover:bg-primary/90 text-white rounded-full"
+            >
+              {isLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <ArrowUp className="w-4 h-4" />
+              )}
+            </Button>
+          </div>
         </div>
         <p className="text-xs text-muted-foreground text-center mt-3">
           RGI KI kann Fehler machen. Bitte prüfen Sie wichtige Informationen.
