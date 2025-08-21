@@ -162,15 +162,118 @@ export const ChatbotSettings = () => {
         <h1 className="text-3xl font-bold">Chatbot-Einstellungen</h1>
       </div>
 
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>System Prompt & Wissensbasis</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="system-prompt">System Prompt</Label>
+            <Textarea
+              id="system-prompt"
+              value={settings.system_prompt}
+              onChange={(e) => setSettings({ ...settings, system_prompt: e.target.value })}
+              placeholder="Definieren Sie hier das Verhalten des Chatbots..."
+              rows={4}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Beschreibt die Rolle und das Verhalten des Chatbots.
+            </p>
+          </div>
+
+          <div>
+            <Label>Wissensbasis-Themen</Label>
+            <div className="space-y-3">
+              {settings.knowledge_items.map((item, index) => (
+                <Card key={index} className="p-3">
+                  {editingItem === index ? (
+                    <div className="space-y-2">
+                      <Input
+                        value={item.title}
+                        onChange={(e) => handleEditItem(index, { ...item, title: e.target.value })}
+                        placeholder="Thema-Titel"
+                      />
+                      <Textarea
+                        value={item.content}
+                        onChange={(e) => handleEditItem(index, { ...item, content: e.target.value })}
+                        placeholder="Inhalt..."
+                        rows={4}
+                      />
+                      <div className="flex gap-2">
+                        <Button size="sm" onClick={() => setEditingItem(null)}>
+                          Speichern
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setEditingItem(null)}>
+                          Abbrechen
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium cursor-pointer flex items-center gap-2" onClick={() => toggleExpanded(index)}>
+                          {item.title}
+                          {expandedItems.has(index) ? (
+                            <ChevronUp className="w-4 h-4" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4" />
+                          )}
+                        </h4>
+                        <div className="flex gap-1">
+                          <Button size="sm" variant="ghost" onClick={() => setEditingItem(index)}>
+                            <Edit className="w-3 h-3" />
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => handleDeleteItem(index)}>
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </div>
+                      </div>
+                      {expandedItems.has(index) && (
+                        <div className="mt-2 text-sm text-muted-foreground">
+                          {item.content}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </Card>
+              ))}
+              
+              <Card className="p-3 border-dashed">
+                <div className="space-y-2">
+                  <Input
+                    value={newItem.title}
+                    onChange={(e) => setNewItem({ ...newItem, title: e.target.value })}
+                    placeholder="Neues Thema..."
+                  />
+                  <Textarea
+                    value={newItem.content}
+                    onChange={(e) => setNewItem({ ...newItem, content: e.target.value })}
+                    placeholder="Inhalt..."
+                    rows={3}
+                  />
+                  <Button size="sm" onClick={handleAddItem} className="flex items-center gap-2">
+                    <Plus className="w-3 h-3" />
+                    Thema hinzufügen
+                  </Button>
+                </div>
+              </Card>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Organisieren Sie Ihr Wissen in thematische Bereiche. Klicken Sie auf einen Titel, um den Inhalt zu sehen.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="w-5 h-5" />
-              KI-Konfiguration
+              KI-Konfiguration & Erweiterte Einstellungen
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6">
             <div>
               <Label htmlFor="model">KI-Modell</Label>
               <Select value={settings.model} onValueChange={(value) => setSettings({ ...settings, model: value })}>
@@ -184,120 +287,6 @@ export const ChatbotSettings = () => {
               </Select>
             </div>
 
-            <Button onClick={handleSave} className="w-full">
-              Einstellungen speichern
-            </Button>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>System Prompt & Wissensbasis</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="system-prompt">System Prompt</Label>
-              <Textarea
-                id="system-prompt"
-                value={settings.system_prompt}
-                onChange={(e) => setSettings({ ...settings, system_prompt: e.target.value })}
-                placeholder="Definieren Sie hier das Verhalten des Chatbots..."
-                rows={4}
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Beschreibt die Rolle und das Verhalten des Chatbots.
-              </p>
-            </div>
-
-            <div>
-              <Label>Wissensbasis-Themen</Label>
-              <div className="space-y-3">
-                {settings.knowledge_items.map((item, index) => (
-                  <Card key={index} className="p-3">
-                    {editingItem === index ? (
-                      <div className="space-y-2">
-                        <Input
-                          value={item.title}
-                          onChange={(e) => handleEditItem(index, { ...item, title: e.target.value })}
-                          placeholder="Thema-Titel"
-                        />
-                        <Textarea
-                          value={item.content}
-                          onChange={(e) => handleEditItem(index, { ...item, content: e.target.value })}
-                          placeholder="Inhalt..."
-                          rows={4}
-                        />
-                        <div className="flex gap-2">
-                          <Button size="sm" onClick={() => setEditingItem(null)}>
-                            Speichern
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => setEditingItem(null)}>
-                            Abbrechen
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <h4 className="font-medium cursor-pointer flex items-center gap-2" onClick={() => toggleExpanded(index)}>
-                            {item.title}
-                            {expandedItems.has(index) ? (
-                              <ChevronUp className="w-4 h-4" />
-                            ) : (
-                              <ChevronDown className="w-4 h-4" />
-                            )}
-                          </h4>
-                          <div className="flex gap-1">
-                            <Button size="sm" variant="ghost" onClick={() => setEditingItem(index)}>
-                              <Edit className="w-3 h-3" />
-                            </Button>
-                            <Button size="sm" variant="ghost" onClick={() => handleDeleteItem(index)}>
-                              <Trash2 className="w-3 h-3" />
-                            </Button>
-                          </div>
-                        </div>
-                        {expandedItems.has(index) && (
-                          <div className="mt-2 text-sm text-muted-foreground">
-                            {item.content}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </Card>
-                ))}
-                
-                <Card className="p-3 border-dashed">
-                  <div className="space-y-2">
-                    <Input
-                      value={newItem.title}
-                      onChange={(e) => setNewItem({ ...newItem, title: e.target.value })}
-                      placeholder="Neues Thema..."
-                    />
-                    <Textarea
-                      value={newItem.content}
-                      onChange={(e) => setNewItem({ ...newItem, content: e.target.value })}
-                      placeholder="Inhalt..."
-                      rows={3}
-                    />
-                    <Button size="sm" onClick={handleAddItem} className="flex items-center gap-2">
-                      <Plus className="w-3 h-3" />
-                      Thema hinzufügen
-                    </Button>
-                  </div>
-                </Card>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Organisieren Sie Ihr Wissen in thematische Bereiche. Klicken Sie auf einen Titel, um den Inhalt zu sehen.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Erweiterte Einstellungen</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
             <div>
               <Label>Temperatur: {settings.temperature[0]}</Label>
               <Slider
@@ -327,6 +316,10 @@ export const ChatbotSettings = () => {
                 Begrenzt die Länge der Antworten
               </p>
             </div>
+
+            <Button onClick={handleSave} className="w-full">
+              Einstellungen speichern
+            </Button>
           </CardContent>
         </Card>
       </div>
