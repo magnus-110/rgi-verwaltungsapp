@@ -262,22 +262,10 @@ export const Reports = () => {
   };
 
   const copyReportToClipboard = async (report: Report) => {
-    const formattedText = `Meldung: ${report.title}
-
-Kontakt: ${report.contact_name || 'Nicht angegeben'}
+    const formattedText = `Name: ${report.contact_name || 'Nicht angegeben'}
 Erstellt am: ${new Date(report.created_at).toLocaleDateString('de-DE')}
-
-Beschreibung:
-${report.description || 'Keine Beschreibung'}
-
-Kontakt-Informationen:
-E-Mail: ${report.contact_email || 'Nicht angegeben'}
-Telefon: ${report.contact_phone || 'Nicht angegeben'}
-Adresse: ${report.contact_address || 'Nicht angegeben'}
-
-Gebäude: ${getBuildingAddress(report.building_id)}
-Status: ${report.status === 'open' ? 'Offen' : report.status === 'in_progress' ? 'Bearbeitet' : report.status}
-Priorität: ${report.priority === 'high' ? 'Hoch' : report.priority === 'medium' ? 'Mittel' : report.priority === 'low' ? 'Niedrig' : report.priority}`;
+Titel: ${report.title}
+Beschreibung: ${report.description || 'Keine Beschreibung'}`;
 
     try {
       await navigator.clipboard.writeText(formattedText);
@@ -501,9 +489,19 @@ Priorität: ${report.priority === 'high' ? 'Hoch' : report.priority === 'medium'
                     <CardTitle className="text-lg">{report.title}</CardTitle>
                     <CardDescription>{report.description}</CardDescription>
                   </div>
-                  <div className="flex space-x-2">
-                    {getStatusBadge(report.status)}
-                    {getPriorityBadge(report.priority)}
+                  <div className="flex flex-col items-end space-y-2">
+                    <div className="flex space-x-2">
+                      {getStatusBadge(report.status)}
+                      {getPriorityBadge(report.priority)}
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => copyReportToClipboard(report)}
+                      className="h-8 w-8 p-0"
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
                   </div>
                 </div>
               </CardHeader>
@@ -566,14 +564,6 @@ Priorität: ${report.priority === 'high' ? 'Hoch' : report.priority === 'medium'
                   <Button 
                     variant="outline" 
                     size="sm"
-                    onClick={() => copyReportToClipboard(report)}
-                  >
-                    <Copy className="mr-1 h-3 w-3" />
-                    Kopieren
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
                     onClick={() => handleEditReport(report)}
                   >
                     <Edit className="mr-1 h-3 w-3" />
@@ -602,9 +592,19 @@ Priorität: ${report.priority === 'high' ? 'Hoch' : report.priority === 'medium'
                     <CardTitle className="text-lg">{report.title}</CardTitle>
                     <CardDescription>{report.description}</CardDescription>
                   </div>
-                  <div className="flex space-x-2">
-                    {getStatusBadge(report.status)}
-                    {getPriorityBadge(report.priority)}
+                  <div className="flex flex-col items-end space-y-2">
+                    <div className="flex space-x-2">
+                      {getStatusBadge(report.status)}
+                      {getPriorityBadge(report.priority)}
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => copyReportToClipboard(report)}
+                      className="h-8 w-8 p-0"
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
                   </div>
                 </div>
               </CardHeader>
@@ -664,14 +664,6 @@ Priorität: ${report.priority === 'high' ? 'Hoch' : report.priority === 'medium'
                 )}
 
                 <div className="flex space-x-2 mt-4">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => copyReportToClipboard(report)}
-                  >
-                    <Copy className="mr-1 h-3 w-3" />
-                    Kopieren
-                  </Button>
                   <Button 
                     variant="outline" 
                     size="sm"
