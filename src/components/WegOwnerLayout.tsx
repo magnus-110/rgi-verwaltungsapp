@@ -1,6 +1,7 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { TopNavigation } from "./TopNavigation";
+import { WegOwnerSidebar } from "./WegOwnerSidebar";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { MobileHeader } from "./MobileHeader";
 
 interface WegOwnerLayoutProps {
@@ -36,16 +37,28 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <MobileHeader userRole="weg_owner" />
-      <div className="hidden md:block">
-        <TopNavigation userRole="weg_owner" />
+    <>
+      <div className="md:hidden">
+        <MobileHeader userRole="weg_owner" />
       </div>
-      <main className="pt-16 md:pt-6 pb-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {children}
+      <SidebarProvider>
+        <div className="min-h-screen flex w-full bg-background pt-16 md:pt-0">
+          <WegOwnerSidebar />
+          <main className="flex-1 flex flex-col overflow-hidden">
+            <header className="h-16 border-b bg-background flex items-center px-4 shrink-0 hidden md:flex">
+              <SidebarTrigger className="mr-4" />
+              <img 
+                src="/lovable-uploads/2f4fde3b-f4b0-4829-9fcb-a148e37bae43.png" 
+                alt="RGI Logo"
+                className="w-8 h-8"
+              />
+            </header>
+            <div className="flex-1 overflow-auto">
+              {children}
+            </div>
+          </main>
         </div>
-      </main>
-    </div>
+      </SidebarProvider>
+    </>
   );
 };

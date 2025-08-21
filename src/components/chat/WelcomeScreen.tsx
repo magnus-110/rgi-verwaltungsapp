@@ -17,7 +17,7 @@ const getGreeting = () => {
 
 export const WelcomeScreen = ({ userName, userType, onSuggestionClick }: WelcomeScreenProps) => {
   return (
-    <div className="flex items-center justify-center flex-1 p-4">
+    <div className="fixed inset-0 flex items-center justify-center p-4" style={{ paddingBottom: '140px' }}>
       <div className="w-full max-w-2xl text-center space-y-8">
         {/* Header */}
         <div className="space-y-6">

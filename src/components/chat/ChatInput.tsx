@@ -35,7 +35,7 @@ export const ChatInput = ({
   };
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-background border-t border-border z-40 md:relative md:border-t-0">
+    <div className="fixed bottom-0 left-0 right-0 bg-background border-t border-border z-40">
       <div className="max-w-3xl mx-auto p-4">
         <div className="relative flex items-center gap-2">
           <Button
@@ -53,7 +53,7 @@ export const ChatInput = ({
               onKeyDown={handleKeyPress}
               placeholder={placeholder}
               disabled={isLoading || disabled}
-              className="min-h-[44px] max-h-32 resize-none bg-muted border-transparent focus:border-transparent focus:ring-0 pr-12"
+              className="min-h-[44px] max-h-32 resize-none bg-muted border-0 focus:ring-0 focus:outline-none pr-12"
               rows={1}
             />
             <Button
@@ -71,7 +71,7 @@ export const ChatInput = ({
             </Button>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground text-center mt-3">
+        <p className="text-xs text-muted-foreground text-center mt-3 hidden md:block">
           RGI KI kann Fehler machen. Bitte prüfen Sie wichtige Informationen.
         </p>
       </div>

@@ -92,35 +92,33 @@ export const TenantChatbot = () => {
     }
   };
 
+  const isTyping = isLoading;
+
   return (
-    <div className="h-full flex flex-col bg-background">
-      <MobileHeader userRole="tenant" />
-      
-      <div className="flex-1 flex flex-col pt-16 pb-28 md:pt-0 md:pb-0">
-        {!hasStartedChat ? (
-          <WelcomeScreen 
-            userName={profile?.first_name}
-            userType="tenant"
-            onSuggestionClick={sendMessage}
-          />
-        ) : (
-          <div className="flex-1 flex flex-col">
-            <ScrollArea className="flex-1">
-              <div className="min-h-full py-4 pb-28 md:pb-4">
-                {messages.map((message) => (
-                  <ChatMessage key={message.id} message={message} />
-                ))}
-                
-                {isLoading && <TypingIndicator />}
-              </div>
-            </ScrollArea>
-          </div>
-        )}
-      </div>
+    <div className="h-full flex flex-col bg-background relative">
+      {!hasStartedChat ? (
+        <WelcomeScreen 
+          userName={profile?.first_name}
+          userType="tenant"
+          onSuggestionClick={sendMessage}
+        />
+      ) : (
+        <div className="flex-1 pb-32">
+          <ScrollArea className="h-full">
+            <div className="py-4">
+              {messages.map((message) => (
+                <ChatMessage key={message.id} message={message} />
+              ))}
+              
+              {isTyping && <TypingIndicator />}
+            </div>
+          </ScrollArea>
+        </div>
+      )}
       
       <ChatInput 
         onSendMessage={sendMessage}
-        isLoading={isLoading}
+        isLoading={isTyping}
         setIsHelpOpen={setIsHelpOpen}
       />
       
