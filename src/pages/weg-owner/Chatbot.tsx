@@ -31,7 +31,7 @@ export const WegOwnerChatbot = () => {
   const { profile } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [selectedBuildingId, setSelectedBuildingId] = useState("");
-  const [newBuildingId, setNewBuildingId] = useState("");
+  
   const [buildings, setBuildings] = useState<WegOwnerBuilding[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [hasStartedChat, setHasStartedChat] = useState(false);
@@ -44,72 +44,51 @@ export const WegOwnerChatbot = () => {
 
   const fetchBuildingAssignments = async () => {
     try {
-      const { data, error } = await supabase
+      // First, get the building assignments
+      const { data: assignments, error: assignmentsError } = await supabase
         .from("weg_owner_buildings")
-        .select("*")
+        .select("id, building_id, created_at")
         .eq("user_id", profile?.user_id)
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
-      setBuildings(data || []);
+      if (assignmentsError) throw assignmentsError;
+
+      if (!assignments || assignments.length === 0) {
+        setBuildings([]);
+        return;
+      }
+
+      // Get building IDs
+      const buildingIds = assignments.map(a => a.building_id);
+
+      // Fetch building details separately
+      const { data: buildingsData, error: buildingsError } = await supabase
+        .from("buildings")
+        .select("id, name, address, building_code")
+        .in("id", buildingIds);
+
+      if (buildingsError) throw buildingsError;
+
+      // Combine assignments with building data
+      const combinedData = assignments.map(assignment => {
+        const building = buildingsData?.find(b => b.id === assignment.building_id);
+        return {
+          ...assignment,
+          buildings: building
+        };
+      });
+
+      setBuildings(combinedData);
       
       // Auto-select first building if available and none selected
-      if (data && data.length > 0 && !selectedBuildingId) {
-        setSelectedBuildingId(data[0].building_id);
+      if (combinedData && combinedData.length > 0 && !selectedBuildingId) {
+        setSelectedBuildingId(combinedData[0].building_id);
       }
     } catch (error: any) {
       console.error("Error fetching building assignments:", error);
     }
   };
 
-  const addQuickBuildingId = async () => {
-    if (!newBuildingId.trim()) {
-      toast({
-        title: "Fehler",
-        description: "Bitte geben Sie eine gültige Gebäude-ID ein.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      const { data, error } = await supabase
-        .from("weg_owner_buildings")
-        .insert([{
-          user_id: profile?.user_id,
-          building_id: newBuildingId.trim()
-        }])
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      setBuildings(prev => [data, ...prev]);
-      setSelectedBuildingId(newBuildingId.trim());
-      setNewBuildingId("");
-      
-      toast({
-        title: "Erfolg",
-        description: "Gebäude-ID wurde hinzugefügt und ausgewählt.",
-      });
-    } catch (error: any) {
-      if (error.code === '23505') {
-        // Building already exists, just select it
-        setSelectedBuildingId(newBuildingId.trim());
-        setNewBuildingId("");
-        toast({
-          title: "Info",
-          description: "Gebäude-ID bereits vorhanden und wurde ausgewählt.",
-        });
-      } else {
-        toast({
-          title: "Fehler",
-          description: "Gebäude-ID konnte nicht hinzugefügt werden.",
-          variant: "destructive",
-        });
-      }
-    }
-  };
 
   const getBotResponse = async (input: string): Promise<string> => {
     try {
@@ -204,7 +183,10 @@ export const WegOwnerChatbot = () => {
         <ChatInput 
           onSendMessage={handleSendMessage}
           isLoading={isTyping}
-          placeholder="Stellen Sie Fragen zu Ihren Gebäuden und Verwaltungsangelegenheiten..."
+          disabled={buildings.length === 0}
+          placeholder={buildings.length === 0 ? 
+            "Keine Gebäude zugeordnet. Wenden Sie sich an die Verwaltung." : 
+            "Stellen Sie Fragen zu Ihren Gebäuden und Verwaltungsangelegenheiten..."}
         />
       </div>
 
@@ -222,7 +204,7 @@ export const WegOwnerChatbot = () => {
               {buildings.length > 0 ? (
                 <>
                   <Label className="text-sm font-medium">
-                    Ihre hinterlegten Gebäude
+                    Ihre zugeordneten Gebäude
                   </Label>
                   <Select value={selectedBuildingId} onValueChange={setSelectedBuildingId}>
                     <SelectTrigger className="focus:ring-2 focus:ring-primary/20">
@@ -231,44 +213,23 @@ export const WegOwnerChatbot = () => {
                     <SelectContent>
                       {buildings.map((building) => (
                         <SelectItem key={building.id} value={building.building_id}>
-                          {building.building_id}
+                          {(building as any).buildings?.name || building.building_id} - {(building as any).buildings?.address}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  <div className="pt-2 border-t">
-                    <Label className="text-sm font-medium">Neue ID hinzufügen</Label>
-                    <div className="flex gap-2 mt-2">
-                      <Input
-                        placeholder="z.B. GEB-2024-001"
-                        value={newBuildingId}
-                        onChange={(e) => setNewBuildingId(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && addQuickBuildingId()}
-                        className="text-sm"
-                      />
-                      <Button onClick={addQuickBuildingId} size="sm">+</Button>
-                    </div>
-                  </div>
                 </>
               ) : (
-                <>
-                  <Label className="text-sm font-medium">
-                    Erste Gebäude-ID hinzufügen
+                <div className="text-center py-4">
+                  <Building2 className="w-8 h-8 mx-auto text-muted-foreground mb-3" />
+                  <Label className="text-sm font-medium block mb-2">
+                    Keine Gebäude zugeordnet
                   </Label>
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="z.B. GEB-2024-001"
-                      value={newBuildingId}
-                      onChange={(e) => setNewBuildingId(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && addQuickBuildingId()}
-                      className="focus:ring-2 focus:ring-primary/20"
-                    />
-                    <Button onClick={addQuickBuildingId} size="sm">+</Button>
-                  </div>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    Die Gebäude-ID erhalten Sie von Ihrem Administrator. Einmal hinzugefügt, können Sie diese jederzeit in den Einstellungen verwalten.
+                    Wenden Sie sich an die Verwaltung, um Gebäude zugeordnet zu bekommen. 
+                    Ohne Gebäude-Zuordnung ist der Chatbot nicht verfügbar.
                   </p>
-                </>
+                </div>
               )}
             </div>
           </CardContent>
@@ -293,15 +254,9 @@ export const WegOwnerChatbot = () => {
                 </p>
               </div>
               <div className="flex items-start gap-3">
-                <MessageSquare className="w-4 h-4 mt-0.5 text-primary flex-shrink-0" />
-                <p className="text-muted-foreground leading-relaxed">
-                  Verwalten Sie Ihre Gebäude-IDs in den Einstellungen
-                </p>
-              </div>
-              <div className="flex items-start gap-3">
                 <Settings className="w-4 h-4 mt-0.5 text-primary flex-shrink-0" />
                 <p className="text-muted-foreground leading-relaxed">
-                  Besuchen Sie die Einstellungen für erweiterte Gebäude-Verwaltung
+                  Gebäude-Zuordnungen werden durch die Verwaltung vorgenommen
                 </p>
               </div>
             </div>

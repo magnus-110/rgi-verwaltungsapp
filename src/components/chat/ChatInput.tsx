@@ -8,13 +8,14 @@ interface ChatInputProps {
   onSendMessage: (message: string) => void;
   isLoading: boolean;
   placeholder?: string;
+  disabled?: boolean;
 }
 
-export const ChatInput = ({ onSendMessage, isLoading, placeholder = "Schreiben Sie eine Nachricht..." }: ChatInputProps) => {
+export const ChatInput = ({ onSendMessage, isLoading, placeholder = "Schreiben Sie eine Nachricht...", disabled = false }: ChatInputProps) => {
   const [message, setMessage] = useState("");
 
   const handleSend = () => {
-    if (!message.trim() || isLoading) return;
+    if (!message.trim() || isLoading || disabled) return;
     onSendMessage(message);
     setMessage("");
   };
@@ -36,12 +37,13 @@ export const ChatInput = ({ onSendMessage, isLoading, placeholder = "Schreiben S
               onChange={(e) => setMessage(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder={placeholder}
-              disabled={isLoading}
+              disabled={isLoading || disabled}
               className={cn(
                 "min-h-[52px] max-h-[120px] resize-none rounded-2xl border-border/50",
                 "focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200",
                 "placeholder:text-muted-foreground/70 bg-card shadow-sm text-base px-4 py-3",
-                "hover:border-border transition-colors"
+                "hover:border-border transition-colors",
+                disabled && "opacity-50 cursor-not-allowed"
               )}
               rows={1}
             />
@@ -49,7 +51,7 @@ export const ChatInput = ({ onSendMessage, isLoading, placeholder = "Schreiben S
           
           <Button
             onClick={handleSend}
-            disabled={!message.trim() || isLoading}
+            disabled={!message.trim() || isLoading || disabled}
             size="lg"
             className={cn(
               "rounded-2xl h-[52px] w-[52px] p-0 shadow-apple",

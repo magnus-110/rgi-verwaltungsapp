@@ -3,12 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { Building2, Plus, Trash2 } from "lucide-react";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Building2 } from "lucide-react";
 
 interface WegOwnerBuilding {
   id: string;
@@ -22,7 +20,7 @@ export const WegOwnerSettings = () => {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
-  const [newBuildingCode, setNewBuildingCode] = useState("");
+  
   const [buildings, setBuildings] = useState<WegOwnerBuilding[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -80,111 +78,6 @@ export const WegOwnerSettings = () => {
       });
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const addBuildingAssignment = async () => {
-    if (!newBuildingCode.trim()) {
-      toast({
-        title: "Fehler",
-        description: "Bitte geben Sie einen Gebäude-Code ein.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      // First, find the building ID by the code
-      const { data: buildingData, error: buildingError } = await supabase
-        .from("buildings")
-        .select("id, name, address, building_code")
-        .eq("building_code", newBuildingCode.trim())
-        .eq("management_mode", "weg")
-        .single();
-
-      if (buildingError || !buildingData) {
-        toast({
-          title: "Fehler",
-          description: "Gebäude-Code nicht gefunden oder ungültig.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Check if already assigned
-      const { data: existingAssignment } = await supabase
-        .from("weg_owner_buildings")
-        .select("id")
-        .eq("user_id", profile?.user_id)
-        .eq("building_id", buildingData.id)
-        .single();
-
-      if (existingAssignment) {
-        toast({
-          title: "Fehler",
-          description: "Dieses Gebäude ist bereits in Ihrer Liste.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Add the assignment
-      const { data, error } = await supabase
-        .from("weg_owner_buildings")
-        .insert([{
-          user_id: profile?.user_id,
-          building_id: buildingData.id
-        }])
-        .select("id, building_id, created_at")
-        .single();
-
-      if (error) throw error;
-
-      // Add the new assignment with building data to the state
-      const newAssignment = {
-        ...data,
-        buildings: buildingData
-      };
-
-      setBuildings(prev => [newAssignment, ...prev]);
-      setNewBuildingCode("");
-      
-      toast({
-        title: "Erfolg",
-        description: `Gebäude "${buildingData.name}" wurde erfolgreich hinzugefügt.`,
-      });
-    } catch (error: any) {
-      console.error("Error adding building assignment:", error);
-      toast({
-        title: "Fehler",
-        description: "Gebäude konnte nicht hinzugefügt werden.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const removeBuildingAssignment = async (buildingAssignmentId: string) => {
-    try {
-      const { error } = await supabase
-        .from("weg_owner_buildings")
-        .delete()
-        .eq("id", buildingAssignmentId);
-
-      if (error) throw error;
-
-      setBuildings(prev => prev.filter(b => b.id !== buildingAssignmentId));
-      
-      toast({
-        title: "Erfolg",
-        description: "Gebäude-ID wurde erfolgreich entfernt.",
-      });
-    } catch (error: any) {
-      console.error("Error removing building assignment:", error);
-      toast({
-        title: "Fehler",
-        description: "Gebäude-ID konnte nicht entfernt werden.",
-        variant: "destructive",
-      });
     }
   };
 
@@ -252,30 +145,10 @@ export const WegOwnerSettings = () => {
             Gebäude-Verwaltung
           </CardTitle>
           <CardDescription>
-            Geben Sie die Gebäude-Codes ein, die Sie von Ihrem Administrator erhalten haben.
+            Ihre zugeordneten Gebäude. Zuordnungen werden durch die Verwaltung vorgenommen.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Add New Building */}
-          <div className="flex gap-2">
-            <div className="flex-1 space-y-2">
-              <Label htmlFor="building-code">Gebäude-Code</Label>
-              <Input
-                id="building-code"
-                placeholder="z.B. WEG-123456"
-                value={newBuildingCode}
-                onChange={(e) => setNewBuildingCode(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && addBuildingAssignment()}
-              />
-            </div>
-            <div className="flex items-end">
-              <Button onClick={addBuildingAssignment} className="flex items-center gap-2">
-                <Plus className="w-4 h-4" />
-                Hinzufügen
-              </Button>
-            </div>
-          </div>
-
           {/* Building List */}
           {isLoading ? (
             <div className="text-center py-4">
@@ -286,7 +159,7 @@ export const WegOwnerSettings = () => {
               <Building2 className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
               <p className="text-muted-foreground">Noch keine Gebäude zugeordnet</p>
               <p className="text-sm text-muted-foreground mt-2">
-                Fügen Sie Ihr erstes Gebäude hinzu, um den KI-Chatbot nutzen zu können.
+                Wenden Sie sich an die Verwaltung, um Gebäude zugeordnet zu bekommen.
               </p>
             </div>
           ) : (
@@ -301,30 +174,6 @@ export const WegOwnerSettings = () => {
                       <span className="text-xs font-mono text-muted-foreground">Code: {(building as any).buildings?.building_code}</span>
                     </div>
                   </div>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Gebäude-ID entfernen</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Möchten Sie das Gebäude "{(building as any).buildings?.name}" wirklich aus Ihrer Liste entfernen?
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                        <AlertDialogAction 
-                          onClick={() => removeBuildingAssignment(building.id)}
-                          className="bg-destructive hover:bg-destructive/90"
-                        >
-                          Entfernen
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
                 </div>
               ))}
             </div>
