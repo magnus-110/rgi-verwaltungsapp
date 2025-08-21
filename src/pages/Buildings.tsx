@@ -342,7 +342,7 @@ export const Buildings = () => {
               first_name: userForm.first_name,
               last_name: userForm.last_name,
               role: 'weg_owner', // Always weg_owner in WEG mode
-              force_password_change: false
+              force_password_change: true // Force password change for new users
             })
             .eq("user_id", authData.user.id);
 
@@ -392,7 +392,7 @@ export const Buildings = () => {
               last_name: userForm.last_name,
               role: 'tenant', // Always tenant in rental mode
               building_id: selectedBuildingId,
-              force_password_change: false
+              force_password_change: true // Force password change for new users
             })
             .eq("user_id", authData.user.id);
 

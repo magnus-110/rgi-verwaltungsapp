@@ -98,12 +98,12 @@ serve(async (req) => {
           userId = authUser.id;
           console.log(`Found existing auth user for ${email}`);
         } else {
-          // Create new auth user with temporary password
-          const tempPassword = generateSecurePassword();
+          // Create new auth user with standard password
+          const standardPassword = "RGI-2025";
           
           const { data: newAuthUser, error: createError } = await supabaseClient.auth.admin.createUser({
             email: email,
-            password: tempPassword,
+            password: standardPassword,
             email_confirm: true
           })
 
@@ -115,7 +115,7 @@ serve(async (req) => {
           userId = newAuthUser.user.id;
           isNewUser = true;
           created++;
-          console.log(`Created new auth user for ${email} with temp password`);
+          console.log(`Created new auth user for ${email} with standard password`);
         }
 
         // Update or create profile
@@ -247,6 +247,7 @@ serve(async (req) => {
 })
 
 function generateSecurePassword(): string {
+  // This function is no longer used, keeping for compatibility
   const length = 12;
   const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
   let password = "";

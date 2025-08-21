@@ -197,9 +197,11 @@ export const BulkUpload: React.FC<BulkUploadProps> = ({
                 <FileSpreadsheet className="h-5 w-5 mr-2" />
                 Excel Template
               </CardTitle>
-              <CardDescription>
-                Laden Sie zunächst die Vorlage herunter und füllen Sie Ihre Daten ein.
-              </CardDescription>
+                 <CardDescription>
+                   Laden Sie zunächst die Vorlage herunter und füllen Sie Ihre Daten ein.
+                   <br />
+                   <strong>Hinweis:</strong> Alle neuen Benutzer erhalten das Standardpasswort "RGI-2025" und müssen es beim ersten Login ändern.
+                 </CardDescription>
             </CardHeader>
             <CardContent>
               <Button onClick={generateTemplate} variant="outline">
@@ -237,6 +239,8 @@ export const BulkUpload: React.FC<BulkUploadProps> = ({
                 <CardTitle className="text-lg">Datenvorschau</CardTitle>
                 <CardDescription>
                   Überprüfen Sie die Daten vor dem Import
+                  <br />
+                  <strong>Hinweis:</strong> Neue Benutzer erhalten das Passwort "RGI-2025" und müssen es beim ersten Login ändern.
                 </CardDescription>
               </CardHeader>
               <CardContent>
