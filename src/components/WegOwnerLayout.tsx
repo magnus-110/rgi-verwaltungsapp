@@ -10,7 +10,8 @@ import {
   Crown,
   LogOut,
   UserRound,
-  Menu
+  Menu,
+  MessageSquare
 } from "lucide-react";
 
 interface WegOwnerLayoutProps {
@@ -60,6 +61,12 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
       active: location.pathname.startsWith('/weg-owner/reports')
     },
     { 
+      icon: MessageSquare, 
+      label: "Schwarzes Brett", 
+      path: '/weg-owner/forum',
+      active: location.pathname.startsWith('/weg-owner/forum')
+    },
+    { 
       icon: Sparkles, 
       label: "Chat", 
       path: '/weg-owner/chatbot',
@@ -80,7 +87,8 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
             <img 
               src="/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png" 
               alt="RGI Immobilien Logo" 
-              className="h-12 w-auto object-contain"
+              className="h-12 w-auto object-contain cursor-pointer"
+              onClick={() => navigate('/weg-owner')}
             />
           </div>
 

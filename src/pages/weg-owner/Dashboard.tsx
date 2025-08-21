@@ -9,7 +9,8 @@ import {
   Phone,
   Mail,
   Clock,
-  AlertCircle
+  AlertCircle,
+  MessageSquare
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -94,9 +95,14 @@ export const WegOwnerDashboard = () => {
           </h1>
           
           {buildings.length > 0 && (
-            <p className="text-lg text-muted-foreground">
-              {buildings[0].building?.name || 'Ihre Gebäude'}
-            </p>
+            <div className="text-lg text-muted-foreground space-y-1">
+              {buildings.map((building, index) => (
+                <p key={building.id}>
+                  {building.building?.name || 'Unbekanntes Gebäude'}
+                  {index < buildings.length - 1 && buildings.length > 1 ? ', ' : ''}
+                </p>
+              ))}
+            </div>
           )}
         </div>
 
@@ -141,6 +147,22 @@ export const WegOwnerDashboard = () => {
               <div>
                 <div className="font-medium">Frage stellen</div>
                 <div className="text-sm text-muted-foreground">RGI KI Assistent</div>
+              </div>
+            </div>
+          </Button>
+          
+          <Button 
+            variant="outline" 
+            className="w-full h-16 text-left justify-start border-0 bg-white shadow-sm hover:shadow-md transition-all duration-200"
+            onClick={() => navigate("/weg-owner/forum")}
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                <MessageSquare className="w-5 h-5 text-green-600" />
+              </div>
+              <div>
+                <div className="font-medium">Schwarzes Brett</div>
+                <div className="text-sm text-muted-foreground">Nachrichten und Ankündigungen</div>
               </div>
             </div>
           </Button>
