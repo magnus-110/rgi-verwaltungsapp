@@ -86,7 +86,7 @@ export const Buildings = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-start">
         <div>
-          <h2 className="heading-display text-4xl font-bold tracking-tight mb-2">
+          <h2 className="text-4xl font-sans font-semibold tracking-tight mb-2">
             {managementMode === 'weg' ? 'WEG-' : 'Miet-'}Gebäude
           </h2>
           <p className="body-secondary text-lg">

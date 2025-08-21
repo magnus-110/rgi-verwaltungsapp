@@ -32,7 +32,7 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <h1 className="heading-display text-3xl font-bold mb-2">Zugriff verweigert</h1>
+          <h1 className="text-3xl font-sans font-semibold mb-2">Zugriff verweigert</h1>
           <p className="body-secondary">Sie haben keine Berechtigung für diesen Bereich.</p>
         </div>
       </div>

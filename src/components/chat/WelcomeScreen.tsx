@@ -30,7 +30,7 @@ export const WelcomeScreen = ({ userName, userType, onSuggestionClick }: Welcome
           </div>
           
           <div className="space-y-2">
-            <h1 className="text-4xl font-display font-semibold text-foreground">
+            <h1 className="text-4xl font-sans font-semibold text-foreground">
               {getGreeting()}
               {userName && (
                 <span className="text-foreground"> {userName}!</span>

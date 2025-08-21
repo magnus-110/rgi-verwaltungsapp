@@ -156,7 +156,7 @@ export const Dashboard = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="heading-display text-4xl font-bold tracking-tight mb-2">
+        <h2 className="text-4xl font-sans font-semibold tracking-tight mb-2">
           {managementMode === 'weg' ? 'WEG-Verwaltung' : 'Mietverwaltung'} Dashboard
         </h2>
         <p className="body-secondary text-lg">
