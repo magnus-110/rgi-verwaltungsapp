@@ -1,7 +1,8 @@
+
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, Newspaper, Castle, Users, Sparkles, TrendingUp } from "lucide-react";
+import { AlertCircle, FileText, Building2, Users, Sparkles, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useManagementMode } from "@/hooks/useManagementMode";
 
@@ -10,13 +11,15 @@ const DashboardWidget = ({
   value, 
   description, 
   icon: Icon, 
-  trend 
+  trend,
+  isLoading = false
 }: { 
   title: string; 
-  value: string; 
+  value: string | number; 
   description: string; 
   icon: any; 
   trend?: string;
+  isLoading?: boolean;
 }) => (
   <Card className="hover:shadow-elegant transition-shadow">
     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -24,7 +27,9 @@ const DashboardWidget = ({
       <Icon className="h-4 w-4 text-muted-foreground" />
     </CardHeader>
     <CardContent>
-      <div className="heading-primary text-2xl font-bold text-primary">{value}</div>
+      <div className="heading-primary text-2xl font-bold text-primary">
+        {isLoading ? "..." : value}
+      </div>
       <p className="body-secondary text-xs">{description}</p>
       {trend && (
         <div className="flex items-center pt-1">
@@ -40,6 +45,13 @@ export const Dashboard = () => {
   const { managementMode } = useManagementMode();
   const [reports, setReports] = useState<any[]>([]);
   const [buildings, setBuildings] = useState<any[]>([]);
+  const [stats, setStats] = useState({
+    openReports: 0,
+    inProgressReports: 0,
+    resolvedReports: 0,
+    buildingsCount: 0,
+    totalReports: 0
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -48,29 +60,68 @@ export const Dashboard = () => {
 
   const fetchData = async () => {
     try {
-      // Fetch reports based on management mode
       const reportsTable = managementMode === 'weg' ? 'weg_reports' : 'miete_reports';
-      const { data: reportsData, error: reportsError } = await supabase
-        .from(reportsTable)
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(10);
+      
+      // Efficient counting queries
+      const [
+        openReportsResult,
+        inProgressReportsResult, 
+        resolvedReportsResult,
+        buildingsResult,
+        recentReportsResult,
+        recentBuildingsResult
+      ] = await Promise.all([
+        // Count reports by status
+        supabase
+          .from(reportsTable)
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'open'),
+        supabase
+          .from(reportsTable)
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'in_progress'),
+        supabase
+          .from(reportsTable)
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'resolved'),
+        
+        // Count buildings
+        supabase
+          .from('buildings')
+          .select('*', { count: 'exact', head: true })
+          .eq('management_mode', managementMode),
+        
+        // Get recent reports for display (only fetch what we need)
+        supabase
+          .from(reportsTable)
+          .select('id, title, status, priority, contact_name, created_at')
+          .order('created_at', { ascending: false })
+          .limit(5),
+        
+        // Get recent buildings for display
+        supabase
+          .from('buildings')
+          .select('id, name, address')
+          .eq('management_mode', managementMode)
+          .order('created_at', { ascending: false })
+          .limit(5)
+      ]);
 
-      if (reportsError) throw reportsError;
+      // Update stats
+      setStats({
+        openReports: openReportsResult.count || 0,
+        inProgressReports: inProgressReportsResult.count || 0, 
+        resolvedReports: resolvedReportsResult.count || 0,
+        buildingsCount: buildingsResult.count || 0,
+        totalReports: (openReportsResult.count || 0) + (inProgressReportsResult.count || 0) + (resolvedReportsResult.count || 0)
+      });
 
-      // Fetch buildings
-      const { data: buildingsData, error: buildingsError } = await supabase
-        .from("buildings")
-        .select("*")
-        .eq("management_mode", managementMode)
-        .order("created_at", { ascending: false });
+      // Set display data
+      setReports(recentReportsResult.data || []);
+      setBuildings(recentBuildingsResult.data || []);
 
-      if (buildingsError) throw buildingsError;
-
-      setReports(reportsData || []);
-      setBuildings(buildingsData || []);
     } catch (error) {
-      console.error("Error fetching data:", error);
+      console.error("Error fetching dashboard data:", error);
     } finally {
       setLoading(false);
     }
@@ -102,10 +153,6 @@ export const Dashboard = () => {
     }
   };
 
-  const openReports = reports.filter(r => r.status === "open").length;
-  const inProgressReports = reports.filter(r => r.status === "in_progress").length;
-  const resolvedReports = reports.filter(r => r.status === "resolved").length;
-
   return (
     <div className="space-y-6">
       <div>
@@ -121,30 +168,34 @@ export const Dashboard = () => {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <DashboardWidget
           title="Offene Meldungen"
-          value={openReports.toString()}
-          description={`${reports.filter(r => r.priority === "high").length} hoch, ${reports.filter(r => r.priority === "medium").length} mittel, ${reports.filter(r => r.priority === "low").length} niedrig`}
+          value={stats.openReports}
+          description="Neue Meldungen zur Bearbeitung"
           icon={AlertCircle}
-          trend={`${openReports > 0 ? '+' : ''}${openReports} offen`}
+          trend={stats.openReports > 0 ? `${stats.openReports} offen` : 'Keine offenen'}
+          isLoading={loading}
         />
         <DashboardWidget
           title="In Bearbeitung"
-          value={inProgressReports.toString()}
+          value={stats.inProgressReports}
           description="Meldungen werden bearbeitet"
-          icon={Newspaper}
-          trend={`${inProgressReports} aktiv`}
+          icon={FileText}
+          trend={`${stats.inProgressReports} aktiv`}
+          isLoading={loading}
         />
         <DashboardWidget
           title="Verwaltete Gebäude"
-          value={buildings.length.toString()}
+          value={stats.buildingsCount}
           description={`${managementMode === 'weg' ? 'WEG-' : 'Miet-'}Gebäude`}
-          icon={Castle}
+          icon={Building2}
+          isLoading={loading}
         />
         <DashboardWidget
           title="Erledigte Meldungen"
-          value={resolvedReports.toString()}
+          value={stats.resolvedReports}
           description="Erfolgreich abgeschlossen"
           icon={Users}
-          trend={`${resolvedReports} erledigt`}
+          trend={`${stats.resolvedReports} erledigt`}
+          isLoading={loading}
         />
       </div>
 
@@ -169,7 +220,7 @@ export const Dashboard = () => {
                   Keine Meldungen vorhanden
                 </div>
             ) : (
-              reports.slice(0, 5).map((report) => (
+              reports.map((report) => (
                 <div key={report.id} className={`border-l-4 ${getPriorityColor(report.priority)} pl-4`}>
                   <div className="flex justify-between items-start mb-1">
                     <h4 className="heading-primary font-medium">{report.title}</h4>
@@ -188,7 +239,7 @@ export const Dashboard = () => {
         <Card>
           <CardHeader>
             <CardTitle className="heading-primary flex items-center text-lg font-semibold">
-              <Castle className="mr-2 h-5 w-5" />
+              <Building2 className="mr-2 h-5 w-5" />
               Verwaltete Gebäude
             </CardTitle>
             <CardDescription className="body-secondary">
@@ -203,7 +254,7 @@ export const Dashboard = () => {
                   Keine Gebäude vorhanden
                 </div>
             ) : (
-              buildings.slice(0, 5).map((building) => (
+              buildings.map((building) => (
                 <div key={building.id} className="space-y-2">
                   <h4 className="heading-primary font-medium">{building.name}</h4>
                   <p className="body-secondary text-sm">{building.address}</p>
@@ -232,12 +283,12 @@ export const Dashboard = () => {
                 <p className="body-secondary text-sm">System Status</p>
               </div>
               <div className="text-center">
-                <div className="heading-primary text-2xl font-bold text-primary">247</div>
-                <p className="body-secondary text-sm">Anfragen heute</p>
+                <div className="heading-primary text-2xl font-bold text-primary">{stats.totalReports}</div>
+                <p className="body-secondary text-sm">Gesamte Meldungen</p>
               </div>
               <div className="text-center">
-                <div className="heading-primary text-2xl font-bold text-primary">94%</div>
-                <p className="body-secondary text-sm">Erfolgsrate</p>
+                <div className="heading-primary text-2xl font-bold text-primary">{stats.buildingsCount}</div>
+                <p className="body-secondary text-sm">Verwaltete Gebäude</p>
               </div>
             </div>
           </CardContent>
