@@ -45,17 +45,6 @@ const AttachmentLink = ({ attachment, index }: { attachment: any; index: number 
   );
 };
 
-// Predefined admin note responses
-const predefinedAdminNotes = [
-  "Handwerker wurde informiert und meldet sich bei Ihnen.",
-  "Reparatur wurde veranlasst und wird zeitnah durchgeführt.",
-  "Hausmeister wurde beauftragt, das Problem zu lösen.",
-  "Wartungsarbeiten sind für nächste Woche geplant.",
-  "Problem wurde an zuständige Firma weitergeleitet.",
-  "Ersatzteile wurden bestellt, Reparatur erfolgt nach Lieferung.",
-  "Termine für Besichtigung wurde vereinbart.",
-  "Kostenvoranschlag wird eingeholt und Ihnen mitgeteilt."
-];
 
 interface Report {
   id: string;
@@ -106,6 +95,7 @@ export const Reports = () => {
   const [timeFilter, setTimeFilter] = useState("all");
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
   const [selectedAdminNote, setSelectedAdminNote] = useState("");
+  const [templates, setTemplates] = useState<any[]>([]);
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [exportFilters, setExportFilters] = useState({
     status: "all",
@@ -117,6 +107,7 @@ export const Reports = () => {
   useEffect(() => {
     fetchReports();
     fetchBuildings();
+    fetchTemplates();
   }, [managementMode]);
 
   useEffect(() => {
@@ -199,6 +190,21 @@ export const Reports = () => {
       setBuildings(data || []);
     } catch (error) {
       console.error("Error fetching buildings:", error);
+    }
+  };
+
+  const fetchTemplates = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("report_templates")
+        .select("*")
+        .eq("management_mode", managementMode)
+        .order("name");
+
+      if (error) throw error;
+      setTemplates(data || []);
+    } catch (error) {
+      console.error("Error fetching templates:", error);
     }
   };
 
@@ -725,9 +731,9 @@ Beschreibung: ${report.description || 'Keine Beschreibung'}`;
                       <SelectValue placeholder="Vorgefertigte Antwort auswählen (optional)" />
                     </SelectTrigger>
                     <SelectContent className="bg-background border border-border shadow-lg z-50 max-h-60 overflow-y-auto">
-                      {predefinedAdminNotes.map((note, index) => (
-                        <SelectItem key={index} value={note}>
-                          {note}
+                      {templates.map((template) => (
+                        <SelectItem key={template.id} value={template.name}>
+                          {template.name}
                         </SelectItem>
                       ))}
                     </SelectContent>

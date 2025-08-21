@@ -132,7 +132,7 @@ export const Dashboard = () => {
       case "open":
         return <Badge variant="destructive">Offen</Badge>;
       case "in_progress":
-        return <Badge variant="secondary">In Bearbeitung</Badge>;
+        return <Badge variant="secondary">Bearbeitet</Badge>;
       case "resolved":
         return <Badge variant="default">Erledigt</Badge>;
       default:
@@ -175,7 +175,7 @@ export const Dashboard = () => {
           isLoading={loading}
         />
         <DashboardWidget
-          title="In Bearbeitung"
+          title="Bearbeitet"
           value={stats.inProgressReports}
           description="Meldungen werden bearbeitet"
           icon={FileText}
