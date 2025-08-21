@@ -3,8 +3,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Building, MessageSquare, Calendar } from "lucide-react";
+import { Building, MessageSquare, Calendar, FileText } from "lucide-react";
 import { format } from "date-fns";
 
 interface Building {
@@ -21,6 +22,7 @@ interface ForumPost {
   author_id: string;
   building_id: string;
   building?: Building;
+  attachments?: { name: string; path: string; size: number; type: string }[];
 }
 
 export const WegOwnerForum = () => {
@@ -73,6 +75,7 @@ export const WegOwnerForum = () => {
             created_at,
             author_id,
             building_id,
+            attachments,
             buildings:building_id (
               id,
               name,
@@ -87,7 +90,15 @@ export const WegOwnerForum = () => {
           return;
         }
 
-        setPosts(forumPosts || []);
+        // Parse attachments if they are stored as strings
+        const processedPosts = (forumPosts as any)?.map((post: any) => ({
+          ...post,
+          attachments: typeof post.attachments === 'string' 
+            ? JSON.parse(post.attachments || '[]') 
+            : post.attachments || []
+        })) || [];
+
+        setPosts(processedPosts);
       } catch (error) {
         console.error('Error:', error);
       } finally {
@@ -123,9 +134,9 @@ export const WegOwnerForum = () => {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Forum</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Schwarzes Brett</h1>
           <p className="text-muted-foreground">
-            Beiträge aus den Foren Ihrer verwalteten Gebäude
+            Beiträge aus dem Schwarzen Brett Ihrer verwalteten Gebäude
           </p>
         </div>
 
@@ -177,7 +188,7 @@ export const WegOwnerForum = () => {
               <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-semibold mb-2">Keine Beiträge gefunden</h3>
               <p className="text-muted-foreground">
-                Es gibt noch keine Forum-Beiträge für die ausgewählten Gebäude.
+                Es gibt noch keine Schwarzes Brett-Beiträge für die ausgewählten Gebäude.
               </p>
             </div>
           </CardContent>
@@ -212,6 +223,35 @@ export const WegOwnerForum = () => {
                         <div className="prose prose-sm max-w-none">
                           <p className="whitespace-pre-wrap">{post.content}</p>
                         </div>
+                        {/* Render attachments if available */}
+                        {post.attachments && post.attachments.length > 0 && (
+                          <div className="mt-4">
+                            <p className="text-sm font-medium mb-2">Anhänge:</p>
+                            <div className="flex flex-wrap gap-2">
+                              {post.attachments.map((attachment: any, index: number) => (
+                                <Button
+                                  key={index}
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    supabase.storage
+                                      .from('forum-attachments')
+                                      .createSignedUrl(attachment.path, 3600)
+                                      .then(({ data }) => {
+                                        if (data?.signedUrl) {
+                                          window.open(data.signedUrl, '_blank');
+                                        }
+                                      });
+                                  }}
+                                  className="h-8 text-xs"
+                                >
+                                  <FileText className="h-3 w-3 mr-1" />
+                                  {attachment.name}
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                         <Separator className="my-4" />
                         <div className="flex items-center justify-between text-sm text-muted-foreground">
                           <span>Verfasst von Administrator</span>

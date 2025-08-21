@@ -31,7 +31,7 @@ const menuItems = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Meldungen", url: "/reports", icon: AlertCircle },
   { title: "Gebäude", url: "/buildings", icon: Building2 },
-  { title: "Forum", url: "/forum", icon: MessageSquare },
+  { title: "Schwarzes Brett", url: "/forum", icon: MessageSquare },
   { title: "Chatbot", url: "/chatbot", icon: Bot },
   { title: "Einstellungen", url: "/settings", icon: Settings },
 ];

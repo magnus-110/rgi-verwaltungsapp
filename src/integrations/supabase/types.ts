@@ -83,8 +83,36 @@ export type Database = {
         }
         Relationships: []
       }
+      forum_post_templates: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          management_mode: Database["public"]["Enums"]["management_mode"]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          management_mode: Database["public"]["Enums"]["management_mode"]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          management_mode?: Database["public"]["Enums"]["management_mode"]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       forum_posts: {
         Row: {
+          attachments: Json | null
           author_id: string | null
           building_id: string | null
           content: string
@@ -95,6 +123,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          attachments?: Json | null
           author_id?: string | null
           building_id?: string | null
           content: string
@@ -105,6 +134,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          attachments?: Json | null
           author_id?: string | null
           building_id?: string | null
           content?: string

@@ -221,7 +221,7 @@ export const TenantDashboard = () => {
             >
               <MessageSquare className="w-5 h-5 text-green-500" />
               <div className="text-left">
-                <div className="font-medium">Forum besuchen</div>
+                <div className="font-medium">Schwarzes Brett besuchen</div>
                 <div className="text-xs text-muted-foreground">Diskussionen und Ankündigungen lesen</div>
               </div>
             </Button>

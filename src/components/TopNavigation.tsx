@@ -41,7 +41,7 @@ export const TopNavigation = ({ userRole }: TopNavigationProps) => {
         },
         { 
           icon: MessageSquare, 
-          label: "Forum", 
+          label: "Schwarzes Brett", 
           path: '/tenant/forum',
           active: location.pathname.startsWith('/tenant/forum')
         },
@@ -63,7 +63,7 @@ export const TopNavigation = ({ userRole }: TopNavigationProps) => {
         },
         { 
           icon: MessageSquare, 
-          label: "Forum", 
+          label: "Schwarzes Brett", 
           path: '/weg-owner/forum',
           active: location.pathname.startsWith('/weg-owner/forum')
         },
