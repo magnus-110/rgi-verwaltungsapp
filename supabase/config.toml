@@ -1,4 +1,7 @@
 project_id = "eebphowrbarzawwixqcc"
 
+[functions.admin-create-user]
+verify_jwt = true
+
 [functions.chat-with-ai]
 verify_jwt = false

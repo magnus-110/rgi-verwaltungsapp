@@ -306,207 +306,67 @@ export const Buildings = () => {
     }
 
     try {
-      // Create regular user signup (they need to confirm their email)
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: userForm.email,
-        password: userForm.password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-          data: {
-            first_name: userForm.first_name,
-            last_name: userForm.last_name,
-          }
+      // Use admin edge function to create user with proper privileges
+      const { data, error } = await supabase.functions.invoke('admin-create-user', {
+        body: {
+          email: userForm.email,
+          password: userForm.password,
+          first_name: userForm.first_name,
+          last_name: userForm.last_name,
+          phone: userForm.phone,
+          building_id: selectedBuildingId,
+          management_mode: managementMode
         }
       });
 
-      if (authError) {
-        // Handle specific error cases
-        if (authError.message.includes("already registered")) {
-          toast({
-            title: "Fehler", 
-            description: "Ein Benutzer mit dieser E-Mail-Adresse ist bereits registriert.",
-            variant: "destructive",
-          });
-          return;
-        }
-        throw authError;
+      if (error) {
+        console.error("User creation error:", error);
+        toast({
+          title: "Fehler",
+          description: error.message || "Benutzer konnte nicht erstellt werden.",
+          variant: "destructive",
+        });
+        return;
       }
 
+      if (!data?.success) {
+        toast({
+          title: "Fehler",
+          description: data?.error || "Benutzer konnte nicht erstellt werden.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Refresh the appropriate user list for this building
       if (managementMode === 'weg') {
-        // For WEG management mode, set role to weg_owner
-        if (authData.user) {
-          // Update the profile created by the trigger to have the correct role based on management mode
-          const { error: profileError } = await supabase
-            .from("profiles")
-            .update({
-              first_name: userForm.first_name,
-              last_name: userForm.last_name,
-              role: 'weg_owner', // Always weg_owner in WEG mode
-              force_password_change: true // Force password change for new users
-            })
-            .eq("user_id", authData.user.id);
-
-          if (profileError) {
-            console.warn("Profile update failed:", profileError);
-          }
-        }
-
-        // Create WEG owner entry (upsert to handle existing users)
-        const { data: wegOwnerData, error: wegOwnerError } = await supabase
-          .from("weg_owners")
-          .upsert({
-            user_id: authData.user.id,
-            email: userForm.email,
-            first_name: userForm.first_name,
-            last_name: userForm.last_name,
-            phone: userForm.phone,
-          })
-          .select()
-          .single();
-
-        if (wegOwnerError) {
-          console.error("WEG owner creation error:", wegOwnerError);
-        }
-
-        // Create building assignment (upsert to handle existing assignments)
-        const { error: assignmentError } = await supabase
-          .from("weg_owner_buildings")
-          .upsert({
-            user_id: authData.user.id,
-            building_id: selectedBuildingId
-          });
-
-        if (assignmentError) {
-          console.error("Building assignment error:", assignmentError);
-        }
-
-        // Refresh the owners list for this building
         await fetchWegOwners(selectedBuildingId);
       } else {
-        // For rental management mode, set role to tenant
-        if (authData.user) {
-          const { error: profileError } = await supabase
-            .from("profiles")
-            .update({
-              first_name: userForm.first_name,
-              last_name: userForm.last_name,
-              role: 'tenant', // Always tenant in rental mode
-              building_id: selectedBuildingId,
-              force_password_change: true // Force password change for new users
-            })
-            .eq("user_id", authData.user.id);
-
-          if (profileError) {
-            console.warn("Profile update failed:", profileError);
-          }
-
-          const { data: tenantData, error: tenantError } = await supabase
-            .from("tenants")
-            .insert([{
-              user_id: authData.user.id,
-              building_id: selectedBuildingId,
-              email: userForm.email,
-              first_name: userForm.first_name,
-              last_name: userForm.last_name,
-              phone: userForm.phone,
-            }])
-            .select()
-            .single();
-
-          if (tenantError) {
-            console.error("Tenant creation error:", tenantError);
-          } else {
-            setTenants(prev => ({
-              ...prev,
-              [selectedBuildingId]: [...(prev[selectedBuildingId] || []), tenantData]
-            }));
-          }
-        }
+        await fetchTenants(selectedBuildingId);
       }
-
-      setUserForm({ email: "", password: "", first_name: "", last_name: "", phone: "" });
-      setIsCreateUserOpen(false);
-      setSelectedBuildingId("");
       
       toast({
         title: "Erfolg",
-        description: `${managementMode === 'weg' ? 'WEG-Eigentümer' : 'Mieter'} wurde erfolgreich erstellt. ${authData.user?.email_confirmed_at ? 'Sie können sich sofort anmelden.' : 'Eine Bestätigungs-E-Mail wurde gesendet.'}`,
+        description: `${managementMode === 'weg' ? 'WEG-Eigentümer' : 'Mieter'} wurde erfolgreich erstellt.`,
       });
+
+      // Reset form and close dialog
+      setUserForm({
+        email: "",
+        password: "",
+        first_name: "",
+        last_name: "",
+        phone: "",
+      });
+      setIsCreateUserOpen(false);
+
     } catch (error: any) {
       console.error("Error creating user:", error);
-      
-      // Handle case where user already exists
-      if (error.message?.includes("already registered")) {
-        if (managementMode === 'weg') {
-          try {
-            // Find existing user by email
-            const { data: existingProfile } = await supabase
-              .from("profiles")
-              .select("user_id, first_name, last_name, phone")
-              .eq("email", userForm.email)
-              .single();
-
-            if (existingProfile) {
-              // Update role to weg_owner
-              await supabase
-                .from("profiles")
-                .update({ role: 'weg_owner' })
-                .eq("user_id", existingProfile.user_id);
-
-              // Upsert WEG owner entry
-              await supabase
-                .from("weg_owners")
-                .upsert({
-                  user_id: existingProfile.user_id,
-                  email: userForm.email,
-                  first_name: userForm.first_name || existingProfile.first_name,
-                  last_name: userForm.last_name || existingProfile.last_name,
-                  phone: userForm.phone || existingProfile.phone,
-                });
-
-              // Create building assignment
-              await supabase
-                .from("weg_owner_buildings")
-                .upsert({
-                  user_id: existingProfile.user_id,
-                  building_id: selectedBuildingId
-                });
-
-              // Refresh the owners list
-              await fetchWegOwners(selectedBuildingId);
-
-              setUserForm({ email: "", password: "", first_name: "", last_name: "", phone: "" });
-              setIsCreateUserOpen(false);
-              setSelectedBuildingId("");
-              
-              toast({
-                title: "Erfolg",
-                description: "Bestehender Benutzer wurde dem Gebäude zugeordnet.",
-              });
-              return;
-            }
-          } catch (assignError: any) {
-            console.error("Error assigning existing user:", assignError);
-          }
-        }
-        
-        toast({
-          title: "Fehler", 
-          description: "Ein Benutzer mit dieser E-Mail-Adresse ist bereits registriert.",
-          variant: "destructive",
-        });
-      } else {
-        let errorMessage = `${managementMode === 'weg' ? 'WEG-Eigentümer' : 'Mieter'} konnte nicht erstellt werden.`;
-        if (error.message) {
-          errorMessage += ` Details: ${error.message}`;
-        }
-        
-        toast({
-          title: "Fehler",
-          description: errorMessage,
-          variant: "destructive",
-        });
-      }
+      toast({
+        title: "Fehler",
+        description: "Ein unerwarteter Fehler ist aufgetreten.",
+        variant: "destructive",
+      });
     }
   };
 
