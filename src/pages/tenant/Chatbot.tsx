@@ -89,7 +89,7 @@ export const TenantChatbot = () => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-gradient-warm min-h-screen">
+    <div className="h-full flex flex-col bg-background min-h-screen">
       {!hasStartedChat ? (
         <WelcomeScreen 
           userName={profile?.first_name}
@@ -98,8 +98,8 @@ export const TenantChatbot = () => {
         />
       ) : (
         <div className="flex-1 flex flex-col">
-          <ScrollArea className="flex-1 bg-muted/10">
-            <div className="min-h-full">
+          <ScrollArea className="flex-1">
+            <div className="min-h-full py-4">
               {messages.map((message) => (
                 <ChatMessage key={message.id} message={message} />
               ))}
@@ -113,7 +113,6 @@ export const TenantChatbot = () => {
       <ChatInput 
         onSendMessage={sendMessage}
         isLoading={isLoading}
-        placeholder="Stellen Sie Fragen zu Ihrem Gebäude und Mietangelegenheiten..."
       />
       
       <HelpFab 

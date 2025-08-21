@@ -154,7 +154,7 @@ export const WegOwnerChatbot = () => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-gradient-warm min-h-screen">
+    <div className="h-full flex flex-col bg-background min-h-screen">
       {!hasStartedChat ? (
         <WelcomeScreen 
           userName={profile?.first_name}
@@ -162,8 +162,8 @@ export const WegOwnerChatbot = () => {
           onSuggestionClick={handleSendMessage}
         />
       ) : (
-        <ScrollArea className="flex-1 bg-muted/10">
-          <div className="min-h-full">
+        <ScrollArea className="flex-1">
+          <div className="min-h-full py-4">
             {messages.map((message) => (
               <ChatMessage key={message.id} message={message} />
             ))}
@@ -179,7 +179,7 @@ export const WegOwnerChatbot = () => {
         disabled={buildings.length === 0}
         placeholder={buildings.length === 0 ? 
           "Keine Gebäude zugeordnet. Wenden Sie sich an die Verwaltung." : 
-          "Stellen Sie Fragen zu Ihren Gebäuden und Verwaltungsangelegenheiten..."}
+          undefined}
       />
       
       <HelpFab 

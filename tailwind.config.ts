@@ -78,10 +78,6 @@ export default {
 					ring: 'hsl(var(--sidebar-ring))'
 				}
 			},
-			backgroundImage: {
-				'gradient-primary': 'var(--gradient-primary)',
-				'gradient-warm': 'var(--gradient-warm)'
-			},
 			boxShadow: {
 				'rgi': 'var(--shadow-rgi)',
 				'card': 'var(--shadow-card)',

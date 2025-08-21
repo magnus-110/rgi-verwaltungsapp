@@ -52,8 +52,6 @@ All colors MUST be HSL.
     --sidebar-ring: 25 94% 48%;                /* Orange focus */
     
     /* RGI Effects */
-    --gradient-primary: linear-gradient(135deg, hsl(25 94% 48%), hsl(25 85% 42%));
-    --gradient-warm: linear-gradient(180deg, hsl(35 20% 99%), hsl(35 20% 96%));
     --shadow-rgi: 0 8px 32px -8px hsl(25 94% 48% / 0.15);
     --shadow-card: 0 2px 12px -2px hsl(0 3% 29% / 0.08);
     --transition-rgi: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -194,15 +192,7 @@ All colors MUST be HSL.
   
   /* RGI Header styles */
   .rgi-header {
-    @apply bg-gradient-warm border-b border-border backdrop-blur-md;
-  }
-  
-  /* RGI Text styles */
-  .rgi-text-gradient {
-    background: var(--gradient-primary);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    @apply bg-background border-b border-border backdrop-blur-md;
   }
   
   /* Smooth line clamp utility */

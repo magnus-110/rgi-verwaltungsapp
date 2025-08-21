@@ -62,56 +62,30 @@ const wegOwnerSuggestions = [
 ];
 
 export const WelcomeScreen = ({ userName, userType, onSuggestionClick }: WelcomeScreenProps) => {
-  const suggestions = userType === 'tenant' ? tenantSuggestions : wegOwnerSuggestions;
-  const userTypeText = userType === 'tenant' ? 'Mieter' : 'WEG-Eigentümer';
-
   return (
-    <div className="flex-1 flex items-center justify-center p-6">
-      <div className="max-w-2xl w-full space-y-8 animate-fade-in">
-        {/* Greeting */}
-        <div className="text-center space-y-4">
-          <div className="w-16 h-16 mx-auto bg-gradient-primary rounded-full flex items-center justify-center mb-6">
-            <MessageCircle className="w-8 h-8 text-white" />
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="w-full max-w-2xl text-center space-y-8">
+        {/* Header */}
+        <div className="space-y-4">
+          <div className="w-20 h-20 mx-auto bg-primary rounded-2xl flex items-center justify-center">
+            <img 
+              src="/lovable-uploads/2f4fde3b-f4b0-4829-9fcb-a148e37bae43.png" 
+              alt="RGI Haus"
+              className="w-10 h-10"
+            />
           </div>
           
-          <h1 className="text-3xl font-bold text-foreground">
-            {getGreeting()}, {userName || userTypeText}!
-          </h1>
-          
-          <p className="text-lg text-muted-foreground max-w-md mx-auto leading-relaxed">
-            {userType === 'tenant' 
-              ? "Ich bin Ihr KI-Assistent und helfe Ihnen bei Fragen rund um Ihr Gebäude und Ihre Mietangelegenheiten."
-              : "Ich bin Ihr KI-Assistent für Gebäudeinformationen und WEG-Verwaltung."
-            }
-          </p>
-        </div>
-
-        {/* Suggestion Pills */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {suggestions.map((suggestion, index) => (
-            <Button
-              key={index}
-              variant="outline"
-              className="h-auto p-4 text-left justify-start hover-scale transition-all duration-200 bg-card hover:bg-accent border-border/50 hover:border-primary/30"
-              onClick={() => onSuggestionClick(suggestion.message)}
-            >
-              <div className="flex items-center gap-3 w-full">
-                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  <suggestion.icon className="w-4 h-4 text-primary" />
-                </div>
-                <span className="text-sm font-medium text-foreground text-left">
-                  {suggestion.text}
-                </span>
-              </div>
-            </Button>
-          ))}
-        </div>
-
-        {/* Help Text */}
-        <div className="text-center">
-          <p className="text-sm text-muted-foreground/80">
-            Wählen Sie eine der Optionen oben oder stellen Sie eine eigene Frage
-          </p>
+          <div className="space-y-2">
+            <h1 className="text-4xl font-display font-semibold text-foreground">
+              {getGreeting()}
+              {userName && (
+                <span className="text-foreground"> {userName}!</span>
+              )}
+            </h1>
+            <p className="text-xl text-primary font-semibold">
+              RGI KI-Assistent
+            </p>
+          </div>
         </div>
       </div>
     </div>

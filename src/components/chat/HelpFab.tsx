@@ -108,7 +108,7 @@ export const HelpFab = ({ userType, selectedBuildingId, onBuildingChange, userNa
         <Button
           onClick={() => setIsOpen(true)}
           size="icon"
-          className="w-14 h-14 rounded-full shadow-lg bg-gradient-primary hover:bg-gradient-primary/90 text-white border-2 border-white/20"
+          className="w-14 h-14 rounded-full shadow-lg bg-primary hover:bg-primary/90 text-white border-2 border-white/20"
         >
           <HelpCircle className="w-6 h-6" />
         </Button>
