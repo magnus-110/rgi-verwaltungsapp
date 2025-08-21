@@ -154,7 +154,7 @@ export const WegOwnerChatbot = () => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-background min-h-screen">
+    <div className="h-full flex flex-col bg-background">
       {!hasStartedChat ? (
         <WelcomeScreen 
           userName={profile?.first_name}
@@ -162,25 +162,29 @@ export const WegOwnerChatbot = () => {
           onSuggestionClick={handleSendMessage}
         />
       ) : (
-        <ScrollArea className="flex-1">
-          <div className="min-h-full py-4">
-            {messages.map((message) => (
-              <ChatMessage key={message.id} message={message} />
-            ))}
-            
-            {isTyping && <TypingIndicator />}
-          </div>
-        </ScrollArea>
+        <div className="flex-1 flex flex-col pb-28">
+          <ScrollArea className="flex-1">
+            <div className="min-h-full py-4">
+              {messages.map((message) => (
+                <ChatMessage key={message.id} message={message} />
+              ))}
+              
+              {isTyping && <TypingIndicator />}
+            </div>
+          </ScrollArea>
+        </div>
       )}
       
-      <ChatInput 
-        onSendMessage={handleSendMessage}
-        isLoading={isTyping}
-        disabled={buildings.length === 0}
-        placeholder={buildings.length === 0 ? 
-          "Keine Gebäude zugeordnet. Wenden Sie sich an die Verwaltung." : 
-          undefined}
-      />
+      {hasStartedChat && (
+        <ChatInput 
+          onSendMessage={handleSendMessage}
+          isLoading={isTyping}
+          disabled={buildings.length === 0}
+          placeholder={buildings.length === 0 ? 
+            "Keine Gebäude zugeordnet. Wenden Sie sich an die Verwaltung." : 
+            undefined}
+        />
+      )}
       
       <HelpFab 
         userType="weg_owner"

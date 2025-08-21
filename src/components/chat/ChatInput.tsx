@@ -33,8 +33,8 @@ export const ChatInput = ({
   };
 
   return (
-    <div className="border-t border-border bg-background p-4">
-      <div className="max-w-3xl mx-auto space-y-3">
+    <div className="fixed bottom-0 left-0 right-0 bg-background border-t border-border z-40">
+      <div className="max-w-3xl mx-auto space-y-3 p-4">
         <div className="flex gap-2">
           <Textarea
             value={message}

@@ -89,7 +89,7 @@ export const TenantChatbot = () => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-background min-h-screen">
+    <div className="h-full flex flex-col bg-background">
       {!hasStartedChat ? (
         <WelcomeScreen 
           userName={profile?.first_name}
@@ -97,7 +97,7 @@ export const TenantChatbot = () => {
           onSuggestionClick={sendMessage}
         />
       ) : (
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col pb-28">
           <ScrollArea className="flex-1">
             <div className="min-h-full py-4">
               {messages.map((message) => (
@@ -110,10 +110,12 @@ export const TenantChatbot = () => {
         </div>
       )}
       
-      <ChatInput 
-        onSendMessage={sendMessage}
-        isLoading={isLoading}
-      />
+      {hasStartedChat && (
+        <ChatInput 
+          onSendMessage={sendMessage}
+          isLoading={isLoading}
+        />
+      )}
       
       <HelpFab 
         userType="tenant"
