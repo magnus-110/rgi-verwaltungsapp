@@ -42,7 +42,7 @@ export const ChatInput = ({
             onKeyDown={handleKeyPress}
             placeholder={placeholder}
             disabled={isLoading || disabled}
-            className="min-h-[44px] max-h-32 resize-none bg-muted border-border focus:border-primary/50 focus:ring-2 focus:ring-primary/20 pr-12"
+            className="min-h-[44px] max-h-32 resize-none bg-muted border-border focus:border-border focus:ring-0 pr-12"
             rows={1}
           />
           <Button

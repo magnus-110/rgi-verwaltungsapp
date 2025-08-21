@@ -26,7 +26,7 @@ export const WelcomeScreen = ({ userName, userType, onSuggestionClick }: Welcome
               <img 
                 src="/lovable-uploads/2f4fde3b-f4b0-4829-9fcb-a148e37bae43.png" 
                 alt="RGI Haus"
-                className="w-16 h-16"
+                className="w-16 h-auto object-contain"
               />
             </div>
             
@@ -50,7 +50,7 @@ export const WelcomeScreen = ({ userName, userType, onSuggestionClick }: Welcome
         <div className="relative">
           <Textarea
             placeholder="Stellen Sie irgendeine Frage"
-            className="min-h-[44px] max-h-32 resize-none bg-muted border-border focus:border-primary/50 focus:ring-2 focus:ring-primary/20 pr-12"
+            className="min-h-[44px] max-h-32 resize-none bg-muted border-border focus:border-border focus:ring-0 pr-12"
             rows={1}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {

@@ -117,9 +117,6 @@ export const MobileHeader = ({ userRole }: MobileHeaderProps) => {
                   alt="RGI Immobilien Logo" 
                   className="h-8 w-auto object-contain"
                 />
-                <Button variant="ghost" size="icon" onClick={() => setIsOpen(false)}>
-                  <X className="w-5 h-5" />
-                </Button>
               </div>
 
               {/* User Info */}
