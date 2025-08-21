@@ -8,11 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { BuildingRow } from "@/components/BuildingRow";
 import { BulkUpload } from "@/components/BulkUpload";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useManagementMode } from "@/hooks/useManagementMode";
 
 export const Buildings = () => {
   const { managementMode } = useManagementMode();
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("name");
   const [page, setPage] = useState(0);
@@ -75,6 +76,12 @@ export const Buildings = () => {
     setPage(0); // Reset to first page when sorting changes
   };
 
+  const handleUploadComplete = () => {
+    // Invalidate queries to refresh the buildings list
+    queryClient.invalidateQueries({ queryKey: ['buildings-paginated'] });
+    queryClient.invalidateQueries({ queryKey: ['building-user-counts'] });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-start">
@@ -87,7 +94,11 @@ export const Buildings = () => {
           </p>
         </div>
         <div className="flex space-x-2">
-          <BulkUpload />
+          <BulkUpload 
+            buildingId=""
+            managementMode={managementMode}
+            onUploadComplete={handleUploadComplete}
+          />
           <Button>
             <Plus className="mr-2 h-4 w-4" />
             Gebäude hinzufügen

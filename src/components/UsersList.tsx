@@ -39,14 +39,15 @@ export const UsersList = ({ buildingId, userType, count }: UsersListProps) => {
           .range(page * pageSize, (page + 1) * pageSize - 1);
         
         if (error) throw error;
-        return data.map(user => ({ ...user, id: user.user_id }));
+        return (data || []).map(user => ({ ...user, id: user.user_id }));
       } else {
-        // WEG owners via weg_owner_buildings junction table
+        // For WEG owners, we need to join through the junction table differently
         const { data, error } = await supabase
           .from('weg_owner_buildings')
           .select(`
-            weg_owners:user_id (
-              user_id,
+            user_id,
+            created_at,
+            weg_owners!inner (
               email,
               first_name,
               last_name,
@@ -59,9 +60,13 @@ export const UsersList = ({ buildingId, userType, count }: UsersListProps) => {
           .range(page * pageSize, (page + 1) * pageSize - 1);
         
         if (error) throw error;
-        return data.map(item => ({ 
-          ...item.weg_owners, 
-          id: item.weg_owners.user_id 
+        return (data || []).map(item => ({ 
+          id: item.user_id,
+          email: item.weg_owners.email,
+          first_name: item.weg_owners.first_name,
+          last_name: item.weg_owners.last_name,
+          phone: item.weg_owners.phone,
+          created_at: item.weg_owners.created_at
         }));
       }
     },
