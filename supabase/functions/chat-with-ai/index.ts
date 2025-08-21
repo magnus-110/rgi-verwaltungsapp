@@ -187,6 +187,16 @@ serve(async (req) => {
       });
     }
 
+    // Build knowledge base string from knowledge_items or fallback to knowledge_base
+    let knowledgeString = "";
+    if (settings.knowledge_items && Array.isArray(settings.knowledge_items) && settings.knowledge_items.length > 0) {
+      knowledgeString = settings.knowledge_items
+        .map(item => `${item.title}: ${item.content}`)
+        .join('\n\n');
+    } else if (settings.knowledge_base) {
+      knowledgeString = settings.knowledge_base;
+    }
+
     // Call OpenAI API
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -199,7 +209,7 @@ serve(async (req) => {
         messages: [
           { 
             role: 'system', 
-            content: `${settings.system_prompt}\n\nWissensdatenbank:\n${settings.knowledge_base}\n\nAktuelle Kontextdaten:${contextData}\n\nSie sprechen mit: ${profile?.first_name} ${profile?.last_name} (${profile?.email})${managementMode === 'weg' ? ' - WEG-Eigentümer' : ' - Mieter'}${buildingId ? `. Gebäude-ID: ${buildingId}` : managementMode === 'weg' ? '. Keine spezifische Gebäude-ID angegeben - bitten Sie um die Gebäude-ID für spezifische Informationen.' : ''}`
+            content: `${settings.system_prompt}\n\nWissensdatenbank:\n${knowledgeString}\n\nAktuelle Kontextdaten:${contextData}\n\nSie sprechen mit: ${profile?.first_name} ${profile?.last_name} (${profile?.email})${managementMode === 'weg' ? ' - WEG-Eigentümer' : ' - Mieter'}${buildingId ? `. Gebäude-ID: ${buildingId}` : managementMode === 'weg' ? '. Keine spezifische Gebäude-ID angegeben - bitten Sie um die Gebäude-ID für spezifische Informationen.' : ''}`
           },
           { role: 'user', content: message }
         ],

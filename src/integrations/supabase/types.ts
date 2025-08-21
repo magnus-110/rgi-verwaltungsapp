@@ -51,6 +51,7 @@ export type Database = {
         Row: {
           id: string
           knowledge_base: string | null
+          knowledge_items: Json | null
           management_mode: Database["public"]["Enums"]["management_mode"]
           max_tokens: number | null
           model: string | null
@@ -62,6 +63,7 @@ export type Database = {
         Insert: {
           id?: string
           knowledge_base?: string | null
+          knowledge_items?: Json | null
           management_mode: Database["public"]["Enums"]["management_mode"]
           max_tokens?: number | null
           model?: string | null
@@ -73,6 +75,7 @@ export type Database = {
         Update: {
           id?: string
           knowledge_base?: string | null
+          knowledge_items?: Json | null
           management_mode?: Database["public"]["Enums"]["management_mode"]
           max_tokens?: number | null
           model?: string | null
