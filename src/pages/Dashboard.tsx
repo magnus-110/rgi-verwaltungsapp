@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, MessageSquare, Building2, Users, Bot, TrendingUp } from "lucide-react";
+import { AlertCircle, Newspaper, Castle, Users, Sparkles, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useManagementMode } from "@/hooks/useManagementMode";
 
@@ -20,16 +20,16 @@ const DashboardWidget = ({
 }) => (
   <Card className="hover:shadow-elegant transition-shadow">
     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-      <CardTitle className="text-sm font-medium">{title}</CardTitle>
+      <CardTitle className="label-text text-sm font-medium">{title}</CardTitle>
       <Icon className="h-4 w-4 text-muted-foreground" />
     </CardHeader>
     <CardContent>
-      <div className="text-2xl font-bold text-primary">{value}</div>
-      <p className="text-xs text-muted-foreground">{description}</p>
+      <div className="heading-primary text-2xl font-bold text-primary">{value}</div>
+      <p className="body-secondary text-xs">{description}</p>
       {trend && (
         <div className="flex items-center pt-1">
           <TrendingUp className="h-3 w-3 text-green-500 mr-1" />
-          <span className="text-xs text-green-500">{trend}</span>
+          <span className="body-secondary text-xs text-green-500">{trend}</span>
         </div>
       )}
     </CardContent>
@@ -109,10 +109,10 @@ export const Dashboard = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">
+        <h2 className="heading-display text-4xl font-bold tracking-tight mb-2">
           {managementMode === 'weg' ? 'WEG-Verwaltung' : 'Mietverwaltung'} Dashboard
         </h2>
-        <p className="text-muted-foreground">
+        <p className="body-secondary text-lg">
           Überblick über Ihre {managementMode === 'weg' ? 'WEG-' : 'Miet-'}Verwaltungsaktivitäten
         </p>
       </div>
@@ -130,14 +130,14 @@ export const Dashboard = () => {
           title="In Bearbeitung"
           value={inProgressReports.toString()}
           description="Meldungen werden bearbeitet"
-          icon={MessageSquare}
+          icon={Newspaper}
           trend={`${inProgressReports} aktiv`}
         />
         <DashboardWidget
           title="Verwaltete Gebäude"
           value={buildings.length.toString()}
           description={`${managementMode === 'weg' ? 'WEG-' : 'Miet-'}Gebäude`}
-          icon={Building2}
+          icon={Castle}
         />
         <DashboardWidget
           title="Erledigte Meldungen"
@@ -153,29 +153,29 @@ export const Dashboard = () => {
         {/* Aktuelle Meldungen */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center">
+            <CardTitle className="heading-primary flex items-center text-lg font-semibold">
               <AlertCircle className="mr-2 h-5 w-5" />
               Aktuelle {managementMode === 'weg' ? 'WEG-' : 'Miet-'}Meldungen
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="body-secondary">
               Die neuesten eingegangenen Meldungen
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {loading ? (
-              <div className="text-center py-4">Laden...</div>
+              <div className="text-center py-4 body-secondary">Laden...</div>
             ) : reports.length === 0 ? (
-              <div className="text-center py-4 text-muted-foreground">
-                Keine Meldungen vorhanden
-              </div>
+                <div className="text-center py-4 body-secondary">
+                  Keine Meldungen vorhanden
+                </div>
             ) : (
               reports.slice(0, 5).map((report) => (
                 <div key={report.id} className={`border-l-4 ${getPriorityColor(report.priority)} pl-4`}>
                   <div className="flex justify-between items-start mb-1">
-                    <h4 className="font-medium">{report.title}</h4>
+                    <h4 className="heading-primary font-medium">{report.title}</h4>
                     {getStatusBadge(report.status)}
                   </div>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="body-secondary text-sm">
                     {report.contact_name} • {new Date(report.created_at).toLocaleDateString('de-DE')}
                   </p>
                 </div>
@@ -187,26 +187,26 @@ export const Dashboard = () => {
         {/* Gebäude Übersicht */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <Building2 className="mr-2 h-5 w-5" />
+            <CardTitle className="heading-primary flex items-center text-lg font-semibold">
+              <Castle className="mr-2 h-5 w-5" />
               Verwaltete Gebäude
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="body-secondary">
               Übersicht Ihrer {managementMode === 'weg' ? 'WEG-' : 'Miet-'}Gebäude
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {loading ? (
-              <div className="text-center py-4">Laden...</div>
+                  <div className="text-center py-4 body-secondary">Laden...</div>
             ) : buildings.length === 0 ? (
-              <div className="text-center py-4 text-muted-foreground">
-                Keine Gebäude vorhanden
-              </div>
+                <div className="text-center py-4 body-secondary">
+                  Keine Gebäude vorhanden
+                </div>
             ) : (
               buildings.slice(0, 5).map((building) => (
                 <div key={building.id} className="space-y-2">
-                  <h4 className="font-medium">{building.name}</h4>
-                  <p className="text-sm text-muted-foreground">{building.address}</p>
+                  <h4 className="heading-primary font-medium">{building.name}</h4>
+                  <p className="body-secondary text-sm">{building.address}</p>
                 </div>
               ))
             )}
@@ -217,27 +217,27 @@ export const Dashboard = () => {
         {/* Chatbot Status */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center">
-              <Bot className="mr-2 h-5 w-5" />
+            <CardTitle className="heading-primary flex items-center text-lg font-semibold">
+              <Sparkles className="mr-2 h-5 w-5" />
               Chatbot Status
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="body-secondary">
               Aktueller Status und Nutzungsstatistiken des AI-Assistenten
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="grid gap-4 md:grid-cols-3">
               <div className="text-center">
-                <div className="text-2xl font-bold text-green-500">Online</div>
-                <p className="text-sm text-muted-foreground">System Status</p>
+                <div className="heading-primary text-2xl font-bold text-green-500">Online</div>
+                <p className="body-secondary text-sm">System Status</p>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-primary">247</div>
-                <p className="text-sm text-muted-foreground">Anfragen heute</p>
+                <div className="heading-primary text-2xl font-bold text-primary">247</div>
+                <p className="body-secondary text-sm">Anfragen heute</p>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-primary">94%</div>
-                <p className="text-sm text-muted-foreground">Erfolgsrate</p>
+                <div className="heading-primary text-2xl font-bold text-primary">94%</div>
+                <p className="body-secondary text-sm">Erfolgsrate</p>
               </div>
             </div>
           </CardContent>

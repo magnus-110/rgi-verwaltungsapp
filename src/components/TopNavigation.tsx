@@ -2,13 +2,13 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { 
-  Home, 
-  AlertCircle, 
-  MessageSquare, 
-  Bot, 
-  Settings,
+  House, 
+  Shield, 
+  Newspaper, 
+  Sparkles, 
+  Crown,
   LogOut,
-  User
+  UserRound
 } from "lucide-react";
 
 interface TopNavigationProps {
@@ -23,7 +23,7 @@ export const TopNavigation = ({ userRole }: TopNavigationProps) => {
   const getNavigationItems = () => {
     const baseItems = [
       { 
-        icon: Home, 
+        icon: House, 
         label: "Dashboard", 
         path: userRole === 'tenant' ? '/tenant' : '/weg-owner',
         active: location.pathname === (userRole === 'tenant' ? '/tenant' : '/weg-owner')
@@ -34,19 +34,19 @@ export const TopNavigation = ({ userRole }: TopNavigationProps) => {
       return [
         ...baseItems,
         { 
-          icon: AlertCircle, 
+          icon: Shield, 
           label: "Meine Tickets", 
           path: '/tenant/reports',
           active: location.pathname.startsWith('/tenant/reports')
         },
         { 
-          icon: MessageSquare, 
+          icon: Newspaper, 
           label: "Schwarzes Brett", 
           path: '/tenant/forum',
           active: location.pathname.startsWith('/tenant/forum')
         },
         { 
-          icon: MessageSquare, 
+          icon: Sparkles, 
           label: "Chat", 
           path: '/tenant/chatbot',
           active: location.pathname.startsWith('/tenant/chatbot')
@@ -56,19 +56,19 @@ export const TopNavigation = ({ userRole }: TopNavigationProps) => {
       return [
         ...baseItems,
         { 
-          icon: AlertCircle, 
+          icon: Shield, 
           label: "Meine Tickets", 
           path: '/weg-owner/reports',
           active: location.pathname.startsWith('/weg-owner/reports')
         },
         { 
-          icon: MessageSquare, 
+          icon: Newspaper, 
           label: "Schwarzes Brett", 
           path: '/weg-owner/forum',
           active: location.pathname.startsWith('/weg-owner/forum')
         },
         { 
-          icon: Bot, 
+          icon: Sparkles, 
           label: "Chat", 
           path: '/weg-owner/chatbot',
           active: location.pathname.startsWith('/weg-owner/chatbot')
@@ -115,10 +115,10 @@ export const TopNavigation = ({ userRole }: TopNavigationProps) => {
           {/* User Menu */}
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-3 px-3 py-2 bg-muted/50 rounded-lg">
-              <User className="w-4 h-4 text-muted-foreground" />
-              <div className="text-sm">
-                <div className="font-medium">{profile?.first_name || 'Benutzer'}</div>
-                <div className="text-xs text-muted-foreground">
+              <UserRound className="w-4 h-4 text-muted-foreground" />
+              <div className="body-text text-sm">
+                <div className="heading-primary font-semibold">{profile?.first_name || 'Benutzer'}</div>
+                <div className="body-secondary text-xs">
                   {userRole === 'tenant' ? 'Mieter' : 'WEG-Eigentümer'}
                 </div>
               </div>
@@ -130,7 +130,7 @@ export const TopNavigation = ({ userRole }: TopNavigationProps) => {
               onClick={() => navigate(userRole === 'tenant' ? '/tenant/settings' : '/weg-owner/settings')}
               className="rounded-lg"
             >
-              <Settings className="w-4 h-4" />
+              <Crown className="w-4 h-4" />
             </Button>
             
             <Button

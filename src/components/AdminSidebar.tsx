@@ -1,11 +1,11 @@
 import React, { useState } from "react";
 import { 
-  LayoutDashboard, 
-  AlertCircle, 
-  Building2, 
-  MessageSquare, 
-  Bot, 
-  Settings,
+  BarChart3,
+  Shield, 
+  Castle, 
+  Newspaper, 
+  Sparkles, 
+  Crown,
   LogOut,
   ToggleLeft,
   ToggleRight
@@ -28,12 +28,12 @@ import { Button } from "@/components/ui/button";
 import rgiLogo from "@/assets/rgi-logo.png";
 
 const menuItems = [
-  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { title: "Meldungen", url: "/reports", icon: AlertCircle },
-  { title: "Gebäude", url: "/buildings", icon: Building2 },
-  { title: "Schwarzes Brett", url: "/forum", icon: MessageSquare },
-  { title: "Chatbot", url: "/chatbot", icon: Bot },
-  { title: "Einstellungen", url: "/settings", icon: Settings },
+  { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
+  { title: "Meldungen", url: "/reports", icon: Shield },
+  { title: "Gebäude", url: "/buildings", icon: Castle },
+  { title: "Schwarzes Brett", url: "/forum", icon: Newspaper },
+  { title: "Chatbot", url: "/chatbot", icon: Sparkles },
+  { title: "Einstellungen", url: "/settings", icon: Crown },
 ];
 
 interface AdminSidebarProps {
@@ -85,7 +85,7 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
         <div className="p-4 border-b border-border">
           {!collapsed ? (
             <div className="space-y-3">
-              <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              <label className="label-text text-xs uppercase tracking-wider text-muted-foreground">
                 Verwaltungsmodus
               </label>
               <div className="flex bg-muted rounded-lg p-1">
@@ -148,7 +148,7 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
                     }
                   >
                     <item.icon className="h-4 w-4 mr-3 flex-shrink-0" />
-                    {!collapsed && <span className="font-medium">{item.title}</span>}
+                    {!collapsed && <span className="label-text">{item.title}</span>}
                   </NavLink>
                 </SidebarMenuItem>
               ))}
@@ -161,9 +161,9 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
           {!collapsed ? (
             <div className="space-y-3">
               <div className="bg-muted rounded-lg p-3">
-                <div className="text-sm">
-                  <div className="font-medium text-foreground">{profile?.first_name || 'Admin'}</div>
-                  <div className="text-xs text-muted-foreground truncate">{profile?.email}</div>
+                <div className="body-text text-sm">
+                  <div className="heading-primary font-semibold text-foreground">{profile?.first_name || 'Admin'}</div>
+                  <div className="body-secondary text-xs truncate">{profile?.email}</div>
                 </div>
               </div>
               <Button

@@ -104,23 +104,29 @@ All colors MUST be HSL.
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
   
-  /* Improved base typography */
+  /* Premium typography system */
   body {
     font-size: 16px;
-    line-height: 1.6;
+    line-height: 1.65;
+    font-weight: 400;
+    letter-spacing: -0.011em;
   }
   
   h1, h2, h3, h4, h5, h6 {
-    line-height: 1.4;
+    line-height: 1.3;
+    font-weight: 600;
+    letter-spacing: -0.025em;
   }
   
-  .text-xs { font-size: 0.8rem; }
-  .text-sm { font-size: 0.9rem; }
-  .text-base { font-size: 1rem; }
-  .text-lg { font-size: 1.125rem; }
-  .text-xl { font-size: 1.25rem; }
-  .text-2xl { font-size: 1.5rem; }
-  .text-3xl { font-size: 1.875rem; }
+  .text-xs { font-size: 0.8rem; line-height: 1.5; }
+  .text-sm { font-size: 0.875rem; line-height: 1.5; }
+  .text-base { font-size: 1rem; line-height: 1.65; }
+  .text-lg { font-size: 1.125rem; line-height: 1.6; }
+  .text-xl { font-size: 1.25rem; line-height: 1.5; }
+  .text-2xl { font-size: 1.5rem; line-height: 1.4; }
+  .text-3xl { font-size: 1.875rem; line-height: 1.3; }
+  .text-4xl { font-size: 2.25rem; line-height: 1.25; }
+  .text-5xl { font-size: 3rem; line-height: 1.2; }
 }
 
 @layer base {
@@ -129,12 +135,41 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground font-medium;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    @apply bg-background text-foreground font-normal;
+    font-feature-settings: "rlig" 1, "calt" 1, "kern" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
 }
 
 @layer components {
+  /* Premium typography classes */
+  .heading-display {
+    @apply font-display font-semibold text-foreground;
+    letter-spacing: -0.03em;
+  }
+  
+  .heading-primary {
+    @apply font-manrope font-semibold text-foreground;
+    letter-spacing: -0.025em;
+  }
+  
+  .body-text {
+    @apply font-manrope font-normal text-foreground;
+    letter-spacing: -0.011em;
+  }
+  
+  .body-secondary {
+    @apply font-manrope font-normal text-muted-foreground;
+    letter-spacing: -0.008em;
+  }
+  
+  .label-text {
+    @apply font-manrope font-medium text-foreground;
+    letter-spacing: 0.01em;
+  }
+  
   /* RGI-inspired card style */
   .rgi-card {
     @apply bg-card border border-border rounded-lg transition-all duration-200 ease-out hover:shadow-rgi hover:scale-[1.01];

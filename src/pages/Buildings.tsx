@@ -12,7 +12,7 @@ import { useManagementMode } from "@/hooks/useManagementMode";
 import { BulkUpload } from "@/components/BulkUpload";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { Plus, Users, Building2, Home, Edit, Trash2, User } from "lucide-react";
+import { Plus, Users, Castle, House, Edit, Trash2, UserRound } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 interface Building {
@@ -447,8 +447,8 @@ export const Buildings = () => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-2">Zugriff verweigert</h1>
-          <p className="text-muted-foreground">Sie haben keine Berechtigung für diesen Bereich.</p>
+          <h1 className="heading-display text-3xl font-bold mb-2">Zugriff verweigert</h1>
+          <p className="body-secondary">Sie haben keine Berechtigung für diesen Bereich.</p>
         </div>
       </div>
     );
@@ -457,7 +457,7 @@ export const Buildings = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">Laden...</div>
+        <div className="text-lg body-secondary">Laden...</div>
       </div>
     );
   }
@@ -467,10 +467,10 @@ export const Buildings = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div className="space-y-2">
-          <h1 className="text-4xl font-bold tracking-tight">
+          <h1 className="heading-display text-4xl font-bold tracking-tight">
             {managementMode === 'weg' ? 'WEG-Verwaltung' : 'Mietverwaltung'}
           </h1>
-          <p className="text-lg text-muted-foreground">
+          <p className="body-secondary text-lg">
             Verwalten Sie Ihre {managementMode === 'weg' ? 'WEG-Gebäude und Eigentümer' : 'Mietgebäude und Mieter'}
           </p>
         </div>
@@ -483,11 +483,11 @@ export const Buildings = () => {
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
             <DialogHeader>
-              <DialogTitle>Neues Gebäude erstellen</DialogTitle>
+              <DialogTitle className="heading-primary text-xl font-semibold">Neues Gebäude erstellen</DialogTitle>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="name">Name *</Label>
+                <Label htmlFor="name" className="label-text">Name *</Label>
                 <Input
                   id="name"
                   value={buildingForm.name}
@@ -548,7 +548,7 @@ export const Buildings = () => {
         <Card className="dashboard-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Gebäude gesamt</CardTitle>
-            <Building2 className="h-4 w-4 text-muted-foreground" />
+            <Castle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{buildings.length}</div>
@@ -560,7 +560,7 @@ export const Buildings = () => {
             <CardTitle className="text-sm font-medium">
               {managementMode === 'weg' ? 'WEG-Gebäude' : 'Mietgebäude'}
             </CardTitle>
-            <Home className="h-4 w-4 text-muted-foreground" />
+            <House className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{buildings.filter(b => b.type === managementMode).length}</div>
@@ -582,7 +582,7 @@ export const Buildings = () => {
         <Card className="dashboard-card">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Aktive Verwaltung</CardTitle>
-            <User className="h-4 w-4 text-muted-foreground" />
+            <UserRound className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{managementMode === 'weg' ? 'WEG' : 'Miete'}</div>
@@ -594,7 +594,7 @@ export const Buildings = () => {
       {buildings.length === 0 ? (
         <Card className="dashboard-card">
           <CardContent className="flex flex-col items-center justify-center py-12">
-            <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
+            <Castle className="h-12 w-12 text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">Keine Gebäude gefunden</h3>
             <p className="text-muted-foreground text-center mb-4">
               Erstellen Sie Ihr erstes {managementMode === 'weg' ? 'WEG-' : 'Miet-'}Gebäude, um zu beginnen.

@@ -32,8 +32,8 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-2">Zugriff verweigert</h1>
-          <p className="text-muted-foreground">Sie haben keine Berechtigung für diesen Bereich.</p>
+          <h1 className="heading-display text-3xl font-bold mb-2">Zugriff verweigert</h1>
+          <p className="body-secondary">Sie haben keine Berechtigung für diesen Bereich.</p>
         </div>
       </div>
     );
@@ -49,7 +49,7 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
         <main className="flex-1 flex flex-col overflow-hidden">
           <header className="h-16 border-b bg-background flex items-center px-4 shrink-0">
             <SidebarTrigger className="mr-4" />
-            <h1 className="text-xl font-semibold">
+            <h1 className="heading-primary text-xl font-semibold">
               {managementMode === 'weg' ? 'WEG-Verwaltung' : 'Mietverwaltung'}
             </h1>
           </header>

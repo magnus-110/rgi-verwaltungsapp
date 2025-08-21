@@ -19,8 +19,10 @@ export default {
 		},
 		extend: {
 			fontFamily: {
-				sans: ['Inter', 'system-ui', 'sans-serif'],
-				'inter': ['Inter', 'system-ui', 'sans-serif'],
+				sans: ['Manrope', 'system-ui', 'sans-serif'],
+				'manrope': ['Manrope', 'system-ui', 'sans-serif'],
+				'display': ['Playfair Display', 'serif'],
+				'serif': ['Playfair Display', 'serif'],
 			},
 			colors: {
 				/* RGI Specific Colors */
