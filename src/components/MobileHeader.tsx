@@ -17,9 +17,11 @@ import {
 
 interface MobileHeaderProps {
   userRole: 'tenant' | 'weg_owner' | 'admin';
+  managementMode?: 'weg' | 'rent';
+  onModeChange?: (mode: 'weg' | 'rent') => void;
 }
 
-export const MobileHeader = ({ userRole }: MobileHeaderProps) => {
+export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileHeaderProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { signOut, profile } = useAuth();
@@ -160,6 +162,43 @@ export const MobileHeader = ({ userRole }: MobileHeaderProps) => {
                   </div>
                 </div>
               </div>
+
+              {/* Management Mode Toggle for Admin */}
+              {userRole === 'admin' && managementMode && onModeChange && (
+                <div className="p-4 border-b">
+                  <div className="space-y-3">
+                    <label className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
+                      Verwaltungsmodus
+                    </label>
+                    <div className="flex bg-muted rounded-lg p-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onModeChange('weg')}
+                        className={`flex-1 rounded-md transition-colors ${
+                          managementMode === 'weg' 
+                            ? 'bg-primary text-primary-foreground' 
+                            : 'hover:bg-background text-muted-foreground'
+                        }`}
+                      >
+                        WEG
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onModeChange('rent')}
+                        className={`flex-1 rounded-md transition-colors ${
+                          managementMode === 'rent' 
+                            ? 'bg-primary text-primary-foreground' 
+                            : 'hover:bg-background text-muted-foreground'
+                        }`}
+                      >
+                        Miete
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Navigation */}
               <nav className="flex-1 p-4">

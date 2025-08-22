@@ -203,9 +203,9 @@ export const WegOwnerForum = () => {
                       <Card key={post.id} className="border-0 shadow-sm bg-white">
                         <CardContent className="p-6">
                           <div className="space-y-4">
-                            <div className="text-center">
-                              <h3 className="text-lg font-medium text-foreground">{post.title}</h3>
-                              <p className="text-sm text-muted-foreground">
+                            <div className="text-left">
+                              <h3 className="text-lg font-medium text-foreground text-left">{post.title}</h3>
+                              <p className="text-sm text-muted-foreground text-left">
                                 {format(new Date(post.created_at), 'dd.MM.yyyy HH:mm')}
                               </p>
                             </div>
