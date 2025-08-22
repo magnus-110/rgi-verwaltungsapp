@@ -169,22 +169,6 @@ export const TenantDashboard = () => {
               </div>
             </div>
           </Button>
-          
-          <Button 
-            variant="outline" 
-            className="w-full h-16 text-left justify-start border-0 bg-white shadow-sm hover:shadow-md transition-all duration-200"
-            onClick={() => navigate("/tenant/chatbot")}
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                <MessageCircle className="w-5 h-5 text-blue-600" />
-              </div>
-              <div>
-                <div className="font-medium">Frage stellen</div>
-                <div className="text-sm text-muted-foreground">RGI KI Assistent</div>
-              </div>
-            </div>
-          </Button>
 
           <Button 
             variant="outline" 
@@ -198,6 +182,22 @@ export const TenantDashboard = () => {
               <div>
                 <div className="font-medium">Schwarzes Brett</div>
                 <div className="text-sm text-muted-foreground">Ankündigungen lesen</div>
+              </div>
+            </div>
+          </Button>
+          
+          <Button 
+            variant="outline" 
+            className="w-full h-16 text-left justify-start border-0 bg-white shadow-sm hover:shadow-md transition-all duration-200"
+            onClick={() => navigate("/tenant/chatbot")}
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                <MessageCircle className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <div className="font-medium">Frage stellen</div>
+                <div className="text-sm text-muted-foreground">RGI KI Assistent</div>
               </div>
             </div>
           </Button>
