@@ -56,6 +56,47 @@ export const WegOwnerReports = () => {
     }
   }, [profile]);
 
+  // Real-time subscription for new reports
+  useEffect(() => {
+    if (!profile) return;
+
+    const channel = supabase
+      .channel('weg-reports-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'weg_reports',
+          filter: `reported_by=eq.${profile.user_id}`
+        },
+        (payload) => {
+          console.log('New WEG report received:', payload);
+          setReports(prev => [payload.new as Report, ...prev]);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'weg_reports',
+          filter: `reported_by=eq.${profile.user_id}`
+        },
+        (payload) => {
+          console.log('WEG report updated:', payload);
+          setReports(prev => prev.map(r => 
+            r.id === payload.new.id ? { ...r, ...payload.new } as Report : r
+          ));
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profile]);
+
   const fetchBuildings = async () => {
     try {
       // Fetch building assignments

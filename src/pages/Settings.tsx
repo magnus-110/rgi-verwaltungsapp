@@ -14,7 +14,7 @@ export const Settings = () => {
   const { profile, fetchProfile } = useAuth();
   const [firstName, setFirstName] = useState(profile?.first_name || "");
   const [lastName, setLastName] = useState(profile?.last_name || "");
-  const [phone, setPhone] = useState(profile?.phone || "");
+  const [phone, setPhone] = useState((profile as any)?.phone || "");
   const [isLoading, setIsLoading] = useState(false);
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
@@ -164,11 +164,11 @@ export const Settings = () => {
                 </div>
               </div>
               
-              {profile.building_id && (
+              {(profile as any)?.building_id && (
                 <div>
                   <Label>Zugewiesenes Gebäude</Label>
                   <p className="text-sm text-muted-foreground mt-1">
-                    ID: {profile.building_id}
+                    ID: {(profile as any).building_id}
                   </p>
                 </div>
               )}

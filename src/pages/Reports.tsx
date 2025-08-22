@@ -73,6 +73,44 @@ export const Reports = () => {
     }
   }, [profile, managementMode]);
 
+  // Real-time subscription for new reports
+  useEffect(() => {
+    if (!profile) return;
+
+    const channel = supabase
+      .channel('reports-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: tableName
+        },
+        (payload) => {
+          console.log('New report received:', payload);
+          // Add the new report to the beginning of the list
+          fetchReports(); // Refetch to get complete data with building info
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: tableName
+        },
+        (payload) => {
+          console.log('Report updated:', payload);
+          fetchReports(); // Refetch to get updated data
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [profile, tableName]);
+
   const fetchBuildings = async () => {
     try {
       const { data, error } = await supabase
