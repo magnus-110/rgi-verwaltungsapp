@@ -56,36 +56,35 @@ export const BuildingRow = ({ building, onUpdate }: BuildingRowProps) => {
     },
   });
 
-  // Get assigned managers for this building
+  // Get assigned managers count for this building
   const { data: assignedManagersCount = 0 } = useQuery({
     queryKey: ['building-managers-count', building.id],
     queryFn: async () => {
       const { count, error } = await supabase
-        .from('building_managers')
-        .select('id', { count: 'exact', head: true })
-        .eq('building_id', building.id);
+        .rpc('count_building_managers', { building_id_param: building.id });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error counting managers:', error);
+        return 0;
+      }
       return count || 0;
     },
   });
 
-  // Get manager names for display
+  // Get manager names for display using a custom query
   const { data: managerNames = [] } = useQuery({
     queryKey: ['building-managers-names', building.id],
     queryFn: async () => {
+      // Use a more direct approach to get manager names
       const { data, error } = await supabase
-        .from('building_managers')
-        .select(`
-          profiles!inner(first_name, last_name)
-        `)
-        .eq('building_id', building.id);
+        .rpc('get_building_manager_names', { building_id_param: building.id });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching manager names:', error);
+        return [];
+      }
       
-      return data.map(item => 
-        `${item.profiles.first_name || ''} ${item.profiles.last_name || ''}`.trim()
-      ).filter(name => name);
+      return data || [];
     },
   });
 

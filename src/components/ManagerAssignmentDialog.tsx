@@ -24,7 +24,7 @@ interface AdminUser {
 }
 
 interface AssignedManager {
-  id: string;
+  manager_id: string;
   user_id: string;
   first_name: string;
   last_name: string;
@@ -55,27 +55,24 @@ export const ManagerAssignmentDialog = ({
     },
   });
 
-  // Zugewiesene Verwalter für dieses Gebäude laden
+  // Zugewiesene Verwalter für dieses Gebäude laden mit RPC-Funktion
   const { data: assignedManagers = [] } = useQuery({
     queryKey: ['building-managers', buildingId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('building_managers')
-        .select(`
-          id,
-          user_id,
-          profiles!inner(first_name, last_name, email)
-        `)
-        .eq('building_id', buildingId);
+        .rpc('get_building_managers', { building_id_param: buildingId });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching assigned managers:', error);
+        return [];
+      }
       
-      return data.map(item => ({
-        id: item.id,
+      return (data || []).map((item: any) => ({
+        manager_id: item.manager_id,
         user_id: item.user_id,
-        first_name: item.profiles.first_name || '',
-        last_name: item.profiles.last_name || '',
-        email: item.profiles.email
+        first_name: item.first_name || '',
+        last_name: item.last_name || '',
+        email: item.email
       })) as AssignedManager[];
     },
   });
@@ -85,10 +82,9 @@ export const ManagerAssignmentDialog = ({
 
     try {
       const { error } = await supabase
-        .from('building_managers')
-        .insert({
-          building_id: buildingId,
-          user_id: selectedManagerId
+        .rpc('assign_building_manager', {
+          building_id_param: buildingId,
+          user_id_param: selectedManagerId
         });
 
       if (error) throw error;
@@ -96,9 +92,11 @@ export const ManagerAssignmentDialog = ({
       toast.success("Verwalter erfolgreich zugewiesen");
       setSelectedManagerId("");
       queryClient.invalidateQueries({ queryKey: ['building-managers', buildingId] });
+      queryClient.invalidateQueries({ queryKey: ['building-managers-count', buildingId] });
+      queryClient.invalidateQueries({ queryKey: ['building-managers-names', buildingId] });
     } catch (error: any) {
       console.error('Error assigning manager:', error);
-      if (error.code === '23505') {
+      if (error.message?.includes('duplicate')) {
         toast.error("Dieser Verwalter ist bereits diesem Gebäude zugewiesen");
       } else {
         toast.error("Fehler beim Zuweisen des Verwalters");
@@ -109,14 +107,14 @@ export const ManagerAssignmentDialog = ({
   const handleRemoveManager = async (managerId: string) => {
     try {
       const { error } = await supabase
-        .from('building_managers')
-        .delete()
-        .eq('id', managerId);
+        .rpc('remove_building_manager', { manager_id_param: managerId });
 
       if (error) throw error;
 
       toast.success("Verwalter-Zuweisung entfernt");
       queryClient.invalidateQueries({ queryKey: ['building-managers', buildingId] });
+      queryClient.invalidateQueries({ queryKey: ['building-managers-count', buildingId] });
+      queryClient.invalidateQueries({ queryKey: ['building-managers-names', buildingId] });
     } catch (error) {
       console.error('Error removing manager:', error);
       toast.error("Fehler beim Entfernen der Verwalter-Zuweisung");
@@ -144,7 +142,7 @@ export const ManagerAssignmentDialog = ({
             ) : (
               <div className="space-y-2">
                 {assignedManagers.map((manager) => (
-                  <div key={manager.id} className="flex items-center justify-between p-2 border rounded">
+                  <div key={manager.manager_id} className="flex items-center justify-between p-2 border rounded">
                     <div>
                       <div className="font-medium">
                         {manager.first_name} {manager.last_name}
@@ -156,7 +154,7 @@ export const ManagerAssignmentDialog = ({
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => handleRemoveManager(manager.id)}
+                      onClick={() => handleRemoveManager(manager.manager_id)}
                     >
                       <X className="h-4 w-4" />
                     </Button>

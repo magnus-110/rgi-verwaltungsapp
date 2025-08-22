@@ -50,15 +50,13 @@ export const usePushNotifications = () => {
         applicationServerKey: vapidPublicKey
       });
 
-      // Save subscription to database
-      const { error } = await supabase
-        .from('push_subscriptions')
-        .upsert({
-          user_id: user.id,
-          endpoint: subscription.endpoint,
-          p256dh: btoa(String.fromCharCode(...new Uint8Array(subscription.getKey('p256dh')!))),
-          auth: btoa(String.fromCharCode(...new Uint8Array(subscription.getKey('auth')!)))
-        }, { onConflict: 'endpoint' });
+      // Save subscription using RPC function
+      const { error } = await supabase.rpc('save_push_subscription', {
+        user_id_param: user.id,
+        endpoint_param: subscription.endpoint,
+        p256dh_param: btoa(String.fromCharCode(...new Uint8Array(subscription.getKey('p256dh')!))),
+        auth_param: btoa(String.fromCharCode(...new Uint8Array(subscription.getKey('auth')!)))
+      });
 
       if (error) throw error;
 
@@ -83,12 +81,13 @@ export const usePushNotifications = () => {
       if (subscription) {
         await subscription.unsubscribe();
         
-        // Remove from database
-        await supabase
-          .from('push_subscriptions')
-          .delete()
-          .eq('user_id', user.id)
-          .eq('endpoint', subscription.endpoint);
+        // Remove from database using RPC function
+        const { error } = await supabase.rpc('remove_push_subscription', {
+          user_id_param: user.id,
+          endpoint_param: subscription.endpoint
+        });
+
+        if (error) throw error;
       }
 
       setIsSubscribed(false);
