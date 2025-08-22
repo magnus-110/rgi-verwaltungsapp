@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Building2, MapPin, Hash, Calendar, ChevronDown, ChevronRight, Edit, Plus, Upload } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -22,9 +21,10 @@ interface Building {
 
 interface BuildingRowProps {
   building: Building;
+  onUpdate: () => void;
 }
 
-export const BuildingRow = ({ building }: BuildingRowProps) => {
+export const BuildingRow = ({ building, onUpdate }: BuildingRowProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isCreateUserDialogOpen, setIsCreateUserDialogOpen] = useState(false);
@@ -59,6 +59,7 @@ export const BuildingRow = ({ building }: BuildingRowProps) => {
     // Refresh building data
     queryClient.invalidateQueries({ queryKey: ['buildings-paginated'] });
     queryClient.invalidateQueries({ queryKey: ['building-user-counts', building.id] });
+    onUpdate();
   };
 
   const handleCreateUser = (userType: "tenant" | "weg_owner") => {
