@@ -23,7 +23,7 @@ export const WelcomeScreen = ({ userName, userType, onSuggestionClick }: Welcome
         <div className="space-y-6">
           <div className="flex justify-center">
             <img 
-              src="/lovable-uploads/2f4fde3b-f4b0-4829-9fcb-a148e37bae43.png" 
+              src="/lovable-uploads/b9771424-b209-4762-aff0-6832ee6c96c7.png" 
               alt="RGI Haus"
               className="w-16 h-auto object-contain"
             />
