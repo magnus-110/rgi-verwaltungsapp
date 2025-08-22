@@ -1,12 +1,23 @@
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Users, Mail, Phone, Edit } from "lucide-react";
+import { ChevronDown, ChevronRight, Users, Mail, Phone, Edit, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { EditUserDialog } from "./EditUserDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { 
+  AlertDialog, 
+  AlertDialogAction, 
+  AlertDialogCancel, 
+  AlertDialogContent, 
+  AlertDialogDescription, 
+  AlertDialogFooter, 
+  AlertDialogHeader, 
+  AlertDialogTitle 
+} from "@/components/ui/alert-dialog";
 
 interface User {
   id: string;
@@ -29,6 +40,8 @@ export const UsersList = ({ buildingId, userType, count }: UsersListProps) => {
   const [page, setPage] = useState(0);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [deletingUser, setDeletingUser] = useState<User | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const queryClient = useQueryClient();
   const pageSize = 10;
 
@@ -91,6 +104,46 @@ export const UsersList = ({ buildingId, userType, count }: UsersListProps) => {
   const handleEditUser = (user: User) => {
     setEditingUser(user);
     setIsEditDialogOpen(true);
+  };
+
+  const handleDeleteUser = (user: User) => {
+    setDeletingUser(user);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!deletingUser) return;
+
+    try {
+      if (userType === 'tenants') {
+        // Delete from tenants table
+        const { error } = await supabase
+          .from('tenants')
+          .delete()
+          .eq('user_id', deletingUser.user_id);
+        
+        if (error) throw error;
+        toast.success("Mieter wurde erfolgreich entfernt");
+      } else {
+        // Delete from weg_owner_buildings table (only the building assignment)
+        const { error } = await supabase
+          .from('weg_owner_buildings')
+          .delete()
+          .eq('user_id', deletingUser.user_id)
+          .eq('building_id', buildingId);
+        
+        if (error) throw error;
+        toast.success("WEG-Eigentümer wurde erfolgreich vom Gebäude entfernt");
+      }
+      
+      handleUpdate();
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      toast.error("Fehler beim Löschen des Benutzers");
+    } finally {
+      setIsDeleteDialogOpen(false);
+      setDeletingUser(null);
+    }
   };
 
   const handleUpdate = () => {
@@ -162,6 +215,14 @@ export const UsersList = ({ buildingId, userType, count }: UsersListProps) => {
                     >
                       <Edit className="h-3 w-3" />
                     </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteUser(user)}
+                      className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -205,6 +266,31 @@ export const UsersList = ({ buildingId, userType, count }: UsersListProps) => {
         }}
         onUpdate={handleUpdate}
       />
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {userType === 'tenants' ? 'Mieter löschen' : 'WEG-Eigentümer entfernen'}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {userType === 'tenants' 
+                ? `Sind Sie sicher, dass Sie den Mieter "${deletingUser?.first_name} ${deletingUser?.last_name}" (${deletingUser?.email}) vollständig löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.`
+                : `Sind Sie sicher, dass Sie den WEG-Eigentümer "${deletingUser?.first_name} ${deletingUser?.last_name}" (${deletingUser?.email}) von diesem Gebäude entfernen möchten?`
+              }
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteUser}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {userType === 'tenants' ? 'Löschen' : 'Entfernen'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
