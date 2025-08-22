@@ -81,7 +81,7 @@ export const Login = () => {
               </div>
               <Button
                 type="submit"
-                className="w-full bg-gradient-primary hover:opacity-90 text-primary-foreground"
+                className="w-full"
                 disabled={loading}
               >
                 {loading ? "Anmelden..." : "Anmelden"}
