@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -92,25 +91,33 @@ export const Reports = () => {
   const fetchReports = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      // First fetch reports
+      const { data: reportsData, error: reportsError } = await supabase
         .from(tableName)
-        .select(`
-          *,
-          buildings (
-            name,
-            address,
-            manager_name
-          )
-        `)
+        .select("*")
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (reportsError) throw reportsError;
 
-      // Type the data properly to avoid casting issues
-      const reports = data ? data.map(item => ({
-        ...item,
-        buildings: item.buildings || null
-      })) as Report[] : [];
+      // Then fetch buildings data separately and merge
+      const { data: buildingsData, error: buildingsError } = await supabase
+        .from("buildings")
+        .select("id, name, address, manager_name")
+        .eq("management_mode", managementMode);
+
+      if (buildingsError) throw buildingsError;
+
+      // Create a buildings lookup map
+      const buildingsMap = new Map(
+        (buildingsData || []).map(building => [building.id, building])
+      );
+
+      // Merge the data
+      const reports: Report[] = (reportsData || []).map(report => ({
+        ...report,
+        buildings: buildingsMap.get(report.building_id) || null
+      }));
       
       const open = reports.filter(report => report.status === "open");
       const inProgress = reports.filter(report => report.status === "in_progress");

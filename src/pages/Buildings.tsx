@@ -21,7 +21,7 @@ interface Building {
   name: string;
   address: string;
   building_code?: string;
-  management_mode: string;
+  management_mode: "weg" | "rent";
   type?: string;
   manager_name?: string | null;
   created_at: string;
