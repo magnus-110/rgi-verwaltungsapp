@@ -8,3 +8,9 @@ verify_jwt = false
 
 [functions.request-password-reset]
 verify_jwt = false
+
+[functions.update-webhook-url]
+verify_jwt = true
+
+[functions.test-webhook]
+verify_jwt = true
