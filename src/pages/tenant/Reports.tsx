@@ -45,7 +45,6 @@ export const TenantReports = () => {
     contact_phone: "",
     contact_address: "",
     building_name: "",
-    template_id: "",
   });
   const [tenantInfo, setTenantInfo] = useState<any>(null);
   const [attachments, setAttachments] = useState<File[]>([]);
@@ -55,7 +54,6 @@ export const TenantReports = () => {
     if (profile) {
       fetchReports();
       fetchTenantInfo();
-      fetchTemplates();
     }
   }, [profile]);
 
@@ -110,21 +108,6 @@ export const TenantReports = () => {
       }
     } catch (error) {
       console.error("Error fetching tenant info:", error);
-    }
-  };
-
-  const fetchTemplates = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("report_templates")
-        .select("*")
-        .eq("management_mode", "rent")
-        .order("name");
-
-      if (error) throw error;
-      setTemplates(data || []);
-    } catch (error) {
-      console.error("Error fetching templates:", error);
     }
   };
 
@@ -226,7 +209,6 @@ export const TenantReports = () => {
         contact_phone: tenantInfo?.phone || '',
         contact_address: tenantInfo?.buildings?.address || '',
         building_name: tenantInfo?.buildings?.name || '',
-        template_id: "",
       });
       setAttachments([]);
       setIsCreateReportOpen(false);
@@ -254,29 +236,6 @@ export const TenantReports = () => {
 
   const removeAttachment = (index: number) => {
     setAttachments(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const handleTemplateSelect = (templateId: string) => {
-    if (templateId === "none") {
-      setReportForm(prev => ({
-        ...prev,
-        template_id: "",
-      }));
-    } else {
-      const template = templates.find(t => t.id === templateId);
-      if (template) {
-        setReportForm(prev => ({
-          ...prev,
-          title: template.name,
-          template_id: templateId
-        }));
-      } else {
-        setReportForm(prev => ({
-          ...prev,
-          template_id: templateId
-        }));
-      }
-    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -393,27 +352,6 @@ export const TenantReports = () => {
                     readOnly
                     className="bg-muted"
                   />
-                </div>
-
-                {/* Report Information */}
-                <div>
-                  <Label htmlFor="template">Vorlage (optional)</Label>
-                  <Select 
-                    value={reportForm.template_id} 
-                    onValueChange={handleTemplateSelect}
-                  >
-                    <SelectTrigger className="bg-background border border-border shadow-lg z-50">
-                      <SelectValue placeholder="Vorlage auswählen..." />
-                    </SelectTrigger>
-                     <SelectContent className="bg-background border border-border shadow-lg z-50">
-                       <SelectItem value="none">Keine Vorlage</SelectItem>
-                       {templates.map((template) => (
-                         <SelectItem key={template.id} value={template.id}>
-                           {template.name}
-                         </SelectItem>
-                       ))}
-                     </SelectContent>
-                  </Select>
                 </div>
 
                 {/* Report Information */}
