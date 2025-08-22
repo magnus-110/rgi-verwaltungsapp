@@ -5,11 +5,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const { signIn, user, profile } = useAuth();
 
   // Redirect authenticated users
@@ -25,8 +31,39 @@ export const Login = () => {
     e.preventDefault();
     setLoading(true);
 
-    await signIn(email, password);
-    setLoading(false);
+    try {
+      const { error } = await signIn(email, password);
+      if (error) {
+        toast.error("Anmeldung fehlgeschlagen: " + error.message);
+      }
+    } catch (error) {
+      toast.error("Ein Fehler ist aufgetreten");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetLoading(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('request-password-reset', {
+        body: { email: resetEmail }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      toast.success("Neues Passwort wurde per E-Mail versendet!");
+      setResetDialogOpen(false);
+      setResetEmail("");
+    } catch (error: any) {
+      toast.error(error.message || "Fehler beim Zurücksetzen des Passworts");
+    } finally {
+      setResetLoading(false);
+    }
   };
 
   return (
@@ -86,6 +123,47 @@ export const Login = () => {
               >
                 {loading ? "Anmelden..." : "Anmelden"}
               </Button>
+              
+              <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="link" className="w-full text-sm text-muted-foreground">
+                    Passwort vergessen?
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Passwort zurücksetzen</DialogTitle>
+                    <DialogDescription>
+                      Geben Sie Ihre E-Mail-Adresse ein, um ein neues Passwort zu erhalten.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={handlePasswordReset} className="space-y-4">
+                    <div>
+                      <Label htmlFor="reset-email">E-Mail-Adresse</Label>
+                      <Input
+                        id="reset-email"
+                        type="email"
+                        value={resetEmail}
+                        onChange={(e) => setResetEmail(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setResetDialogOpen(false)}
+                        className="flex-1"
+                      >
+                        Abbrechen
+                      </Button>
+                      <Button type="submit" disabled={resetLoading} className="flex-1">
+                        {resetLoading ? "Wird gesendet..." : "Neues Passwort anfordern"}
+                      </Button>
+                    </div>
+                  </form>
+                </DialogContent>
+              </Dialog>
             </form>
           </CardContent>
         </Card>

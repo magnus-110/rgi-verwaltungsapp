@@ -19,6 +19,38 @@ interface RequestBody {
   managementMode: 'weg' | 'rent';
 }
 
+// Generate 6-digit numeric password
+function generateNumericPassword(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString()
+}
+
+// Send data to Make.com webhook
+async function sendToMakeWebhook(data: any) {
+  const webhookUrl = Deno.env.get('MAKE_WEBHOOK_URL')
+  if (!webhookUrl) {
+    console.error('MAKE_WEBHOOK_URL not configured')
+    return
+  }
+
+  try {
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data)
+    })
+    
+    if (!response.ok) {
+      console.error('Make.com webhook failed:', response.status, await response.text())
+    } else {
+      console.log('Make.com webhook sent successfully')
+    }
+  } catch (error) {
+    console.error('Error sending to Make.com webhook:', error)
+  }
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -98,12 +130,12 @@ serve(async (req) => {
           userId = authUser.id;
           console.log(`Found existing auth user for ${email}`);
         } else {
-          // Create new auth user with standard password
-          const standardPassword = "RGI-2025";
+          // Create new auth user with 6-digit numeric password
+          const newPassword = generateNumericPassword();
           
           const { data: newAuthUser, error: createError } = await supabaseClient.auth.admin.createUser({
             email: email,
-            password: standardPassword,
+            password: newPassword,
             email_confirm: true
           })
 
@@ -115,7 +147,20 @@ serve(async (req) => {
           userId = newAuthUser.user.id;
           isNewUser = true;
           created++;
-          console.log(`Created new auth user for ${email} with standard password`);
+          console.log(`Created new auth user for ${email} with generated password`);
+          
+          // Send webhook for new user
+          await sendToMakeWebhook({
+            event: 'user_created',
+            email: email,
+            password: newPassword,
+            first_name: row['Vorname']?.trim() || null,
+            last_name: row['Nachname']?.trim() || null,
+            phone: row['Telefon']?.trim() || null,
+            management_mode: managementMode,
+            building_id: buildingId,
+            created_at: new Date().toISOString()
+          });
         }
 
         // Update or create profile

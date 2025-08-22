@@ -7,12 +7,43 @@ const corsHeaders = {
 
 interface UserData {
   email: string
-  password?: string  // Optional, defaults to "RGI-2025"
   first_name: string
   last_name: string
   phone: string
   building_id: string
   management_mode: 'weg' | 'rent'
+}
+
+// Generate 6-digit numeric password
+function generateNumericPassword(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString()
+}
+
+// Send data to Make.com webhook
+async function sendToMakeWebhook(data: any) {
+  const webhookUrl = Deno.env.get('MAKE_WEBHOOK_URL')
+  if (!webhookUrl) {
+    console.error('MAKE_WEBHOOK_URL not configured')
+    return
+  }
+
+  try {
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data)
+    })
+    
+    if (!response.ok) {
+      console.error('Make.com webhook failed:', response.status, await response.text())
+    } else {
+      console.log('Make.com webhook sent successfully')
+    }
+  } catch (error) {
+    console.error('Error sending to Make.com webhook:', error)
+  }
 }
 
 Deno.serve(async (req) => {
@@ -70,8 +101,8 @@ Deno.serve(async (req) => {
 
     const userData: UserData = await req.json()
 
-    // Set default password if none provided
-    const password = userData.password || 'RGI-2025'
+    // Generate 6-digit numeric password
+    const password = generateNumericPassword()
 
     // Create user with admin client (bypasses RLS)
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
@@ -173,6 +204,19 @@ Deno.serve(async (req) => {
         )
       }
     }
+
+    // Send data to Make.com webhook
+    await sendToMakeWebhook({
+      event: 'user_created',
+      email: userData.email,
+      password: password,
+      first_name: userData.first_name,
+      last_name: userData.last_name,
+      phone: userData.phone,
+      management_mode: userData.management_mode,
+      building_id: userData.building_id,
+      created_at: new Date().toISOString()
+    })
 
     return new Response(
       JSON.stringify({ 
