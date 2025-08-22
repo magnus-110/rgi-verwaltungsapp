@@ -1,5 +1,6 @@
+
 import { useState } from "react";
-import { Building2, MapPin, Hash, Calendar, ChevronDown, ChevronRight, Edit, Plus, Upload } from "lucide-react";
+import { Building2, MapPin, Hash, Calendar, ChevronDown, ChevronRight, Edit, Plus, Upload, Users } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,6 +8,7 @@ import { UsersList } from "./UsersList";
 import { EditBuildingDialog } from "./EditBuildingDialog";
 import { BulkUpload } from "./BulkUpload";
 import { CreateUserDialog } from "./CreateUserDialog";
+import { ManagerAssignmentDialog } from "./ManagerAssignmentDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -28,6 +30,7 @@ export const BuildingRow = ({ building, onUpdate }: BuildingRowProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isCreateUserDialogOpen, setIsCreateUserDialogOpen] = useState(false);
+  const [isManagerDialogOpen, setIsManagerDialogOpen] = useState(false);
   const [selectedUserType, setSelectedUserType] = useState<"tenant" | "weg_owner">("tenant");
   const queryClient = useQueryClient();
 
@@ -53,12 +56,47 @@ export const BuildingRow = ({ building, onUpdate }: BuildingRowProps) => {
     },
   });
 
+  // Get assigned managers for this building
+  const { data: assignedManagersCount = 0 } = useQuery({
+    queryKey: ['building-managers-count', building.id],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('building_managers')
+        .select('id', { count: 'exact', head: true })
+        .eq('building_id', building.id);
+
+      if (error) throw error;
+      return count || 0;
+    },
+  });
+
+  // Get manager names for display
+  const { data: managerNames = [] } = useQuery({
+    queryKey: ['building-managers-names', building.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('building_managers')
+        .select(`
+          profiles!inner(first_name, last_name)
+        `)
+        .eq('building_id', building.id);
+
+      if (error) throw error;
+      
+      return data.map(item => 
+        `${item.profiles.first_name || ''} ${item.profiles.last_name || ''}`.trim()
+      ).filter(name => name);
+    },
+  });
+
   const totalUsers = (userCounts?.tenants || 0) + (userCounts?.wegOwners || 0);
 
   const handleUpdate = () => {
     // Refresh building data
     queryClient.invalidateQueries({ queryKey: ['buildings-paginated'] });
     queryClient.invalidateQueries({ queryKey: ['building-user-counts', building.id] });
+    queryClient.invalidateQueries({ queryKey: ['building-managers-count', building.id] });
+    queryClient.invalidateQueries({ queryKey: ['building-managers-names', building.id] });
     onUpdate();
   };
 
@@ -86,6 +124,17 @@ export const BuildingRow = ({ building, onUpdate }: BuildingRowProps) => {
                 <MapPin className="h-3 w-3 mr-1" />
                 <span className="truncate">{building.address}</span>
               </div>
+              
+              {/* Verwalter anzeigen */}
+              {managerNames.length > 0 && (
+                <div className="flex items-center text-xs text-muted-foreground mt-1">
+                  <Users className="h-3 w-3 mr-1" />
+                  <span className="truncate">
+                    Verwalter: {managerNames.join(', ')}
+                  </span>
+                </div>
+              )}
+              
               <div className="flex items-center space-x-4 text-xs text-muted-foreground mt-2">
                 {building.building_code && (
                   <div className="flex items-center">
@@ -104,6 +153,20 @@ export const BuildingRow = ({ building, onUpdate }: BuildingRowProps) => {
             <Badge variant="secondary">
               {totalUsers} Nutzer
             </Badge>
+            {assignedManagersCount > 0 && (
+              <Badge variant="outline" className="text-xs">
+                {assignedManagersCount} Verwalter
+              </Badge>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsManagerDialogOpen(true)}
+              className="h-8 w-8 p-0"
+              title="Verwalter zuweisen"
+            >
+              <Users className="h-3 w-3" />
+            </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -198,6 +261,13 @@ export const BuildingRow = ({ building, onUpdate }: BuildingRowProps) => {
         buildingId={building.id}
         userType={selectedUserType}
         onUserCreated={handleUpdate}
+      />
+
+      <ManagerAssignmentDialog
+        isOpen={isManagerDialogOpen}
+        onClose={() => setIsManagerDialogOpen(false)}
+        buildingId={building.id}
+        buildingName={building.name}
       />
     </Card>
   );

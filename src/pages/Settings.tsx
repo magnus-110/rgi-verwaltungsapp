@@ -1,272 +1,181 @@
-import { useState } from "react";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { toast } from "@/hooks/use-toast";
-import { Eye, EyeOff, Key, User, Mail } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { PushNotificationToggle } from "@/components/PushNotificationToggle";
 
 export const Settings = () => {
-  const { profile, updatePassword } = useAuth();
-  const [showPasswords, setShowPasswords] = useState({
-    current: false,
-    new: false,
-    confirm: false
-  });
-  const [passwordData, setPasswordData] = useState({
-    currentPassword: "",
-    newPassword: "",
-    confirmPassword: ""
-  });
-  const [isUpdating, setIsUpdating] = useState(false);
+  const { profile, fetchProfile } = useAuth();
+  const [firstName, setFirstName] = useState(profile?.first_name || "");
+  const [lastName, setLastName] = useState(profile?.last_name || "");
+  const [phone, setPhone] = useState(profile?.phone || "");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handlePasswordChange = async (e: React.FormEvent) => {
+  const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      toast({
-        title: "Fehler",
-        description: "Die neuen Passwörter stimmen nicht überein.",
-        variant: "destructive",
-      });
-      return;
-    }
+    if (!profile) return;
 
-    if (passwordData.newPassword.length < 6) {
-      toast({
-        title: "Fehler",
-        description: "Das neue Passwort muss mindestens 6 Zeichen lang sein.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsUpdating(true);
-    
+    setIsLoading(true);
     try {
-      const { error } = await updatePassword(passwordData.newPassword);
-      
-      if (!error) {
-        setPasswordData({
-          currentPassword: "",
-          newPassword: "",
-          confirmPassword: ""
-        });
-        toast({
-          title: "Erfolg",
-          description: "Ihr Passwort wurde erfolgreich geändert.",
-        });
-      }
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          first_name: firstName,
+          last_name: lastName,
+          phone: phone,
+        })
+        .eq("user_id", profile.user_id);
+
+      if (error) throw error;
+
+      toast.success("Profil erfolgreich aktualisiert");
+      await fetchProfile();
     } catch (error) {
-      toast({
-        title: "Fehler",
-        description: "Beim Ändern des Passworts ist ein Fehler aufgetreten.",
-        variant: "destructive",
-      });
+      console.error("Error updating profile:", error);
+      toast.error("Fehler beim Aktualisieren des Profils");
     } finally {
-      setIsUpdating(false);
+      setIsLoading(false);
     }
   };
 
-  const togglePasswordVisibility = (field: keyof typeof showPasswords) => {
-    setShowPasswords(prev => ({
-      ...prev,
-      [field]: !prev[field]
-    }));
-  };
-
-  const getRoleDisplayName = (role: string) => {
-    switch (role) {
-      case 'admin': return 'Administrator';
-      case 'weg_owner': return 'WEG-Eigentümer';
-      case 'tenant': return 'Mieter';
-      default: return role;
-    }
-  };
+  if (!profile) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-lg">Laden...</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Einstellungen</h1>
+    <div className="min-h-screen bg-background p-6">
+      <div className="max-w-4xl mx-auto space-y-8">
+        <div>
+          <h1 className="text-3xl font-bold">Einstellungen</h1>
+          <p className="text-muted-foreground">
+            Verwalten Sie Ihre persönlichen Einstellungen
+          </p>
+        </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Profile Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="w-5 h-5" />
-              Profilinformationen
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label htmlFor="email">E-Mail-Adresse</Label>
-              <div className="flex items-center gap-2 mt-1">
-                <Mail className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm">{profile?.email}</span>
-              </div>
-            </div>
-            
-            <div>
-              <Label>Name</Label>
-              <div className="mt-1">
-                <span className="text-sm">
-                  {profile?.first_name} {profile?.last_name}
-                </span>
-              </div>
-            </div>
-            
-            <div>
-              <Label>Rolle</Label>
-              <div className="mt-1">
-                <span className="text-sm font-medium">
-                  {getRoleDisplayName(profile?.role || '')}
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Password Change */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Key className="w-5 h-5" />
-              Passwort ändern
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handlePasswordChange} className="space-y-4">
-              <div>
-                <Label htmlFor="current-password">Aktuelles Passwort</Label>
-                <div className="relative">
-                  <Input
-                    id="current-password"
-                    type={showPasswords.current ? "text" : "password"}
-                    value={passwordData.currentPassword}
-                    onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                    required
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                    onClick={() => togglePasswordVisibility('current')}
-                  >
-                    {showPasswords.current ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </Button>
+        <div className="grid gap-6">
+          {/* Persönliche Informationen */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Persönliche Informationen</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleUpdateProfile} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="firstName">Vorname</Label>
+                    <Input
+                      id="firstName"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      placeholder="Ihr Vorname"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="lastName">Nachname</Label>
+                    <Input
+                      id="lastName"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      placeholder="Ihr Nachname"
+                    />
+                  </div>
                 </div>
-              </div>
-
-              <div>
-                <Label htmlFor="new-password">Neues Passwort</Label>
-                <div className="relative">
+                <div>
+                  <Label htmlFor="email">E-Mail</Label>
                   <Input
-                    id="new-password"
-                    type={showPasswords.new ? "text" : "password"}
-                    value={passwordData.newPassword}
-                    onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                    required
-                    minLength={6}
+                    id="email"
+                    value={profile.email}
+                    disabled
+                    className="bg-muted"
                   />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                    onClick={() => togglePasswordVisibility('new')}
-                  >
-                    {showPasswords.new ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </Button>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Die E-Mail-Adresse kann nicht geändert werden
+                  </p>
                 </div>
-              </div>
-
-              <div>
-                <Label htmlFor="confirm-password">Neues Passwort bestätigen</Label>
-                <div className="relative">
+                <div>
+                  <Label htmlFor="phone">Telefon</Label>
                   <Input
-                    id="confirm-password"
-                    type={showPasswords.confirm ? "text" : "password"}
-                    value={passwordData.confirmPassword}
-                    onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                    required
-                    minLength={6}
+                    id="phone"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="Ihre Telefonnummer"
                   />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                    onClick={() => togglePasswordVisibility('confirm')}
-                  >
-                    {showPasswords.confirm ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </Button>
                 </div>
-              </div>
+                <Button type="submit" disabled={isLoading}>
+                  {isLoading ? "Speichern..." : "Änderungen speichern"}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
 
-              <Button type="submit" className="w-full" disabled={isUpdating}>
-                {isUpdating ? "Wird geändert..." : "Passwort ändern"}
+          {/* Benachrichtigungen */}
+          {profile.role === 'admin' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Benachrichtigungen</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <PushNotificationToggle />
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Erhalten Sie Push-Benachrichtigungen für neue Meldungen in Ihren verwalteten Gebäuden
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Passwort ändern */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Passwort</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Button variant="outline" onClick={() => window.location.href = '/change-password'}>
+                Passwort ändern
               </Button>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
+            </CardContent>
+          </Card>
 
-      {/* Additional Settings */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Weitere Informationen</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4 text-sm text-muted-foreground">
-            {profile?.role === 'weg_owner' && (
+          {/* Rolle und Berechtigungen */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Konto-Informationen</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div>
-                <h4 className="font-medium text-foreground mb-2">Hinweise für WEG-Eigentümer:</h4>
-                <ul className="space-y-1">
-                  <li>• Für Gebäudeinformationen benötigen Sie eine Gebäude-ID vom Administrator</li>
-                  <li>• Meldungen werden direkt an die Verwaltung weitergeleitet</li>
-                  <li>• Der KI-Chatbot kann mit Ihrer Gebäude-ID spezifische Informationen bereitstellen</li>
-                </ul>
+                <Label>Rolle</Label>
+                <div className="flex items-center mt-1">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                    {profile.role === 'admin' && 'Administrator'}
+                    {profile.role === 'tenant' && 'Mieter'}
+                    {profile.role === 'weg_owner' && 'WEG-Eigentümer'}
+                  </span>
+                </div>
               </div>
-            )}
-            
-            {profile?.role === 'tenant' && (
-              <div>
-                <h4 className="font-medium text-foreground mb-2">Hinweise für Mieter:</h4>
-                <ul className="space-y-1">
-                  <li>• Sie haben Zugriff auf Ihr zugewiesenes Gebäude</li>
-                  <li>• Forenbeiträge können gelesen, aber nicht erstellt werden</li>
-                  <li>• Der KI-Chatbot kennt bereits Ihr Gebäude</li>
-                </ul>
-              </div>
-            )}
-            
-            {profile?.role === 'admin' && (
-              <div>
-                <h4 className="font-medium text-foreground mb-2">Administrator-Funktionen:</h4>
-                <ul className="space-y-1">
-                  <li>• Vollzugriff auf alle Daten und Funktionen</li>
-                  <li>• Nutzer- und Gebäudeverwaltung</li>
-                  <li>• Umschaltung zwischen WEG- und Mietverwaltung</li>
-                </ul>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+              
+              {profile.building_id && (
+                <div>
+                  <Label>Zugewiesenes Gebäude</Label>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    ID: {profile.building_id}
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 };
