@@ -27,6 +27,7 @@ import { TenantForum } from "./pages/tenant/Forum";
 import { TenantChatbot } from "./pages/tenant/Chatbot";
 import { TenantSettings } from "./pages/tenant/Settings";
 import NotFound from "./pages/NotFound";
+import Offline from "./pages/Offline";
 
 const queryClient = new QueryClient();
 
@@ -73,6 +74,7 @@ const App = () => (
             <Route path="/tenant/chatbot" element={<TenantLayout><TenantChatbot /></TenantLayout>} />
             <Route path="/tenant/settings" element={<TenantLayout><TenantSettings /></TenantLayout>} />
             
+            <Route path="/offline" element={<Offline />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
