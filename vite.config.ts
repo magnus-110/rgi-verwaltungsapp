@@ -29,17 +29,17 @@ export default defineConfig(({ mode }) => ({
         start_url: '/',
         icons: [
           {
-            src: 'icons/icon-192.png',
+            src: 'lovable-uploads/9282f0cc-fcc5-4cec-a19f-e7066757b824.png',
             sizes: '192x192',
             type: 'image/png'
           },
           {
-            src: 'icons/icon-512.png',
+            src: 'lovable-uploads/36e0e5ff-f532-49b5-8cdf-c007e5b5bb10.png',
             sizes: '512x512',
             type: 'image/png'
           },
           {
-            src: 'icons/icon-maskable-512.png',
+            src: 'lovable-uploads/36e0e5ff-f532-49b5-8cdf-c007e5b5bb10.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable'
