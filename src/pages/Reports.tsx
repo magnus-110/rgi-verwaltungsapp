@@ -129,6 +129,7 @@ export const Reports = () => {
       filtered = filtered.filter(report => report.status === statusFilter);
     }
 
+    // Time filter only applies to "in_progress" (Bearbeitet) reports
     if (timeFilter && timeFilter !== "all") {
       const now = new Date();
       const filterDate = new Date();
@@ -136,15 +137,21 @@ export const Reports = () => {
       switch (timeFilter) {
         case "today":
           filterDate.setHours(0, 0, 0, 0);
-          filtered = filtered.filter(report => new Date(report.created_at) >= filterDate);
+          filtered = filtered.filter(report => 
+            report.status !== "in_progress" || new Date(report.updated_at) >= filterDate
+          );
           break;
         case "week":
           filterDate.setDate(now.getDate() - 7);
-          filtered = filtered.filter(report => new Date(report.created_at) >= filterDate);
+          filtered = filtered.filter(report => 
+            report.status !== "in_progress" || new Date(report.updated_at) >= filterDate
+          );
           break;
         case "month":
           filterDate.setMonth(now.getMonth() - 1);
-          filtered = filtered.filter(report => new Date(report.created_at) >= filterDate);
+          filtered = filtered.filter(report => 
+            report.status !== "in_progress" || new Date(report.updated_at) >= filterDate
+          );
           break;
       }
     }
@@ -440,15 +447,7 @@ Beschreibung: ${report.description || 'Keine Beschreibung'}`;
       </Collapsible>
 
       {/* Summary Statistics */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Gesamt</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-primary">{reports.length}</div>
-          </CardContent>
-        </Card>
+      <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium">Offen</CardTitle>

@@ -143,7 +143,7 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
                     to={item.url} 
                     className={({ isActive }) =>
                       isActive
-                        ? "bg-primary text-primary-foreground group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors"
+                        ? "bg-primary text-white group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors"
                         : "text-foreground hover:bg-muted hover:text-foreground group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors"
                     }
                   >
