@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BuildingRow } from "@/components/BuildingRow";
-import { BulkUpload } from "@/components/BulkUpload";
+import { CreateBuildingDialog } from "@/components/CreateBuildingDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useManagementMode } from "@/hooks/useManagementMode";
@@ -94,15 +94,7 @@ export const Buildings = () => {
           </p>
         </div>
         <div className="flex space-x-2">
-          <BulkUpload 
-            buildingId=""
-            managementMode={managementMode}
-            onUploadComplete={handleUploadComplete}
-          />
-          <Button>
-            <Plus className="mr-2 h-4 w-4" />
-            Gebäude hinzufügen
-          </Button>
+          <CreateBuildingDialog onBuildingCreated={handleUploadComplete} />
         </div>
       </div>
 
@@ -169,10 +161,7 @@ export const Buildings = () => {
                 }
               </p>
               {!search && (
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Erstes Gebäude hinzufügen
-                </Button>
+                <CreateBuildingDialog onBuildingCreated={handleUploadComplete} />
               )}
             </CardContent>
           </Card>

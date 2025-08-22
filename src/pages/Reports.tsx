@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { AlertCircle, Clock, CheckCircle, Plus, Edit, ChevronDown, ChevronUp, Filter, Download, FileText, Copy, Settings } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useManagementMode } from "@/hooks/useManagementMode";
+import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -84,6 +85,7 @@ const getStatusBadge = (status: string) => {
 
 export const Reports = () => {
   const { managementMode } = useManagementMode();
+  const { profile } = useAuth();
   const [reports, setReports] = useState<Report[]>([]);
   const [filteredReports, setFilteredReports] = useState<Report[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
@@ -516,6 +518,14 @@ Beschreibung: ${report.description || 'Keine Beschreibung'}`;
                     <p className="text-sm font-medium">Erstellt</p>
                     <p className="text-sm text-muted-foreground">
                       {new Date(report.created_at).toLocaleDateString('de-DE')}
+                      {profile?.role === 'admin' && (
+                        <span className="ml-2">
+                          {new Date(report.created_at).toLocaleTimeString('de-DE', { 
+                            hour: '2-digit', 
+                            minute: '2-digit' 
+                          })}
+                        </span>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -618,6 +628,14 @@ Beschreibung: ${report.description || 'Keine Beschreibung'}`;
                     <p className="text-sm font-medium">Erstellt</p>
                     <p className="text-sm text-muted-foreground">
                       {new Date(report.created_at).toLocaleDateString('de-DE')}
+                      {profile?.role === 'admin' && (
+                        <span className="ml-2">
+                          {new Date(report.created_at).toLocaleTimeString('de-DE', { 
+                            hour: '2-digit', 
+                            minute: '2-digit' 
+                          })}
+                        </span>
+                      )}
                     </p>
                   </div>
                 </div>

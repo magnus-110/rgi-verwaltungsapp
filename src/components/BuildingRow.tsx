@@ -1,11 +1,13 @@
 
 import { useState } from "react";
-import { Building2, MapPin, Hash, Calendar, ChevronDown, ChevronRight, Edit } from "lucide-react";
+import { Building2, MapPin, Hash, Calendar, ChevronDown, ChevronRight, Edit, Plus, Upload } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { UsersList } from "./UsersList";
 import { EditBuildingDialog } from "./EditBuildingDialog";
+import { BulkUpload } from "./BulkUpload";
+import { CreateUserDialog } from "./CreateUserDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -15,7 +17,7 @@ interface Building {
   address: string;
   building_code?: string;
   created_at: string;
-  management_mode: string;
+  management_mode: "weg" | "rent";
 }
 
 interface BuildingRowProps {
@@ -25,6 +27,8 @@ interface BuildingRowProps {
 export const BuildingRow = ({ building }: BuildingRowProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isCreateUserDialogOpen, setIsCreateUserDialogOpen] = useState(false);
+  const [selectedUserType, setSelectedUserType] = useState<"tenant" | "weg_owner">("tenant");
   const queryClient = useQueryClient();
 
   // Get user counts for this building
@@ -54,6 +58,12 @@ export const BuildingRow = ({ building }: BuildingRowProps) => {
   const handleUpdate = () => {
     // Refresh building data
     queryClient.invalidateQueries({ queryKey: ['buildings-paginated'] });
+    queryClient.invalidateQueries({ queryKey: ['building-user-counts', building.id] });
+  };
+
+  const handleCreateUser = (userType: "tenant" | "weg_owner") => {
+    setSelectedUserType(userType);
+    setIsCreateUserDialogOpen(true);
   };
 
   return (
@@ -119,7 +129,32 @@ export const BuildingRow = ({ building }: BuildingRowProps) => {
       {isExpanded && (
         <CardContent className="pt-0">
           <div className="space-y-4 border-t pt-4">
-            <h4 className="font-medium text-sm text-muted-foreground">Zugewiesene Nutzer</h4>
+            <div className="flex items-center justify-between">
+              <h4 className="font-medium text-sm text-muted-foreground">Zugewiesene Nutzer</h4>
+              <div className="flex items-center space-x-2">
+                <BulkUpload 
+                  buildingId={building.id}
+                  managementMode={building.management_mode}
+                  onUploadComplete={handleUpdate}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleCreateUser("tenant")}
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  Mieter
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleCreateUser("weg_owner")}
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  WEG-Eigentümer
+                </Button>
+              </div>
+            </div>
             <div className="space-y-2">
               {userCounts?.tenants > 0 && (
                 <UsersList
@@ -150,6 +185,14 @@ export const BuildingRow = ({ building }: BuildingRowProps) => {
         isOpen={isEditDialogOpen}
         onClose={() => setIsEditDialogOpen(false)}
         onUpdate={handleUpdate}
+      />
+      
+      <CreateUserDialog
+        isOpen={isCreateUserDialogOpen}
+        onClose={() => setIsCreateUserDialogOpen(false)}
+        buildingId={building.id}
+        userType={selectedUserType}
+        onUserCreated={handleUpdate}
       />
     </Card>
   );

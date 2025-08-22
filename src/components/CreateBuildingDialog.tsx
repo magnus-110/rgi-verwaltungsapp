@@ -1,0 +1,124 @@
+import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { useManagementMode } from "@/hooks/useManagementMode";
+
+interface CreateBuildingDialogProps {
+  onBuildingCreated?: () => void;
+}
+
+export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialogProps) => {
+  const { managementMode } = useManagementMode();
+  const [isOpen, setIsOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [formData, setFormData] = useState({
+    name: "",
+    address: "",
+    building_code: "",
+    type: "weg"
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      const { error } = await supabase
+        .from("buildings")
+        .insert({
+          name: formData.name,
+          address: formData.address,
+          building_code: formData.building_code,
+          management_mode: managementMode,
+          type: formData.type
+        });
+
+      if (error) throw error;
+
+      toast.success("Gebäude erfolgreich erstellt");
+      setIsOpen(false);
+      setFormData({ name: "", address: "", building_code: "", type: "weg" });
+      onBuildingCreated?.();
+    } catch (error) {
+      console.error("Error creating building:", error);
+      toast.error("Fehler beim Erstellen des Gebäudes");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
+      <DialogTrigger asChild>
+        <Button>
+          <Plus className="mr-2 h-4 w-4" />
+          Gebäude hinzufügen
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Neues Gebäude erstellen</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="name">Gebäudename</Label>
+            <Input
+              id="name"
+              value={formData.name}
+              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+              required
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="address">Adresse</Label>
+            <Input
+              id="address"
+              value={formData.address}
+              onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
+              required
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="building_code">Gebäudecode</Label>
+            <Input
+              id="building_code"
+              value={formData.building_code}
+              onChange={(e) => setFormData(prev => ({ ...prev, building_code: e.target.value }))}
+              required
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="type">Typ</Label>
+            <Select value={formData.type} onValueChange={(value) => setFormData(prev => ({ ...prev, type: value }))}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="weg">WEG</SelectItem>
+                <SelectItem value="miete">Miete</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div className="flex justify-end space-x-2">
+            <Button type="button" variant="outline" onClick={() => setIsOpen(false)}>
+              Abbrechen
+            </Button>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? "Erstelle..." : "Erstellen"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
