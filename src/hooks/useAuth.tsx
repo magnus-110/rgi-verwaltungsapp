@@ -47,6 +47,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const fetchProfile = async () => {
     if (!user) return;
     
+    console.log('Fetching profile for user:', user.id);
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -56,12 +57,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       if (error) {
         console.error('Error fetching profile:', error);
+        setLoading(false); // Stop loading even on error
         return;
       }
 
+      console.log('Profile fetched successfully:', data);
       setProfile(data);
+      setLoading(false); // Profile loaded successfully
     } catch (error) {
       console.error('Error fetching profile:', error);
+      setLoading(false); // Stop loading on error
     }
   };
 
@@ -72,18 +77,29 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (!mounted) return;
+        console.log('Auth state change:', event, !!session?.user);
         setSession(session);
         setUser(session?.user ?? null);
-        setLoading(false);
+        
+        // Only stop loading if no user, otherwise wait for profile
+        if (!session?.user) {
+          setLoading(false);
+          setProfile(null);
+        }
       }
     );
 
     // Check for existing session only once
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!mounted) return;
+      console.log('Initial session check:', !!session?.user);
       setSession(session);
       setUser(session?.user ?? null);
-      setLoading(false);
+      
+      // Only stop loading if no user, otherwise wait for profile
+      if (!session?.user) {
+        setLoading(false);
+      }
     });
 
     return () => {
@@ -94,22 +110,36 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   useEffect(() => {
     if (user && !profile) {
+      console.log('User exists but no profile, fetching...');
       setTimeout(() => {
         fetchProfile();
       }, 0);
     } else if (!user) {
       setProfile(null);
     }
-  }, [user]);
+  }, [user, profile]);
 
   const signIn = async (email: string, password: string) => {
     try {
+      console.log('Attempting to sign in...');
+      
+      // Clean up any existing auth state first
+      cleanupAuthState();
+      
+      // Try to sign out any existing session
+      try {
+        await supabase.auth.signOut({ scope: 'global' });
+      } catch (err) {
+        console.warn('Global sign out failed:', err);
+      }
+      
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) {
+        console.error('Sign in error:', error);
         toast({
           title: "Anmeldung fehlgeschlagen",
           description: error.message,
@@ -118,8 +148,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         return { error };
       }
 
+      console.log('Sign in successful, redirecting...');
+      // Force page reload for clean state
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 100);
+      
       return {};
     } catch (error) {
+      console.error('Sign in catch error:', error);
       return { error };
     }
   };
