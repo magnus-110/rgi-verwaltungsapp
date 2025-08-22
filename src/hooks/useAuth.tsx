@@ -78,13 +78,24 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       (event, session) => {
         if (!mounted) return;
         console.log('Auth state change:', event, !!session?.user);
-        setSession(session);
-        setUser(session?.user ?? null);
         
-        // Only stop loading if no user, otherwise wait for profile
-        if (!session?.user) {
-          setLoading(false);
+        // Handle different auth events
+        if (event === 'SIGNED_OUT') {
+          setSession(null);
+          setUser(null);
           setProfile(null);
+          setLoading(false);
+        } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          setSession(session);
+          setUser(session?.user ?? null);
+          // Don't stop loading until profile is fetched
+        } else if (event === 'INITIAL_SESSION') {
+          setSession(session);
+          setUser(session?.user ?? null);
+          // Only stop loading if no user, otherwise wait for profile
+          if (!session?.user) {
+            setLoading(false);
+          }
         }
       }
     );
