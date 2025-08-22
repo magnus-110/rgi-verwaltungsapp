@@ -12,7 +12,7 @@ interface ManagerFilterProps {
 export const ManagerFilter = ({ value, onValueChange }: ManagerFilterProps) => {
   const { profile } = useAuth();
 
-  // Lade alle Verwalter für Admin-Nutzer
+  // Lade alle Admin-Verwalter
   const { data: managers = [] } = useQuery({
     queryKey: ['managers-list'],
     queryFn: async () => {
@@ -25,7 +25,7 @@ export const ManagerFilter = ({ value, onValueChange }: ManagerFilterProps) => {
         .order('first_name');
 
       if (error) throw error;
-      return data;
+      return data || [];
     },
     enabled: profile?.role === 'admin'
   });

@@ -13,7 +13,7 @@ import { MessageSquare, Plus, User, Calendar, Building2, Trash2, FileText, Downl
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { FileUpload } from "@/components/FileUpload";
+import { ManagerFilter } from "@/components/ManagerFilter";
 
 interface Building {
   id: string;
@@ -56,6 +56,7 @@ export const Forum = () => {
   const [isEditTemplateOpen, setIsEditTemplateOpen] = useState(false);
   const [buildingFilter, setBuildingFilter] = useState<string>("all");
   const [buildingSearch, setBuildingSearch] = useState("");
+  const [managerFilter, setManagerFilter] = useState<string>("all");
 
   const canCreatePosts = profile?.role === 'admin';
 
@@ -107,7 +108,8 @@ export const Forum = () => {
           buildings:building_id (
             id,
             name,
-            address
+            address,
+            manager_name
           )
         `)
         .eq('management_mode', managementMode)
@@ -293,8 +295,9 @@ export const Forum = () => {
   };
 
   const filteredPosts = posts.filter(post => {
-    if (buildingFilter === "all") return true;
-    return post.building_id === buildingFilter;
+    const matchesBuilding = buildingFilter === "all" || post.building_id === buildingFilter;
+    const matchesManager = managerFilter === "all" || (post.buildings as any)?.manager_name?.includes(managerFilter);
+    return matchesBuilding && matchesManager;
   });
 
   const filteredBuildings = buildings.filter(building =>
@@ -567,12 +570,16 @@ export const Forum = () => {
                   ))}
                 </SelectContent>
               </Select>
+              <ManagerFilter value={managerFilter} onValueChange={setManagerFilter} />
             </div>
-            {buildingFilter !== "all" && (
+            {(buildingFilter !== "all" || managerFilter !== "all") && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setBuildingFilter("all")}
+                onClick={() => {
+                  setBuildingFilter("all");
+                  setManagerFilter("all");
+                }}
               >
                 Filter zurücksetzen
               </Button>
