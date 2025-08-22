@@ -6,17 +6,19 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
-import { Filter, ChevronDown, ChevronUp, FileText } from "lucide-react";
+import { Filter, ChevronDown, ChevronUp, FileText, Download, Edit, Copy } from "lucide-react";
 import { useManagementMode } from "@/hooks/useManagementMode";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { EditReportDialog } from "@/components/reports/EditReportDialog";
+import * as XLSX from 'xlsx';
 
 interface Report {
   id: string;
   title: string;
   description: string;
   status: string;
-  priority: string;
   created_at: string;
   building_id: string;
   contact_name: string;
@@ -26,6 +28,8 @@ interface Report {
   attachments: any;
   reported_by?: string;
   updated_at?: string;
+  admin_notes?: string;
+  internal_notes?: string;
   buildings?: {
     name: string;
     address: string;
@@ -55,6 +59,9 @@ export const Reports = () => {
   const [managerFilter, setManagerFilter] = useState<string>("all");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isInProgressOpen, setIsInProgressOpen] = useState(false);
+  const [timeRange, setTimeRange] = useState<string>("all");
+  const [editingReport, setEditingReport] = useState<Report | null>(null);
+  const [activeTab, setActiveTab] = useState("reports");
 
   const tableName = managementMode === "weg" ? "weg_reports" : "miete_reports";
 
@@ -180,17 +187,60 @@ export const Reports = () => {
     }
   };
 
-  const getPriorityBadge = (priority: string) => {
-    switch (priority) {
-      case "low":
-        return <Badge variant="outline">Niedrig</Badge>;
-      case "medium":
-        return <Badge variant="secondary">Mittel</Badge>;
-      case "high":
-        return <Badge variant="destructive">Hoch</Badge>;
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({
+      title: "Kopiert",
+      description: "Text wurde in die Zwischenablage kopiert.",
+    });
+  };
+
+  const exportToExcel = () => {
+    const allReports = [...filteredOpenReports, ...filteredInProgressReports];
+    const excelData = allReports.map(report => ({
+      Titel: report.title,
+      Beschreibung: report.description,
+      Status: report.status === "open" ? "Offen" : "Bearbeitet",
+      Erstellt: formatDateTime(report.created_at),
+      Gebäude: report.buildings?.name || "",
+      Adresse: report.buildings?.address || "",
+      Verwalter: report.buildings?.manager_name || "",
+      Kontakt: report.contact_name,
+      Email: report.contact_email,
+      Telefon: report.contact_phone || "",
+      "Admin-Notizen": report.admin_notes || ""
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(excelData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Meldungen");
+    XLSX.writeFile(wb, `${managementMode === "weg" ? "WEG" : "Miet"}-Meldungen.xlsx`);
+  };
+
+  const getFilteredReportsByTimeRange = (reports: Report[]) => {
+    if (timeRange === "all") return reports;
+    
+    const now = new Date();
+    let startDate = new Date();
+    
+    switch (timeRange) {
+      case "today":
+        startDate.setHours(0, 0, 0, 0);
+        break;
+      case "week":
+        startDate.setDate(now.getDate() - 7);
+        break;
+      case "month":
+        startDate.setMonth(now.getMonth() - 1);
+        break;
+      case "year":
+        startDate.setFullYear(now.getFullYear() - 1);
+        break;
       default:
-        return <Badge variant="outline">{priority}</Badge>;
+        return reports;
     }
+    
+    return reports.filter(report => new Date(report.created_at) >= startDate);
   };
 
   const formatDateTime = (dateString: string) => {
@@ -207,34 +257,85 @@ export const Reports = () => {
     <Card key={report.id} className="border-0 shadow-sm bg-white">
       <CardContent className="p-6">
         <div className="flex justify-between items-start mb-4">
-          <div>
-            <h3 className="text-lg font-medium mb-1">{report.title}</h3>
-            <p className="text-sm text-muted-foreground mb-1">
-              {formatDateTime(report.created_at)}
-            </p>
-            {report.buildings && (
-              <p className="text-sm text-muted-foreground">
-                {report.buildings.name} - {report.buildings.address}
-                {report.buildings.manager_name && (
-                  <span className="ml-2 text-blue-600">
-                    (Verwalter: {report.buildings.manager_name})
-                  </span>
+          <div className="flex-1">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-lg font-medium">{report.title}</h3>
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => copyToClipboard(`${report.title}\n${report.description}`)}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setEditingReport(report)}
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            
+            <div className="grid md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <p className="text-muted-foreground mb-1">
+                  <strong>Erstellt:</strong> {formatDateTime(report.created_at)}
+                </p>
+                <p className="text-muted-foreground mb-1">
+                  <strong>Kontakt:</strong> {report.contact_name}
+                </p>
+                <p className="text-muted-foreground mb-1">
+                  <strong>E-Mail:</strong> {report.contact_email}
+                </p>
+                {report.contact_phone && (
+                  <p className="text-muted-foreground mb-1">
+                    <strong>Telefon:</strong> {report.contact_phone}
+                  </p>
                 )}
-              </p>
-            )}
-          </div>
-          <div className="flex gap-2">
-            {getStatusBadge(report.status)}
-            {getPriorityBadge(report.priority)}
+                {report.contact_address && (
+                  <p className="text-muted-foreground">
+                    <strong>Adresse:</strong> {report.contact_address}
+                  </p>
+                )}
+              </div>
+              
+              <div>
+                {report.buildings && (
+                  <>
+                    <p className="text-muted-foreground mb-1">
+                      <strong>Gebäude:</strong> {report.buildings.name}
+                    </p>
+                    <p className="text-muted-foreground mb-1">
+                      <strong>Adresse:</strong> {report.buildings.address}
+                    </p>
+                    {report.buildings.manager_name && (
+                      <p className="text-muted-foreground mb-1">
+                        <strong>Verwalter:</strong> {report.buildings.manager_name}
+                      </p>
+                    )}
+                  </>
+                )}
+                <div className="mt-2">
+                  {getStatusBadge(report.status)}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         
-        <p className="text-muted-foreground mb-4">{report.description}</p>
-        
-        <div className="text-sm text-muted-foreground mb-4">
-          <p><strong>Kontakt:</strong> {report.contact_name} ({report.contact_email})</p>
-          {report.contact_phone && <p><strong>Telefon:</strong> {report.contact_phone}</p>}
+        <div className="mb-4">
+          <h4 className="font-medium mb-2">Beschreibung:</h4>
+          <p className="text-muted-foreground">{report.description}</p>
         </div>
+
+        {report.admin_notes && (
+          <div className="mb-4 p-3 bg-yellow-50 rounded-lg border-l-4 border-yellow-400">
+            <h4 className="font-medium mb-1 text-yellow-800">Admin-Notizen:</h4>
+            <p className="text-sm text-yellow-700">{report.admin_notes}</p>
+          </div>
+        )}
 
         {report.attachments && report.attachments.length > 0 && (
           <div className="space-y-2">
@@ -268,9 +369,13 @@ export const Reports = () => {
     );
   }
 
+  // Get time-filtered reports for display and counts
+  const timeFilteredOpenReports = getFilteredReportsByTimeRange(filteredOpenReports);
+  const timeFilteredInProgressReports = getFilteredReportsByTimeRange(filteredInProgressReports);
+
   return (
     <div className="min-h-screen bg-background p-6">
-      <div className="max-w-6xl mx-auto space-y-8">
+      <div className="max-w-6xl mx-auto space-y-6">
         {/* Header */}
         <div>
           <h1 className="text-3xl font-bold">
@@ -281,114 +386,209 @@ export const Reports = () => {
           </p>
         </div>
 
-        {/* Collapsible Filters */}
-        <Card>
-          <Collapsible open={isFilterOpen} onOpenChange={setIsFilterOpen}>
-            <CollapsibleTrigger asChild>
-              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <Filter className="h-5 w-5" />
-                    Filter
-                  </CardTitle>
-                  {isFilterOpen ? (
-                    <ChevronUp className="h-4 w-4" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4" />
-                  )}
-                </div>
-              </CardHeader>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <CardContent className="pt-0">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <Input
-                      placeholder="Nach Meldung suchen..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <Select value={buildingFilter} onValueChange={setBuildingFilter}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Gebäude filtern" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Alle Gebäude</SelectItem>
-                        {buildings.map((building) => (
-                          <SelectItem key={building.id} value={building.id}>
-                            {building.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Select value={managerFilter} onValueChange={setManagerFilter}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Verwalter filtern" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Alle Verwalter</SelectItem>
-                        {managers.map((manager) => (
-                          <SelectItem key={manager} value={manager}>
-                            {manager}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </CardContent>
-            </CollapsibleContent>
-          </Collapsible>
-        </Card>
+        {/* Toolbar */}
+        <div className="flex flex-wrap items-center gap-4 justify-between">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList>
+              <TabsTrigger value="reports">Meldungen</TabsTrigger>
+              <TabsTrigger value="templates">Vorlagen</TabsTrigger>
+            </TabsList>
+          </Tabs>
 
-        {/* Open Reports */}
-        <div className="space-y-4">
-          <h2 className="text-xl font-semibold text-red-600">
-            Offene Meldungen ({filteredOpenReports.length})
-          </h2>
-          {filteredOpenReports.length === 0 ? (
-            <Card>
-              <CardContent className="text-center py-8">
-                <p className="text-muted-foreground">Keine offenen Meldungen</p>
-              </CardContent>
-            </Card>
-          ) : (
-            filteredOpenReports.map(renderReportCard)
-          )}
+          <div className="flex items-center gap-2">
+            <Select value={timeRange} onValueChange={setTimeRange}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Zeitraum" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alle</SelectItem>
+                <SelectItem value="today">Heute</SelectItem>
+                <SelectItem value="week">Diese Woche</SelectItem>
+                <SelectItem value="month">Diesen Monat</SelectItem>
+                <SelectItem value="year">Dieses Jahr</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Button variant="outline" onClick={exportToExcel}>
+              <Download className="h-4 w-4 mr-2" />
+              Exportieren
+            </Button>
+
+            <Button 
+              variant="outline" 
+              onClick={() => setIsFilterOpen(!isFilterOpen)}
+            >
+              <Filter className="h-4 w-4 mr-2" />
+              Filter
+            </Button>
+          </div>
         </div>
 
-        {/* In Progress Reports - Collapsible */}
-        <div className="space-y-4">
-          <Collapsible open={isInProgressOpen} onOpenChange={setIsInProgressOpen}>
-            <CollapsibleTrigger asChild>
-              <div className="flex items-center justify-between cursor-pointer">
-                <h2 className="text-xl font-semibold text-yellow-600">
-                  Bearbeitete Meldungen ({filteredInProgressReports.length})
-                </h2>
-                {isInProgressOpen ? (
-                  <ChevronUp className="h-5 w-5" />
-                ) : (
-                  <ChevronDown className="h-5 w-5" />
-                )}
-              </div>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-4">
-              {filteredInProgressReports.length === 0 ? (
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsContent value="reports" className="space-y-6">
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card className="bg-red-50 border-red-200">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-red-800">Offen</h3>
+                      <p className="text-3xl font-bold text-red-600">{timeFilteredOpenReports.length}</p>
+                    </div>
+                    <div className="text-red-400">
+                      <FileText className="h-8 w-8" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-yellow-50 border-yellow-200">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-yellow-800">Bearbeitet</h3>
+                      <p className="text-3xl font-bold text-yellow-600">{timeFilteredInProgressReports.length}</p>
+                    </div>
+                    <div className="text-yellow-400">
+                      <FileText className="h-8 w-8" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Collapsible Filters */}
+            <Card>
+              <Collapsible open={isFilterOpen} onOpenChange={setIsFilterOpen}>
+                <CollapsibleTrigger asChild>
+                  <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="flex items-center gap-2">
+                        <Filter className="h-5 w-5" />
+                        Filter
+                      </CardTitle>
+                      {isFilterOpen ? (
+                        <ChevronUp className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
+                      )}
+                    </div>
+                  </CardHeader>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <CardContent className="pt-0">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <Input
+                          placeholder="Nach Meldung suchen..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Select value={buildingFilter} onValueChange={setBuildingFilter}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Gebäude filtern" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Alle Gebäude</SelectItem>
+                            {buildings.map((building) => (
+                              <SelectItem key={building.id} value={building.id}>
+                                {building.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Select value={managerFilter} onValueChange={setManagerFilter}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Verwalter filtern" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Alle Verwalter</SelectItem>
+                            {managers.map((manager) => (
+                              <SelectItem key={manager} value={manager}>
+                                {manager}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </CardContent>
+                </CollapsibleContent>
+              </Collapsible>
+            </Card>
+
+            {/* Open Reports */}
+            <div className="space-y-4">
+              <h2 className="text-xl font-semibold text-red-600">
+                Offene Meldungen ({timeFilteredOpenReports.length})
+              </h2>
+              {timeFilteredOpenReports.length === 0 ? (
                 <Card>
                   <CardContent className="text-center py-8">
-                    <p className="text-muted-foreground">Keine bearbeiteten Meldungen</p>
+                    <p className="text-muted-foreground">Keine offenen Meldungen</p>
                   </CardContent>
                 </Card>
               ) : (
-                filteredInProgressReports.map(renderReportCard)
+                timeFilteredOpenReports.map(renderReportCard)
               )}
-            </CollapsibleContent>
-          </Collapsible>
-        </div>
+            </div>
+
+            {/* In Progress Reports - Collapsible */}
+            <div className="space-y-4">
+              <Collapsible open={isInProgressOpen} onOpenChange={setIsInProgressOpen}>
+                <CollapsibleTrigger asChild>
+                  <div className="flex items-center justify-between cursor-pointer">
+                    <h2 className="text-xl font-semibold text-yellow-600">
+                      Bearbeitete Meldungen ({timeFilteredInProgressReports.length})
+                    </h2>
+                    {isInProgressOpen ? (
+                      <ChevronUp className="h-5 w-5" />
+                    ) : (
+                      <ChevronDown className="h-5 w-5" />
+                    )}
+                  </div>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-4">
+                  {timeFilteredInProgressReports.length === 0 ? (
+                    <Card>
+                      <CardContent className="text-center py-8">
+                        <p className="text-muted-foreground">Keine bearbeiteten Meldungen</p>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    timeFilteredInProgressReports.map(renderReportCard)
+                  )}
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="templates">
+            <Card>
+              <CardContent className="text-center py-12">
+                <p className="text-muted-foreground">Vorlagen-Funktionalität wird hier implementiert...</p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        {/* Edit Report Dialog */}
+        {editingReport && (
+          <EditReportDialog
+            report={editingReport}
+            tableName={tableName}
+            open={!!editingReport}
+            onClose={() => setEditingReport(null)}
+            onSaved={() => {
+              fetchReports();
+              setEditingReport(null);
+            }}
+          />
+        )}
       </div>
     </div>
   );
