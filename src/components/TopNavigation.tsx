@@ -6,7 +6,7 @@ import {
   Shield, 
   Newspaper, 
   Sparkles, 
-  Crown,
+  Settings,
   LogOut,
   UserRound
 } from "lucide-react";
@@ -130,7 +130,7 @@ export const TopNavigation = ({ userRole }: TopNavigationProps) => {
               onClick={() => navigate(userRole === 'tenant' ? '/tenant/settings' : '/weg-owner/settings')}
               className="rounded-lg"
             >
-              <Crown className="w-4 h-4" />
+              <Settings className="w-4 h-4" />
             </Button>
             
             <Button

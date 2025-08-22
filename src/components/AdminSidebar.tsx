@@ -5,7 +5,7 @@ import {
   Castle, 
   Newspaper, 
   Sparkles, 
-  Crown,
+  Settings,
   LogOut,
   ToggleLeft,
   ToggleRight
@@ -33,7 +33,7 @@ const menuItems = [
   { title: "Gebäude", url: "/buildings", icon: Castle },
   { title: "Schwarzes Brett", url: "/forum", icon: Newspaper },
   { title: "Chatbot", url: "/chatbot", icon: Sparkles },
-  { title: "Einstellungen", url: "/settings", icon: Crown },
+  { title: "Einstellungen", url: "/settings", icon: Settings },
 ];
 
 interface AdminSidebarProps {
@@ -139,11 +139,11 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
             <SidebarMenu className="space-y-1">
               {menuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
-                  <NavLink 
+                   <NavLink 
                     to={item.url} 
                     className={({ isActive }) =>
                       isActive
-                        ? "bg-primary text-primary-foreground group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors"
+                        ? "bg-primary text-white group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors"
                         : "text-gray-700 hover:bg-muted hover:text-gray-700 group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors"
                     }
                   >
