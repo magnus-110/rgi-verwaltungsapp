@@ -53,14 +53,24 @@ export const Login = () => {
       });
 
       if (error) {
-        throw error;
+        console.error('Password reset error:', error);
+        toast.error('Fehler beim Zurücksetzen des Passworts. Bitte versuchen Sie es später erneut.');
+        return;
       }
 
-      toast.success("Neues Passwort wurde per E-Mail versendet!");
+      if (data?.error) {
+        // Handle specific error messages from the function
+        toast.error(data.error);
+        return;
+      }
+
+      // Success case
+      toast.success("Neues Passwort wurde generiert und per E-Mail versendet!");
       setResetDialogOpen(false);
       setResetEmail("");
     } catch (error: any) {
-      toast.error(error.message || "Fehler beim Zurücksetzen des Passworts");
+      console.error('Password reset request failed:', error);
+      toast.error('Verbindungsfehler. Bitte überprüfen Sie Ihre Internetverbindung und versuchen Sie es erneut.');
     } finally {
       setResetLoading(false);
     }

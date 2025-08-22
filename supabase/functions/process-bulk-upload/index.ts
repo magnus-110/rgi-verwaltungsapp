@@ -29,10 +29,13 @@ async function sendToMakeWebhook(data: any) {
   const webhookUrl = Deno.env.get('MAKE_WEBHOOK_URL')
   if (!webhookUrl) {
     console.error('MAKE_WEBHOOK_URL not configured')
-    return
+    return { success: false, error: 'Webhook URL not configured' }
   }
 
   try {
+    console.log('Sending webhook to:', webhookUrl.substring(0, 50) + '...')
+    console.log('Webhook payload:', JSON.stringify(data, null, 2))
+    
     const response = await fetch(webhookUrl, {
       method: 'POST',
       headers: {
@@ -41,13 +44,20 @@ async function sendToMakeWebhook(data: any) {
       body: JSON.stringify(data)
     })
     
+    const responseText = await response.text()
+    
     if (!response.ok) {
-      console.error('Make.com webhook failed:', response.status, await response.text())
+      console.error(`Make.com webhook failed: ${response.status} ${response.statusText}`)
+      console.error('Response:', responseText)
+      return { success: false, error: `HTTP ${response.status}: ${responseText}` }
     } else {
-      console.log('Make.com webhook sent successfully')
+      console.log('Make.com webhook sent successfully:', response.status)
+      console.log('Response:', responseText)
+      return { success: true, response: responseText }
     }
   } catch (error) {
     console.error('Error sending to Make.com webhook:', error)
+    return { success: false, error: error.message }
   }
 }
 
