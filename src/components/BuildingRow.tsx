@@ -60,14 +60,14 @@ export const BuildingRow = ({ building, onUpdate }: BuildingRowProps) => {
   const { data: assignedManagersCount = 0 } = useQuery({
     queryKey: ['building-managers-count', building.id],
     queryFn: async () => {
-      const { count, error } = await supabase
+      const { data, error } = await supabase
         .rpc('count_building_managers', { building_id_param: building.id });
 
       if (error) {
         console.error('Error counting managers:', error);
         return 0;
       }
-      return count || 0;
+      return data || 0;
     },
   });
 
@@ -75,7 +75,6 @@ export const BuildingRow = ({ building, onUpdate }: BuildingRowProps) => {
   const { data: managerNames = [] } = useQuery({
     queryKey: ['building-managers-names', building.id],
     queryFn: async () => {
-      // Use a more direct approach to get manager names
       const { data, error } = await supabase
         .rpc('get_building_manager_names', { building_id_param: building.id });
 
@@ -125,7 +124,7 @@ export const BuildingRow = ({ building, onUpdate }: BuildingRowProps) => {
               </div>
               
               {/* Verwalter anzeigen */}
-              {managerNames.length > 0 && (
+              {Array.isArray(managerNames) && managerNames.length > 0 && (
                 <div className="flex items-center text-xs text-muted-foreground mt-1">
                   <Users className="h-3 w-3 mr-1" />
                   <span className="truncate">

@@ -536,9 +536,48 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      assign_building_manager: {
+        Args: { building_id_param: string; user_id_param: string }
+        Returns: undefined
+      }
+      count_building_managers: {
+        Args: { building_id_param: string }
+        Returns: number
+      }
+      get_building_manager_names: {
+        Args: { building_id_param: string }
+        Returns: string[]
+      }
+      get_building_managers: {
+        Args: { building_id_param: string }
+        Returns: {
+          email: string
+          first_name: string
+          last_name: string
+          manager_id: string
+          user_id: string
+        }[]
+      }
       get_user_role: {
         Args: { user_uuid: string }
         Returns: Database["public"]["Enums"]["app_role"]
+      }
+      remove_building_manager: {
+        Args: { manager_id_param: string }
+        Returns: undefined
+      }
+      remove_push_subscription: {
+        Args: { endpoint_param: string; user_id_param: string }
+        Returns: undefined
+      }
+      save_push_subscription: {
+        Args: {
+          auth_param: string
+          endpoint_param: string
+          p256dh_param: string
+          user_id_param: string
+        }
+        Returns: undefined
       }
     }
     Enums: {

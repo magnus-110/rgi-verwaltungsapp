@@ -67,13 +67,13 @@ export const ManagerAssignmentDialog = ({
         return [];
       }
       
-      return (data || []).map((item: any) => ({
+      return Array.isArray(data) ? data.map((item: any) => ({
         manager_id: item.manager_id,
         user_id: item.user_id,
         first_name: item.first_name || '',
         last_name: item.last_name || '',
         email: item.email
-      })) as AssignedManager[];
+      })) as AssignedManager[] : [];
     },
   });
 
