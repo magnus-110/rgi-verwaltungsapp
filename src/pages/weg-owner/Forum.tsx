@@ -210,8 +210,8 @@ export const WegOwnerForum = () => {
                               </p>
                             </div>
                             
-                            <div className="text-center">
-                              <p className="text-muted-foreground whitespace-pre-wrap">{post.content}</p>
+                            <div className="text-left">
+                              <p className="text-muted-foreground whitespace-pre-wrap text-left">{post.content}</p>
                             </div>
                             
                             {post.attachments && post.attachments.length > 0 && (

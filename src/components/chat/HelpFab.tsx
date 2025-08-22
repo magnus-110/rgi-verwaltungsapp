@@ -121,7 +121,7 @@ export const HelpFab = ({ userType, selectedBuildingId, onBuildingChange, userNa
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <img 
-                src="/lovable-uploads/2f4fde3b-f4b0-4829-9fcb-a148e37bae43.png" 
+                src="/lovable-uploads/b9771424-b209-4762-aff0-6832ee6c96c7.png" 
                 alt="RGI Haus"
                 className="w-6 h-6"
               />

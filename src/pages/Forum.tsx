@@ -679,7 +679,7 @@ export const Forum = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                <p className="text-muted-foreground whitespace-pre-wrap">{post.content}</p>
+                <p className="text-muted-foreground whitespace-pre-wrap text-left">{post.content}</p>
                 {renderAttachments(post.attachments)}
               </CardContent>
             </Card>

@@ -135,9 +135,9 @@ export const TenantForum = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="prose prose-sm max-w-none">
+                <div className="max-w-none text-left">
                   {post.content.split('\n').map((paragraph, index) => (
-                    <p key={index} className="mb-3 last:mb-0">
+                    <p key={index} className="mb-3 last:mb-0 text-left">
                       {paragraph}
                     </p>
                   ))}
