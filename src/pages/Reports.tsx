@@ -188,11 +188,16 @@ export const Reports = () => {
     }
   };
 
-  const copyToClipboard = (text: string) => {
+  const copyToClipboard = (report: Report) => {
+    const text = `Name: ${report.contact_name}
+Erstellt am: ${formatDateTime(report.created_at)}
+Titel: ${report.title}
+Beschreibung: ${report.description}`;
+    
     navigator.clipboard.writeText(text);
     toast({
       title: "Kopiert",
-      description: "Text wurde in die Zwischenablage kopiert.",
+      description: "Meldungsinformationen wurden in die Zwischenablage kopiert.",
     });
   };
 
@@ -264,7 +269,7 @@ export const Reports = () => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => copyToClipboard(`${report.title}\n${report.description}`)}
+              onClick={() => copyToClipboard(report)}
             >
               <Copy className="h-4 w-4" />
             </Button>

@@ -138,22 +138,26 @@ export const BuildingRow = ({ building, onUpdate }: BuildingRowProps) => {
                   managementMode={building.management_mode}
                   onUploadComplete={handleUpdate}
                 />
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleCreateUser("tenant")}
-                >
-                  <Plus className="h-3 w-3 mr-1" />
-                  Mieter
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleCreateUser("weg_owner")}
-                >
-                  <Plus className="h-3 w-3 mr-1" />
-                  WEG-Eigentümer
-                </Button>
+                {building.management_mode === "rent" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleCreateUser("tenant")}
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    Mieter
+                  </Button>
+                )}
+                {building.management_mode === "weg" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleCreateUser("weg_owner")}
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    WEG-Eigentümer
+                  </Button>
+                )}
               </div>
             </div>
             <div className="space-y-2">
