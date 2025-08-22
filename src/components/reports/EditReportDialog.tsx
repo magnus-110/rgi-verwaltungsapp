@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useManagementMode } from "@/hooks/useManagementMode";
 
 interface Report {
   id: string;
@@ -26,6 +28,12 @@ interface Report {
   } | null;
 }
 
+interface Template {
+  id: string;
+  title: string;
+  content: string;
+}
+
 interface EditReportDialogProps {
   report: Report;
   tableName: string;
@@ -35,9 +43,47 @@ interface EditReportDialogProps {
 }
 
 export const EditReportDialog = ({ report, tableName, open, onClose, onSaved }: EditReportDialogProps) => {
+  const { managementMode } = useManagementMode();
   const [status, setStatus] = useState(report.status);
   const [adminNotes, setAdminNotes] = useState(report.admin_notes || "");
+  const [internalNotes, setInternalNotes] = useState(report.internal_notes || "");
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      fetchTemplates();
+      // Reset form when dialog opens
+      setStatus(report.status);
+      setAdminNotes(report.admin_notes || "");
+      setInternalNotes(report.internal_notes || "");
+      setSelectedTemplate("");
+    }
+  }, [open, report]);
+
+  const fetchTemplates = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('forum_post_templates')
+        .select('*')
+        .eq('management_mode', managementMode)
+        .order('title');
+
+      if (error) throw error;
+      setTemplates(data || []);
+    } catch (error) {
+      console.error('Error fetching templates:', error);
+    }
+  };
+
+  const handleTemplateSelect = (templateId: string) => {
+    const template = templates.find(t => t.id === templateId);
+    if (template) {
+      setAdminNotes(prev => prev ? `${prev}\n\n${template.content}` : template.content);
+      setSelectedTemplate("");
+    }
+  };
 
   const handleSave = async () => {
     try {
@@ -48,6 +94,7 @@ export const EditReportDialog = ({ report, tableName, open, onClose, onSaved }: 
         .update({
           status,
           admin_notes: adminNotes,
+          internal_notes: internalNotes,
           updated_at: new Date().toISOString(),
         })
         .eq("id", report.id);
@@ -75,7 +122,7 @@ export const EditReportDialog = ({ report, tableName, open, onClose, onSaved }: 
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Meldung bearbeiten</DialogTitle>
         </DialogHeader>
@@ -107,12 +154,38 @@ export const EditReportDialog = ({ report, tableName, open, onClose, onSaved }: 
           </div>
 
           <div>
-            <label className="text-sm font-medium mb-2 block">Admin-Notizen</label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium">Verwalter-Notiz (sichtbar für Kunden)</label>
+              {templates.length > 0 && (
+                <Select value={selectedTemplate} onValueChange={handleTemplateSelect}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="Vorlage wählen..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templates.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        {template.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
             <Textarea
               value={adminNotes}
               onChange={(e) => setAdminNotes(e.target.value)}
-              placeholder="Interne Notizen zur Meldung..."
+              placeholder="Antwort für den Kunden..."
               rows={4}
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium mb-2 block">Interne Notiz (nur für Verwalter)</label>
+            <Textarea
+              value={internalNotes}
+              onChange={(e) => setInternalNotes(e.target.value)}
+              placeholder="Interne Notizen zur Meldung..."
+              rows={3}
             />
           </div>
 

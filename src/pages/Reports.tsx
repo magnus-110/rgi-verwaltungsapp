@@ -12,6 +12,7 @@ import { Filter, ChevronDown, ChevronUp, FileText, Download, Edit, Copy } from "
 import { useManagementMode } from "@/hooks/useManagementMode";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { EditReportDialog } from "@/components/reports/EditReportDialog";
+import { ReportTemplatesManager } from "@/components/ReportTemplatesManager";
 import * as XLSX from 'xlsx';
 
 interface Report {
@@ -255,85 +256,45 @@ export const Reports = () => {
 
   const renderReportCard = (report: Report) => (
     <Card key={report.id} className="border-0 shadow-sm bg-white">
-      <CardContent className="p-6">
-        <div className="flex justify-between items-start mb-4">
-          <div className="flex-1">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-lg font-medium">{report.title}</h3>
-              <div className="flex gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => copyToClipboard(`${report.title}\n${report.description}`)}
-                >
-                  <Copy className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setEditingReport(report)}
-                >
-                  <Edit className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-            
-            <div className="grid md:grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-muted-foreground mb-1">
-                  <strong>Erstellt:</strong> {formatDateTime(report.created_at)}
-                </p>
-                <p className="text-muted-foreground mb-1">
-                  <strong>Kontakt:</strong> {report.contact_name}
-                </p>
-                <p className="text-muted-foreground mb-1">
-                  <strong>E-Mail:</strong> {report.contact_email}
-                </p>
-                {report.contact_phone && (
-                  <p className="text-muted-foreground mb-1">
-                    <strong>Telefon:</strong> {report.contact_phone}
-                  </p>
-                )}
-                {report.contact_address && (
-                  <p className="text-muted-foreground">
-                    <strong>Adresse:</strong> {report.contact_address}
-                  </p>
-                )}
-              </div>
-              
-              <div>
-                {report.buildings && (
-                  <>
-                    <p className="text-muted-foreground mb-1">
-                      <strong>Gebäude:</strong> {report.buildings.name}
-                    </p>
-                    <p className="text-muted-foreground mb-1">
-                      <strong>Adresse:</strong> {report.buildings.address}
-                    </p>
-                    {report.buildings.manager_name && (
-                      <p className="text-muted-foreground mb-1">
-                        <strong>Verwalter:</strong> {report.buildings.manager_name}
-                      </p>
-                    )}
-                  </>
-                )}
-                <div className="mt-2">
-                  {getStatusBadge(report.status)}
-                </div>
-              </div>
-            </div>
+      <CardContent className="p-4">
+        <div className="flex justify-between items-start mb-3">
+          <h3 className="text-lg font-medium">{report.title}</h3>
+          <div className="flex gap-2 items-center">
+            {getStatusBadge(report.status)}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => copyToClipboard(`${report.title}\n${report.description}`)}
+            >
+              <Copy className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setEditingReport(report)}
+            >
+              <Edit className="h-4 w-4" />
+            </Button>
           </div>
         </div>
         
-        <div className="mb-4">
-          <h4 className="font-medium mb-2">Beschreibung:</h4>
-          <p className="text-muted-foreground">{report.description}</p>
+        <p className="text-sm text-muted-foreground mb-4">{report.description}</p>
+        
+        <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+          <div className="space-y-1">
+            <p><strong>Kontakt:</strong> {report.contact_name}</p>
+            <p><strong>Telefon:</strong> {report.contact_phone || 'Nicht angegeben'}</p>
+          </div>
+          <div className="space-y-1">
+            <p><strong>Gebäude:</strong> {report.buildings?.address || 'Nicht zugewiesen'}</p>
+            <p><strong>Erstellt:</strong> {formatDateTime(report.created_at)}</p>
+          </div>
         </div>
 
         {report.admin_notes && (
-          <div className="mb-4 p-3 bg-yellow-50 rounded-lg border-l-4 border-yellow-400">
-            <h4 className="font-medium mb-1 text-yellow-800">Admin-Notizen:</h4>
-            <p className="text-sm text-yellow-700">{report.admin_notes}</p>
+          <div className="mb-4 p-3 bg-blue-50 rounded-lg border-l-4 border-blue-400">
+            <h4 className="font-medium mb-1 text-blue-800">Verwalter-Notiz:</h4>
+            <p className="text-sm text-blue-700">{report.admin_notes}</p>
           </div>
         )}
 
@@ -428,28 +389,28 @@ export const Reports = () => {
           <TabsContent value="reports" className="space-y-6">
             {/* Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Card className="bg-red-50 border-red-200">
+              <Card>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-lg font-semibold text-red-800">Offen</h3>
-                      <p className="text-3xl font-bold text-red-600">{timeFilteredOpenReports.length}</p>
+                      <h3 className="text-lg font-semibold text-foreground">Offen</h3>
+                      <p className="text-3xl font-bold text-foreground">{timeFilteredOpenReports.length}</p>
                     </div>
-                    <div className="text-red-400">
+                    <div className="text-muted-foreground">
                       <FileText className="h-8 w-8" />
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="bg-yellow-50 border-yellow-200">
+              <Card>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-lg font-semibold text-yellow-800">Bearbeitet</h3>
-                      <p className="text-3xl font-bold text-yellow-600">{timeFilteredInProgressReports.length}</p>
+                      <h3 className="text-lg font-semibold text-foreground">Bearbeitet</h3>
+                      <p className="text-3xl font-bold text-foreground">{timeFilteredInProgressReports.length}</p>
                     </div>
-                    <div className="text-yellow-400">
+                    <div className="text-muted-foreground">
                       <FileText className="h-8 w-8" />
                     </div>
                   </div>
@@ -568,11 +529,7 @@ export const Reports = () => {
           </TabsContent>
 
           <TabsContent value="templates">
-            <Card>
-              <CardContent className="text-center py-12">
-                <p className="text-muted-foreground">Vorlagen-Funktionalität wird hier implementiert...</p>
-              </CardContent>
-            </Card>
+            <ReportTemplatesManager />
           </TabsContent>
         </Tabs>
 
