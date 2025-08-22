@@ -106,7 +106,12 @@ export const Reports = () => {
 
       if (error) throw error;
 
-      const reports = (data || []) as Report[];
+      // Type the data properly to avoid casting issues
+      const reports = data ? data.map(item => ({
+        ...item,
+        buildings: item.buildings || null
+      })) as Report[] : [];
+      
       const open = reports.filter(report => report.status === "open");
       const inProgress = reports.filter(report => report.status === "in_progress");
 

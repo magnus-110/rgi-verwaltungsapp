@@ -23,7 +23,7 @@ interface Building {
   building_code?: string;
   management_mode: string;
   type?: string;
-  manager_name?: string;
+  manager_name?: string | null;
   created_at: string;
   updated_at: string;
 }
