@@ -257,18 +257,25 @@ export const TenantReports = () => {
   };
 
   const handleTemplateSelect = (templateId: string) => {
-    const template = templates.find(t => t.id === templateId);
-    if (template) {
+    if (templateId === "none") {
       setReportForm(prev => ({
         ...prev,
-        title: template.name,
-        template_id: templateId
+        template_id: "",
       }));
     } else {
-      setReportForm(prev => ({
-        ...prev,
-        template_id: templateId
-      }));
+      const template = templates.find(t => t.id === templateId);
+      if (template) {
+        setReportForm(prev => ({
+          ...prev,
+          title: template.name,
+          template_id: templateId
+        }));
+      } else {
+        setReportForm(prev => ({
+          ...prev,
+          template_id: templateId
+        }));
+      }
     }
   };
 
@@ -398,14 +405,14 @@ export const TenantReports = () => {
                     <SelectTrigger className="bg-background border border-border shadow-lg z-50">
                       <SelectValue placeholder="Vorlage auswählen..." />
                     </SelectTrigger>
-                    <SelectContent className="bg-background border border-border shadow-lg z-50">
-                      <SelectItem value="">Keine Vorlage</SelectItem>
-                      {templates.map((template) => (
-                        <SelectItem key={template.id} value={template.id}>
-                          {template.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
+                     <SelectContent className="bg-background border border-border shadow-lg z-50">
+                       <SelectItem value="none">Keine Vorlage</SelectItem>
+                       {templates.map((template) => (
+                         <SelectItem key={template.id} value={template.id}>
+                           {template.name}
+                         </SelectItem>
+                       ))}
+                     </SelectContent>
                   </Select>
                 </div>
 
