@@ -30,8 +30,15 @@ interface Report {
   buildings?: {
     name: string;
     address: string;
-    manager_name?: string;
-  };
+    manager_name?: string | null;
+  } | null;
+}
+
+interface Building {
+  id: string;
+  name: string;
+  address: string;
+  manager_name?: string | null;
 }
 
 export const Reports = () => {
@@ -41,7 +48,7 @@ export const Reports = () => {
   const [inProgressReports, setInProgressReports] = useState<Report[]>([]);
   const [filteredOpenReports, setFilteredOpenReports] = useState<Report[]>([]);
   const [filteredInProgressReports, setFilteredInProgressReports] = useState<Report[]>([]);
-  const [buildings, setBuildings] = useState<any[]>([]);
+  const [buildings, setBuildings] = useState<Building[]>([]);
   const [managers, setManagers] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -99,7 +106,7 @@ export const Reports = () => {
 
       if (error) throw error;
 
-      const reports = data || [];
+      const reports = (data || []) as Report[];
       const open = reports.filter(report => report.status === "open");
       const inProgress = reports.filter(report => report.status === "in_progress");
 
