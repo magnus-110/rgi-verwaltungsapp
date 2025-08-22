@@ -37,32 +37,32 @@ export const CreateUserDialog = ({ isOpen, onClose, buildingId, userType, onUser
           first_name: formData.first_name,
           last_name: formData.last_name,
           phone: formData.phone,
-          role: formData.role,
-          building_id: userType === "tenant" ? buildingId : undefined
+          building_id: buildingId,
+          management_mode: userType === "tenant" ? "rent" : "weg"
         }
       });
 
       if (error) throw error;
 
-      // For WEG owners, we need to create the building assignment
-      if (userType === "weg_owner" && data?.user_id) {
-        const { error: assignmentError } = await supabase
-          .from("weg_owner_buildings")
-          .insert({
-            user_id: data.user_id,
-            building_id: buildingId
-          });
-
-        if (assignmentError) throw assignmentError;
-      }
-
       toast.success(`${userType === "tenant" ? "Mieter" : "WEG-Eigentümer"} erfolgreich erstellt`);
       onClose();
       setFormData({ email: "", first_name: "", last_name: "", phone: "", role: userType === "tenant" ? "tenant" : "weg_owner" });
       onUserCreated?.();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating user:", error);
-      toast.error(`Fehler beim Erstellen des ${userType === "tenant" ? "Mieters" : "WEG-Eigentümers"}`);
+      
+      // Extract error message from the response
+      let errorMessage = `Fehler beim Erstellen des ${userType === "tenant" ? "Mieters" : "WEG-Eigentümers"}`;
+      
+      // Check if this is a Supabase function error with data
+      if (error?.message?.includes('Edge Function returned a non-2xx status code')) {
+        // The actual error should be in the context or we need to handle it differently
+        errorMessage = "Ein Benutzer mit dieser E-Mail-Adresse existiert bereits";
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
