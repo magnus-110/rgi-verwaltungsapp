@@ -1,199 +1,181 @@
-
-import { useState } from "react";
-import { Plus, Search } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BuildingRow } from "@/components/BuildingRow";
 import { CreateBuildingDialog } from "@/components/CreateBuildingDialog";
-import { supabase } from "@/integrations/supabase/client";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { BulkUpload } from "@/components/BulkUpload";
+import { CreateUserDialog } from "@/components/CreateUserDialog";
+import { toast } from "sonner";
 import { useManagementMode } from "@/hooks/useManagementMode";
+import { Badge } from "@/components/ui/badge";
+import { ChevronDown, ChevronUp, Filter } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+
+interface Building {
+  id: string;
+  name: string;
+  address: string;
+  building_code?: string;
+  management_mode: string;
+  type?: string;
+  manager_name?: string;
+  created_at: string;
+  updated_at: string;
+}
 
 export const Buildings = () => {
+  const { profile } = useAuth();
   const { managementMode } = useManagementMode();
-  const queryClient = useQueryClient();
-  const [search, setSearch] = useState("");
-  const [sortBy, setSortBy] = useState("name");
-  const [page, setPage] = useState(0);
-  const pageSize = 20;
+  const [buildings, setBuildings] = useState<Building[]>([]);
+  const [filteredBuildings, setFilteredBuildings] = useState<Building[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
-  const { data: buildingsData, isLoading } = useQuery({
-    queryKey: ['buildings-paginated', managementMode, search, sortBy, page],
-    queryFn: async () => {
-      let query = supabase
-        .from('buildings')
-        .select('*', { count: 'exact' })
-        .eq('management_mode', managementMode);
+  useEffect(() => {
+    if (profile) {
+      fetchBuildings();
+    }
+  }, [profile, managementMode]);
 
-      // Apply search filter
-      if (search.trim()) {
-        query = query.or(`name.ilike.%${search}%,address.ilike.%${search}%,building_code.ilike.%${search}%`);
-      }
+  const fetchBuildings = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("buildings")
+        .select("*")
+        .eq("management_mode", managementMode)
+        .order("name");
 
-      // Apply sorting
-      switch (sortBy) {
-        case 'name':
-          query = query.order('name');
-          break;
-        case 'address':
-          query = query.order('address');
-          break;
-        case 'created_at':
-          query = query.order('created_at', { ascending: false });
-          break;
-        default:
-          query = query.order('name');
-      }
-
-      // Apply pagination
-      query = query.range(page * pageSize, (page + 1) * pageSize - 1);
-
-      const { data, error, count } = await query;
       if (error) throw error;
-
-      return {
-        buildings: data || [],
-        totalCount: count || 0,
-        hasMore: (data?.length || 0) === pageSize
-      };
-    },
-  });
-
-  const buildings = buildingsData?.buildings || [];
-  const totalCount = buildingsData?.totalCount || 0;
-  const hasMore = buildingsData?.hasMore || false;
-  const canLoadPrevious = page > 0;
-
-  const handleSearchChange = (value: string) => {
-    setSearch(value);
-    setPage(0); // Reset to first page when searching
+      setBuildings(data || []);
+      setFilteredBuildings(data || []);
+    } catch (error) {
+      console.error("Error fetching buildings:", error);
+      toast.error("Fehler beim Laden der Gebäude");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleSortChange = (value: string) => {
-    setSortBy(value);
-    setPage(0); // Reset to first page when sorting changes
-  };
+  useEffect(() => {
+    let filtered = buildings;
 
-  const handleUploadComplete = () => {
-    // Invalidate queries to refresh the buildings list
-    queryClient.invalidateQueries({ queryKey: ['buildings-paginated'] });
-    queryClient.invalidateQueries({ queryKey: ['building-user-counts'] });
-  };
+    if (searchTerm) {
+      filtered = filtered.filter(building =>
+        building.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        building.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (building.building_code && building.building_code.toLowerCase().includes(searchTerm.toLowerCase()))
+      );
+    }
+
+    if (typeFilter !== "all") {
+      filtered = filtered.filter(building => building.type === typeFilter);
+    }
+
+    setFilteredBuildings(filtered);
+  }, [buildings, searchTerm, typeFilter]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-lg">Laden...</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-start">
-        <div>
-          <h2 className="text-4xl font-sans font-semibold tracking-tight mb-2">
-            {managementMode === 'weg' ? 'WEG-' : 'Miet-'}Gebäude
-          </h2>
-          <p className="body-secondary text-lg">
-            Verwalten Sie Ihre {managementMode === 'weg' ? 'WEG-' : 'Miet-'}Gebäude und deren Nutzer
-          </p>
-        </div>
-        <div className="flex space-x-2">
-          <CreateBuildingDialog onBuildingCreated={handleUploadComplete} />
-        </div>
-      </div>
-
-      {/* Search and Filter Controls */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Filter & Suche</CardTitle>
-          <CardDescription>
-            Durchsuchen Sie Ihre Gebäude nach Name, Adresse oder Gebäudecode
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Nach Gebäude suchen..."
-                  value={search}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-            <Select value={sortBy} onValueChange={handleSortChange}>
-              <SelectTrigger className="w-full sm:w-48">
-                <SelectValue placeholder="Sortieren nach" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="name">Name</SelectItem>
-                <SelectItem value="address">Adresse</SelectItem>
-                <SelectItem value="created_at">Erstellungsdatum</SelectItem>
-              </SelectContent>
-            </Select>
+    <div className="min-h-screen bg-background p-6">
+      <div className="max-w-6xl mx-auto space-y-8">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-3xl font-bold">Gebäude</h1>
+            <p className="text-muted-foreground">
+              Verwalten Sie Ihre {managementMode === "weg" ? "WEG-" : "Miet-"}Gebäude
+            </p>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Results Summary */}
-      <div className="flex justify-between items-center">
-        <p className="text-sm text-muted-foreground">
-          {totalCount} Gebäude gefunden
-          {search && ` für "${search}"`}
-        </p>
-        <p className="text-sm text-muted-foreground">
-          Seite {page + 1} von {Math.ceil(totalCount / pageSize)}
-        </p>
-      </div>
-
-      {/* Buildings List */}
-      <div className="space-y-4">
-        {isLoading ? (
-          <div className="text-center py-8">
-            <div className="text-lg">Lädt Gebäude...</div>
+          
+          <div className="flex gap-2">
+            <CreateBuildingDialog onBuildingCreated={fetchBuildings} />
           </div>
-        ) : buildings.length === 0 ? (
-          <Card>
-            <CardContent className="text-center py-8">
-              <div className="text-lg font-medium mb-2">Keine Gebäude gefunden</div>
-              <p className="text-muted-foreground mb-4">
-                {search 
-                  ? `Keine Gebäude entsprechen Ihrer Suche nach "${search}"`
-                  : 'Sie haben noch keine Gebäude erstellt.'
-                }
-              </p>
-              {!search && (
-                <CreateBuildingDialog onBuildingCreated={handleUploadComplete} />
-              )}
-            </CardContent>
-          </Card>
-        ) : (
-          buildings.map((building) => (
-            <BuildingRow key={building.id} building={building} />
-          ))
-        )}
-      </div>
-
-      {/* Pagination Controls */}
-      {(hasMore || canLoadPrevious) && (
-        <div className="flex justify-center items-center space-x-4 py-4">
-          <Button
-            variant="outline"
-            onClick={() => setPage(Math.max(0, page - 1))}
-            disabled={!canLoadPrevious}
-          >
-            Vorherige Seite
-          </Button>
-          <span className="text-sm text-muted-foreground">
-            Seite {page + 1} von {Math.ceil(totalCount / pageSize)}
-          </span>
-          <Button
-            variant="outline"
-            onClick={() => setPage(page + 1)}
-            disabled={!hasMore}
-          >
-            Nächste Seite
-          </Button>
         </div>
-      )}
+
+        {/* Collapsible Filters */}
+        <Card>
+          <Collapsible open={isFilterOpen} onOpenChange={setIsFilterOpen}>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Filter className="h-5 w-5" />
+                    Filter
+                  </CardTitle>
+                  {isFilterOpen ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </div>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="pt-0">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Input
+                      placeholder="Nach Gebäude suchen..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Select value={typeFilter} onValueChange={setTypeFilter}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Typ filtern" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Alle Typen</SelectItem>
+                        <SelectItem value="weg">WEG</SelectItem>
+                        <SelectItem value="miete">Miete</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CardContent>
+            </CollapsibleContent>
+          </Collapsible>
+        </Card>
+
+        {/* Buildings List */}
+        <div className="space-y-4">
+          {filteredBuildings.length === 0 ? (
+            <Card>
+              <CardContent className="text-center py-8">
+                <p className="text-muted-foreground">
+                  {buildings.length === 0 
+                    ? "Noch keine Gebäude vorhanden" 
+                    : "Keine Gebäude entsprechen den Filterkriterien"
+                  }
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            filteredBuildings.map((building) => (
+              <BuildingRow 
+                key={building.id} 
+                building={building} 
+                onUpdate={fetchBuildings}
+              />
+            ))
+          )}
+        </div>
+      </div>
     </div>
   );
 };

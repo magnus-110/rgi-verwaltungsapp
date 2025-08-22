@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,8 @@ export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialog
     name: "",
     address: "",
     building_code: "",
-    type: "weg"
+    type: "weg",
+    manager_name: ""
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -36,14 +38,15 @@ export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialog
           address: formData.address,
           building_code: formData.building_code,
           management_mode: managementMode,
-          type: formData.type
+          type: formData.type,
+          manager_name: formData.manager_name || null
         });
 
       if (error) throw error;
 
       toast.success("Gebäude erfolgreich erstellt");
       setIsOpen(false);
-      setFormData({ name: "", address: "", building_code: "", type: "weg" });
+      setFormData({ name: "", address: "", building_code: "", type: "weg", manager_name: "" });
       onBuildingCreated?.();
     } catch (error) {
       console.error("Error creating building:", error);
@@ -93,6 +96,16 @@ export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialog
               value={formData.building_code}
               onChange={(e) => setFormData(prev => ({ ...prev, building_code: e.target.value }))}
               required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="manager_name">Zuständiger Verwalter</Label>
+            <Input
+              id="manager_name"
+              value={formData.manager_name}
+              onChange={(e) => setFormData(prev => ({ ...prev, manager_name: e.target.value }))}
+              placeholder="Name des zuständigen Verwalters (optional)"
             />
           </div>
           

@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ interface Building {
   address: string;
   building_code?: string;
   management_mode: string;
+  manager_name?: string;
 }
 
 interface EditBuildingDialogProps {
@@ -32,7 +34,8 @@ export const EditBuildingDialog = ({
     name: "",
     address: "",
     building_code: "",
-    management_mode: "weg" as "weg" | "rent"
+    management_mode: "weg" as "weg" | "rent",
+    manager_name: ""
   });
   const [loading, setLoading] = useState(false);
 
@@ -42,7 +45,8 @@ export const EditBuildingDialog = ({
         name: building.name || "",
         address: building.address || "",
         building_code: building.building_code || "",
-        management_mode: (building.management_mode as "weg" | "rent") || "weg"
+        management_mode: (building.management_mode as "weg" | "rent") || "weg",
+        manager_name: building.manager_name || ""
       });
     }
   }, [building]);
@@ -60,6 +64,7 @@ export const EditBuildingDialog = ({
           address: formData.address,
           building_code: formData.building_code,
           management_mode: formData.management_mode,
+          manager_name: formData.manager_name || null,
           updated_at: new Date().toISOString()
         })
         .eq("id", building.id);
@@ -108,6 +113,15 @@ export const EditBuildingDialog = ({
               id="building_code"
               value={formData.building_code}
               onChange={(e) => setFormData({ ...formData, building_code: e.target.value })}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="manager_name">Zuständiger Verwalter</Label>
+            <Input
+              id="manager_name"
+              value={formData.manager_name}
+              onChange={(e) => setFormData({ ...formData, manager_name: e.target.value })}
+              placeholder="Name des zuständigen Verwalters (optional)"
             />
           </div>
           <div className="space-y-2">
