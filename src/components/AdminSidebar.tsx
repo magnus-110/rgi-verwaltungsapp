@@ -147,8 +147,12 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
                         : "text-foreground hover:bg-muted hover:text-foreground group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors"
                     }
                   >
-                    <item.icon className="h-4 w-4 mr-3 flex-shrink-0" />
-                    {!collapsed && <span className="label-text">{item.title}</span>}
+                    {({ isActive }) => (
+                      <>
+                        <item.icon className="h-4 w-4 mr-3 flex-shrink-0" />
+                        {!collapsed && <span className={`label-text ${isActive ? 'text-white' : ''}`}>{item.title}</span>}
+                      </>
+                    )}
                   </NavLink>
                 </SidebarMenuItem>
               ))}
