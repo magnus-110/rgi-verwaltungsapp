@@ -15,8 +15,7 @@ import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { Bot, Settings, Plus, Edit, Trash2, ChevronDown, ChevronUp, MessageCircle, Download, Search, Calendar, Filter, User, Building, CalendarIcon } from "lucide-react";
 import { ChatMessage } from "@/components/chat/ChatMessage";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { DateRangePicker } from "@/components/DateRangePicker";
 
 interface KnowledgeItem {
   title: string;
@@ -619,41 +618,12 @@ export const ChatbotSettings = () => {
               Chatbot Gespräche
             </CardTitle>
             <div className="flex gap-2">
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <CalendarIcon className="w-4 h-4 mr-2" />
-                    Von: {csvStartDate ? format(csvStartDate, 'dd.MM.yyyy') : 'Alle'}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <CalendarComponent
-                    mode="single"
-                    selected={csvStartDate}
-                    onSelect={setCsvStartDate}
-                    initialFocus
-                    className="p-3 pointer-events-auto"
-                  />
-                </PopoverContent>
-              </Popover>
-              
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <CalendarIcon className="w-4 h-4 mr-2" />
-                    Bis: {csvEndDate ? format(csvEndDate, 'dd.MM.yyyy') : 'Alle'}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <CalendarComponent
-                    mode="single"
-                    selected={csvEndDate}
-                    onSelect={setCsvEndDate}
-                    initialFocus
-                    className="p-3 pointer-events-auto"
-                  />
-                </PopoverContent>
-              </Popover>
+              <DateRangePicker
+                startDate={csvStartDate}
+                endDate={csvEndDate}
+                onStartDateChange={setCsvStartDate}
+                onEndDateChange={setCsvEndDate}
+              />
               
               <Button onClick={exportToCSV} variant="outline" size="sm">
                 <Download className="w-4 h-4 mr-2" />
