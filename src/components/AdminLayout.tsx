@@ -63,7 +63,7 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
               </h1>
             </header>
             <div className="flex-1 p-2 md:p-6 bg-muted/30 overflow-x-hidden overflow-y-auto min-w-0">
-              <div className="max-w-full">
+              <div className="max-w-full min-w-0">
                 {children}
               </div>
             </div>

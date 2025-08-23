@@ -440,11 +440,11 @@ export const ChatbotSettings = () => {
   });
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <Bot className="w-8 h-8" />
-        <h1 className="text-3xl font-bold">Chatbot-Einstellungen</h1>
-      </div>
+      <div className="space-y-4 overflow-x-hidden">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+          <Bot className="w-6 h-6 sm:w-8 sm:h-8 flex-shrink-0" />
+          <h1 className="text-2xl sm:text-3xl font-bold">Chatbot-Einstellungen</h1>
+        </div>
 
       <Card className="mb-6">
         <CardHeader>
@@ -549,7 +549,7 @@ export const ChatbotSettings = () => {
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="space-y-6 overflow-x-hidden">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -561,7 +561,7 @@ export const ChatbotSettings = () => {
             <div>
               <Label htmlFor="model">KI-Modell</Label>
               <Select value={settings.model} onValueChange={(value) => setSettings({ ...settings, model: value })}>
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -573,14 +573,16 @@ export const ChatbotSettings = () => {
 
             <div>
               <Label>Temperatur: {settings.temperature[0]}</Label>
-              <Slider
-                value={settings.temperature}
-                onValueChange={(value) => setSettings({ ...settings, temperature: value })}
-                max={1}
-                min={0}
-                step={0.1}
-                className="mt-2"
-              />
+              <div className="px-2">
+                <Slider
+                  value={settings.temperature}
+                  onValueChange={(value) => setSettings({ ...settings, temperature: value })}
+                  max={1}
+                  min={0}
+                  step={0.1}
+                  className="mt-2 w-full"
+                />
+              </div>
               <p className="text-xs text-muted-foreground mt-1">
                 Steuert die Kreativität der Antworten (0 = fokussiert, 1 = kreativ)
               </p>
@@ -588,14 +590,16 @@ export const ChatbotSettings = () => {
 
             <div>
               <Label>Max. Tokens: {settings.max_tokens[0]}</Label>
-              <Slider
-                value={settings.max_tokens}
-                onValueChange={(value) => setSettings({ ...settings, max_tokens: value })}
-                max={2000}
-                min={100}
-                step={50}
-                className="mt-2"
-              />
+              <div className="px-2">
+                <Slider
+                  value={settings.max_tokens}
+                  onValueChange={(value) => setSettings({ ...settings, max_tokens: value })}
+                  max={2000}
+                  min={100}
+                  step={50}
+                  className="mt-2 w-full"
+                />
+              </div>
               <p className="text-xs text-muted-foreground mt-1">
                 Begrenzt die Länge der Antworten
               </p>
@@ -612,29 +616,29 @@ export const ChatbotSettings = () => {
       {/* Chatbot Conversations Section */}
       <Card>
         <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle className="flex items-center gap-2">
-              <MessageCircle className="w-5 h-5" />
-              Chatbot Gespräche
-            </CardTitle>
-            <div className="flex gap-2">
-              <DateRangePicker
-                startDate={csvStartDate}
-                endDate={csvEndDate}
-                onStartDateChange={setCsvStartDate}
-                onEndDateChange={setCsvEndDate}
-              />
-              
-              <Button onClick={exportToCSV} variant="outline" size="sm">
-                <Download className="w-4 h-4 mr-2" />
-                CSV Export
-              </Button>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <CardTitle className="flex items-center gap-2">
+                <MessageCircle className="w-5 h-5" />
+                Chatbot Gespräche
+              </CardTitle>
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                <DateRangePicker
+                  startDate={csvStartDate}
+                  endDate={csvEndDate}
+                  onStartDateChange={setCsvStartDate}
+                  onEndDateChange={setCsvEndDate}
+                />
+                
+                <Button onClick={exportToCSV} variant="outline" size="sm" className="w-full sm:w-auto">
+                  <Download className="w-4 h-4 mr-2" />
+                  CSV Export
+                </Button>
+              </div>
             </div>
-          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Filters */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label className="text-sm font-medium">Suche</Label>
               <div className="relative">
@@ -643,7 +647,7 @@ export const ChatbotSettings = () => {
                   placeholder="Name, E-Mail oder Gebäude suchen..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-9"
+                  className="pl-9 w-full"
                 />
               </div>
             </div>
@@ -651,7 +655,7 @@ export const ChatbotSettings = () => {
             <div className="space-y-2">
               <Label className="text-sm font-medium">Verwaltungsmodus</Label>
               <Select value={managementModeFilter} onValueChange={setManagementModeFilter}>
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -662,10 +666,10 @@ export const ChatbotSettings = () => {
               </Select>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2 sm:col-span-2 lg:col-span-1">
               <Label className="text-sm font-medium">Zeitraum</Label>
               <Select value={dateRange} onValueChange={setDateRange}>
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

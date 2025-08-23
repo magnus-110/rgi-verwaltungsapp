@@ -170,17 +170,18 @@ export const Buildings = () => {
             </CollapsibleTrigger>
             <CollapsibleContent>
               <CardContent className="pt-0">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   <div>
                     <Input
                       placeholder="Nach Gebäude suchen..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full"
                     />
                   </div>
                   <div>
                     <Select value={typeFilter} onValueChange={setTypeFilter}>
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full">
                         <SelectValue placeholder="Typ filtern" />
                       </SelectTrigger>
                       <SelectContent>
@@ -190,7 +191,7 @@ export const Buildings = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div>
+                  <div className="sm:col-span-2 lg:col-span-1">
                     <ManagerFilter value={managerFilter} onValueChange={setManagerFilter} />
                   </div>
                 </div>

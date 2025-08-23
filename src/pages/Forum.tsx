@@ -632,20 +632,20 @@ export const Forum = () => {
       {/* Building Filter */}
       {canCreatePosts && (
         <Card className="p-4">
-          <div className="flex items-center gap-4 flex-wrap">
+          <div className="space-y-4">
             <div className="flex items-center gap-2">
               <Filter className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm font-medium">Filter nach Gebäude:</span>
             </div>
-            <div className="flex gap-2 flex-1 min-w-64">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <Input
                 placeholder="Gebäude suchen..."
                 value={buildingSearch}
                 onChange={(e) => setBuildingSearch(e.target.value)}
-                className="max-w-xs"
+                className="w-full"
               />
               <Select value={buildingFilter} onValueChange={setBuildingFilter}>
-                <SelectTrigger className="w-48">
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Gebäude auswählen" />
                 </SelectTrigger>
                 <SelectContent className="bg-background border border-border shadow-lg z-50 max-h-60 overflow-y-auto">
@@ -661,7 +661,7 @@ export const Forum = () => {
                 </SelectContent>
               </Select>
               <Select value={managerFilter} onValueChange={setManagerFilter}>
-                <SelectTrigger className="w-48">
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Nach Verwalter filtern" />
                 </SelectTrigger>
                 <SelectContent className="bg-background border border-border shadow-lg z-50">
@@ -682,6 +682,7 @@ export const Forum = () => {
                   setBuildingFilter("all");
                   setManagerFilter("all");
                 }}
+                className="w-full sm:w-auto"
               >
                 Filter zurücksetzen
               </Button>
