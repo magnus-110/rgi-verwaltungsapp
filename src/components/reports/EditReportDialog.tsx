@@ -65,13 +65,19 @@ export const EditReportDialog = ({ report, tableName, open, onClose, onSaved }: 
   const fetchTemplates = async () => {
     try {
       const { data, error } = await supabase
-        .from('forum_post_templates')
+        .from('report_templates')
         .select('*')
         .eq('management_mode', managementMode)
-        .order('title');
+        .order('name');
 
       if (error) throw error;
-      setTemplates(data || []);
+      // Map the data to match the expected Template interface
+      const mappedTemplates = data?.map(template => ({
+        id: template.id,
+        title: template.name,
+        content: template.content || ''
+      })) || [];
+      setTemplates(mappedTemplates);
     } catch (error) {
       console.error('Error fetching templates:', error);
     }

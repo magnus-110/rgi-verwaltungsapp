@@ -15,6 +15,7 @@ import { FileText, Edit, Trash2, Plus } from "lucide-react";
 interface ReportTemplate {
   id: string;
   name: string;
+  content: string;
   created_at: string;
   updated_at: string;
 }
@@ -30,7 +31,8 @@ export const ReportTemplatesManager = ({ onTemplateSelect }: ReportTemplatesMana
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<ReportTemplate | null>(null);
   const [formData, setFormData] = useState({
-    name: ""
+    name: "",
+    content: ""
   });
 
   useEffect(() => {
@@ -67,6 +69,7 @@ export const ReportTemplatesManager = ({ onTemplateSelect }: ReportTemplatesMana
         .from("report_templates")
         .insert({
           name: formData.name.trim(),
+          content: formData.content.trim(),
           management_mode: managementMode
         });
 
@@ -90,6 +93,7 @@ export const ReportTemplatesManager = ({ onTemplateSelect }: ReportTemplatesMana
         .from("report_templates")
         .update({
           name: formData.name.trim(),
+          content: formData.content.trim(),
           updated_at: new Date().toISOString()
         })
         .eq("id", editingTemplate.id);
@@ -128,13 +132,15 @@ export const ReportTemplatesManager = ({ onTemplateSelect }: ReportTemplatesMana
   const openEditDialog = (template: ReportTemplate) => {
     setEditingTemplate(template);
     setFormData({
-      name: template.name
+      name: template.name,
+      content: template.content || ""
     });
   };
 
   const resetForm = () => {
     setFormData({
-      name: ""
+      name: "",
+      content: ""
     });
   };
 
@@ -169,6 +175,16 @@ export const ReportTemplatesManager = ({ onTemplateSelect }: ReportTemplatesMana
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="z.B. Heizungsausfall, Wasserrohrbruch..."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="content">Inhalt der Vorlage</Label>
+                <Textarea
+                  id="content"
+                  value={formData.content}
+                  onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                  placeholder="Standardtext für diese Art von Meldung..."
+                  rows={4}
                 />
               </div>
               <div className="flex justify-end space-x-2 pt-4">
@@ -246,16 +262,26 @@ export const ReportTemplatesManager = ({ onTemplateSelect }: ReportTemplatesMana
           <DialogHeader>
             <DialogTitle>Vorlage bearbeiten</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-name">Name der Vorlage</Label>
-              <Input
-                id="edit-name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="z.B. Heizungsausfall, Wasserrohrbruch..."
-              />
-            </div>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-name">Name der Vorlage</Label>
+                <Input
+                  id="edit-name"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="z.B. Heizungsausfall, Wasserrohrbruch..."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-content">Inhalt der Vorlage</Label>
+                <Textarea
+                  id="edit-content"
+                  value={formData.content}
+                  onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                  placeholder="Standardtext für diese Art von Meldung..."
+                  rows={4}
+                />
+              </div>
             <div className="flex justify-end space-x-2 pt-4">
               <Button variant="outline" onClick={() => setEditingTemplate(null)}>
                 Abbrechen

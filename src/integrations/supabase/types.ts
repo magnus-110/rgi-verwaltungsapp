@@ -370,6 +370,7 @@ export type Database = {
       }
       report_templates: {
         Row: {
+          content: string | null
           created_at: string
           id: string
           management_mode: Database["public"]["Enums"]["management_mode"]
@@ -377,6 +378,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          content?: string | null
           created_at?: string
           id?: string
           management_mode: Database["public"]["Enums"]["management_mode"]
@@ -384,6 +386,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          content?: string | null
           created_at?: string
           id?: string
           management_mode?: Database["public"]["Enums"]["management_mode"]
