@@ -62,6 +62,13 @@ export const Settings = () => {
 
     setIsCreatingAdmin(true);
     try {
+      console.log('Creating admin user with data:', {
+        email: newAdminEmail,
+        first_name: newAdminFirstName,
+        last_name: newAdminLastName,
+        role: 'admin'
+      });
+
       const { data, error } = await supabase.functions.invoke('admin-create-user', {
         body: {
           email: newAdminEmail,
@@ -72,16 +79,22 @@ export const Settings = () => {
         }
       });
 
-      if (error) throw error;
+      console.log('Admin creation response:', { data, error });
+
+      if (error) {
+        console.error('Admin creation error:', error);
+        throw error;
+      }
 
       toast.success("Admin erfolgreich erstellt");
       setNewAdminEmail("");
       setNewAdminFirstName("");
       setNewAdminLastName("");
       setNewAdminPassword("");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating admin:", error);
-      toast.error("Fehler beim Erstellen des Admins");
+      const errorMessage = error?.message || error?.details || "Fehler beim Erstellen des Admins";
+      toast.error(errorMessage);
     } finally {
       setIsCreatingAdmin(false);
     }

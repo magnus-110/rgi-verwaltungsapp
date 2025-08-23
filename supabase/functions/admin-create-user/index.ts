@@ -9,9 +9,10 @@ interface UserData {
   email: string
   first_name: string
   last_name: string
-  phone: string
-  building_id: string
-  management_mode: 'weg' | 'rent'
+  phone?: string
+  building_id?: string
+  management_mode?: 'weg' | 'rent'
+  role?: 'admin' | 'tenant' | 'weg_owner'
 }
 
 // Generate 6-digit numeric password
@@ -149,8 +150,16 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Update profile with correct role and building assignment
-    const role = userData.management_mode === 'weg' ? 'weg_owner' : 'tenant'
+    // Determine role based on input
+    let role: string
+    if (userData.role === 'admin') {
+      role = 'admin'
+    } else if (userData.management_mode === 'weg') {
+      role = 'weg_owner'
+    } else {
+      role = 'tenant'
+    }
+    
     const profileUpdate: any = {
       user_id: newUser.user.id,  // Essential for upsert
       email: userData.email,
@@ -158,11 +167,11 @@ Deno.serve(async (req) => {
       last_name: userData.last_name,
       phone: userData.phone,
       role: role,
-      force_password_change: false  // No forced password change for tenants/owners
+      force_password_change: userData.role === 'admin' ? false : false  // No forced password change
     }
 
     // For tenants, also set building_id in profile
-    if (userData.management_mode === 'rent') {
+    if (userData.management_mode === 'rent' && userData.building_id) {
       profileUpdate.building_id = userData.building_id
     }
 
@@ -174,53 +183,57 @@ Deno.serve(async (req) => {
       console.error('Profile update error:', profileUpdateError)
     }
 
-    // Create specific user type record
-    if (userData.management_mode === 'weg') {
-      // Create WEG owner entry
-      const { error: wegOwnerError } = await supabaseAdmin
-        .from('weg_owners')
-        .insert({
-          user_id: newUser.user.id,
-          email: userData.email,
-          first_name: userData.first_name,
-          last_name: userData.last_name,
-          phone: userData.phone,
-        })
+    // Create specific user type record (not needed for admins)
+    if (userData.role !== 'admin') {
+      if (userData.management_mode === 'weg') {
+        // Create WEG owner entry
+        const { error: wegOwnerError } = await supabaseAdmin
+          .from('weg_owners')
+          .insert({
+            user_id: newUser.user.id,
+            email: userData.email,
+            first_name: userData.first_name,
+            last_name: userData.last_name,
+            phone: userData.phone,
+          })
 
-      if (wegOwnerError) {
-        console.error('WEG owner creation error:', wegOwnerError)
-      }
+        if (wegOwnerError) {
+          console.error('WEG owner creation error:', wegOwnerError)
+        }
 
-      // Create building assignment
-      const { error: assignmentError } = await supabaseAdmin
-        .from('weg_owner_buildings')
-        .insert({
-          user_id: newUser.user.id,
-          building_id: userData.building_id
-        })
+        // Create building assignment if building_id is provided
+        if (userData.building_id) {
+          const { error: assignmentError } = await supabaseAdmin
+            .from('weg_owner_buildings')
+            .insert({
+              user_id: newUser.user.id,
+              building_id: userData.building_id
+            })
 
-      if (assignmentError) {
-        console.error('Building assignment error:', assignmentError)
-      }
-    } else {
-      // Create tenant entry
-      const { error: tenantError } = await supabaseAdmin
-        .from('tenants')
-        .insert({
-          user_id: newUser.user.id,
-          building_id: userData.building_id,
-          email: userData.email,
-          first_name: userData.first_name,
-          last_name: userData.last_name,
-          phone: userData.phone,
-        })
+          if (assignmentError) {
+            console.error('Building assignment error:', assignmentError)
+          }
+        }
+      } else if (userData.management_mode === 'rent' && userData.building_id) {
+        // Create tenant entry only if building_id is provided
+        const { error: tenantError } = await supabaseAdmin
+          .from('tenants')
+          .insert({
+            user_id: newUser.user.id,
+            building_id: userData.building_id,
+            email: userData.email,
+            first_name: userData.first_name,
+            last_name: userData.last_name,
+            phone: userData.phone,
+          })
 
-      if (tenantError) {
-        console.error('Tenant creation error:', tenantError)
-        return new Response(
-          JSON.stringify({ error: 'Failed to create tenant record' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
+        if (tenantError) {
+          console.error('Tenant creation error:', tenantError)
+          return new Response(
+            JSON.stringify({ error: 'Failed to create tenant record' }),
+            { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
       }
     }
 
@@ -231,9 +244,10 @@ Deno.serve(async (req) => {
       password: password,
       first_name: userData.first_name,
       last_name: userData.last_name,
-      phone: userData.phone,
-      management_mode: userData.management_mode,
-      building_id: userData.building_id,
+      phone: userData.phone || '',
+      management_mode: userData.management_mode || (userData.role === 'admin' ? 'admin' : 'rent'),
+      building_id: userData.building_id || '',
+      role: role,
       created_at: new Date().toISOString()
     })
 
