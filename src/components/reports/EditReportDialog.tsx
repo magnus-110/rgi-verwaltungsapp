@@ -90,37 +90,35 @@ export const EditReportDialog = ({ report, tableName, open, onClose, onSaved }: 
   };
 
   const handleTemplateSelect = (templateId: string) => {
-    console.log('Template selection started:', templateId);
-    console.log('Available templates:', templates);
+    console.log('=== Template Selection Debug ===');
+    console.log('Template ID received:', templateId);
+    console.log('All available templates:', templates);
     
     const template = templates.find(t => t.id === templateId);
-    console.log('Found template:', template);
+    console.log('Found template object:', template);
     
-    if (template) {
-      console.log('Current adminNotes:', adminNotes);
-      console.log('Template content:', template.content);
+    if (template && template.content) {
+      console.log('Current adminNotes value:', `"${adminNotes}"`);
+      console.log('Template content to add:', `"${template.content}"`);
       
-      // Wenn bereits Text vorhanden ist, füge die Vorlage hinzu
-      const newText = adminNotes.trim() 
-        ? `${adminNotes}\n\n${template.content}` 
-        : template.content;
+      // Direkt den Template-Inhalt setzen (ohne die Logik für bestehenden Text)
+      const newContent = template.content;
+      console.log('Setting new content:', `"${newContent}"`);
       
-      console.log('New text to set:', newText);
-      setAdminNotes(newText);
-      setSelectedTemplate(""); // Reset selection nach dem Einfügen
+      setAdminNotes(newContent);
       
       // Toast zur Bestätigung
       toast({
-        title: "Vorlage hinzugefügt",
-        description: `Die Vorlage "${template.title}" wurde eingefügt.`,
+        title: "Vorlage eingefügt",
+        description: `"${template.title}" wurde als Verwalter-Notiz eingefügt.`,
       });
       
-      console.log('AdminNotes after update:', newText);
+      console.log('Template insertion completed');
     } else {
-      console.log('No template found with ID:', templateId);
+      console.log('Template not found or content empty:', { template, templateId });
       toast({
         title: "Fehler",
-        description: "Vorlage konnte nicht gefunden werden.",
+        description: "Vorlage konnte nicht eingefügt werden.",
         variant: "destructive",
       });
     }
@@ -200,11 +198,22 @@ export const EditReportDialog = ({ report, tableName, open, onClose, onSaved }: 
               {templates.length > 0 && (
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">Vorlage:</span>
-                  <Select value={selectedTemplate} onValueChange={handleTemplateSelect}>
+                  <Select 
+                    value="" 
+                    onValueChange={(value) => {
+                      console.log('Select onValueChange triggered with value:', value);
+                      if (value && value !== "") {
+                        handleTemplateSelect(value);
+                      }
+                    }}
+                  >
                     <SelectTrigger className="w-48 bg-background border border-border shadow-sm">
                       <SelectValue placeholder="Vorlage auswählen..." />
                     </SelectTrigger>
                     <SelectContent className="z-50 bg-background border border-border shadow-lg">
+                      <SelectItem value="">
+                        <span className="text-muted-foreground">Vorlage auswählen...</span>
+                      </SelectItem>
                       {templates.map((template) => (
                         <SelectItem 
                           key={template.id} 
@@ -221,7 +230,10 @@ export const EditReportDialog = ({ report, tableName, open, onClose, onSaved }: 
             </div>
             <Textarea
               value={adminNotes}
-              onChange={(e) => setAdminNotes(e.target.value)}
+              onChange={(e) => {
+                console.log('Textarea onChange:', e.target.value);
+                setAdminNotes(e.target.value);
+              }}
               placeholder="Antwort für den Kunden..."
               rows={4}
               className="min-h-[100px]"
