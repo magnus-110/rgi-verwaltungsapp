@@ -10,6 +10,7 @@ import { BuildingRow } from "@/components/BuildingRow";
 import { CreateBuildingDialog } from "@/components/CreateBuildingDialog";
 import { BulkUpload } from "@/components/BulkUpload";
 import { CreateUserDialog } from "@/components/CreateUserDialog";
+import { ManagerFilter } from "@/components/ManagerFilter";
 import { toast } from "sonner";
 import { useManagementMode } from "@/hooks/useManagementMode";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +27,7 @@ interface Building {
   manager_name?: string | null;
   created_at: string;
   updated_at: string;
+  managers?: Array<{user_id: string; name: string}>;
 }
 
 export const Buildings = () => {
@@ -36,6 +38,7 @@ export const Buildings = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [managerFilter, setManagerFilter] = useState<string>("all");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   useEffect(() => {
@@ -54,8 +57,42 @@ export const Buildings = () => {
         .order("name");
 
       if (error) throw error;
-      setBuildings(data || []);
-      setFilteredBuildings(data || []);
+
+      // Fetch building managers for each building
+      const buildingsWithManagers = await Promise.all(
+        (data || []).map(async (building) => {
+          const { data: managersData, error: managersError } = await supabase
+            .from("building_managers")
+            .select(`
+              user_id,
+              profiles:user_id (
+                first_name,
+                last_name,
+                email
+              )
+            `)
+            .eq('building_id', building.id);
+
+          if (managersError) {
+            console.error('Error fetching managers for building:', building.id, managersError);
+          }
+
+          const managers = (managersData || []).map(bm => ({
+            user_id: bm.user_id,
+            name: (bm.profiles as any)?.first_name && (bm.profiles as any)?.last_name 
+              ? `${(bm.profiles as any).first_name} ${(bm.profiles as any).last_name}`
+              : (bm.profiles as any)?.email || 'Unbekannter Admin'
+          }));
+
+          return {
+            ...building,
+            managers: managers
+          };
+        })
+      );
+
+      setBuildings(buildingsWithManagers || []);
+      setFilteredBuildings(buildingsWithManagers || []);
     } catch (error) {
       console.error("Error fetching buildings:", error);
       toast.error("Fehler beim Laden der Gebäude");
@@ -79,8 +116,14 @@ export const Buildings = () => {
       filtered = filtered.filter(building => building.type === typeFilter);
     }
 
+    if (managerFilter !== "all") {
+      filtered = filtered.filter(building => 
+        building.managers?.some(manager => manager.user_id === managerFilter)
+      );
+    }
+
     setFilteredBuildings(filtered);
-  }, [buildings, searchTerm, typeFilter]);
+  }, [buildings, searchTerm, typeFilter, managerFilter]);
 
   if (loading) {
     return (
@@ -127,7 +170,7 @@ export const Buildings = () => {
             </CollapsibleTrigger>
             <CollapsibleContent>
               <CardContent className="pt-0">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <Input
                       placeholder="Nach Gebäude suchen..."
@@ -146,6 +189,9 @@ export const Buildings = () => {
                         <SelectItem value="miete">Miete</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+                  <div>
+                    <ManagerFilter value={managerFilter} onValueChange={setManagerFilter} />
                   </div>
                 </div>
               </CardContent>
