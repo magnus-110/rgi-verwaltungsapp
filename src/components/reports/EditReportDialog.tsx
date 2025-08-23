@@ -60,7 +60,7 @@ export const EditReportDialog = ({ report, tableName, open, onClose, onSaved }: 
       setInternalNotes(report.internal_notes || "");
       setSelectedTemplate("");
     }
-  }, [open, report]);
+  }, [open, report, managementMode]); // managementMode als Abhängigkeit hinzufügen
 
   const fetchTemplates = async () => {
     try {
@@ -86,8 +86,18 @@ export const EditReportDialog = ({ report, tableName, open, onClose, onSaved }: 
   const handleTemplateSelect = (templateId: string) => {
     const template = templates.find(t => t.id === templateId);
     if (template) {
-      setAdminNotes(prev => prev ? `${prev}\n\n${template.content}` : template.content);
-      setSelectedTemplate("");
+      // Wenn bereits Text vorhanden ist, füge die Vorlage hinzu
+      const newText = adminNotes.trim() 
+        ? `${adminNotes}\n\n${template.content}` 
+        : template.content;
+      setAdminNotes(newText);
+      setSelectedTemplate(""); // Reset selection nach dem Einfügen
+      
+      // Toast zur Bestätigung
+      toast({
+        title: "Vorlage hinzugefügt",
+        description: `Die Vorlage "${template.title}" wurde eingefügt.`,
+      });
     }
   };
 
@@ -128,7 +138,7 @@ export const EditReportDialog = ({ report, tableName, open, onClose, onSaved }: 
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto z-50">
         <DialogHeader>
           <DialogTitle>Meldung bearbeiten</DialogTitle>
         </DialogHeader>
@@ -160,21 +170,28 @@ export const EditReportDialog = ({ report, tableName, open, onClose, onSaved }: 
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
               <label className="text-sm font-medium">Verwalter-Notiz (sichtbar für Kunden)</label>
               {templates.length > 0 && (
-                <Select value={selectedTemplate} onValueChange={handleTemplateSelect}>
-                  <SelectTrigger className="w-48">
-                    <SelectValue placeholder="Vorlage wählen..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {templates.map((template) => (
-                      <SelectItem key={template.id} value={template.id}>
-                        {template.title}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">Vorlage:</span>
+                  <Select value={selectedTemplate} onValueChange={handleTemplateSelect}>
+                    <SelectTrigger className="w-48 bg-background border border-border shadow-sm">
+                      <SelectValue placeholder="Vorlage auswählen..." />
+                    </SelectTrigger>
+                    <SelectContent className="z-50 bg-background border border-border shadow-lg">
+                      {templates.map((template) => (
+                        <SelectItem 
+                          key={template.id} 
+                          value={template.id}
+                          className="cursor-pointer hover:bg-muted focus:bg-muted"
+                        >
+                          {template.title}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               )}
             </div>
             <Textarea
@@ -182,7 +199,13 @@ export const EditReportDialog = ({ report, tableName, open, onClose, onSaved }: 
               onChange={(e) => setAdminNotes(e.target.value)}
               placeholder="Antwort für den Kunden..."
               rows={4}
+              className="min-h-[100px]"
             />
+            {templates.length === 0 && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Keine Vorlagen verfügbar. Erstellen Sie Vorlagen im Tab "Vorlagen".
+              </p>
+            )}
           </div>
 
           <div>
