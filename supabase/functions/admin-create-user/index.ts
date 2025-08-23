@@ -111,6 +111,7 @@ Deno.serve(async (req) => {
     }
 
     const userData: UserData = await req.json()
+    console.log('Received userData:', JSON.stringify(userData, null, 2))
 
     // Generate 6-digit numeric password
     const password = generateNumericPassword()

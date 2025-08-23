@@ -2,6 +2,7 @@ import React, { useState, useEffect, createContext, useContext, ReactNode } from
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 
 interface Profile {
   id: string;
@@ -39,6 +40,7 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
+  const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -150,9 +152,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
 
       console.log('Sign in successful, redirecting...');
-      // Force page reload for clean state
+      // Use React Router navigation instead of window.location
       setTimeout(() => {
-        window.location.href = '/';
+        navigate('/');
       }, 100);
       
       return {};
@@ -194,12 +196,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       setUser(null);
       setSession(null);
       
-      // Force page reload for completely clean state
-      window.location.href = '/login';
+      // Use React Router navigation instead of window.location
+      navigate('/login');
     } catch (error) {
       console.error('Error signing out:', error);
-      // Force reload even if there's an error
-      window.location.href = '/login';
+      // Use React Router navigation even if there's an error
+      navigate('/login');
     }
   };
 

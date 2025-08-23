@@ -11,9 +11,11 @@ import { toast } from "sonner";
 import { PushNotificationToggle } from "@/components/PushNotificationToggle";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UserPlus } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 export const Settings = () => {
   const { profile, fetchProfile } = useAuth();
+  const navigate = useNavigate();
   const [firstName, setFirstName] = useState(profile?.first_name || "");
   const [lastName, setLastName] = useState(profile?.last_name || "");
   const [phone, setPhone] = useState((profile as any)?.phone || "");
@@ -62,28 +64,41 @@ export const Settings = () => {
 
     setIsCreatingAdmin(true);
     try {
-      console.log('Creating admin user with data:', {
+      const requestData = {
         email: newAdminEmail,
+        password: newAdminPassword,
+        role: 'admin',
         first_name: newAdminFirstName,
-        last_name: newAdminLastName,
-        role: 'admin'
-      });
+        last_name: newAdminLastName
+      };
+      
+      console.log('Creating admin user with data:', requestData);
 
       const { data, error } = await supabase.functions.invoke('admin-create-user', {
-        body: {
-          email: newAdminEmail,
-          password: newAdminPassword,
-          role: 'admin',
-          first_name: newAdminFirstName,
-          last_name: newAdminLastName
-        }
+        body: requestData
       });
 
-      console.log('Admin creation response:', { data, error });
+      console.log('Full admin creation response:', { data, error });
+      console.log('Error details:', error);
 
       if (error) {
-        console.error('Admin creation error:', error);
-        throw error;
+        console.error('Admin creation failed:', error);
+        let errorMessage = "Fehler beim Erstellen des Admins";
+        
+        if (error.message?.includes('already been registered')) {
+          errorMessage = "Ein Benutzer mit dieser E-Mail-Adresse existiert bereits";
+        } else if (typeof error === 'object' && error !== null) {
+          errorMessage = JSON.stringify(error);
+        }
+        
+        toast.error(errorMessage);
+        return;
+      }
+
+      if (data?.error) {
+        console.error('Admin creation returned error:', data.error);
+        toast.error(data.error);
+        return;
       }
 
       toast.success("Admin erfolgreich erstellt");
@@ -92,9 +107,8 @@ export const Settings = () => {
       setNewAdminLastName("");
       setNewAdminPassword("");
     } catch (error: any) {
-      console.error("Error creating admin:", error);
-      const errorMessage = error?.message || error?.details || "Fehler beim Erstellen des Admins";
-      toast.error(errorMessage);
+      console.error("Unexpected error creating admin:", error);
+      toast.error(`Unerwarteter Fehler: ${error?.message || 'Unbekannter Fehler'}`);
     } finally {
       setIsCreatingAdmin(false);
     }
@@ -197,7 +211,7 @@ export const Settings = () => {
               <CardTitle>Passwort</CardTitle>
             </CardHeader>
             <CardContent>
-              <Button variant="outline" onClick={() => window.location.href = '/change-password'}>
+              <Button variant="outline" onClick={() => navigate('/change-password')}>
                 Passwort ändern
               </Button>
             </CardContent>
