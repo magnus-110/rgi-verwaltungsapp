@@ -117,11 +117,14 @@ Deno.serve(async (req) => {
     // Use provided password or generate 6-digit numeric password
     const password = userData.password || generateNumericPassword()
 
-    // Create user with admin client (bypasses RLS)
-    const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+    // Try to create user with admin client (bypasses RLS)
+    let newUser;
+    let userAlreadyExists = false;
+    
+    const { data: createUserData, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email: userData.email,
       password: password,
-      email_confirm: true, // Auto-confirm email for admin-created users
+      email_confirm: true,
       user_metadata: {
         first_name: userData.first_name,
         last_name: userData.last_name,
@@ -129,20 +132,58 @@ Deno.serve(async (req) => {
     })
 
     if (createError) {
-      console.error('User creation error:', createError)
+      console.log('User creation error:', createError)
       
-      // Handle specific error cases
-      if (createError.message && createError.message.includes('already been registered')) {
+      // Check if user already exists
+      if (createError.message?.includes('already been registered') || createError.code === 'email_exists') {
+        console.log('User already exists, checking if we can update their role to admin')
+        userAlreadyExists = true;
+        
+        // Try to get the existing user by email
+        const { data: existingUsers, error: listError } = await supabaseAdmin.auth.admin.listUsers()
+        if (listError) {
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: 'Benutzer existiert bereits, aber konnte nicht gefunden werden',
+              details: listError.message 
+            }),
+            { 
+              status: 400,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            }
+          )
+        }
+        
+        const existingUser = existingUsers.users.find(user => user.email === userData.email)
+        if (!existingUser) {
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              error: 'Benutzer existiert bereits, aber konnte nicht gefunden werden' 
+            }),
+            { 
+              status: 400,
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            }
+          )
+        }
+        
+        newUser = { user: existingUser }
+      } else {
         return new Response(
-          JSON.stringify({ error: 'Ein Benutzer mit dieser E-Mail-Adresse existiert bereits' }),
-          { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ 
+            success: false, 
+            error: createError.message || 'Fehler beim Erstellen des Benutzers' 
+          }),
+          { 
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          }
         )
       }
-      
-      return new Response(
-        JSON.stringify({ error: createError.message || 'Fehler beim Erstellen des Benutzers' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    } else {
+      newUser = createUserData;
     }
 
     if (!newUser.user) {
@@ -253,15 +294,21 @@ Deno.serve(async (req) => {
       created_at: new Date().toISOString()
     })
 
+    const successMessage = userAlreadyExists 
+      ? `Admin-Rolle wurde erfolgreich zugewiesen (Benutzer existierte bereits)`
+      : `Admin wurde erfolgreich erstellt`;
+
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
+        message: successMessage,
         user: {
           id: newUser.user.id,
           email: newUser.user.email,
           role: role
         },
-        password: password
+        password: userAlreadyExists ? null : password,
+        userAlreadyExists
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

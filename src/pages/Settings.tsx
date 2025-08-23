@@ -105,10 +105,18 @@ export const Settings = () => {
         return;
       }
 
-      if (data?.success && data?.password) {
-        toast.success(`Admin erfolgreich erstellt! Passwort: ${data.password}`);
+      if (data?.success) {
+        if (data?.password) {
+          toast.success(`${data.message || 'Admin erfolgreich erstellt'}! Passwort: ${data.password}`, {
+            duration: 8000
+          });
+        } else if (data?.userAlreadyExists) {
+          toast.success(data.message || 'Admin-Rolle wurde erfolgreich zugewiesen');
+        } else {
+          toast.success(data.message || 'Admin erfolgreich erstellt');
+        }
       } else {
-        toast.success("Admin erfolgreich erstellt");
+        toast.success("Admin erfolgreich verarbeitet");
       }
       
       setNewAdminEmail("");
@@ -142,60 +150,62 @@ export const Settings = () => {
         </div>
 
         <div className="grid gap-6">
-          {/* Persönliche Informationen */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Persönliche Informationen</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={handleUpdateProfile} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="firstName">Vorname</Label>
-                    <Input
-                      id="firstName"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      placeholder="Ihr Vorname"
-                    />
+          {/* Persönliche Informationen - Nicht für Admins anzeigen */}
+          {profile.role !== 'admin' && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Persönliche Informationen</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleUpdateProfile} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="firstName">Vorname</Label>
+                      <Input
+                        id="firstName"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        placeholder="Ihr Vorname"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="lastName">Nachname</Label>
+                      <Input
+                        id="lastName"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        placeholder="Ihr Nachname"
+                      />
+                    </div>
                   </div>
                   <div>
-                    <Label htmlFor="lastName">Nachname</Label>
+                    <Label htmlFor="email">E-Mail</Label>
                     <Input
-                      id="lastName"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      placeholder="Ihr Nachname"
+                      id="email"
+                      value={profile.email}
+                      disabled
+                      className="bg-muted"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Die E-Mail-Adresse kann nicht geändert werden
+                    </p>
+                  </div>
+                  <div>
+                    <Label htmlFor="phone">Telefon</Label>
+                    <Input
+                      id="phone"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="Ihre Telefonnummer"
                     />
                   </div>
-                </div>
-                <div>
-                  <Label htmlFor="email">E-Mail</Label>
-                  <Input
-                    id="email"
-                    value={profile.email}
-                    disabled
-                    className="bg-muted"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Die E-Mail-Adresse kann nicht geändert werden
-                  </p>
-                </div>
-                <div>
-                  <Label htmlFor="phone">Telefon</Label>
-                  <Input
-                    id="phone"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="Ihre Telefonnummer"
-                  />
-                </div>
-                <Button type="submit" disabled={isLoading}>
-                  {isLoading ? "Speichern..." : "Änderungen speichern"}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
+                  <Button type="submit" disabled={isLoading}>
+                    {isLoading ? "Speichern..." : "Änderungen speichern"}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Benachrichtigungen */}
           {profile.role === 'admin' && (
