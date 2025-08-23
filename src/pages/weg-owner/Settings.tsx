@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { Building2 } from "lucide-react";
+import { Building2, Mail } from "lucide-react";
+import { PushNotificationToggle } from "@/components/PushNotificationToggle";
 
 interface WegOwnerBuilding {
   id: string;
@@ -224,6 +225,22 @@ export const WegOwnerSettings = () => {
           >
             {isUpdatingPassword ? "Wird geändert..." : "Passwort ändern"}
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* Notification Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mail className="h-5 w-5" />
+            Benachrichtigungen
+          </CardTitle>
+          <CardDescription>
+            Verwalten Sie Ihre Benachrichtigungseinstellungen
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <PushNotificationToggle />
         </CardContent>
       </Card>
 

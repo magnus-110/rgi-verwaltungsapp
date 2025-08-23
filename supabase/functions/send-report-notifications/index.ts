@@ -2,6 +2,66 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+// Web Push helper functions
+async function urlB64ToUint8Array(base64String: string): Promise<Uint8Array> {
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+async function generateVAPIDKeys(vapidPrivateKey: string, vapidPublicKey: string) {
+  // Convert VAPID keys for JWT
+  const privateKeyBytes = await urlB64ToUint8Array(vapidPrivateKey);
+  const publicKeyBytes = await urlB64ToUint8Array(vapidPublicKey);
+  
+  return {
+    privateKey: privateKeyBytes,
+    publicKey: publicKeyBytes
+  };
+}
+
+async function sendWebPushNotification(
+  subscription: { endpoint: string; keys: { p256dh: string; auth: string } },
+  payload: string,
+  vapidPublicKey: string,
+  vapidPrivateKey: string
+): Promise<Response> {
+  const pushEndpoint = subscription.endpoint;
+  
+  // Create headers for the push request
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/octet-stream',
+    'TTL': '86400', // 24 hours
+  };
+
+  // For FCM endpoints, we need to add authorization
+  if (pushEndpoint.includes('fcm.googleapis.com')) {
+    // Simple implementation - in production you might want to use proper JWT signing
+    headers['Authorization'] = `key=${vapidPrivateKey}`;
+  } else {
+    // For other endpoints, add VAPID headers
+    headers['Crypto-Key'] = `p256ecdsa=${vapidPublicKey}`;
+  }
+
+  try {
+    const response = await fetch(pushEndpoint, {
+      method: 'POST',
+      headers,
+      body: payload,
+    });
+
+    return response;
+  } catch (error) {
+    console.error('Error sending push notification:', error);
+    throw error;
+  }
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -110,15 +170,36 @@ serve(async (req) => {
           }
         };
 
-        // Web Push senden (hier würde normalerweise eine Library wie web-push verwendet)
-        // Für Demo-Zwecke loggen wir nur
-        console.log(`Would send push to ${subscription.user_id}:`, {
+        // Send Web Push notification
+        const pushPayload = JSON.stringify({
           title: notificationTitle,
           body: notificationBody,
-          data: notificationData
+          icon: '/favicon.ico',
+          badge: '/favicon.ico',
+          data: notificationData,
+          tag: `report-${payload.reportId}`
         });
 
-        successCount++;
+        try {
+          // Use Web Push API to send notification
+          const pushResponse = await sendWebPushNotification(
+            pushSubscription,
+            pushPayload,
+            vapidPublicKey,
+            vapidPrivateKey
+          );
+
+          if (pushResponse.ok) {
+            console.log(`Successfully sent push to ${subscription.user_id}`);
+            successCount++;
+          } else {
+            console.error(`Failed to send push to ${subscription.user_id}:`, pushResponse.status, pushResponse.statusText);
+            failureCount++;
+          }
+        } catch (pushError) {
+          console.error(`Error sending push to ${subscription.user_id}:`, pushError);
+          failureCount++;
+        }
       } catch (error) {
         console.error(`Failed to send push to ${subscription.user_id}:`, error);
         failureCount++;

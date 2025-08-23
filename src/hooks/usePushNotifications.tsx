@@ -43,7 +43,8 @@ export const usePushNotifications = () => {
         return;
       }
 
-      // VAPID public key - dieser muss in der Produktionsumgebung gesetzt werden
+      // Get VAPID public key from environment - this should be set in production
+      // For now, we'll use a placeholder. In production, this should come from your environment
       const vapidPublicKey = 'BEl62iUYgUivxIkv69yViEuiBIa40HEYyIT_HfCyzsVBOTM';
       
       const subscription = await registration.pushManager.subscribe({

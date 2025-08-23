@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Plus, AlertCircle, Upload, X, FileText } from "lucide-react";
+import { notifyBuildingManagers } from "@/utils/reportNotifications";
 
 interface Report {
   id: string;
@@ -239,6 +240,26 @@ export const TenantReports = () => {
         .single();
 
       if (error) throw error;
+
+      // Send push notifications to building managers
+      const buildingId = tenantInfo?.building_id || tenantInfo?.buildings?.id;
+      const buildingName = tenantInfo?.buildings?.name || reportForm.building_name;
+      
+      if (buildingId && buildingName) {
+        try {
+          await notifyBuildingManagers({
+            reportId: data.id,
+            buildingId: buildingId,
+            buildingName: buildingName,
+            reportTitle: reportForm.title,
+            reportType: 'miete'
+          });
+          console.log('Notification sent to building managers');
+        } catch (notificationError) {
+          console.error('Error sending notifications:', notificationError);
+          // Don't fail the report creation if notifications fail
+        }
+      }
 
       setReports(prev => [{ ...data, attachments: uploadedFiles }, ...prev]);
       setReportForm({ 

@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { User, Lock, Mail } from "lucide-react";
+import { PushNotificationToggle } from "@/components/PushNotificationToggle";
 
 export const TenantSettings = () => {
   const { profile, updatePassword, fetchProfile } = useAuth();
@@ -202,6 +203,22 @@ export const TenantSettings = () => {
           >
             {isUpdatingPassword ? "Wird geändert..." : "Passwort ändern"}
           </Button>
+        </CardContent>
+      </Card>
+
+      {/* Notification Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mail className="h-5 w-5" />
+            Benachrichtigungen
+          </CardTitle>
+          <CardDescription>
+            Verwalten Sie Ihre Benachrichtigungseinstellungen
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <PushNotificationToggle />
         </CardContent>
       </Card>
 
