@@ -161,9 +161,12 @@ export const EditReportDialog = ({ report, tableName, open, onClose, onSaved }: 
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto z-50">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto z-50" aria-describedby="edit-report-description">
         <DialogHeader>
           <DialogTitle>Meldung bearbeiten</DialogTitle>
+          <p id="edit-report-description" className="sr-only">
+            Dialog zum Bearbeiten einer Meldung mit Status, Verwalter-Notizen und internen Notizen
+          </p>
         </DialogHeader>
         
         <div className="space-y-6">
@@ -199,21 +202,16 @@ export const EditReportDialog = ({ report, tableName, open, onClose, onSaved }: 
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">Vorlage:</span>
                   <Select 
-                    value="" 
                     onValueChange={(value) => {
-                      console.log('Select onValueChange triggered with value:', value);
-                      if (value && value !== "") {
-                        handleTemplateSelect(value);
-                      }
+                      console.log('=== SELECT TRIGGERED ===');
+                      console.log('Selected value:', value);
+                      handleTemplateSelect(value);
                     }}
                   >
                     <SelectTrigger className="w-48 bg-background border border-border shadow-sm">
                       <SelectValue placeholder="Vorlage auswählen..." />
                     </SelectTrigger>
                     <SelectContent className="z-50 bg-background border border-border shadow-lg">
-                      <SelectItem value="">
-                        <span className="text-muted-foreground">Vorlage auswählen...</span>
-                      </SelectItem>
                       {templates.map((template) => (
                         <SelectItem 
                           key={template.id} 
