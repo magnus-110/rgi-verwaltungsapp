@@ -392,7 +392,7 @@ export const Dashboard = () => {
           <CardHeader>
             <CardTitle className="heading-primary flex items-center text-lg font-semibold">
               <BarChart3 className="mr-2 h-5 w-5" />
-              Problem Häuser
+              Meldungen pro Haus
             </CardTitle>
             <CardDescription className="body-secondary flex items-center gap-2">
               Top 10 Häuser mit den meisten Meldungen pro {managementMode === 'weg' ? 'Eigentümer' : 'Mieter'}

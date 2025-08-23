@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { 
   BarChart3,
-  Shield, 
+  ClipboardList, 
   Castle, 
   Newspaper, 
   Sparkles,
@@ -31,7 +31,7 @@ import rgiLogo from "@/assets/rgi-logo.png";
 
 const menuItems = [
   { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
-  { title: "Meldungen", url: "/reports", icon: Shield },
+  { title: "Meldungen", url: "/reports", icon: ClipboardList },
   { title: "Gebäude", url: "/buildings", icon: Castle },
   { title: "Schwarzes Brett", url: "/forum", icon: Newspaper },
   { title: "Chatbot", url: "/chatbot", icon: Sparkles },

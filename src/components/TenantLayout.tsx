@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { 
   House, 
-  Shield, 
+  ClipboardList, 
   Newspaper, 
   Sparkles, 
   Crown,
@@ -55,7 +55,7 @@ export const TenantLayout = ({ children }: TenantLayoutProps) => {
       active: location.pathname === '/tenant'
     },
     { 
-      icon: Shield, 
+      icon: ClipboardList, 
       label: "Meine Meldungen", 
       path: '/tenant/reports',
       active: location.pathname.startsWith('/tenant/reports')

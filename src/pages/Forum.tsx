@@ -174,13 +174,45 @@ export const Forum = () => {
 
       if (error) throw error;
       
-      // Parse attachments if they are stored as strings  
-      const processedData = (data as any)?.map((post: any) => ({
-        ...post,
-        attachments: typeof post.attachments === 'string' 
-          ? JSON.parse(post.attachments || '[]') 
-          : post.attachments || []
-      })) || [];
+      // Parse attachments and get building managers for each post  
+      const processedData = await Promise.all(
+        (data as any)?.map(async (post: any) => {
+          let buildingWithManagers = post.buildings;
+          
+          if (post.buildings?.id) {
+            // Fetch managers for this building
+            const { data: managersData } = await supabase
+              .from("building_managers")
+              .select(`
+                user_id,
+                profiles:user_id (
+                  first_name,
+                  last_name,
+                  email
+                )
+              `)
+              .eq('building_id', post.buildings.id);
+
+            buildingWithManagers = {
+              ...post.buildings,
+              managers: (managersData || []).map(bm => ({
+                user_id: bm.user_id,
+                name: (bm.profiles as any)?.first_name && (bm.profiles as any)?.last_name 
+                  ? `${(bm.profiles as any).first_name} ${(bm.profiles as any).last_name}`
+                  : (bm.profiles as any)?.email || 'Unbekannter Admin'
+              }))
+            };
+          }
+          
+          return {
+            ...post,
+            attachments: typeof post.attachments === 'string' 
+              ? JSON.parse(post.attachments || '[]') 
+              : post.attachments || [],
+            buildings: buildingWithManagers
+          };
+        }) || []
+      );
       
       setPosts(processedData);
     } catch (error) {
