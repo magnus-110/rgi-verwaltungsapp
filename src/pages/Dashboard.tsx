@@ -106,7 +106,7 @@ export const Dashboard = () => {
         // Get recent reports for display (only fetch what we need)
         supabase
           .from(reportsTable)
-          .select('id, title, status, priority, contact_name, created_at')
+          .select('id, title, status, contact_name, created_at')
           .order('created_at', { ascending: false })
           .limit(5),
         
@@ -294,19 +294,6 @@ export const Dashboard = () => {
         return <Badge variant="default">Erledigt</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "high":
-        return "border-red-500";
-      case "medium":
-        return "border-yellow-500";
-      case "low":
-        return "border-blue-500";
-      default:
-        return "border-gray-300";
     }
   };
 

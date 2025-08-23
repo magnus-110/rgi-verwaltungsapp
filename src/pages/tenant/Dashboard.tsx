@@ -22,8 +22,15 @@ interface Report {
   title: string;
   description: string;
   status: string;
-  priority: string;
   created_at: string;
+  building_id: string;
+  contact_name: string;
+  contact_email: string;
+  contact_phone: string;
+  contact_address: string;
+  attachments: any;
+  reported_by?: string;
+  updated_at?: string;
 }
 
 interface ForumPost {

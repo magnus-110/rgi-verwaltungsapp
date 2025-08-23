@@ -18,7 +18,6 @@ interface Report {
   title: string;
   description: string;
   status: string;
-  priority: string;
   created_at: string;
   building_id: string;
   contact_name: string;
@@ -286,7 +285,6 @@ export const WegOwnerReports = () => {
         .insert([{
           title: reportForm.title,
           description: reportForm.description,
-          priority: "medium",
           reported_by: profile?.user_id,
           weg_owner_id: profile?.user_id,
           building_id: reportForm.building_id,

@@ -18,7 +18,6 @@ interface Report {
   title: string;
   description: string;
   status: string;
-  priority: string;
   created_at: string;
   building_id: string;
   contact_name: string;
@@ -40,7 +39,6 @@ export const TenantReports = () => {
   const [reportForm, setReportForm] = useState({
     title: "",
     description: "",
-    priority: "medium",
     contact_name: "",
     contact_email: "",
     contact_phone: "",
@@ -226,7 +224,6 @@ export const TenantReports = () => {
         .insert([{
           title: reportForm.title,
           description: reportForm.description,
-          priority: reportForm.priority,
           reported_by: profile?.user_id,
           building_id: tenantInfo?.building_id,
           contact_name: reportForm.contact_name,
@@ -265,7 +262,6 @@ export const TenantReports = () => {
       setReportForm({ 
         title: "", 
         description: "", 
-        priority: "medium",
         contact_name: `${tenantInfo?.first_name || ''} ${tenantInfo?.last_name || ''}`.trim(),
         contact_email: tenantInfo?.email || '',
         contact_phone: tenantInfo?.phone || '',
@@ -310,19 +306,6 @@ export const TenantReports = () => {
         return <Badge variant="default">Erledigt</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
-  const getPriorityBadge = (priority: string) => {
-    switch (priority) {
-      case "low":
-        return <Badge variant="outline">Niedrig</Badge>;
-      case "medium":
-        return <Badge variant="secondary">Mittel</Badge>;
-      case "high":
-        return <Badge variant="destructive">Hoch</Badge>;
-      default:
-        return <Badge variant="outline">{priority}</Badge>;
     }
   };
 
@@ -436,19 +419,6 @@ export const TenantReports = () => {
                     rows={4}
                   />
                 </div>
-                <div>
-                  <Label htmlFor="priority">Priorität</Label>
-                  <Select value={reportForm.priority} onValueChange={(value) => setReportForm(prev => ({ ...prev, priority: value }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Priorität auswählen" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="low">Niedrig</SelectItem>
-                      <SelectItem value="medium">Mittel</SelectItem>
-                      <SelectItem value="high">Hoch</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
 
                 {/* Attachments */}
                 <div>
@@ -510,7 +480,6 @@ export const TenantReports = () => {
                     </div>
                     <div className="flex gap-2">
                       {getStatusBadge(report.status)}
-                      {getPriorityBadge(report.priority)}
                     </div>
                   </div>
                   
