@@ -63,6 +63,7 @@ export const EditReportDialog = ({ report, tableName, open, onClose, onSaved }: 
   }, [open, report, managementMode]); // managementMode als Abhängigkeit hinzufügen
 
   const fetchTemplates = async () => {
+    console.log('Fetching templates for management mode:', managementMode);
     try {
       const { data, error } = await supabase
         .from('report_templates')
@@ -71,12 +72,17 @@ export const EditReportDialog = ({ report, tableName, open, onClose, onSaved }: 
         .order('name');
 
       if (error) throw error;
+      
+      console.log('Raw template data:', data);
+      
       // Map the data to match the expected Template interface
       const mappedTemplates = data?.map(template => ({
         id: template.id,
         title: template.name,
         content: template.content || ''
       })) || [];
+      
+      console.log('Mapped templates:', mappedTemplates);
       setTemplates(mappedTemplates);
     } catch (error) {
       console.error('Error fetching templates:', error);
@@ -84,12 +90,22 @@ export const EditReportDialog = ({ report, tableName, open, onClose, onSaved }: 
   };
 
   const handleTemplateSelect = (templateId: string) => {
+    console.log('Template selection started:', templateId);
+    console.log('Available templates:', templates);
+    
     const template = templates.find(t => t.id === templateId);
+    console.log('Found template:', template);
+    
     if (template) {
+      console.log('Current adminNotes:', adminNotes);
+      console.log('Template content:', template.content);
+      
       // Wenn bereits Text vorhanden ist, füge die Vorlage hinzu
       const newText = adminNotes.trim() 
         ? `${adminNotes}\n\n${template.content}` 
         : template.content;
+      
+      console.log('New text to set:', newText);
       setAdminNotes(newText);
       setSelectedTemplate(""); // Reset selection nach dem Einfügen
       
@@ -97,6 +113,15 @@ export const EditReportDialog = ({ report, tableName, open, onClose, onSaved }: 
       toast({
         title: "Vorlage hinzugefügt",
         description: `Die Vorlage "${template.title}" wurde eingefügt.`,
+      });
+      
+      console.log('AdminNotes after update:', newText);
+    } else {
+      console.log('No template found with ID:', templateId);
+      toast({
+        title: "Fehler",
+        description: "Vorlage konnte nicht gefunden werden.",
+        variant: "destructive",
       });
     }
   };
