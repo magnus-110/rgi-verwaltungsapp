@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { WebPushMessage } from "jsr:@negrel/webpush";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -21,57 +22,20 @@ interface NotificationPayload {
   reportType: 'miete' | 'weg';
 }
 
-// Helper function to generate VAPID JWT token
-async function generateVAPIDToken(vapidPrivateKey: string, vapidPublicKey: string, audience: string) {
-  // Import the private key
-  const privateKeyBytes = Uint8Array.from(atob(vapidPrivateKey.replace(/_/g, '/').replace(/-/g, '+')), c => c.charCodeAt(0));
-  
-  const cryptoKey = await crypto.subtle.importKey(
-    'pkcs8',
-    privateKeyBytes,
-    {
-      name: 'ECDSA',
-      namedCurve: 'P-256',
-    },
-    false,
-    ['sign']
-  );
+// Helper function to convert base64url to Uint8Array
+function base64UrlToUint8Array(base64UrlString: string): Uint8Array {
+  const padding = '='.repeat((4 - base64UrlString.length % 4) % 4);
+  const base64 = (base64UrlString + padding)
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
 
-  const header = {
-    typ: 'JWT',
-    alg: 'ES256'
-  };
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
 
-  const now = Math.floor(Date.now() / 1000);
-  const payload = {
-    aud: audience,
-    exp: now + (12 * 60 * 60), // 12 hours
-    sub: 'mailto:admin@rgi.de'
-  };
-
-  const encoder = new TextEncoder();
-  
-  // Base64URL encode
-  const base64UrlEncode = (data: Uint8Array) => {
-    return btoa(String.fromCharCode(...data))
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_')
-      .replace(/=/g, '');
-  };
-
-  const encodedHeader = base64UrlEncode(encoder.encode(JSON.stringify(header)));
-  const encodedPayload = base64UrlEncode(encoder.encode(JSON.stringify(payload)));
-  
-  const signingInput = `${encodedHeader}.${encodedPayload}`;
-  const signature = await crypto.subtle.sign(
-    { name: 'ECDSA', hash: 'SHA-256' },
-    cryptoKey,
-    encoder.encode(signingInput)
-  );
-
-  const encodedSignature = base64UrlEncode(new Uint8Array(signature));
-  
-  return `${signingInput}.${encodedSignature}`;
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
 }
 
 // Helper function to send web push notification
@@ -81,28 +45,42 @@ async function sendWebPushNotification(
   vapidPrivateKey: string,
   vapidPublicKey: string
 ) {
-  const url = new URL(subscription.endpoint);
-  const audience = `${url.protocol}//${url.host}`;
-  
-  const vapidToken = await generateVAPIDToken(vapidPrivateKey, vapidPublicKey, audience);
+  try {
+    // Convert VAPID keys from base64url to Uint8Array
+    const privateKey = base64UrlToUint8Array(vapidPrivateKey);
+    const publicKey = base64UrlToUint8Array(vapidPublicKey);
+    
+    // Convert subscription keys from base64 to Uint8Array  
+    const p256dh = Uint8Array.from(atob(subscription.p256dh), c => c.charCodeAt(0));
+    const auth = Uint8Array.from(atob(subscription.auth), c => c.charCodeAt(0));
 
-  const response = await fetch(subscription.endpoint, {
-    method: 'POST',
-    headers: {
-      'Authorization': `vapid t=${vapidToken}, k=${vapidPublicKey}`,
-      'Content-Type': 'application/octet-stream',
-      'Content-Encoding': 'aes128gcm',
-      'TTL': '2419200' // 4 weeks
-    },
-    body: payload
-  });
+    const webPushMessage = new WebPushMessage({
+      endpoint: subscription.endpoint,
+      keys: {
+        p256dh: p256dh,
+        auth: auth
+      }
+    }, {
+      vapidKeys: {
+        publicKey: publicKey,
+        privateKey: privateKey
+      },
+      subject: "mailto:admin@rgi.de"
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Push notification failed: ${response.status} ${response.statusText} - ${errorText}`);
+    const response = await webPushMessage.send(payload);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Push notification failed: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    return response;
+    
+  } catch (error) {
+    console.error('Detailed push error:', error);
+    throw error;
   }
-
-  return response;
 }
 
 serve(async (req) => {
