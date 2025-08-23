@@ -13,8 +13,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { Bot, Settings, Plus, Edit, Trash2, ChevronDown, ChevronUp, MessageCircle, Download, Search, Calendar, Filter, User, Building } from "lucide-react";
+import { Bot, Settings, Plus, Edit, Trash2, ChevronDown, ChevronUp, MessageCircle, Download, Search, Calendar, Filter, User, Building, CalendarIcon } from "lucide-react";
 import { ChatMessage } from "@/components/chat/ChatMessage";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 
 interface KnowledgeItem {
   title: string;
@@ -63,6 +65,8 @@ export const ChatbotSettings = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [managementModeFilter, setManagementModeFilter] = useState<string>("all");
   const [dateRange, setDateRange] = useState<string>("all");
+  const [csvStartDate, setCsvStartDate] = useState<Date | undefined>();
+  const [csvEndDate, setCsvEndDate] = useState<Date | undefined>();
 
   useEffect(() => {
     fetchChatbotSettings();
@@ -317,10 +321,22 @@ export const ChatbotSettings = () => {
 
   const exportToCSV = async () => {
     try {
-      const { data: allSessions, error: sessionsError } = await supabase
+      let sessionsQuery = supabase
         .from('chatbot_sessions')
         .select('*')
         .order('started_at', { ascending: false });
+
+      // Apply date filters for CSV export
+      if (csvStartDate) {
+        sessionsQuery = sessionsQuery.gte('started_at', csvStartDate.toISOString());
+      }
+      if (csvEndDate) {
+        const endOfDay = new Date(csvEndDate);
+        endOfDay.setHours(23, 59, 59, 999);
+        sessionsQuery = sessionsQuery.lte('started_at', endOfDay.toISOString());
+      }
+
+      const { data: allSessions, error: sessionsError } = await sessionsQuery;
 
       if (sessionsError) {
         console.error('Error exporting sessions:', sessionsError);
@@ -602,10 +618,48 @@ export const ChatbotSettings = () => {
               <MessageCircle className="w-5 h-5" />
               Chatbot Gespräche
             </CardTitle>
-            <Button onClick={exportToCSV} variant="outline" size="sm">
-              <Download className="w-4 h-4 mr-2" />
-              CSV Export
-            </Button>
+            <div className="flex gap-2">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <CalendarIcon className="w-4 h-4 mr-2" />
+                    Von: {csvStartDate ? format(csvStartDate, 'dd.MM.yyyy') : 'Alle'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={csvStartDate}
+                    onSelect={setCsvStartDate}
+                    initialFocus
+                    className="p-3 pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+              
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <CalendarIcon className="w-4 h-4 mr-2" />
+                    Bis: {csvEndDate ? format(csvEndDate, 'dd.MM.yyyy') : 'Alle'}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={csvEndDate}
+                    onSelect={setCsvEndDate}
+                    initialFocus
+                    className="p-3 pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
+              
+              <Button onClick={exportToCSV} variant="outline" size="sm">
+                <Download className="w-4 h-4 mr-2" />
+                CSV Export
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">

@@ -9,6 +9,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { PushNotificationToggle } from "@/components/PushNotificationToggle";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { UserPlus } from "lucide-react";
 
 export const Settings = () => {
   const { profile, fetchProfile } = useAuth();
@@ -16,6 +18,13 @@ export const Settings = () => {
   const [lastName, setLastName] = useState(profile?.last_name || "");
   const [phone, setPhone] = useState((profile as any)?.phone || "");
   const [isLoading, setIsLoading] = useState(false);
+  
+  // Admin creation states
+  const [newAdminEmail, setNewAdminEmail] = useState("");
+  const [newAdminFirstName, setNewAdminFirstName] = useState("");
+  const [newAdminLastName, setNewAdminLastName] = useState("");
+  const [newAdminPassword, setNewAdminPassword] = useState("");
+  const [isCreatingAdmin, setIsCreatingAdmin] = useState(false);
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,6 +50,40 @@ export const Settings = () => {
       toast.error("Fehler beim Aktualisieren des Profils");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleCreateAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAdminEmail || !newAdminPassword || !newAdminFirstName || !newAdminLastName) {
+      toast.error("Bitte füllen Sie alle Felder aus");
+      return;
+    }
+
+    setIsCreatingAdmin(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('admin-create-user', {
+        body: {
+          email: newAdminEmail,
+          password: newAdminPassword,
+          role: 'admin',
+          first_name: newAdminFirstName,
+          last_name: newAdminLastName
+        }
+      });
+
+      if (error) throw error;
+
+      toast.success("Admin erfolgreich erstellt");
+      setNewAdminEmail("");
+      setNewAdminFirstName("");
+      setNewAdminLastName("");
+      setNewAdminPassword("");
+    } catch (error) {
+      console.error("Error creating admin:", error);
+      toast.error("Fehler beim Erstellen des Admins");
+    } finally {
+      setIsCreatingAdmin(false);
     }
   };
 
@@ -147,33 +190,71 @@ export const Settings = () => {
             </CardContent>
           </Card>
 
-          {/* Rolle und Berechtigungen */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Konto-Informationen</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label>Rolle</Label>
-                <div className="flex items-center mt-1">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
-                    {profile.role === 'admin' && 'Administrator'}
-                    {profile.role === 'tenant' && 'Mieter'}
-                    {profile.role === 'weg_owner' && 'WEG-Eigentümer'}
-                  </span>
-                </div>
-              </div>
-              
-              {(profile as any)?.building_id && (
-                <div>
-                  <Label>Zugewiesenes Gebäude</Label>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    ID: {(profile as any).building_id}
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {/* Admin Management - nur für Admins */}
+          {profile.role === 'admin' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <UserPlus className="w-5 h-5" />
+                  Administrator verwalten
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleCreateAdmin} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="newAdminFirstName">Vorname</Label>
+                      <Input
+                        id="newAdminFirstName"
+                        value={newAdminFirstName}
+                        onChange={(e) => setNewAdminFirstName(e.target.value)}
+                        placeholder="Vorname des neuen Admins"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="newAdminLastName">Nachname</Label>
+                      <Input
+                        id="newAdminLastName"
+                        value={newAdminLastName}
+                        onChange={(e) => setNewAdminLastName(e.target.value)}
+                        placeholder="Nachname des neuen Admins"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="newAdminEmail">E-Mail</Label>
+                    <Input
+                      id="newAdminEmail"
+                      type="email"
+                      value={newAdminEmail}
+                      onChange={(e) => setNewAdminEmail(e.target.value)}
+                      placeholder="E-Mail des neuen Admins"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="newAdminPassword">Temporäres Passwort</Label>
+                    <Input
+                      id="newAdminPassword"
+                      type="password"
+                      value={newAdminPassword}
+                      onChange={(e) => setNewAdminPassword(e.target.value)}
+                      placeholder="Temporäres Passwort"
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Der neue Admin sollte das Passwort nach der ersten Anmeldung ändern
+                    </p>
+                  </div>
+                  <Button type="submit" disabled={isCreatingAdmin}>
+                    {isCreatingAdmin ? "Erstellen..." : "Admin erstellen"}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>
