@@ -26,7 +26,7 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
   }
 
   if (profile?.force_password_change) {
-    return <Navigate to="/change-password" replace />;
+    return <Navigate to="/admin/change-password" replace />;
   }
 
   if (profile?.role !== 'admin') {
