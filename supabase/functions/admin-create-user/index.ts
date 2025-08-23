@@ -13,6 +13,7 @@ interface UserData {
   building_id?: string
   management_mode?: 'weg' | 'rent'
   role?: 'admin' | 'tenant' | 'weg_owner'
+  password?: string
 }
 
 // Generate 6-digit numeric password
@@ -113,8 +114,8 @@ Deno.serve(async (req) => {
     const userData: UserData = await req.json()
     console.log('Received userData:', JSON.stringify(userData, null, 2))
 
-    // Generate 6-digit numeric password
-    const password = generateNumericPassword()
+    // Use provided password or generate 6-digit numeric password
+    const password = userData.password || generateNumericPassword()
 
     // Create user with admin client (bypasses RLS)
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
@@ -259,7 +260,8 @@ Deno.serve(async (req) => {
           id: newUser.user.id,
           email: newUser.user.email,
           role: role
-        }
+        },
+        password: password
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

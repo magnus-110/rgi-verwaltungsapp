@@ -64,6 +64,8 @@ export const Settings = () => {
 
     setIsCreatingAdmin(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
       const requestData = {
         email: newAdminEmail,
         password: newAdminPassword,
@@ -75,18 +77,20 @@ export const Settings = () => {
       console.log('Creating admin user with data:', requestData);
 
       const { data, error } = await supabase.functions.invoke('admin-create-user', {
-        body: requestData
+        body: requestData,
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`
+        }
       });
 
       console.log('Full admin creation response:', { data, error });
-      console.log('Error details:', error);
 
       if (error) {
         console.error('Admin creation failed:', error);
         let errorMessage = "Fehler beim Erstellen des Admins";
         
-        if (error.message?.includes('already been registered')) {
-          errorMessage = "Ein Benutzer mit dieser E-Mail-Adresse existiert bereits";
+        if (error.message) {
+          errorMessage = error.message;
         } else if (typeof error === 'object' && error !== null) {
           errorMessage = JSON.stringify(error);
         }
@@ -101,7 +105,12 @@ export const Settings = () => {
         return;
       }
 
-      toast.success("Admin erfolgreich erstellt");
+      if (data?.success && data?.password) {
+        toast.success(`Admin erfolgreich erstellt! Passwort: ${data.password}`);
+      } else {
+        toast.success("Admin erfolgreich erstellt");
+      }
+      
       setNewAdminEmail("");
       setNewAdminFirstName("");
       setNewAdminLastName("");
