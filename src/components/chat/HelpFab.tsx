@@ -67,19 +67,19 @@ export const HelpFab = ({ userType, selectedBuildingId, onBuildingChange, userNa
 
   const tips = [
     {
-      icon: <Home className="w-4 h-4" />,
-      title: "Gebäude",
-      description: "Bei Fragen zu einem bestimmten Gebäude wählen Sie es bitte aus der Liste."
-    },
-    {
       icon: <MessageCircle className="w-4 h-4" />,
       title: "Allgemeines",
-      description: "Stellen Sie allgemeine Fragen rund um Immobilien und Verwaltung."
+      description: "Stellen Sie allgemeine Fragen rund um unsere Immobilienverwaltung – auch bei Problemen oder wenn Sie sonst niemanden erreichen."
     },
     {
       icon: <FileText className="w-4 h-4" />,
       title: "Verträge",
-      description: "Erhalten Sie Auskünfte zu allgemeinen Vertragsinhalten (nicht personenbezogen)."
+      description: "Erhalten Sie Auskünfte zu allgemeinen Vertragsinhalten."
+    },
+    {
+      icon: <Home className="w-4 h-4" />,
+      title: "Datenschutz",
+      description: "Formulieren Sie Ihre Anfragen ohne vertrauliche Angaben."
     }
   ];
 
@@ -126,33 +126,6 @@ export const HelpFab = ({ userType, selectedBuildingId, onBuildingChange, userNa
         </CardHeader>
         
         <CardContent className="space-y-4">
-          {/* Building Selection for WEG Owners */}
-          {userType === "weg_owner" && onBuildingChange && (
-            <div className="space-y-2">
-              <h4 className="text-sm font-medium text-foreground">Gebäude auswählen</h4>
-              {buildings.length > 0 ? (
-                <Select value={selectedBuildingId || ""} onValueChange={onBuildingChange}>
-                  <SelectTrigger className="w-full focus:ring-2 focus:ring-primary/20">
-                    <SelectValue placeholder="Gebäude auswählen..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {buildings.map((building) => (
-                      <SelectItem key={building.id} value={building.id}>
-                        {building.name} - {building.address}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <div className="text-center py-3 px-2 bg-muted/20 rounded-md">
-                  <p className="text-xs text-muted-foreground">
-                    Keine Gebäude zugeordnet. Wenden Sie sich an die Verwaltung.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-          
           {/* Tips */}
           <div className="space-y-3">
             <h4 className="text-sm font-medium text-foreground">Tipps für Sie</h4>

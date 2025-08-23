@@ -157,22 +157,6 @@ export const WegOwnerChatbot = () => {
 
   return (
     <div className="h-full flex flex-col bg-background relative">
-      {buildingAssignments.length > 1 && (
-        <div className="border-b p-4">
-          <Select value={selectedBuildingId} onValueChange={setSelectedBuildingId}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Gebäude auswählen" />
-            </SelectTrigger>
-            <SelectContent>
-              {buildingAssignments.map((assignment) => (
-                <SelectItem key={assignment.building_id} value={assignment.building_id}>
-                  {assignment.building_name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
 
       {!hasStartedChat ? (
         <WelcomeScreen 
@@ -197,10 +181,6 @@ export const WegOwnerChatbot = () => {
       <ChatInput
         onSendMessage={handleSendMessage}
         isLoading={isTyping}
-        disabled={buildingAssignments.length === 0}
-        placeholder={buildingAssignments.length === 0 ? 
-          "Keine Gebäude zugeordnet. Wenden Sie sich an die Verwaltung." : 
-          undefined}
         setIsHelpOpen={setIsHelpOpen}
       />
       
