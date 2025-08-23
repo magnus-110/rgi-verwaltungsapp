@@ -14,69 +14,118 @@ import {
   ChevronLeft,
   ChevronRight,
   Menu,
-  X
+  X,
+  LogOut,
+  User
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useManagementMode } from "@/hooks/useManagementMode";
+import { useAuth } from "@/hooks/useAuth";
 
 const sidebarItems = [
   { icon: Home, label: "Dashboard", href: "/dashboard" },
   { icon: FileText, label: "Meldungen", href: "/reports" },
   { icon: Building, label: "Gebäude", href: "/buildings" },
-  { icon: MessageSquare, label: "Forum", href: "/forum" },
-  { icon: Webhook, label: "Webhook-Einstellungen", href: "/webhook-settings" },
+  { icon: MessageSquare, label: "Schwarzes Brett", href: "/forum" },
+  { icon: Bot, label: "Chatbot", href: "/chatbot-settings" },
+  { icon: MessageSquare, label: "Chatbot Gespräche", href: "/chatbot" },
+  { icon: Webhook, label: "Webhooks", href: "/webhook-settings" },
   { icon: Settings, label: "Einstellungen", href: "/settings" },
-  { icon: Key, label: "Passwort ändern", href: "/change-password" },
 ];
 
 export const AdminSidebar = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const location = useLocation();
-  const { managementMode } = useManagementMode();
+  const { managementMode, setManagementMode } = useManagementMode();
+  const { profile, signOut } = useAuth();
 
   const isActive = (href: string) => location.pathname === href;
 
   const SidebarContent = () => (
-    <>
+    <div className="flex flex-col h-full">
       <div className="p-4 border-b">
-        {!isCollapsed ? (
-          <div className="flex items-center gap-2">
-            <Building className="h-8 w-8 text-primary" />
+        <div className="flex items-center gap-2 mb-4">
+          <div className="w-8 h-8 bg-orange-500 rounded flex items-center justify-center">
+            <span className="text-white font-bold text-sm">RGI</span>
+          </div>
+          {!isCollapsed && (
             <div>
-              <h2 className="text-lg font-semibold">RGI Admin</h2>
-              <div className="flex items-center gap-2 mt-1">
-                <Badge variant={managementMode === "weg" ? "default" : "secondary"} className="text-xs">
-                  {managementMode === "weg" ? "WEG" : "Miete"}
-                </Badge>
-              </div>
+              <div className="text-orange-500 font-semibold text-sm">RGI IMMOBILIEN</div>
+              <div className="text-xs text-gray-500">Verkauf · Vermietung · Verwaltung</div>
+            </div>
+          )}
+        </div>
+        
+        {!isCollapsed && (
+          <div className="space-y-2">
+            <div className="text-xs text-gray-500 uppercase tracking-wide">VERWALTUNGSMODUS</div>
+            <div className="flex gap-1 bg-gray-100 rounded p-1">
+              <button
+                onClick={() => setManagementMode("weg")}
+                className={`flex-1 px-3 py-1 rounded text-sm font-medium transition-colors ${
+                  managementMode === "weg" 
+                    ? "bg-orange-500 text-white" 
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                WEG
+              </button>
+              <button
+                onClick={() => setManagementMode("rent")}
+                className={`flex-1 px-3 py-1 rounded text-sm font-medium transition-colors ${
+                  managementMode === "rent" 
+                    ? "bg-orange-500 text-white" 
+                    : "text-gray-600 hover:text-gray-900"
+                }`}
+              >
+                Miete
+              </button>
             </div>
           </div>
-        ) : (
-          <Building className="h-8 w-8 text-primary mx-auto" />
         )}
       </div>
       
-      <nav className="p-2 space-y-1">
+      <nav className="flex-1 p-2 space-y-1">
         {sidebarItems.map((item) => (
           <Link
             key={item.href}
             to={item.href}
             onClick={() => setIsMobileOpen(false)}
             className={cn(
-              "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+              "flex items-center gap-3 px-3 py-2 text-sm font-medium transition-colors rounded",
               isActive(item.href)
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                ? "bg-gray-100 text-gray-900"
+                : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
             )}
           >
-            <item.icon className="h-5 w-5" />
+            <item.icon className="h-4 w-4" />
             {!isCollapsed && <span>{item.label}</span>}
           </Link>
         ))}
       </nav>
-    </>
+
+      {/* Admin User Section */}
+      {!isCollapsed && (
+        <div className="p-4 border-t">
+          <div className="flex items-center gap-3 mb-2">
+            <User className="h-4 w-4 text-gray-600" />
+            <div className="text-sm">
+              <div className="font-medium text-gray-900">Admin</div>
+              <div className="text-xs text-gray-500">{profile?.email}</div>
+            </div>
+          </div>
+          <button
+            onClick={signOut}
+            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded transition-colors"
+          >
+            <LogOut className="h-4 w-4" />
+            <span>Abmelden</span>
+          </button>
+        </div>
+      )}
+    </div>
   );
 
   return (

@@ -57,6 +57,7 @@ const App = () => {
               <Route path="/reports" element={<AdminLayout><Reports /></AdminLayout>} />
               <Route path="/buildings" element={<AdminLayout><Buildings /></AdminLayout>} />
               <Route path="/forum" element={<AdminLayout><Forum /></AdminLayout>} />
+              <Route path="/chatbot-settings" element={<AdminLayout><ChatbotSettings /></AdminLayout>} />
               <Route path="/chatbot" element={<AdminLayout><ChatbotSettings /></AdminLayout>} />
               <Route path="/webhook-settings" element={<AdminLayout><WebhookSettings /></AdminLayout>} />
               <Route path="/settings" element={<AdminLayout><Settings /></AdminLayout>} />
