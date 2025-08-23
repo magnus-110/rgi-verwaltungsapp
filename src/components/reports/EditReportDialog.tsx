@@ -63,7 +63,6 @@ export const EditReportDialog = ({ report, tableName, open, onClose, onSaved }: 
   }, [open, report, managementMode]); // managementMode als Abhängigkeit hinzufügen
 
   const fetchTemplates = async () => {
-    console.log('Fetching templates for management mode:', managementMode);
     try {
       const { data, error } = await supabase
         .from('report_templates')
@@ -73,16 +72,13 @@ export const EditReportDialog = ({ report, tableName, open, onClose, onSaved }: 
 
       if (error) throw error;
       
-      console.log('Raw template data:', data);
-      
       // Map the data to match the expected Template interface
       const mappedTemplates = data?.map(template => ({
         id: template.id,
         title: template.name,
-        content: template.content || ''
+        content: template.content // Keep nullable, don't default to empty string
       })) || [];
       
-      console.log('Mapped templates:', mappedTemplates);
       setTemplates(mappedTemplates);
     } catch (error) {
       console.error('Error fetching templates:', error);
@@ -90,32 +86,19 @@ export const EditReportDialog = ({ report, tableName, open, onClose, onSaved }: 
   };
 
   const handleTemplateSelect = (templateId: string) => {
-    console.log('=== Template Selection Debug ===');
-    console.log('Template ID received:', templateId);
-    console.log('All available templates:', templates);
-    
     const template = templates.find(t => t.id === templateId);
-    console.log('Found template object:', template);
     
-    if (template && template.content) {
-      console.log('Current adminNotes value:', `"${adminNotes}"`);
-      console.log('Template content to add:', `"${template.content}"`);
+    if (template) {
+      // Use content if available, fallback to title
+      const content = template.content?.trim() || template.title;
+      setAdminNotes(content);
+      setSelectedTemplate(""); // Reset selection
       
-      // Direkt den Template-Inhalt setzen (ohne die Logik für bestehenden Text)
-      const newContent = template.content;
-      console.log('Setting new content:', `"${newContent}"`);
-      
-      setAdminNotes(newContent);
-      
-      // Toast zur Bestätigung
       toast({
         title: "Vorlage eingefügt",
-        description: `"${template.title}" wurde als Verwalter-Notiz eingefügt.`,
+        description: `"${template.title}" wurde als Verwalter-Notiz eingefügt${!template.content?.trim() ? ' (Titel verwendet, da Inhalt leer)' : ''}.`,
       });
-      
-      console.log('Template insertion completed');
     } else {
-      console.log('Template not found or content empty:', { template, templateId });
       toast({
         title: "Fehler",
         description: "Vorlage konnte nicht eingefügt werden.",
@@ -202,9 +185,8 @@ export const EditReportDialog = ({ report, tableName, open, onClose, onSaved }: 
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-muted-foreground">Vorlage:</span>
                   <Select 
+                    value={selectedTemplate}
                     onValueChange={(value) => {
-                      console.log('=== SELECT TRIGGERED ===');
-                      console.log('Selected value:', value);
                       handleTemplateSelect(value);
                     }}
                   >
@@ -228,10 +210,7 @@ export const EditReportDialog = ({ report, tableName, open, onClose, onSaved }: 
             </div>
             <Textarea
               value={adminNotes}
-              onChange={(e) => {
-                console.log('Textarea onChange:', e.target.value);
-                setAdminNotes(e.target.value);
-              }}
+              onChange={(e) => setAdminNotes(e.target.value)}
               placeholder="Antwort für den Kunden..."
               rows={4}
               className="min-h-[100px]"

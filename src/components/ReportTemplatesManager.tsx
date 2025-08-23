@@ -64,6 +64,11 @@ export const ReportTemplatesManager = ({ onTemplateSelect }: ReportTemplatesMana
       return;
     }
 
+    if (!formData.content.trim()) {
+      toast.error("Inhalt ist erforderlich");
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from("report_templates")
@@ -87,6 +92,16 @@ export const ReportTemplatesManager = ({ onTemplateSelect }: ReportTemplatesMana
 
   const handleUpdateTemplate = async () => {
     if (!editingTemplate) return;
+
+    if (!formData.name.trim()) {
+      toast.error("Name ist erforderlich");
+      return;
+    }
+
+    if (!formData.content.trim()) {
+      toast.error("Inhalt ist erforderlich");
+      return;
+    }
 
     try {
       const { error } = await supabase
