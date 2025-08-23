@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { WebPushMessage } from "jsr:@negrel/webpush";
+import { webpush } from "jsr:@negrel/webpush";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -55,21 +55,23 @@ async function sendWebPushNotification(
     const p256dh = Uint8Array.from(atob(subscription.p256dh), c => c.charCodeAt(0));
     const auth = Uint8Array.from(atob(subscription.auth), c => c.charCodeAt(0));
 
-    const webPushMessage = new WebPushMessage({
-      endpoint: subscription.endpoint,
-      keys: {
-        p256dh: p256dh,
-        auth: auth
-      }
-    }, {
-      vapidKeys: {
-        publicKey: publicKey,
-        privateKey: privateKey
+    const response = await webpush.sendNotification(
+      {
+        endpoint: subscription.endpoint,
+        keys: {
+          p256dh: p256dh,
+          auth: auth
+        }
       },
-      subject: "mailto:admin@rgi.de"
-    });
-
-    const response = await webPushMessage.send(payload);
+      payload,
+      {
+        vapidDetails: {
+          subject: "mailto:admin@rgi.de",
+          publicKey: publicKey,
+          privateKey: privateKey
+        }
+      }
+    );
     
     if (!response.ok) {
       const errorText = await response.text();

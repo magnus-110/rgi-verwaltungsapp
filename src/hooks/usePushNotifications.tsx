@@ -59,11 +59,20 @@ export const usePushNotifications = () => {
         return;
       }
 
-      // VAPID public key - your real production key
-      const vapidPublicKey = 'BIdmuglnKaUsceWEXrVvITIhjJ5OszUaT3865UbFIs2zYZLVALbDQ6jlmovnOlvtv4ELDd8073ZPIVmobUo-ZRo';
+      // Fetch VAPID public key from server
+      console.log('Fetching VAPID public key...');
+      const { data: keyData, error: keyError } = await supabase.functions.invoke('get-vapid-public-key');
+      
+      if (keyError || !keyData?.publicKey) {
+        console.error('Failed to fetch VAPID public key:', keyError);
+        toast.error('Fehler beim Laden der Konfiguration');
+        return;
+      }
+
+      console.log('VAPID key fetched successfully');
       
       // Convert VAPID public key to Uint8Array
-      const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
+      const applicationServerKey = urlBase64ToUint8Array(keyData.publicKey);
       
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
