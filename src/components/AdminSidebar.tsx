@@ -25,7 +25,6 @@ const sidebarItems = [
   { icon: FileText, label: "Meldungen", href: "/reports" },
   { icon: Building, label: "Gebäude", href: "/buildings" },
   { icon: MessageSquare, label: "Forum", href: "/forum" },
-  { icon: Bot, label: "Chatbot", href: "/chatbot" },
   { icon: Webhook, label: "Webhook-Einstellungen", href: "/webhook-settings" },
   { icon: Settings, label: "Einstellungen", href: "/settings" },
   { icon: Key, label: "Passwort ändern", href: "/change-password" },
