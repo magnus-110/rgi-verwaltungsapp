@@ -26,18 +26,18 @@ const DashboardWidget = ({
 }) => (
   <Card className="hover:shadow-elegant transition-shadow">
     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-      <CardTitle className="label-text text-sm font-medium truncate">{title}</CardTitle>
-      <Icon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+      <CardTitle className="label-text text-sm font-medium">{title}</CardTitle>
+      <Icon className="h-4 w-4 text-muted-foreground" />
     </CardHeader>
-    <CardContent className="space-y-2">
-      <div className="heading-primary text-xl sm:text-2xl font-bold text-primary truncate">
+    <CardContent>
+      <div className="heading-primary text-2xl font-bold text-primary">
         {isLoading ? "..." : value}
       </div>
-      <p className="body-secondary text-xs leading-tight">{description}</p>
+      <p className="body-secondary text-xs">{description}</p>
       {trend && (
         <div className="flex items-center pt-1">
-          <TrendingUp className="h-3 w-3 text-green-500 mr-1 flex-shrink-0" />
-          <span className="body-secondary text-xs text-green-500 truncate">{trend}</span>
+          <TrendingUp className="h-3 w-3 text-green-500 mr-1" />
+          <span className="body-secondary text-xs text-green-500">{trend}</span>
         </div>
       )}
     </CardContent>
@@ -322,7 +322,7 @@ export const Dashboard = () => {
       </div>
 
       {/* Statistik Widgets */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2">
         <DashboardWidget
           title="Offene Meldungen"
           value={stats.openReports}
@@ -342,7 +342,7 @@ export const Dashboard = () => {
       </div>
 
       {/* Charts Section */}
-      <div className="grid gap-6 grid-cols-1 xl:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2">
         {/* Monthly Tickets Chart */}
         <Card>
           <CardHeader>
@@ -365,7 +365,7 @@ export const Dashboard = () => {
                     color: "hsl(var(--primary))",
                   },
                 }}
-                 className="h-48 sm:h-64"
+                className="h-64"
               >
                 <ResponsiveContainer width="100%" height="100%">
                   <RechartsLineChart data={monthlyTicketsData}>
@@ -394,21 +394,19 @@ export const Dashboard = () => {
               <BarChart3 className="mr-2 h-5 w-5" />
               Meldungen pro Haus
             </CardTitle>
-            <CardDescription className="body-secondary">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                <span className="text-xs">Top 10 Häuser mit den meisten Meldungen pro {managementMode === 'weg' ? 'Eigentümer' : 'Mieter'}</span>
-                <Select value={timeframeDays.toString()} onValueChange={(value) => setTimeframeDays(Number(value))}>
-                  <SelectTrigger className="w-24 h-6 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="30">30 Tage</SelectItem>
-                    <SelectItem value="90">90 Tage</SelectItem>
-                    <SelectItem value="180">180 Tage</SelectItem>
-                    <SelectItem value="365">365 Tage</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            <CardDescription className="body-secondary flex items-center gap-2">
+              Top 10 Häuser mit den meisten Meldungen pro {managementMode === 'weg' ? 'Eigentümer' : 'Mieter'}
+              <Select value={timeframeDays.toString()} onValueChange={(value) => setTimeframeDays(Number(value))}>
+                <SelectTrigger className="w-24 h-6 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="30">30 Tage</SelectItem>
+                  <SelectItem value="90">90 Tage</SelectItem>
+                  <SelectItem value="180">180 Tage</SelectItem>
+                  <SelectItem value="365">365 Tage</SelectItem>
+                </SelectContent>
+              </Select>
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -426,7 +424,7 @@ export const Dashboard = () => {
                     color: "hsl(22 93% 53%)",
                   },
                 }}
-                className="h-48 sm:h-64"
+                className="h-64"
               >
                 <ResponsiveContainer width="100%" height="100%">
                   <RechartsBarChart data={topProblemBuildingsData}>
@@ -436,10 +434,8 @@ export const Dashboard = () => {
                       type="category"
                       angle={-45}
                       textAnchor="end"
-                      height={60}
+                      height={80}
                       interval={0}
-                      fontSize={10}
-                      tick={{ fontSize: 10 }}
                     />
                     <YAxis type="number" />
                     <ChartTooltip 
