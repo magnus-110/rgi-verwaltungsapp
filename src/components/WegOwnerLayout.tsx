@@ -5,14 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { 
   House, 
-  Shield, 
+  ClipboardList, 
   Sparkles, 
-  Crown,
+  Settings,
   LogOut,
   UserRound,
   Menu,
-  MessageSquare,
-  ClipboardList
+  MessageSquare
 } from "lucide-react";
 
 interface WegOwnerLayoutProps {
@@ -145,7 +144,7 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
                     className="w-full justify-start gap-3 h-12"
                     onClick={() => handleNavigation('/weg-owner/settings')}
                   >
-                    <Crown className="w-5 h-5" />
+                    <Settings className="w-5 h-5" />
                     Einstellungen
                   </Button>
                   

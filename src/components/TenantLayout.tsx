@@ -8,7 +8,7 @@ import {
   ClipboardList, 
   Newspaper, 
   Sparkles, 
-  Crown,
+  Settings,
   LogOut,
   UserRound,
   Menu
@@ -143,7 +143,7 @@ export const TenantLayout = ({ children }: TenantLayoutProps) => {
                     className="w-full justify-start gap-3 h-12"
                     onClick={() => handleNavigation('/tenant/settings')}
                   >
-                    <Crown className="w-5 h-5" />
+                    <Settings className="w-5 h-5" />
                     Einstellungen
                   </Button>
                   
