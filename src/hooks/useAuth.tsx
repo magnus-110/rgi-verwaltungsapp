@@ -134,16 +134,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     try {
       console.log('Attempting to sign in...');
       
-      // Clean up any existing auth state first
-      cleanupAuthState();
-      
-      // Try to sign out any existing session
-      try {
-        await supabase.auth.signOut({ scope: 'global' });
-      } catch (err) {
-        console.warn('Global sign out failed:', err);
-      }
-      
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
