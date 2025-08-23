@@ -92,7 +92,7 @@ export type Database = {
           content: string
           created_at: string
           id: string
-          management_mode: Database["public"]["Enums"]["management_mode"]
+          management_mode: Database["public"]["Enums"]["app_role"]
           metadata: Json | null
           role: string
           session_id: string
@@ -103,7 +103,7 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
-          management_mode: Database["public"]["Enums"]["management_mode"]
+          management_mode: Database["public"]["Enums"]["app_role"]
           metadata?: Json | null
           role: string
           session_id: string
@@ -114,7 +114,7 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
-          management_mode?: Database["public"]["Enums"]["management_mode"]
+          management_mode?: Database["public"]["Enums"]["app_role"]
           metadata?: Json | null
           role?: string
           session_id?: string

@@ -1,180 +1,201 @@
-
-import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
-import { cn } from "@/lib/utils";
-import {
-  Home,
-  FileText,
-  Building,
-  MessageSquare,
+import React, { useState } from "react";
+import { 
+  BarChart3,
+  Shield, 
+  Castle, 
+  Newspaper, 
+  Sparkles,
+  MessageCircle,
   Settings,
-  Bot,
-  Webhook,
-  Key,
-  ChevronLeft,
-  ChevronRight,
-  Menu,
-  X,
   LogOut,
-  User
+  ToggleLeft,
+  ToggleRight,
+  Send
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { useManagementMode } from "@/hooks/useManagementMode";
+import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarTrigger,
+  useSidebar,
+} from "@/components/ui/sidebar";
+import { Button } from "@/components/ui/button";
+import rgiLogo from "@/assets/rgi-logo.png";
 
-const sidebarItems = [
-  { icon: Home, label: "Dashboard", href: "/dashboard" },
-  { icon: FileText, label: "Meldungen", href: "/reports" },
-  { icon: Building, label: "Gebäude", href: "/buildings" },
-  { icon: MessageSquare, label: "Schwarzes Brett", href: "/forum" },
-  { icon: Bot, label: "Chatbot", href: "/chatbot-settings" },
-  { icon: MessageSquare, label: "Chatbot Gespräche", href: "/chatbot" },
-  { icon: Webhook, label: "Webhooks", href: "/webhook-settings" },
-  { icon: Settings, label: "Einstellungen", href: "/settings" },
+const menuItems = [
+  { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
+  { title: "Meldungen", url: "/reports", icon: Shield },
+  { title: "Gebäude", url: "/buildings", icon: Castle },
+  { title: "Schwarzes Brett", url: "/forum", icon: Newspaper },
+  { title: "Chatbot", url: "/chatbot", icon: Sparkles },
+  { title: "Chatbot Gespräche", url: "/chatbot-conversations", icon: MessageCircle },
+  { title: "Webhooks", url: "/webhooks", icon: Send },
+  { title: "Einstellungen", url: "/settings", icon: Settings },
 ];
 
-export const AdminSidebar = () => {
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
+interface AdminSidebarProps {
+  managementMode: 'weg' | 'rent';
+  onModeChange: (mode: 'weg' | 'rent') => void;
+}
+
+export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps) {
+  const { state } = useSidebar();
+  const { signOut, profile } = useAuth();
   const location = useLocation();
-  const { managementMode, setManagementMode } = useManagementMode();
-  const { profile, signOut } = useAuth();
+  const currentPath = location.pathname;
+  
+  const collapsed = state === "collapsed";
 
-  const isActive = (href: string) => location.pathname === href;
+  const isActive = (path: string) => currentPath === path;
+  const getNavCls = ({ isActive }: { isActive: boolean }) =>
+    isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "hover:bg-sidebar-accent/50";
 
-  const SidebarContent = () => (
-    <div className="flex flex-col h-full">
-      <div className="p-4 border-b">
-        <div className="flex items-center gap-2 mb-4">
-          <div className="w-8 h-8 bg-orange-500 rounded flex items-center justify-center">
-            <span className="text-white font-bold text-sm">RGI</span>
-          </div>
-          {!isCollapsed && (
-            <div>
-              <div className="text-orange-500 font-semibold text-sm">RGI IMMOBILIEN</div>
-              <div className="text-xs text-gray-500">Verkauf · Vermietung · Verwaltung</div>
+  const handleSignOut = async () => {
+    await signOut();
+  };
+
+  return (
+    <Sidebar className={`${collapsed ? "w-16" : "w-64"} border-r border-border`}>
+      <SidebarContent className="bg-background">
+        {/* Header with Logo */}
+        <div className="p-4 border-b border-border">
+          {!collapsed ? (
+            <div className="flex items-center space-x-3">
+              <img 
+                src="/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png" 
+                alt="RGI Immobilien Logo" 
+                className="h-14 w-auto object-contain"
+              />
+            </div>
+          ) : (
+            <div className="flex justify-center">
+              <img 
+                src="/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png" 
+                alt="RGI Immobilien Logo" 
+                className="h-10 w-auto object-contain"
+              />
             </div>
           )}
         </div>
-        
-        {!isCollapsed && (
-          <div className="space-y-2">
-            <div className="text-xs text-gray-500 uppercase tracking-wide">VERWALTUNGSMODUS</div>
-            <div className="flex gap-1 bg-gray-100 rounded p-1">
-              <button
-                onClick={() => setManagementMode("weg")}
-                className={`flex-1 px-3 py-1 rounded text-sm font-medium transition-colors ${
-                  managementMode === "weg" 
-                    ? "bg-orange-500 text-white" 
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                WEG
-              </button>
-              <button
-                onClick={() => setManagementMode("rent")}
-                className={`flex-1 px-3 py-1 rounded text-sm font-medium transition-colors ${
-                  managementMode === "rent" 
-                    ? "bg-orange-500 text-white" 
-                    : "text-gray-600 hover:text-gray-900"
-                }`}
-              >
-                Miete
-              </button>
+
+        {/* Management Mode Toggle */}
+        <div className="p-4 border-b border-border">
+          {!collapsed ? (
+            <div className="space-y-3">
+              <label className="label-text text-xs uppercase tracking-wider text-muted-foreground">
+                Verwaltungsmodus
+              </label>
+              <div className="flex bg-muted rounded-lg p-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onModeChange('weg')}
+                  className={`flex-1 rounded-md transition-colors ${
+                    managementMode === 'weg' 
+                      ? 'bg-primary text-primary-foreground' 
+                      : 'hover:bg-background text-muted-foreground'
+                  }`}
+                >
+                  WEG
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onModeChange('rent')}
+                  className={`flex-1 rounded-md transition-colors ${
+                    managementMode === 'rent' 
+                      ? 'bg-primary text-primary-foreground' 
+                      : 'hover:bg-background text-muted-foreground'
+                  }`}
+                >
+                  Miete
+                </Button>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
-      
-      <nav className="flex-1 p-2 space-y-1">
-        {sidebarItems.map((item) => (
-          <Link
-            key={item.href}
-            to={item.href}
-            onClick={() => setIsMobileOpen(false)}
-            className={cn(
-              "flex items-center gap-3 px-3 py-2 text-sm font-medium transition-colors rounded",
-              isActive(item.href)
-                ? "bg-gray-100 text-gray-900"
-                : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
-            )}
-          >
-            <item.icon className="h-4 w-4" />
-            {!isCollapsed && <span>{item.label}</span>}
-          </Link>
-        ))}
-      </nav>
-
-      {/* Admin User Section */}
-      {!isCollapsed && (
-        <div className="p-4 border-t">
-          <div className="flex items-center gap-3 mb-2">
-            <User className="h-4 w-4 text-gray-600" />
-            <div className="text-sm">
-              <div className="font-medium text-gray-900">Admin</div>
-              <div className="text-xs text-gray-500">{profile?.email}</div>
+          ) : (
+            <div className="flex justify-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => onModeChange(managementMode === 'weg' ? 'rent' : 'weg')}
+                className="p-2 rounded-md hover:bg-muted"
+              >
+                {managementMode === 'weg' ? (
+                  <ToggleLeft className="h-4 w-4 text-primary" />
+                ) : (
+                  <ToggleRight className="h-4 w-4 text-primary" />
+                )}
+              </Button>
             </div>
-          </div>
-          <button
-            onClick={signOut}
-            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded transition-colors"
-          >
-            <LogOut className="h-4 w-4" />
-            <span>Abmelden</span>
-          </button>
+          )}
         </div>
-      )}
-    </div>
-  );
 
-  return (
-    <>
-      {/* Mobile Menu Button */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className="fixed top-4 left-4 z-50 lg:hidden"
-        onClick={() => setIsMobileOpen(!isMobileOpen)}
-      >
-        {isMobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-      </Button>
+        {/* Navigation Menu */}
+        <SidebarGroup className="px-4 flex-1">
+          <SidebarGroupContent>
+            <SidebarMenu className="space-y-1">
+              {menuItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                   <NavLink 
+                    to={item.url} 
+                    className={({ isActive }) =>
+                      isActive
+                        ? "bg-primary text-white group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors"
+                        : "text-foreground hover:bg-muted hover:text-foreground group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors"
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <item.icon className="h-4 w-4 mr-3 flex-shrink-0" />
+                        {!collapsed && <span className={`label-text ${isActive ? 'text-white' : ''}`}>{item.title}</span>}
+                      </>
+                    )}
+                  </NavLink>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
 
-      {/* Mobile Overlay */}
-      {isMobileOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setIsMobileOpen(false)}
-        />
-      )}
-
-      {/* Mobile Sidebar */}
-      <aside className={cn(
-        "fixed left-0 top-0 z-40 h-full w-64 bg-background border-r transform transition-transform duration-200 lg:hidden",
-        isMobileOpen ? "translate-x-0" : "-translate-x-full"
-      )}>
-        <SidebarContent />
-      </aside>
-
-      {/* Desktop Sidebar */}
-      <aside className={cn(
-        "hidden lg:flex flex-col h-screen bg-background border-r transition-all duration-200",
-        isCollapsed ? "w-16" : "w-64"
-      )}>
-        <SidebarContent />
-        
-        {/* Collapse Toggle */}
-        <div className="mt-auto p-2 border-t">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="w-full"
-          >
-            {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-          </Button>
+        {/* User Section */}
+        <div className="p-4 border-t border-border">
+          {!collapsed ? (
+            <div className="space-y-3">
+              <div className="bg-muted rounded-lg p-3">
+                <div className="body-text text-sm">
+                  <div className="heading-primary font-semibold text-foreground">{profile?.first_name || 'Admin'}</div>
+                  <div className="body-secondary text-xs truncate">{profile?.email}</div>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSignOut}
+                className="w-full justify-start text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Abmelden
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleSignOut}
+              className="w-full p-2 rounded-md hover:bg-destructive/10 hover:text-destructive"
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
+          )}
         </div>
-      </aside>
-    </>
+      </SidebarContent>
+    </Sidebar>
   );
-};
+}
