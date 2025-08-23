@@ -55,7 +55,7 @@ export const Login = () => {
       });
 
       if (error) {
-        console.error('Password reset error:', error);
+        
         toast.error('Fehler beim Zurücksetzen des Passworts. Bitte versuchen Sie es später erneut.');
         return;
       }
@@ -71,7 +71,7 @@ export const Login = () => {
       setResetDialogOpen(false);
       setResetEmail("");
     } catch (error: any) {
-      console.error('Password reset request failed:', error);
+      
       toast.error('Verbindungsfehler. Bitte überprüfen Sie Ihre Internetverbindung und versuchen Sie es erneut.');
     } finally {
       setResetLoading(false);

@@ -49,7 +49,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const fetchProfile = async () => {
     if (!user) return;
     
-    console.log('Fetching profile for user:', user.id);
+    
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -63,7 +63,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         return;
       }
 
-      console.log('Profile fetched successfully:', data);
+      
       setProfile(data);
       setLoading(false); // Profile loaded successfully
     } catch (error) {
@@ -79,7 +79,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (!mounted) return;
-        console.log('Auth state change:', event, !!session?.user);
+        
         
         // Handle different auth events
         if (event === 'SIGNED_OUT') {
@@ -105,7 +105,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     // Check for existing session only once
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!mounted) return;
-      console.log('Initial session check:', !!session?.user);
+      
       setSession(session);
       setUser(session?.user ?? null);
       
@@ -123,7 +123,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   useEffect(() => {
     if (user && !profile) {
-      console.log('User exists but no profile, fetching...');
+      
       setTimeout(() => {
         fetchProfile();
       }, 0);
@@ -134,7 +134,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const signIn = async (email: string, password: string) => {
     try {
-      console.log('Attempting to sign in...');
+      
       
       const { error } = await supabase.auth.signInWithPassword({
         email,
@@ -142,7 +142,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       });
 
       if (error) {
-        console.error('Sign in error:', error);
+        
         toast({
           title: "Anmeldung fehlgeschlagen",
           description: error.message,
@@ -151,7 +151,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         return { error };
       }
 
-      console.log('Sign in successful, redirecting...');
+      
       // Use React Router navigation instead of window.location
       setTimeout(() => {
         navigate('/');
@@ -159,7 +159,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       
       return {};
     } catch (error) {
-      console.error('Sign in catch error:', error);
+      
       return { error };
     }
   };
@@ -189,7 +189,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         await supabase.auth.signOut({ scope: 'global' });
       } catch (err) {
         // Continue even if this fails
-        console.warn('Global sign out failed:', err);
+        
       }
       
       setProfile(null);

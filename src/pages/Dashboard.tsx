@@ -164,12 +164,6 @@ export const Dashboard = () => {
       setBuildings(recentBuildingsResult.data || []);
 
       // Process chatbot data
-      console.log('Chatbot health result:', chatbotHealthResult);
-      console.log('Chatbot sessions result:', chatbotSessionsResult);
-      console.log('All sessions in database:', allSessionsResult.data);
-      console.log('Current management mode:', managementMode);
-      console.log('Timeframe days:', timeframeDays);
-      console.log('Timeframe start date:', new Date(Date.now() - timeframeDays * 24 * 60 * 60 * 1000).toISOString());
       
       setChatbotStatus({
         online: chatbotHealthResult.data?.online || false,
