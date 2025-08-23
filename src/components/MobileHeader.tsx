@@ -5,14 +5,17 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { 
   House, 
-  Shield, 
+  ClipboardList, 
   Newspaper, 
   Sparkles, 
-  Crown,
+  Settings,
   LogOut,
   UserRound,
   Menu,
-  X
+  X,
+  Castle,
+  BarChart3,
+  Send
 } from "lucide-react";
 
 interface MobileHeaderProps {
@@ -31,26 +34,26 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
     if (userRole === 'admin') {
       return [
         { 
-          icon: House, 
+          icon: BarChart3, 
           label: "Dashboard", 
           path: '/dashboard',
           active: location.pathname === '/dashboard'
         },
         { 
-          icon: Shield, 
+          icon: ClipboardList, 
+          label: "Meldungen", 
+          path: '/reports',
+          active: location.pathname.startsWith('/reports')
+        },
+        { 
+          icon: Castle, 
           label: "Gebäude", 
           path: '/buildings',
           active: location.pathname.startsWith('/buildings')
         },
         { 
           icon: Newspaper, 
-          label: "Meldungen", 
-          path: '/reports',
-          active: location.pathname.startsWith('/reports')
-        },
-        { 
-          icon: Newspaper, 
-          label: "Forum", 
+          label: "Schwarzes Brett", 
           path: '/forum',
           active: location.pathname.startsWith('/forum')
         },
@@ -59,6 +62,12 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
           label: "Chatbot", 
           path: '/chatbot',
           active: location.pathname.startsWith('/chatbot')
+        },
+        { 
+          icon: Send, 
+          label: "Webhooks", 
+          path: '/webhooks',
+          active: location.pathname.startsWith('/webhooks')
         }
       ];
     }
@@ -76,7 +85,7 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
       return [
         ...baseItems,
         { 
-          icon: Shield, 
+          icon: ClipboardList, 
           label: "Meine Meldungen", 
           path: '/tenant/reports',
           active: location.pathname.startsWith('/tenant/reports')
@@ -98,7 +107,7 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
       return [
         ...baseItems,
         { 
-          icon: Shield, 
+          icon: ClipboardList, 
           label: "Meine Meldungen", 
           path: '/weg-owner/reports',
           active: location.pathname.startsWith('/weg-owner/reports')
@@ -234,7 +243,7 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
                   className="w-full justify-start gap-3 h-12"
                   onClick={() => handleNavigation(userRole === 'tenant' ? '/tenant/settings' : userRole === 'weg_owner' ? '/weg-owner/settings' : '/settings')}
                 >
-                  <Crown className="w-5 h-5" />
+                  <Settings className="w-5 h-5" />
                   Einstellungen
                 </Button>
                 

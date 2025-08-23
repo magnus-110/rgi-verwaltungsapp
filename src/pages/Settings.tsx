@@ -230,7 +230,17 @@ export const Settings = () => {
               <CardTitle>Passwort</CardTitle>
             </CardHeader>
             <CardContent>
-              <Button variant="outline" onClick={() => navigate('/change-password')}>
+              <Button variant="outline" onClick={() => {
+                if (profile.role === 'admin') {
+                  navigate('/admin/change-password');
+                } else if (profile.role === 'weg_owner') {
+                  navigate('/weg-owner/change-password');
+                } else if (profile.role === 'tenant') {
+                  navigate('/tenant/change-password');
+                } else {
+                  navigate('/change-password');
+                }
+              }}>
                 Passwort ändern
               </Button>
             </CardContent>

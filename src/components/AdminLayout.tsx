@@ -62,7 +62,7 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
                 {managementMode === 'weg' ? 'WEG-Verwaltung' : 'Mietverwaltung'}
               </h1>
             </header>
-            <div className="flex-1 p-4 md:p-6 bg-muted/30 overflow-x-hidden overflow-y-auto min-w-0">
+            <div className="flex-1 p-2 md:p-6 bg-muted/30 overflow-x-hidden overflow-y-auto min-w-0">
               <div className="max-w-full">
                 {children}
               </div>

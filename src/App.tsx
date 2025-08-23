@@ -46,6 +46,7 @@ const App = () => (
             <Route path="/change-password" element={<ChangePassword />} />
             
             {/* Admin Routes */}
+            <Route path="/admin/change-password" element={<AdminLayout><ChangePassword /></AdminLayout>} />
             <Route path="/dashboard" element={<AdminLayout><Dashboard /></AdminLayout>} />
             <Route path="/reports" element={<AdminLayout><Reports /></AdminLayout>} />
             <Route path="/buildings" element={<AdminLayout><Buildings /></AdminLayout>} />
@@ -64,6 +65,7 @@ const App = () => (
             <Route path="/admin/settings" element={<AdminLayout><Settings /></AdminLayout>} />
             
             {/* WEG-Eigentümer Routes */}
+            <Route path="/weg-owner/change-password" element={<WegOwnerLayout><ChangePassword /></WegOwnerLayout>} />
             <Route path="/weg-owner" element={<WegOwnerLayout><WegOwnerDashboard /></WegOwnerLayout>} />
             <Route path="/weg-owner/reports" element={<WegOwnerLayout><WegOwnerReports /></WegOwnerLayout>} />
             <Route path="/weg-owner/forum" element={<WegOwnerLayout><WegOwnerForum /></WegOwnerLayout>} />
@@ -71,6 +73,7 @@ const App = () => (
             <Route path="/weg-owner/settings" element={<WegOwnerLayout><WegOwnerSettings /></WegOwnerLayout>} />
             
             {/* Tenant Routes */}
+            <Route path="/tenant/change-password" element={<TenantLayout><ChangePassword /></TenantLayout>} />
             <Route path="/tenant" element={<TenantLayout><TenantDashboard /></TenantLayout>} />
             <Route path="/tenant/reports" element={<TenantLayout><TenantReports /></TenantLayout>} />
             <Route path="/tenant/forum" element={<TenantLayout><TenantForum /></TenantLayout>} />
