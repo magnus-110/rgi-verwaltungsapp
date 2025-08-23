@@ -4,7 +4,8 @@ import {
   Shield, 
   Castle, 
   Newspaper, 
-  Sparkles, 
+  Sparkles,
+  MessageCircle,
   Settings,
   LogOut,
   ToggleLeft,
@@ -34,6 +35,7 @@ const menuItems = [
   { title: "Gebäude", url: "/buildings", icon: Castle },
   { title: "Schwarzes Brett", url: "/forum", icon: Newspaper },
   { title: "Chatbot", url: "/chatbot", icon: Sparkles },
+  { title: "Chatbot Gespräche", url: "/chatbot-conversations", icon: MessageCircle },
   { title: "Webhooks", url: "/webhooks", icon: Send },
   { title: "Einstellungen", url: "/settings", icon: Settings },
 ];

@@ -8,10 +8,7 @@ import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { WelcomeScreen } from "@/components/chat/WelcomeScreen";
 import { MobileHeader } from "@/components/MobileHeader";
 import { HelpFab } from "@/components/chat/HelpFab";
-import { ConversationHistory } from "@/components/chat/ConversationHistory";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Button } from "@/components/ui/button";
-import { MessageCircle } from "lucide-react";
 
 interface Message {
   id: string;
@@ -28,7 +25,6 @@ export const TenantChatbot = () => {
   const [hasStartedChat, setHasStartedChat] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string>();
-  const [showHistory, setShowHistory] = useState(false);
 
   const sendMessage = async (inputMessage: string) => {
     if (!inputMessage.trim()) return;
@@ -104,112 +100,44 @@ export const TenantChatbot = () => {
     }
   };
 
-  const loadSessionMessages = async (sessionId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('chatbot_messages')
-        .select('*')
-        .eq('session_id', sessionId)
-        .order('created_at', { ascending: true });
-
-      if (error) {
-        console.error('Error loading session messages:', error);
-        return;
-      }
-
-      if (data) {
-        const loadedMessages: Message[] = data.map(msg => ({
-          id: msg.id,
-          content: msg.content,
-          isBot: msg.role === 'assistant',
-          timestamp: new Date(msg.created_at)
-        }));
-        setMessages(loadedMessages);
-        setHasStartedChat(true);
-        setCurrentSessionId(sessionId);
-      }
-    } catch (error) {
-      console.error('Error in loadSessionMessages:', error);
-    }
-  };
-
-  const startNewConversation = () => {
-    setMessages([]);
-    setHasStartedChat(false);
-    setCurrentSessionId(undefined);
-    setShowHistory(false);
-  };
-
   const isTyping = isLoading;
 
   return (
-    <div className="h-full flex bg-background relative">
-      {showHistory && (
-        <ConversationHistory
-          managementMode="rent"
-          onSessionSelect={loadSessionMessages}
-          currentSessionId={currentSessionId}
-        />
-      )}
-      
-      <div className="flex-1 flex flex-col">
-        <div className="border-b p-4 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowHistory(!showHistory)}
-            >
-              <MessageCircle className="h-4 w-4 mr-2" />
-              {showHistory ? 'Gespräche ausblenden' : 'Gespräche anzeigen'}
-            </Button>
-            {hasStartedChat && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={startNewConversation}
-              >
-                Neues Gespräch
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {!hasStartedChat ? (
+    <div className="h-full flex flex-col bg-background relative">
+      {!hasStartedChat ? (
         <WelcomeScreen 
           userName={profile?.first_name}
           userType="tenant"
           onSuggestionClick={sendMessage}
-          />
-        ) : (
-          <div className="flex-1 pb-32">
-            <ScrollArea className="h-full">
-              <div className="py-4">
-                {messages.map((message) => (
-                  <ChatMessage key={message.id} message={message} />
-                ))}
-                
-                {isTyping && <TypingIndicator />}
-              </div>
-            </ScrollArea>
-          </div>
-        )}
-        
-        <ChatInput
+        />
+      ) : (
+        <div className="flex-1 pb-32">
+          <ScrollArea className="h-full">
+            <div className="py-4">
+              {messages.map((message) => (
+                <ChatMessage key={message.id} message={message} />
+              ))}
+              
+              {isTyping && <TypingIndicator />}
+            </div>
+          </ScrollArea>
+        </div>
+      )}
+      
+      <ChatInput 
         onSendMessage={sendMessage}
         isLoading={isTyping}
-          setIsHelpOpen={setIsHelpOpen}
+        setIsHelpOpen={setIsHelpOpen}
+      />
+      
+      {isHelpOpen && (
+        <HelpFab 
+          userType="tenant"
+          userName={profile?.first_name}
+          isOpen={isHelpOpen}
+          setIsOpen={setIsHelpOpen}
         />
-        
-        {isHelpOpen && (
-          <HelpFab 
-            userType="tenant"
-            userName={profile?.first_name}
-            isOpen={isHelpOpen}
-            setIsOpen={setIsHelpOpen}
-          />
-        )}
-      </div>
+      )}
     </div>
   );
 };

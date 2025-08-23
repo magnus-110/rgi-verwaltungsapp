@@ -7,10 +7,7 @@ import { ChatInput } from "@/components/chat/ChatInput";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { WelcomeScreen } from "@/components/chat/WelcomeScreen";
 import { HelpFab } from "@/components/chat/HelpFab";
-import { ConversationHistory } from "@/components/chat/ConversationHistory";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
-import { MessageCircle } from "lucide-react";
 
 interface Message {
   id: string;
@@ -35,7 +32,6 @@ export const WegOwnerChatbot = () => {
   const [buildingAssignments, setBuildingAssignments] = useState<WegOwnerBuilding[]>([]);
   const [selectedBuildingId, setSelectedBuildingId] = useState<string>("");
   const [currentSessionId, setCurrentSessionId] = useState<string>();
-  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     if (profile?.user_id) {
@@ -157,130 +153,65 @@ export const WegOwnerChatbot = () => {
     }
   };
 
-  const loadSessionMessages = async (sessionId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('chatbot_messages')
-        .select('*')
-        .eq('session_id', sessionId)
-        .order('created_at', { ascending: true });
-
-      if (error) {
-        console.error('Error loading session messages:', error);
-        return;
-      }
-
-      if (data) {
-        const loadedMessages: Message[] = data.map(msg => ({
-          id: msg.id,
-          content: msg.content,
-          isBot: msg.role === 'assistant',
-          timestamp: new Date(msg.created_at)
-        }));
-        setMessages(loadedMessages);
-        setHasStartedChat(true);
-        setCurrentSessionId(sessionId);
-      }
-    } catch (error) {
-      console.error('Error in loadSessionMessages:', error);
-    }
-  };
-
-  const startNewConversation = () => {
-    setMessages([]);
-    setHasStartedChat(false);
-    setCurrentSessionId(undefined);
-    setShowHistory(false);
-  };
-
   const isTyping = isLoading;
 
   return (
-    <div className="h-full flex bg-background relative">
-      {showHistory && (
-        <ConversationHistory
-          managementMode="weg"
-          onSessionSelect={loadSessionMessages}
-          currentSessionId={currentSessionId}
+    <div className="h-full flex flex-col bg-background relative">
+      {buildingAssignments.length > 1 && (
+        <div className="border-b p-4">
+          <Select value={selectedBuildingId} onValueChange={setSelectedBuildingId}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Gebäude auswählen" />
+            </SelectTrigger>
+            <SelectContent>
+              {buildingAssignments.map((assignment) => (
+                <SelectItem key={assignment.building_id} value={assignment.building_id}>
+                  {assignment.building_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {!hasStartedChat ? (
+        <WelcomeScreen 
+          userName={profile?.first_name}
+          userType="weg_owner"
+          onSuggestionClick={handleSendMessage}
         />
+      ) : (
+        <div className="flex-1 pb-32">
+          <ScrollArea className="h-full">
+            <div className="py-4">
+              {messages.map((message) => (
+                <ChatMessage key={message.id} message={message} />
+              ))}
+              
+              {isTyping && <TypingIndicator />}
+            </div>
+          </ScrollArea>
+        </div>
       )}
       
-      <div className="flex-1 flex flex-col">
-        <div className="border-b p-4 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowHistory(!showHistory)}
-            >
-              <MessageCircle className="h-4 w-4 mr-2" />
-              {showHistory ? 'Gespräche ausblenden' : 'Gespräche anzeigen'}
-            </Button>
-            {hasStartedChat && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={startNewConversation}
-              >
-                Neues Gespräch
-              </Button>
-            )}
-          </div>
-          {buildingAssignments.length > 1 && (
-            <Select value={selectedBuildingId} onValueChange={setSelectedBuildingId}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Gebäude auswählen" />
-              </SelectTrigger>
-              <SelectContent>
-                {buildingAssignments.map((assignment) => (
-                  <SelectItem key={assignment.building_id} value={assignment.building_id}>
-                    {assignment.building_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-        </div>
-
-        {!hasStartedChat ? (
-          <WelcomeScreen 
-            userName={profile?.first_name}
-            userType="weg_owner"
-            onSuggestionClick={handleSendMessage}
-          />
-        ) : (
-          <div className="flex-1 pb-32">
-            <ScrollArea className="h-full">
-              <div className="py-4">
-                {messages.map((message) => (
-                  <ChatMessage key={message.id} message={message} />
-                ))}
-                
-                {isTyping && <TypingIndicator />}
-              </div>
-            </ScrollArea>
-          </div>
-        )}
-        
-        <ChatInput
-          onSendMessage={handleSendMessage}
-          isLoading={isTyping}
-          disabled={buildingAssignments.length === 0}
-          placeholder={buildingAssignments.length === 0 ? 
-            "Keine Gebäude zugeordnet. Wenden Sie sich an die Verwaltung." : 
-            undefined}
-          setIsHelpOpen={setIsHelpOpen}
+      <ChatInput
+        onSendMessage={handleSendMessage}
+        isLoading={isTyping}
+        disabled={buildingAssignments.length === 0}
+        placeholder={buildingAssignments.length === 0 ? 
+          "Keine Gebäude zugeordnet. Wenden Sie sich an die Verwaltung." : 
+          undefined}
+        setIsHelpOpen={setIsHelpOpen}
+      />
+      
+      {isHelpOpen && (
+        <HelpFab 
+          userType="weg_owner"
+          userName={profile?.first_name}
+          isOpen={isHelpOpen}
+          setIsOpen={setIsHelpOpen}
         />
-        
-        {isHelpOpen && (
-          <HelpFab 
-            userType="weg_owner"
-            userName={profile?.first_name}
-            isOpen={isHelpOpen}
-            setIsOpen={setIsHelpOpen}
-          />
-        )}
-      </div>
+      )}
     </div>
   );
 };
