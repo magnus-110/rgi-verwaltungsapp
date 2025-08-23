@@ -108,54 +108,57 @@ export const BuildingRow = ({ building, onUpdate }: BuildingRowProps) => {
       <CardHeader className="pb-3 cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
         <div className="flex items-start justify-between">
           <div className="flex items-start space-x-3 flex-1">
-            <div className="p-2 bg-primary/10 rounded-lg">
+            <div className="p-2 bg-primary/10 rounded-lg flex-shrink-0">
               <Building2 className="h-5 w-5 text-primary" />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="flex items-center space-x-2">
-                <h3 className="font-semibold text-lg truncate">{building.name}</h3>
-                <Badge variant="outline" className="text-xs">
-                  {building.management_mode.toUpperCase()}
-                </Badge>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <h3 className="font-semibold text-base sm:text-lg truncate">{building.name}</h3>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge variant="outline" className="text-xs">
+                    {building.management_mode.toUpperCase()}
+                  </Badge>
+                  <Badge variant="secondary" className="text-xs">
+                    {totalUsers} Nutzer
+                  </Badge>
+                  {assignedManagersCount > 0 && (
+                    <Badge variant="outline" className="text-xs">
+                      {assignedManagersCount} Verwalter
+                    </Badge>
+                  )}
+                </div>
               </div>
               <div className="flex items-center text-muted-foreground text-sm mt-1">
-                <MapPin className="h-3 w-3 mr-1" />
+                <MapPin className="h-3 w-3 mr-1 flex-shrink-0" />
                 <span className="truncate">{building.address}</span>
               </div>
               
               {/* Verwalter anzeigen */}
               {Array.isArray(managerNames) && managerNames.length > 0 && (
                 <div className="flex items-center text-xs text-muted-foreground mt-1">
-                  <Users className="h-3 w-3 mr-1" />
+                  <Users className="h-3 w-3 mr-1 flex-shrink-0" />
                   <span className="truncate">
                     Verwalter: {managerNames.join(', ')}
                   </span>
                 </div>
               )}
               
-              <div className="flex items-center space-x-4 text-xs text-muted-foreground mt-2">
+              <div className="flex items-center gap-4 text-xs text-muted-foreground mt-2">
                 {building.building_code && (
                   <div className="flex items-center">
                     <Hash className="h-3 w-3 mr-1" />
-                    {building.building_code}
+                    <span className="truncate">{building.building_code}</span>
                   </div>
                 )}
                 <div className="flex items-center">
                   <Calendar className="h-3 w-3 mr-1" />
-                  {new Date(building.created_at).toLocaleDateString('de-DE')}
+                  <span className="hidden sm:inline">{new Date(building.created_at).toLocaleDateString('de-DE')}</span>
+                  <span className="sm:hidden">{new Date(building.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })}</span>
                 </div>
               </div>
             </div>
           </div>
-          <div className="flex items-center space-x-2">
-            <Badge variant="secondary">
-              {totalUsers} Nutzer
-            </Badge>
-            {assignedManagersCount > 0 && (
-              <Badge variant="outline" className="text-xs">
-                {assignedManagersCount} Verwalter
-              </Badge>
-            )}
+          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
             <Button
               variant="ghost"
               size="sm"
@@ -163,10 +166,10 @@ export const BuildingRow = ({ building, onUpdate }: BuildingRowProps) => {
                 e.stopPropagation();
                 setIsManagerDialogOpen(true);
               }}
-              className="h-8 w-8 p-0"
+              className="h-9 w-9 sm:h-8 sm:w-8 p-0"
               title="Verwalter zuweisen"
             >
-              <Users className="h-3 w-3" />
+              <Users className="h-4 w-4 sm:h-3 sm:w-3" />
             </Button>
             <Button
               variant="ghost"
@@ -175,9 +178,10 @@ export const BuildingRow = ({ building, onUpdate }: BuildingRowProps) => {
                 e.stopPropagation();
                 setIsEditDialogOpen(true);
               }}
-              className="h-8 w-8 p-0"
+              className="h-9 w-9 sm:h-8 sm:w-8 p-0"
+              title="Bearbeiten"
             >
-              <Edit className="h-3 w-3" />
+              <Edit className="h-4 w-4 sm:h-3 sm:w-3" />
             </Button>
             <Button
               variant="ghost"
@@ -186,6 +190,8 @@ export const BuildingRow = ({ building, onUpdate }: BuildingRowProps) => {
                 e.stopPropagation();
                 setIsExpanded(!isExpanded);
               }}
+              className="h-9 w-9 sm:h-8 sm:w-8 p-0"
+              title={isExpanded ? "Zuklappen" : "Aufklappen"}
             >
               {isExpanded ? (
                 <ChevronDown className="h-4 w-4" />
@@ -200,36 +206,40 @@ export const BuildingRow = ({ building, onUpdate }: BuildingRowProps) => {
       {isExpanded && (
         <CardContent className="pt-0">
           <div className="space-y-4 border-t pt-4">
-            <div className="flex items-center justify-between">
-              <h4 className="font-medium text-sm text-muted-foreground">Zugewiesene Nutzer</h4>
-              <div className="flex items-center space-x-2">
-                <BulkUpload 
-                  buildingId={building.id}
-                  managementMode={building.management_mode}
-                  onUploadComplete={handleUpdate}
-                />
-                {building.management_mode === "rent" && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleCreateUser("tenant")}
-                  >
-                    <Plus className="h-3 w-3 mr-1" />
-                    Mieter
-                  </Button>
-                )}
-                {building.management_mode === "weg" && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleCreateUser("weg_owner")}
-                  >
-                    <Plus className="h-3 w-3 mr-1" />
-                    WEG-Eigentümer
-                  </Button>
-                )}
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <h4 className="font-medium text-sm text-muted-foreground">Zugewiesene Nutzer</h4>
+                <div className="flex items-center gap-2">
+                  <BulkUpload 
+                    buildingId={building.id}
+                    managementMode={building.management_mode}
+                    onUploadComplete={handleUpdate}
+                  />
+                  {building.management_mode === "rent" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleCreateUser("tenant")}
+                      className="h-9 text-xs"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      <span className="hidden sm:inline">Mieter</span>
+                      <span className="sm:hidden">+M</span>
+                    </Button>
+                  )}
+                  {building.management_mode === "weg" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleCreateUser("weg_owner")}
+                      className="h-9 text-xs"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      <span className="hidden sm:inline">WEG-Eigentümer</span>
+                      <span className="sm:hidden">+E</span>
+                    </Button>
+                  )}
+                </div>
               </div>
-            </div>
             <div className="space-y-2">
               {userCounts?.tenants > 0 && (
                 <UsersList

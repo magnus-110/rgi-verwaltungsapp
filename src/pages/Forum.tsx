@@ -7,9 +7,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAuth } from "@/hooks/useAuth";
 import { useManagementMode } from "@/hooks/useManagementMode";
-import { MessageSquare, Plus, User, Calendar, Building2, Trash2, FileText, Download, Settings, Edit, Filter } from "lucide-react";
+import { MessageSquare, Plus, User, Calendar, Building2, Trash2, FileText, Download, Settings, Edit, Filter, ChevronDown, ChevronUp } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -61,6 +62,7 @@ export const Forum = () => {
   const [buildingSearch, setBuildingSearch] = useState("");
   const [managerFilter, setManagerFilter] = useState<string>("all");
   const [managers, setManagers] = useState<{ id: string; name: string }[]>([]);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   const canCreatePosts = profile?.role === 'admin';
 
@@ -629,65 +631,88 @@ export const Forum = () => {
         )}
       </div>
 
-      {/* Building Filter */}
+      {/* Filter Section */}
       {canCreatePosts && (
-        <Card className="p-4">
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Filter nach Gebäude:</span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              <Input
-                placeholder="Gebäude suchen..."
-                value={buildingSearch}
-                onChange={(e) => setBuildingSearch(e.target.value)}
-                className="w-full"
-              />
-              <Select value={buildingFilter} onValueChange={setBuildingFilter}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Gebäude auswählen" />
-                </SelectTrigger>
-                <SelectContent className="bg-background border border-border shadow-lg z-50 max-h-60 overflow-y-auto">
-                  <SelectItem value="all">Alle Gebäude</SelectItem>
-                  {filteredBuildings.map((building) => (
-                    <SelectItem key={building.id} value={building.id}>
-                      <div className="flex items-center gap-2">
-                        <Building2 className="h-4 w-4" />
-                        <span className="truncate">{building.name} - {building.address}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={managerFilter} onValueChange={setManagerFilter}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Nach Verwalter filtern" />
-                </SelectTrigger>
-                <SelectContent className="bg-background border border-border shadow-lg z-50">
-                  <SelectItem value="all">Alle Verwalter</SelectItem>
-                  {managers.map((manager) => (
-                    <SelectItem key={manager.id} value={manager.id}>
-                      {manager.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {(buildingFilter !== "all" || managerFilter !== "all") && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setBuildingFilter("all");
-                  setManagerFilter("all");
-                }}
-                className="w-full sm:w-auto"
-              >
-                Filter zurücksetzen
-              </Button>
-            )}
-          </div>
+        <Card>
+          <Collapsible open={isFilterOpen} onOpenChange={setIsFilterOpen}>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Filter className="h-5 w-5" />
+                    Filter
+                  </CardTitle>
+                  {isFilterOpen ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </div>
+              </CardHeader>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <CardContent className="pt-0">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div>
+                    <Input
+                      placeholder="Gebäude suchen..."
+                      value={buildingSearch}
+                      onChange={(e) => setBuildingSearch(e.target.value)}
+                      className="w-full"
+                    />
+                  </div>
+                  <div>
+                    <Select value={buildingFilter} onValueChange={setBuildingFilter}>
+                      <SelectTrigger className="w-full bg-background border border-border">
+                        <SelectValue placeholder="Gebäude auswählen" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background border border-border shadow-lg z-50 max-h-60 overflow-y-auto">
+                        <SelectItem value="all">Alle Gebäude</SelectItem>
+                        {filteredBuildings.map((building) => (
+                          <SelectItem key={building.id} value={building.id}>
+                            <div className="flex items-center gap-2">
+                              <Building2 className="h-4 w-4" />
+                              <span className="truncate">{building.name} - {building.address}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Select value={managerFilter} onValueChange={setManagerFilter}>
+                      <SelectTrigger className="w-full bg-background border border-border">
+                        <SelectValue placeholder="Nach Verwalter filtern" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background border border-border shadow-lg z-50">
+                        <SelectItem value="all">Alle Verwalter</SelectItem>
+                        {managers.map((manager) => (
+                          <SelectItem key={manager.id} value={manager.id}>
+                            {manager.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                {(buildingFilter !== "all" || managerFilter !== "all") && (
+                  <div className="mt-4">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setBuildingFilter("all");
+                        setManagerFilter("all");
+                      }}
+                      className="w-full sm:w-auto"
+                    >
+                      Filter zurücksetzen
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </CollapsibleContent>
+          </Collapsible>
         </Card>
       )}
 
