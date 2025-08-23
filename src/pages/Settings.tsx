@@ -9,7 +9,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { PushNotificationToggle } from "@/components/PushNotificationToggle";
-import { NewPushNotificationSetup } from "@/components/NewPushNotificationSetup";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UserPlus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -224,8 +223,6 @@ export const Settings = () => {
                   </div>
                 </CardContent>
               </Card>
-              
-              <NewPushNotificationSetup />
             </>
           )}
 
