@@ -79,6 +79,7 @@ export const Dashboard = () => {
         recentBuildingsResult,
         chatbotHealthResult,
         chatbotSessionsResult,
+        allSessionsResult,
         monthlyReportsResult,
         problemBuildingsResult
       ] = await Promise.all([
@@ -129,6 +130,13 @@ export const Dashboard = () => {
           .eq('management_mode', managementMode)
           .gte('started_at', new Date(Date.now() - timeframeDays * 24 * 60 * 60 * 1000).toISOString()),
 
+        // Debug: Get all chatbot sessions
+        supabase
+          .from('chatbot_sessions')
+          .select('*')
+          .order('started_at', { ascending: false })
+          .limit(10),
+
         // Monthly tickets data (last 12 months)
         supabase
           .from(reportsTable)
@@ -156,6 +164,13 @@ export const Dashboard = () => {
       setBuildings(recentBuildingsResult.data || []);
 
       // Process chatbot data
+      console.log('Chatbot health result:', chatbotHealthResult);
+      console.log('Chatbot sessions result:', chatbotSessionsResult);
+      console.log('All sessions in database:', allSessionsResult.data);
+      console.log('Current management mode:', managementMode);
+      console.log('Timeframe days:', timeframeDays);
+      console.log('Timeframe start date:', new Date(Date.now() - timeframeDays * 24 * 60 * 60 * 1000).toISOString());
+      
       setChatbotStatus({
         online: chatbotHealthResult.data?.online || false,
         conversations: chatbotSessionsResult.count || 0
@@ -406,7 +421,7 @@ export const Dashboard = () => {
                 config={{
                   value: {
                     label: "Meldungen pro Person",
-                    color: "hsl(var(--destructive))",
+                    color: "hsl(22 93% 53%)",
                   },
                 }}
                 className="h-64"
@@ -432,7 +447,7 @@ export const Dashboard = () => {
                     />
                     <Bar 
                       dataKey="value" 
-                      fill="hsl(var(--destructive))"
+                      fill="hsl(22 93% 53%)"
                       radius={[4, 4, 0, 0]}
                     />
                   </RechartsBarChart>
