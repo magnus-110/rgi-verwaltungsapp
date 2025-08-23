@@ -27,7 +27,6 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import rgiLogo from "@/assets/rgi-logo.png";
 
 const menuItems = [
   { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
