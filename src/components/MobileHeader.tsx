@@ -49,10 +49,16 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
           active: location.pathname.startsWith('/reports')
         },
         { 
-          icon: Sparkles, 
+          icon: Newspaper, 
           label: "Forum", 
           path: '/forum',
           active: location.pathname.startsWith('/forum')
+        },
+        { 
+          icon: Sparkles, 
+          label: "Chatbot", 
+          path: '/chatbot',
+          active: location.pathname.startsWith('/chatbot')
         }
       ];
     }
