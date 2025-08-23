@@ -307,36 +307,13 @@ export const Dashboard = () => {
       </div>
 
       {/* Statistik Widgets */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 md:grid-cols-2">
         <DashboardWidget
           title="Offene Meldungen"
           value={stats.openReports}
           description="Neue Meldungen zur Bearbeitung"
           icon={AlertCircle}
           trend={stats.openReports > 0 ? `${stats.openReports} offen` : 'Keine offenen'}
-          isLoading={loading}
-        />
-        <DashboardWidget
-          title="Bearbeitet"
-          value={stats.inProgressReports}
-          description="Meldungen werden bearbeitet"
-          icon={FileText}
-          trend={`${stats.inProgressReports} aktiv`}
-          isLoading={loading}
-        />
-        <DashboardWidget
-          title="Verwaltete Gebäude"
-          value={stats.buildingsCount}
-          description={`${managementMode === 'weg' ? 'WEG-' : 'Miet-'}Gebäude`}
-          icon={Building2}
-          isLoading={loading}
-        />
-        <DashboardWidget
-          title="Erledigte Meldungen"
-          value={stats.resolvedReports}
-          description="Erfolgreich abgeschlossen"
-          icon={Users}
-          trend={`${stats.resolvedReports} erledigt`}
           isLoading={loading}
         />
         <DashboardWidget
@@ -435,10 +412,17 @@ export const Dashboard = () => {
                 className="h-64"
               >
                 <ResponsiveContainer width="100%" height="100%">
-                  <RechartsBarChart data={topProblemBuildingsData} layout="horizontal">
+                  <RechartsBarChart data={topProblemBuildingsData}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" />
-                    <YAxis dataKey="name" type="category" width={100} />
+                    <XAxis 
+                      dataKey="name" 
+                      type="category"
+                      angle={-45}
+                      textAnchor="end"
+                      height={80}
+                      interval={0}
+                    />
+                    <YAxis type="number" />
                     <ChartTooltip 
                       content={<ChartTooltipContent />}
                       formatter={(value: any, name: any, props: any) => [
@@ -449,7 +433,7 @@ export const Dashboard = () => {
                     <Bar 
                       dataKey="value" 
                       fill="hsl(var(--destructive))"
-                      radius={[0, 4, 4, 0]}
+                      radius={[4, 4, 0, 0]}
                     />
                   </RechartsBarChart>
                 </ResponsiveContainer>
@@ -458,107 +442,6 @@ export const Dashboard = () => {
           </CardContent>
         </Card>
       </div>
-
-      {/* Hauptbereiche */}
-      <div className="grid gap-6 md:grid-cols-2">
-        {/* Aktuelle Meldungen */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="heading-primary flex items-center text-lg font-semibold">
-              <AlertCircle className="mr-2 h-5 w-5" />
-              Aktuelle {managementMode === 'weg' ? 'WEG-' : 'Miet-'}Meldungen
-            </CardTitle>
-            <CardDescription className="body-secondary">
-              Die neuesten eingegangenen Meldungen
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {loading ? (
-              <div className="text-center py-4 body-secondary">Laden...</div>
-            ) : reports.length === 0 ? (
-                <div className="text-center py-4 body-secondary">
-                  Keine Meldungen vorhanden
-                </div>
-            ) : (
-              reports.map((report) => (
-                <div key={report.id} className={`border-l-4 ${getPriorityColor(report.priority)} pl-4`}>
-                  <div className="flex justify-between items-start mb-1">
-                    <h4 className="heading-primary font-medium">{report.title}</h4>
-                    {getStatusBadge(report.status)}
-                  </div>
-                  <p className="body-secondary text-sm">
-                    {report.contact_name} • {new Date(report.created_at).toLocaleDateString('de-DE')}
-                  </p>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Gebäude Übersicht */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="heading-primary flex items-center text-lg font-semibold">
-              <Building2 className="mr-2 h-5 w-5" />
-              Verwaltete Gebäude
-            </CardTitle>
-            <CardDescription className="body-secondary">
-              Übersicht Ihrer {managementMode === 'weg' ? 'WEG-' : 'Miet-'}Gebäude
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {loading ? (
-                  <div className="text-center py-4 body-secondary">Laden...</div>
-            ) : buildings.length === 0 ? (
-                <div className="text-center py-4 body-secondary">
-                  Keine Gebäude vorhanden
-                </div>
-            ) : (
-              buildings.map((building) => (
-                <div key={building.id} className="space-y-2">
-                  <h4 className="heading-primary font-medium">{building.name}</h4>
-                  <p className="body-secondary text-sm">{building.address}</p>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Chatbot Analytics */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="heading-primary flex items-center text-lg font-semibold">
-            <MessageSquare className="mr-2 h-5 w-5" />
-            Chatbot Aktivität
-          </CardTitle>
-          <CardDescription className="body-secondary">
-            KI-Assistent Status und Nutzungsstatistiken
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-4">
-            <div className="text-center">
-              <div className={`heading-primary text-2xl font-bold ${chatbotStatus.online ? 'text-green-500' : 'text-red-500'}`}>
-                {chatbotStatus.online ? 'Online' : 'Offline'}
-              </div>
-              <p className="body-secondary text-sm">System Status</p>
-            </div>
-            <div className="text-center">
-              <div className="heading-primary text-2xl font-bold text-primary">{chatbotStatus.conversations}</div>
-              <p className="body-secondary text-sm">Konversationen ({timeframeDays}d)</p>
-            </div>
-            <div className="text-center">
-              <div className="heading-primary text-2xl font-bold text-primary">{stats.totalReports}</div>
-              <p className="body-secondary text-sm">Gesamte Meldungen</p>
-            </div>
-            <div className="text-center">
-              <div className="heading-primary text-2xl font-bold text-primary">{stats.buildingsCount}</div>
-              <p className="body-secondary text-sm">Verwaltete Gebäude</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 };
