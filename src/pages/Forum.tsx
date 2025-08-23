@@ -740,29 +740,29 @@ export const Forum = () => {
           filteredPosts.map((post) => (
             <Card key={post.id} className="hover:shadow-md transition-shadow">
               <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="space-y-2">
-                    <CardTitle className="text-xl">{post.title}</CardTitle>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                  <div className="flex-1 space-y-2 min-w-0">
+                    <CardTitle className="text-xl break-words">{post.title}</CardTitle>
+                    <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-1 flex-shrink-0">
                         <User className="w-4 h-4" />
-                        Verwaltung
+                        <span>Verwaltung</span>
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 flex-shrink-0">
                         <Calendar className="w-4 h-4" />
-                        {new Date(post.created_at).toLocaleDateString('de-DE')}
+                        <span>{new Date(post.created_at).toLocaleDateString('de-DE')}</span>
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary" className="flex items-center gap-1">
-                      <Building2 className="w-3 h-3" />
-                      {post.buildings?.name || 'Unbekannt'}
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 flex-shrink-0">
+                    <Badge variant="secondary" className="flex items-center gap-1 max-w-full">
+                      <Building2 className="w-3 h-3 flex-shrink-0" />
+                      <span className="truncate">{post.buildings?.name || 'Unbekannt'}</span>
                     </Badge>
                     {canCreatePosts && (
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button variant="ghost" size="sm">
+                          <Button variant="ghost" size="sm" className="flex-shrink-0">
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </AlertDialogTrigger>
