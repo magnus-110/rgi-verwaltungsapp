@@ -478,14 +478,6 @@ Beschreibung: ${report.description}`;
               <Download className="h-4 w-4 mr-2" />
               Exportieren
             </Button>
-
-            <Button 
-              variant="outline" 
-              onClick={() => setIsFilterOpen(!isFilterOpen)}
-            >
-              <Filter className="h-4 w-4 mr-2" />
-              Filter
-            </Button>
           </div>
         </div>
 

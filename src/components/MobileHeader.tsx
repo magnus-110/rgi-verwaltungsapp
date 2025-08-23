@@ -139,11 +139,11 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
     <header className="bg-white border-b border-border shadow-sm fixed top-0 left-0 right-0 z-50 md:hidden">
       <div className="flex items-center justify-between h-16 px-4">
         {/* Logo */}
-        <div className="flex items-center">
+        <div className="flex items-center cursor-pointer" onClick={() => navigate('/')}>
           <img 
             src="/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png" 
             alt="RGI Immobilien Logo" 
-            className="h-12 w-auto object-contain"
+            className="h-12 w-auto object-contain hover:opacity-80 transition-opacity"
           />
         </div>
 

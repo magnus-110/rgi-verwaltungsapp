@@ -12,7 +12,7 @@ import {
   ToggleRight,
   Send
 } from "lucide-react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import {
   Sidebar,
@@ -48,6 +48,7 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
   const { state } = useSidebar();
   const { signOut, profile } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const currentPath = location.pathname;
   
   const collapsed = state === "collapsed";
@@ -66,19 +67,19 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
         {/* Header with Logo */}
         <div className="p-4 border-b border-border">
           {!collapsed ? (
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-3 cursor-pointer" onClick={() => navigate('/admin')}>
               <img 
                 src="/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png" 
                 alt="RGI Immobilien Logo" 
-                className="h-14 w-auto object-contain"
+                className="h-14 w-auto object-contain hover:opacity-80 transition-opacity"
               />
             </div>
           ) : (
-            <div className="flex justify-center">
+            <div className="flex justify-center cursor-pointer" onClick={() => navigate('/admin')}>
               <img 
                 src="/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png" 
                 alt="RGI Immobilien Logo" 
-                className="h-10 w-auto object-contain"
+                className="h-10 w-auto object-contain hover:opacity-80 transition-opacity"
               />
             </div>
           )}

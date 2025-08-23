@@ -621,9 +621,9 @@ export const Forum = () => {
                 </div>
               </DialogContent>
             </Dialog>
-            <Button onClick={() => setIsCreating(true)} className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground">
+            <Button onClick={() => setIsCreating(true)} className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground md:inline-flex">
               <Plus className="w-4 h-4" />
-              Neuer Beitrag
+              <span className="hidden md:inline">Neuer Beitrag</span>
             </Button>
           </div>
         )}

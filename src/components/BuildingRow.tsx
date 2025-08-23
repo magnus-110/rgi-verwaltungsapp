@@ -105,7 +105,7 @@ export const BuildingRow = ({ building, onUpdate }: BuildingRowProps) => {
 
   return (
     <Card className="hover:shadow-md transition-shadow">
-      <CardHeader className="pb-3">
+      <CardHeader className="pb-3 cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
         <div className="flex items-start justify-between">
           <div className="flex items-start space-x-3 flex-1">
             <div className="p-2 bg-primary/10 rounded-lg">
@@ -159,7 +159,10 @@ export const BuildingRow = ({ building, onUpdate }: BuildingRowProps) => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setIsManagerDialogOpen(true)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsManagerDialogOpen(true);
+              }}
               className="h-8 w-8 p-0"
               title="Verwalter zuweisen"
             >
@@ -168,7 +171,10 @@ export const BuildingRow = ({ building, onUpdate }: BuildingRowProps) => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setIsEditDialogOpen(true)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsEditDialogOpen(true);
+              }}
               className="h-8 w-8 p-0"
             >
               <Edit className="h-3 w-3" />
@@ -176,7 +182,10 @@ export const BuildingRow = ({ building, onUpdate }: BuildingRowProps) => {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setIsExpanded(!isExpanded)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsExpanded(!isExpanded);
+              }}
             >
               {isExpanded ? (
                 <ChevronDown className="h-4 w-4" />
