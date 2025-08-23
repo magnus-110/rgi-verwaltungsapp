@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { HelpCircle, X, Home, MessageCircle, Phone, Mail } from "lucide-react";
+import { HelpCircle, X, Home, MessageCircle, Phone, Mail, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -65,43 +65,23 @@ export const HelpFab = ({ userType, selectedBuildingId, onBuildingChange, userNa
     }
   };
 
-  const tenantTips = [
-    {
-      icon: <MessageCircle className="w-4 h-4" />,
-      title: "Meldungen erstellen",
-      description: "Berichten Sie über Schäden oder Probleme in Ihrem Gebäude"
-    },
+  const tips = [
     {
       icon: <Home className="w-4 h-4" />,
-      title: "Gebäude-Informationen",
-      description: "Fragen Sie nach Details zu Ihrem Gebäude und Mietangelegenheiten"
-    },
-    {
-      icon: <Phone className="w-4 h-4" />,
-      title: "Kontakt",
-      description: "Bei dringenden Fällen: Tel: 08362-123456"
-    }
-  ];
-
-  const wegOwnerTips = [
-    {
-      icon: <Home className="w-4 h-4" />,
-      title: "Gebäude auswählen",
-      description: "Wählen Sie das gewünschte Gebäude aus der Liste unten"
+      title: "Gebäude",
+      description: "Bei Fragen zu einem bestimmten Gebäude wählen Sie es bitte aus der Liste."
     },
     {
       icon: <MessageCircle className="w-4 h-4" />,
-      title: "Verwaltungsanfragen",
-      description: "Stellen Sie Fragen zur Verwaltung Ihrer Eigentumswohnung"
+      title: "Allgemeines",
+      description: "Stellen Sie allgemeine Fragen rund um Immobilien und Verwaltung."
     },
     {
-      icon: <Mail className="w-4 h-4" />,
-      title: "Kontakt",
-      description: "E-Mail: info@rgi-immobilien.de"
+      icon: <FileText className="w-4 h-4" />,
+      title: "Verträge",
+      description: "Erhalten Sie Auskünfte zu allgemeinen Vertragsinhalten (nicht personenbezogen)."
     }
   ];
-
-  const tips = userType === "tenant" ? tenantTips : wegOwnerTips;
 
   if (!isOpen) {
     return null;
