@@ -20,6 +20,8 @@ interface Building {
   id: string;
   name: string;
   address: string;
+  manager_name?: string | null;
+  managers?: { user_id: string; name: string }[];
 }
 
 interface ForumPost {
@@ -58,6 +60,7 @@ export const Forum = () => {
   const [buildingFilter, setBuildingFilter] = useState<string>("all");
   const [buildingSearch, setBuildingSearch] = useState("");
   const [managerFilter, setManagerFilter] = useState<string>("all");
+  const [managers, setManagers] = useState<{ id: string; name: string }[]>([]);
 
   const canCreatePosts = profile?.role === 'admin';
 
@@ -93,7 +96,60 @@ export const Forum = () => {
         .order('name');
 
       if (error) throw error;
-      setBuildings(data || []);
+      
+      // Fetch building managers data
+      const { data: managersData, error: managersError } = await supabase
+        .from("building_managers")
+        .select(`
+          building_id,
+          user_id,
+          profiles:user_id (
+            first_name,
+            last_name,
+            email
+          )
+        `);
+
+      if (managersError) throw managersError;
+
+      // Create a managers lookup map
+      const managersMap = new Map();
+      (managersData || []).forEach(bm => {
+        if (!managersMap.has(bm.building_id)) {
+          managersMap.set(bm.building_id, []);
+        }
+        managersMap.get(bm.building_id).push({
+          user_id: bm.user_id,
+          name: (bm.profiles as any)?.first_name && (bm.profiles as any)?.last_name 
+            ? `${(bm.profiles as any).first_name} ${(bm.profiles as any).last_name}`
+            : (bm.profiles as any)?.email || 'Unbekannter Admin'
+        });
+      });
+
+      // Add managers to buildings data
+      const buildingsWithManagers = (data || []).map(building => ({
+        ...building,
+        managers: managersMap.get(building.id) || []
+      }));
+
+      setBuildings(buildingsWithManagers);
+
+      // Extract unique managers for filter
+      const uniqueManagers = [...new Map(
+        (managersData || [])
+          .filter(bm => (data || []).some(building => building.id === bm.building_id))
+          .map(bm => [
+            bm.user_id,
+            {
+              id: bm.user_id,
+              name: (bm.profiles as any)?.first_name && (bm.profiles as any)?.last_name 
+                ? `${(bm.profiles as any).first_name} ${(bm.profiles as any).last_name}`
+                : (bm.profiles as any)?.email || 'Unbekannter Admin'
+            }
+          ])
+      ).values()];
+      
+      setManagers(uniqueManagers);
     } catch (error) {
       console.error('Error fetching buildings:', error);
     }
@@ -297,7 +353,8 @@ export const Forum = () => {
 
   const filteredPosts = posts.filter(post => {
     const matchesBuilding = buildingFilter === "all" || post.building_id === buildingFilter;
-    const matchesManager = managerFilter === "all" || (post.buildings as any)?.manager_name?.includes(managerFilter);
+    const matchesManager = managerFilter === "all" || 
+      (post.buildings as any)?.managers?.some((manager: any) => manager.user_id === managerFilter);
     return matchesBuilding && matchesManager;
   });
 
@@ -571,7 +628,19 @@ export const Forum = () => {
                   ))}
                 </SelectContent>
               </Select>
-              <ManagerFilter value={managerFilter} onValueChange={setManagerFilter} />
+              <Select value={managerFilter} onValueChange={setManagerFilter}>
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="Nach Verwalter filtern" />
+                </SelectTrigger>
+                <SelectContent className="bg-background border border-border shadow-lg z-50">
+                  <SelectItem value="all">Alle Verwalter</SelectItem>
+                  {managers.map((manager) => (
+                    <SelectItem key={manager.id} value={manager.id}>
+                      {manager.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             {(buildingFilter !== "all" || managerFilter !== "all") && (
               <Button

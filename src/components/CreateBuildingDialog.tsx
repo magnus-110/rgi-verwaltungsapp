@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,39 +14,82 @@ interface CreateBuildingDialogProps {
   onBuildingCreated?: () => void;
 }
 
+interface AdminUser {
+  user_id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string;
+}
+
 export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialogProps) => {
   const { managementMode } = useManagementMode();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [formData, setFormData] = useState({
     name: "",
     address: "",
     building_code: "",
     type: "weg",
-    manager_name: ""
+    manager_id: ""
   });
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchAdminUsers();
+    }
+  }, [isOpen]);
+
+  const fetchAdminUsers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("user_id, first_name, last_name, email")
+        .eq("role", "admin")
+        .order("first_name");
+
+      if (error) throw error;
+      setAdminUsers(data || []);
+    } catch (error) {
+      console.error("Error fetching admin users:", error);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
-      const { error } = await supabase
+      // First create the building
+      const { data: buildingData, error: buildingError } = await supabase
         .from("buildings")
         .insert({
           name: formData.name,
           address: formData.address,
           building_code: formData.building_code,
           management_mode: managementMode,
-          type: formData.type,
-          manager_name: formData.manager_name || null
-        });
+          type: formData.type
+        })
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (buildingError) throw buildingError;
+
+      // Then assign the manager if one was selected
+      if (formData.manager_id) {
+        const { error: managerError } = await supabase
+          .from("building_managers")
+          .insert({
+            building_id: buildingData.id,
+            user_id: formData.manager_id
+          });
+
+        if (managerError) throw managerError;
+      }
 
       toast.success("Gebäude erfolgreich erstellt");
       setIsOpen(false);
-      setFormData({ name: "", address: "", building_code: "", type: "weg", manager_name: "" });
+      setFormData({ name: "", address: "", building_code: "", type: "weg", manager_id: "" });
       onBuildingCreated?.();
     } catch (error) {
       console.error("Error creating building:", error);
@@ -100,13 +143,23 @@ export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialog
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="manager_name">Zuständiger Verwalter</Label>
-            <Input
-              id="manager_name"
-              value={formData.manager_name}
-              onChange={(e) => setFormData(prev => ({ ...prev, manager_name: e.target.value }))}
-              placeholder="Name des zuständigen Verwalters (optional)"
-            />
+            <Label htmlFor="manager_id">Zuständiger Verwalter</Label>
+            <Select value={formData.manager_id} onValueChange={(value) => setFormData(prev => ({ ...prev, manager_id: value }))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Admin-Account auswählen (optional)" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Keinen Verwalter zuweisen</SelectItem>
+                {adminUsers.map((admin) => (
+                  <SelectItem key={admin.user_id} value={admin.user_id}>
+                    {admin.first_name && admin.last_name 
+                      ? `${admin.first_name} ${admin.last_name} (${admin.email})`
+                      : admin.email
+                    }
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           
           <div className="space-y-2">

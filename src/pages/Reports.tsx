@@ -53,7 +53,7 @@ export const Reports = () => {
   const [filteredOpenReports, setFilteredOpenReports] = useState<Report[]>([]);
   const [filteredInProgressReports, setFilteredInProgressReports] = useState<Report[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
-  const [managers, setManagers] = useState<string[]>([]);
+  const [managers, setManagers] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [buildingFilter, setBuildingFilter] = useState<string>("all");
@@ -122,12 +122,40 @@ export const Reports = () => {
       if (error) throw error;
       setBuildings(data || []);
       
+      // Fetch admin managers separately
+      const { data: managersData, error: managersError } = await supabase
+        .from("building_managers")
+        .select(`
+          id,
+          user_id,
+          building_id,
+          profiles:user_id (
+            first_name,
+            last_name,
+            email
+          )
+        `);
+
+      if (managersError) throw managersError;
+
+      // Filter managers for current buildings
+      const filteredManagers = (managersData || []).filter(bm => 
+        (data || []).some(building => building.id === bm.building_id)
+      );
+
       // Extract unique managers
-      const uniqueManagers = [...new Set(
-        (data || [])
-          .map(b => b.manager_name)
-          .filter(manager => manager && manager.trim() !== "")
-      )].sort();
+      const uniqueManagers = [...new Map(
+        filteredManagers.map(bm => [
+          bm.user_id,
+          {
+            id: bm.user_id,
+            name: (bm.profiles as any)?.first_name && (bm.profiles as any)?.last_name 
+              ? `${(bm.profiles as any).first_name} ${(bm.profiles as any).last_name}`
+              : (bm.profiles as any)?.email || 'Unbekannter Admin'
+          }
+        ])
+      ).values()];
+      
       setManagers(uniqueManagers);
     } catch (error) {
       console.error("Error fetching buildings:", error);
@@ -154,9 +182,41 @@ export const Reports = () => {
 
       if (buildingsError) throw buildingsError;
 
+      // Fetch building managers data
+      const { data: managersData, error: managersError } = await supabase
+        .from("building_managers")
+        .select(`
+          building_id,
+          user_id,
+          profiles:user_id (
+            first_name,
+            last_name,
+            email
+          )
+        `);
+
+      if (managersError) throw managersError;
+
+      // Create a managers lookup map
+      const managersMap = new Map();
+      (managersData || []).forEach(bm => {
+        if (!managersMap.has(bm.building_id)) {
+          managersMap.set(bm.building_id, []);
+        }
+        managersMap.get(bm.building_id).push({
+          user_id: bm.user_id,
+          name: (bm.profiles as any)?.first_name && (bm.profiles as any)?.last_name 
+            ? `${(bm.profiles as any).first_name} ${(bm.profiles as any).last_name}`
+            : (bm.profiles as any)?.email || 'Unbekannter Admin'
+        });
+      });
+
       // Create a buildings lookup map
       const buildingsMap = new Map(
-        (buildingsData || []).map(building => [building.id, building])
+        (buildingsData || []).map(building => [building.id, {
+          ...building,
+          managers: managersMap.get(building.id) || []
+        }])
       );
 
       // Merge the data
@@ -201,9 +261,10 @@ export const Reports = () => {
       }
 
       if (managerFilter !== "all") {
-        filtered = filtered.filter(report => 
-          report.buildings?.manager_name === managerFilter
-        );
+        filtered = filtered.filter(report => {
+          const building = report.buildings as any;
+          return building?.managers?.some((manager: any) => manager.user_id === managerFilter);
+        });
       }
 
       return filtered;
@@ -248,7 +309,7 @@ Beschreibung: ${report.description}`;
       Erstellt: formatDateTime(report.created_at),
       Gebäude: report.buildings?.name || "",
       Adresse: report.buildings?.address || "",
-      Verwalter: report.buildings?.manager_name || "",
+      Verwalter: (report.buildings as any)?.managers?.map((m: any) => m.name).join(', ') || 'Nicht zugewiesen',
       Kontakt: report.contact_name,
       Email: report.contact_email,
       Telefon: report.contact_phone || "",
@@ -330,7 +391,7 @@ Beschreibung: ${report.description}`;
           </div>
           <div className="space-y-1">
             <p><strong>Gebäude:</strong> {report.buildings?.address || 'Nicht zugewiesen'}</p>
-            <p><strong>Erstellt:</strong> {formatDateTime(report.created_at)}</p>
+            <p><strong>Verwalter:</strong> {(report.buildings as any)?.managers?.map((m: any) => m.name).join(', ') || 'Nicht zugewiesen'}</p>
           </div>
         </div>
 
@@ -512,8 +573,8 @@ Beschreibung: ${report.description}`;
                           <SelectContent>
                             <SelectItem value="all">Alle Verwalter</SelectItem>
                             {managers.map((manager) => (
-                              <SelectItem key={manager} value={manager}>
-                                {manager}
+                              <SelectItem key={manager.id} value={manager.id}>
+                                {manager.name}
                               </SelectItem>
                             ))}
                           </SelectContent>
