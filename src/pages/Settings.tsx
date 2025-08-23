@@ -9,6 +9,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { PushNotificationToggle } from "@/components/PushNotificationToggle";
+import { NewPushNotificationSetup } from "@/components/NewPushNotificationSetup";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UserPlus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -209,19 +210,23 @@ export const Settings = () => {
 
           {/* Benachrichtigungen */}
           {profile.role === 'admin' && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Benachrichtigungen</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <PushNotificationToggle />
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Erhalten Sie Push-Benachrichtigungen für neue Meldungen in Ihren verwalteten Gebäuden
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Benachrichtigungen (Aktuell)</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <PushNotificationToggle />
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Erhalten Sie Push-Benachrichtigungen für neue Meldungen in Ihren verwalteten Gebäuden
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <NewPushNotificationSetup />
+            </>
           )}
 
           {/* Passwort ändern */}
