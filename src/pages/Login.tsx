@@ -33,6 +33,13 @@ export const Login = () => {
     e.preventDefault();
     setLoading(true);
 
+    // Validate that both email and password are provided
+    if (!email.trim() || !password.trim()) {
+      toast.error("Bitte füllen Sie alle Felder aus");
+      setLoading(false);
+      return;
+    }
+
     try {
       const { error } = await signIn(email, password);
       if (error) {
@@ -153,7 +160,11 @@ export const Login = () => {
               
               <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button variant="link" className="w-full text-sm text-muted-foreground">
+                  <Button 
+                    type="button" 
+                    variant="link" 
+                    className="w-full text-sm text-muted-foreground"
+                  >
                     Passwort vergessen?
                   </Button>
                 </DialogTrigger>
