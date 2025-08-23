@@ -14,7 +14,7 @@ serve(async (req) => {
   }
 
   try {
-    const { message, userId, managementMode, buildingId, healthCheck } = await req.json();
+    const { message, userId, managementMode, buildingId, healthCheck, sessionId } = await req.json();
 
     // Health check endpoint
     if (healthCheck === true || message === '__healthcheck__') {
@@ -73,12 +73,60 @@ serve(async (req) => {
       );
     }
 
+    // Get or create session
+    let currentSessionId = sessionId;
+    if (!currentSessionId) {
+      const { data: newSession, error: sessionError } = await supabase
+        .from('chatbot_sessions')
+        .insert({
+          user_id: userId,
+          management_mode: managementMode,
+          building_id: buildingId
+        })
+        .select()
+        .single();
+
+      if (sessionError) {
+        console.error('Error creating session:', sessionError);
+        return new Response(JSON.stringify({ error: 'Failed to create session' }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      currentSessionId = newSession.id;
+    }
+
     // Get user profile
     const { data: profile } = await supabase
       .from('profiles')
       .select('*')
       .eq('user_id', userId)
       .single();
+
+    if (!profile) {
+      return new Response(JSON.stringify({ error: 'User profile not found' }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Load conversation history (last 20 messages from last 30 days)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const { data: conversationHistory, error: historyError } = await supabase
+      .from('chatbot_messages')
+      .select('role, content, created_at')
+      .eq('user_id', userId)
+      .eq('management_mode', managementMode)
+      .gte('created_at', thirtyDaysAgo.toISOString())
+      .order('created_at', { ascending: true })
+      .limit(20);
+
+    if (historyError) {
+      console.error('Error fetching conversation history:', historyError);
+      // Continue without history - don't fail the request
+    }
 
     // Build context data
     let contextData = "";
@@ -213,6 +261,54 @@ serve(async (req) => {
       knowledgeString = settings.knowledge_base;
     }
 
+    // Construct system prompt
+    const systemPrompt = `${settings.system_prompt}\n\nWissensdatenbank:\n${knowledgeString}\n\nAktuelle Kontextdaten:${contextData}\n\nSie sprechen mit: ${profile?.first_name} ${profile?.last_name} (${profile?.email})${managementMode === 'weg' ? ' - WEG-Eigentümer' : ' - Mieter'}${buildingId ? `. Gebäude-ID: ${buildingId}` : managementMode === 'weg' ? '. Keine spezifische Gebäude-ID angegeben - bitten Sie um die Gebäude-ID für spezifische Informationen.' : ''}`;
+
+    // Construct messages for OpenAI with conversation history
+    const messages = [
+      {
+        role: 'system',
+        content: systemPrompt
+      }
+    ];
+
+    // Add conversation history if available
+    if (conversationHistory && conversationHistory.length > 0) {
+      console.log(`Adding ${conversationHistory.length} messages from conversation history`);
+      conversationHistory.forEach(msg => {
+        messages.push({
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content
+        });
+      });
+    }
+
+    // Add current user message
+    messages.push({
+      role: 'user',
+      content: message
+    });
+
+    console.log('Sending request to OpenAI with model:', settings.model, 'and', messages.length, 'messages');
+
+    // Save user message
+    const { error: userMsgError } = await supabase
+      .from('chatbot_messages')
+      .insert({
+        session_id: currentSessionId,
+        user_id: userId,
+        building_id: buildingId,
+        management_mode: managementMode,
+        role: 'user',
+        content: message,
+        metadata: { timestamp: new Date().toISOString() }
+      });
+
+    if (userMsgError) {
+      console.error('Error saving user message:', userMsgError);
+      // Continue - don't fail the request for logging issues
+    }
+
     // Call OpenAI API
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -222,31 +318,59 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: settings.model || 'gpt-4o-mini',
-        messages: [
-          { 
-            role: 'system', 
-            content: `${settings.system_prompt}\n\nWissensdatenbank:\n${knowledgeString}\n\nAktuelle Kontextdaten:${contextData}\n\nSie sprechen mit: ${profile?.first_name} ${profile?.last_name} (${profile?.email})${managementMode === 'weg' ? ' - WEG-Eigentümer' : ' - Mieter'}${buildingId ? `. Gebäude-ID: ${buildingId}` : managementMode === 'weg' ? '. Keine spezifische Gebäude-ID angegeben - bitten Sie um die Gebäude-ID für spezifische Informationen.' : ''}`
-          },
-          { role: 'user', content: message }
-        ],
-        temperature: settings.temperature || 0.7,
-        max_tokens: settings.max_tokens || 500,
+        messages: messages,
+        // Use max_completion_tokens for newer models, max_tokens for legacy
+        ...(settings.model?.includes('gpt-4o') ? 
+          { max_tokens: settings.max_tokens || 1000, temperature: settings.temperature || 0.7 } : 
+          { max_completion_tokens: settings.max_tokens || 1000 }
+        )
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error('OpenAI API error:', errorText);
-      throw new Error(`OpenAI API error: ${response.status}`);
+      return new Response(JSON.stringify({ 
+        error: 'AI service temporarily unavailable',
+        details: response.status === 429 ? 'Rate limit exceeded' : 'Service error'
+      }), {
+        status: 503,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const data = await response.json();
-    const botResponse = data.choices[0].message.content;
+    const assistantMessage = data.choices[0]?.message?.content || 'Entschuldigung, ich konnte keine Antwort generieren.';
 
-    return new Response(
-      JSON.stringify({ response: botResponse }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    // Save assistant message
+    const { error: assistantMsgError } = await supabase
+      .from('chatbot_messages')
+      .insert({
+        session_id: currentSessionId,
+        user_id: userId,
+        building_id: buildingId,
+        management_mode: managementMode,
+        role: 'assistant',
+        content: assistantMessage,
+        metadata: { 
+          model: settings.model,
+          usage: data.usage,
+          timestamp: new Date().toISOString()
+        }
+      });
+
+    if (assistantMsgError) {
+      console.error('Error saving assistant message:', assistantMsgError);
+      // Continue - don't fail the request for logging issues
+    }
+
+    return new Response(JSON.stringify({ 
+      response: assistantMessage,
+      usage: data.usage,
+      sessionId: currentSessionId
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
 
   } catch (error) {
     console.error('Error in chat-with-ai function:', error);

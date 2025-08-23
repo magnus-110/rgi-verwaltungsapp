@@ -2,14 +2,15 @@ import { useState, useEffect } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { toast } from "@/hooks/use-toast";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
 import { WelcomeScreen } from "@/components/chat/WelcomeScreen";
-import { MobileHeader } from "@/components/MobileHeader";
 import { HelpFab } from "@/components/chat/HelpFab";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { ConversationHistory } from "@/components/chat/ConversationHistory";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
+import { MessageCircle } from "lucide-react";
 
 interface Message {
   id: string;
@@ -21,19 +22,20 @@ interface Message {
 interface WegOwnerBuilding {
   id: string;
   building_id: string;
+  building_name: string;
   created_at: string;
 }
 
 export const WegOwnerChatbot = () => {
   const { profile } = useAuth();
-  const isMobile = useIsMobile();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [selectedBuildingId, setSelectedBuildingId] = useState("");
-  
-  const [buildings, setBuildings] = useState<WegOwnerBuilding[]>([]);
-  const [isTyping, setIsTyping] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [hasStartedChat, setHasStartedChat] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [buildingAssignments, setBuildingAssignments] = useState<WegOwnerBuilding[]>([]);
+  const [selectedBuildingId, setSelectedBuildingId] = useState<string>("");
+  const [currentSessionId, setCurrentSessionId] = useState<string>();
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     if (profile?.user_id) {
@@ -43,45 +45,37 @@ export const WegOwnerChatbot = () => {
 
   const fetchBuildingAssignments = async () => {
     try {
-      // First, get the building assignments
+      // First, get the building assignments with building data
       const { data: assignments, error: assignmentsError } = await supabase
         .from("weg_owner_buildings")
-        .select("id, building_id, created_at")
+        .select(`
+          id,
+          building_id,
+          created_at,
+          buildings!inner(id, name, address, building_code)
+        `)
         .eq("user_id", profile?.user_id)
         .order("created_at", { ascending: false });
 
       if (assignmentsError) throw assignmentsError;
 
       if (!assignments || assignments.length === 0) {
-        setBuildings([]);
+        setBuildingAssignments([]);
         return;
       }
 
-      // Get building IDs
-      const buildingIds = assignments.map(a => a.building_id);
+      const formattedAssignments = assignments.map(assignment => ({
+        id: assignment.id,
+        building_id: assignment.building_id,
+        building_name: (assignment.buildings as any).name,
+        created_at: assignment.created_at
+      }));
 
-      // Fetch building details separately
-      const { data: buildingsData, error: buildingsError } = await supabase
-        .from("buildings")
-        .select("id, name, address, building_code")
-        .in("id", buildingIds);
-
-      if (buildingsError) throw buildingsError;
-
-      // Combine assignments with building data
-      const combinedData = assignments.map(assignment => {
-        const building = buildingsData?.find(b => b.id === assignment.building_id);
-        return {
-          ...assignment,
-          buildings: building
-        };
-      });
-
-      setBuildings(combinedData);
+      setBuildingAssignments(formattedAssignments);
       
       // Auto-select first building if available and none selected
-      if (combinedData && combinedData.length > 0 && !selectedBuildingId) {
-        setSelectedBuildingId(combinedData[0].building_id);
+      if (formattedAssignments.length > 0 && !selectedBuildingId) {
+        setSelectedBuildingId(formattedAssignments[0].building_id);
       }
     } catch (error: any) {
       console.error("Error fetching building assignments:", error);
@@ -89,52 +83,12 @@ export const WegOwnerChatbot = () => {
   };
 
 
-  const getBotResponse = async (input: string): Promise<string> => {
-    try {
-      if (!profile?.user_id) {
-        return "Benutzeranmeldung erforderlich.";
-      }
-
-      // Call the Edge Function instead of OpenAI directly
-      const { data, error } = await supabase.functions.invoke('chat-with-ai', {
-        body: {
-          message: input,
-          userId: profile.user_id,
-          managementMode: 'weg',
-          buildingId: selectedBuildingId || undefined
-        }
-      });
-
-      if (error) {
-        console.error('Edge function error:', error);
-        throw new Error(error.message);
-      }
-
-      return data.response || "Entschuldigung, ich konnte keine Antwort generieren.";
-    } catch (error) {
-      console.error('Error generating response:', error);
-      return "Entschuldigung, es gab einen Fehler bei der Verarbeitung Ihrer Anfrage. Bitte wenden Sie sich direkt an die Hausverwaltung unter info@rgi-immobilien.de oder Tel: 08362-123456.";
-    }
-  };
-
-  const handleSendMessage = async (message: string) => {
+  const handleSendMessage = async (message: string): Promise<void> => {
     if (!message.trim()) return;
 
-    // Start chat if it's the first message
-    if (!hasStartedChat) {
+    // Start chat if it's the first message and no session selected
+    if (!hasStartedChat && !currentSessionId) {
       setHasStartedChat(true);
-      // Track session start
-      try {
-        await supabase
-          .from('chatbot_sessions')
-          .insert({
-            user_id: profile?.user_id,
-            management_mode: 'weg',
-            building_id: selectedBuildingId || null
-          });
-      } catch (error) {
-        console.error('Error tracking chat session:', error);
-      }
     }
 
     const userMessage: Message = {
@@ -145,7 +99,7 @@ export const WegOwnerChatbot = () => {
     };
 
     setMessages(prev => [...prev, userMessage]);
-    setIsTyping(true);
+    setIsLoading(true);
 
     try {
       const response = await getBotResponse(message);
@@ -165,52 +119,168 @@ export const WegOwnerChatbot = () => {
       };
       setMessages(prev => [...prev, errorMessage]);
     } finally {
-      setIsTyping(false);
+      setIsLoading(false);
     }
   };
 
+  const getBotResponse = async (input: string): Promise<string> => {
+    try {
+      if (!profile?.user_id) {
+        return "Benutzeranmeldung erforderlich.";
+      }
+
+      // Call the Edge Function instead of OpenAI directly
+      const { data, error } = await supabase.functions.invoke('chat-with-ai', {
+        body: {
+          message: input,
+          userId: profile.user_id,
+          managementMode: 'weg',
+          buildingId: selectedBuildingId || null,
+          sessionId: currentSessionId
+        }
+      });
+
+      // Update session ID if it was created
+      if (data?.sessionId && !currentSessionId) {
+        setCurrentSessionId(data.sessionId);
+      }
+
+      if (error) {
+        console.error('Edge function error:', error);
+        throw new Error(error.message);
+      }
+
+      return data.response || "Entschuldigung, ich konnte keine Antwort generieren.";
+    } catch (error) {
+      console.error('Error generating response:', error);
+      return "Entschuldigung, es gab einen Fehler bei der Verarbeitung Ihrer Anfrage. Bitte wenden Sie sich direkt an die Hausverwaltung unter info@rgi-immobilien.de oder Tel: 08362-123456.";
+    }
+  };
+
+  const loadSessionMessages = async (sessionId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('chatbot_messages')
+        .select('*')
+        .eq('session_id', sessionId)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('Error loading session messages:', error);
+        return;
+      }
+
+      if (data) {
+        const loadedMessages: Message[] = data.map(msg => ({
+          id: msg.id,
+          content: msg.content,
+          isBot: msg.role === 'assistant',
+          timestamp: new Date(msg.created_at)
+        }));
+        setMessages(loadedMessages);
+        setHasStartedChat(true);
+        setCurrentSessionId(sessionId);
+      }
+    } catch (error) {
+      console.error('Error in loadSessionMessages:', error);
+    }
+  };
+
+  const startNewConversation = () => {
+    setMessages([]);
+    setHasStartedChat(false);
+    setCurrentSessionId(undefined);
+    setShowHistory(false);
+  };
+
+  const isTyping = isLoading;
+
   return (
-    <div className="h-full flex flex-col bg-background relative">
-      {!hasStartedChat ? (
-        <WelcomeScreen 
-          userName={profile?.first_name}
-          userType="weg_owner"
-          onSuggestionClick={handleSendMessage}
+    <div className="h-full flex bg-background relative">
+      {showHistory && (
+        <ConversationHistory
+          managementMode="weg"
+          onSessionSelect={loadSessionMessages}
+          currentSessionId={currentSessionId}
         />
-      ) : (
-        <div className="flex-1 pb-32">
-          <ScrollArea className="h-full">
-            <div className="py-4">
-              {messages.map((message) => (
-                <ChatMessage key={message.id} message={message} />
-              ))}
-              
-              {isTyping && <TypingIndicator />}
-            </div>
-          </ScrollArea>
+      )}
+      
+      <div className="flex-1 flex flex-col">
+        <div className="border-b p-4 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowHistory(!showHistory)}
+            >
+              <MessageCircle className="h-4 w-4 mr-2" />
+              {showHistory ? 'Gespräche ausblenden' : 'Gespräche anzeigen'}
+            </Button>
+            {hasStartedChat && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={startNewConversation}
+              >
+                Neues Gespräch
+              </Button>
+            )}
+          </div>
+          {buildingAssignments.length > 1 && (
+            <Select value={selectedBuildingId} onValueChange={setSelectedBuildingId}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Gebäude auswählen" />
+              </SelectTrigger>
+              <SelectContent>
+                {buildingAssignments.map((assignment) => (
+                  <SelectItem key={assignment.building_id} value={assignment.building_id}>
+                    {assignment.building_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
-      )}
-      
-      <ChatInput 
-        onSendMessage={handleSendMessage}
-        isLoading={isTyping}
-        disabled={buildings.length === 0}
-        placeholder={buildings.length === 0 ? 
-          "Keine Gebäude zugeordnet. Wenden Sie sich an die Verwaltung." : 
-          undefined}
-        setIsHelpOpen={setIsHelpOpen}
-      />
-      
-      {isHelpOpen && (
-        <HelpFab 
-          userType="weg_owner"
-          userName={profile?.first_name}
-          selectedBuildingId={selectedBuildingId}
-          onBuildingChange={setSelectedBuildingId}
-          isOpen={isHelpOpen}
-          setIsOpen={setIsHelpOpen}
+
+        {!hasStartedChat ? (
+          <WelcomeScreen 
+            userName={profile?.first_name}
+            userType="weg_owner"
+            onSuggestionClick={handleSendMessage}
+          />
+        ) : (
+          <div className="flex-1 pb-32">
+            <ScrollArea className="h-full">
+              <div className="py-4">
+                {messages.map((message) => (
+                  <ChatMessage key={message.id} message={message} />
+                ))}
+                
+                {isTyping && <TypingIndicator />}
+              </div>
+            </ScrollArea>
+          </div>
+        )}
+        
+        <ChatInput
+          onSendMessage={handleSendMessage}
+          isLoading={isTyping}
+          disabled={buildingAssignments.length === 0}
+          placeholder={buildingAssignments.length === 0 ? 
+            "Keine Gebäude zugeordnet. Wenden Sie sich an die Verwaltung." : 
+            undefined}
+          setIsHelpOpen={setIsHelpOpen}
         />
-      )}
+        
+        {isHelpOpen && (
+          <HelpFab 
+            userType="weg_owner"
+            userName={profile?.first_name}
+            isOpen={isHelpOpen}
+            setIsOpen={setIsHelpOpen}
+          />
+        )}
+      </div>
     </div>
   );
 };

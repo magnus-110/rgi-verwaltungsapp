@@ -86,10 +86,55 @@ export type Database = {
         }
         Relationships: []
       }
+      chatbot_messages: {
+        Row: {
+          building_id: string | null
+          content: string
+          created_at: string
+          id: string
+          management_mode: Database["public"]["Enums"]["app_role"]
+          metadata: Json | null
+          role: string
+          session_id: string
+          user_id: string
+        }
+        Insert: {
+          building_id?: string | null
+          content: string
+          created_at?: string
+          id?: string
+          management_mode: Database["public"]["Enums"]["app_role"]
+          metadata?: Json | null
+          role: string
+          session_id: string
+          user_id: string
+        }
+        Update: {
+          building_id?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          management_mode?: Database["public"]["Enums"]["app_role"]
+          metadata?: Json | null
+          role?: string
+          session_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chatbot_messages_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "chatbot_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chatbot_sessions: {
         Row: {
           building_id: string | null
           created_at: string
+          ended_at: string | null
           id: string
           management_mode: Database["public"]["Enums"]["management_mode"]
           started_at: string
@@ -99,6 +144,7 @@ export type Database = {
         Insert: {
           building_id?: string | null
           created_at?: string
+          ended_at?: string | null
           id?: string
           management_mode: Database["public"]["Enums"]["management_mode"]
           started_at?: string
@@ -108,6 +154,7 @@ export type Database = {
         Update: {
           building_id?: string | null
           created_at?: string
+          ended_at?: string | null
           id?: string
           management_mode?: Database["public"]["Enums"]["management_mode"]
           started_at?: string
