@@ -31,7 +31,7 @@ export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialog
     address: "",
     building_code: "",
     type: "weg",
-    manager_id: ""
+    manager_id: "unassigned"
   });
 
   useEffect(() => {
@@ -76,7 +76,7 @@ export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialog
       if (buildingError) throw buildingError;
 
       // Then assign the manager if one was selected
-      if (formData.manager_id) {
+      if (formData.manager_id && formData.manager_id !== "unassigned") {
         const { error: managerError } = await supabase
           .from("building_managers")
           .insert({
@@ -89,7 +89,7 @@ export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialog
 
       toast.success("Gebäude erfolgreich erstellt");
       setIsOpen(false);
-      setFormData({ name: "", address: "", building_code: "", type: "weg", manager_id: "" });
+      setFormData({ name: "", address: "", building_code: "", type: "weg", manager_id: "unassigned" });
       onBuildingCreated?.();
     } catch (error) {
       console.error("Error creating building:", error);
@@ -149,7 +149,7 @@ export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialog
                 <SelectValue placeholder="Admin-Account auswählen (optional)" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Keinen Verwalter zuweisen</SelectItem>
+                <SelectItem value="unassigned">Keinen Verwalter zuweisen</SelectItem>
                 {adminUsers.map((admin) => (
                   <SelectItem key={admin.user_id} value={admin.user_id}>
                     {admin.first_name && admin.last_name 
