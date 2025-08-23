@@ -1,3 +1,4 @@
+
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { AdminSidebar } from "./AdminSidebar";
@@ -51,10 +52,7 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
       </div>
       <SidebarProvider>
         <div className="min-h-screen flex w-full bg-background pt-16 md:pt-0 overflow-x-hidden">
-          <AdminSidebar 
-            managementMode={managementMode} 
-            onModeChange={setManagementMode} 
-          />
+          <AdminSidebar />
           <main className="flex-1 flex flex-col overflow-hidden min-w-0">
             <header className="h-16 border-b bg-background flex items-center px-4 shrink-0 hidden md:flex">
               <SidebarTrigger className="mr-4" />
