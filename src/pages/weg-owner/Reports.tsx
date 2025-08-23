@@ -11,7 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Plus, Upload, X, AlertCircle, FileText } from "lucide-react";
-import { notifyBuildingManagers } from "@/utils/reportNotifications";
+
 
 interface Report {
   id: string;
@@ -300,31 +300,8 @@ export const WegOwnerReports = () => {
 
       if (error) throw error;
 
-      // Send push notifications to building managers
-      if (reportForm.building_id) {
-        try {
-          // Get building name for notification
-          const { data: buildingData } = await supabase
-            .from("buildings")
-            .select("name")
-            .eq("id", reportForm.building_id)
-            .single();
-
-          if (buildingData) {
-            await notifyBuildingManagers({
-              reportId: data.id,
-              buildingId: reportForm.building_id,
-              buildingName: buildingData.name,
-              reportTitle: reportForm.title,
-              reportType: 'weg'
-            });
-            console.log('Notification sent to building managers');
-          }
-        } catch (notificationError) {
-          console.error('Error sending notifications:', notificationError);
-          // Don't fail the report creation if notifications fail
-        }
-      }
+      // Report erfolgreich erstellt - Benachrichtigungen sind derzeit deaktiviert
+      console.log('WEG report created successfully - notifications disabled');
 
       setReports(prev => [{ ...data, attachments: uploadedFiles }, ...prev]);
       

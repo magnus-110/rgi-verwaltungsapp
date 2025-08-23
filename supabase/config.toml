@@ -14,9 +14,3 @@ verify_jwt = true
 
 [functions.test-webhook]
 verify_jwt = true
-
-[functions.send-push-notification]
-verify_jwt = false
-
-[functions.generate-vapid-keys]
-verify_jwt = false

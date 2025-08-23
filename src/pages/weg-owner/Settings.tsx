@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Building2, Mail } from "lucide-react";
-import { PushNotificationToggle } from "@/components/PushNotificationToggle";
+
 
 interface WegOwnerBuilding {
   id: string;
@@ -240,7 +240,9 @@ export const WegOwnerSettings = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <PushNotificationToggle />
+          <p className="text-muted-foreground text-sm">
+            Push-Benachrichtigungen sind derzeit nicht verfügbar.
+          </p>
         </CardContent>
       </Card>
 

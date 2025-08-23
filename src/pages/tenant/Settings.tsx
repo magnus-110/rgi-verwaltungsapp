@@ -8,7 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { User, Lock, Mail } from "lucide-react";
-import { PushNotificationToggle } from "@/components/PushNotificationToggle";
+
 
 export const TenantSettings = () => {
   const { profile, updatePassword, fetchProfile } = useAuth();
@@ -218,7 +218,9 @@ export const TenantSettings = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <PushNotificationToggle />
+          <p className="text-muted-foreground text-sm">
+            Push-Benachrichtigungen sind derzeit nicht verfügbar.
+          </p>
         </CardContent>
       </Card>
 
