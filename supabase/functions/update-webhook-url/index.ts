@@ -84,20 +84,58 @@ Deno.serve(async (req) => {
     console.log('Webhook URL update requested:', webhookUrl)
     console.log('User requesting update:', user.email)
     
-    // Test the new webhook URL
+    // Retry-Konfiguration für URL-Test
+    const retryConfig = {
+      maxRetries: 2,
+      baseDelayMs: 1000,
+      maxDelayMs: 5000
+    }
+
+    async function testWebhookWithRetry(url: string, payload: any): Promise<Response> {
+      let lastError: Error;
+      
+      for (let attempt = 0; attempt <= retryConfig.maxRetries; attempt++) {
+        try {
+          console.log(`Webhook URL Test - Versuch ${attempt + 1}/${retryConfig.maxRetries + 1}`);
+          
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(payload)
+          });
+          
+          return response;
+          
+        } catch (error) {
+          lastError = error as Error;
+          console.error(`URL Test Versuch ${attempt + 1} fehlgeschlagen:`, error);
+          
+          if (attempt === retryConfig.maxRetries) {
+            throw lastError;
+          }
+          
+          const delay = Math.min(
+            retryConfig.baseDelayMs * Math.pow(2, attempt),
+            retryConfig.maxDelayMs
+          );
+          console.log(`Warte ${delay}ms vor nächstem Versuch`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+      
+      throw lastError!;
+    }
+
+    // Test the new webhook URL mit Retry-Logik
     try {
-      const testResponse = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          event: 'webhook_url_test',
-          message: 'Test-Nachricht zur Überprüfung der Webhook-URL',
-          timestamp: new Date().toISOString(),
-          requested_by: user.email
-        })
-      })
+      const testResponse = await testWebhookWithRetry(webhookUrl, {
+        event: 'webhook_url_test',
+        message: 'Test-Nachricht zur Überprüfung der Webhook-URL',
+        timestamp: new Date().toISOString(),
+        requested_by: user.email
+      });
 
       const responseText = await testResponse.text()
       
@@ -115,11 +153,11 @@ Deno.serve(async (req) => {
       )
 
     } catch (testError) {
-      console.error('Webhook test failed:', testError)
+      console.error('Webhook test failed after all retries:', testError)
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'Webhook URL ist nicht erreichbar',
+          error: 'Webhook URL ist nicht erreichbar nach mehreren Versuchen',
           details: testError.message
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

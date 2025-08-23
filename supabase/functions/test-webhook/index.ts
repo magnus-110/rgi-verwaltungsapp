@@ -126,7 +126,43 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Send test webhook
+    // Retry-Konfiguration
+    const retryConfig = {
+      maxRetries: 3,
+      baseDelayMs: 1000,
+      maxDelayMs: 10000,
+      retryableStatusCodes: [408, 429, 500, 502, 503, 504]
+    }
+
+    // Retry-Utility-Funktion
+    async function retryWebhook<T>(fn: () => Promise<T>, context: string): Promise<T> {
+      let lastError: Error;
+      
+      for (let attempt = 0; attempt <= retryConfig.maxRetries; attempt++) {
+        try {
+          console.log(`${context} - Versuch ${attempt + 1}/${retryConfig.maxRetries + 1}`);
+          return await fn();
+        } catch (error) {
+          lastError = error as Error;
+          console.error(`${context} - Versuch ${attempt + 1} fehlgeschlagen:`, error);
+          
+          if (attempt === retryConfig.maxRetries) {
+            throw lastError;
+          }
+          
+          const delay = Math.min(
+            retryConfig.baseDelayMs * Math.pow(2, attempt),
+            retryConfig.maxDelayMs
+          );
+          console.log(`${context} - Warte ${delay}ms vor nächstem Versuch`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+      
+      throw lastError!;
+    }
+
+    // Send test webhook mit Retry-Logik
     console.log('Sending test webhook to:', webhookUrl.substring(0, 50) + '...')
     
     const webhookPayload = {
@@ -139,47 +175,47 @@ Deno.serve(async (req) => {
     console.log('Webhook payload:', JSON.stringify(webhookPayload, null, 2))
     
     try {
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(webhookPayload)
-      })
+      const response = await retryWebhook(async () => {
+        const response = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(webhookPayload)
+        })
+        
+        if (!response.ok) {
+          const errorMsg = `HTTP ${response.status}: ${response.statusText}`;
+          const error = new Error(errorMsg);
+          (error as any).status = response.status;
+          throw error;
+        }
+        
+        return response;
+      }, 'Webhook-Test');
       
       console.log('Webhook response status:', response.status)
       const responseText = await response.text()
       console.log('Webhook response body:', responseText)
       
-      if (!response.ok) {
-        console.error(`Webhook test failed: ${response.status} ${response.statusText}`)
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: `HTTP ${response.status}: ${response.statusText}`,
-            response: responseText
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      } else {
-        console.log('Webhook test successful!')
-        return new Response(
-          JSON.stringify({
-            success: true,
-            message: 'Webhook test erfolgreich',
-            status: response.status,
-            statusText: response.statusText,
-            response: responseText
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
-      }
+      console.log('Webhook test successful!')
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: 'Webhook test erfolgreich',
+          status: response.status,
+          statusText: response.statusText,
+          response: responseText
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+      
     } catch (webhookError) {
-      console.error('Webhook connection error:', webhookError)
+      console.error('Webhook test failed after all retries:', webhookError)
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'Verbindungsfehler: ' + webhookError.message
+          error: 'Webhook-Test fehlgeschlagen: ' + webhookError.message
         }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
