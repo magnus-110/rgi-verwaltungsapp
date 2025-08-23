@@ -86,6 +86,36 @@ export type Database = {
         }
         Relationships: []
       }
+      chatbot_sessions: {
+        Row: {
+          building_id: string | null
+          created_at: string
+          id: string
+          management_mode: Database["public"]["Enums"]["management_mode"]
+          started_at: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          building_id?: string | null
+          created_at?: string
+          id?: string
+          management_mode: Database["public"]["Enums"]["management_mode"]
+          started_at?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          building_id?: string | null
+          created_at?: string
+          id?: string
+          management_mode?: Database["public"]["Enums"]["management_mode"]
+          started_at?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       chatbot_settings: {
         Row: {
           id: string

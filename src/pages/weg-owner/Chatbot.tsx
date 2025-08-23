@@ -123,6 +123,18 @@ export const WegOwnerChatbot = () => {
     // Start chat if it's the first message
     if (!hasStartedChat) {
       setHasStartedChat(true);
+      // Track session start
+      try {
+        await supabase
+          .from('chatbot_sessions')
+          .insert({
+            user_id: profile?.user_id,
+            management_mode: 'weg',
+            building_id: selectedBuildingId || null
+          });
+      } catch (error) {
+        console.error('Error tracking chat session:', error);
+      }
     }
 
     const userMessage: Message = {

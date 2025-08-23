@@ -14,7 +14,23 @@ serve(async (req) => {
   }
 
   try {
-    const { message, userId, managementMode, buildingId } = await req.json();
+    const { message, userId, managementMode, buildingId, healthCheck } = await req.json();
+
+    // Health check endpoint
+    if (healthCheck === true || message === '__healthcheck__') {
+      const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
+      if (openaiApiKey) {
+        return new Response(
+          JSON.stringify({ online: true, status: 'healthy' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } else {
+        return new Response(
+          JSON.stringify({ online: false, status: 'unhealthy', error: 'API key not configured' }),
+          { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
 
     if (!message || !userId || !managementMode) {
       return new Response(
