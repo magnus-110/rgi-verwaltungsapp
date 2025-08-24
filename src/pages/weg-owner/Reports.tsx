@@ -72,7 +72,8 @@ export const WegOwnerReports = () => {
         },
         (payload) => {
           console.log('New WEG report received:', payload);
-          setReports(prev => [payload.new as Report, ...prev]);
+          // Fetch reports to get complete data with proper relations
+          fetchReports();
         }
       )
       .on(
@@ -302,8 +303,6 @@ export const WegOwnerReports = () => {
 
       // Report erfolgreich erstellt - Benachrichtigungen sind derzeit deaktiviert
       console.log('WEG report created successfully - notifications disabled');
-
-      setReports(prev => [{ ...data, attachments: uploadedFiles }, ...prev]);
       
       // Reset form but keep contact info
       setReportForm(prev => ({ 

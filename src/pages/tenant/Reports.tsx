@@ -71,7 +71,8 @@ export const TenantReports = () => {
         },
         (payload) => {
           console.log('New tenant report received:', payload);
-          setReports(prev => [payload.new as Report, ...prev]);
+          // Fetch reports to get complete data with proper relations
+          fetchReports();
         }
       )
       .on(
