@@ -135,15 +135,15 @@ export const TenantReports = () => {
         .eq("user_id", profile?.user_id)
         .maybeSingle();
 
-      if (!tenantError && tenantData) {
+      if (!tenantError && tenantData && tenantData.buildings) {
         setTenantInfo(tenantData);
         setReportForm(prev => ({
           ...prev,
           contact_name: `${tenantData.first_name || ''} ${tenantData.last_name || ''}`.trim() || prev.contact_name,
           contact_email: tenantData.email || prev.contact_email,
-          contact_phone: tenantData.phone || '',
-          contact_address: tenantData.buildings?.address || '',
-          building_name: tenantData.buildings?.name || '',
+          contact_phone: tenantData.phone || prev.contact_phone,
+          contact_address: tenantData.buildings.address || prev.contact_address,
+          building_name: tenantData.buildings.name || prev.building_name,
         }));
       }
     } catch (error) {
@@ -240,8 +240,6 @@ export const TenantReports = () => {
 
       // Report erfolgreich erstellt - Benachrichtigungen sind derzeit deaktiviert
       console.log('Report created successfully - notifications disabled');
-
-      setReports(prev => [{ ...data, attachments: uploadedFiles }, ...prev]);
       setReportForm({ 
         title: "", 
         description: "", 
@@ -369,18 +367,6 @@ export const TenantReports = () => {
                   </div>
                 </div>
 
-                {/* Building Information */}
-                <div>
-                  <Label htmlFor="building_name">Gebäude</Label>
-                  <Input
-                    id="building_name"
-                    value={reportForm.building_name}
-                    onChange={(e) => setReportForm(prev => ({ ...prev, building_name: e.target.value }))}
-                    placeholder="Gebäudename"
-                    readOnly
-                    className="bg-muted"
-                  />
-                </div>
 
                 {/* Report Information */}
                 <div>
