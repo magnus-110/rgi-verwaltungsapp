@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,48 +11,57 @@ import { User, Lock, Mail } from "lucide-react";
 
 
 export const TenantSettings = () => {
-  const { profile, updatePassword, fetchProfile } = useAuth();
-  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+  const { profile, updatePassword } = useAuth();
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
-  
-  const [profileForm, setProfileForm] = useState({
-    first_name: profile?.first_name || "",
-    last_name: profile?.last_name || "",
-  });
-  
+  const [building, setBuilding] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
   });
 
-  const updateProfile = async () => {
-    setIsUpdatingProfile(true);
+  useEffect(() => {
+    if (profile?.user_id) {
+      fetchBuildingInfo();
+    }
+  }, [profile?.user_id]);
+
+  const fetchBuildingInfo = async () => {
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          first_name: profileForm.first_name,
-          last_name: profileForm.last_name,
-        })
-        .eq("user_id", profile?.user_id);
-
-      if (error) throw error;
-
-      await fetchProfile();
-      toast({
-        title: "Erfolg",
-        description: "Profil wurde erfolgreich aktualisiert.",
-      });
-    } catch (error: any) {
-      console.error("Error updating profile:", error);
-      toast({
-        title: "Fehler",
-        description: "Profil konnte nicht aktualisiert werden.",
-        variant: "destructive",
-      });
+      let buildingId = null;
+      
+      // First try to get building_id from profile
+      if ((profile as any)?.building_id) {
+        buildingId = (profile as any).building_id;
+      } else {
+        // Fallback: get building_id from tenants table
+        const { data: tenantData, error: tenantError } = await supabase
+          .from("tenants")
+          .select("building_id")
+          .eq("user_id", profile?.user_id)
+          .maybeSingle();
+          
+        if (!tenantError && tenantData) {
+          buildingId = tenantData.building_id;
+        }
+      }
+      
+      if (buildingId) {
+        const { data: buildingData, error: buildingError } = await supabase
+          .from("buildings")
+          .select("id, name, address")
+          .eq("id", buildingId)
+          .maybeSingle();
+          
+        if (!buildingError && buildingData) {
+          setBuilding(buildingData);
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching building info:", error);
     } finally {
-      setIsUpdatingProfile(false);
+      setIsLoading(false);
     }
   };
 
@@ -103,62 +112,34 @@ export const TenantSettings = () => {
         </p>
       </div>
 
-      {/* Profile Settings */}
+      {/* Building Information */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <User className="h-5 w-5" />
-            Profil
+            Gebäude-Verwaltung
           </CardTitle>
           <CardDescription>
-            Aktualisieren Sie Ihre persönlichen Informationen
+            Informationen zu Ihrem zugewiesenen Gebäude
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="firstName">Vorname</Label>
-              <Input
-                id="firstName"
-                value={profileForm.first_name}
-                onChange={(e) => setProfileForm(prev => ({ ...prev, first_name: e.target.value }))}
-                placeholder="Ihr Vorname"
-              />
+          {isLoading ? (
+            <p className="text-muted-foreground">Lade Gebäudeinformationen...</p>
+          ) : building ? (
+            <div className="space-y-2">
+              <div>
+                <Label className="text-sm font-medium">Gebäude</Label>
+                <p className="text-sm text-muted-foreground">{building.name}</p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Adresse</Label>
+                <p className="text-sm text-muted-foreground">{building.address}</p>
+              </div>
             </div>
-            <div>
-              <Label htmlFor="lastName">Nachname</Label>
-              <Input
-                id="lastName"
-                value={profileForm.last_name}
-                onChange={(e) => setProfileForm(prev => ({ ...prev, last_name: e.target.value }))}
-                placeholder="Ihr Nachname"
-              />
-            </div>
-          </div>
-          
-          <div>
-            <Label htmlFor="email">E-Mail-Adresse</Label>
-            <div className="flex items-center gap-2">
-              <Mail className="h-4 w-4 text-muted-foreground" />
-              <Input
-                id="email"
-                value={profile?.email || ""}
-                disabled
-                className="bg-muted"
-              />
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Die E-Mail-Adresse kann nicht geändert werden.
-            </p>
-          </div>
-
-          <Button 
-            onClick={updateProfile} 
-            disabled={isUpdatingProfile}
-            className="w-full md:w-auto"
-          >
-            {isUpdatingProfile ? "Wird gespeichert..." : "Profil speichern"}
-          </Button>
+          ) : (
+            <p className="text-muted-foreground">Kein Gebäude zugewiesen.</p>
+          )}
         </CardContent>
       </Card>
 
@@ -207,29 +188,6 @@ export const TenantSettings = () => {
       </Card>
 
 
-      {/* Account Information */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Kontoinformationen</CardTitle>
-          <CardDescription>
-            Informationen über Ihr Konto
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label className="text-sm font-medium">Rolle</Label>
-              <p className="text-sm text-muted-foreground">Mieter</p>
-            </div>
-            <div>
-              <Label className="text-sm font-medium">Konto erstellt</Label>
-              <p className="text-sm text-muted-foreground">
-                Unbekannt
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 };
