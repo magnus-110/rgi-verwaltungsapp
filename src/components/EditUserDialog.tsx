@@ -71,7 +71,7 @@ export const EditUserDialog = ({
             phone: formData.phone,
             updated_at: new Date().toISOString()
           })
-          .eq("id", user.id);
+          .eq("user_id", user.user_id);
 
         if (error) throw error;
       } else if (userType === 'weg_owners') {
@@ -84,7 +84,7 @@ export const EditUserDialog = ({
             phone: formData.phone,
             updated_at: new Date().toISOString()
           })
-          .eq("id", user.id);
+          .eq("user_id", user.user_id);
 
         if (error) throw error;
       } else if (userType === 'profiles') {
@@ -98,7 +98,7 @@ export const EditUserDialog = ({
             role: formData.role,
             updated_at: new Date().toISOString()
           })
-          .eq("id", user.id);
+          .eq("user_id", user.user_id);
 
         if (error) throw error;
       }
