@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { MessageSquare, User, FileText } from "lucide-react";
+import { MessageSquare, User, FileText, Calendar } from "lucide-react";
+import { format } from "date-fns";
 
 interface ForumPost {
   id: string;
@@ -92,82 +93,76 @@ export const TenantForum = () => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-4xl font-bold tracking-tight">Schwarzes Brett</h1>
-        <p className="text-lg text-muted-foreground">
-          Lesen Sie Beiträge von der Hausverwaltung
-        </p>
-      </div>
+    <div className="min-h-screen bg-background p-6">
+      <div className="max-w-2xl mx-auto space-y-8">
+        {/* Header */}
+        <div className="text-center space-y-4 py-8">
+          <h1 className="text-4xl font-light text-foreground">Schwarzes Brett</h1>
+          <p className="text-lg text-muted-foreground">
+            Nachrichten und Ankündigungen
+          </p>
+        </div>
 
-      {/* Posts */}
-      <div className="space-y-4">
+        {/* Posts */}
         {posts.length === 0 ? (
-          <Card>
-            <CardContent className="text-center py-8">
+          <Card className="border-0 shadow-sm bg-white">
+            <CardContent className="p-8 text-center">
               <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-muted-foreground">Noch keine Beiträge vorhanden.</p>
+              <h3 className="text-lg font-medium mb-2">Keine Beiträge vorhanden</h3>
+              <p className="text-muted-foreground">
+                Es gibt noch keine Schwarzes Brett-Beiträge.
+              </p>
             </CardContent>
           </Card>
         ) : (
-          posts.map((post) => (
-            <Card key={post.id}>
-              <CardHeader>
-                <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="text-xl">{post.title}</CardTitle>
-                    <CardDescription className="mt-2 flex items-center gap-2">
-                      <User className="h-4 w-4" />
-                      Hausverwaltung • {new Date(post.created_at).toLocaleDateString('de-DE')}
-                    </CardDescription>
-                  </div>
-                  <Badge variant="outline">
-                    <MessageSquare className="h-3 w-3 mr-1" />
-                    Schwarzes Brett
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="max-w-none text-left">
-                  {post.content.split('\n').map((paragraph, index) => (
-                    <p key={index} className="mb-3 last:mb-0 text-left">
-                      {paragraph}
-                    </p>
-                  ))}
-                </div>
-                {/* Render attachments if available */}
-                {post.attachments && post.attachments.length > 0 && (
-                  <div className="mt-4">
-                    <p className="text-sm font-medium mb-2">Anhänge:</p>
-                    <div className="flex flex-wrap gap-2">
-                      {post.attachments.map((attachment: any, index: number) => (
-                        <Button
-                          key={index}
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            supabase.storage
-                              .from('forum-attachments')
-                              .createSignedUrl(attachment.path, 3600)
-                              .then(({ data }) => {
-                                if (data?.signedUrl) {
-                                  window.open(data.signedUrl, '_blank');
-                                }
-                              });
-                          }}
-                          className="h-8 text-xs"
-                        >
-                          <FileText className="h-3 w-3 mr-1" />
-                          {attachment.name}
-                        </Button>
-                      ))}
+          <div className="space-y-6">
+            {posts.map((post) => (
+              <Card key={post.id} className="border-0 shadow-sm bg-white">
+                <CardContent className="p-6">
+                  <div className="space-y-4">
+                    <div className="text-left">
+                      <h3 className="text-lg font-medium text-foreground text-left">{post.title}</h3>
+                      <p className="text-sm text-muted-foreground text-left">
+                        {format(new Date(post.created_at), 'dd.MM.yyyy HH:mm')}
+                      </p>
                     </div>
+                    
+                    <div className="text-left">
+                      <p className="text-muted-foreground whitespace-pre-wrap text-left">{post.content}</p>
+                    </div>
+                    
+                    {post.attachments && post.attachments.length > 0 && (
+                      <div className="text-center space-y-2">
+                        <p className="text-sm font-medium">Anhänge:</p>
+                        <div className="flex flex-wrap gap-2 justify-center">
+                          {post.attachments.map((attachment: any, index: number) => (
+                            <Button
+                              key={index}
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                supabase.storage
+                                  .from('forum-attachments')
+                                  .createSignedUrl(attachment.path, 3600)
+                                  .then(({ data }) => {
+                                    if (data?.signedUrl) {
+                                      window.open(data.signedUrl, '_blank');
+                                    }
+                                  });
+                              }}
+                            >
+                              <FileText className="h-3 w-3 mr-1" />
+                              {attachment.name}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )}
-              </CardContent>
-            </Card>
-          ))
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         )}
       </div>
     </div>
