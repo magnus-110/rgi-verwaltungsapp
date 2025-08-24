@@ -99,12 +99,6 @@ export const TenantForum = () => {
         <p className="text-lg text-muted-foreground">
           Lesen Sie Beiträge von der Hausverwaltung
         </p>
-        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-          <p className="text-sm text-orange-800">
-            <strong>Hinweis:</strong> Als Mieter können Sie Schwarzes Brett-Beiträge nur lesen. 
-            Neue Beiträge können nur von Administratoren erstellt werden.
-          </p>
-        </div>
       </div>
 
       {/* Posts */}

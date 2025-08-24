@@ -228,23 +228,6 @@ export const WegOwnerSettings = () => {
         </CardContent>
       </Card>
 
-      {/* Notification Settings */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Mail className="h-5 w-5" />
-            Benachrichtigungen
-          </CardTitle>
-          <CardDescription>
-            Verwalten Sie Ihre Benachrichtigungseinstellungen
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-muted-foreground text-sm">
-            Push-Benachrichtigungen sind derzeit nicht verfügbar.
-          </p>
-        </CardContent>
-      </Card>
 
     </div>
   );

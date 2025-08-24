@@ -201,7 +201,7 @@ export const Login = () => {
         </Card>
 
         <p className="text-center mt-4 text-sm text-muted-foreground">
-          Bei Problemen wenden Sie sich an Ihren Administrator
+          Bei Log-in Problemen wenden Sie sich an Ihren Verwalter
         </p>
       </div>
     </div>
