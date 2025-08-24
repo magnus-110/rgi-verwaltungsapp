@@ -29,19 +29,78 @@ export const DeleteBuildingDialog = ({
     setIsLoading(true);
 
     try {
-      const { error } = await supabase
+      // Delete all related data in sequence to avoid foreign key constraints
+      
+      // 1. Delete forum posts
+      const { error: forumError } = await supabase
+        .from("forum_posts")
+        .delete()
+        .eq("building_id", buildingId);
+      
+      if (forumError) throw forumError;
+
+      // 2. Delete WEG reports
+      const { error: wegReportsError } = await supabase
+        .from("weg_reports")
+        .delete()
+        .eq("building_id", buildingId);
+      
+      if (wegReportsError) throw wegReportsError;
+
+      // 3. Delete miete reports
+      const { error: mieteReportsError } = await supabase
+        .from("miete_reports")
+        .delete()
+        .eq("building_id", buildingId);
+      
+      if (mieteReportsError) throw mieteReportsError;
+
+      // 4. Delete building managers
+      const { error: managersError } = await supabase
+        .from("building_managers")
+        .delete()
+        .eq("building_id", buildingId);
+      
+      if (managersError) throw managersError;
+
+      // 5. Delete tenant assignments
+      const { error: tenantsError } = await supabase
+        .from("tenants")
+        .delete()
+        .eq("building_id", buildingId);
+      
+      if (tenantsError) throw tenantsError;
+
+      // 6. Delete WEG owner building assignments
+      const { error: wegOwnersError } = await supabase
+        .from("weg_owner_buildings")
+        .delete()
+        .eq("building_id", buildingId);
+      
+      if (wegOwnersError) throw wegOwnersError;
+
+      // 7. Update profiles to remove building_id reference
+      const { error: profilesError } = await supabase
+        .from("profiles")
+        .update({ building_id: null })
+        .eq("building_id", buildingId);
+      
+      if (profilesError) throw profilesError;
+
+      // 8. Finally delete the building
+      const { error: buildingError } = await supabase
         .from("buildings")
         .delete()
         .eq("id", buildingId);
 
-      if (error) throw error;
+      if (buildingError) throw buildingError;
 
-      toast.success("Gebäude erfolgreich gelöscht");
+      toast.success("Gebäude und alle zugehörigen Daten erfolgreich gelöscht");
       onDelete();
       onClose();
     } catch (error) {
       console.error("Error deleting building:", error);
-      toast.error("Fehler beim Löschen des Gebäudes");
+      toast.error("Fehler beim Löschen des Gebäudes: " + (error?.message || "Unbekannter Fehler"));
     } finally {
       setIsLoading(false);
     }
