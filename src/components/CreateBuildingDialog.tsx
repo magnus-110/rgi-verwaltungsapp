@@ -76,6 +76,11 @@ export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialog
     setIsLoading(true);
 
     try {
+      // If building code is empty or conflicts, generate a new one
+      if (!formData.building_code) {
+        await generateBuildingCode();
+      }
+
       // First create the building
       const { data: buildingData, error: buildingError } = await supabase
         .from("buildings")
@@ -89,18 +94,52 @@ export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialog
         .select()
         .single();
 
-      if (buildingError) throw buildingError;
+      if (buildingError) {
+        // If it's a duplicate key error, generate a new code and retry
+        if (buildingError.code === '23505' && buildingError.message.includes('buildings_building_code_key')) {
+          await generateBuildingCode();
+          
+          // Retry with new building code
+          const { data: retryBuildingData, error: retryError } = await supabase
+            .from("buildings")
+            .insert({
+              name: formData.name,
+              address: formData.address,
+              building_code: formData.building_code,
+              management_mode: managementMode,
+              type: formData.type
+            })
+            .select()
+            .single();
 
-      // Then assign the manager if one was selected
-      if (formData.manager_id && formData.manager_id !== "unassigned") {
-        const { error: managerError } = await supabase
-          .from("building_managers")
-          .insert({
-            building_id: buildingData.id,
-            user_id: formData.manager_id
-          });
+          if (retryError) throw retryError;
+          
+          // Use the retry data for manager assignment
+          if (formData.manager_id && formData.manager_id !== "unassigned") {
+            const { error: managerError } = await supabase
+              .from("building_managers")
+              .insert({
+                building_id: retryBuildingData.id,
+                user_id: formData.manager_id
+              });
 
-        if (managerError) throw managerError;
+            if (managerError) throw managerError;
+          }
+        } else {
+          throw buildingError;
+        }
+      } else {
+        // Then assign the manager if one was selected
+        if (formData.manager_id && formData.manager_id !== "unassigned") {
+          const { error: managerError } = await supabase
+            .from("building_managers")
+            .insert({
+              building_id: buildingData.id,
+              user_id: formData.manager_id
+            });
+
+          if (managerError) throw managerError;
+        }
       }
 
       toast.success("Gebäude erfolgreich erstellt");
