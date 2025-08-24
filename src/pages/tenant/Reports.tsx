@@ -12,7 +12,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Plus, AlertCircle, Upload, X, FileText } from "lucide-react";
 
-
 interface Report {
   id: string;
   title: string;
@@ -99,6 +98,8 @@ export const TenantReports = () => {
 
   const fetchTenantInfo = async () => {
     try {
+      console.log('Starting fetchTenantInfo for user:', profile?.user_id);
+      
       // Pre-fill contact info from profile
       const profileWithPhone = profile as any;
       setReportForm(prev => ({
@@ -108,8 +109,10 @@ export const TenantReports = () => {
         contact_phone: profileWithPhone?.phone || '',
       }));
 
-      // Try to get building info from profile first
+      // Path 1: Try to get building info from profile first
       const profileWithBuilding = profile as any;
+      console.log('Profile building_id:', profileWithBuilding?.building_id);
+      
       if (profileWithBuilding?.building_id) {
         const { data: buildingData, error: buildingError } = await supabase
           .from("buildings")
@@ -117,34 +120,60 @@ export const TenantReports = () => {
           .eq("id", profileWithBuilding.building_id)
           .single();
 
+        console.log('Building data from profile path:', { buildingData, buildingError });
+
         if (!buildingError && buildingData) {
-          setTenantInfo({ buildings: buildingData });
+          setTenantInfo({ 
+            building_id: profileWithBuilding.building_id,
+            buildings: buildingData 
+          });
           setReportForm(prev => ({
             ...prev,
             contact_address: buildingData.address || '',
             building_name: buildingData.name || '',
           }));
+          console.log('Successfully loaded building data via profile path');
           return;
         }
       }
 
-      // Fallback: try to get from tenants table
+      // Path 2: Fallback to tenants table
+      console.log('Trying tenants table fallback');
       const { data: tenantData, error: tenantError } = await supabase
         .from("tenants")
-        .select("*, buildings(id, name, address)")
+        .select("*")
         .eq("user_id", profile?.user_id)
         .maybeSingle();
 
-      if (!tenantError && tenantData && tenantData.buildings) {
-        setTenantInfo(tenantData);
-        setReportForm(prev => ({
-          ...prev,
-          contact_name: `${tenantData.first_name || ''} ${tenantData.last_name || ''}`.trim() || prev.contact_name,
-          contact_email: tenantData.email || prev.contact_email,
-          contact_phone: tenantData.phone || prev.contact_phone,
-          contact_address: tenantData.buildings.address || prev.contact_address,
-          building_name: tenantData.buildings.name || prev.building_name,
-        }));
+      console.log('Tenant data:', { tenantData, tenantError });
+
+      if (!tenantError && tenantData && tenantData.building_id) {
+        // Now fetch the building separately
+        const { data: buildingData, error: buildingError } = await supabase
+          .from("buildings")
+          .select("id, name, address")
+          .eq("id", tenantData.building_id)
+          .single();
+
+        console.log('Building data from tenants path:', { buildingData, buildingError });
+
+        if (!buildingError && buildingData) {
+          const combinedTenantInfo = {
+            ...tenantData,
+            buildings: buildingData
+          };
+          
+          setTenantInfo(combinedTenantInfo);
+          setReportForm(prev => ({
+            ...prev,
+            contact_name: `${tenantData.first_name || ''} ${tenantData.last_name || ''}`.trim() || prev.contact_name,
+            contact_email: tenantData.email || prev.contact_email,
+            contact_phone: tenantData.phone || prev.contact_phone,
+            contact_address: buildingData.address || prev.contact_address,
+            building_name: buildingData.name || prev.building_name,
+          }));
+          console.log('Successfully loaded building data via tenants path');
+        }
       }
     } catch (error) {
       console.error("Error fetching tenant info:", error);
@@ -219,13 +248,17 @@ export const TenantReports = () => {
       // Upload attachments first
       const uploadedFiles = await uploadAttachments();
       
+      // Use building_id from tenantInfo
+      const buildingId = tenantInfo?.building_id || (profile as any)?.building_id || null;
+      console.log('Creating report with building_id:', buildingId);
+      
       const { data, error } = await supabase
         .from("miete_reports")
         .insert([{
           title: reportForm.title,
           description: reportForm.description,
           reported_by: profile?.user_id,
-          building_id: tenantInfo?.building_id,
+          building_id: buildingId,
           contact_name: reportForm.contact_name,
           contact_email: reportForm.contact_email,
           contact_phone: reportForm.contact_phone,
@@ -243,9 +276,9 @@ export const TenantReports = () => {
       setReportForm({ 
         title: "", 
         description: "", 
-        contact_name: `${tenantInfo?.first_name || ''} ${tenantInfo?.last_name || ''}`.trim(),
-        contact_email: tenantInfo?.email || '',
-        contact_phone: tenantInfo?.phone || '',
+        contact_name: `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim(),
+        contact_email: profile?.email || '',
+        contact_phone: (profile as any)?.phone || '',
         contact_address: tenantInfo?.buildings?.address || '',
         building_name: tenantInfo?.buildings?.name || '',
       });
@@ -290,6 +323,15 @@ export const TenantReports = () => {
     }
   };
 
+  // Handle dialog open to refresh tenant info
+  const handleDialogOpen = (open: boolean) => {
+    setIsCreateReportOpen(open);
+    if (open && profile) {
+      // Refresh tenant info when dialog opens
+      fetchTenantInfo();
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -311,7 +353,7 @@ export const TenantReports = () => {
 
         {/* Create Button */}
         <div className="text-center">
-          <Dialog open={isCreateReportOpen} onOpenChange={setIsCreateReportOpen}>
+          <Dialog open={isCreateReportOpen} onOpenChange={handleDialogOpen}>
             <DialogTrigger asChild>
               <Button className="bg-primary text-primary-foreground hover:bg-primary/90 text-base px-8 py-3 rounded-full shadow-sm">
                 <Plus className="h-5 w-5 mr-2" />
@@ -366,7 +408,6 @@ export const TenantReports = () => {
                     />
                   </div>
                 </div>
-
 
                 {/* Report Information */}
                 <div>
