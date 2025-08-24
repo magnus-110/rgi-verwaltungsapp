@@ -225,7 +225,7 @@ export const TenantDashboard = () => {
                 </div>
               </div>
               <div className="text-xs text-muted-foreground">
-                <div>Mo-Fr: 09:00 - 17:00 Uhr</div>
+                <div>Tel. erreichbar: 10:00-15:00 Uhr</div>
                 <div>Termine nach Vereinbarung</div>
               </div>
             </div>

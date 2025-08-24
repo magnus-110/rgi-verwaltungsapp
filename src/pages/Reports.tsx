@@ -9,12 +9,17 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "@/hooks/use-toast";
-import { Filter, ChevronDown, ChevronUp, FileText, Download, Edit, Copy } from "lucide-react";
+import { Filter, ChevronDown, ChevronUp, FileText, Download, Edit, Copy, CalendarIcon } from "lucide-react";
 import { useManagementMode } from "@/hooks/useManagementMode";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { EditReportDialog } from "@/components/reports/EditReportDialog";
 import { ReportTemplatesManager } from "@/components/ReportTemplatesManager";
+import { format } from "date-fns";
+import { de } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 import * as XLSX from 'xlsx';
 
 interface Report {
@@ -67,7 +72,8 @@ export const Reports = () => {
   const [activeTab, setActiveTab] = useState("reports");
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [exportFilters, setExportFilters] = useState({
-    timeRange: "all",
+    startDate: undefined as Date | undefined,
+    endDate: undefined as Date | undefined,
     building: "all",
     status: "all"
   });
@@ -312,27 +318,14 @@ Beschreibung: ${report.description}`;
     // Apply export filters
     let allReports = [...openReports, ...inProgressReports];
     
-    // Filter by time range
-    if (exportFilters.timeRange !== "all") {
-      const now = new Date();
-      let startDate = new Date();
-      
-      switch (exportFilters.timeRange) {
-        case "today":
-          startDate.setHours(0, 0, 0, 0);
-          break;
-        case "week":
-          startDate.setDate(now.getDate() - 7);
-          break;
-        case "month":
-          startDate.setMonth(now.getMonth() - 1);
-          break;
-        case "year":
-          startDate.setFullYear(now.getFullYear() - 1);
-          break;
-      }
-      
-      allReports = allReports.filter(report => new Date(report.created_at) >= startDate);
+    // Filter by date range
+    if (exportFilters.startDate || exportFilters.endDate) {
+      allReports = allReports.filter(report => {
+        const reportDate = new Date(report.created_at);
+        const startOk = !exportFilters.startDate || reportDate >= exportFilters.startDate;
+        const endOk = !exportFilters.endDate || reportDate <= exportFilters.endDate;
+        return startOk && endOk;
+      });
     }
     
     // Filter by building
@@ -689,28 +682,73 @@ Beschreibung: ${report.description}`;
 
         {/* Export Dialog */}
         <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
-          <DialogContent>
+          <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Meldungen exportieren</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label>Zeitraum</Label>
-                <Select 
-                  value={exportFilters.timeRange} 
-                  onValueChange={(value) => setExportFilters(prev => ({ ...prev, timeRange: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Alle</SelectItem>
-                    <SelectItem value="today">Heute</SelectItem>
-                    <SelectItem value="week">Diese Woche</SelectItem>
-                    <SelectItem value="month">Diesen Monat</SelectItem>
-                    <SelectItem value="year">Dieses Jahr</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Von Datum</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !exportFilters.startDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {exportFilters.startDate ? (
+                          format(exportFilters.startDate, "PPP", { locale: de })
+                        ) : (
+                          <span>Datum wählen</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={exportFilters.startDate}
+                        onSelect={(date) => setExportFilters(prev => ({ ...prev, startDate: date }))}
+                        initialFocus
+                        locale={de}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Bis Datum</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !exportFilters.endDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {exportFilters.endDate ? (
+                          format(exportFilters.endDate, "PPP", { locale: de })
+                        ) : (
+                          <span>Datum wählen</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={exportFilters.endDate}
+                        onSelect={(date) => setExportFilters(prev => ({ ...prev, endDate: date }))}
+                        initialFocus
+                        locale={de}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
               
               <div className="space-y-2">
@@ -743,10 +781,9 @@ Beschreibung: ${report.description}`;
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Alle Status</SelectItem>
+                    <SelectItem value="all">Alle</SelectItem>
                     <SelectItem value="open">Offen</SelectItem>
                     <SelectItem value="in_progress">Bearbeitet</SelectItem>
-                    <SelectItem value="resolved">Erledigt</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

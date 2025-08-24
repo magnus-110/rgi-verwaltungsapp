@@ -4,14 +4,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UserPlus } from "lucide-react";
+import { UserPlus, Edit, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+
+interface AdminUser {
+  user_id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string;
+}
 
 export const Settings = () => {
   const { profile, fetchProfile } = useAuth();
@@ -27,6 +35,36 @@ export const Settings = () => {
   const [newAdminLastName, setNewAdminLastName] = useState("");
   const [newAdminPassword, setNewAdminPassword] = useState("");
   const [isCreatingAdmin, setIsCreatingAdmin] = useState(false);
+  
+  // Admin management states
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
+  const [editingAdmin, setEditingAdmin] = useState<AdminUser | null>(null);
+  const [editAdminData, setEditAdminData] = useState({
+    first_name: "",
+    last_name: "",
+    email: ""
+  });
+
+  useEffect(() => {
+    if (profile?.role === 'admin') {
+      fetchAdminUsers();
+    }
+  }, [profile]);
+
+  const fetchAdminUsers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("user_id, first_name, last_name, email")
+        .eq("role", "admin")
+        .order("first_name");
+
+      if (error) throw error;
+      setAdminUsers(data || []);
+    } catch (error) {
+      console.error("Error fetching admin users:", error);
+    }
+  };
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,11 +161,53 @@ export const Settings = () => {
       setNewAdminFirstName("");
       setNewAdminLastName("");
       setNewAdminPassword("");
+      fetchAdminUsers(); // Refresh the admin list
     } catch (error: any) {
       console.error("Unexpected error creating admin:", error);
       toast.error(`Unerwarteter Fehler: ${error?.message || 'Unbekannter Fehler'}`);
     } finally {
       setIsCreatingAdmin(false);
+    }
+  };
+
+  const handleEditAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAdmin) return;
+
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          first_name: editAdminData.first_name,
+          last_name: editAdminData.last_name,
+          email: editAdminData.email
+        })
+        .eq("user_id", editingAdmin.user_id);
+
+      if (error) throw error;
+
+      toast.success("Admin erfolgreich aktualisiert");
+      setEditingAdmin(null);
+      fetchAdminUsers();
+    } catch (error) {
+      console.error("Error updating admin:", error);
+      toast.error("Fehler beim Aktualisieren des Admins");
+    }
+  };
+
+  const handleDeleteAdmin = async (adminId: string) => {
+    if (!confirm("Sind Sie sicher, dass Sie diesen Admin löschen möchten?")) return;
+
+    try {
+      const { error } = await supabase.auth.admin.deleteUser(adminId);
+
+      if (error) throw error;
+
+      toast.success("Admin erfolgreich gelöscht");
+      fetchAdminUsers();
+    } catch (error) {
+      console.error("Error deleting admin:", error);
+      toast.error("Fehler beim Löschen des Admins");
     }
   };
 
@@ -232,70 +312,175 @@ export const Settings = () => {
 
           {/* Admin Management - nur für Admins */}
           {profile.role === 'admin' && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <UserPlus className="w-5 h-5" />
-                  Administrator verwalten
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleCreateAdmin} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <UserPlus className="w-5 h-5" />
+                    Administrator erstellen
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleCreateAdmin} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="newAdminFirstName">Vorname</Label>
+                        <Input
+                          id="newAdminFirstName"
+                          value={newAdminFirstName}
+                          onChange={(e) => setNewAdminFirstName(e.target.value)}
+                          placeholder="Vorname des neuen Admins"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="newAdminLastName">Nachname</Label>
+                        <Input
+                          id="newAdminLastName"
+                          value={newAdminLastName}
+                          onChange={(e) => setNewAdminLastName(e.target.value)}
+                          placeholder="Nachname des neuen Admins"
+                          required
+                        />
+                      </div>
+                    </div>
                     <div>
-                      <Label htmlFor="newAdminFirstName">Vorname</Label>
+                      <Label htmlFor="newAdminEmail">E-Mail</Label>
                       <Input
-                        id="newAdminFirstName"
-                        value={newAdminFirstName}
-                        onChange={(e) => setNewAdminFirstName(e.target.value)}
-                        placeholder="Vorname des neuen Admins"
+                        id="newAdminEmail"
+                        type="email"
+                        value={newAdminEmail}
+                        onChange={(e) => setNewAdminEmail(e.target.value)}
+                        placeholder="E-Mail des neuen Admins"
                         required
                       />
                     </div>
                     <div>
-                      <Label htmlFor="newAdminLastName">Nachname</Label>
+                      <Label htmlFor="newAdminPassword">Temporäres Passwort</Label>
                       <Input
-                        id="newAdminLastName"
-                        value={newAdminLastName}
-                        onChange={(e) => setNewAdminLastName(e.target.value)}
-                        placeholder="Nachname des neuen Admins"
+                        id="newAdminPassword"
+                        type="password"
+                        value={newAdminPassword}
+                        onChange={(e) => setNewAdminPassword(e.target.value)}
+                        placeholder="Temporäres Passwort"
                         required
                       />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Der neue Admin sollte das Passwort nach der ersten Anmeldung ändern
+                      </p>
                     </div>
+                    <Button type="submit" disabled={isCreatingAdmin}>
+                      {isCreatingAdmin ? "Erstellen..." : "Admin erstellen"}
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Administrator verwalten</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {adminUsers.map((admin) => (
+                      <div key={admin.user_id} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div>
+                          <div className="font-medium">
+                            {admin.first_name && admin.last_name 
+                              ? `${admin.first_name} ${admin.last_name}`
+                              : admin.email
+                            }
+                          </div>
+                          <div className="text-sm text-muted-foreground">{admin.email}</div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setEditingAdmin(admin);
+                              setEditAdminData({
+                                first_name: admin.first_name || "",
+                                last_name: admin.last_name || "",
+                                email: admin.email
+                              });
+                            }}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteAdmin(admin.user_id)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {adminUsers.length === 0 && (
+                      <p className="text-center text-muted-foreground py-4">
+                        Keine Administrator-Accounts gefunden
+                      </p>
+                    )}
                   </div>
-                  <div>
-                    <Label htmlFor="newAdminEmail">E-Mail</Label>
-                    <Input
-                      id="newAdminEmail"
-                      type="email"
-                      value={newAdminEmail}
-                      onChange={(e) => setNewAdminEmail(e.target.value)}
-                      placeholder="E-Mail des neuen Admins"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="newAdminPassword">Temporäres Passwort</Label>
-                    <Input
-                      id="newAdminPassword"
-                      type="password"
-                      value={newAdminPassword}
-                      onChange={(e) => setNewAdminPassword(e.target.value)}
-                      placeholder="Temporäres Passwort"
-                      required
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Der neue Admin sollte das Passwort nach der ersten Anmeldung ändern
-                    </p>
-                  </div>
-                  <Button type="submit" disabled={isCreatingAdmin}>
-                    {isCreatingAdmin ? "Erstellen..." : "Admin erstellen"}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </>
           )}
         </div>
+
+        {/* Edit Admin Dialog */}
+        <Dialog open={!!editingAdmin} onOpenChange={() => setEditingAdmin(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Administrator bearbeiten</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleEditAdmin} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="editFirstName">Vorname</Label>
+                  <Input
+                    id="editFirstName"
+                    value={editAdminData.first_name}
+                    onChange={(e) => setEditAdminData(prev => ({ ...prev, first_name: e.target.value }))}
+                    placeholder="Vorname"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="editLastName">Nachname</Label>
+                  <Input
+                    id="editLastName"
+                    value={editAdminData.last_name}
+                    onChange={(e) => setEditAdminData(prev => ({ ...prev, last_name: e.target.value }))}
+                    placeholder="Nachname"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="editEmail">E-Mail</Label>
+                <Input
+                  id="editEmail"
+                  type="email"
+                  value={editAdminData.email}
+                  onChange={(e) => setEditAdminData(prev => ({ ...prev, email: e.target.value }))}
+                  placeholder="E-Mail"
+                  required
+                />
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button type="button" variant="outline" onClick={() => setEditingAdmin(null)}>
+                  Abbrechen
+                </Button>
+                <Button type="submit">
+                  Speichern
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
