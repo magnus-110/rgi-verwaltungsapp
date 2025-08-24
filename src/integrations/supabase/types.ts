@@ -586,6 +586,12 @@ export type Database = {
         Args: { building_id_param: string }
         Returns: number
       }
+      generate_building_code: {
+        Args: {
+          management_mode_param: Database["public"]["Enums"]["management_mode"]
+        }
+        Returns: string
+      }
       get_building_manager_names: {
         Args: { building_id_param: string }
         Returns: string[]

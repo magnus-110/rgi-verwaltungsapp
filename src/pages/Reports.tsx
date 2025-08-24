@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { Filter, ChevronDown, ChevronUp, FileText, Download, Edit, Copy } from "lucide-react";
 import { useManagementMode } from "@/hooks/useManagementMode";
@@ -63,6 +65,12 @@ export const Reports = () => {
   const [timeRange, setTimeRange] = useState<string>("all");
   const [editingReport, setEditingReport] = useState<Report | null>(null);
   const [activeTab, setActiveTab] = useState("reports");
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [exportFilters, setExportFilters] = useState({
+    timeRange: "all",
+    building: "all",
+    status: "all"
+  });
 
   const tableName = managementMode === "weg" ? "weg_reports" : "miete_reports";
 
@@ -301,11 +309,46 @@ Beschreibung: ${report.description}`;
   };
 
   const exportToExcel = () => {
-    const allReports = [...filteredOpenReports, ...filteredInProgressReports];
+    // Apply export filters
+    let allReports = [...openReports, ...inProgressReports];
+    
+    // Filter by time range
+    if (exportFilters.timeRange !== "all") {
+      const now = new Date();
+      let startDate = new Date();
+      
+      switch (exportFilters.timeRange) {
+        case "today":
+          startDate.setHours(0, 0, 0, 0);
+          break;
+        case "week":
+          startDate.setDate(now.getDate() - 7);
+          break;
+        case "month":
+          startDate.setMonth(now.getMonth() - 1);
+          break;
+        case "year":
+          startDate.setFullYear(now.getFullYear() - 1);
+          break;
+      }
+      
+      allReports = allReports.filter(report => new Date(report.created_at) >= startDate);
+    }
+    
+    // Filter by building
+    if (exportFilters.building !== "all") {
+      allReports = allReports.filter(report => report.building_id === exportFilters.building);
+    }
+    
+    // Filter by status
+    if (exportFilters.status !== "all") {
+      allReports = allReports.filter(report => report.status === exportFilters.status);
+    }
+    
     const excelData = allReports.map(report => ({
       Titel: report.title,
       Beschreibung: report.description,
-      Status: report.status === "open" ? "Offen" : "Bearbeitet",
+      Status: report.status === "open" ? "Offen" : report.status === "in_progress" ? "Bearbeitet" : "Erledigt",
       Erstellt: formatDateTime(report.created_at),
       Gebäude: report.buildings?.name || "",
       Adresse: report.buildings?.address || "",
@@ -320,6 +363,12 @@ Beschreibung: ${report.description}`;
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Meldungen");
     XLSX.writeFile(wb, `${managementMode === "weg" ? "WEG" : "Miet"}-Meldungen.xlsx`);
+    
+    setExportDialogOpen(false);
+    toast({
+      title: "Export erfolgreich",
+      description: `${excelData.length} Meldungen wurden exportiert.`,
+    });
   };
 
   const getFilteredReportsByTimeRange = (reports: Report[]) => {
@@ -469,7 +518,7 @@ Beschreibung: ${report.description}`;
             </TabsList>
           </Tabs>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Select value={timeRange} onValueChange={setTimeRange}>
               <SelectTrigger className="w-40">
                 <SelectValue placeholder="Zeitraum" />
@@ -483,7 +532,7 @@ Beschreibung: ${report.description}`;
               </SelectContent>
             </Select>
 
-            <Button variant="outline" onClick={exportToExcel}>
+            <Button variant="outline" onClick={() => setExportDialogOpen(true)}>
               <Download className="h-4 w-4 mr-2" />
               Exportieren
             </Button>
@@ -637,6 +686,83 @@ Beschreibung: ${report.description}`;
             <ReportTemplatesManager />
           </TabsContent>
         </Tabs>
+
+        {/* Export Dialog */}
+        <Dialog open={exportDialogOpen} onOpenChange={setExportDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Meldungen exportieren</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Zeitraum</Label>
+                <Select 
+                  value={exportFilters.timeRange} 
+                  onValueChange={(value) => setExportFilters(prev => ({ ...prev, timeRange: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Alle</SelectItem>
+                    <SelectItem value="today">Heute</SelectItem>
+                    <SelectItem value="week">Diese Woche</SelectItem>
+                    <SelectItem value="month">Diesen Monat</SelectItem>
+                    <SelectItem value="year">Dieses Jahr</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Gebäude</Label>
+                <Select 
+                  value={exportFilters.building} 
+                  onValueChange={(value) => setExportFilters(prev => ({ ...prev, building: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Alle Gebäude</SelectItem>
+                    {buildings.map((building) => (
+                      <SelectItem key={building.id} value={building.id}>
+                        {building.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select 
+                  value={exportFilters.status} 
+                  onValueChange={(value) => setExportFilters(prev => ({ ...prev, status: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Alle Status</SelectItem>
+                    <SelectItem value="open">Offen</SelectItem>
+                    <SelectItem value="in_progress">Bearbeitet</SelectItem>
+                    <SelectItem value="resolved">Erledigt</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button variant="outline" onClick={() => setExportDialogOpen(false)}>
+                Abbrechen
+              </Button>
+              <Button onClick={exportToExcel}>
+                <Download className="h-4 w-4 mr-2" />
+                Exportieren
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Edit Report Dialog */}
         {editingReport && (

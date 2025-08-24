@@ -55,13 +55,20 @@ export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialog
     }
   };
 
-  const generateBuildingCode = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let result = '';
-    for (let i = 0; i < 8; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
+  const generateBuildingCode = async () => {
+    try {
+      const { data, error } = await supabase.rpc('generate_building_code', {
+        management_mode_param: managementMode
+      });
+      
+      if (error) throw error;
+      
+      setFormData(prev => ({ ...prev, building_code: data }));
+      toast.success("Gebäudecode wurde generiert");
+    } catch (error) {
+      console.error("Error generating building code:", error);
+      toast.error("Fehler beim Generieren des Gebäudecodes");
     }
-    setFormData(prev => ({ ...prev, building_code: result }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
