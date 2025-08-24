@@ -9,8 +9,7 @@ import {
   Settings,
   LogOut,
   ToggleLeft,
-  ToggleRight,
-  Send
+  ToggleRight
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -34,7 +33,6 @@ const menuItems = [
   { title: "Gebäude", url: "/buildings", icon: Castle },
   { title: "Schwarzes Brett", url: "/forum", icon: Newspaper },
   { title: "Chatbot", url: "/chatbot", icon: Sparkles },
-  { title: "Webhooks", url: "/webhooks", icon: Send },
   { title: "Einstellungen", url: "/settings", icon: Settings },
 ];
 
