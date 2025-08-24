@@ -393,6 +393,7 @@ Beschreibung: ${report.description}`;
           <div className="space-y-1">
             <p><strong>Gebäude:</strong> {report.buildings?.address || 'Nicht zugewiesen'}</p>
             <p><strong>Verwalter:</strong> {(report.buildings as any)?.managers?.map((m: any) => m.name).join(', ') || 'Nicht zugewiesen'}</p>
+            <p><strong>Erstellt am:</strong> {formatDateTime(report.created_at)}</p>
           </div>
         </div>
 
@@ -400,6 +401,13 @@ Beschreibung: ${report.description}`;
           <div className="mb-4 p-3 bg-blue-50 rounded-lg border-l-4 border-blue-400">
             <h4 className="font-medium mb-1 text-blue-800">Verwalter-Notiz:</h4>
             <p className="text-sm text-blue-700">{report.admin_notes}</p>
+          </div>
+        )}
+
+        {report.internal_notes && (
+          <div className="mb-4 p-3 bg-gray-50 rounded-lg border-l-4 border-gray-400">
+            <h4 className="font-medium mb-1 text-gray-800">Interne Notizen:</h4>
+            <p className="text-sm text-gray-700">{report.internal_notes}</p>
           </div>
         )}
 

@@ -373,7 +373,7 @@ export const Dashboard = () => {
           <CardHeader>
             <CardTitle className="heading-primary flex items-center text-lg font-semibold">
               <BarChart3 className="mr-2 h-5 w-5" />
-              Meldungen pro Haus
+              Meldungen pro Wohnanlage
             </CardTitle>
             <CardDescription className="body-secondary">
               <div className="flex flex-col sm:flex-row sm:items-center gap-2">
