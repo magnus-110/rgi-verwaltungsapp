@@ -348,7 +348,7 @@ export const WegOwnerReports = () => {
       case "open":
         return <Badge variant="destructive">Offen</Badge>;
       case "in_progress":
-        return <Badge variant="secondary">Bearbeitet</Badge>;
+        return <Badge className="bg-green-100 text-green-800 hover:bg-green-200">Bearbeitet</Badge>;
       case "resolved":
         return <Badge variant="default">Erledigt</Badge>;
       default:

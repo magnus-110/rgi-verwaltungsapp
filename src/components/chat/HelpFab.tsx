@@ -148,18 +148,6 @@ export const HelpFab = ({ userType, selectedBuildingId, onBuildingChange, userNa
               </div>
             ))}
           </div>
-
-          {/* Contact Info */}
-          <div className="p-3 rounded-lg bg-gradient-primary/5 border border-primary/20">
-            <h5 className="text-sm font-medium text-primary mb-2">
-              RGI Immobilien Verwaltung
-            </h5>
-            <div className="space-y-1 text-xs text-muted-foreground">
-              <p>📞 Tel: 08363 960656</p>
-              <p>✉️ E-Mail: info@rgi-immobilien.de</p>
-              <p>🕒 Mo-Fr: 8:00-17:00 Uhr</p>
-            </div>
-          </div>
         </CardContent>
       </Card>
     </div>
