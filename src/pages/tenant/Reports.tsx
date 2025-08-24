@@ -24,6 +24,7 @@ interface Report {
   contact_phone: string;
   contact_address: string;
   attachments: any;
+  admin_notes?: string;
   reported_by?: string;
   updated_at?: string;
 }
@@ -500,6 +501,14 @@ export const TenantReports = () => {
                   </div>
                   
                   <p className="text-muted-foreground mb-4">{report.description}</p>
+                  
+                  {/* Admin Notes Display */}
+                  {report.admin_notes && report.admin_notes.trim() && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                      <h4 className="text-sm font-medium text-blue-800 mb-2">Notiz der Verwaltung:</h4>
+                      <p className="text-sm text-blue-700">{report.admin_notes}</p>
+                    </div>
+                  )}
                   
                   {/* Attachments Display */}
                   {report.attachments && report.attachments.length > 0 && (
