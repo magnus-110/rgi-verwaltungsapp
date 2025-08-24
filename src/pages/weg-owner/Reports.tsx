@@ -538,6 +538,11 @@ export const WegOwnerReports = () => {
                       <p className="text-sm text-muted-foreground">
                         {new Date(report.created_at).toLocaleDateString('de-DE')}
                       </p>
+                      {report.contact_email && (
+                        <p className="text-sm text-muted-foreground">
+                          Von: {report.contact_email}
+                        </p>
+                      )}
                     </div>
                     <div className="flex gap-2">
                       {getStatusBadge(report.status)}

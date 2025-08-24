@@ -455,12 +455,17 @@ export const TenantReports = () => {
               <Card key={report.id} className="border-0 shadow-sm bg-white">
                 <CardContent className="p-6">
                   <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <h3 className="text-lg font-medium mb-1">{report.title}</h3>
+                  <div>
+                    <h3 className="text-lg font-medium mb-1">{report.title}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {new Date(report.created_at).toLocaleDateString('de-DE')}
+                    </p>
+                    {report.contact_email && (
                       <p className="text-sm text-muted-foreground">
-                        {new Date(report.created_at).toLocaleDateString('de-DE')}
+                        Von: {report.contact_email}
                       </p>
-                    </div>
+                    )}
+                  </div>
                     <div className="flex gap-2">
                       {getStatusBadge(report.status)}
                     </div>
