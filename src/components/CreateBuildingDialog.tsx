@@ -55,6 +55,15 @@ export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialog
     }
   };
 
+  const generateBuildingCode = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 0; i < 8; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setFormData(prev => ({ ...prev, building_code: result }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -134,12 +143,17 @@ export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialog
           
           <div className="space-y-2">
             <Label htmlFor="building_code">Gebäudecode</Label>
-            <Input
-              id="building_code"
-              value={formData.building_code}
-              onChange={(e) => setFormData(prev => ({ ...prev, building_code: e.target.value }))}
-              required
-            />
+            <div className="flex gap-2">
+              <Input
+                id="building_code"
+                value={formData.building_code}
+                onChange={(e) => setFormData(prev => ({ ...prev, building_code: e.target.value }))}
+                required
+              />
+              <Button type="button" variant="outline" onClick={generateBuildingCode}>
+                Generieren
+              </Button>
+            </div>
           </div>
 
           <div className="space-y-2">

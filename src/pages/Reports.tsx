@@ -388,6 +388,7 @@ Beschreibung: ${report.description}`;
           <div className="space-y-1">
             <p><strong>Kontakt:</strong> {report.contact_name}</p>
             <p><strong>Telefon:</strong> {report.contact_phone || 'Nicht angegeben'}</p>
+            <p><strong>E-Mail:</strong> {report.contact_email || 'Nicht angegeben'}</p>
           </div>
           <div className="space-y-1">
             <p><strong>Gebäude:</strong> {report.buildings?.address || 'Nicht zugewiesen'}</p>
