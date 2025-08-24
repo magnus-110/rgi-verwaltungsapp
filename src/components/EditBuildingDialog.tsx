@@ -4,7 +4,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -32,8 +31,7 @@ export const EditBuildingDialog = ({
 }: EditBuildingDialogProps) => {
   const [formData, setFormData] = useState({
     name: "",
-    address: "",
-    building_code: ""
+    address: ""
   });
   const [loading, setLoading] = useState(false);
 
@@ -41,8 +39,7 @@ export const EditBuildingDialog = ({
     if (building) {
       setFormData({
         name: building.name || "",
-        address: building.address || "",
-        building_code: building.building_code || ""
+        address: building.address || ""
       });
     }
   }, [building]);
@@ -58,7 +55,6 @@ export const EditBuildingDialog = ({
         .update({
           name: formData.name,
           address: formData.address,
-          building_code: formData.building_code,
           updated_at: new Date().toISOString()
         })
         .eq("id", building.id);
@@ -105,9 +101,13 @@ export const EditBuildingDialog = ({
             <Label htmlFor="building_code">Gebäudecode</Label>
             <Input
               id="building_code"
-              value={formData.building_code}
-              onChange={(e) => setFormData({ ...formData, building_code: e.target.value })}
+              value={building?.building_code || ""}
+              disabled
+              className="bg-muted"
             />
+            <p className="text-xs text-muted-foreground">
+              Der Gebäudecode kann nicht geändert werden
+            </p>
           </div>
           <div className="flex justify-end space-x-2 pt-4">
             <Button type="button" variant="outline" onClick={onClose}>
