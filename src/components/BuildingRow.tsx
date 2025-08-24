@@ -1,11 +1,12 @@
 
 import { useState } from "react";
-import { Building2, MapPin, Hash, Calendar, ChevronDown, ChevronRight, Edit, Plus, Upload, Users } from "lucide-react";
+import { Building2, MapPin, Hash, Calendar, ChevronDown, ChevronRight, Edit, Plus, Upload, Users, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { UsersList } from "./UsersList";
 import { EditBuildingDialog } from "./EditBuildingDialog";
+import { DeleteBuildingDialog } from "./DeleteBuildingDialog";
 import { BulkUpload } from "./BulkUpload";
 import { CreateUserDialog } from "./CreateUserDialog";
 import { ManagerAssignmentDialog } from "./ManagerAssignmentDialog";
@@ -29,6 +30,7 @@ interface BuildingRowProps {
 export const BuildingRow = ({ building, onUpdate }: BuildingRowProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isCreateUserDialogOpen, setIsCreateUserDialogOpen] = useState(false);
   const [isManagerDialogOpen, setIsManagerDialogOpen] = useState(false);
   const [selectedUserType, setSelectedUserType] = useState<"tenant" | "weg_owner">("tenant");
@@ -188,6 +190,18 @@ export const BuildingRow = ({ building, onUpdate }: BuildingRowProps) => {
               size="sm"
               onClick={(e) => {
                 e.stopPropagation();
+                setIsDeleteDialogOpen(true);
+              }}
+              className="h-9 w-9 sm:h-8 sm:w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+              title="Löschen"
+            >
+              <Trash2 className="h-4 w-4 sm:h-3 sm:w-3" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
                 setIsExpanded(!isExpanded);
               }}
               className="h-9 w-9 sm:h-8 sm:w-8 p-0"
@@ -285,6 +299,15 @@ export const BuildingRow = ({ building, onUpdate }: BuildingRowProps) => {
         onClose={() => setIsManagerDialogOpen(false)}
         buildingId={building.id}
         buildingName={building.name}
+      />
+
+      <DeleteBuildingDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => setIsDeleteDialogOpen(false)}
+        buildingId={building.id}
+        buildingName={building.name}
+        buildingCode={building.building_code}
+        onDelete={handleUpdate}
       />
     </Card>
   );
