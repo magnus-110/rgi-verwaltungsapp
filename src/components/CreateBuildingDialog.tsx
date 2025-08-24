@@ -37,8 +37,9 @@ export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialog
   useEffect(() => {
     if (isOpen) {
       fetchAdminUsers();
+      generateBuildingCode(); // Auto-generate building code when dialog opens
     }
-  }, [isOpen]);
+  }, [isOpen, managementMode]);
 
   const fetchAdminUsers = async () => {
     try {
@@ -64,7 +65,6 @@ export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialog
       if (error) throw error;
       
       setFormData(prev => ({ ...prev, building_code: data }));
-      toast.success("Gebäudecode wurde generiert");
     } catch (error) {
       console.error("Error generating building code:", error);
       toast.error("Fehler beim Generieren des Gebäudecodes");
@@ -150,17 +150,15 @@ export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialog
           
           <div className="space-y-2">
             <Label htmlFor="building_code">Gebäudecode</Label>
-            <div className="flex gap-2">
-              <Input
-                id="building_code"
-                value={formData.building_code}
-                onChange={(e) => setFormData(prev => ({ ...prev, building_code: e.target.value }))}
-                required
-              />
-              <Button type="button" variant="outline" onClick={generateBuildingCode}>
-                Generieren
-              </Button>
-            </div>
+            <Input
+              id="building_code"
+              value={formData.building_code}
+              disabled
+              className="bg-muted"
+            />
+            <p className="text-xs text-muted-foreground">
+              Der Gebäudecode wird automatisch generiert
+            </p>
           </div>
 
           <div className="space-y-2">
