@@ -47,6 +47,7 @@ export const Login = () => {
 
   const handlePasswordReset = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation(); // Prevent event bubbling to parent form
     setResetLoading(true);
 
     try {
