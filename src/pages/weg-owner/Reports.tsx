@@ -12,7 +12,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Plus, Upload, X, AlertCircle, FileText } from "lucide-react";
 
-
 interface Report {
   id: string;
   title: string;
@@ -30,12 +29,21 @@ interface Report {
   updated_at?: string;
 }
 
+interface AttachmentWithUrl {
+  name: string;
+  path: string;
+  size: number;
+  type: string;
+  signedUrl?: string;
+}
+
 export const WegOwnerReports = () => {
   const { profile } = useAuth();
   const [reports, setReports] = useState<Report[]>([]);
   const [buildings, setBuildings] = useState<any[]>([]);
   const [isCreateReportOpen, setIsCreateReportOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [attachmentUrls, setAttachmentUrls] = useState<{[key: string]: AttachmentWithUrl[]}>({});
   
   const [reportForm, setReportForm] = useState({
     title: "",
@@ -57,7 +65,6 @@ export const WegOwnerReports = () => {
     }
   }, [profile]);
 
-  // Real-time subscription for new reports
   useEffect(() => {
     if (!profile) return;
 
@@ -73,7 +80,6 @@ export const WegOwnerReports = () => {
         },
         (payload) => {
           console.log('New WEG report received:', payload);
-          // Fetch reports to get complete data with proper relations
           fetchReports();
         }
       )
@@ -99,9 +105,37 @@ export const WegOwnerReports = () => {
     };
   }, [profile]);
 
+  const generateSignedUrls = async (reportId: string, attachments: any[]) => {
+    if (!attachments || attachments.length === 0) return [];
+
+    const attachmentsWithUrls: AttachmentWithUrl[] = [];
+
+    for (const attachment of attachments) {
+      try {
+        const { data, error } = await supabase.storage
+          .from('report-attachments')
+          .createSignedUrl(attachment.path, 3600); // 1 hour expiry
+
+        if (error) {
+          console.error('Error creating signed URL:', error);
+          attachmentsWithUrls.push(attachment);
+        } else {
+          attachmentsWithUrls.push({
+            ...attachment,
+            signedUrl: data.signedUrl
+          });
+        }
+      } catch (error) {
+        console.error('Error generating signed URL:', error);
+        attachmentsWithUrls.push(attachment);
+      }
+    }
+
+    return attachmentsWithUrls;
+  };
+
   const fetchBuildings = async () => {
     try {
-      // Fetch building assignments
       const { data: assignments, error: assignmentsError } = await supabase
         .from("weg_owner_buildings")
         .select("id, building_id, created_at")
@@ -112,7 +146,6 @@ export const WegOwnerReports = () => {
       if (assignments && assignments.length > 0) {
         const buildingIds = assignments.map(a => a.building_id);
         
-        // Fetch building details
         const { data: buildingsData, error: buildingsError } = await supabase
           .from("buildings")
           .select("id, name, address, building_code")
@@ -133,7 +166,6 @@ export const WegOwnerReports = () => {
       let contactEmail = profile?.email || '';
       let contactPhone = '';
 
-      // 1. Try to get from WEG owners table first
       try {
         const { data: wegOwnerData } = await supabase
           .from("weg_owners")
@@ -164,7 +196,6 @@ export const WegOwnerReports = () => {
         console.warn('Could not load WEG owner data:', error);
       }
 
-      // 2. Fallback to profiles table if still missing data
       if (!contactName || !contactPhone) {
         try {
           const { data: profileData } = await supabase
@@ -189,7 +220,6 @@ export const WegOwnerReports = () => {
         }
       }
 
-      // 3. Final fallbacks
       if (!contactName) {
         contactName = contactEmail || 'WEG-Eigentümer';
       }
@@ -204,7 +234,6 @@ export const WegOwnerReports = () => {
       console.log('Final contact info set:', { contactName, contactEmail, contactPhone });
     } catch (error) {
       console.error("Error in prefillContactInfo:", error);
-      // Set minimal fallback values
       setReportForm(prev => ({
         ...prev,
         contact_name: profile?.email || 'WEG-Eigentümer',
@@ -224,6 +253,22 @@ export const WegOwnerReports = () => {
 
       if (error) throw error;
       setReports(data || []);
+
+      const urlPromises = (data || []).map(async (report) => {
+        if (report.attachments && report.attachments.length > 0) {
+          const attachmentsWithUrls = await generateSignedUrls(report.id, report.attachments);
+          return { reportId: report.id, attachments: attachmentsWithUrls };
+        }
+        return { reportId: report.id, attachments: [] };
+      });
+
+      const urlResults = await Promise.all(urlPromises);
+      const urlMap: {[key: string]: AttachmentWithUrl[]} = {};
+      urlResults.forEach(result => {
+        urlMap[result.reportId] = result.attachments;
+      });
+      setAttachmentUrls(urlMap);
+
     } catch (error) {
       console.error("Error fetching reports:", error);
       toast({
@@ -279,7 +324,6 @@ export const WegOwnerReports = () => {
     }
 
     try {
-      // Upload attachments first
       const uploadedFiles = await uploadAttachments();
       
       const { data, error } = await supabase
@@ -302,14 +346,12 @@ export const WegOwnerReports = () => {
 
       if (error) throw error;
 
-      // Report erfolgreich erstellt - Benachrichtigungen sind derzeit deaktiviert
       console.log('WEG report created successfully - notifications disabled');
       
-      // Reset form but keep contact info
       setReportForm(prev => ({ 
         title: "", 
         description: "", 
-        contact_name: prev.contact_name, // Keep current contact info
+        contact_name: prev.contact_name,
         contact_email: prev.contact_email,
         contact_phone: prev.contact_phone,
         contact_address: '',
@@ -356,7 +398,6 @@ export const WegOwnerReports = () => {
     }
   };
 
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -390,7 +431,6 @@ export const WegOwnerReports = () => {
                 <DialogTitle>Neue WEG-Meldung erstellen</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 max-h-[70vh] overflow-y-auto">
-                {/* Contact Information */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="contact_name">Name *</Label>
@@ -460,7 +500,6 @@ export const WegOwnerReports = () => {
                   </div>
                 </div>
 
-                {/* Report Information */}
                 <div>
                   <Label htmlFor="title">Titel *</Label>
                   <Input
@@ -481,7 +520,6 @@ export const WegOwnerReports = () => {
                   />
                 </div>
 
-                {/* Attachments */}
                 <div>
                   <Label htmlFor="attachments">Anhänge</Label>
                   <div className="space-y-2">
@@ -551,7 +589,6 @@ export const WegOwnerReports = () => {
                   
                   <p className="text-muted-foreground mb-4">{report.description}</p>
                   
-                  {/* Admin Notes Display */}
                   {report.admin_notes && report.admin_notes.trim() && (
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
                       <h4 className="text-sm font-medium text-blue-800 mb-2">Notiz der Verwaltung:</h4>
@@ -559,22 +596,27 @@ export const WegOwnerReports = () => {
                     </div>
                   )}
                   
-                  {/* Attachments Display */}
-                  {report.attachments && report.attachments.length > 0 && (
+                  {attachmentUrls[report.id] && attachmentUrls[report.id].length > 0 && (
                     <div className="space-y-2">
                       <h4 className="text-sm font-medium">Anhänge:</h4>
                       <div className="grid grid-cols-2 gap-2">
-                        {report.attachments.map((attachment: any, index: number) => (
+                        {attachmentUrls[report.id].map((attachment: AttachmentWithUrl, index: number) => (
                           <div key={index} className="flex items-center p-2 bg-muted rounded-lg">
                             <FileText className="h-4 w-4 mr-2 text-blue-600" />
-                            <a
-                              href={`https://eebphowrbarzawwixqcc.supabase.co/storage/v1/object/public/report-attachments/${attachment.path}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sm text-blue-600 hover:text-blue-800 truncate"
-                            >
-                              {attachment.name}
-                            </a>
+                            {attachment.signedUrl ? (
+                              <a
+                                href={attachment.signedUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm text-blue-600 hover:text-blue-800 truncate"
+                              >
+                                {attachment.name}
+                              </a>
+                            ) : (
+                              <span className="text-sm text-gray-500 truncate">
+                                {attachment.name} (Nicht verfügbar)
+                              </span>
+                            )}
                           </div>
                         ))}
                       </div>

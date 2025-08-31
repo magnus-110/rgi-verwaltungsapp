@@ -29,12 +29,21 @@ interface Report {
   updated_at?: string;
 }
 
+interface AttachmentWithUrl {
+  name: string;
+  path: string;
+  size: number;
+  type: string;
+  signedUrl?: string;
+}
+
 export const TenantReports = () => {
   const { profile } = useAuth();
   const [reports, setReports] = useState<Report[]>([]);
   const [templates, setTemplates] = useState<any[]>([]);
   const [isCreateReportOpen, setIsCreateReportOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [attachmentUrls, setAttachmentUrls] = useState<{[key: string]: AttachmentWithUrl[]}>({});
   
   const [reportForm, setReportForm] = useState({
     title: "",
@@ -56,7 +65,6 @@ export const TenantReports = () => {
     }
   }, [profile]);
 
-  // Real-time subscription for new reports
   useEffect(() => {
     if (!profile) return;
 
@@ -72,7 +80,6 @@ export const TenantReports = () => {
         },
         (payload) => {
           console.log('New tenant report received:', payload);
-          // Fetch reports to get complete data with proper relations
           fetchReports();
         }
       )
@@ -98,11 +105,39 @@ export const TenantReports = () => {
     };
   }, [profile]);
 
+  const generateSignedUrls = async (reportId: string, attachments: any[]) => {
+    if (!attachments || attachments.length === 0) return [];
+
+    const attachmentsWithUrls: AttachmentWithUrl[] = [];
+
+    for (const attachment of attachments) {
+      try {
+        const { data, error } = await supabase.storage
+          .from('report-attachments')
+          .createSignedUrl(attachment.path, 3600); // 1 hour expiry
+
+        if (error) {
+          console.error('Error creating signed URL:', error);
+          attachmentsWithUrls.push(attachment);
+        } else {
+          attachmentsWithUrls.push({
+            ...attachment,
+            signedUrl: data.signedUrl
+          });
+        }
+      } catch (error) {
+        console.error('Error generating signed URL:', error);
+        attachmentsWithUrls.push(attachment);
+      }
+    }
+
+    return attachmentsWithUrls;
+  };
+
   const fetchTenantInfo = async () => {
     try {
       console.log('Starting fetchTenantInfo for user:', profile?.user_id);
       
-      // Pre-fill contact info from profile
       const profileWithPhone = profile as any;
       setReportForm(prev => ({
         ...prev,
@@ -111,7 +146,6 @@ export const TenantReports = () => {
         contact_phone: profileWithPhone?.phone || '',
       }));
 
-      // Path 1: Try to get building info from profile first
       const profileWithBuilding = profile as any;
       console.log('Profile building_id:', profileWithBuilding?.building_id);
       
@@ -139,7 +173,6 @@ export const TenantReports = () => {
         }
       }
 
-      // Path 2: Fallback to tenants table
       console.log('Trying tenants table fallback');
       const { data: tenantData, error: tenantError } = await supabase
         .from("tenants")
@@ -150,7 +183,6 @@ export const TenantReports = () => {
       console.log('Tenant data:', { tenantData, tenantError });
 
       if (!tenantError && tenantData && tenantData.building_id) {
-        // Now fetch the building separately
         const { data: buildingData, error: buildingError } = await supabase
           .from("buildings")
           .select("id, name, address")
@@ -192,6 +224,22 @@ export const TenantReports = () => {
 
       if (error) throw error;
       setReports(data || []);
+
+      const urlPromises = (data || []).map(async (report) => {
+        if (report.attachments && report.attachments.length > 0) {
+          const attachmentsWithUrls = await generateSignedUrls(report.id, report.attachments);
+          return { reportId: report.id, attachments: attachmentsWithUrls };
+        }
+        return { reportId: report.id, attachments: [] };
+      });
+
+      const urlResults = await Promise.all(urlPromises);
+      const urlMap: {[key: string]: AttachmentWithUrl[]} = {};
+      urlResults.forEach(result => {
+        urlMap[result.reportId] = result.attachments;
+      });
+      setAttachmentUrls(urlMap);
+
     } catch (error) {
       console.error("Error fetching reports:", error);
       toast({
@@ -247,10 +295,8 @@ export const TenantReports = () => {
     }
 
     try {
-      // Upload attachments first
       const uploadedFiles = await uploadAttachments();
       
-      // Use building_id from tenantInfo
       const buildingId = tenantInfo?.building_id || (profile as any)?.building_id || null;
       console.log('Creating report with building_id:', buildingId);
       
@@ -273,7 +319,6 @@ export const TenantReports = () => {
 
       if (error) throw error;
 
-      // Report erfolgreich erstellt - Benachrichtigungen sind derzeit deaktiviert
       console.log('Report created successfully - notifications disabled');
       setReportForm({ 
         title: "", 
@@ -325,11 +370,9 @@ export const TenantReports = () => {
     }
   };
 
-  // Handle dialog open to refresh tenant info
   const handleDialogOpen = (open: boolean) => {
     setIsCreateReportOpen(open);
     if (open && profile) {
-      // Refresh tenant info when dialog opens
       fetchTenantInfo();
     }
   };
@@ -367,7 +410,6 @@ export const TenantReports = () => {
                 <DialogTitle>Neue Meldung erstellen</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 max-h-[70vh] overflow-y-auto">
-                {/* Contact Information */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="contact_name">Name *</Label>
@@ -411,7 +453,6 @@ export const TenantReports = () => {
                   </div>
                 </div>
 
-                {/* Report Information */}
                 <div>
                   <Label htmlFor="title">Titel *</Label>
                   <Input
@@ -432,7 +473,6 @@ export const TenantReports = () => {
                   />
                 </div>
 
-                {/* Attachments */}
                 <div>
                   <Label htmlFor="attachments">Anhänge</Label>
                   <div className="space-y-2">
@@ -510,22 +550,28 @@ export const TenantReports = () => {
                     </div>
                   )}
                   
-                  {/* Attachments Display */}
-                  {report.attachments && report.attachments.length > 0 && (
+                  {/* Attachments Display with Signed URLs */}
+                  {attachmentUrls[report.id] && attachmentUrls[report.id].length > 0 && (
                     <div className="space-y-2">
                       <h4 className="text-sm font-medium">Anhänge:</h4>
                       <div className="grid grid-cols-2 gap-2">
-                        {report.attachments.map((attachment: any, index: number) => (
+                        {attachmentUrls[report.id].map((attachment: AttachmentWithUrl, index: number) => (
                           <div key={index} className="flex items-center p-2 bg-muted rounded-lg">
                             <FileText className="h-4 w-4 mr-2 text-blue-600" />
-                            <a
-                              href={`https://eebphowrbarzawwixqcc.supabase.co/storage/v1/object/public/report-attachments/${attachment.path}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sm text-blue-600 hover:text-blue-800 truncate"
-                            >
-                              {attachment.name}
-                            </a>
+                            {attachment.signedUrl ? (
+                              <a
+                                href={attachment.signedUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm text-blue-600 hover:text-blue-800 truncate"
+                              >
+                                {attachment.name}
+                              </a>
+                            ) : (
+                              <span className="text-sm text-gray-500 truncate">
+                                {attachment.name} (Nicht verfügbar)
+                              </span>
+                            )}
                           </div>
                         ))}
                       </div>
