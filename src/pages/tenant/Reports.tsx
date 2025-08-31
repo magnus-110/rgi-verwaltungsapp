@@ -37,6 +37,21 @@ interface AttachmentWithUrl {
   signedUrl?: string;
 }
 
+// Helper function to safely parse attachments
+const parseAttachments = (attachments: any): any[] => {
+  if (!attachments) return [];
+  if (Array.isArray(attachments)) return attachments;
+  if (typeof attachments === 'string') {
+    try {
+      const parsed = JSON.parse(attachments);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
+
 export const TenantReports = () => {
   const { profile } = useAuth();
   const [reports, setReports] = useState<Report[]>([]);
@@ -105,12 +120,13 @@ export const TenantReports = () => {
     };
   }, [profile]);
 
-  const generateSignedUrls = async (reportId: string, attachments: any[]) => {
-    if (!attachments || attachments.length === 0) return [];
+  const generateSignedUrls = async (reportId: string, attachments: any) => {
+    const attachmentsArray = parseAttachments(attachments);
+    if (attachmentsArray.length === 0) return [];
 
     const attachmentsWithUrls: AttachmentWithUrl[] = [];
 
-    for (const attachment of attachments) {
+    for (const attachment of attachmentsArray) {
       try {
         const { data, error } = await supabase.storage
           .from('report-attachments')
@@ -226,7 +242,8 @@ export const TenantReports = () => {
       setReports(data || []);
 
       const urlPromises = (data || []).map(async (report) => {
-        if (report.attachments && report.attachments.length > 0) {
+        const attachmentsArray = parseAttachments(report.attachments);
+        if (attachmentsArray.length > 0) {
           const attachmentsWithUrls = await generateSignedUrls(report.id, report.attachments);
           return { reportId: report.id, attachments: attachmentsWithUrls };
         }
