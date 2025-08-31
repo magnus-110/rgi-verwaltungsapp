@@ -52,6 +52,29 @@ interface Building {
   manager_name?: string | null;
 }
 
+interface AttachmentWithUrl {
+  name: string;
+  path: string;
+  size: number;
+  type: string;
+  signedUrl?: string;
+}
+
+// Helper function to safely parse attachments
+const parseAttachments = (attachments: any): any[] => {
+  if (!attachments) return [];
+  if (Array.isArray(attachments)) return attachments;
+  if (typeof attachments === 'string') {
+    try {
+      const parsed = JSON.parse(attachments);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
+
 export const Reports = () => {
   const { profile } = useAuth();
   const { managementMode } = useManagementMode();
@@ -77,6 +100,7 @@ export const Reports = () => {
     building: "all",
     status: "all"
   });
+  const [attachmentUrls, setAttachmentUrls] = useState<{[key: string]: AttachmentWithUrl[]}>({});
 
   const tableName = managementMode === "weg" ? "weg_reports" : "miete_reports";
 
@@ -176,6 +200,33 @@ export const Reports = () => {
     }
   };
 
+  const generateSignedUrls = async (reportId: string, attachments: any) => {
+    const attachmentsArray = parseAttachments(attachments);
+    if (attachmentsArray.length === 0) return [];
+
+    const attachmentsWithUrls: AttachmentWithUrl[] = [];
+
+    for (const attachment of attachmentsArray) {
+      try {
+        const { data, error } = await supabase.storage
+          .from('report-attachments')
+          .createSignedUrl(attachment.path, 3600);
+
+        if (error) {
+          console.error('Error generating signed URL:', error);
+          attachmentsWithUrls.push({ ...attachment, signedUrl: undefined });
+        } else {
+          attachmentsWithUrls.push({ ...attachment, signedUrl: data.signedUrl });
+        }
+      } catch (error) {
+        console.error('Error generating signed URL:', error);
+        attachmentsWithUrls.push({ ...attachment, signedUrl: undefined });
+      }
+    }
+
+    return attachmentsWithUrls;
+  };
+
   const fetchReports = async () => {
     try {
       setLoading(true);
@@ -246,6 +297,24 @@ export const Reports = () => {
       setInProgressReports(inProgress);
       setFilteredOpenReports(open);
       setFilteredInProgressReports(inProgress);
+
+      // Generate signed URLs for attachments
+      const urlPromises = reports.map(async (report) => {
+        const attachmentsArray = parseAttachments(report.attachments);
+        if (attachmentsArray.length > 0) {
+          const attachmentsWithUrls = await generateSignedUrls(report.id, report.attachments);
+          return { reportId: report.id, attachments: attachmentsWithUrls };
+        }
+        return { reportId: report.id, attachments: [] };
+      });
+
+      const urlsResults = await Promise.all(urlPromises);
+      const urlsMap: {[key: string]: AttachmentWithUrl[]} = {};
+      urlsResults.forEach(result => {
+        urlsMap[result.reportId] = result.attachments;
+      });
+
+      setAttachmentUrls(urlsMap);
     } catch (error) {
       console.error("Error fetching reports:", error);
       toast({
@@ -457,17 +526,23 @@ Beschreibung: ${report.description}`;
           <div className="space-y-2">
             <h4 className="text-sm font-medium">Anhänge:</h4>
             <div className="grid grid-cols-2 gap-2">
-              {report.attachments.map((attachment: any, index: number) => (
+              {(attachmentUrls[report.id] || parseAttachments(report.attachments)).map((attachment: any, index: number) => (
                 <div key={index} className="flex items-center p-2 bg-muted rounded-lg">
                   <FileText className="h-4 w-4 mr-2 text-blue-600" />
-                  <a
-                    href={`https://eebphowrbarzawwixqcc.supabase.co/storage/v1/object/public/report-attachments/${attachment.path}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-blue-600 hover:text-blue-800 truncate"
-                  >
-                    {attachment.name}
-                  </a>
+                  {attachment.signedUrl ? (
+                    <a
+                      href={attachment.signedUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-blue-600 hover:text-blue-800 truncate"
+                    >
+                      {attachment.name}
+                    </a>
+                  ) : (
+                    <span className="text-sm text-muted-foreground truncate">
+                      {attachment.name} (URL nicht verfügbar)
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
