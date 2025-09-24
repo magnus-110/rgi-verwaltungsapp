@@ -89,9 +89,9 @@ export const Login = () => {
             alt="RGI Immobilien" 
             className="h-16 mx-auto mb-4"
           />
-          <h1 className="text-2xl font-bold text-foreground">
-            RGI Verwaltungs-App
-          </h1>
+            <h1 className="text-2xl font-bold text-foreground">
+              Verwaltungs-App
+            </h1>
         </div>
 
         <Card className="border-border shadow-elegant">
