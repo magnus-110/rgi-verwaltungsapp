@@ -15,6 +15,7 @@ import { Buildings } from "./pages/Buildings";
 import { Forum } from "./pages/Forum";
 import { ChatbotSettings } from "./pages/ChatbotSettings";
 import { Settings } from "./pages/Settings";
+import { Documents } from "./pages/Documents";
 import { WebhookSettings } from "./pages/WebhookSettings";
 import { AdminLayout } from "./components/AdminLayout";
 import { WegOwnerLayout } from "./components/WegOwnerLayout";
@@ -53,6 +54,7 @@ const App = () => (
             <Route path="/reports" element={<AdminLayout><Reports /></AdminLayout>} />
             <Route path="/buildings" element={<AdminLayout><Buildings /></AdminLayout>} />
             <Route path="/forum" element={<AdminLayout><Forum /></AdminLayout>} />
+            <Route path="/documents" element={<AdminLayout><Documents /></AdminLayout>} />
             <Route path="/chatbot" element={<AdminLayout><ChatbotSettings /></AdminLayout>} />
             <Route path="/webhooks" element={<AdminLayout><WebhookSettings /></AdminLayout>} />
             <Route path="/settings" element={<AdminLayout><Settings /></AdminLayout>} />

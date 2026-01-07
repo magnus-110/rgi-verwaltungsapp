@@ -9,7 +9,8 @@ import {
   Settings,
   LogOut,
   ToggleLeft,
-  ToggleRight
+  ToggleRight,
+  FileSearch
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -31,6 +32,7 @@ const menuItems = [
   { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
   { title: "Meldungen", url: "/reports", icon: ClipboardList },
   { title: "Gebäude", url: "/buildings", icon: Castle },
+  { title: "Dokumente", url: "/documents", icon: FileSearch },
   { title: "Schwarzes Brett", url: "/forum", icon: Newspaper },
   { title: "Chatbot", url: "/chatbot", icon: Sparkles },
   { title: "Einstellungen", url: "/settings", icon: Settings },

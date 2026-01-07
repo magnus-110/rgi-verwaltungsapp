@@ -14,6 +14,59 @@ export type Database = {
   }
   public: {
     Tables: {
+      building_documents: {
+        Row: {
+          building_id: string | null
+          category: string
+          created_at: string
+          error_message: string | null
+          file_name: string
+          file_path: string
+          file_size: number
+          id: string
+          page_count: number | null
+          processed_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          building_id?: string | null
+          category: string
+          created_at?: string
+          error_message?: string | null
+          file_name: string
+          file_path: string
+          file_size: number
+          id?: string
+          page_count?: number | null
+          processed_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          building_id?: string | null
+          category?: string
+          created_at?: string
+          error_message?: string | null
+          file_name?: string
+          file_path?: string
+          file_size?: number
+          id?: string
+          page_count?: number | null
+          processed_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "building_documents_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       building_managers: {
         Row: {
           assigned_at: string
@@ -201,6 +254,130 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      document_chat_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          role: string
+          session_id: string
+          sources: Json | null
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          role: string
+          session_id: string
+          sources?: Json | null
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          role?: string
+          session_id?: string
+          sources?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_chat_messages_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "document_chat_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_chat_sessions: {
+        Row: {
+          building_id: string | null
+          created_at: string
+          id: string
+          include_general: boolean
+          search_scope: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          building_id?: string | null
+          created_at?: string
+          id?: string
+          include_general?: boolean
+          search_scope?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          building_id?: string | null
+          created_at?: string
+          id?: string
+          include_general?: boolean
+          search_scope?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_chat_sessions_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_chunks: {
+        Row: {
+          building_id: string | null
+          category: string
+          chunk_index: number
+          content: string
+          created_at: string
+          document_id: string
+          embedding: string | null
+          id: string
+          metadata: Json | null
+        }
+        Insert: {
+          building_id?: string | null
+          category: string
+          chunk_index: number
+          content: string
+          created_at?: string
+          document_id: string
+          embedding?: string | null
+          id?: string
+          metadata?: Json | null
+        }
+        Update: {
+          building_id?: string | null
+          category?: string
+          chunk_index?: number
+          content?: string
+          created_at?: string
+          document_id?: string
+          embedding?: string | null
+          id?: string
+          metadata?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_chunks_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_chunks_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "building_documents"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       forum_post_templates: {
         Row: {
@@ -626,6 +803,22 @@ export type Database = {
           user_id_param: string
         }
         Returns: undefined
+      }
+      search_document_chunks: {
+        Args: {
+          filter_building_id?: string
+          include_general?: boolean
+          match_count?: number
+          query_embedding: string
+        }
+        Returns: {
+          building_id: string
+          category: string
+          content: string
+          id: string
+          metadata: Json
+          similarity: number
+        }[]
       }
     }
     Enums: {
