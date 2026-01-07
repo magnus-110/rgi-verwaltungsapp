@@ -17,3 +17,12 @@ verify_jwt = true
 
 [functions.send-building-data]
 verify_jwt = true
+
+[functions.process-bulk-upload]
+verify_jwt = true
+
+[functions.process-document]
+verify_jwt = true
+
+[functions.query-documents]
+verify_jwt = true
