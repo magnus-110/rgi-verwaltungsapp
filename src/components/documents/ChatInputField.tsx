@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowUp, Loader2, Mic, MicOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { PromptTemplateMenu } from "./PromptTemplateMenu";
 
 interface ChatInputFieldProps {
   onSend: (message: string) => void;
@@ -122,6 +123,12 @@ export function ChatInputField({
   return (
     <div className={cn("w-full max-w-3xl mx-auto px-4", className)}>
       <div className="relative flex items-end gap-2 rounded-full border border-border bg-muted/50 shadow-sm px-4 py-2">
+        {/* Prompt Template Menu */}
+        <PromptTemplateMenu 
+          onSelectPrompt={(content) => setValue(content)}
+          disabled={isLoading || disabled}
+        />
+        
         <textarea
           ref={textareaRef}
           value={value}
