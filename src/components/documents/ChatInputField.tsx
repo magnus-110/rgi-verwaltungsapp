@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowUp, Loader2 } from "lucide-react";
+import { ArrowUp, Loader2, Mic, MicOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 interface ChatInputFieldProps {
   onSend: (message: string) => void;
@@ -17,7 +18,10 @@ export function ChatInputField({
   className,
 }: ChatInputFieldProps) {
   const [value, setValue] = useState("");
+  const [isListening, setIsListening] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const { toast } = useToast();
 
   const adjustHeight = () => {
     const textarea = textareaRef.current;
@@ -32,6 +36,73 @@ export function ChatInputField({
     adjustHeight();
   }, [value]);
 
+  // Initialize speech recognition
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = true;
+      recognition.lang = 'de-DE';
+
+      recognition.onresult = (event) => {
+        const transcript = Array.from(event.results)
+          .map(result => result[0].transcript)
+          .join('');
+        setValue(transcript);
+      };
+
+      recognition.onerror = (event) => {
+        console.error('Speech recognition error:', event.error);
+        setIsListening(false);
+        
+        if (event.error === 'not-allowed') {
+          toast({
+            title: "Mikrofon-Zugriff verweigert",
+            description: "Bitte erlauben Sie den Zugriff auf das Mikrofon in Ihren Browser-Einstellungen.",
+            variant: "destructive",
+          });
+        }
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+      };
+
+      recognitionRef.current = recognition;
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+      }
+    };
+  }, [toast]);
+
+  const toggleListening = () => {
+    if (!recognitionRef.current) {
+      toast({
+        title: "Nicht unterstützt",
+        description: "Spracherkennung wird von Ihrem Browser nicht unterstützt.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    } else {
+      try {
+        recognitionRef.current.start();
+        setIsListening(true);
+      } catch (error) {
+        console.error('Failed to start recognition:', error);
+      }
+    }
+  };
+
   const handleSend = () => {
     if (!value.trim() || isLoading || disabled) return;
     onSend(value.trim());
@@ -45,9 +116,12 @@ export function ChatInputField({
     }
   };
 
+  const hasSpeechRecognition = typeof window !== 'undefined' && 
+    (window.SpeechRecognition || window.webkitSpeechRecognition);
+
   return (
     <div className={cn("w-full max-w-3xl mx-auto px-4", className)}>
-      <div className="relative flex items-end gap-2 rounded-2xl border border-border bg-card shadow-sm p-2">
+      <div className="relative flex items-end gap-2 rounded-full border border-border bg-muted/50 shadow-sm px-4 py-2">
         <textarea
           ref={textareaRef}
           value={value}
@@ -57,18 +131,41 @@ export function ChatInputField({
           disabled={isLoading || disabled}
           rows={1}
           className={cn(
-            "flex-1 resize-none bg-transparent px-3 py-2 text-sm",
+            "flex-1 resize-none bg-transparent py-2 text-sm",
             "placeholder:text-muted-foreground",
             "focus:outline-none",
             "disabled:opacity-50 disabled:cursor-not-allowed",
             "min-h-[40px] max-h-[200px]"
           )}
         />
+        
+        {/* Voice Input Button */}
+        {hasSpeechRecognition && (
+          <Button
+            type="button"
+            onClick={toggleListening}
+            disabled={isLoading || disabled}
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "h-9 w-9 rounded-full flex-shrink-0",
+              isListening && "text-destructive bg-destructive/10"
+            )}
+          >
+            {isListening ? (
+              <MicOff className="h-4 w-4" />
+            ) : (
+              <Mic className="h-4 w-4 text-muted-foreground" />
+            )}
+          </Button>
+        )}
+        
+        {/* Send Button */}
         <Button
           onClick={handleSend}
           disabled={!value.trim() || isLoading || disabled}
           size="icon"
-          className="h-9 w-9 rounded-xl flex-shrink-0"
+          className="h-9 w-9 rounded-full flex-shrink-0"
         >
           {isLoading ? (
             <Loader2 className="h-4 w-4 animate-spin" />

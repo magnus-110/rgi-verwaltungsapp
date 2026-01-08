@@ -215,26 +215,34 @@ export function Documents() {
       {/* Chat Area */}
       <div className="flex-1 flex flex-col min-h-0">
         {messages.length === 0 ? (
-          /* Welcome Screen */
-          <div className="flex-1 flex flex-col items-center justify-center pb-32">
+          /* Welcome Screen - Centered with Input */
+          <div className="flex-1 flex flex-col items-center justify-center">
             <ChatWelcome />
+            <div className="mt-6 w-full">
+              <ChatInputField
+                onSend={handleSend}
+                isLoading={isLoading}
+              />
+            </div>
           </div>
         ) : (
-          /* Messages */
-          <ScrollArea className="flex-1 px-4" ref={scrollRef}>
-            <div className="py-6">
-              <ChatMessages messages={messages} isLoading={isLoading} />
-            </div>
-          </ScrollArea>
-        )}
+          /* Messages with Input at Bottom */
+          <>
+            <ScrollArea className="flex-1 px-4" ref={scrollRef}>
+              <div className="py-6">
+                <ChatMessages messages={messages} isLoading={isLoading} />
+              </div>
+            </ScrollArea>
 
-        {/* Input Area */}
-        <div className="pb-6 pt-4 bg-gradient-to-t from-background via-background to-transparent">
-          <ChatInputField
-            onSend={handleSend}
-            isLoading={isLoading}
-          />
-        </div>
+            {/* Input Area */}
+            <div className="pb-6 pt-4 bg-gradient-to-t from-background via-background to-transparent">
+              <ChatInputField
+                onSend={handleSend}
+                isLoading={isLoading}
+              />
+            </div>
+          </>
+        )}
       </div>
 
       {/* Upload Dialog */}
