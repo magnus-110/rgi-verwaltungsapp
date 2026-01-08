@@ -30,7 +30,8 @@ WICHTIGE REGELN:
 6. Sei präzise und hilfreich`;
 
 const AVAILABLE_MODELS = [
-  { value: 'mistral-large-latest', label: 'Mistral Large (Empfohlen)' },
+  { value: 'mistral-large-2411', label: 'Mistral Large 24.11 (Juristisch optimal)' },
+  { value: 'mistral-large-latest', label: 'Mistral Large (Allgemein empfohlen)' },
   { value: 'mistral-medium-latest', label: 'Mistral Medium' },
   { value: 'mistral-small-latest', label: 'Mistral Small (Schneller)' },
 ];
@@ -170,7 +171,7 @@ export function DocumentSettings() {
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Mistral Large liefert die besten Ergebnisse, Mistral Small ist schneller und günstiger.
+              Mistral Large 24.11 ist optimiert für juristische und komplexe Fragen. Mistral Small ist schneller und günstiger.
             </p>
           </div>
 
