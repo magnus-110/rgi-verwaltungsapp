@@ -317,9 +317,9 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: settings.model || 'gpt-4o-mini',
+        model: settings.model || 'gpt-4.1-2025-04-14',
         messages: messages,
-        // Use max_completion_tokens for newer models, max_tokens for legacy
+        // Use max_completion_tokens for newer models (GPT-4.1+), max_tokens for legacy (gpt-4o)
         ...(settings.model?.includes('gpt-4o') ? 
           { max_tokens: settings.max_tokens || 1000, temperature: settings.temperature || 0.7 } : 
           { max_completion_tokens: settings.max_tokens || 1000 }
