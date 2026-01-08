@@ -37,7 +37,7 @@ export const WelcomeScreen = ({ userName, userType, onSuggestionClick }: Welcome
               )}
             </h1>
             <p className="text-xl text-primary font-semibold">
-              RGI KI-Assistent
+              Nova
             </p>
           </div>
         </div>
