@@ -227,7 +227,7 @@ export function Documents() {
       <div className="flex-1 flex flex-col min-h-0">
         {messages.length === 0 ? (
           /* Welcome Screen - Centered with Input, shifted up */
-          <div className="flex-1 flex flex-col items-center justify-center -mt-24">
+          <div className="flex-1 flex flex-col items-center justify-center -mt-32">
             <ChatWelcome />
             <div className="mt-8 w-full">
               <ChatInputField
