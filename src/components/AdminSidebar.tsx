@@ -10,7 +10,6 @@ import {
   LogOut,
   ToggleLeft,
   ToggleRight,
-  FileSearch
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -30,11 +29,11 @@ import { Button } from "@/components/ui/button";
 
 const menuItems = [
   { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
+  { title: "NOVA", url: "/documents", icon: Sparkles },
   { title: "Meldungen", url: "/reports", icon: ClipboardList },
   { title: "Gebäude", url: "/buildings", icon: Castle },
-  { title: "Dokumente", url: "/documents", icon: FileSearch },
   { title: "Schwarzes Brett", url: "/forum", icon: Newspaper },
-  { title: "Chatbot", url: "/chatbot", icon: Sparkles },
+  { title: "Chatbot", url: "/chatbot", icon: MessageCircle },
   { title: "Einstellungen", url: "/settings", icon: Settings },
 ];
 
