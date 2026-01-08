@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, RefreshCw } from "lucide-react";
+import { Plus, RefreshCw, Settings } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { KnowledgeScopeSelector, KnowledgeScope } from "@/components/documents/KnowledgeScopeSelector";
 import { UploadDialog } from "@/components/documents/UploadDialog";
 import { ChatWelcome } from "@/components/documents/ChatWelcome";
@@ -10,7 +11,6 @@ import { ChatMessages } from "@/components/documents/ChatMessages";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-
 interface Building {
   id: string;
   name: string;
@@ -33,6 +33,7 @@ interface ChatMessage {
 export function Documents() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Knowledge scope state
@@ -201,24 +202,34 @@ export function Documents() {
             </Button>
           )}
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setIsUploadOpen(true)}
-          className="gap-1.5 h-9"
-        >
-          <Plus className="h-4 w-4" />
-          <span className="hidden sm:inline">Dokument</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate('/documents/settings')}
+            className="h-9 w-9"
+          >
+            <Settings className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsUploadOpen(true)}
+            className="gap-1.5 h-9"
+          >
+            <Plus className="h-4 w-4" />
+            <span className="hidden sm:inline">Dokument</span>
+          </Button>
+        </div>
       </div>
 
       {/* Chat Area */}
       <div className="flex-1 flex flex-col min-h-0">
         {messages.length === 0 ? (
-          /* Welcome Screen - Centered with Input */
-          <div className="flex-1 flex flex-col items-center justify-center">
+          /* Welcome Screen - Centered with Input, shifted up */
+          <div className="flex-1 flex flex-col items-center justify-center -mt-24">
             <ChatWelcome />
-            <div className="mt-6 w-full">
+            <div className="mt-8 w-full">
               <ChatInputField
                 onSend={handleSend}
                 isLoading={isLoading}

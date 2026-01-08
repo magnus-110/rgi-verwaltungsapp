@@ -328,6 +328,36 @@ export type Database = {
           },
         ]
       }
+      document_chat_settings: {
+        Row: {
+          created_at: string
+          id: string
+          max_tokens: number | null
+          model: string | null
+          system_prompt: string | null
+          temperature: number | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          max_tokens?: number | null
+          model?: string | null
+          system_prompt?: string | null
+          temperature?: number | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          max_tokens?: number | null
+          model?: string | null
+          system_prompt?: string | null
+          temperature?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       document_chunks: {
         Row: {
           building_id: string | null

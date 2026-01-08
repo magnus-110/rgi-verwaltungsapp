@@ -93,13 +93,10 @@ async function searchSimilarChunks(
   return data || [];
 }
 
-// Generate response with Mistral Large
-async function generateResponse(
-  question: string,
-  context: string,
-  conversationHistory: Array<{role: string, content: string}>
-): Promise<{answer: string, sources: any[]}> {
-  const systemPrompt = `Du bist ein hilfreicher Assistent für die Immobilienverwaltung. Du beantwortest Fragen basierend auf den bereitgestellten Dokumenten.
+// Get chat settings from database
+async function getChatSettings(supabase: any): Promise<{systemPrompt: string, model: string, temperature: number, maxTokens: number}> {
+  const defaults = {
+    systemPrompt: `Du bist ein hilfreicher Assistent für die Immobilienverwaltung. Du beantwortest Fragen basierend auf den bereitgestellten Dokumenten.
 
 WICHTIGE REGELN:
 1. Antworte NUR basierend auf den bereitgestellten Dokumenten
@@ -107,7 +104,42 @@ WICHTIGE REGELN:
 3. Gib immer die Quelle an (Dokument, Seite, Abschnitt)
 4. Beziehe dich auf vorherige Fragen in der Konversation wenn relevant
 5. Antworte auf Deutsch
-6. Sei präzise und hilfreich
+6. Sei präzise und hilfreich`,
+    model: 'mistral-large-latest',
+    temperature: 0.3,
+    maxTokens: 2000,
+  };
+
+  try {
+    const { data, error } = await supabase
+      .from('document_chat_settings')
+      .select('*')
+      .limit(1)
+      .single();
+
+    if (error || !data) {
+      return defaults;
+    }
+
+    return {
+      systemPrompt: data.system_prompt || defaults.systemPrompt,
+      model: data.model || defaults.model,
+      temperature: parseFloat(data.temperature) ?? defaults.temperature,
+      maxTokens: data.max_tokens ?? defaults.maxTokens,
+    };
+  } catch {
+    return defaults;
+  }
+}
+
+// Generate response with Mistral
+async function generateResponse(
+  question: string,
+  context: string,
+  conversationHistory: Array<{role: string, content: string}>,
+  settings: {systemPrompt: string, model: string, temperature: number, maxTokens: number}
+): Promise<{answer: string, sources: any[]}> {
+  const systemPrompt = `${settings.systemPrompt}
 
 KONTEXT AUS DOKUMENTEN:
 ${context}`;
@@ -125,10 +157,10 @@ ${context}`;
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'mistral-large-latest',
+      model: settings.model,
       messages,
-      temperature: 0.3,
-      max_tokens: 2000,
+      temperature: settings.temperature,
+      max_tokens: settings.maxTokens,
     }),
   });
 
@@ -251,11 +283,15 @@ serve(async (req) => {
       return `[Quelle ${index + 1}${sourceInfo ? ` - ${sourceInfo}` : ''}]\n${chunk.content}`;
     }).join('\n\n---\n\n');
 
+    // Get chat settings
+    const chatSettings = await getChatSettings(supabase);
+
     // Generate response
     const { answer, sources } = await generateResponse(
       question,
       context,
-      conversationHistory
+      conversationHistory,
+      chatSettings
     );
 
     // Extract sources from chunks
