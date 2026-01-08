@@ -53,25 +53,19 @@ export function DocumentSettings() {
 
   const loadSettings = async () => {
     try {
-      const session = await supabase.auth.getSession();
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/document_chat_settings?limit=1`,
-        {
-          headers: {
-            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-            'Authorization': `Bearer ${session.data.session?.access_token}`,
-          },
-        }
-      );
-      const result = await response.json();
-      if (result && result.length > 0) {
-        const row = result[0];
+      const { data, error } = await supabase
+        .from('document_chat_settings')
+        .select('*')
+        .limit(1)
+        .maybeSingle();
+      
+      if (data) {
         setSettings({
-          id: row.id,
-          system_prompt: row.system_prompt || DEFAULT_SYSTEM_PROMPT,
-          model: row.model || 'mistral-large-latest',
-          temperature: parseFloat(row.temperature) ?? 0.3,
-          max_tokens: row.max_tokens ?? 2000,
+          id: data.id,
+          system_prompt: data.system_prompt || DEFAULT_SYSTEM_PROMPT,
+          model: data.model || 'mistral-large-latest',
+          temperature: data.temperature ?? 0.3,
+          max_tokens: data.max_tokens ?? 2000,
         });
       }
     } catch (error) {
@@ -84,45 +78,30 @@ export function DocumentSettings() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const session = await supabase.auth.getSession();
-      const headers = {
-        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${session.data.session?.access_token}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=minimal',
-      };
-
       if (settings.id) {
-        const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/document_chat_settings?id=eq.${settings.id}`,
-          {
-            method: 'PATCH',
-            headers,
-            body: JSON.stringify({
-              system_prompt: settings.system_prompt,
-              model: settings.model,
-              temperature: settings.temperature,
-              max_tokens: settings.max_tokens,
-              updated_at: new Date().toISOString(),
-            }),
-          }
-        );
-        if (!response.ok) throw new Error('Update failed');
+        const { error } = await supabase
+          .from('document_chat_settings')
+          .update({
+            system_prompt: settings.system_prompt,
+            model: settings.model,
+            temperature: settings.temperature,
+            max_tokens: settings.max_tokens,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', settings.id);
+        
+        if (error) throw error;
       } else {
-        const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/document_chat_settings`,
-          {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({
-              system_prompt: settings.system_prompt,
-              model: settings.model,
-              temperature: settings.temperature,
-              max_tokens: settings.max_tokens,
-            }),
-          }
-        );
-        if (!response.ok) throw new Error('Insert failed');
+        const { error } = await supabase
+          .from('document_chat_settings')
+          .insert({
+            system_prompt: settings.system_prompt,
+            model: settings.model,
+            temperature: settings.temperature,
+            max_tokens: settings.max_tokens,
+          });
+        
+        if (error) throw error;
       }
 
       toast({
