@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Building2, FileText, MessageSquare } from "lucide-react";
-import { CategorySelector } from "@/components/documents/CategorySelector";
-import { BuildingDocumentList } from "@/components/documents/BuildingDocumentList";
-import { DocumentUpload } from "@/components/documents/DocumentUpload";
-import { DocumentChat } from "@/components/documents/DocumentChat";
+import React, { useState, useEffect, useRef } from "react";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Plus, RefreshCw } from "lucide-react";
+import { KnowledgeScopeSelector, KnowledgeScope } from "@/components/documents/KnowledgeScopeSelector";
+import { UploadDialog } from "@/components/documents/UploadDialog";
+import { ChatWelcome } from "@/components/documents/ChatWelcome";
+import { ChatInputField } from "@/components/documents/ChatInputField";
+import { ChatMessages } from "@/components/documents/ChatMessages";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
 
 interface Building {
   id: string;
@@ -16,24 +18,36 @@ interface Building {
   building_code: string;
 }
 
-interface DocumentInfo {
+interface ChatMessage {
   id: string;
-  status: 'uploading' | 'processing' | 'ready' | 'error';
-  page_count: number | null;
-  file_name: string;
+  role: 'user' | 'assistant';
+  content: string;
+  sources?: Array<{
+    content: string;
+    metadata: any;
+    buildingId?: string;
+  }>;
   created_at: string;
-  error_message: string | null;
 }
 
 export function Documents() {
   const { user } = useAuth();
-  const [category, setCategory] = useState<'building' | 'general'>('building');
+  const { toast } = useToast();
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Knowledge scope state
+  const [scope, setScope] = useState<KnowledgeScope>('general');
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
+  const [includeGeneral, setIncludeGeneral] = useState(true);
+
+  // Data state
   const [buildings, setBuildings] = useState<Building[]>([]);
-  const [documentInfo, setDocumentInfo] = useState<DocumentInfo | null>(null);
-  const [generalDocuments, setGeneralDocuments] = useState<DocumentInfo[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'upload' | 'chat'>('upload');
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
+
+  // Chat state
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
   // Fetch buildings
   useEffect(() => {
@@ -45,196 +59,190 @@ export function Documents() {
 
       if (!error && data) {
         setBuildings(data);
-        if (data.length > 0 && !selectedBuildingId) {
-          setSelectedBuildingId(data[0].id);
-        }
       }
-      setIsLoading(false);
     };
 
     fetchBuildings();
   }, []);
 
-  // Fetch document info for selected building
+  // Auto-scroll to bottom
   useEffect(() => {
-    const fetchDocumentInfo = async () => {
-      if (category === 'building' && selectedBuildingId) {
-        const { data, error } = await supabase
-          .from('building_documents')
-          .select('id, status, page_count, file_name, created_at, error_message')
-          .eq('building_id', selectedBuildingId)
-          .eq('category', 'building')
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single();
+    if (scrollRef.current) {
+      const scrollContainer = scrollRef.current.querySelector('[data-radix-scroll-area-viewport]');
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight;
+      }
+    }
+  }, [messages]);
 
-        if (!error && data) {
-          setDocumentInfo(data as DocumentInfo);
-        } else {
-          setDocumentInfo(null);
-        }
-      } else if (category === 'general') {
-        const { data, error } = await supabase
-          .from('building_documents')
-          .select('id, status, page_count, file_name, created_at, error_message')
-          .is('building_id', null)
-          .eq('category', 'general')
-          .order('created_at', { ascending: false });
+  // Load existing session messages
+  useEffect(() => {
+    const loadSession = async () => {
+      if (!sessionId) return;
 
-        if (!error && data) {
-          setGeneralDocuments(data as DocumentInfo[]);
-        } else {
-          setGeneralDocuments([]);
-        }
+      const { data, error } = await supabase
+        .from('document_chat_messages')
+        .select('*')
+        .eq('session_id', sessionId)
+        .order('created_at', { ascending: true });
+
+      if (!error && data) {
+        setMessages(data.map(msg => ({
+          id: msg.id,
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+          sources: msg.sources as any,
+          created_at: msg.created_at,
+        })));
       }
     };
 
-    fetchDocumentInfo();
+    loadSession();
+  }, [sessionId]);
 
-    // Subscribe to changes
-    const channel = supabase
-      .channel('document-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'building_documents',
-        },
-        () => {
-          fetchDocumentInfo();
-        }
-      )
-      .subscribe();
+  const handleSend = async (messageContent: string) => {
+    if (isLoading) return;
 
-    return () => {
-      supabase.removeChannel(channel);
+    const userMessage: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: 'user',
+      content: messageContent,
+      created_at: new Date().toISOString(),
     };
-  }, [category, selectedBuildingId]);
 
-  const handleDocumentUploaded = () => {
-    // Refresh document info after upload
-    if (category === 'building' && selectedBuildingId) {
-      supabase
-        .from('building_documents')
-        .select('id, status, page_count, file_name, created_at, error_message')
-        .eq('building_id', selectedBuildingId)
-        .eq('category', 'building')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single()
-        .then(({ data }) => {
-          if (data) setDocumentInfo(data as DocumentInfo);
-        });
+    setMessages(prev => [...prev, userMessage]);
+    setIsLoading(true);
+
+    try {
+      // Determine buildingId based on scope
+      let buildingId: string | null = null;
+      if (scope === 'specific' && selectedBuildingId) {
+        buildingId = selectedBuildingId;
+      }
+
+      // Determine includeGeneral based on scope
+      const shouldIncludeGeneral = scope === 'general' ? true : includeGeneral;
+
+      const { data, error } = await supabase.functions.invoke('query-documents', {
+        body: {
+          sessionId,
+          question: messageContent,
+          buildingId: scope === 'specific' ? buildingId : null,
+          includeGeneral: shouldIncludeGeneral,
+          userId: user?.id,
+          searchAllBuildings: scope === 'all',
+        },
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      if (data.sessionId && !sessionId) {
+        setSessionId(data.sessionId);
+      }
+
+      const assistantMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: data.answer,
+        sources: data.sources,
+        created_at: new Date().toISOString(),
+      };
+
+      setMessages(prev => [...prev, assistantMessage]);
+
+    } catch (error) {
+      console.error('Chat error:', error);
+      toast({
+        title: "Fehler",
+        description: error instanceof Error ? error.message : "Konnte keine Antwort generieren.",
+        variant: "destructive",
+      });
+      
+      setMessages(prev => prev.filter(m => m.id !== userMessage.id));
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const selectedBuilding = buildings.find(b => b.id === selectedBuildingId);
+  const handleNewSession = () => {
+    setSessionId(null);
+    setMessages([]);
+    toast({
+      title: "Neue Session",
+      description: "Eine neue Chat-Session wurde gestartet.",
+    });
+  };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Dokumenten-Verwaltung</h1>
-        <p className="text-muted-foreground mt-1">
-          Laden Sie Dokumente hoch und stellen Sie Fragen mit KI-Unterstützung
-        </p>
-      </div>
-
-      {/* Category Selector */}
-      <CategorySelector 
-        category={category} 
-        onCategoryChange={setCategory} 
-      />
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Building/Document Selection */}
-        <div className="lg:col-span-1">
-          {category === 'building' ? (
-            <BuildingDocumentList
-              buildings={buildings}
-              selectedBuildingId={selectedBuildingId}
-              onSelectBuilding={setSelectedBuildingId}
-              isLoading={isLoading}
-            />
-          ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Allgemeine Dokumente
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {generalDocuments.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    Noch keine allgemeinen Dokumente hochgeladen.
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {generalDocuments.map(doc => (
-                      <div 
-                        key={doc.id}
-                        className="p-3 bg-muted rounded-lg"
-                      >
-                        <p className="text-sm font-medium truncate">{doc.file_name}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className={`inline-block w-2 h-2 rounded-full ${
-                            doc.status === 'ready' ? 'bg-green-500' :
-                            doc.status === 'processing' ? 'bg-yellow-500' :
-                            doc.status === 'error' ? 'bg-red-500' :
-                            'bg-gray-500'
-                          }`} />
-                          <span className="text-xs text-muted-foreground">
-                            {doc.status === 'ready' && doc.page_count && `${doc.page_count} Seiten`}
-                            {doc.status === 'processing' && 'Wird verarbeitet...'}
-                            {doc.status === 'error' && 'Fehler'}
-                            {doc.status === 'uploading' && 'Wird hochgeladen...'}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+    <div className="flex flex-col h-[calc(100vh-4rem)] bg-background">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-background/95 backdrop-blur-sm">
+        <div className="flex items-center gap-3">
+          <KnowledgeScopeSelector
+            scope={scope}
+            onScopeChange={setScope}
+            selectedBuildingId={selectedBuildingId}
+            onBuildingChange={setSelectedBuildingId}
+            includeGeneral={includeGeneral}
+            onIncludeGeneralChange={setIncludeGeneral}
+            buildings={buildings}
+          />
+          {messages.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleNewSession}
+              className="gap-1.5 h-8 text-muted-foreground hover:text-foreground"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Neue Session</span>
+            </Button>
           )}
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setIsUploadOpen(true)}
+          className="gap-1.5 h-9"
+        >
+          <Plus className="h-4 w-4" />
+          <span className="hidden sm:inline">Dokument</span>
+        </Button>
+      </div>
 
-        {/* Right Column: Upload & Chat */}
-        <div className="lg:col-span-2">
-          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'upload' | 'chat')}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="upload" className="flex items-center gap-2">
-                <FileText className="h-4 w-4" />
-                Dokument hochladen
-              </TabsTrigger>
-              <TabsTrigger value="chat" className="flex items-center gap-2">
-                <MessageSquare className="h-4 w-4" />
-                Mit Dokumenten chatten
-              </TabsTrigger>
-            </TabsList>
+      {/* Chat Area */}
+      <div className="flex-1 flex flex-col min-h-0">
+        {messages.length === 0 ? (
+          /* Welcome Screen */
+          <div className="flex-1 flex flex-col items-center justify-center pb-32">
+            <ChatWelcome />
+          </div>
+        ) : (
+          /* Messages */
+          <ScrollArea className="flex-1 px-4" ref={scrollRef}>
+            <div className="py-6">
+              <ChatMessages messages={messages} isLoading={isLoading} />
+            </div>
+          </ScrollArea>
+        )}
 
-            <TabsContent value="upload" className="mt-4">
-              <DocumentUpload
-                category={category}
-                buildingId={selectedBuildingId}
-                buildingName={selectedBuilding?.name}
-                existingDocument={category === 'building' ? documentInfo : null}
-                onDocumentUploaded={handleDocumentUploaded}
-              />
-            </TabsContent>
-
-            <TabsContent value="chat" className="mt-4">
-              <DocumentChat
-                buildings={buildings}
-                selectedBuildingId={selectedBuildingId}
-                onBuildingChange={setSelectedBuildingId}
-                userId={user?.id || ''}
-              />
-            </TabsContent>
-          </Tabs>
+        {/* Input Area */}
+        <div className="pb-6 pt-4 bg-gradient-to-t from-background via-background to-transparent">
+          <ChatInputField
+            onSend={handleSend}
+            isLoading={isLoading}
+          />
         </div>
       </div>
+
+      {/* Upload Dialog */}
+      <UploadDialog
+        open={isUploadOpen}
+        onOpenChange={setIsUploadOpen}
+        buildings={buildings}
+      />
     </div>
   );
 }
