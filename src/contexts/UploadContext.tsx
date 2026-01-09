@@ -14,6 +14,10 @@ export interface Upload {
   documentId?: string;
   error?: string;
   createdAt: Date;
+  // Batch processing fields
+  totalPages?: number;
+  processedPages?: number;
+  processingPhase?: 'pending' | 'ocr' | 'chunking' | 'embedding' | 'saving' | 'complete';
 }
 
 interface UploadContextType {
@@ -56,7 +60,13 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
             
             // Map database status to upload status
             if (doc.status === 'ready') {
-              return { ...upload, status: 'done', progress: 100, step: 'Fertig' };
+              return { 
+                ...upload, 
+                status: 'done', 
+                progress: 100, 
+                step: 'Fertig',
+                processingPhase: 'complete'
+              };
             } else if (doc.status === 'error') {
               return { ...upload, status: 'error', error: doc.error_message || 'Verarbeitungsfehler' };
             } else if (doc.status === 'processing') {
@@ -64,7 +74,10 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
                 ...upload,
                 status: 'processing',
                 progress: doc.processing_progress || upload.progress,
-                step: doc.processing_step || upload.step
+                step: doc.processing_step || upload.step,
+                totalPages: doc.total_pages || upload.totalPages,
+                processedPages: doc.processed_pages || upload.processedPages,
+                processingPhase: doc.processing_phase || upload.processingPhase
               };
             }
             return upload;

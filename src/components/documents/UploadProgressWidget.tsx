@@ -60,6 +60,10 @@ export function UploadProgressWidget() {
       case 'uploading':
         return 'Hochladen...';
       case 'processing':
+        // Show detailed progress for batch processing
+        if (upload.totalPages && upload.totalPages > 50 && upload.processingPhase === 'ocr') {
+          return `OCR: ${upload.processedPages || 0}/${upload.totalPages} Seiten`;
+        }
         return upload.step || 'Verarbeitung...';
       case 'done':
         return 'Fertig';

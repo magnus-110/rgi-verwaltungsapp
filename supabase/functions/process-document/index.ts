@@ -10,6 +10,9 @@ const MISTRAL_API_KEY = Deno.env.get('MISTRAL_API_KEY');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
+// Threshold: Documents with more pages use batch processing
+const BATCH_THRESHOLD_PAGES = 50;
+
 interface ProcessDocumentRequest {
   documentId: string;
   filePath: string;
@@ -17,83 +20,49 @@ interface ProcessDocumentRequest {
   category: 'building' | 'general';
 }
 
-interface DocumentTypeResult {
-  type: 'native' | 'scan' | 'hybrid';
-  directText: string | null;
-  confidence: number;
-}
-
 // Helper to update progress in database
-async function updateProgress(supabase: any, documentId: string, progress: number, step: string) {
+async function updateProgress(supabase: any, documentId: string, progress: number, step: string, phase?: string) {
+  const updateData: any = { 
+    processing_progress: progress, 
+    processing_step: step 
+  };
+  if (phase) updateData.processing_phase = phase;
+  
   await supabase
     .from('building_documents')
-    .update({ 
-      processing_progress: progress, 
-      processing_step: step 
-    })
+    .update(updateData)
     .eq('id', documentId);
   console.log(`Progress: ${progress}% - ${step}`);
 }
 
-// Analyze PDF structure to detect if it's native text, scan, or hybrid
-// This uses a heuristic based on the PDF binary structure
-function analyzeRawPdfStructure(pdfBytes: Uint8Array): { hasTextStreams: boolean; hasImages: boolean; textRatio: number } {
+// Count pages in PDF by checking for page markers in structure
+function countPdfPages(pdfBytes: Uint8Array): number {
   const pdfContent = new TextDecoder('latin1').decode(pdfBytes);
   
-  // Count text stream indicators (BT...ET blocks indicate native text)
-  const textBlockMatches = pdfContent.match(/BT[\s\S]*?ET/g) || [];
-  const textBlockCount = textBlockMatches.length;
-  
-  // Count image indicators (/Image, /XObject with /Subtype /Image)
-  const imageMatches = pdfContent.match(/\/Subtype\s*\/Image/g) || [];
-  const imageCount = imageMatches.length;
-  
-  // Count font definitions (native PDFs typically have font definitions)
-  const fontMatches = pdfContent.match(/\/Type\s*\/Font/g) || [];
-  const fontCount = fontMatches.length;
-  
-  // Look for embedded text content
-  const textContentMatches = pdfContent.match(/\(([^)]{3,})\)/g) || [];
-  const totalTextChars = textContentMatches.reduce((acc, m) => acc + m.length, 0);
-  
-  const hasTextStreams = textBlockCount > 0 || fontCount > 0 || totalTextChars > 500;
-  const hasImages = imageCount > 0;
-  
-  // Calculate ratio - higher means more likely to be native text
-  const textRatio = hasImages ? (textBlockCount + fontCount * 5 + totalTextChars / 100) / (imageCount * 10) : 100;
-  
-  console.log(`PDF Analysis: textBlocks=${textBlockCount}, fonts=${fontCount}, images=${imageCount}, textChars=${totalTextChars}, ratio=${textRatio.toFixed(2)}`);
-  
-  return { hasTextStreams, hasImages, textRatio };
-}
-
-// Detect document type based on PDF structure analysis
-function detectDocumentType(pdfBytes: Uint8Array): DocumentTypeResult {
-  const analysis = analyzeRawPdfStructure(pdfBytes);
-  
-  // Decision logic:
-  // - If textRatio > 5 and hasTextStreams and no/few images: Native
-  // - If no text streams or textRatio < 0.5: Scan
-  // - Otherwise: Hybrid
-  
-  if (analysis.hasTextStreams && analysis.textRatio > 5) {
-    console.log('Document type detected: NATIVE (text-based PDF)');
-    return { type: 'native', directText: null, confidence: Math.min(analysis.textRatio / 10, 1) };
-  } else if (!analysis.hasTextStreams || analysis.textRatio < 0.5) {
-    console.log('Document type detected: SCAN (image-based PDF)');
-    return { type: 'scan', directText: null, confidence: analysis.hasImages ? 0.9 : 0.7 };
-  } else {
-    console.log('Document type detected: HYBRID (mixed content PDF)');
-    return { type: 'hybrid', directText: null, confidence: 0.7 };
+  // Method 1: Count /Page objects (most reliable)
+  const pageMatches = pdfContent.match(/\/Type\s*\/Page[^s]/g) || [];
+  if (pageMatches.length > 0) {
+    console.log(`Detected ${pageMatches.length} pages via /Page objects`);
+    return pageMatches.length;
   }
+  
+  // Method 2: Look for /Count in page tree
+  const countMatch = pdfContent.match(/\/Count\s+(\d+)/);
+  if (countMatch) {
+    const count = parseInt(countMatch[1]);
+    console.log(`Detected ${count} pages via /Count`);
+    return count;
+  }
+  
+  // Fallback: estimate based on size (roughly 50KB per page for scans)
+  const estimatedPages = Math.max(1, Math.ceil(pdfBytes.length / 50000));
+  console.log(`Estimated ${estimatedPages} pages based on file size`);
+  return estimatedPages;
 }
 
-// Note: Direct text extraction via Chat API was unreliable for large PDFs.
-// We now use OCR for all document types - it's optimized and works reliably.
-
-// OCR with Mistral OCR (for scanned documents)
-async function extractTextWithMistralOCR(pdfBase64: string): Promise<string> {
-  console.log('Starting Mistral OCR extraction (for scanned document)...');
+// OCR with Mistral (full document for small files)
+async function extractTextWithMistralOCR(pdfBase64: string): Promise<{ text: string; pageCount: number }> {
+  console.log('Starting Mistral OCR extraction...');
   
   const response = await fetch('https://api.mistral.ai/v1/ocr', {
     method: 'POST',
@@ -106,7 +75,8 @@ async function extractTextWithMistralOCR(pdfBase64: string): Promise<string> {
       document: {
         type: 'document_url',
         document_url: `data:application/pdf;base64,${pdfBase64}`
-      }
+      },
+      include_image_base64: false
     }),
   });
 
@@ -119,163 +89,138 @@ async function extractTextWithMistralOCR(pdfBase64: string): Promise<string> {
   const data = await response.json();
   console.log('Mistral OCR response received');
   
-  // Combine all pages' markdown content
   let fullText = '';
+  let pageCount = 0;
+  
   if (data.pages) {
     for (const page of data.pages) {
       fullText += `\n\n--- Seite ${page.index + 1} ---\n\n`;
       fullText += page.markdown || '';
+      pageCount++;
     }
   } else if (data.text) {
     fullText = data.text;
+    pageCount = 1;
   }
   
-  return fullText;
+  return { text: fullText, pageCount };
 }
 
-// Main text extraction function - uses OCR for all document types
-// The Mistral OCR API is optimized and handles both native PDFs and scans reliably
-async function extractText(
-  pdfBytes: Uint8Array, 
-  pdfBase64: string, 
-  supabase: any, 
-  documentId: string
-): Promise<{ text: string; documentType: 'native' | 'scan' | 'hybrid'; extractionMethod: string }> {
+// Semantic chunking - fast, rule-based, but preserves context
+function createSemanticChunks(text: string, documentName: string): Array<{ content: string; metadata: any }> {
+  const chunks: Array<{ content: string; metadata: any }> = [];
   
-  // Step 1: Detect document type from PDF structure (for tracking/logging)
-  const detection = detectDocumentType(pdfBytes);
+  const pagePattern = /\n\n--- Seite (\d+) ---\n\n/g;
+  const pageSplits = text.split(pagePattern);
   
-  // Step 2: Use OCR for all document types
-  const progressMessage = detection.type === 'native' 
-    ? 'Texterkennung (natives PDF)...'
-    : detection.type === 'scan' 
-    ? 'OCR für Scan-Dokument...'
-    : 'Texterkennung (Hybrid-Dokument)...';
+  let currentPage = 1;
+  let buffer = '';
+  let bufferStartPage = 1;
   
-  await updateProgress(supabase, documentId, 20, progressMessage);
+  const TARGET_SIZE = 1000;
+  const MIN_SIZE = 400;
+  const MAX_SIZE = 1800;
   
-  try {
-    const ocrText = await extractTextWithMistralOCR(pdfBase64);
-    console.log(`OCR completed for ${detection.type} document: ${ocrText.length} characters`);
+  for (let i = 0; i < pageSplits.length; i++) {
+    const segment = pageSplits[i];
     
-    return { 
-      text: ocrText, 
-      documentType: detection.type, 
-      extractionMethod: 'ocr' 
-    };
-  } catch (error) {
-    console.error('OCR extraction failed:', error);
-    throw error;
-  }
-}
-
-// Intelligent chunking with Mistral Large
-async function createIntelligentChunks(text: string, documentName: string): Promise<Array<{content: string, metadata: any}>> {
-  console.log('Starting intelligent chunking with Mistral Large...');
-  
-  const systemPrompt = `Du bist ein Experte für Dokumentenanalyse und Textstrukturierung. Deine Aufgabe ist es, ein Immobilienverwaltungsdokument in semantisch sinnvolle Abschnitte zu unterteilen.
-
-WICHTIGE REGELN:
-1. Erstelle Chunks zwischen 500 und 1500 Zeichen
-2. Trenne nach semantischen Grenzen (Kapitel, Abschnitte, Themen)
-3. Behalte zusammengehörige Informationen zusammen (z.B. Eigentümer mit ihren Miteigentumsanteilen)
-4. Extrahiere für jeden Chunk Metadaten
-
-Antworte im folgenden JSON-Format:
-{
-  "chunks": [
-    {
-      "content": "Der Textinhalt des Chunks",
-      "metadata": {
-        "page": "Seitennummer falls erkennbar",
-        "section": "Kapitelname oder Abschnittsüberschrift",
-        "category": "Eine von: eigentuemer, verwalter, protokoll, finanzen, technik, rechtlich, allgemein",
-        "summary": "Kurze Zusammenfassung in einem Satz"
-      }
+    if (/^\d+$/.test(segment.trim())) {
+      currentPage = parseInt(segment.trim());
+      continue;
     }
-  ]
-}`;
-
-  // Split text into manageable parts if too long (Mistral has token limits)
-  const maxCharsPerRequest = 100000;
-  const textParts = [];
-  for (let i = 0; i < text.length; i += maxCharsPerRequest) {
-    textParts.push(text.slice(i, i + maxCharsPerRequest));
-  }
-
-  const allChunks: Array<{content: string, metadata: any}> = [];
-  
-  for (let partIndex = 0; partIndex < textParts.length; partIndex++) {
-    const textPart = textParts[partIndex];
     
-    const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${MISTRAL_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'mistral-large-latest',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Dokument: ${documentName}\n\nTeil ${partIndex + 1} von ${textParts.length}:\n\n${textPart}` }
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0.1,
-        max_tokens: 16000,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Mistral chunking error:', errorText);
-      throw new Error(`Mistral chunking failed: ${errorText}`);
-    }
-
-    const data = await response.json();
-    const content = data.choices[0]?.message?.content;
+    const paragraphs = segment.split(/\n\n+/).filter(p => p.trim().length > 20);
     
-    try {
-      const parsed = JSON.parse(content);
-      if (parsed.chunks && Array.isArray(parsed.chunks)) {
-        allChunks.push(...parsed.chunks);
-      }
-    } catch (e) {
-      console.error('Failed to parse Mistral response:', e);
-      // Fallback: create simple chunks
-      const fallbackChunks = createFallbackChunks(textPart);
-      allChunks.push(...fallbackChunks);
-    }
-  }
-
-  console.log(`Created ${allChunks.length} intelligent chunks`);
-  return allChunks;
-}
-
-// Fallback chunking if Mistral fails
-function createFallbackChunks(text: string): Array<{content: string, metadata: any}> {
-  const chunks: Array<{content: string, metadata: any}> = [];
-  const chunkSize = 1000;
-  const overlap = 100;
-  
-  for (let i = 0; i < text.length; i += chunkSize - overlap) {
-    const content = text.slice(i, i + chunkSize);
-    if (content.trim().length > 50) {
-      chunks.push({
-        content: content.trim(),
-        metadata: {
-          category: 'allgemein',
-          summary: 'Automatisch erstellter Textabschnitt'
+    for (const para of paragraphs) {
+      if (buffer.length + para.length < MAX_SIZE) {
+        buffer += (buffer ? '\n\n' : '') + para;
+      } else {
+        if (buffer.length >= MIN_SIZE) {
+          chunks.push(createChunkWithMetadata(buffer, bufferStartPage, currentPage, documentName));
+          
+          const words = buffer.split(/\s+/);
+          const overlapWords = words.slice(-Math.min(20, Math.floor(words.length * 0.1)));
+          buffer = overlapWords.join(' ') + '\n\n' + para;
+          bufferStartPage = currentPage;
+        } else {
+          buffer += (buffer ? '\n\n' : '') + para;
         }
-      });
+        
+        if (para.length > MAX_SIZE) {
+          const sentences = para.match(/[^.!?]+[.!?]+/g) || [para];
+          let sentenceBuffer = '';
+          
+          for (const sentence of sentences) {
+            if (sentenceBuffer.length + sentence.length > TARGET_SIZE && sentenceBuffer.length >= MIN_SIZE) {
+              chunks.push(createChunkWithMetadata(sentenceBuffer, currentPage, currentPage, documentName));
+              sentenceBuffer = sentence;
+            } else {
+              sentenceBuffer += sentence;
+            }
+          }
+          
+          if (sentenceBuffer.length >= MIN_SIZE) {
+            chunks.push(createChunkWithMetadata(sentenceBuffer, currentPage, currentPage, documentName));
+          }
+          buffer = '';
+          bufferStartPage = currentPage;
+        }
+      }
     }
   }
   
+  if (buffer.trim().length >= MIN_SIZE) {
+    chunks.push(createChunkWithMetadata(buffer, bufferStartPage, currentPage, documentName));
+  } else if (buffer.trim().length > 50 && chunks.length > 0) {
+    chunks[chunks.length - 1].content += '\n\n' + buffer.trim();
+  } else if (buffer.trim().length > 50) {
+    chunks.push(createChunkWithMetadata(buffer, bufferStartPage, currentPage, documentName));
+  }
+  
+  console.log(`Created ${chunks.length} semantic chunks`);
   return chunks;
 }
 
+function createChunkWithMetadata(
+  content: string, 
+  startPage: number, 
+  endPage: number,
+  documentName: string
+): { content: string; metadata: any } {
+  const contentLower = content.toLowerCase();
+  let category = 'allgemein';
+  
+  if (/eigentümer|miteigentum|wohneinheit|sondereigentum/.test(contentLower)) {
+    category = 'eigentuemer';
+  } else if (/verwalter|hausverwaltung|verwaltung/.test(contentLower)) {
+    category = 'verwalter';
+  } else if (/protokoll|beschluss|versammlung|abstimmung/.test(contentLower)) {
+    category = 'protokoll';
+  } else if (/kosten|zahlung|wirtschaftsplan|hausgeld|rücklage/.test(contentLower)) {
+    category = 'finanzen';
+  } else if (/heizung|wartung|reparatur|instandhaltung|sanierung/.test(contentLower)) {
+    category = 'technik';
+  } else if (/gesetz|paragraph|§|recht|urteil|bgh|vertrag/.test(contentLower)) {
+    category = 'rechtlich';
+  }
+  
+  const firstLine = content.split('\n')[0].trim().slice(0, 100);
+  
+  return {
+    content: content.trim(),
+    metadata: {
+      page_start: startPage,
+      page_end: endPage,
+      pages: startPage === endPage ? `${startPage}` : `${startPage}-${endPage}`,
+      category,
+      document: documentName,
+      summary: firstLine.length > 10 ? firstLine : null
+    }
+  };
+}
+
 // Generate embeddings with Mistral Embed
-async function generateEmbeddings(texts: string[]): Promise<number[][]> {
+async function generateEmbeddings(texts: string[], supabase: any, documentId: string): Promise<number[][]> {
   console.log(`Generating embeddings for ${texts.length} chunks...`);
   
   const batchSize = 10;
@@ -283,6 +228,14 @@ async function generateEmbeddings(texts: string[]): Promise<number[][]> {
   
   for (let i = 0; i < texts.length; i += batchSize) {
     const batch = texts.slice(i, i + batchSize);
+    
+    const progressPercent = Math.round(60 + (i / texts.length) * 25);
+    await updateProgress(
+      supabase, 
+      documentId, 
+      progressPercent, 
+      `Embeddings: ${Math.min(i + batchSize, texts.length)} von ${texts.length}`
+    );
     
     const response = await fetch('https://api.mistral.ai/v1/embeddings', {
       method: 'POST',
@@ -305,8 +258,6 @@ async function generateEmbeddings(texts: string[]): Promise<number[][]> {
     const data = await response.json();
     const embeddings = data.data.map((item: any) => item.embedding);
     allEmbeddings.push(...embeddings);
-    
-    console.log(`Processed embeddings batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(texts.length / batchSize)}`);
   }
   
   return allEmbeddings;
@@ -333,17 +284,18 @@ serve(async (req) => {
 
     supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
-    // Update status to processing with initial progress
+    // Update status to processing
     await supabase
       .from('building_documents')
       .update({ 
         status: 'processing',
         processing_progress: 5,
-        processing_step: 'Dokument wird analysiert...'
+        processing_step: 'Dokument wird analysiert...',
+        processing_phase: 'pending'
       })
       .eq('id', documentId);
 
-    // Download PDF from storage
+    // Download PDF
     await updateProgress(supabase, documentId, 10, 'PDF wird heruntergeladen...');
     
     const { data: fileData, error: downloadError } = await supabase
@@ -355,48 +307,97 @@ serve(async (req) => {
       throw new Error(`Failed to download file: ${downloadError.message}`);
     }
 
-    // Convert to bytes and base64
-    await updateProgress(supabase, documentId, 15, 'Dokumenttyp wird erkannt...');
-    
     const arrayBuffer = await fileData.arrayBuffer();
     const pdfBytes = new Uint8Array(arrayBuffer);
+    
+    // Count pages to decide processing strategy
+    const pageCount = countPdfPages(pdfBytes);
+    console.log(`Document has ${pageCount} pages`);
+
+    // Store page count for progress tracking
+    await supabase
+      .from('building_documents')
+      .update({ total_pages: pageCount })
+      .eq('id', documentId);
+
+    // Decision: Use batch processing for large documents
+    if (pageCount > BATCH_THRESHOLD_PAGES) {
+      console.log(`Large document detected (${pageCount} pages), using batch processing`);
+      
+      await supabase
+        .from('building_documents')
+        .update({ 
+          processing_phase: 'ocr',
+          processed_pages: 0,
+          processing_batch: 0
+        })
+        .eq('id', documentId);
+
+      await updateProgress(supabase, documentId, 8, `Großes Dokument (${pageCount} Seiten) - Batch-Verarbeitung`, 'ocr');
+
+      // Trigger continue-processing for batch processing
+      const continueUrl = `${SUPABASE_URL}/functions/v1/continue-processing`;
+      EdgeRuntime.waitUntil(
+        fetch(continueUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ documentId }),
+        })
+      );
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          documentId,
+          message: 'Batch processing started',
+          pageCount,
+          batchProcessing: true
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Small document: Process directly
+    console.log(`Small document (${pageCount} pages), processing directly`);
+    
     const base64 = btoa(
       pdfBytes.reduce((data, byte) => data + String.fromCharCode(byte), '')
     );
 
-    // Step 1: Intelligent text extraction based on document type
-    const extraction = await extractText(pdfBytes, base64, supabase, documentId);
+    // OCR
+    await updateProgress(supabase, documentId, 20, 'Texterkennung läuft...', 'ocr');
+    const extraction = await extractTextWithMistralOCR(base64);
     
-    console.log(`Extracted ${extraction.text.length} characters using ${extraction.extractionMethod} (document type: ${extraction.documentType})`);
+    console.log(`Extracted ${extraction.text.length} characters`);
 
     if (!extraction.text || extraction.text.length < 100) {
       throw new Error('Insufficient text extracted from document');
     }
 
-    await updateProgress(supabase, documentId, 40, `Text extrahiert (${extraction.documentType})`);
+    await updateProgress(supabase, documentId, 45, 'Text extrahiert', 'chunking');
 
-    // Step 2: Intelligent chunking with Mistral Large
-    await updateProgress(supabase, documentId, 45, 'Dokument wird analysiert...');
-    
-    const chunks = await createIntelligentChunks(extraction.text, filePath.split('/').pop() || 'document');
+    // Chunking
+    await updateProgress(supabase, documentId, 50, 'Dokument wird strukturiert...', 'chunking');
+    const documentName = filePath.split('/').pop() || 'document';
+    const chunks = createSemanticChunks(extraction.text, documentName);
     
     if (chunks.length === 0) {
       throw new Error('No chunks created from document');
     }
 
-    await updateProgress(supabase, documentId, 65, `${chunks.length} Abschnitte erstellt`);
+    await updateProgress(supabase, documentId, 55, `${chunks.length} Abschnitte erstellt`, 'embedding');
 
-    // Step 3: Generate embeddings
-    await updateProgress(supabase, documentId, 70, 'Embeddings werden generiert...');
-    
+    // Embeddings
     const chunkTexts = chunks.map(c => c.content);
-    const embeddings = await generateEmbeddings(chunkTexts);
+    const embeddings = await generateEmbeddings(chunkTexts, supabase, documentId);
 
-    await updateProgress(supabase, documentId, 85, 'Embeddings erstellt');
+    await updateProgress(supabase, documentId, 88, 'Daten werden gespeichert...', 'saving');
 
-    // Step 4: Delete old chunks for this building/category if replacing
+    // Delete old documents for this building
     if (buildingId) {
-      // Delete old document and chunks for this building
       const { data: existingDocs } = await supabase
         .from('building_documents')
         .select('id')
@@ -417,9 +418,7 @@ serve(async (req) => {
       }
     }
 
-    // Step 5: Insert chunks with embeddings
-    await updateProgress(supabase, documentId, 90, 'Daten werden gespeichert...');
-    
+    // Insert chunks
     const chunkRecords = chunks.map((chunk, index) => ({
       document_id: documentId,
       building_id: buildingId,
@@ -438,32 +437,28 @@ serve(async (req) => {
       throw new Error(`Failed to insert chunks: ${insertError.message}`);
     }
 
-    // Step 6: Update document status with document type info
-    const pageCount = (extraction.text.match(/--- Seite \d+ ---/g) || []).length || 1;
-    
+    // Mark complete
     await supabase
       .from('building_documents')
       .update({
         status: 'ready',
-        page_count: pageCount,
+        page_count: extraction.pageCount,
         processed_at: new Date().toISOString(),
         processing_progress: 100,
         processing_step: 'Fertig',
-        document_type: extraction.documentType,
-        extraction_method: extraction.extractionMethod
+        processing_phase: 'complete'
       })
       .eq('id', documentId);
 
-    console.log(`Document ${documentId} processed successfully: type=${extraction.documentType}, method=${extraction.extractionMethod}, chunks=${chunks.length}`);
+    console.log(`Document ${documentId} processed: ${chunks.length} chunks`);
 
     return new Response(
       JSON.stringify({
         success: true,
         documentId,
         chunksCreated: chunks.length,
-        pageCount,
-        documentType: extraction.documentType,
-        extractionMethod: extraction.extractionMethod,
+        pageCount: extraction.pageCount,
+        batchProcessing: false
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -471,7 +466,6 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error processing document:', error);
     
-    // Try to update document status to error
     if (documentId && supabase) {
       try {
         await supabase
