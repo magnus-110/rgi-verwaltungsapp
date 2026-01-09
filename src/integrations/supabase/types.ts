@@ -960,6 +960,7 @@ export type Database = {
           building_id: string
           category: string
           content: string
+          document_id: string
           id: string
           metadata: Json
           similarity: number
