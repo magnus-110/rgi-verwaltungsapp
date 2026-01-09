@@ -19,7 +19,9 @@ export type Database = {
           building_id: string | null
           category: string
           created_at: string
+          document_type: string | null
           error_message: string | null
+          extraction_method: string | null
           file_name: string
           file_path: string
           file_size: number
@@ -35,7 +37,9 @@ export type Database = {
           building_id?: string | null
           category: string
           created_at?: string
+          document_type?: string | null
           error_message?: string | null
+          extraction_method?: string | null
           file_name: string
           file_path: string
           file_size: number
@@ -51,7 +55,9 @@ export type Database = {
           building_id?: string | null
           category?: string
           created_at?: string
+          document_type?: string | null
           error_message?: string | null
+          extraction_method?: string | null
           file_name?: string
           file_path?: string
           file_size?: number
