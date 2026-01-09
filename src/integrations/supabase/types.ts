@@ -21,6 +21,7 @@ export type Database = {
           created_at: string
           document_type: string | null
           error_message: string | null
+          extracted_text: string | null
           extraction_method: string | null
           file_name: string
           file_path: string
@@ -28,9 +29,13 @@ export type Database = {
           id: string
           page_count: number | null
           processed_at: string | null
+          processed_pages: number | null
+          processing_batch: number | null
+          processing_phase: string | null
           processing_progress: number | null
           processing_step: string | null
           status: string
+          total_pages: number | null
           updated_at: string
         }
         Insert: {
@@ -39,6 +44,7 @@ export type Database = {
           created_at?: string
           document_type?: string | null
           error_message?: string | null
+          extracted_text?: string | null
           extraction_method?: string | null
           file_name: string
           file_path: string
@@ -46,9 +52,13 @@ export type Database = {
           id?: string
           page_count?: number | null
           processed_at?: string | null
+          processed_pages?: number | null
+          processing_batch?: number | null
+          processing_phase?: string | null
           processing_progress?: number | null
           processing_step?: string | null
           status?: string
+          total_pages?: number | null
           updated_at?: string
         }
         Update: {
@@ -57,6 +67,7 @@ export type Database = {
           created_at?: string
           document_type?: string | null
           error_message?: string | null
+          extracted_text?: string | null
           extraction_method?: string | null
           file_name?: string
           file_path?: string
@@ -64,9 +75,13 @@ export type Database = {
           id?: string
           page_count?: number | null
           processed_at?: string | null
+          processed_pages?: number | null
+          processing_batch?: number | null
+          processing_phase?: string | null
           processing_progress?: number | null
           processing_step?: string | null
           status?: string
+          total_pages?: number | null
           updated_at?: string
         }
         Relationships: [
