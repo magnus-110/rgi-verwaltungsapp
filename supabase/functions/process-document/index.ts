@@ -17,6 +17,18 @@ interface ProcessDocumentRequest {
   category: 'building' | 'general';
 }
 
+// Helper to update progress in database
+async function updateProgress(supabase: any, documentId: string, progress: number, step: string) {
+  await supabase
+    .from('building_documents')
+    .update({ 
+      processing_progress: progress, 
+      processing_step: step 
+    })
+    .eq('id', documentId);
+  console.log(`Progress: ${progress}% - ${step}`);
+}
+
 // OCR with Mistral OCR 3
 async function extractTextWithMistralOCR(pdfBase64: string): Promise<string> {
   console.log('Starting Mistral OCR extraction...');
@@ -207,8 +219,13 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  let documentId: string | undefined;
+  let supabase: any;
+
   try {
-    const { documentId, filePath, buildingId, category } = await req.json() as ProcessDocumentRequest;
+    const body = await req.json() as ProcessDocumentRequest;
+    documentId = body.documentId;
+    const { filePath, buildingId, category } = body;
     
     console.log(`Processing document: ${documentId}, path: ${filePath}, category: ${category}`);
 
@@ -216,15 +233,21 @@ serve(async (req) => {
       throw new Error('MISTRAL_API_KEY is not configured');
     }
 
-    const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
+    supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
-    // Update status to processing
+    // Update status to processing with initial progress
     await supabase
       .from('building_documents')
-      .update({ status: 'processing' })
+      .update({ 
+        status: 'processing',
+        processing_progress: 5,
+        processing_step: 'Dokument wird geladen...'
+      })
       .eq('id', documentId);
 
     // Download PDF from storage
+    await updateProgress(supabase, documentId, 10, 'PDF wird heruntergeladen...');
+    
     const { data: fileData, error: downloadError } = await supabase
       .storage
       .from('building-documents')
@@ -235,12 +258,16 @@ serve(async (req) => {
     }
 
     // Convert to base64
+    await updateProgress(supabase, documentId, 15, 'Datei wird vorbereitet...');
+    
     const arrayBuffer = await fileData.arrayBuffer();
     const base64 = btoa(
       new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
     );
 
     // Step 1: OCR with Mistral OCR 3
+    await updateProgress(supabase, documentId, 20, 'OCR-Texterkennung läuft...');
+    
     const extractedText = await extractTextWithMistralOCR(base64);
     console.log(`Extracted ${extractedText.length} characters from PDF`);
 
@@ -248,16 +275,26 @@ serve(async (req) => {
       throw new Error('Insufficient text extracted from document');
     }
 
+    await updateProgress(supabase, documentId, 40, 'Text erfolgreich extrahiert');
+
     // Step 2: Intelligent chunking with Mistral Large
+    await updateProgress(supabase, documentId, 45, 'Dokument wird analysiert...');
+    
     const chunks = await createIntelligentChunks(extractedText, filePath.split('/').pop() || 'document');
     
     if (chunks.length === 0) {
       throw new Error('No chunks created from document');
     }
 
+    await updateProgress(supabase, documentId, 65, `${chunks.length} Abschnitte erstellt`);
+
     // Step 3: Generate embeddings
+    await updateProgress(supabase, documentId, 70, 'Embeddings werden generiert...');
+    
     const chunkTexts = chunks.map(c => c.content);
     const embeddings = await generateEmbeddings(chunkTexts);
+
+    await updateProgress(supabase, documentId, 85, 'Embeddings erstellt');
 
     // Step 4: Delete old chunks for this building/category if replacing
     if (buildingId) {
@@ -269,7 +306,7 @@ serve(async (req) => {
         .neq('id', documentId);
 
       if (existingDocs && existingDocs.length > 0) {
-        const oldDocIds = existingDocs.map(d => d.id);
+        const oldDocIds = existingDocs.map((d: any) => d.id);
         await supabase
           .from('document_chunks')
           .delete()
@@ -280,32 +317,11 @@ serve(async (req) => {
           .in('id', oldDocIds);
         console.log(`Deleted ${oldDocIds.length} old documents for building ${buildingId}`);
       }
-    } else if (category === 'general') {
-      // For general documents, keep all (don't delete old general docs)
-      // If you want to replace, uncomment below
-      /*
-      const { data: existingDocs } = await supabase
-        .from('building_documents')
-        .select('id')
-        .is('building_id', null)
-        .eq('category', 'general')
-        .neq('id', documentId);
-
-      if (existingDocs && existingDocs.length > 0) {
-        const oldDocIds = existingDocs.map(d => d.id);
-        await supabase
-          .from('document_chunks')
-          .delete()
-          .in('document_id', oldDocIds);
-        await supabase
-          .from('building_documents')
-          .delete()
-          .in('id', oldDocIds);
-      }
-      */
     }
 
     // Step 5: Insert chunks with embeddings
+    await updateProgress(supabase, documentId, 90, 'Daten werden gespeichert...');
+    
     const chunkRecords = chunks.map((chunk, index) => ({
       document_id: documentId,
       building_id: buildingId,
@@ -333,6 +349,8 @@ serve(async (req) => {
         status: 'ready',
         page_count: pageCount,
         processed_at: new Date().toISOString(),
+        processing_progress: 100,
+        processing_step: 'Fertig'
       })
       .eq('id', documentId);
 
@@ -352,18 +370,20 @@ serve(async (req) => {
     console.error('Error processing document:', error);
     
     // Try to update document status to error
-    try {
-      const { documentId } = await req.json();
-      const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
-      await supabase
-        .from('building_documents')
-        .update({
-          status: 'error',
-          error_message: error instanceof Error ? error.message : 'Unknown error',
-        })
-        .eq('id', documentId);
-    } catch (e) {
-      console.error('Failed to update error status:', e);
+    if (documentId && supabase) {
+      try {
+        await supabase
+          .from('building_documents')
+          .update({
+            status: 'error',
+            error_message: error instanceof Error ? error.message : 'Unknown error',
+            processing_progress: 0,
+            processing_step: 'Fehler bei der Verarbeitung'
+          })
+          .eq('id', documentId);
+      } catch (e) {
+        console.error('Failed to update error status:', e);
+      }
     }
 
     return new Response(

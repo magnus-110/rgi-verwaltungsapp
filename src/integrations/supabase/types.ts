@@ -26,6 +26,8 @@ export type Database = {
           id: string
           page_count: number | null
           processed_at: string | null
+          processing_progress: number | null
+          processing_step: string | null
           status: string
           updated_at: string
         }
@@ -40,6 +42,8 @@ export type Database = {
           id?: string
           page_count?: number | null
           processed_at?: string | null
+          processing_progress?: number | null
+          processing_step?: string | null
           status?: string
           updated_at?: string
         }
@@ -54,6 +58,8 @@ export type Database = {
           id?: string
           page_count?: number | null
           processed_at?: string | null
+          processing_progress?: number | null
+          processing_step?: string | null
           status?: string
           updated_at?: string
         }
