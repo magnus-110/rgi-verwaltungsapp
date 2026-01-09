@@ -10,6 +10,7 @@ import { ArrowLeft, Save, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { DocumentSourcesList } from "@/components/documents/DocumentSourcesList";
 
 interface DocumentChatSettings {
   id?: string;
@@ -246,6 +247,9 @@ export function DocumentSettings() {
           </p>
         </CardContent>
       </Card>
+
+      {/* Knowledge Sources */}
+      <DocumentSourcesList />
 
       {/* Save Button */}
       <div className="flex justify-end">
