@@ -18,6 +18,13 @@ interface QueryDocumentsRequest {
   userId: string;
 }
 
+interface DocumentInfo {
+  id: string;
+  file_name: string;
+  file_path: string;
+  signedUrl?: string;
+}
+
 // Generate embedding for the question
 async function generateQuestionEmbedding(question: string): Promise<number[]> {
   const response = await fetch('https://api.mistral.ai/v1/embeddings', {
@@ -48,21 +55,7 @@ async function searchSimilarChunks(
   buildingId: string | null,
   includeGeneral: boolean,
   limit: number = 10
-): Promise<Array<{content: string, metadata: any, building_id: string | null, similarity: number}>> {
-  // Build the filter conditions
-  let filterConditions = '';
-  
-  if (buildingId && includeGeneral) {
-    filterConditions = `building_id = '${buildingId}' OR category = 'general'`;
-  } else if (buildingId) {
-    filterConditions = `building_id = '${buildingId}'`;
-  } else if (includeGeneral) {
-    filterConditions = `category = 'general'`;
-  } else {
-    // Search all documents
-    filterConditions = '1=1';
-  }
-
+): Promise<Array<{id: string, document_id: string, content: string, metadata: any, building_id: string | null, similarity: number}>> {
   // Use RPC for vector similarity search
   const { data, error } = await supabase.rpc('search_document_chunks', {
     query_embedding: `[${embedding.join(',')}]`,
@@ -77,7 +70,7 @@ async function searchSimilarChunks(
     // Fallback: use simple query without vector search
     const { data: fallbackData, error: fallbackError } = await supabase
       .from('document_chunks')
-      .select('content, metadata, building_id')
+      .select('id, document_id, content, metadata, building_id')
       .limit(limit);
     
     if (fallbackError) {
@@ -91,6 +84,56 @@ async function searchSimilarChunks(
   }
 
   return data || [];
+}
+
+// Get document info and generate signed URLs
+async function getDocumentInfoWithUrls(
+  supabase: any,
+  documentIds: string[]
+): Promise<Map<string, DocumentInfo>> {
+  if (documentIds.length === 0) {
+    return new Map();
+  }
+
+  // Fetch document metadata
+  const { data: documents, error } = await supabase
+    .from('building_documents')
+    .select('id, file_name, file_path')
+    .in('id', documentIds);
+
+  if (error) {
+    console.error('Error fetching document info:', error);
+    return new Map();
+  }
+
+  // Generate signed URLs in parallel
+  const documentsWithUrls = await Promise.all(
+    (documents || []).map(async (doc: any) => {
+      try {
+        const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+          .from('building-documents')
+          .createSignedUrl(doc.file_path, 3600); // 1 hour validity
+
+        if (signedUrlError) {
+          console.error(`Error creating signed URL for ${doc.file_name}:`, signedUrlError);
+          return { ...doc, signedUrl: null };
+        }
+
+        return { ...doc, signedUrl: signedUrlData?.signedUrl };
+      } catch (err) {
+        console.error(`Error processing document ${doc.id}:`, err);
+        return { ...doc, signedUrl: null };
+      }
+    })
+  );
+
+  // Create a map for quick lookup
+  const documentMap = new Map<string, DocumentInfo>();
+  documentsWithUrls.forEach((doc) => {
+    documentMap.set(doc.id, doc);
+  });
+
+  return documentMap;
 }
 
 // Get chat settings from database
@@ -271,10 +314,18 @@ serve(async (req) => {
       );
     }
 
+    // Get unique document IDs and fetch document info with signed URLs
+    const uniqueDocumentIds = [...new Set(relevantChunks.map(chunk => chunk.document_id).filter(Boolean))];
+    console.log(`Found ${uniqueDocumentIds.length} unique documents for sources`);
+    
+    const documentMap = await getDocumentInfoWithUrls(supabase, uniqueDocumentIds);
+
     // Build context from chunks
     const context = relevantChunks.map((chunk, index) => {
       const metadata = chunk.metadata || {};
+      const docInfo = documentMap.get(chunk.document_id);
       const sourceInfo = [
+        docInfo?.file_name && `Dokument: ${docInfo.file_name}`,
         metadata.section && `Abschnitt: ${metadata.section}`,
         metadata.page && `Seite: ${metadata.page}`,
         metadata.category && `Kategorie: ${metadata.category}`
@@ -287,19 +338,26 @@ serve(async (req) => {
     const chatSettings = await getChatSettings(supabase);
 
     // Generate response
-    const { answer, sources } = await generateResponse(
+    const { answer } = await generateResponse(
       question,
       context,
       conversationHistory,
       chatSettings
     );
 
-    // Extract sources from chunks
-    const extractedSources = relevantChunks.slice(0, 5).map(chunk => ({
-      content: chunk.content.slice(0, 200) + '...',
-      metadata: chunk.metadata,
-      buildingId: chunk.building_id
-    }));
+    // Extract sources from chunks with document URLs
+    const extractedSources = relevantChunks.slice(0, 5).map(chunk => {
+      const docInfo = documentMap.get(chunk.document_id);
+      return {
+        content: chunk.content.slice(0, 200) + '...',
+        metadata: chunk.metadata,
+        buildingId: chunk.building_id,
+        documentId: chunk.document_id,
+        fileName: docInfo?.file_name || null,
+        documentUrl: docInfo?.signedUrl || null,
+        pageNumber: chunk.metadata?.page || null
+      };
+    });
 
     // Save assistant message
     await supabase
