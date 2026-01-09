@@ -88,66 +88,8 @@ function detectDocumentType(pdfBytes: Uint8Array): DocumentTypeResult {
   }
 }
 
-// Try to extract text directly from PDF using Mistral with a lightweight approach
-// For native PDFs, Mistral can extract text without full OCR processing
-async function extractTextDirect(pdfBase64: string): Promise<string | null> {
-  console.log('Attempting direct text extraction...');
-  
-  try {
-    // Use Mistral's chat API to analyze the PDF and extract text
-    // This is faster than full OCR for text-based PDFs
-    const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${MISTRAL_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'mistral-large-latest',
-        messages: [
-          {
-            role: 'system',
-            content: 'Du bist ein Dokumentenextraktor. Extrahiere den vollständigen Text aus dem Dokument, behalte die Struktur bei. Gib NUR den extrahierten Text zurück, keine Erklärungen.'
-          },
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'document_url',
-                document_url: `data:application/pdf;base64,${pdfBase64}`
-              },
-              {
-                type: 'text',
-                text: 'Extrahiere den vollständigen Text aus diesem PDF-Dokument. Behalte Überschriften, Absätze und Strukturierung bei.'
-              }
-            ]
-          }
-        ],
-        max_tokens: 32000,
-        temperature: 0,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.log('Direct extraction not available:', errorText);
-      return null;
-    }
-
-    const data = await response.json();
-    const extractedText = data.choices[0]?.message?.content;
-    
-    if (extractedText && extractedText.length > 200) {
-      console.log(`Direct extraction successful: ${extractedText.length} characters`);
-      return extractedText;
-    }
-    
-    return null;
-  } catch (error) {
-    console.log('Direct extraction failed:', error);
-    return null;
-  }
-}
+// Note: Direct text extraction via Chat API was unreliable for large PDFs.
+// We now use OCR for all document types - it's optimized and works reliably.
 
 // OCR with Mistral OCR (for scanned documents)
 async function extractTextWithMistralOCR(pdfBase64: string): Promise<string> {
@@ -191,7 +133,8 @@ async function extractTextWithMistralOCR(pdfBase64: string): Promise<string> {
   return fullText;
 }
 
-// Main text extraction function that chooses the optimal method
+// Main text extraction function - uses OCR for all document types
+// The Mistral OCR API is optimized and handles both native PDFs and scans reliably
 async function extractText(
   pdfBytes: Uint8Array, 
   pdfBase64: string, 
@@ -199,77 +142,30 @@ async function extractText(
   documentId: string
 ): Promise<{ text: string; documentType: 'native' | 'scan' | 'hybrid'; extractionMethod: string }> {
   
-  // Step 1: Detect document type from PDF structure
+  // Step 1: Detect document type from PDF structure (for tracking/logging)
   const detection = detectDocumentType(pdfBytes);
   
-  if (detection.type === 'native') {
-    // For native PDFs, try direct extraction first (faster & cheaper)
-    await updateProgress(supabase, documentId, 20, 'Direkter Textauszug läuft...');
-    
-    const directText = await extractTextDirect(pdfBase64);
-    
-    if (directText && directText.length > 200) {
-      console.log('Using direct extraction result for native PDF');
-      return { 
-        text: directText, 
-        documentType: 'native', 
-        extractionMethod: 'direct' 
-      };
-    }
-    
-    // Fallback to OCR if direct extraction didn't work
-    console.log('Direct extraction insufficient, falling back to OCR');
-    await updateProgress(supabase, documentId, 25, 'Fallback: OCR-Texterkennung...');
-    
+  // Step 2: Use OCR for all document types
+  const progressMessage = detection.type === 'native' 
+    ? 'Texterkennung (natives PDF)...'
+    : detection.type === 'scan' 
+    ? 'OCR für Scan-Dokument...'
+    : 'Texterkennung (Hybrid-Dokument)...';
+  
+  await updateProgress(supabase, documentId, 20, progressMessage);
+  
+  try {
     const ocrText = await extractTextWithMistralOCR(pdfBase64);
+    console.log(`OCR completed for ${detection.type} document: ${ocrText.length} characters`);
+    
     return { 
       text: ocrText, 
-      documentType: 'native', 
-      extractionMethod: 'ocr-fallback' 
-    };
-  } 
-  else if (detection.type === 'scan') {
-    // For scans, always use OCR
-    await updateProgress(supabase, documentId, 20, 'OCR für Scan-Dokument...');
-    
-    const ocrText = await extractTextWithMistralOCR(pdfBase64);
-    return { 
-      text: ocrText, 
-      documentType: 'scan', 
+      documentType: detection.type, 
       extractionMethod: 'ocr' 
     };
-  } 
-  else {
-    // For hybrid documents, try both methods and combine
-    await updateProgress(supabase, documentId, 20, 'Hybrid-Extraktion läuft...');
-    
-    // Try OCR first for hybrid (most reliable)
-    try {
-      const ocrText = await extractTextWithMistralOCR(pdfBase64);
-      
-      if (ocrText && ocrText.length > 200) {
-        return { 
-          text: ocrText, 
-          documentType: 'hybrid', 
-          extractionMethod: 'ocr' 
-        };
-      }
-    } catch (error) {
-      console.warn('OCR failed for hybrid document, trying direct extraction:', error);
-    }
-    
-    // Fallback to direct extraction
-    const directText = await extractTextDirect(pdfBase64);
-    
-    if (directText && directText.length > 200) {
-      return { 
-        text: directText, 
-        documentType: 'hybrid', 
-        extractionMethod: 'direct-fallback' 
-      };
-    }
-    
-    throw new Error('Could not extract text from hybrid document');
+  } catch (error) {
+    console.error('OCR extraction failed:', error);
+    throw error;
   }
 }
 
