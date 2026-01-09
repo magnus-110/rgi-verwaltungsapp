@@ -203,10 +203,6 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
         });
       });
 
-      toast({
-        title: "Dokument wird verarbeitet",
-        description: "Sie können den Fortschritt im Widget unten rechts verfolgen.",
-      });
 
     } catch (error) {
       console.error('Upload error:', error);
