@@ -12,10 +12,9 @@ import {
   LogOut,
   UserRound,
   Menu,
-  X,
   Castle,
   BarChart3,
-  Send
+  MessageCircle
 } from "lucide-react";
 
 interface MobileHeaderProps {
@@ -40,6 +39,12 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
           active: location.pathname === '/dashboard'
         },
         { 
+          icon: Sparkles, 
+          label: "NOVA", 
+          path: '/documents',
+          active: location.pathname.startsWith('/documents')
+        },
+        { 
           icon: ClipboardList, 
           label: "Meldungen", 
           path: '/reports',
@@ -58,16 +63,10 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
           active: location.pathname.startsWith('/forum')
         },
         { 
-          icon: Sparkles, 
+          icon: MessageCircle, 
           label: "Chatbot", 
           path: '/chatbot',
           active: location.pathname.startsWith('/chatbot')
-        },
-        { 
-          icon: Send, 
-          label: "Webhooks", 
-          path: '/webhooks',
-          active: location.pathname.startsWith('/webhooks')
         }
       ];
     }
