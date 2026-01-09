@@ -4,6 +4,8 @@ import { AdminSidebar } from "./AdminSidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { ManagementModeProvider, useManagementMode } from "@/hooks/useManagementMode";
 import { MobileHeader } from "./MobileHeader";
+import { UploadProvider } from "@/contexts/UploadContext";
+import { UploadProgressWidget } from "./documents/UploadProgressWidget";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -76,8 +78,11 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
 
 export const AdminLayout = ({ children }: AdminLayoutProps) => {
   return (
-    <ManagementModeProvider>
-      <AdminLayoutContent>{children}</AdminLayoutContent>
-    </ManagementModeProvider>
+    <UploadProvider>
+      <ManagementModeProvider>
+        <AdminLayoutContent>{children}</AdminLayoutContent>
+        <UploadProgressWidget />
+      </ManagementModeProvider>
+    </UploadProvider>
   );
 };

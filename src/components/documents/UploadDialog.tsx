@@ -10,7 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Upload,
@@ -23,6 +22,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useUpload } from "@/contexts/UploadContext";
 import { cn } from "@/lib/utils";
 
 interface Building {
@@ -40,6 +40,7 @@ interface UploadDialogProps {
 
 export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProps) {
   const { toast } = useToast();
+  const { addUpload, updateUpload } = useUpload();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [category, setCategory] = useState<'general' | 'building'>('general');
@@ -47,8 +48,7 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
   const [searchQuery, setSearchQuery] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'processing' | 'success' | 'error'>('idle');
+  const [isUploading, setIsUploading] = useState(false);
 
   const filteredBuildings = buildings.filter(
     (b) =>
@@ -94,8 +94,10 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
     setSelectedBuildingId(null);
     setSearchQuery("");
     setSelectedFile(null);
-    setUploadProgress(0);
-    setUploadStatus('idle');
+    setIsUploading(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const handleUpload = async () => {
@@ -109,8 +111,24 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
       return;
     }
 
-    setUploadStatus('uploading');
-    setUploadProgress(0);
+    setIsUploading(true);
+    const selectedBuilding = buildings.find((b) => b.id === selectedBuildingId);
+
+    // Add to upload context immediately
+    const uploadId = addUpload({
+      fileName: selectedFile.name,
+      fileSize: selectedFile.size,
+      category,
+      buildingId: selectedBuildingId,
+      buildingName: selectedBuilding?.name,
+      status: 'uploading',
+      progress: 0,
+      step: 'Wird hochgeladen...',
+    });
+
+    // Close dialog immediately so user can continue working
+    resetState();
+    onOpenChange(false);
 
     try {
       const timestamp = Date.now();
@@ -119,22 +137,18 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
         ? `buildings/${selectedBuildingId}/${fileName}`
         : `general/${fileName}`;
 
-      const progressInterval = setInterval(() => {
-        setUploadProgress(prev => Math.min(prev + 10, 60));
-      }, 200);
+      updateUpload(uploadId, { progress: 20, step: 'Datei wird hochgeladen...' });
 
       const { error: uploadError } = await supabase
         .storage
         .from('building-documents')
         .upload(filePath, selectedFile);
 
-      clearInterval(progressInterval);
-
       if (uploadError) {
         throw new Error(`Upload fehlgeschlagen: ${uploadError.message}`);
       }
 
-      setUploadProgress(70);
+      updateUpload(uploadId, { progress: 40, step: 'Dokument wird registriert...' });
 
       const { data: docRecord, error: insertError } = await supabase
         .from('building_documents')
@@ -145,6 +159,8 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
           file_path: filePath,
           file_size: selectedFile.size,
           status: 'processing',
+          processing_progress: 0,
+          processing_step: 'Wartend auf Verarbeitung...',
         })
         .select()
         .single();
@@ -153,38 +169,52 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
         throw new Error(`Dokument konnte nicht gespeichert werden: ${insertError.message}`);
       }
 
-      setUploadProgress(80);
-      setUploadStatus('processing');
+      // Update upload with document ID for realtime tracking
+      updateUpload(uploadId, { 
+        documentId: docRecord.id, 
+        progress: 50, 
+        status: 'processing',
+        step: 'Verarbeitung gestartet...' 
+      });
 
-      const { error: processError } = await supabase.functions.invoke('process-document', {
+      // Invoke processing in background - don't await
+      supabase.functions.invoke('process-document', {
         body: {
           documentId: docRecord.id,
           filePath,
           buildingId: category === 'building' ? selectedBuildingId : null,
           category,
         },
+      }).then(({ error }) => {
+        if (error) {
+          console.error('Processing error:', error);
+          updateUpload(uploadId, { 
+            status: 'error', 
+            error: 'Verarbeitungsfehler',
+            step: 'Fehler bei der Verarbeitung'
+          });
+        }
+      }).catch((error) => {
+        console.error('Processing invoke error:', error);
+        updateUpload(uploadId, { 
+          status: 'error', 
+          error: 'Verarbeitungsfehler',
+          step: 'Fehler bei der Verarbeitung'
+        });
       });
-
-      if (processError) {
-        console.error('Processing error:', processError);
-      }
-
-      setUploadProgress(100);
-      setUploadStatus('success');
 
       toast({
-        title: "Dokument hochgeladen",
-        description: "Das Dokument wird jetzt verarbeitet.",
+        title: "Dokument wird verarbeitet",
+        description: "Sie können den Fortschritt im Widget unten rechts verfolgen.",
       });
-
-      setTimeout(() => {
-        resetState();
-        onOpenChange(false);
-      }, 1500);
 
     } catch (error) {
       console.error('Upload error:', error);
-      setUploadStatus('error');
+      updateUpload(uploadId, { 
+        status: 'error', 
+        error: error instanceof Error ? error.message : 'Unbekannter Fehler',
+        step: 'Upload fehlgeschlagen'
+      });
       toast({
         title: "Fehler beim Hochladen",
         description: error instanceof Error ? error.message : "Ein unbekannter Fehler ist aufgetreten.",
@@ -298,7 +328,7 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
               isDragging
                 ? "border-primary bg-primary/5"
                 : "border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/50",
-              uploadStatus !== 'idle' && "pointer-events-none opacity-50"
+              isUploading && "pointer-events-none opacity-50"
             )}
           >
             <input
@@ -343,46 +373,25 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
             )}
           </div>
 
-          {/* Upload Progress */}
-          {uploadStatus !== 'idle' && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground">
-                  {uploadStatus === 'uploading' && 'Wird hochgeladen...'}
-                  {uploadStatus === 'processing' && 'Wird verarbeitet...'}
-                  {uploadStatus === 'success' && 'Erfolgreich!'}
-                  {uploadStatus === 'error' && 'Fehler'}
-                </span>
-                <span className="text-muted-foreground">{uploadProgress}%</span>
-              </div>
-              <Progress value={uploadProgress} className="h-1.5" />
-            </div>
-          )}
-
           {/* Upload Button */}
           <Button
             onClick={handleUpload}
             disabled={
               !selectedFile ||
-              uploadStatus !== 'idle' ||
+              isUploading ||
               (category === 'building' && !selectedBuildingId)
             }
             className="w-full"
           >
-            {uploadStatus === 'idle' ? (
+            {isUploading ? (
               <>
-                <Upload className="h-4 w-4 mr-2" />
-                Hochladen
-              </>
-            ) : uploadStatus === 'success' ? (
-              <>
-                <Check className="h-4 w-4 mr-2" />
-                Erfolgreich
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Wird gestartet...
               </>
             ) : (
               <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                {uploadStatus === 'uploading' ? 'Lädt hoch...' : 'Verarbeitet...'}
+                <Upload className="h-4 w-4 mr-2" />
+                Hochladen
               </>
             )}
           </Button>
