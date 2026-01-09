@@ -17,6 +17,12 @@ interface ProcessDocumentRequest {
   category: 'building' | 'general';
 }
 
+interface DocumentTypeResult {
+  type: 'native' | 'scan' | 'hybrid';
+  directText: string | null;
+  confidence: number;
+}
+
 // Helper to update progress in database
 async function updateProgress(supabase: any, documentId: string, progress: number, step: string) {
   await supabase
@@ -29,9 +35,123 @@ async function updateProgress(supabase: any, documentId: string, progress: numbe
   console.log(`Progress: ${progress}% - ${step}`);
 }
 
-// OCR with Mistral OCR 3
+// Analyze PDF structure to detect if it's native text, scan, or hybrid
+// This uses a heuristic based on the PDF binary structure
+function analyzeRawPdfStructure(pdfBytes: Uint8Array): { hasTextStreams: boolean; hasImages: boolean; textRatio: number } {
+  const pdfContent = new TextDecoder('latin1').decode(pdfBytes);
+  
+  // Count text stream indicators (BT...ET blocks indicate native text)
+  const textBlockMatches = pdfContent.match(/BT[\s\S]*?ET/g) || [];
+  const textBlockCount = textBlockMatches.length;
+  
+  // Count image indicators (/Image, /XObject with /Subtype /Image)
+  const imageMatches = pdfContent.match(/\/Subtype\s*\/Image/g) || [];
+  const imageCount = imageMatches.length;
+  
+  // Count font definitions (native PDFs typically have font definitions)
+  const fontMatches = pdfContent.match(/\/Type\s*\/Font/g) || [];
+  const fontCount = fontMatches.length;
+  
+  // Look for embedded text content
+  const textContentMatches = pdfContent.match(/\(([^)]{3,})\)/g) || [];
+  const totalTextChars = textContentMatches.reduce((acc, m) => acc + m.length, 0);
+  
+  const hasTextStreams = textBlockCount > 0 || fontCount > 0 || totalTextChars > 500;
+  const hasImages = imageCount > 0;
+  
+  // Calculate ratio - higher means more likely to be native text
+  const textRatio = hasImages ? (textBlockCount + fontCount * 5 + totalTextChars / 100) / (imageCount * 10) : 100;
+  
+  console.log(`PDF Analysis: textBlocks=${textBlockCount}, fonts=${fontCount}, images=${imageCount}, textChars=${totalTextChars}, ratio=${textRatio.toFixed(2)}`);
+  
+  return { hasTextStreams, hasImages, textRatio };
+}
+
+// Detect document type based on PDF structure analysis
+function detectDocumentType(pdfBytes: Uint8Array): DocumentTypeResult {
+  const analysis = analyzeRawPdfStructure(pdfBytes);
+  
+  // Decision logic:
+  // - If textRatio > 5 and hasTextStreams and no/few images: Native
+  // - If no text streams or textRatio < 0.5: Scan
+  // - Otherwise: Hybrid
+  
+  if (analysis.hasTextStreams && analysis.textRatio > 5) {
+    console.log('Document type detected: NATIVE (text-based PDF)');
+    return { type: 'native', directText: null, confidence: Math.min(analysis.textRatio / 10, 1) };
+  } else if (!analysis.hasTextStreams || analysis.textRatio < 0.5) {
+    console.log('Document type detected: SCAN (image-based PDF)');
+    return { type: 'scan', directText: null, confidence: analysis.hasImages ? 0.9 : 0.7 };
+  } else {
+    console.log('Document type detected: HYBRID (mixed content PDF)');
+    return { type: 'hybrid', directText: null, confidence: 0.7 };
+  }
+}
+
+// Try to extract text directly from PDF using Mistral with a lightweight approach
+// For native PDFs, Mistral can extract text without full OCR processing
+async function extractTextDirect(pdfBase64: string): Promise<string | null> {
+  console.log('Attempting direct text extraction...');
+  
+  try {
+    // Use Mistral's chat API to analyze the PDF and extract text
+    // This is faster than full OCR for text-based PDFs
+    const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${MISTRAL_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'mistral-large-latest',
+        messages: [
+          {
+            role: 'system',
+            content: 'Du bist ein Dokumentenextraktor. Extrahiere den vollständigen Text aus dem Dokument, behalte die Struktur bei. Gib NUR den extrahierten Text zurück, keine Erklärungen.'
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'document_url',
+                document_url: `data:application/pdf;base64,${pdfBase64}`
+              },
+              {
+                type: 'text',
+                text: 'Extrahiere den vollständigen Text aus diesem PDF-Dokument. Behalte Überschriften, Absätze und Strukturierung bei.'
+              }
+            ]
+          }
+        ],
+        max_tokens: 32000,
+        temperature: 0,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.log('Direct extraction not available:', errorText);
+      return null;
+    }
+
+    const data = await response.json();
+    const extractedText = data.choices[0]?.message?.content;
+    
+    if (extractedText && extractedText.length > 200) {
+      console.log(`Direct extraction successful: ${extractedText.length} characters`);
+      return extractedText;
+    }
+    
+    return null;
+  } catch (error) {
+    console.log('Direct extraction failed:', error);
+    return null;
+  }
+}
+
+// OCR with Mistral OCR (for scanned documents)
 async function extractTextWithMistralOCR(pdfBase64: string): Promise<string> {
-  console.log('Starting Mistral OCR extraction...');
+  console.log('Starting Mistral OCR extraction (for scanned document)...');
   
   const response = await fetch('https://api.mistral.ai/v1/ocr', {
     method: 'POST',
@@ -69,6 +189,88 @@ async function extractTextWithMistralOCR(pdfBase64: string): Promise<string> {
   }
   
   return fullText;
+}
+
+// Main text extraction function that chooses the optimal method
+async function extractText(
+  pdfBytes: Uint8Array, 
+  pdfBase64: string, 
+  supabase: any, 
+  documentId: string
+): Promise<{ text: string; documentType: 'native' | 'scan' | 'hybrid'; extractionMethod: string }> {
+  
+  // Step 1: Detect document type from PDF structure
+  const detection = detectDocumentType(pdfBytes);
+  
+  if (detection.type === 'native') {
+    // For native PDFs, try direct extraction first (faster & cheaper)
+    await updateProgress(supabase, documentId, 20, 'Direkter Textauszug läuft...');
+    
+    const directText = await extractTextDirect(pdfBase64);
+    
+    if (directText && directText.length > 200) {
+      console.log('Using direct extraction result for native PDF');
+      return { 
+        text: directText, 
+        documentType: 'native', 
+        extractionMethod: 'direct' 
+      };
+    }
+    
+    // Fallback to OCR if direct extraction didn't work
+    console.log('Direct extraction insufficient, falling back to OCR');
+    await updateProgress(supabase, documentId, 25, 'Fallback: OCR-Texterkennung...');
+    
+    const ocrText = await extractTextWithMistralOCR(pdfBase64);
+    return { 
+      text: ocrText, 
+      documentType: 'native', 
+      extractionMethod: 'ocr-fallback' 
+    };
+  } 
+  else if (detection.type === 'scan') {
+    // For scans, always use OCR
+    await updateProgress(supabase, documentId, 20, 'OCR für Scan-Dokument...');
+    
+    const ocrText = await extractTextWithMistralOCR(pdfBase64);
+    return { 
+      text: ocrText, 
+      documentType: 'scan', 
+      extractionMethod: 'ocr' 
+    };
+  } 
+  else {
+    // For hybrid documents, try both methods and combine
+    await updateProgress(supabase, documentId, 20, 'Hybrid-Extraktion läuft...');
+    
+    // Try OCR first for hybrid (most reliable)
+    try {
+      const ocrText = await extractTextWithMistralOCR(pdfBase64);
+      
+      if (ocrText && ocrText.length > 200) {
+        return { 
+          text: ocrText, 
+          documentType: 'hybrid', 
+          extractionMethod: 'ocr' 
+        };
+      }
+    } catch (error) {
+      console.warn('OCR failed for hybrid document, trying direct extraction:', error);
+    }
+    
+    // Fallback to direct extraction
+    const directText = await extractTextDirect(pdfBase64);
+    
+    if (directText && directText.length > 200) {
+      return { 
+        text: directText, 
+        documentType: 'hybrid', 
+        extractionMethod: 'direct-fallback' 
+      };
+    }
+    
+    throw new Error('Could not extract text from hybrid document');
+  }
 }
 
 // Intelligent chunking with Mistral Large
@@ -241,7 +443,7 @@ serve(async (req) => {
       .update({ 
         status: 'processing',
         processing_progress: 5,
-        processing_step: 'Dokument wird geladen...'
+        processing_step: 'Dokument wird analysiert...'
       })
       .eq('id', documentId);
 
@@ -257,30 +459,30 @@ serve(async (req) => {
       throw new Error(`Failed to download file: ${downloadError.message}`);
     }
 
-    // Convert to base64
-    await updateProgress(supabase, documentId, 15, 'Datei wird vorbereitet...');
+    // Convert to bytes and base64
+    await updateProgress(supabase, documentId, 15, 'Dokumenttyp wird erkannt...');
     
     const arrayBuffer = await fileData.arrayBuffer();
+    const pdfBytes = new Uint8Array(arrayBuffer);
     const base64 = btoa(
-      new Uint8Array(arrayBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+      pdfBytes.reduce((data, byte) => data + String.fromCharCode(byte), '')
     );
 
-    // Step 1: OCR with Mistral OCR 3
-    await updateProgress(supabase, documentId, 20, 'OCR-Texterkennung läuft...');
+    // Step 1: Intelligent text extraction based on document type
+    const extraction = await extractText(pdfBytes, base64, supabase, documentId);
     
-    const extractedText = await extractTextWithMistralOCR(base64);
-    console.log(`Extracted ${extractedText.length} characters from PDF`);
+    console.log(`Extracted ${extraction.text.length} characters using ${extraction.extractionMethod} (document type: ${extraction.documentType})`);
 
-    if (!extractedText || extractedText.length < 100) {
+    if (!extraction.text || extraction.text.length < 100) {
       throw new Error('Insufficient text extracted from document');
     }
 
-    await updateProgress(supabase, documentId, 40, 'Text erfolgreich extrahiert');
+    await updateProgress(supabase, documentId, 40, `Text extrahiert (${extraction.documentType})`);
 
     // Step 2: Intelligent chunking with Mistral Large
     await updateProgress(supabase, documentId, 45, 'Dokument wird analysiert...');
     
-    const chunks = await createIntelligentChunks(extractedText, filePath.split('/').pop() || 'document');
+    const chunks = await createIntelligentChunks(extraction.text, filePath.split('/').pop() || 'document');
     
     if (chunks.length === 0) {
       throw new Error('No chunks created from document');
@@ -340,8 +542,8 @@ serve(async (req) => {
       throw new Error(`Failed to insert chunks: ${insertError.message}`);
     }
 
-    // Step 6: Update document status
-    const pageCount = (extractedText.match(/--- Seite \d+ ---/g) || []).length || 1;
+    // Step 6: Update document status with document type info
+    const pageCount = (extraction.text.match(/--- Seite \d+ ---/g) || []).length || 1;
     
     await supabase
       .from('building_documents')
@@ -350,11 +552,13 @@ serve(async (req) => {
         page_count: pageCount,
         processed_at: new Date().toISOString(),
         processing_progress: 100,
-        processing_step: 'Fertig'
+        processing_step: 'Fertig',
+        document_type: extraction.documentType,
+        extraction_method: extraction.extractionMethod
       })
       .eq('id', documentId);
 
-    console.log(`Document ${documentId} processed successfully with ${chunks.length} chunks`);
+    console.log(`Document ${documentId} processed successfully: type=${extraction.documentType}, method=${extraction.extractionMethod}, chunks=${chunks.length}`);
 
     return new Response(
       JSON.stringify({
@@ -362,6 +566,8 @@ serve(async (req) => {
         documentId,
         chunksCreated: chunks.length,
         pageCount,
+        documentType: extraction.documentType,
+        extractionMethod: extraction.extractionMethod,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
