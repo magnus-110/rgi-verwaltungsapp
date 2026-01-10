@@ -6,29 +6,53 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { ArrowLeft, Save, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, Loader2, FileText, Globe2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { DocumentSourcesList } from "@/components/documents/DocumentSourcesList";
+import { cn } from "@/lib/utils";
 
 interface DocumentChatSettings {
   id?: string;
   system_prompt: string;
+  web_system_prompt: string;
   model: string;
   temperature: number;
   max_tokens: number;
 }
 
-const DEFAULT_SYSTEM_PROMPT = `Du bist ein hilfreicher Assistent für die Immobilienverwaltung. Du beantwortest Fragen basierend auf den bereitgestellten Dokumenten.
+const DEFAULT_DOCUMENT_SYSTEM_PROMPT = `Du bist ein Dokumenten-Assistent für die Immobilienverwaltung.
 
-WICHTIGE REGELN:
-1. Antworte NUR basierend auf den bereitgestellten Dokumenten
-2. Wenn die Information nicht in den Dokumenten vorhanden ist, sage das klar
-3. Gib immer die Quelle an (Dokument, Seite, Abschnitt)
-4. Beziehe dich auf vorherige Fragen in der Konversation wenn relevant
-5. Antworte auf Deutsch
-6. Sei präzise und hilfreich`;
+STRENGE REGELN - UNBEDINGT BEFOLGEN:
+1. Antworte AUSSCHLIESSLICH basierend auf den bereitgestellten Dokumenten
+2. Verwende KEIN eigenes Wissen - nur die Dokumente zählen
+3. Wenn die Information NICHT in den Dokumenten vorhanden ist, antworte:
+   "Diese Information ist in den verfügbaren Dokumenten nicht enthalten. 
+   Aktivieren Sie die Internet-Suche (🌐) für eine Recherche im Web."
+4. Erfinde NIEMALS Informationen
+5. Gib bei jeder Antwort die Quelle an (Dokumentname, Seite)
+6. Antworte auf Deutsch
+7. Sei präzise und zitiere relevante Passagen
+
+Du hast KEINEN Zugang zum Internet. Deine EINZIGE Wissensquelle sind die Dokumente.`;
+
+const DEFAULT_WEB_SYSTEM_PROMPT = `Du bist ein Recherche-Assistent für die Immobilienverwaltung mit Internet-Zugang.
+
+DEINE FÄHIGKEITEN:
+1. Du kannst aktiv im Internet recherchieren
+2. Du hast Zugang zu aktuellen Informationen und Gesetzestexten
+3. Du kannst Informationen aus verschiedenen Quellen kombinieren
+
+RICHTLINIEN:
+1. Recherchiere gründlich im Internet bevor du antwortest
+2. Gib immer an, woher die Information stammt (URLs wenn möglich)
+3. Bei rechtlichen Fragen: Verweise auf offizielle Quellen (Gesetze, BGH-Urteile)
+4. Antworte auf Deutsch
+5. Bei komplexen Themen: Strukturiere die Antwort klar
+6. Weise bei rechtlichen Themen darauf hin, dass dies keine Rechtsberatung ist
+
+Du bist ein Recherche-Experte mit Fokus auf Immobilien-, Miet- und WEG-Recht.`;
 
 const AVAILABLE_MODELS = [
   { value: 'mistral-large-latest', label: 'Mistral Large (Empfohlen)' },
@@ -41,8 +65,10 @@ export function DocumentSettings() {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [promptMode, setPromptMode] = useState<'document' | 'web'>('document');
   const [settings, setSettings] = useState<DocumentChatSettings>({
-    system_prompt: DEFAULT_SYSTEM_PROMPT,
+    system_prompt: DEFAULT_DOCUMENT_SYSTEM_PROMPT,
+    web_system_prompt: DEFAULT_WEB_SYSTEM_PROMPT,
     model: 'mistral-large-latest',
     temperature: 0.3,
     max_tokens: 2000,
@@ -63,7 +89,8 @@ export function DocumentSettings() {
       if (data) {
         setSettings({
           id: data.id,
-          system_prompt: data.system_prompt || DEFAULT_SYSTEM_PROMPT,
+          system_prompt: data.system_prompt || DEFAULT_DOCUMENT_SYSTEM_PROMPT,
+          web_system_prompt: (data as any).web_system_prompt || DEFAULT_WEB_SYSTEM_PROMPT,
           model: data.model || 'mistral-large-latest',
           temperature: data.temperature ?? 0.3,
           max_tokens: data.max_tokens ?? 2000,
@@ -84,11 +111,12 @@ export function DocumentSettings() {
           .from('document_chat_settings')
           .update({
             system_prompt: settings.system_prompt,
+            web_system_prompt: settings.web_system_prompt,
             model: settings.model,
             temperature: settings.temperature,
             max_tokens: settings.max_tokens,
             updated_at: new Date().toISOString(),
-          })
+          } as any)
           .eq('id', settings.id);
         
         if (error) throw error;
@@ -97,10 +125,11 @@ export function DocumentSettings() {
           .from('document_chat_settings')
           .insert({
             system_prompt: settings.system_prompt,
+            web_system_prompt: settings.web_system_prompt,
             model: settings.model,
             temperature: settings.temperature,
             max_tokens: settings.max_tokens,
-          });
+          } as any);
         
         if (error) throw error;
       }
@@ -118,6 +147,25 @@ export function DocumentSettings() {
       });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const currentPrompt = promptMode === 'document' ? settings.system_prompt : settings.web_system_prompt;
+  const defaultPrompt = promptMode === 'document' ? DEFAULT_DOCUMENT_SYSTEM_PROMPT : DEFAULT_WEB_SYSTEM_PROMPT;
+
+  const handlePromptChange = (value: string) => {
+    if (promptMode === 'document') {
+      setSettings(prev => ({ ...prev, system_prompt: value }));
+    } else {
+      setSettings(prev => ({ ...prev, web_system_prompt: value }));
+    }
+  };
+
+  const handleResetPrompt = () => {
+    if (promptMode === 'document') {
+      setSettings(prev => ({ ...prev, system_prompt: DEFAULT_DOCUMENT_SYSTEM_PROMPT }));
+    } else {
+      setSettings(prev => ({ ...prev, web_system_prompt: DEFAULT_WEB_SYSTEM_PROMPT }));
     }
   };
 
@@ -209,42 +257,79 @@ export function DocumentSettings() {
         </CardContent>
       </Card>
 
-      {/* System Prompt */}
+      {/* System Prompts with Toggle */}
       <Card>
         <CardHeader>
-          <CardTitle>System-Prompt</CardTitle>
-          <CardDescription>
-            Definieren Sie die Persönlichkeit und das Verhalten des Assistenten
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>System-Prompt</CardTitle>
+              <CardDescription>
+                Definieren Sie die Persönlichkeit und das Verhalten des Assistenten
+              </CardDescription>
+            </div>
+            {/* Mode Toggle */}
+            <div className="flex items-center gap-1 bg-muted p-1 rounded-lg">
+              <button
+                onClick={() => setPromptMode('document')}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+                  promptMode === 'document'
+                    ? "bg-background shadow-sm text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <FileText className="h-4 w-4" />
+                Dokumente
+              </button>
+              <button
+                onClick={() => setPromptMode('web')}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all",
+                  promptMode === 'web'
+                    ? "bg-background shadow-sm text-orange-600"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Globe2 className="h-4 w-4" />
+                Internet
+              </button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Mode Description */}
+          <div className={cn(
+            "p-3 rounded-lg border text-sm",
+            promptMode === 'document' 
+              ? "bg-blue-50 border-blue-200 text-blue-800 dark:bg-blue-950 dark:border-blue-800 dark:text-blue-200"
+              : "bg-orange-50 border-orange-200 text-orange-800 dark:bg-orange-950 dark:border-orange-800 dark:text-orange-200"
+          )}>
+            {promptMode === 'document' ? (
+              <p>
+                <strong>Dokument-Modus:</strong> Dieser Prompt wird verwendet, wenn die Internet-Suche 
+                <strong> deaktiviert</strong> ist. Der Assistent antwortet nur basierend auf den hochgeladenen Dokumenten.
+              </p>
+            ) : (
+              <p>
+                <strong>Internet-Modus:</strong> Dieser Prompt wird verwendet, wenn die Internet-Suche 
+                <strong> aktiviert</strong> ist (🌐). Der Assistent kann im Internet recherchieren.
+              </p>
+            )}
+          </div>
+
           <Textarea
-            value={settings.system_prompt}
-            onChange={(e) => setSettings(prev => ({ ...prev, system_prompt: e.target.value }))}
+            value={currentPrompt}
+            onChange={(e) => handlePromptChange(e.target.value)}
             rows={12}
             className="font-mono text-sm"
           />
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setSettings(prev => ({ ...prev, system_prompt: DEFAULT_SYSTEM_PROMPT }))}
+            onClick={handleResetPrompt}
           >
             Auf Standard zurücksetzen
           </Button>
-        </CardContent>
-      </Card>
-
-      {/* Info Card */}
-      <Card className="bg-muted/50 border-dashed">
-        <CardHeader>
-          <CardTitle className="text-base">Hinweis zur Web-Suche</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Die Mistral AI API unterstützt derzeit keine Web-Suche. Der Assistent kann nur auf 
-            die hochgeladenen Dokumente zugreifen. Für Web-Suche-Funktionalität müsste eine 
-            zusätzliche Such-API (z.B. Perplexity, Tavily oder Brave Search) integriert werden.
-          </p>
         </CardContent>
       </Card>
 

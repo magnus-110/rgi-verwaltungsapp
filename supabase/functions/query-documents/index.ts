@@ -22,6 +22,39 @@ interface QueryDocumentsRequest {
 
 const MISTRAL_WEB_AGENT_ID = 'ag_019ba89a0a6d722fb79f7afa8c035798';
 
+// Default system prompts
+const DEFAULT_DOCUMENT_SYSTEM_PROMPT = `Du bist ein Dokumenten-Assistent für die Immobilienverwaltung.
+
+STRENGE REGELN - UNBEDINGT BEFOLGEN:
+1. Antworte AUSSCHLIESSLICH basierend auf den bereitgestellten Dokumenten
+2. Verwende KEIN eigenes Wissen - nur die Dokumente zählen
+3. Wenn die Information NICHT in den Dokumenten vorhanden ist, antworte:
+   "Diese Information ist in den verfügbaren Dokumenten nicht enthalten. 
+   Aktivieren Sie die Internet-Suche (🌐) für eine Recherche im Web."
+4. Erfinde NIEMALS Informationen
+5. Gib bei jeder Antwort die Quelle an (Dokumentname, Seite)
+6. Antworte auf Deutsch
+7. Sei präzise und zitiere relevante Passagen
+
+Du hast KEINEN Zugang zum Internet. Deine EINZIGE Wissensquelle sind die Dokumente.`;
+
+const DEFAULT_WEB_SYSTEM_PROMPT = `Du bist ein Recherche-Assistent für die Immobilienverwaltung mit Internet-Zugang.
+
+DEINE FÄHIGKEITEN:
+1. Du kannst aktiv im Internet recherchieren
+2. Du hast Zugang zu aktuellen Informationen und Gesetzestexten
+3. Du kannst Informationen aus verschiedenen Quellen kombinieren
+
+RICHTLINIEN:
+1. Recherchiere gründlich im Internet bevor du antwortest
+2. Gib immer an, woher die Information stammt (URLs wenn möglich)
+3. Bei rechtlichen Fragen: Verweise auf offizielle Quellen (Gesetze, BGH-Urteile)
+4. Antworte auf Deutsch
+5. Bei komplexen Themen: Strukturiere die Antwort klar
+6. Weise bei rechtlichen Themen darauf hin, dass dies keine Rechtsberatung ist
+
+Du bist ein Recherche-Experte mit Fokus auf Immobilien-, Miet- und WEG-Recht.`;
+
 interface DocumentInfo {
   id: string;
   file_name: string;
@@ -140,18 +173,14 @@ async function getDocumentInfoWithUrls(
   return documentMap;
 }
 
-// Get chat settings from database
-async function getChatSettings(supabase: any): Promise<{systemPrompt: string, model: string, temperature: number, maxTokens: number}> {
+// Get chat settings from database - now with mode-specific prompts
+async function getChatSettings(
+  supabase: any, 
+  useWebSearch: boolean
+): Promise<{systemPrompt: string, model: string, temperature: number, maxTokens: number}> {
   const defaults = {
-    systemPrompt: `Du bist ein hilfreicher Assistent für die Immobilienverwaltung. Du beantwortest Fragen basierend auf den bereitgestellten Dokumenten.
-
-WICHTIGE REGELN:
-1. Antworte NUR basierend auf den bereitgestellten Dokumenten
-2. Wenn die Information nicht in den Dokumenten vorhanden ist, sage das klar
-3. Gib immer die Quelle an (Dokument, Seite, Abschnitt)
-4. Beziehe dich auf vorherige Fragen in der Konversation wenn relevant
-5. Antworte auf Deutsch
-6. Sei präzise und hilfreich`,
+    documentSystemPrompt: DEFAULT_DOCUMENT_SYSTEM_PROMPT,
+    webSystemPrompt: DEFAULT_WEB_SYSTEM_PROMPT,
     model: 'mistral-large-latest',
     temperature: 0.3,
     maxTokens: 2000,
@@ -165,29 +194,46 @@ WICHTIGE REGELN:
       .single();
 
     if (error || !data) {
-      return defaults;
+      console.log('No settings found, using defaults');
+      return {
+        systemPrompt: useWebSearch ? defaults.webSystemPrompt : defaults.documentSystemPrompt,
+        model: defaults.model,
+        temperature: defaults.temperature,
+        maxTokens: defaults.maxTokens,
+      };
     }
 
+    // Select the appropriate prompt based on mode
+    const documentPrompt = data.system_prompt || defaults.documentSystemPrompt;
+    const webPrompt = data.web_system_prompt || defaults.webSystemPrompt;
+
     return {
-      systemPrompt: data.system_prompt || defaults.systemPrompt,
+      systemPrompt: useWebSearch ? webPrompt : documentPrompt,
       model: data.model || defaults.model,
       temperature: parseFloat(data.temperature) ?? defaults.temperature,
       maxTokens: data.max_tokens ?? defaults.maxTokens,
     };
   } catch {
-    return defaults;
+    return {
+      systemPrompt: useWebSearch ? defaults.webSystemPrompt : defaults.documentSystemPrompt,
+      model: defaults.model,
+      temperature: defaults.temperature,
+      maxTokens: defaults.maxTokens,
+    };
   }
 }
 
 // Query with Mistral Web Agent (Internet Search)
 async function queryWithWebAgent(
   question: string,
-  conversationHistory: Array<{role: string, content: string}>
+  conversationHistory: Array<{role: string, content: string}>,
+  systemPrompt: string
 ): Promise<{answer: string, sources: any[]}> {
   console.log('Using Mistral Web Agent for internet search');
   
   // Format conversation history for the agent
   const inputs = [
+    { role: 'system', content: systemPrompt },
     ...conversationHistory.slice(-10).map(msg => ({
       role: msg.role,
       content: msg.content
@@ -338,9 +384,12 @@ serve(async (req) => {
         content: question
       });
 
+    // Get chat settings (now with mode-specific prompts)
+    const chatSettings = await getChatSettings(supabase, useWebSearch || false);
+
     // If web search is enabled, use the web agent instead of document search
     if (useWebSearch) {
-      const { answer, sources } = await queryWithWebAgent(question, conversationHistory);
+      const { answer, sources } = await queryWithWebAgent(question, conversationHistory, chatSettings.systemPrompt);
       
       // Save assistant message
       await supabase
@@ -381,7 +430,7 @@ serve(async (req) => {
     );
 
     if (relevantChunks.length === 0) {
-      const noDocsAnswer = 'Es wurden keine relevanten Dokumente gefunden. Bitte laden Sie zunächst Dokumente hoch.';
+      const noDocsAnswer = 'Es wurden keine relevanten Dokumente gefunden. Bitte laden Sie zunächst Dokumente hoch oder aktivieren Sie die Internet-Suche (🌐).';
       
       await supabase
         .from('document_chat_messages')
@@ -421,9 +470,6 @@ serve(async (req) => {
       
       return `[Quelle ${index + 1}${sourceInfo ? ` - ${sourceInfo}` : ''}]\n${chunk.content}`;
     }).join('\n\n---\n\n');
-
-    // Get chat settings
-    const chatSettings = await getChatSettings(supabase);
 
     // Generate response
     const { answer } = await generateResponse(
