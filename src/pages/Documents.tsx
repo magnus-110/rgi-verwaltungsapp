@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, RefreshCw, Settings } from "lucide-react";
+import { Plus, RefreshCw, Settings, Globe2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { KnowledgeScopeSelector, KnowledgeScope } from "@/components/documents/KnowledgeScopeSelector";
 import { UploadDialog } from "@/components/documents/UploadDialog";
@@ -49,6 +50,7 @@ export function Documents() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
 
   // Fetch buildings
   useEffect(() => {
@@ -132,6 +134,7 @@ export function Documents() {
           includeGeneral: shouldIncludeGeneral,
           userId: user?.id,
           searchAllBuildings: scope === 'all',
+          useWebSearch: webSearchEnabled,
         },
       });
 
@@ -181,6 +184,22 @@ export function Documents() {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-background/95 backdrop-blur-sm">
         <div className="flex items-center gap-3">
+          {/* Web Search Toggle */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setWebSearchEnabled(!webSearchEnabled)}
+            className={cn(
+              "h-9 w-9 transition-colors",
+              webSearchEnabled 
+                ? "bg-orange-100 text-orange-600 hover:bg-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:hover:bg-orange-900/50" 
+                : "text-muted-foreground hover:text-foreground"
+            )}
+            title={webSearchEnabled ? "Internet-Suche aktiv" : "Internet-Suche aktivieren"}
+          >
+            <Globe2 className="h-4 w-4" />
+          </Button>
+          
           <KnowledgeScopeSelector
             scope={scope}
             onScopeChange={setScope}

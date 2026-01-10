@@ -16,7 +16,11 @@ interface QueryDocumentsRequest {
   buildingId: string | null;
   includeGeneral: boolean;
   userId: string;
+  searchAllBuildings?: boolean;
+  useWebSearch?: boolean;
 }
+
+const MISTRAL_WEB_AGENT_ID = 'ag_019ba89a0a6d722fb79f7afa8c035798';
 
 interface DocumentInfo {
   id: string;
@@ -175,6 +179,60 @@ WICHTIGE REGELN:
   }
 }
 
+// Query with Mistral Web Agent (Internet Search)
+async function queryWithWebAgent(
+  question: string,
+  conversationHistory: Array<{role: string, content: string}>
+): Promise<{answer: string, sources: any[]}> {
+  console.log('Using Mistral Web Agent for internet search');
+  
+  // Format conversation history for the agent
+  const inputs = [
+    ...conversationHistory.slice(-10).map(msg => ({
+      role: msg.role,
+      content: msg.content
+    })),
+    { role: 'user', content: question }
+  ];
+
+  const response = await fetch('https://api.mistral.ai/v1/agents/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${MISTRAL_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      agent_id: MISTRAL_WEB_AGENT_ID,
+      messages: inputs
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Web agent error:', errorText);
+    throw new Error(`Web agent query failed: ${errorText}`);
+  }
+
+  const data = await response.json();
+  console.log('Web agent response received');
+  
+  // Extract the answer from the agent response
+  const answer = data.choices?.[0]?.message?.content || 
+                 'Keine Antwort vom Internet-Agenten erhalten.';
+
+  return {
+    answer,
+    sources: [{ 
+      type: 'web',
+      content: 'Ergebnis aus Internet-Suche',
+      metadata: { source: 'Internet-Suche' },
+      fileName: 'Internet-Suche',
+      documentUrl: null,
+      pageNumber: null
+    }]
+  };
+}
+
 // Generate response with Mistral
 async function generateResponse(
   question: string,
@@ -227,9 +285,9 @@ serve(async (req) => {
   }
 
   try {
-    const { sessionId, question, buildingId, includeGeneral, userId } = await req.json() as QueryDocumentsRequest;
+    const { sessionId, question, buildingId, includeGeneral, userId, useWebSearch } = await req.json() as QueryDocumentsRequest;
     
-    console.log(`Query: "${question}", Session: ${sessionId}, Building: ${buildingId}, IncludeGeneral: ${includeGeneral}`);
+    console.log(`Query: "${question}", Session: ${sessionId}, Building: ${buildingId}, IncludeGeneral: ${includeGeneral}, WebSearch: ${useWebSearch}`);
 
     if (!MISTRAL_API_KEY) {
       throw new Error('MISTRAL_API_KEY is not configured');
@@ -279,6 +337,36 @@ serve(async (req) => {
         role: 'user',
         content: question
       });
+
+    // If web search is enabled, use the web agent instead of document search
+    if (useWebSearch) {
+      const { answer, sources } = await queryWithWebAgent(question, conversationHistory);
+      
+      // Save assistant message
+      await supabase
+        .from('document_chat_messages')
+        .insert({
+          session_id: currentSessionId,
+          role: 'assistant',
+          content: answer,
+          sources: sources
+        });
+
+      // Update session
+      await supabase
+        .from('document_chat_sessions')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', currentSessionId);
+
+      return new Response(
+        JSON.stringify({
+          answer,
+          sources,
+          sessionId: currentSessionId
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Generate embedding for the question
     const questionEmbedding = await generateQuestionEmbedding(question);
