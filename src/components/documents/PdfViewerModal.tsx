@@ -12,12 +12,10 @@ import { ChevronLeft, ChevronRight, Download, Loader2, ZoomIn, ZoomOut, AlertCir
 const Document = lazy(() => import("react-pdf").then(mod => ({ default: mod.Document })));
 const Page = lazy(() => import("react-pdf").then(mod => ({ default: mod.Page })));
 
-// Set up worker for react-pdf - use Vite's URL resolution for proper bundling
+// Set up worker for react-pdf - use Vite's ?url import for proper bundling
 import { pdfjs } from "react-pdf";
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url
-).toString();
+import workerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
