@@ -12,9 +12,12 @@ import { ChevronLeft, ChevronRight, Download, Loader2, ZoomIn, ZoomOut, AlertCir
 const Document = lazy(() => import("react-pdf").then(mod => ({ default: mod.Document })));
 const Page = lazy(() => import("react-pdf").then(mod => ({ default: mod.Page })));
 
-// Set up worker for react-pdf - use CDN with explicit version
+// Set up worker for react-pdf - use Vite's URL resolution for proper bundling
 import { pdfjs } from "react-pdf";
-pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/build/pdf.worker.min.mjs",
+  import.meta.url
+).toString();
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
@@ -143,7 +146,7 @@ export function PdfViewerModal({
             <DialogTitle className="text-sm font-medium truncate pr-4">
               {documentName}
             </DialogTitle>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 mr-8">
               {/* Zoom controls */}
               <div className="flex items-center gap-1 border-r pr-2 mr-2">
                 <Button
