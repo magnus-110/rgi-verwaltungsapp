@@ -39,7 +39,7 @@ export function PdfViewerModal({
   const [pageNumber, setPageNumber] = useState(initialPage);
   const [scale, setScale] = useState(1.0);
   const [isLoading, setIsLoading] = useState(true);
-  const [pdfData, setPdfData] = useState<ArrayBuffer | null>(null);
+  const [pdfData, setPdfData] = useState<Uint8Array | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // Fetch PDF data when URL changes to avoid CORS issues with pdfjs worker
@@ -69,7 +69,8 @@ export function PdfViewerModal({
         const arrayBuffer = await response.arrayBuffer();
         
         if (!cancelled) {
-          setPdfData(arrayBuffer);
+          // Convert to Uint8Array to prevent "detached ArrayBuffer" errors on re-renders
+          setPdfData(new Uint8Array(arrayBuffer));
         }
       } catch (error) {
         console.error("Error fetching PDF:", error);
