@@ -1,4 +1,4 @@
-import React, { useState, lazy, Suspense } from "react";
+import React, { useState, lazy, Suspense, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -6,15 +6,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Download, Loader2, ZoomIn, ZoomOut, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Loader2, ZoomIn, ZoomOut, AlertCircle } from "lucide-react";
 
 // Lazy load react-pdf components
 const Document = lazy(() => import("react-pdf").then(mod => ({ default: mod.Document })));
 const Page = lazy(() => import("react-pdf").then(mod => ({ default: mod.Page })));
 
-// Set up worker for react-pdf
+// Set up worker for react-pdf - use CDN with explicit version
 import { pdfjs } from "react-pdf";
-pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`;
 
 import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
@@ -38,6 +38,53 @@ export function PdfViewerModal({
   const [pageNumber, setPageNumber] = useState(initialPage);
   const [scale, setScale] = useState(1.0);
   const [isLoading, setIsLoading] = useState(true);
+  const [pdfData, setPdfData] = useState<ArrayBuffer | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Fetch PDF data when URL changes to avoid CORS issues with pdfjs worker
+  useEffect(() => {
+    if (!documentUrl || !isOpen) {
+      setPdfData(null);
+      setLoadError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoading(true);
+    setLoadError(null);
+    setPdfData(null);
+
+    const fetchPdf = async () => {
+      try {
+        const response = await fetch(documentUrl, {
+          method: 'GET',
+          mode: 'cors',
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        
+        if (!cancelled) {
+          setPdfData(arrayBuffer);
+        }
+      } catch (error) {
+        console.error("Error fetching PDF:", error);
+        if (!cancelled) {
+          setLoadError(error instanceof Error ? error.message : "Fehler beim Laden des PDFs");
+          setIsLoading(false);
+        }
+      }
+    };
+
+    fetchPdf();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [documentUrl, isOpen]);
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
@@ -46,7 +93,8 @@ export function PdfViewerModal({
   };
 
   const onDocumentLoadError = (error: Error) => {
-    console.error("Error loading PDF:", error);
+    console.error("Error loading PDF document:", error);
+    setLoadError("PDF konnte nicht verarbeitet werden");
     setIsLoading(false);
   };
 
@@ -80,6 +128,9 @@ export function PdfViewerModal({
       setIsLoading(true);
       setPageNumber(initialPage);
       setScale(1.0);
+      setNumPages(null);
+      setPdfData(null);
+      setLoadError(null);
       onClose();
     }
   };
@@ -158,13 +209,33 @@ export function PdfViewerModal({
 
         {/* PDF Content */}
         <div className="flex-1 overflow-auto bg-muted/30 flex items-start justify-center p-4">
-          {isLoading && (
-            <div className="flex items-center justify-center py-20">
+          {isLoading && !loadError && (
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
               <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              <span className="text-sm text-muted-foreground">PDF wird geladen...</span>
             </div>
           )}
 
-          {documentUrl && (
+          {loadError && (
+            <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
+              <AlertCircle className="h-10 w-10 text-destructive" />
+              <div className="space-y-1">
+                <p className="text-sm font-medium text-foreground">Fehler beim Laden</p>
+                <p className="text-xs text-muted-foreground max-w-xs">{loadError}</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDownload}
+                className="mt-2"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                PDF extern öffnen
+              </Button>
+            </div>
+          )}
+
+          {pdfData && !loadError && (
             <Suspense
               fallback={
                 <div className="flex items-center justify-center py-20">
@@ -173,7 +244,7 @@ export function PdfViewerModal({
               }
             >
               <Document
-                file={documentUrl}
+                file={{ data: pdfData }}
                 onLoadSuccess={onDocumentLoadSuccess}
                 onLoadError={onDocumentLoadError}
                 loading={
