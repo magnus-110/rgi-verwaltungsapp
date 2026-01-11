@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { FileText, Loader2, ExternalLink, Globe2 } from "lucide-react";
+import { FileText, Loader2, ExternalLink, Wifi } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PdfViewerModal } from "./PdfViewerModal";
 
@@ -128,7 +128,7 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
                             key={index}
                             className="inline-flex items-center gap-1.5 text-xs rounded-full px-3 py-1.5 bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
                           >
-                            <Globe2 className="h-3 w-3 flex-shrink-0" />
+                            <Wifi className="h-3 w-3 flex-shrink-0" />
                             <span className="font-medium">Internet-Suche</span>
                           </span>
                         );

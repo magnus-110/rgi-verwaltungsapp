@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, RefreshCw, Settings, Globe2 } from "lucide-react";
+import { Plus, RefreshCw, Settings, Wifi } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { KnowledgeScopeSelector, KnowledgeScope } from "@/components/documents/KnowledgeScopeSelector";
@@ -197,7 +197,7 @@ export function Documents() {
             )}
             title={webSearchEnabled ? "Internet-Suche aktiv" : "Internet-Suche aktivieren"}
           >
-            <Globe2 className="h-4 w-4" />
+            <Wifi className="h-4 w-4" />
           </Button>
           
           <KnowledgeScopeSelector

@@ -280,10 +280,11 @@ ${documentContext}`;
   }
 
   const data = await response.json();
-  console.log('Web agent response received');
+  console.log('Web agent response structure:', JSON.stringify(data).slice(0, 500));
   
-  // Extract the answer from the agent response
-  const answer = data.choices?.[0]?.message?.content || 
+  // Extract the answer - Agent API uses 'outputs', Chat API uses 'choices'
+  const answer = data.outputs?.[0]?.content || 
+                 data.choices?.[0]?.message?.content || 
                  'Keine Antwort vom Internet-Agenten erhalten.';
 
   return {
