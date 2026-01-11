@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, RefreshCw, Settings, Wifi } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { MoreHorizontal, RefreshCw, Settings, Upload } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { KnowledgeScopeSelector, KnowledgeScope } from "@/components/documents/KnowledgeScopeSelector";
 import { UploadDialog } from "@/components/documents/UploadDialog";
@@ -12,6 +11,13 @@ import { ChatMessages } from "@/components/documents/ChatMessages";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
 interface Building {
   id: string;
   name: string;
@@ -184,22 +190,6 @@ export function Documents() {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-background/95 backdrop-blur-sm">
         <div className="flex items-center gap-3">
-          {/* Web Search Toggle */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setWebSearchEnabled(!webSearchEnabled)}
-            className={cn(
-              "h-9 w-9 transition-colors",
-              webSearchEnabled 
-                ? "bg-orange-100 text-orange-600 hover:bg-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:hover:bg-orange-900/50" 
-                : "text-muted-foreground hover:text-foreground"
-            )}
-            title={webSearchEnabled ? "Internet-Suche aktiv" : "Internet-Suche aktivieren"}
-          >
-            <Wifi className="h-4 w-4" />
-          </Button>
-          
           <KnowledgeScopeSelector
             scope={scope}
             onScopeChange={setScope}
@@ -212,34 +202,32 @@ export function Documents() {
           {messages.length > 0 && (
             <Button
               variant="ghost"
-              size="sm"
+              size="icon"
               onClick={handleNewSession}
-              className="gap-1.5 h-8 text-muted-foreground hover:text-foreground"
+              className="h-9 w-9"
+              title="Neue Session"
             >
-              <RefreshCw className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Neue Session</span>
+              <RefreshCw className="h-4 w-4" />
             </Button>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate('/documents/settings')}
-            className="h-9 w-9"
-          >
-            <Settings className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsUploadOpen(true)}
-            className="gap-1.5 h-9"
-          >
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Dokument</span>
-          </Button>
-        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-9 w-9">
+              <MoreHorizontal className="h-5 w-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => navigate('/documents/settings')}>
+              <Settings className="h-4 w-4 mr-2" />
+              Einstellungen
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setIsUploadOpen(true)}>
+              <Upload className="h-4 w-4 mr-2" />
+              Dokument hochladen
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Chat Area */}
@@ -252,6 +240,8 @@ export function Documents() {
               <ChatInputField
                 onSend={handleSend}
                 isLoading={isLoading}
+                webSearchEnabled={webSearchEnabled}
+                onWebSearchToggle={() => setWebSearchEnabled(!webSearchEnabled)}
               />
             </div>
           </div>
@@ -269,6 +259,8 @@ export function Documents() {
               <ChatInputField
                 onSend={handleSend}
                 isLoading={isLoading}
+                webSearchEnabled={webSearchEnabled}
+                onWebSearchToggle={() => setWebSearchEnabled(!webSearchEnabled)}
               />
             </div>
           </>

@@ -1,28 +1,79 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowUp, Loader2, Mic, MicOff } from "lucide-react";
+import { ArrowUp, Loader2, Mic, MicOff, Plus, Globe, Check, Star, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { PromptTemplateMenu } from "./PromptTemplateMenu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+  TooltipProvider,
+} from "@/components/ui/tooltip";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { AddPromptDialog } from "./AddPromptDialog";
+import { Scale, Receipt, Building2, MessageCircle, Folder } from "lucide-react";
+
+interface PromptCategory {
+  id: string;
+  name: string;
+  icon: string;
+  sort_order: number;
+}
+
+interface PromptTemplate {
+  id: string;
+  category_id: string;
+  title: string;
+  content: string;
+}
 
 interface ChatInputFieldProps {
   onSend: (message: string) => void;
   isLoading: boolean;
   disabled?: boolean;
   className?: string;
+  webSearchEnabled?: boolean;
+  onWebSearchToggle?: () => void;
 }
+
+const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+  scale: Scale,
+  receipt: Receipt,
+  'building-2': Building2,
+  'message-circle': MessageCircle,
+  folder: Folder,
+};
 
 export function ChatInputField({
   onSend,
   isLoading,
   disabled,
   className,
+  webSearchEnabled = false,
+  onWebSearchToggle,
 }: ChatInputFieldProps) {
   const [value, setValue] = useState("");
   const [isListening, setIsListening] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const { toast } = useToast();
+  const { user } = useAuth();
+
+  // Prompt data
+  const [categories, setCategories] = useState<PromptCategory[]>([]);
+  const [prompts, setPrompts] = useState<PromptTemplate[]>([]);
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [promptsLoading, setPromptsLoading] = useState(false);
 
   const adjustHeight = () => {
     const textarea = textareaRef.current;
@@ -36,6 +87,87 @@ export function ChatInputField({
   useEffect(() => {
     adjustHeight();
   }, [value]);
+
+  // Fetch prompts when menu opens
+  useEffect(() => {
+    if (menuOpen) {
+      fetchPromptData();
+    }
+  }, [menuOpen]);
+
+  const fetchPromptData = async () => {
+    setPromptsLoading(true);
+    try {
+      const { data: categoriesData } = await supabase
+        .from("prompt_categories")
+        .select("*")
+        .order("sort_order");
+
+      const { data: promptsData } = await supabase
+        .from("prompt_templates")
+        .select("*");
+
+      const { data: favoritesData } = await supabase
+        .from("prompt_favorites")
+        .select("prompt_id")
+        .eq("user_id", user?.id);
+
+      if (categoriesData) setCategories(categoriesData);
+      if (promptsData) setPrompts(promptsData);
+      if (favoritesData) {
+        setFavorites(new Set(favoritesData.map(f => f.prompt_id)));
+      }
+    } catch (error) {
+      console.error("Error fetching prompt data:", error);
+    } finally {
+      setPromptsLoading(false);
+    }
+  };
+
+  const toggleFavorite = async (promptId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user?.id) return;
+
+    const isFavorite = favorites.has(promptId);
+
+    if (isFavorite) {
+      await supabase
+        .from("prompt_favorites")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("prompt_id", promptId);
+      
+      setFavorites(prev => {
+        const next = new Set(prev);
+        next.delete(promptId);
+        return next;
+      });
+    } else {
+      await supabase
+        .from("prompt_favorites")
+        .insert({ user_id: user.id, prompt_id: promptId });
+      
+      setFavorites(prev => new Set([...prev, promptId]));
+    }
+  };
+
+  const getPromptsByCategory = (categoryId: string) => {
+    return prompts.filter(p => p.category_id === categoryId);
+  };
+
+  const getFavoritePrompts = () => {
+    return prompts.filter(p => favorites.has(p.id));
+  };
+
+  const renderIcon = (iconName: string) => {
+    const IconComponent = iconMap[iconName] || Folder;
+    return <IconComponent className="h-4 w-4" />;
+  };
+
+  const handleSelectPrompt = (content: string) => {
+    setValue(content);
+    setMenuOpen(false);
+  };
 
   // Initialize speech recognition
   useEffect(() => {
@@ -121,66 +253,211 @@ export function ChatInputField({
     (window.SpeechRecognition || window.webkitSpeechRecognition);
 
   return (
-    <div className={cn("w-full max-w-3xl mx-auto px-4", className)}>
-      <div className="relative flex items-end gap-2 rounded-full border border-border bg-muted/50 shadow-sm px-4 py-2">
-        {/* Prompt Template Menu */}
-        <PromptTemplateMenu 
-          onSelectPrompt={(content) => setValue(content)}
-          disabled={isLoading || disabled}
-        />
-        
-        <textarea
-          ref={textareaRef}
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder="Stellen Sie eine Frage..."
-          disabled={isLoading || disabled}
-          rows={1}
-          className={cn(
-            "flex-1 resize-none bg-transparent py-2 text-sm",
-            "placeholder:text-muted-foreground",
-            "focus:outline-none",
-            "disabled:opacity-50 disabled:cursor-not-allowed",
-            "min-h-[40px] max-h-[200px]"
+    <>
+      <div className={cn("w-full max-w-3xl mx-auto px-4", className)}>
+        <div className="relative flex items-end gap-2 rounded-full border border-border bg-muted/50 shadow-sm px-4 py-2">
+          {/* Plus Menu with Internet Search & Prompts */}
+          <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                disabled={isLoading || disabled}
+                className="h-9 w-9 rounded-full flex-shrink-0"
+              >
+                <Plus className="h-4 w-4 text-muted-foreground" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent 
+              side="top" 
+              align="start" 
+              className="w-80 p-0"
+              sideOffset={8}
+            >
+              <ScrollArea className="max-h-[400px]">
+                <div className="p-2">
+                  {/* Internet Search Toggle */}
+                  <button
+                    onClick={() => {
+                      onWebSearchToggle?.();
+                      setMenuOpen(false);
+                    }}
+                    className="flex items-center gap-3 w-full px-3 py-2.5 rounded-md hover:bg-muted transition-colors"
+                  >
+                    <Globe className="h-4 w-4" />
+                    <span className="text-sm flex-1 text-left">Internetsuche</span>
+                    {webSearchEnabled && <Check className="h-4 w-4 text-primary" />}
+                  </button>
+
+                  <Separator className="my-2" />
+
+                  {promptsLoading ? (
+                    <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">
+                      Laden...
+                    </div>
+                  ) : (
+                    <TooltipProvider delayDuration={300}>
+                      {/* Favorites Section */}
+                      {getFavoritePrompts().length > 0 && (
+                        <div className="mb-3">
+                          <div className="flex items-center gap-2 px-2 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
+                            Favoriten
+                          </div>
+                          {getFavoritePrompts().map((prompt) => (
+                            <Tooltip key={prompt.id}>
+                              <TooltipTrigger asChild>
+                                <button
+                                  onClick={() => handleSelectPrompt(prompt.content)}
+                                  className="flex items-center justify-between w-full px-3 py-2 text-sm text-left rounded-md hover:bg-muted transition-colors"
+                                >
+                                  <span className="truncate pr-2">{prompt.title}</span>
+                                  <Star
+                                    onClick={(e) => toggleFavorite(prompt.id, e)}
+                                    className="h-4 w-4 flex-shrink-0 fill-yellow-400 text-yellow-400 cursor-pointer hover:scale-110 transition-transform"
+                                  />
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent side="right" className="max-w-sm p-3" sideOffset={8}>
+                                <p className="text-sm whitespace-pre-wrap">{prompt.content}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          ))}
+                          <Separator className="my-2" />
+                        </div>
+                      )}
+
+                      {/* Categories */}
+                      {categories.map((category) => {
+                        const categoryPrompts = getPromptsByCategory(category.id);
+                        if (categoryPrompts.length === 0) return null;
+
+                        return (
+                          <div key={category.id} className="mb-3">
+                            <div className="flex items-center gap-2 px-2 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                              {renderIcon(category.icon)}
+                              {category.name}
+                            </div>
+                            {categoryPrompts.map((prompt) => (
+                              <Tooltip key={prompt.id}>
+                                <TooltipTrigger asChild>
+                                  <button
+                                    onClick={() => handleSelectPrompt(prompt.content)}
+                                    className="flex items-center justify-between w-full px-3 py-2 text-sm text-left rounded-md hover:bg-muted transition-colors"
+                                  >
+                                    <span className="truncate pr-2">{prompt.title}</span>
+                                    <Star
+                                      onClick={(e) => toggleFavorite(prompt.id, e)}
+                                      className={cn(
+                                        "h-4 w-4 flex-shrink-0 cursor-pointer hover:scale-110 transition-transform",
+                                        favorites.has(prompt.id)
+                                          ? "fill-yellow-400 text-yellow-400"
+                                          : "text-muted-foreground/50 hover:text-yellow-400"
+                                      )}
+                                    />
+                                  </button>
+                                </TooltipTrigger>
+                                <TooltipContent side="right" className="max-w-sm p-3" sideOffset={8}>
+                                  <p className="text-sm whitespace-pre-wrap">{prompt.content}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            ))}
+                          </div>
+                        );
+                      })}
+
+                      {/* Add Prompt Button */}
+                      <Separator className="my-2" />
+                      <button
+                        onClick={() => {
+                          setMenuOpen(false);
+                          setAddDialogOpen(true);
+                        }}
+                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-left rounded-md hover:bg-muted transition-colors text-primary"
+                      >
+                        <Plus className="h-4 w-4" />
+                        Prompt hinzufügen
+                      </button>
+                    </TooltipProvider>
+                  )}
+                </div>
+              </ScrollArea>
+            </PopoverContent>
+          </Popover>
+
+          {/* Web Search Badge (when active) */}
+          {webSearchEnabled && (
+            <button
+              onClick={onWebSearchToggle}
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-full text-xs hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors flex-shrink-0"
+            >
+              <Globe className="h-3.5 w-3.5" />
+              <span>Suche</span>
+              <X className="h-3 w-3 ml-0.5" />
+            </button>
           )}
-        />
-        
-        {/* Voice Input Button */}
-        {hasSpeechRecognition && (
-          <Button
-            type="button"
-            onClick={toggleListening}
+          
+          <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Stellen Sie eine Frage..."
             disabled={isLoading || disabled}
-            variant="ghost"
-            size="icon"
+            rows={1}
             className={cn(
-              "h-9 w-9 rounded-full flex-shrink-0",
-              isListening && "text-destructive bg-destructive/10"
+              "flex-1 resize-none bg-transparent py-2 text-sm",
+              "placeholder:text-muted-foreground",
+              "focus:outline-none",
+              "disabled:opacity-50 disabled:cursor-not-allowed",
+              "min-h-[40px] max-h-[200px]"
             )}
+          />
+          
+          {/* Voice Input Button */}
+          {hasSpeechRecognition && (
+            <Button
+              type="button"
+              onClick={toggleListening}
+              disabled={isLoading || disabled}
+              variant="ghost"
+              size="icon"
+              className={cn(
+                "h-9 w-9 rounded-full flex-shrink-0",
+                isListening && "text-destructive bg-destructive/10"
+              )}
+            >
+              {isListening ? (
+                <MicOff className="h-4 w-4" />
+              ) : (
+                <Mic className="h-4 w-4 text-muted-foreground" />
+              )}
+            </Button>
+          )}
+          
+          {/* Send Button */}
+          <Button
+            onClick={handleSend}
+            disabled={!value.trim() || isLoading || disabled}
+            size="icon"
+            className="h-9 w-9 rounded-full flex-shrink-0"
           >
-            {isListening ? (
-              <MicOff className="h-4 w-4" />
+            {isLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <Mic className="h-4 w-4 text-muted-foreground" />
+              <ArrowUp className="h-4 w-4" />
             )}
           </Button>
-        )}
-        
-        {/* Send Button */}
-        <Button
-          onClick={handleSend}
-          disabled={!value.trim() || isLoading || disabled}
-          size="icon"
-          className="h-9 w-9 rounded-full flex-shrink-0"
-        >
-          {isLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <ArrowUp className="h-4 w-4" />
-          )}
-        </Button>
+        </div>
       </div>
-    </div>
+
+      <AddPromptDialog
+        open={addDialogOpen}
+        onOpenChange={setAddDialogOpen}
+        categories={categories}
+        onSuccess={fetchPromptData}
+      />
+    </>
   );
 }
