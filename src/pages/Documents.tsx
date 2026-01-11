@@ -37,6 +37,8 @@ interface ChatMessage {
   created_at: string;
 }
 
+const NOVA_SESSION_KEY = 'nova_current_session_id';
+
 export function Documents() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -52,11 +54,20 @@ export function Documents() {
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
 
-  // Chat state
+  // Chat state - load sessionId from localStorage on init
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(() => {
+    return localStorage.getItem(NOVA_SESSION_KEY);
+  });
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+
+  // Persist sessionId to localStorage when it changes
+  useEffect(() => {
+    if (sessionId) {
+      localStorage.setItem(NOVA_SESSION_KEY, sessionId);
+    }
+  }, [sessionId]);
 
   // Fetch buildings
   useEffect(() => {
@@ -84,7 +95,7 @@ export function Documents() {
     }
   }, [messages]);
 
-  // Load existing session messages
+  // Load existing session messages (on mount from localStorage or when sessionId changes)
   useEffect(() => {
     const loadSession = async () => {
       if (!sessionId) return;
@@ -95,7 +106,7 @@ export function Documents() {
         .eq('session_id', sessionId)
         .order('created_at', { ascending: true });
 
-      if (!error && data) {
+      if (!error && data && data.length > 0) {
         setMessages(data.map(msg => ({
           id: msg.id,
           role: msg.role as 'user' | 'assistant',
@@ -103,6 +114,11 @@ export function Documents() {
           sources: msg.sources as any,
           created_at: msg.created_at,
         })));
+      } else if (error) {
+        // Session doesn't exist anymore, clear it
+        console.log('Session not found, clearing localStorage');
+        localStorage.removeItem(NOVA_SESSION_KEY);
+        setSessionId(null);
       }
     };
 
@@ -177,6 +193,7 @@ export function Documents() {
   };
 
   const handleNewSession = () => {
+    localStorage.removeItem(NOVA_SESSION_KEY);
     setSessionId(null);
     setMessages([]);
     toast({
