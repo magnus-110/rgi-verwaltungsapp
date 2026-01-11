@@ -311,8 +311,8 @@ ${question}`;
     body: JSON.stringify({
       model: 'mistral-large-latest',
       inputs: validatedInputs,
-      tools: [{ type: 'web_search' }]
-      // NOTE: tool_choice is NOT supported by this API
+      tools: [{ type: 'web_search' }],
+      max_tokens: 4096  // Allow longer responses for lists and detailed answers
     }),
   });
 
