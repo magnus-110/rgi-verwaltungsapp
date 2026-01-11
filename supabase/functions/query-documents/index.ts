@@ -236,25 +236,36 @@ async function queryWithWebAgent(
 ): Promise<{answer: string, sources: any[]}> {
   console.log('Using Mistral Conversations API with web_search connector');
   
-  // Enrich system prompt with document context if available
-  let enrichedSystemPrompt = systemPrompt;
-  if (documentContext) {
-    enrichedSystemPrompt += `
+  // Create a WEB SEARCH SPECIFIC system prompt that forces internet research
+  const webSearchSystemPrompt = `Du bist NOVA, der interne KI-Assistent von RGI Immobilien.
 
-KONTEXT AUS INTERNEN DOKUMENTEN:
-Die folgenden Informationen stammen aus den internen Dokumenten des Unternehmens.
-Nutze diese als primäre Quelle und ergänze sie bei Bedarf mit Internet-Recherche.
+WICHTIG: Der Benutzer hat die INTERNET-SUCHE AKTIVIERT!
 
-${documentContext}`;
-    console.log(`Added ${documentContext.length} chars of document context to Conversations API`);
-  }
+DEINE AUFGABE:
+1. FÜHRE IMMER eine Internet-Recherche durch für die gestellte Frage
+2. Suche aktiv nach aktuellen, relevanten Informationen im Internet
+3. Nutze den internen Dokumentkontext nur als ERGÄNZUNG, nicht als Ersatz für die Web-Suche
+4. Antworte IMMER auf Deutsch
+
+ANTWORTFORMAT:
+- Gib eine klare, strukturierte Zusammenfassung der gefundenen Informationen
+- Verweise auf die verwendeten Internet-Quellen
+- Kombiniere Internet-Wissen mit internem Kontext, wenn sinnvoll
+
+${documentContext ? `INTERNER DOKUMENTKONTEXT (zur Ergänzung):
+${documentContext.slice(0, 8000)}` : ''}
+
+ORIGINAL SYSTEM-ANWEISUNGEN:
+${systemPrompt}`;
+
+  console.log(`Web search prompt length: ${webSearchSystemPrompt.length} chars`);
   
   // Conversations API only accepts 'user' and 'assistant' roles - NO 'system' role!
   // Prepend system instructions to the first user message
   const firstUserMessage = `[SYSTEM-ANWEISUNGEN - BEFOLGE DIESE STRIKT]
-${enrichedSystemPrompt}
+${webSearchSystemPrompt}
 
-[NUTZERFRAGE]
+[NUTZERFRAGE - FÜHRE EINE INTERNET-SUCHE DURCH]
 ${question}`;
 
   // Build inputs array - only user/assistant messages from history, then our enriched user message
@@ -288,6 +299,7 @@ ${question}`;
   }))));
 
   // Call Conversations API with built-in web_search connector
+  // CRITICAL: tool_choice: "required" forces the model to ALWAYS use web search
   const response = await fetch('https://api.mistral.ai/v1/conversations', {
     method: 'POST',
     headers: {
@@ -297,7 +309,8 @@ ${question}`;
     body: JSON.stringify({
       model: 'mistral-large-latest',
       inputs: validatedInputs,
-      tools: [{ type: 'web_search' }]
+      tools: [{ type: 'web_search' }],
+      tool_choice: 'required'  // FORCE web search - don't let the model decide
     }),
   });
 
