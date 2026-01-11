@@ -298,11 +298,9 @@ ${question}`;
     contentLength: i.content.length 
   }))));
 
-  // Call Conversations API with Mistral Web Search Agent
-  // NOTE: Must use agent_id (not model + tools) for web search - tool_choice is NOT supported
-  const MISTRAL_WEB_AGENT_ID = 'ag_019ba89a0a6d722fb79f7afa8c035798';
-  
-  console.log(`Calling Mistral Web Agent: ${MISTRAL_WEB_AGENT_ID}`);
+  // Call Conversations API with model + web_search tool
+  // NOTE: tool_choice is NOT supported, but tools array works
+  console.log('Calling Mistral Conversations API with web_search tool');
   
   const response = await fetch('https://api.mistral.ai/v1/conversations', {
     method: 'POST',
@@ -311,8 +309,10 @@ ${question}`;
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      agent_id: MISTRAL_WEB_AGENT_ID,  // Use agent instead of model+tools
-      inputs: validatedInputs
+      model: 'mistral-large-latest',
+      inputs: validatedInputs,
+      tools: [{ type: 'web_search' }]
+      // NOTE: tool_choice is NOT supported by this API
     }),
   });
 
