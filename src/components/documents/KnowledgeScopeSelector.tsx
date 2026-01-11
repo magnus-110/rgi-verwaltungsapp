@@ -8,7 +8,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ChevronDown, Building2, BookOpen, Search, Check } from "lucide-react";
+import { ChevronDown, Building2, BookOpen, Search, Check, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Building {
@@ -54,7 +54,7 @@ export function KnowledgeScopeSelector({
   const getScopeLabel = () => {
     switch (scope) {
       case 'general':
-        return "Nur Allgemeines Wissen";
+        return "Allgemein";
       case 'specific':
         return selectedBuilding 
           ? `${selectedBuilding.name}` 
@@ -68,8 +68,9 @@ export function KnowledgeScopeSelector({
     switch (scope) {
       case 'general':
         return <BookOpen className="h-4 w-4" />;
-      case 'specific':
       case 'all':
+        return <Layers className="h-4 w-4" />;
+      case 'specific':
         return <Building2 className="h-4 w-4" />;
     }
   };
@@ -92,7 +93,7 @@ export function KnowledgeScopeSelector({
         sideOffset={8}
       >
         <div className="p-2 space-y-1">
-          {/* Nur Allgemeines Wissen */}
+          {/* Allgemein */}
           <button
             onClick={() => {
               onScopeChange('general');
@@ -107,7 +108,7 @@ export function KnowledgeScopeSelector({
           >
             <BookOpen className="h-4 w-4" />
             <div className="flex-1">
-              <p className="text-sm font-medium">Nur Allgemeines Wissen</p>
+              <p className="text-sm font-medium">Allgemein</p>
               <p className="text-xs text-muted-foreground">Suche nur in allgemeinen Dokumenten</p>
             </div>
             {scope === 'general' && <Check className="h-4 w-4" />}
@@ -125,7 +126,7 @@ export function KnowledgeScopeSelector({
                 : "hover:bg-muted"
             )}
           >
-            <Building2 className="h-4 w-4" />
+            <Layers className="h-4 w-4" />
             <div className="flex-1">
               <p className="text-sm font-medium">Alle Gebäude</p>
               <p className="text-xs text-muted-foreground">Durchsuche alle Gebäude-Dokumente</p>
