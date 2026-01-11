@@ -39,13 +39,16 @@ export function PdfViewerModal({
   const [pageNumber, setPageNumber] = useState(initialPage);
   const [scale, setScale] = useState(1.0);
   const [isLoading, setIsLoading] = useState(true);
-  const [pdfData, setPdfData] = useState<Uint8Array | null>(null);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Fetch PDF data when URL changes to avoid CORS issues with pdfjs worker
+  // Fetch PDF and create Blob URL to avoid ArrayBuffer detachment issues
   useEffect(() => {
     if (!documentUrl || !isOpen) {
-      setPdfData(null);
+      if (pdfBlobUrl) {
+        URL.revokeObjectURL(pdfBlobUrl);
+        setPdfBlobUrl(null);
+      }
       setLoadError(null);
       return;
     }
@@ -53,7 +56,6 @@ export function PdfViewerModal({
     let cancelled = false;
     setIsLoading(true);
     setLoadError(null);
-    setPdfData(null);
 
     const fetchPdf = async () => {
       try {
@@ -66,11 +68,16 @@ export function PdfViewerModal({
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
-        const arrayBuffer = await response.arrayBuffer();
+        const blob = await response.blob();
         
         if (!cancelled) {
-          // Convert to Uint8Array to prevent "detached ArrayBuffer" errors on re-renders
-          setPdfData(new Uint8Array(arrayBuffer));
+          // Revoke old Blob URL if exists
+          if (pdfBlobUrl) {
+            URL.revokeObjectURL(pdfBlobUrl);
+          }
+          // Create new Blob URL - this can be read multiple times without detachment issues
+          const blobUrl = URL.createObjectURL(blob);
+          setPdfBlobUrl(blobUrl);
         }
       } catch (error) {
         console.error("Error fetching PDF:", error);
@@ -87,6 +94,15 @@ export function PdfViewerModal({
       cancelled = true;
     };
   }, [documentUrl, isOpen]);
+
+  // Cleanup Blob URL on unmount
+  useEffect(() => {
+    return () => {
+      if (pdfBlobUrl) {
+        URL.revokeObjectURL(pdfBlobUrl);
+      }
+    };
+  }, []);
 
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
@@ -127,11 +143,15 @@ export function PdfViewerModal({
   // Reset state when modal closes
   const handleOpenChange = (open: boolean) => {
     if (!open) {
+      // Revoke Blob URL when closing
+      if (pdfBlobUrl) {
+        URL.revokeObjectURL(pdfBlobUrl);
+        setPdfBlobUrl(null);
+      }
       setIsLoading(true);
       setPageNumber(initialPage);
       setScale(1.0);
       setNumPages(null);
-      setPdfData(null);
       setLoadError(null);
       onClose();
     }
@@ -237,7 +257,7 @@ export function PdfViewerModal({
             </div>
           )}
 
-          {pdfData && !loadError && (
+          {pdfBlobUrl && !loadError && (
             <Suspense
               fallback={
                 <div className="flex items-center justify-center py-20">
@@ -246,7 +266,7 @@ export function PdfViewerModal({
               }
             >
               <Document
-                file={{ data: pdfData }}
+                file={pdfBlobUrl}
                 onLoadSuccess={onDocumentLoadSuccess}
                 onLoadError={onDocumentLoadError}
                 loading={
