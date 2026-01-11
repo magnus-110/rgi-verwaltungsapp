@@ -298,8 +298,12 @@ ${question}`;
     contentLength: i.content.length 
   }))));
 
-  // Call Conversations API with built-in web_search connector
-  // CRITICAL: tool_choice: "required" forces the model to ALWAYS use web search
+  // Call Conversations API with Mistral Web Search Agent
+  // NOTE: Must use agent_id (not model + tools) for web search - tool_choice is NOT supported
+  const MISTRAL_WEB_AGENT_ID = 'ag_019ba89a0a6d722fb79f7afa8c035798';
+  
+  console.log(`Calling Mistral Web Agent: ${MISTRAL_WEB_AGENT_ID}`);
+  
   const response = await fetch('https://api.mistral.ai/v1/conversations', {
     method: 'POST',
     headers: {
@@ -307,10 +311,8 @@ ${question}`;
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'mistral-large-latest',
-      inputs: validatedInputs,
-      tools: [{ type: 'web_search' }],
-      tool_choice: 'required'  // FORCE web search - don't let the model decide
+      agent_id: MISTRAL_WEB_AGENT_ID,  // Use agent instead of model+tools
+      inputs: validatedInputs
     }),
   });
 
