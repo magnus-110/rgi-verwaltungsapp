@@ -38,22 +38,28 @@ STRENGE REGELN - UNBEDINGT BEFOLGEN:
 
 Du hast KEINEN Zugang zum Internet. Deine EINZIGE Wissensquelle sind die Dokumente.`;
 
-const DEFAULT_WEB_SYSTEM_PROMPT = `Du bist ein Recherche-Assistent für die Immobilienverwaltung mit Internet-Zugang.
+const DEFAULT_WEB_SYSTEM_PROMPT = `Du bist ein Recherche-Assistent für die Immobilienverwaltung.
 
-DEINE FÄHIGKEITEN:
-1. Du kannst aktiv im Internet recherchieren
-2. Du hast Zugang zu aktuellen Informationen und Gesetzestexten
-3. Du kannst Informationen aus verschiedenen Quellen kombinieren
+DU HAST ZWEI WISSENSQUELLEN:
+1. INTERNE DOKUMENTE: Dir werden relevante interne Dokumente bereitgestellt (siehe "KONTEXT AUS INTERNEN DOKUMENTEN")
+2. INTERNET-RECHERCHE: Du kannst zusätzlich im Internet recherchieren
+
+VORGEHENSWEISE:
+1. Prüfe ZUERST, ob die Information in den internen Dokumenten vorhanden ist
+2. Nutze die internen Dokumente als primäre und vertrauenswürdigste Quelle
+3. Ergänze mit Internet-Recherche, wenn:
+   - Die internen Dokumente keine Antwort liefern
+   - Aktuelle Gesetzestexte oder Urteile benötigt werden
+   - Der Nutzer explizit nach externen Informationen fragt
 
 RICHTLINIEN:
-1. Recherchiere gründlich im Internet bevor du antwortest
-2. Gib immer an, woher die Information stammt (URLs wenn möglich)
-3. Bei rechtlichen Fragen: Verweise auf offizielle Quellen (Gesetze, BGH-Urteile)
-4. Antworte auf Deutsch
-5. Bei komplexen Themen: Strukturiere die Antwort klar
-6. Weise bei rechtlichen Themen darauf hin, dass dies keine Rechtsberatung ist
+- Kennzeichne klar, ob die Information aus internen Dokumenten oder dem Internet stammt
+- Bei Informationen aus internen Dokumenten: Gib das Dokument und die Seite an
+- Bei rechtlichen Fragen: Verweise auf offizielle Quellen (Gesetze, BGH-Urteile)
+- Antworte auf Deutsch
+- Weise bei rechtlichen Themen darauf hin, dass dies keine Rechtsberatung ist
 
-Du bist ein Recherche-Experte mit Fokus auf Immobilien-, Miet- und WEG-Recht.`;
+Du kombinierst internes Wissen mit aktueller Internet-Recherche.`;
 
 interface DocumentInfo {
   id: string;
@@ -223,17 +229,31 @@ async function getChatSettings(
   }
 }
 
-// Query with Mistral Web Agent (Internet Search)
+// Query with Mistral Web Agent (Internet Search) - now with document context
 async function queryWithWebAgent(
   question: string,
   conversationHistory: Array<{role: string, content: string}>,
-  systemPrompt: string
+  systemPrompt: string,
+  documentContext: string = ''
 ): Promise<{answer: string, sources: any[]}> {
-  console.log('Using Mistral Web Agent for internet search');
+  console.log('Using Mistral Web Agent for internet search with document context');
+  
+  // Enrich system prompt with document context if available
+  let enrichedSystemPrompt = systemPrompt;
+  if (documentContext) {
+    enrichedSystemPrompt += `
+
+KONTEXT AUS INTERNEN DOKUMENTEN:
+Die folgenden Informationen stammen aus den internen Dokumenten des Unternehmens.
+Nutze diese als primäre Quelle und ergänze sie bei Bedarf mit Internet-Recherche.
+
+${documentContext}`;
+    console.log(`Added ${documentContext.length} chars of document context to web agent`);
+  }
   
   // Format conversation history for the agent
   const inputs = [
-    { role: 'system', content: systemPrompt },
+    { role: 'system', content: enrichedSystemPrompt },
     ...conversationHistory.slice(-10).map(msg => ({
       role: msg.role,
       content: msg.content
@@ -270,8 +290,8 @@ async function queryWithWebAgent(
     answer,
     sources: [{ 
       type: 'web',
-      content: 'Ergebnis aus Internet-Suche',
-      metadata: { source: 'Internet-Suche' },
+      content: 'Ergebnis aus Internet-Suche (mit internem Dokumenten-Kontext)',
+      metadata: { source: 'Internet-Suche + Interne Dokumente' },
       fileName: 'Internet-Suche',
       documentUrl: null,
       pageNumber: null
@@ -387,9 +407,70 @@ serve(async (req) => {
     // Get chat settings (now with mode-specific prompts)
     const chatSettings = await getChatSettings(supabase, useWebSearch || false);
 
-    // If web search is enabled, use the web agent instead of document search
+    // If web search is enabled, FIRST get document context, THEN use web agent
     if (useWebSearch) {
-      const { answer, sources } = await queryWithWebAgent(question, conversationHistory, chatSettings.systemPrompt);
+      console.log('Web search mode: fetching document context first...');
+      
+      // Generate embedding for the question
+      const questionEmbedding = await generateQuestionEmbedding(question);
+
+      // Search for relevant chunks (same as document mode)
+      const relevantChunks = await searchSimilarChunks(
+        supabase,
+        questionEmbedding,
+        buildingId,
+        includeGeneral,
+        10
+      );
+
+      // Build document context from chunks
+      let documentContext = '';
+      let documentSources: any[] = [];
+      
+      if (relevantChunks.length > 0) {
+        console.log(`Found ${relevantChunks.length} relevant document chunks for web agent context`);
+        
+        const uniqueDocumentIds = [...new Set(relevantChunks.map(chunk => chunk.document_id).filter(Boolean))];
+        const documentMap = await getDocumentInfoWithUrls(supabase, uniqueDocumentIds);
+        
+        documentContext = relevantChunks.map((chunk, index) => {
+          const metadata = chunk.metadata || {};
+          const docInfo = documentMap.get(chunk.document_id);
+          const sourceInfo = [
+            docInfo?.file_name && `Dokument: ${docInfo.file_name}`,
+            metadata.page && `Seite: ${metadata.page}`,
+          ].filter(Boolean).join(', ');
+          
+          return `[Interne Quelle ${index + 1}${sourceInfo ? ` - ${sourceInfo}` : ''}]\n${chunk.content}`;
+        }).join('\n\n---\n\n');
+
+        // Extract document sources
+        documentSources = relevantChunks.slice(0, 3).map(chunk => {
+          const docInfo = documentMap.get(chunk.document_id);
+          return {
+            type: 'document',
+            content: chunk.content.slice(0, 150) + '...',
+            metadata: chunk.metadata,
+            documentId: chunk.document_id,
+            fileName: docInfo?.file_name || null,
+            documentUrl: docInfo?.signedUrl || null,
+            pageNumber: chunk.metadata?.page || null
+          };
+        });
+      } else {
+        console.log('No document chunks found, web agent will use internet only');
+      }
+      
+      // Call web agent WITH document context
+      const { answer, sources: webSources } = await queryWithWebAgent(
+        question, 
+        conversationHistory, 
+        chatSettings.systemPrompt,
+        documentContext
+      );
+      
+      // Combine document sources with web source
+      const combinedSources = [...documentSources, ...webSources];
       
       // Save assistant message
       await supabase
@@ -398,7 +479,7 @@ serve(async (req) => {
           session_id: currentSessionId,
           role: 'assistant',
           content: answer,
-          sources: sources
+          sources: combinedSources
         });
 
       // Update session
@@ -410,7 +491,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({
           answer,
-          sources,
+          sources: combinedSources,
           sessionId: currentSessionId
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
