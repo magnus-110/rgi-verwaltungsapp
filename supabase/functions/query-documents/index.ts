@@ -323,16 +323,39 @@ ${question}`;
   }
 
   const data = await response.json();
-  console.log('Conversations API response:', JSON.stringify(data).slice(0, 800));
+  console.log('Conversations API response:', JSON.stringify(data).slice(0, 1500));
   
-  // Extract answer from outputs array
-  const answer = data.outputs?.[0]?.content || 
-                 'Keine Antwort vom Internet-Agenten erhalten.';
+  // Find the message.output entry (not tool.execution)
+  const messageOutput = data.outputs?.find(
+    (output: any) => output.type === 'message.output'
+  );
   
-  // Extract web sources from citations if available
-  const webSources = (data.outputs?.[0]?.citations || []).map((citation: any) => ({
+  // Extract text from content array - content is [{type: "text", text: "..."}]
+  let answer = 'Keine Antwort vom Internet-Agenten erhalten.';
+  if (messageOutput?.content) {
+    if (Array.isArray(messageOutput.content)) {
+      // Content is an array of objects with {type, text}
+      const textContent = messageOutput.content.find(
+        (c: any) => c.type === 'text'
+      );
+      answer = textContent?.text || answer;
+    } else if (typeof messageOutput.content === 'string') {
+      // Fallback if content is a direct string
+      answer = messageOutput.content;
+    }
+  }
+  
+  console.log('Extracted answer length:', answer.length);
+  
+  // Extract web sources from citations
+  // Citations can be at message level or in the outputs
+  const citations = messageOutput?.citations || 
+                    data.citations || 
+                    [];
+  
+  const webSources = citations.map((citation: any) => ({
     type: 'web',
-    content: citation.title || 'Internet-Quelle',
+    content: citation.title || citation.url || 'Internet-Quelle',
     metadata: { 
       source: 'Internet-Suche',
       url: citation.url 
