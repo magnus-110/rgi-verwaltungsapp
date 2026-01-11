@@ -266,10 +266,26 @@ ${question}`;
       content: msg.content
     }));
 
-  const inputs = [
+  // Build and validate inputs - MUST only contain user/assistant roles
+  let validatedInputs = [
     ...historyMessages,
     { role: 'user' as const, content: firstUserMessage }
   ];
+  
+  // Final safety check - filter out any non-user/assistant roles
+  validatedInputs = validatedInputs.filter(msg => 
+    msg.role === 'user' || msg.role === 'assistant'
+  );
+  
+  // Ensure we always have at least the user question
+  if (validatedInputs.length === 0) {
+    validatedInputs.push({ role: 'user' as const, content: firstUserMessage });
+  }
+  
+  console.log('Conversations API inputs:', JSON.stringify(validatedInputs.map(i => ({ 
+    role: i.role, 
+    contentLength: i.content.length 
+  }))));
 
   // Call Conversations API with built-in web_search connector
   const response = await fetch('https://api.mistral.ai/v1/conversations', {
@@ -280,8 +296,8 @@ ${question}`;
     },
     body: JSON.stringify({
       model: 'mistral-large-latest',
-      inputs,
-      tools: [{ type: 'web_search' }]  // Built-in web search - automatic execution
+      inputs: validatedInputs,
+      tools: [{ type: 'web_search' }]
     }),
   });
 
@@ -491,10 +507,16 @@ serve(async (req) => {
         console.log('No document chunks found, web agent will use internet only');
       }
       
+      // Filter conversation history to only include user/assistant roles BEFORE calling web agent
+      const filteredHistory = conversationHistory.filter(
+        (msg: any) => msg.role === 'user' || msg.role === 'assistant'
+      );
+      console.log(`Filtered history: ${conversationHistory.length} -> ${filteredHistory.length} messages`);
+      
       // Call web agent WITH document context
       const { answer, sources: webSources } = await queryWithWebAgent(
         question, 
-        conversationHistory, 
+        filteredHistory, 
         chatSettings.systemPrompt,
         documentContext
       );
