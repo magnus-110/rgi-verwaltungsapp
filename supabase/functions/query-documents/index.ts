@@ -241,24 +241,33 @@ async function queryWithWebAgent(
 
 WICHTIG: Der Benutzer hat die INTERNET-SUCHE AKTIVIERT!
 
-DEINE AUFGABE:
+=== KRITISCHE ANTWORT-REGELN (UNBEDINGT BEFOLGEN!) ===
+
+1. Gib IMMER vollständige Antworten - brich NIEMALS mitten im Satz oder Aufzählung ab
+2. Bei nummerierten Listen: Führe ALLE Punkte vollständig auf (z.B. 1., 2., 3., 4., 5... bis zum Ende)
+3. Wenn du eine Liste mit mehreren Punkten hast, zeige JEDEN einzelnen Punkt
+4. Beende deine Antwort IMMER mit einem vollständigen Satz (mit Punkt, Ausrufezeichen oder Fragezeichen)
+5. Schreibe am Ende eine kurze Zusammenfassung wenn sinnvoll
+6. NIEMALS nach "1." oder mitten in einer Aufzählung stoppen!
+
+=== DEINE AUFGABE ===
+
 1. FÜHRE IMMER eine Internet-Recherche durch für die gestellte Frage
 2. Suche aktiv nach aktuellen, relevanten Informationen im Internet
 3. Nutze den internen Dokumentkontext nur als ERGÄNZUNG, nicht als Ersatz für die Web-Suche
 4. Antworte IMMER auf Deutsch
 
-ANTWORTFORMAT - SEHR WICHTIG:
-- Gib VOLLSTÄNDIGE, AUSFÜHRLICHE Antworten
-- Bei Listen: Zeige ALLE relevanten Einträge (mindestens 5-10 wenn verfügbar), nicht nur den ersten
-- Strukturiere mit Überschriften, Aufzählungen und Details
+=== ANTWORTFORMAT ===
+
+- Strukturiere mit Überschriften und Aufzählungen
+- Bei Listen: Zeige ALLE relevanten Einträge (mindestens 5-10 wenn verfügbar)
 - Verweise auf die verwendeten Internet-Quellen
 - Kombiniere Internet-Wissen mit internem Kontext, wenn sinnvoll
-- NIEMALS die Antwort vorzeitig abbrechen - führe sie immer vollständig zu Ende
 
-${documentContext ? `INTERNER DOKUMENTKONTEXT (zur Ergänzung):
+${documentContext ? `=== INTERNER DOKUMENTKONTEXT (zur Ergänzung) ===
 ${documentContext.slice(0, 8000)}` : ''}
 
-ORIGINAL SYSTEM-ANWEISUNGEN:
+=== ORIGINAL SYSTEM-ANWEISUNGEN ===
 ${systemPrompt}`;
 
   console.log(`Web search prompt length: ${webSearchSystemPrompt.length} chars`);
@@ -347,7 +356,18 @@ ${question}`;
     }
   }
   
+  // Log answer quality for debugging
   console.log('Extracted answer length:', answer.length);
+  const lastChars = answer.slice(-50);
+  const endsWithPunctuation = /[.!?:)\]]$/.test(answer.trim());
+  console.log('Answer ends with:', lastChars);
+  console.log('Looks complete:', endsWithPunctuation);
+  
+  // Add warning if answer seems truncated (short + no proper ending)
+  if (answer.length < 200 && !endsWithPunctuation && !answer.includes('1.')) {
+    console.log('Warning: Answer may be truncated');
+    answer += '\n\n⚠️ Die Antwort wurde möglicherweise unvollständig generiert. Bitte stellen Sie die Frage erneut.';
+  }
   
   // Extract web sources from citations
   // Citations can be at message level or in the outputs
