@@ -247,10 +247,13 @@ DEINE AUFGABE:
 3. Nutze den internen Dokumentkontext nur als ERGÄNZUNG, nicht als Ersatz für die Web-Suche
 4. Antworte IMMER auf Deutsch
 
-ANTWORTFORMAT:
-- Gib eine klare, strukturierte Zusammenfassung der gefundenen Informationen
+ANTWORTFORMAT - SEHR WICHTIG:
+- Gib VOLLSTÄNDIGE, AUSFÜHRLICHE Antworten
+- Bei Listen: Zeige ALLE relevanten Einträge (mindestens 5-10 wenn verfügbar), nicht nur den ersten
+- Strukturiere mit Überschriften, Aufzählungen und Details
 - Verweise auf die verwendeten Internet-Quellen
 - Kombiniere Internet-Wissen mit internem Kontext, wenn sinnvoll
+- NIEMALS die Antwort vorzeitig abbrechen - führe sie immer vollständig zu Ende
 
 ${documentContext ? `INTERNER DOKUMENTKONTEXT (zur Ergänzung):
 ${documentContext.slice(0, 8000)}` : ''}
@@ -311,8 +314,7 @@ ${question}`;
     body: JSON.stringify({
       model: 'mistral-large-latest',
       inputs: validatedInputs,
-      tools: [{ type: 'web_search' }],
-      max_tokens: 4096  // Allow longer responses for lists and detailed answers
+      tools: [{ type: 'web_search' }]
     }),
   });
 
