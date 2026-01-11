@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowUp, Loader2, Mic, MicOff, Plus, Globe, Check, Star, X } from "lucide-react";
+import { ArrowUp, Loader2, Mic, MicOff, Plus, Globe, Check, Star, X, FileText, ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -63,6 +63,7 @@ export function ChatInputField({
   const [value, setValue] = useState("");
   const [isListening, setIsListening] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuView, setMenuView] = useState<'main' | 'prompts'>('main');
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -167,6 +168,15 @@ export function ChatInputField({
   const handleSelectPrompt = (content: string) => {
     setValue(content);
     setMenuOpen(false);
+    setMenuView('main');
+  };
+
+  // Reset menu view when closing
+  const handleMenuOpenChange = (open: boolean) => {
+    setMenuOpen(open);
+    if (!open) {
+      setMenuView('main');
+    }
   };
 
   // Initialize speech recognition
@@ -255,9 +265,23 @@ export function ChatInputField({
   return (
     <>
       <div className={cn("w-full max-w-3xl mx-auto px-4", className)}>
+        {/* Web Search Badge (positioned above the pill) */}
+        {webSearchEnabled && (
+          <div className="mb-2 ml-1">
+            <button
+              onClick={onWebSearchToggle}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-full text-xs hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors"
+            >
+              <Globe className="h-3.5 w-3.5" />
+              <span>Suche</span>
+              <X className="h-3 w-3 ml-0.5" />
+            </button>
+          </div>
+        )}
+
         <div className="relative flex items-end gap-2 rounded-full border border-border bg-muted/50 shadow-sm px-4 py-2">
-          {/* Plus Menu with Internet Search & Prompts */}
-          <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+          {/* Plus Menu */}
+          <Popover open={menuOpen} onOpenChange={handleMenuOpenChange}>
             <PopoverTrigger asChild>
               <Button
                 type="button"
@@ -275,7 +299,8 @@ export function ChatInputField({
               className="w-80 p-0"
               sideOffset={8}
             >
-              <ScrollArea className="max-h-[400px]">
+              {menuView === 'main' ? (
+                /* Main Menu View */
                 <div className="p-2">
                   {/* Internet Search Toggle */}
                   <button
@@ -290,56 +315,44 @@ export function ChatInputField({
                     {webSearchEnabled && <Check className="h-4 w-4 text-primary" />}
                   </button>
 
-                  <Separator className="my-2" />
+                  {/* Prompts Menu Item */}
+                  <button
+                    onClick={() => setMenuView('prompts')}
+                    className="flex items-center gap-3 w-full px-3 py-2.5 rounded-md hover:bg-muted transition-colors"
+                  >
+                    <FileText className="h-4 w-4" />
+                    <span className="text-sm flex-1 text-left">Prompt-Vorlagen</span>
+                  </button>
+                </div>
+              ) : (
+                /* Prompts View */
+                <div className="p-2">
+                  {/* Back Button */}
+                  <button
+                    onClick={() => setMenuView('main')}
+                    className="flex items-center gap-2 w-full px-3 py-2 mb-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    <span>Zurück</span>
+                  </button>
+                  
+                  <Separator className="mb-2" />
 
-                  {promptsLoading ? (
-                    <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">
-                      Laden...
-                    </div>
-                  ) : (
-                    <TooltipProvider delayDuration={300}>
-                      {/* Favorites Section */}
-                      {getFavoritePrompts().length > 0 && (
-                        <div className="mb-3">
-                          <div className="flex items-center gap-2 px-2 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                            <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
-                            Favoriten
-                          </div>
-                          {getFavoritePrompts().map((prompt) => (
-                            <Tooltip key={prompt.id}>
-                              <TooltipTrigger asChild>
-                                <button
-                                  onClick={() => handleSelectPrompt(prompt.content)}
-                                  className="flex items-center justify-between w-full px-3 py-2 text-sm text-left rounded-md hover:bg-muted transition-colors"
-                                >
-                                  <span className="truncate pr-2">{prompt.title}</span>
-                                  <Star
-                                    onClick={(e) => toggleFavorite(prompt.id, e)}
-                                    className="h-4 w-4 flex-shrink-0 fill-yellow-400 text-yellow-400 cursor-pointer hover:scale-110 transition-transform"
-                                  />
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent side="right" className="max-w-sm p-3" sideOffset={8}>
-                                <p className="text-sm whitespace-pre-wrap">{prompt.content}</p>
-                              </TooltipContent>
-                            </Tooltip>
-                          ))}
-                          <Separator className="my-2" />
-                        </div>
-                      )}
-
-                      {/* Categories */}
-                      {categories.map((category) => {
-                        const categoryPrompts = getPromptsByCategory(category.id);
-                        if (categoryPrompts.length === 0) return null;
-
-                        return (
-                          <div key={category.id} className="mb-3">
+                  <ScrollArea className="max-h-[350px]">
+                    {promptsLoading ? (
+                      <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">
+                        Laden...
+                      </div>
+                    ) : (
+                      <TooltipProvider delayDuration={300}>
+                        {/* Favorites Section */}
+                        {getFavoritePrompts().length > 0 && (
+                          <div className="mb-3">
                             <div className="flex items-center gap-2 px-2 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                              {renderIcon(category.icon)}
-                              {category.name}
+                              <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
+                              Favoriten
                             </div>
-                            {categoryPrompts.map((prompt) => (
+                            {getFavoritePrompts().map((prompt) => (
                               <Tooltip key={prompt.id}>
                                 <TooltipTrigger asChild>
                                   <button
@@ -349,12 +362,7 @@ export function ChatInputField({
                                     <span className="truncate pr-2">{prompt.title}</span>
                                     <Star
                                       onClick={(e) => toggleFavorite(prompt.id, e)}
-                                      className={cn(
-                                        "h-4 w-4 flex-shrink-0 cursor-pointer hover:scale-110 transition-transform",
-                                        favorites.has(prompt.id)
-                                          ? "fill-yellow-400 text-yellow-400"
-                                          : "text-muted-foreground/50 hover:text-yellow-400"
-                                      )}
+                                      className="h-4 w-4 flex-shrink-0 fill-yellow-400 text-yellow-400 cursor-pointer hover:scale-110 transition-transform"
                                     />
                                   </button>
                                 </TooltipTrigger>
@@ -363,40 +371,69 @@ export function ChatInputField({
                                 </TooltipContent>
                               </Tooltip>
                             ))}
+                            <Separator className="my-2" />
                           </div>
-                        );
-                      })}
+                        )}
 
-                      {/* Add Prompt Button */}
-                      <Separator className="my-2" />
-                      <button
-                        onClick={() => {
-                          setMenuOpen(false);
-                          setAddDialogOpen(true);
-                        }}
-                        className="flex items-center gap-2 w-full px-3 py-2 text-sm text-left rounded-md hover:bg-muted transition-colors text-primary"
-                      >
-                        <Plus className="h-4 w-4" />
-                        Prompt hinzufügen
-                      </button>
-                    </TooltipProvider>
-                  )}
+                        {/* Categories */}
+                        {categories.map((category) => {
+                          const categoryPrompts = getPromptsByCategory(category.id);
+                          if (categoryPrompts.length === 0) return null;
+
+                          return (
+                            <div key={category.id} className="mb-3">
+                              <div className="flex items-center gap-2 px-2 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                {renderIcon(category.icon)}
+                                {category.name}
+                              </div>
+                              {categoryPrompts.map((prompt) => (
+                                <Tooltip key={prompt.id}>
+                                  <TooltipTrigger asChild>
+                                    <button
+                                      onClick={() => handleSelectPrompt(prompt.content)}
+                                      className="flex items-center justify-between w-full px-3 py-2 text-sm text-left rounded-md hover:bg-muted transition-colors"
+                                    >
+                                      <span className="truncate pr-2">{prompt.title}</span>
+                                      <Star
+                                        onClick={(e) => toggleFavorite(prompt.id, e)}
+                                        className={cn(
+                                          "h-4 w-4 flex-shrink-0 cursor-pointer hover:scale-110 transition-transform",
+                                          favorites.has(prompt.id)
+                                            ? "fill-yellow-400 text-yellow-400"
+                                            : "text-muted-foreground/50 hover:text-yellow-400"
+                                        )}
+                                      />
+                                    </button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="right" className="max-w-sm p-3" sideOffset={8}>
+                                    <p className="text-sm whitespace-pre-wrap">{prompt.content}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              ))}
+                            </div>
+                          );
+                        })}
+
+                        {/* Add Prompt Button */}
+                        <Separator className="my-2" />
+                        <button
+                          onClick={() => {
+                            setMenuOpen(false);
+                            setMenuView('main');
+                            setAddDialogOpen(true);
+                          }}
+                          className="flex items-center gap-2 w-full px-3 py-2 text-sm text-left rounded-md hover:bg-muted transition-colors text-primary"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Prompt hinzufügen
+                        </button>
+                      </TooltipProvider>
+                    )}
+                  </ScrollArea>
                 </div>
-              </ScrollArea>
+              )}
             </PopoverContent>
           </Popover>
-
-          {/* Web Search Badge (when active) */}
-          {webSearchEnabled && (
-            <button
-              onClick={onWebSearchToggle}
-              className="flex items-center gap-1.5 px-2.5 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-full text-xs hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors flex-shrink-0"
-            >
-              <Globe className="h-3.5 w-3.5" />
-              <span>Suche</span>
-              <X className="h-3 w-3 ml-0.5" />
-            </button>
-          )}
           
           <textarea
             ref={textareaRef}
