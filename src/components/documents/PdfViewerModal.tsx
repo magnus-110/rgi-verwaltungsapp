@@ -104,9 +104,20 @@ export function PdfViewerModal({
     };
   }, []);
 
+  // Update page number when initialPage changes (new document clicked)
+  useEffect(() => {
+    const validPage = typeof initialPage === 'number' && !isNaN(initialPage) && initialPage > 0 
+      ? initialPage 
+      : 1;
+    setPageNumber(validPage);
+  }, [initialPage, documentUrl]);
+
   const onDocumentLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
-    setPageNumber(Math.min(initialPage, numPages));
+    const validPage = typeof initialPage === 'number' && !isNaN(initialPage) && initialPage > 0 
+      ? Math.min(initialPage, numPages) 
+      : 1;
+    setPageNumber(validPage);
     setIsLoading(false);
   };
 
