@@ -20,8 +20,6 @@ interface QueryDocumentsRequest {
   useWebSearch?: boolean;
 }
 
-const MISTRAL_WEB_AGENT_ID = 'ag_019ba89a0a6d722fb79f7afa8c035798';
-
 // Default system prompts
 const DEFAULT_DOCUMENT_SYSTEM_PROMPT = `Du bist ein Dokumenten-Assistent für die Immobilienverwaltung.
 
@@ -229,14 +227,14 @@ async function getChatSettings(
   }
 }
 
-// Query with Mistral Web Agent (Internet Search) - now with document context
+// Query with Mistral Conversations API (Internet Search) - with document context
 async function queryWithWebAgent(
   question: string,
   conversationHistory: Array<{role: string, content: string}>,
   systemPrompt: string,
   documentContext: string = ''
 ): Promise<{answer: string, sources: any[]}> {
-  console.log('Using Mistral Web Agent for internet search with document context');
+  console.log('Using Mistral Conversations API with web_search connector');
   
   // Enrich system prompt with document context if available
   let enrichedSystemPrompt = systemPrompt;
@@ -248,10 +246,10 @@ Die folgenden Informationen stammen aus den internen Dokumenten des Unternehmens
 Nutze diese als primäre Quelle und ergänze sie bei Bedarf mit Internet-Recherche.
 
 ${documentContext}`;
-    console.log(`Added ${documentContext.length} chars of document context to web agent`);
+    console.log(`Added ${documentContext.length} chars of document context to Conversations API`);
   }
   
-  // Format conversation history for the agent
+  // Build inputs array for Conversations API
   const inputs = [
     { role: 'system', content: enrichedSystemPrompt },
     ...conversationHistory.slice(-10).map(msg => ({
@@ -261,42 +259,61 @@ ${documentContext}`;
     { role: 'user', content: question }
   ];
 
-  const response = await fetch('https://api.mistral.ai/v1/agents/completions', {
+  // Call Conversations API with built-in web_search connector
+  const response = await fetch('https://api.mistral.ai/v1/conversations', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${MISTRAL_API_KEY}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      agent_id: MISTRAL_WEB_AGENT_ID,
-      messages: inputs
+      model: 'mistral-large-latest',
+      inputs,
+      tools: [{ type: 'web_search' }]  // Built-in web search - automatic execution
     }),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('Web agent error:', errorText);
-    throw new Error(`Web agent query failed: ${errorText}`);
+    console.error('Conversations API error:', response.status, errorText);
+    throw new Error(`Web search failed: ${errorText}`);
   }
 
   const data = await response.json();
-  console.log('Web agent response structure:', JSON.stringify(data).slice(0, 500));
+  console.log('Conversations API response:', JSON.stringify(data).slice(0, 800));
   
-  // Extract the answer - Agent API uses 'outputs', Chat API uses 'choices'
+  // Extract answer from outputs array
   const answer = data.outputs?.[0]?.content || 
-                 data.choices?.[0]?.message?.content || 
                  'Keine Antwort vom Internet-Agenten erhalten.';
-
-  return {
-    answer,
-    sources: [{ 
+  
+  // Extract web sources from citations if available
+  const webSources = (data.outputs?.[0]?.citations || []).map((citation: any) => ({
+    type: 'web',
+    content: citation.title || 'Internet-Quelle',
+    metadata: { 
+      source: 'Internet-Suche',
+      url: citation.url 
+    },
+    fileName: citation.title || 'Internet-Suche',
+    documentUrl: citation.url,
+    pageNumber: null
+  }));
+  
+  // Fallback if no citations available
+  if (webSources.length === 0) {
+    webSources.push({
       type: 'web',
-      content: 'Ergebnis aus Internet-Suche (mit internem Dokumenten-Kontext)',
-      metadata: { source: 'Internet-Suche + Interne Dokumente' },
+      content: 'Internet-Recherche',
+      metadata: { source: 'Internet-Suche' },
       fileName: 'Internet-Suche',
       documentUrl: null,
       pageNumber: null
-    }]
+    });
+  }
+
+  return {
+    answer,
+    sources: webSources
   };
 }
 
