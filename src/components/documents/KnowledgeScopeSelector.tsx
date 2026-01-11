@@ -8,7 +8,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ChevronDown, Building2, Globe, Search, Check } from "lucide-react";
+import { ChevronDown, Building2, BookOpen, Search, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Building {
@@ -67,7 +67,7 @@ export function KnowledgeScopeSelector({
   const getScopeIcon = () => {
     switch (scope) {
       case 'general':
-        return <Globe className="h-4 w-4" />;
+        return <BookOpen className="h-4 w-4" />;
       case 'specific':
       case 'all':
         return <Building2 className="h-4 w-4" />;
@@ -105,7 +105,7 @@ export function KnowledgeScopeSelector({
                 : "hover:bg-muted"
             )}
           >
-            <Globe className="h-4 w-4" />
+            <BookOpen className="h-4 w-4" />
             <div className="flex-1">
               <p className="text-sm font-medium">Nur Allgemeines Wissen</p>
               <p className="text-xs text-muted-foreground">Suche nur in allgemeinen Dokumenten</p>
