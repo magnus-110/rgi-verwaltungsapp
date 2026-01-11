@@ -655,6 +655,10 @@ serve(async (req) => {
     // Extract sources from chunks with document URLs
     const extractedSources = relevantChunks.slice(0, 5).map(chunk => {
       const docInfo = documentMap.get(chunk.document_id);
+      // Ensure pageNumber is a valid integer
+      const rawPage = chunk.metadata?.page;
+      const pageNumber = rawPage ? parseInt(String(rawPage), 10) : null;
+      
       return {
         content: chunk.content.slice(0, 200) + '...',
         metadata: chunk.metadata,
@@ -662,7 +666,7 @@ serve(async (req) => {
         documentId: chunk.document_id,
         fileName: docInfo?.file_name || null,
         documentUrl: docInfo?.signedUrl || null,
-        pageNumber: chunk.metadata?.page || null
+        pageNumber: pageNumber && !isNaN(pageNumber) ? pageNumber : null
       };
     });
 

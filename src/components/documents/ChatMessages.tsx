@@ -39,10 +39,21 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
 
   const handleSourceClick = (source: ChatSource) => {
     if (source.documentUrl) {
+      // Ensure pageNumber is a valid number
+      let page = 1;
+      if (source.pageNumber !== undefined && source.pageNumber !== null) {
+        const parsed = typeof source.pageNumber === 'string' 
+          ? parseInt(source.pageNumber, 10) 
+          : source.pageNumber;
+        if (!isNaN(parsed) && parsed > 0) {
+          page = parsed;
+        }
+      }
+      
       setSelectedDocument({
         url: source.documentUrl,
         name: source.fileName || 'Dokument',
-        page: source.pageNumber || 1
+        page
       });
       setPdfViewerOpen(true);
     }
