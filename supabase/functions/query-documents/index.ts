@@ -249,14 +249,26 @@ ${documentContext}`;
     console.log(`Added ${documentContext.length} chars of document context to Conversations API`);
   }
   
-  // Build inputs array for Conversations API
-  const inputs = [
-    { role: 'system', content: enrichedSystemPrompt },
-    ...conversationHistory.slice(-10).map(msg => ({
-      role: msg.role,
+  // Conversations API only accepts 'user' and 'assistant' roles - NO 'system' role!
+  // Prepend system instructions to the first user message
+  const firstUserMessage = `[SYSTEM-ANWEISUNGEN - BEFOLGE DIESE STRIKT]
+${enrichedSystemPrompt}
+
+[NUTZERFRAGE]
+${question}`;
+
+  // Build inputs array - only user/assistant messages from history, then our enriched user message
+  const historyMessages = conversationHistory
+    .slice(-10)
+    .filter(msg => msg.role === 'user' || msg.role === 'assistant')
+    .map(msg => ({
+      role: msg.role as 'user' | 'assistant',
       content: msg.content
-    })),
-    { role: 'user', content: question }
+    }));
+
+  const inputs = [
+    ...historyMessages,
+    { role: 'user' as const, content: firstUserMessage }
   ];
 
   // Call Conversations API with built-in web_search connector
