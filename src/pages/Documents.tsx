@@ -61,6 +61,7 @@ export function Documents() {
     return localStorage.getItem(NOVA_SESSION_KEY);
   });
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const [deepResearchEnabled, setDeepResearchEnabled] = useState(false);
 
   // Persist sessionId to localStorage when it changes
   useEffect(() => {
@@ -157,6 +158,7 @@ export function Documents() {
           userId: user?.id,
           searchAllBuildings: scope === 'all',
           useWebSearch: webSearchEnabled,
+          useDeepResearch: deepResearchEnabled,
         },
       });
 
@@ -259,6 +261,8 @@ export function Documents() {
                 isLoading={isLoading}
                 webSearchEnabled={webSearchEnabled}
                 onWebSearchToggle={() => setWebSearchEnabled(!webSearchEnabled)}
+                deepResearchEnabled={deepResearchEnabled}
+                onDeepResearchToggle={() => setDeepResearchEnabled(!deepResearchEnabled)}
               />
             </div>
           </div>
@@ -278,6 +282,8 @@ export function Documents() {
                 isLoading={isLoading}
                 webSearchEnabled={webSearchEnabled}
                 onWebSearchToggle={() => setWebSearchEnabled(!webSearchEnabled)}
+                deepResearchEnabled={deepResearchEnabled}
+                onDeepResearchToggle={() => setDeepResearchEnabled(!deepResearchEnabled)}
               />
             </div>
           </>

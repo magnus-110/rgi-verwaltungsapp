@@ -18,6 +18,7 @@ interface QueryDocumentsRequest {
   userId: string;
   searchAllBuildings?: boolean;
   useWebSearch?: boolean;
+  useDeepResearch?: boolean;
 }
 
 // Default system prompts
@@ -405,21 +406,172 @@ ${question}`;
   };
 }
 
+// Deep Research System Prompt
+const DEEP_RESEARCH_SYSTEM_PROMPT = `Du bist NOVA, ein KI-Assistent für umfassende Immobiliendokument-Analyse.
+
+=== KRITISCHE REGELN ===
+1. VOLLSTÄNDIGKEIT: Analysiere ALLE bereitgestellten Dokumente gründlich
+2. QUELLENANGABE: Bei jeder Information → Dokument + Seite angeben
+3. FEHLENDE INFOS: Klar mit ❌ markieren was NICHT gefunden wurde
+4. STRUKTUR: Folge der vom Benutzer gewünschten Struktur/Format
+
+=== ZEITLICHE PRÜFUNG (WICHTIG!) ===
+Aktuelles Datum: ${new Date().toLocaleDateString('de-DE')}
+
+Prüfe bei jedem Dokument:
+- Dokumentdatum/Stand → zeige das Datum an
+- "Gültig bis" vergangen? → ⚠️ ABGELAUFEN markieren
+- "Ab [Datum]" in Zukunft? → 📅 AB [DATUM] markieren
+- Beschluss hebt älteren auf? → den aktuellen verwenden
+
+=== BEISPIELE ===
+✅ "Hausgeld: 280€/Monat (Beschluss vom 15.03.2024, S. 12)"
+⚠️ "Gebäudeversicherung bei XY: ABGELAUFEN am 31.12.2023 (Stammakte S. 45)"
+📅 "Hausgelderhöhung auf 295€ AB 01.01.2025 (Beschluss S. 3)"
+❌ "Wartungsvertrag Aufzug: Nicht in Dokumenten gefunden"
+
+Der Benutzer gibt vor, welche Struktur/Kategorien er benötigt.`;
+
+// Generate sub-queries for deep research
+async function generateSubQueries(question: string): Promise<string[]> {
+  console.log('Generating sub-queries for deep research...');
+  
+  try {
+    const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${MISTRAL_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'mistral-small-latest',
+        messages: [
+          { 
+            role: 'system', 
+            content: `Du generierst Such-Queries für Immobiliendokumente.
+          
+Teile die Benutzeranfrage in 6-8 fokussierte Such-Queries auf (je 2-4 Keywords).
+
+Kategorien: Eigentümer/Anteile, Versicherungen, Beschlüsse, Hausgeld/Finanzen, Verträge, Technik/Heizung
+
+Antworte NUR mit JSON-Array: ["Query 1", "Query 2", ...]`
+          },
+          { role: 'user', content: question }
+        ],
+        temperature: 0.3,
+        max_tokens: 500,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('Sub-query generation failed, using fallback');
+      throw new Error('API call failed');
+    }
+
+    const data = await response.json();
+    const content = data.choices[0]?.message?.content || '[]';
+    
+    try {
+      const queries = JSON.parse(content);
+      console.log(`Generated ${queries.length} sub-queries`);
+      return [question, ...queries.slice(0, 7)];
+    } catch {
+      throw new Error('Failed to parse sub-queries');
+    }
+  } catch {
+    // Fallback queries
+    console.log('Using fallback sub-queries');
+    return [
+      question,
+      "Eigentümer Anteile MEA Wohneinheiten",
+      "Versicherungen Policen Ablaufdatum",
+      "Beschlüsse Protokolle Versammlung",
+      "Hausgeld Zahlungen Wirtschaftsplan",
+      "Verträge Dienstleister",
+      "Heizung technische Anlagen"
+    ];
+  }
+}
+
+// Perform deep research with multi-query strategy
+async function performDeepResearch(
+  supabase: any,
+  question: string,
+  buildingId: string | null,
+  includeGeneral: boolean,
+  searchAllBuildings: boolean
+): Promise<{ chunks: any[]; subQueries: string[] }> {
+  console.log(`Deep research: building=${buildingId}, searchAll=${searchAllBuildings}`);
+  
+  const subQueries = await generateSubQueries(question);
+  console.log(`Processing ${subQueries.length} sub-queries`);
+  
+  const allChunks: any[] = [];
+  const seenChunkIds = new Set<string>();
+  
+  for (const subQuery of subQueries) {
+    try {
+      const embedding = await generateQuestionEmbedding(subQuery);
+      const effectiveBuildingId = searchAllBuildings ? null : buildingId;
+      const chunks = await searchSimilarChunks(supabase, embedding, effectiveBuildingId, includeGeneral, 15);
+      
+      for (const chunk of chunks) {
+        if (!seenChunkIds.has(chunk.id)) {
+          seenChunkIds.add(chunk.id);
+          allChunks.push(chunk);
+        }
+      }
+    } catch (err) {
+      console.error(`Error processing sub-query "${subQuery}":`, err);
+    }
+  }
+  
+  console.log(`Deep research collected ${allChunks.length} unique chunks`);
+  return { chunks: allChunks, subQueries };
+}
+
+// Build context with temporal information for deep research
+function buildDeepResearchContext(chunks: any[], documentMap: Map<string, DocumentInfo>): string {
+  // Sort by similarity (best first)
+  const sortedChunks = chunks.sort((a, b) => (b.similarity || 0) - (a.similarity || 0));
+  
+  return sortedChunks.map((chunk, index) => {
+    const docInfo = documentMap.get(chunk.document_id);
+    const metadata = chunk.metadata || {};
+    const dates = metadata.dates || {};
+    
+    let timeInfo = '';
+    if (dates.documentDate) timeInfo += `Stand: ${dates.documentDate}`;
+    if (dates.validUntil) timeInfo += ` | Gültig bis: ${dates.validUntil}`;
+    if (dates.validFrom) timeInfo += ` | Gültig ab: ${dates.validFrom}`;
+    if (dates.decisionDate) timeInfo += ` | Beschluss vom: ${dates.decisionDate}`;
+    if (dates.effectiveDate) timeInfo += ` | Wirksam ab: ${dates.effectiveDate}`;
+    
+    return `[Quelle ${index + 1} - ${docInfo?.file_name || 'Unbekannt'}, S. ${metadata.pages || '?'}]
+${timeInfo ? `Zeitraum: ${timeInfo}` : ''}
+Kategorie: ${metadata.category || 'allgemein'}
+
+${chunk.content}`;
+  }).join('\n\n---\n\n');
+}
+
 // Generate response with Mistral
 async function generateResponse(
   question: string,
   context: string,
   conversationHistory: Array<{role: string, content: string}>,
-  settings: {systemPrompt: string, model: string, temperature: number, maxTokens: number}
+  settings: {systemPrompt: string, model: string, temperature: number, maxTokens: number},
+  useDeepResearch: boolean = false
 ): Promise<{answer: string, sources: any[]}> {
-  const systemPrompt = `${settings.systemPrompt}
+  const basePrompt = useDeepResearch ? DEEP_RESEARCH_SYSTEM_PROMPT : settings.systemPrompt;
+  const systemPrompt = `${basePrompt}
 
 KONTEXT AUS DOKUMENTEN:
 ${context}`;
 
   const messages = [
     { role: 'system', content: systemPrompt },
-    ...conversationHistory.slice(-10), // Last 10 messages for context
+    ...conversationHistory.slice(-10),
     { role: 'user', content: question }
   ];
 
@@ -433,7 +585,7 @@ ${context}`;
       model: settings.model,
       messages,
       temperature: settings.temperature,
-      max_tokens: settings.maxTokens,
+      max_tokens: useDeepResearch ? 4000 : settings.maxTokens, // More tokens for deep research
     }),
   });
 
@@ -447,7 +599,7 @@ ${context}`;
 
   return {
     answer,
-    sources: [] // Sources are extracted from context
+    sources: []
   };
 }
 
@@ -457,9 +609,9 @@ serve(async (req) => {
   }
 
   try {
-    const { sessionId, question, buildingId, includeGeneral, userId, useWebSearch } = await req.json() as QueryDocumentsRequest;
+    const { sessionId, question, buildingId, includeGeneral, userId, useWebSearch, searchAllBuildings, useDeepResearch } = await req.json() as QueryDocumentsRequest;
     
-    console.log(`Query: "${question}", Session: ${sessionId}, Building: ${buildingId}, IncludeGeneral: ${includeGeneral}, WebSearch: ${useWebSearch}`);
+    console.log(`Query: "${question}", Session: ${sessionId}, Building: ${buildingId}, IncludeGeneral: ${includeGeneral}, WebSearch: ${useWebSearch}, DeepResearch: ${useDeepResearch}, SearchAll: ${searchAllBuildings}`);
 
     if (!MISTRAL_API_KEY) {
       throw new Error('MISTRAL_API_KEY is not configured');
@@ -610,14 +762,116 @@ serve(async (req) => {
       );
     }
 
-    // Generate embedding for the question
+    // Determine effective building ID based on searchAllBuildings
+    const effectiveBuildingId = searchAllBuildings ? null : buildingId;
+
+    // DEEP RESEARCH MODE
+    if (useDeepResearch) {
+      console.log('Deep research mode activated');
+      
+      const { chunks: relevantChunks } = await performDeepResearch(
+        supabase,
+        question,
+        buildingId,
+        includeGeneral,
+        searchAllBuildings || false
+      );
+
+      if (relevantChunks.length === 0) {
+        const noDocsAnswer = 'Es wurden keine relevanten Dokumente für die Tiefenrecherche gefunden. Bitte laden Sie zunächst Dokumente hoch.';
+        
+        await supabase
+          .from('document_chat_messages')
+          .insert({
+            session_id: currentSessionId,
+            role: 'assistant',
+            content: noDocsAnswer,
+            sources: []
+          });
+
+        return new Response(
+          JSON.stringify({
+            answer: noDocsAnswer,
+            sources: [],
+            sessionId: currentSessionId
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Get document info for sources
+      const uniqueDocumentIds = [...new Set(relevantChunks.map(chunk => chunk.document_id).filter(Boolean))];
+      console.log(`Deep research: ${relevantChunks.length} chunks from ${uniqueDocumentIds.length} documents`);
+      
+      const documentMap = await getDocumentInfoWithUrls(supabase, uniqueDocumentIds);
+
+      // Build context with temporal information
+      const context = buildDeepResearchContext(relevantChunks, documentMap);
+      const maxContextLength = 50000; // Extended context for deep research
+      const truncatedContext = context.slice(0, maxContextLength);
+
+      // Generate response with deep research prompt
+      const { answer } = await generateResponse(
+        question,
+        truncatedContext,
+        conversationHistory,
+        chatSettings,
+        true // useDeepResearch
+      );
+
+      // Extract sources (more sources for deep research)
+      const extractedSources = relevantChunks.slice(0, 10).map(chunk => {
+        const docInfo = documentMap.get(chunk.document_id);
+        const rawPage = chunk.metadata?.pages || chunk.metadata?.page;
+        const pageNumber = rawPage ? parseInt(String(rawPage).split('-')[0], 10) : null;
+        
+        return {
+          content: chunk.content.slice(0, 200) + '...',
+          metadata: chunk.metadata,
+          buildingId: chunk.building_id,
+          documentId: chunk.document_id,
+          fileName: docInfo?.file_name || null,
+          documentUrl: docInfo?.signedUrl || null,
+          pageNumber: pageNumber && !isNaN(pageNumber) ? pageNumber : null
+        };
+      });
+
+      // Save assistant message
+      await supabase
+        .from('document_chat_messages')
+        .insert({
+          session_id: currentSessionId,
+          role: 'assistant',
+          content: answer,
+          sources: extractedSources
+        });
+
+      // Update session
+      await supabase
+        .from('document_chat_sessions')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', currentSessionId);
+
+      return new Response(
+        JSON.stringify({
+          answer,
+          sources: extractedSources,
+          sessionId: currentSessionId,
+          deepResearch: true,
+          chunksAnalyzed: relevantChunks.length
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // NORMAL MODE - Generate embedding for the question
     const questionEmbedding = await generateQuestionEmbedding(question);
 
-    // Search for relevant chunks
+    // Search for relevant chunks (use effectiveBuildingId to support searchAllBuildings)
     const relevantChunks = await searchSimilarChunks(
       supabase,
       questionEmbedding,
-      buildingId,
+      effectiveBuildingId,
       includeGeneral,
       10
     );
@@ -669,7 +923,8 @@ serve(async (req) => {
       question,
       context,
       conversationHistory,
-      chatSettings
+      chatSettings,
+      false // normal mode
     );
 
     // Extract sources from chunks with document URLs

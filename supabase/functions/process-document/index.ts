@@ -206,6 +206,31 @@ function createChunkWithMetadata(
   
   const firstLine = content.split('\n')[0].trim().slice(0, 100);
   
+  // Temporal metadata extraction
+  const datePatterns = {
+    documentDate: /(?:vom|stand|datum)[:\s]*(\d{1,2}[.\/-]\d{1,2}[.\/-]\d{2,4})/i,
+    validUntil: /(?:gültig bis|ablauf(?:datum)?|läuft ab)[:\s]*(\d{1,2}[.\/-]\d{1,2}[.\/-]\d{2,4})/i,
+    validFrom: /(?:gültig ab|wirksam ab|ab dem)[:\s]*(\d{1,2}[.\/-]\d{1,2}[.\/-]\d{2,4})/i,
+    decisionDate: /beschluss(?:fassung)?\s*(?:vom|:)\s*(\d{1,2}[.\/-]\d{1,2}[.\/-]\d{2,4})/i,
+    effectiveDate: /ab\s*(\d{1,2}[.\/-]\d{1,2}[.\/-]\d{2,4})\s*(?:beträgt|erhöht|ändert)/i,
+  };
+  
+  const extractedDates: Record<string, string> = {};
+  for (const [key, pattern] of Object.entries(datePatterns)) {
+    const match = content.match(pattern);
+    if (match) extractedDates[key] = match[1];
+  }
+  
+  // Technical features for cross-building search
+  const features: string[] = [];
+  if (/gas(?:heizung|therme|kessel|anschluss)/i.test(content)) features.push('gas_heating');
+  if (/öl(?:heizung|tank|kessel)/i.test(content)) features.push('oil_heating');
+  if (/wärmepumpe/i.test(content)) features.push('heat_pump');
+  if (/fernwärme/i.test(content)) features.push('district_heating');
+  if (/photovoltaik|solar|pv-anlage/i.test(content)) features.push('solar');
+  if (/aufzug|fahrstuhl|lift/i.test(content)) features.push('elevator');
+  if (/tiefgarage|stellplatz/i.test(content)) features.push('parking');
+  
   return {
     content: content.trim(),
     metadata: {
@@ -214,7 +239,9 @@ function createChunkWithMetadata(
       pages: startPage === endPage ? `${startPage}` : `${startPage}-${endPage}`,
       category,
       document: documentName,
-      summary: firstLine.length > 10 ? firstLine : null
+      summary: firstLine.length > 10 ? firstLine : null,
+      dates: Object.keys(extractedDates).length > 0 ? extractedDates : null,
+      features: features.length > 0 ? features : null,
     }
   };
 }
