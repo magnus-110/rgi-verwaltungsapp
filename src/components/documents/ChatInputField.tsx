@@ -282,16 +282,16 @@ export function ChatInputField({
                 <X className="h-3 w-3 ml-0.5" />
               </button>
             )}
-            {deepResearchEnabled && (
-              <button
-                onClick={onDeepResearchToggle}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full text-xs hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
-              >
-                <SearchCheck className="h-3.5 w-3.5" />
-                <span>Tiefenrecherche</span>
-                <X className="h-3 w-3 ml-0.5" />
-              </button>
-            )}
+              {deepResearchEnabled && (
+                <button
+                  onClick={onDeepResearchToggle}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-muted text-muted-foreground rounded-full text-xs hover:bg-muted/80 transition-colors"
+                >
+                  <SearchCheck className="h-3.5 w-3.5" />
+                  <span>Tiefenrecherche</span>
+                  <X className="h-3 w-3 ml-0.5" />
+                </button>
+              )}
           </div>
         )}
 
@@ -332,20 +332,17 @@ export function ChatInputField({
                   </button>
 
                   {/* Deep Research Toggle */}
-                  <button
-                    onClick={() => {
-                      onDeepResearchToggle?.();
-                      setMenuOpen(false);
-                    }}
-                    className="flex items-center gap-3 w-full px-3 py-2.5 rounded-md hover:bg-muted transition-colors"
-                  >
-                    <SearchCheck className="h-4 w-4" />
-                    <div className="flex-1 text-left">
-                      <span className="text-sm">Tiefenrecherche</span>
-                      <p className="text-xs text-muted-foreground">50+ Abschnitte, zeitlicher Kontext</p>
-                    </div>
-                    {deepResearchEnabled && <Check className="h-4 w-4 text-primary" />}
-                  </button>
+                    <button
+                      onClick={() => {
+                        onDeepResearchToggle?.();
+                        setMenuOpen(false);
+                      }}
+                      className="flex items-center gap-3 w-full px-3 py-2.5 rounded-md hover:bg-muted transition-colors"
+                    >
+                      <SearchCheck className="h-4 w-4" />
+                      <span className="flex-1 text-left text-sm">Tiefenrecherche</span>
+                      {deepResearchEnabled && <Check className="h-4 w-4 text-primary" />}
+                    </button>
 
                   {/* Prompts Menu Item */}
                   <button
