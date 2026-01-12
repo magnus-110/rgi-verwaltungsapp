@@ -163,16 +163,15 @@ export function UploadProgressWidget() {
                     {getStatusText(upload)}
                   </p>
                 </div>
-                {(upload.status === 'done' || upload.status === 'error') && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 shrink-0"
-                    onClick={() => removeUpload(upload.id)}
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 shrink-0 opacity-50 hover:opacity-100"
+                  onClick={() => removeUpload(upload.id)}
+                  title="Entfernen"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
               </div>
               
               {(upload.status === 'uploading' || upload.status === 'processing') && (
