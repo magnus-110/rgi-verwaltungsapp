@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowUp, Loader2, Mic, MicOff, Plus, Globe, Check, Star, X, FileText, ChevronLeft } from "lucide-react";
+import { ArrowUp, Loader2, Mic, MicOff, Plus, Globe, Check, Star, X, FileText, ChevronLeft, SearchCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -42,6 +42,8 @@ interface ChatInputFieldProps {
   className?: string;
   webSearchEnabled?: boolean;
   onWebSearchToggle?: () => void;
+  deepResearchEnabled?: boolean;
+  onDeepResearchToggle?: () => void;
 }
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -59,6 +61,8 @@ export function ChatInputField({
   className,
   webSearchEnabled = false,
   onWebSearchToggle,
+  deepResearchEnabled = false,
+  onDeepResearchToggle,
 }: ChatInputFieldProps) {
   const [value, setValue] = useState("");
   const [isListening, setIsListening] = useState(false);
@@ -265,17 +269,29 @@ export function ChatInputField({
   return (
     <>
       <div className={cn("w-full max-w-3xl mx-auto px-4", className)}>
-        {/* Web Search Badge (positioned above the pill) */}
-        {webSearchEnabled && (
-          <div className="mb-2 ml-1">
-            <button
-              onClick={onWebSearchToggle}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-full text-xs hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors"
-            >
-              <Globe className="h-3.5 w-3.5" />
-              <span>Suche</span>
-              <X className="h-3 w-3 ml-0.5" />
-            </button>
+        {/* Badges (positioned above the pill) */}
+        {(webSearchEnabled || deepResearchEnabled) && (
+          <div className="mb-2 ml-1 flex gap-2">
+            {webSearchEnabled && (
+              <button
+                onClick={onWebSearchToggle}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-full text-xs hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors"
+              >
+                <Globe className="h-3.5 w-3.5" />
+                <span>Suche</span>
+                <X className="h-3 w-3 ml-0.5" />
+              </button>
+            )}
+            {deepResearchEnabled && (
+              <button
+                onClick={onDeepResearchToggle}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full text-xs hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+              >
+                <SearchCheck className="h-3.5 w-3.5" />
+                <span>Tiefenrecherche</span>
+                <X className="h-3 w-3 ml-0.5" />
+              </button>
+            )}
           </div>
         )}
 
@@ -313,6 +329,22 @@ export function ChatInputField({
                     <Globe className="h-4 w-4" />
                     <span className="text-sm flex-1 text-left">Internetsuche</span>
                     {webSearchEnabled && <Check className="h-4 w-4 text-primary" />}
+                  </button>
+
+                  {/* Deep Research Toggle */}
+                  <button
+                    onClick={() => {
+                      onDeepResearchToggle?.();
+                      setMenuOpen(false);
+                    }}
+                    className="flex items-center gap-3 w-full px-3 py-2.5 rounded-md hover:bg-muted transition-colors"
+                  >
+                    <SearchCheck className="h-4 w-4" />
+                    <div className="flex-1 text-left">
+                      <span className="text-sm">Tiefenrecherche</span>
+                      <p className="text-xs text-muted-foreground">50+ Abschnitte, zeitlicher Kontext</p>
+                    </div>
+                    {deepResearchEnabled && <Check className="h-4 w-4 text-primary" />}
                   </button>
 
                   {/* Prompts Menu Item */}
