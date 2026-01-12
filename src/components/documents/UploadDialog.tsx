@@ -100,6 +100,19 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
     }
   };
 
+  // Sanitize filename for Supabase Storage (remove special chars, spaces, umlauts)
+  const sanitizeFileName = (name: string): string => {
+    return name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
+      .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue')
+      .replace(/Ä/g, 'Ae').replace(/Ö/g, 'Oe').replace(/Ü/g, 'Ue')
+      .replace(/ß/g, 'ss')
+      .replace(/[^a-zA-Z0-9._-]/g, '_') // Replace special chars with underscore
+      .replace(/_+/g, '_') // Collapse multiple underscores
+      .replace(/^_|_$/g, ''); // Trim leading/trailing underscores
+  };
+
   const handleUpload = async () => {
     if (!selectedFile) return;
     if (category === 'building' && !selectedBuildingId) {
@@ -132,7 +145,8 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
 
     try {
       const timestamp = Date.now();
-      const fileName = `${timestamp}_${selectedFile.name}`;
+      const sanitizedName = sanitizeFileName(selectedFile.name);
+      const fileName = `${timestamp}_${sanitizedName}`;
       const filePath = category === 'building' 
         ? `buildings/${selectedBuildingId}/${fileName}`
         : `general/${fileName}`;
