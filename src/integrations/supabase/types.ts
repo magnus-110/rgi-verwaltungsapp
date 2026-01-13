@@ -969,9 +969,10 @@ export type Database = {
           similarity: number
         }[]
       }
+      user_has_admin_access: { Args: { user_id: string }; Returns: boolean }
     }
     Enums: {
-      app_role: "admin" | "weg_owner" | "tenant"
+      app_role: "admin" | "weg_owner" | "tenant" | "employee"
       management_mode: "weg" | "rent"
     }
     CompositeTypes: {
@@ -1100,7 +1101,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "weg_owner", "tenant"],
+      app_role: ["admin", "weg_owner", "tenant", "employee"],
       management_mode: ["weg", "rent"],
     },
   },

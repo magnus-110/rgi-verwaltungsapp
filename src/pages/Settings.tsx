@@ -21,6 +21,13 @@ interface AdminUser {
   email: string;
 }
 
+interface EmployeeUser {
+  user_id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string;
+}
+
 export const Settings = () => {
   const { profile, fetchProfile } = useAuth();
   const navigate = useNavigate();
@@ -45,9 +52,24 @@ export const Settings = () => {
     email: ""
   });
 
+  // Employee management states
+  const [employeeUsers, setEmployeeUsers] = useState<EmployeeUser[]>([]);
+  const [newEmployeeEmail, setNewEmployeeEmail] = useState("");
+  const [newEmployeeFirstName, setNewEmployeeFirstName] = useState("");
+  const [newEmployeeLastName, setNewEmployeeLastName] = useState("");
+  const [newEmployeePassword, setNewEmployeePassword] = useState("");
+  const [isCreatingEmployee, setIsCreatingEmployee] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<EmployeeUser | null>(null);
+  const [editEmployeeData, setEditEmployeeData] = useState({
+    first_name: "",
+    last_name: "",
+    email: ""
+  });
+
   useEffect(() => {
     if (profile?.role === 'admin') {
       fetchAdminUsers();
+      fetchEmployeeUsers();
     }
   }, [profile]);
 
@@ -63,6 +85,21 @@ export const Settings = () => {
       setAdminUsers(data || []);
     } catch (error) {
       console.error("Error fetching admin users:", error);
+    }
+  };
+
+  const fetchEmployeeUsers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("user_id, first_name, last_name, email")
+        .eq("role", "employee")
+        .order("first_name");
+
+      if (error) throw error;
+      setEmployeeUsers(data || []);
+    } catch (error) {
+      console.error("Error fetching employee users:", error);
     }
   };
 
@@ -208,6 +245,125 @@ export const Settings = () => {
     } catch (error) {
       console.error("Error deleting admin:", error);
       toast.error("Fehler beim Löschen des Admins");
+    }
+  };
+
+  // Employee management functions
+  const handleCreateEmployee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newEmployeeEmail || !newEmployeePassword || !newEmployeeFirstName || !newEmployeeLastName) {
+      toast.error("Bitte füllen Sie alle Felder aus");
+      return;
+    }
+
+    setIsCreatingEmployee(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const requestData = {
+        email: newEmployeeEmail,
+        password: newEmployeePassword,
+        role: 'employee',
+        first_name: newEmployeeFirstName,
+        last_name: newEmployeeLastName
+      };
+      
+      console.log('Creating employee user with data:', requestData);
+
+      const { data, error } = await supabase.functions.invoke('admin-create-user', {
+        body: requestData,
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`
+        }
+      });
+
+      console.log('Full employee creation response:', { data, error });
+
+      if (error) {
+        console.error('Employee creation failed:', error);
+        let errorMessage = "Fehler beim Erstellen des Mitarbeiters";
+        
+        if (error.message) {
+          errorMessage = error.message;
+        } else if (typeof error === 'object' && error !== null) {
+          errorMessage = JSON.stringify(error);
+        }
+        
+        toast.error(errorMessage);
+        return;
+      }
+
+      if (data?.error) {
+        console.error('Employee creation returned error:', data.error);
+        toast.error(data.error);
+        return;
+      }
+
+      if (data?.success) {
+        if (data?.password) {
+          toast.success(`${data.message || 'Mitarbeiter erfolgreich erstellt'}! Passwort: ${data.password}`, {
+            duration: 8000
+          });
+        } else if (data?.userAlreadyExists) {
+          toast.success(data.message || 'Mitarbeiter-Rolle wurde erfolgreich zugewiesen');
+        } else {
+          toast.success(data.message || 'Mitarbeiter erfolgreich erstellt');
+        }
+      } else {
+        toast.success("Mitarbeiter erfolgreich verarbeitet");
+      }
+      
+      setNewEmployeeEmail("");
+      setNewEmployeeFirstName("");
+      setNewEmployeeLastName("");
+      setNewEmployeePassword("");
+      fetchEmployeeUsers();
+    } catch (error: any) {
+      console.error("Unexpected error creating employee:", error);
+      toast.error(`Unerwarteter Fehler: ${error?.message || 'Unbekannter Fehler'}`);
+    } finally {
+      setIsCreatingEmployee(false);
+    }
+  };
+
+  const handleEditEmployee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingEmployee) return;
+
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          first_name: editEmployeeData.first_name,
+          last_name: editEmployeeData.last_name,
+          email: editEmployeeData.email
+        })
+        .eq("user_id", editingEmployee.user_id);
+
+      if (error) throw error;
+
+      toast.success("Mitarbeiter erfolgreich aktualisiert");
+      setEditingEmployee(null);
+      fetchEmployeeUsers();
+    } catch (error) {
+      console.error("Error updating employee:", error);
+      toast.error("Fehler beim Aktualisieren des Mitarbeiters");
+    }
+  };
+
+  const handleDeleteEmployee = async (employeeId: string) => {
+    if (!confirm("Sind Sie sicher, dass Sie diesen Mitarbeiter löschen möchten?")) return;
+
+    try {
+      const { error } = await supabase.auth.admin.deleteUser(employeeId);
+
+      if (error) throw error;
+
+      toast.success("Mitarbeiter erfolgreich gelöscht");
+      fetchEmployeeUsers();
+    } catch (error) {
+      console.error("Error deleting employee:", error);
+      toast.error("Fehler beim Löschen des Mitarbeiters");
     }
   };
 
@@ -428,6 +584,120 @@ export const Settings = () => {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Employee Management */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <UserPlus className="w-5 h-5" />
+                    Mitarbeiter erstellen
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleCreateEmployee} className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="newEmployeeFirstName">Vorname</Label>
+                        <Input
+                          id="newEmployeeFirstName"
+                          value={newEmployeeFirstName}
+                          onChange={(e) => setNewEmployeeFirstName(e.target.value)}
+                          placeholder="Vorname des neuen Mitarbeiters"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="newEmployeeLastName">Nachname</Label>
+                        <Input
+                          id="newEmployeeLastName"
+                          value={newEmployeeLastName}
+                          onChange={(e) => setNewEmployeeLastName(e.target.value)}
+                          placeholder="Nachname des neuen Mitarbeiters"
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="newEmployeeEmail">E-Mail</Label>
+                      <Input
+                        id="newEmployeeEmail"
+                        type="email"
+                        value={newEmployeeEmail}
+                        onChange={(e) => setNewEmployeeEmail(e.target.value)}
+                        placeholder="E-Mail des neuen Mitarbeiters"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="newEmployeePassword">Temporäres Passwort</Label>
+                      <Input
+                        id="newEmployeePassword"
+                        type="password"
+                        value={newEmployeePassword}
+                        onChange={(e) => setNewEmployeePassword(e.target.value)}
+                        placeholder="Temporäres Passwort"
+                        required
+                      />
+                    </div>
+                    <Button type="submit" disabled={isCreatingEmployee}>
+                      {isCreatingEmployee ? "Erstellen..." : "Mitarbeiter erstellen"}
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Mitarbeiter verwalten</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {employeeUsers.map((employee) => (
+                      <div key={employee.user_id} className="flex items-center justify-between p-4 border rounded-lg">
+                        <div>
+                          <div className="font-medium">
+                            {employee.first_name && employee.last_name 
+                              ? `${employee.first_name} ${employee.last_name}`
+                              : employee.email
+                            }
+                          </div>
+                          <div className="text-sm text-muted-foreground">{employee.email}</div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setEditingEmployee(employee);
+                              setEditEmployeeData({
+                                first_name: employee.first_name || "",
+                                last_name: employee.last_name || "",
+                                email: employee.email
+                              });
+                            }}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDeleteEmployee(employee.user_id)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {employeeUsers.length === 0 && (
+                      <p className="text-center text-muted-foreground py-4">
+                        Keine Mitarbeiter-Accounts gefunden
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
             </>
           )}
         </div>
@@ -472,6 +742,56 @@ export const Settings = () => {
               </div>
               <div className="flex justify-end space-x-2">
                 <Button type="button" variant="outline" onClick={() => setEditingAdmin(null)}>
+                  Abbrechen
+                </Button>
+                <Button type="submit">
+                  Speichern
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Edit Employee Dialog */}
+        <Dialog open={!!editingEmployee} onOpenChange={() => setEditingEmployee(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Mitarbeiter bearbeiten</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleEditEmployee} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="editEmployeeFirstName">Vorname</Label>
+                  <Input
+                    id="editEmployeeFirstName"
+                    value={editEmployeeData.first_name}
+                    onChange={(e) => setEditEmployeeData(prev => ({ ...prev, first_name: e.target.value }))}
+                    placeholder="Vorname"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="editEmployeeLastName">Nachname</Label>
+                  <Input
+                    id="editEmployeeLastName"
+                    value={editEmployeeData.last_name}
+                    onChange={(e) => setEditEmployeeData(prev => ({ ...prev, last_name: e.target.value }))}
+                    placeholder="Nachname"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label htmlFor="editEmployeeEmail">E-Mail</Label>
+                <Input
+                  id="editEmployeeEmail"
+                  type="email"
+                  value={editEmployeeData.email}
+                  onChange={(e) => setEditEmployeeData(prev => ({ ...prev, email: e.target.value }))}
+                  placeholder="E-Mail"
+                  required
+                />
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button type="button" variant="outline" onClick={() => setEditingEmployee(null)}>
                   Abbrechen
                 </Button>
                 <Button type="submit">

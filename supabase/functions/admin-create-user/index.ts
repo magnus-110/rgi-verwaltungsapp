@@ -12,7 +12,7 @@ interface UserData {
   phone?: string
   building_id?: string
   management_mode?: 'weg' | 'rent'
-  role?: 'admin' | 'tenant' | 'weg_owner'
+  role?: 'admin' | 'tenant' | 'weg_owner' | 'employee'
   password?: string
 }
 
@@ -197,6 +197,8 @@ Deno.serve(async (req) => {
     let role: string
     if (userData.role === 'admin') {
       role = 'admin'
+    } else if (userData.role === 'employee') {
+      role = 'employee'
     } else if (userData.management_mode === 'weg') {
       role = 'weg_owner'
     } else {
@@ -226,8 +228,8 @@ Deno.serve(async (req) => {
       console.error('Profile update error:', profileUpdateError)
     }
 
-    // Create specific user type record (not needed for admins)
-    if (userData.role !== 'admin') {
+    // Create specific user type record (not needed for admins or employees)
+    if (userData.role !== 'admin' && userData.role !== 'employee') {
       if (userData.management_mode === 'weg') {
         // Create WEG owner entry
         const { error: wegOwnerError } = await supabaseAdmin

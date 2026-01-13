@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 
 interface MobileHeaderProps {
-  userRole: 'tenant' | 'weg_owner' | 'admin';
+  userRole: 'tenant' | 'weg_owner' | 'admin' | 'employee';
   managementMode?: 'weg' | 'rent';
   onModeChange?: (mode: 'weg' | 'rent') => void;
 }
@@ -30,8 +30,8 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
   const [isOpen, setIsOpen] = useState(false);
 
   const getNavigationItems = () => {
-    if (userRole === 'admin') {
-      return [
+    if (userRole === 'admin' || userRole === 'employee') {
+      const items = [
         { 
           icon: BarChart3, 
           label: "Dashboard", 
@@ -62,13 +62,19 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
           path: '/forum',
           active: location.pathname.startsWith('/forum')
         },
-        { 
+      ];
+      
+      // Chatbot nur für Admin
+      if (userRole === 'admin') {
+        items.push({ 
           icon: MessageCircle, 
           label: "Chatbot", 
           path: '/chatbot',
           active: location.pathname.startsWith('/chatbot')
-        }
-      ];
+        });
+      }
+      
+      return items;
     }
 
     const baseItems = [
@@ -171,14 +177,14 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
                   <div>
                     <div className="font-semibold text-foreground">{profile?.first_name || 'Benutzer'}</div>
                     <div className="text-sm text-muted-foreground">
-                      {userRole === 'tenant' ? 'Mieter' : userRole === 'weg_owner' ? 'WEG-Eigentümer' : 'Administrator'}
+                      {userRole === 'tenant' ? 'Mieter' : userRole === 'weg_owner' ? 'WEG-Eigentümer' : userRole === 'employee' ? 'Mitarbeiter' : 'Administrator'}
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Management Mode Toggle for Admin */}
-              {userRole === 'admin' && managementMode && onModeChange && (
+              {/* Management Mode Toggle for Admin and Employee */}
+              {(userRole === 'admin' || userRole === 'employee') && managementMode && onModeChange && (
                 <div className="p-4 border-b">
                   <div className="space-y-3">
                     <label className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
@@ -237,14 +243,17 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
 
               {/* Footer Actions */}
               <div className="p-4 border-t space-y-2">
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start gap-3 h-12"
-                  onClick={() => handleNavigation(userRole === 'tenant' ? '/tenant/settings' : userRole === 'weg_owner' ? '/weg-owner/settings' : '/settings')}
-                >
-                  <Settings className="w-5 h-5" />
-                  Einstellungen
-                </Button>
+                {/* Settings nur für nicht-Mitarbeiter */}
+                {userRole !== 'employee' && (
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-start gap-3 h-12"
+                    onClick={() => handleNavigation(userRole === 'tenant' ? '/tenant/settings' : userRole === 'weg_owner' ? '/weg-owner/settings' : '/settings')}
+                  >
+                    <Settings className="w-5 h-5" />
+                    Einstellungen
+                  </Button>
+                )}
                 
                 <Button
                   variant="ghost"

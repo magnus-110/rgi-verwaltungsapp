@@ -40,7 +40,7 @@ interface ChatMessage {
 const NOVA_SESSION_KEY = 'nova_current_session_id';
 
 export function Documents() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -237,10 +237,12 @@ export function Documents() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => navigate('/documents/settings')}>
-              <Settings className="h-4 w-4 mr-2" />
-              Einstellungen
-            </DropdownMenuItem>
+            {profile?.role === 'admin' && (
+              <DropdownMenuItem onClick={() => navigate('/documents/settings')}>
+                <Settings className="h-4 w-4 mr-2" />
+                Einstellungen
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={() => setIsUploadOpen(true)}>
               <Upload className="h-4 w-4 mr-2" />
               Dokument hochladen

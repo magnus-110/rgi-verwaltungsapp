@@ -10,7 +10,7 @@ interface Profile {
   email: string;
   first_name?: string;
   last_name?: string;
-  role: 'admin' | 'weg_owner' | 'tenant';
+  role: 'admin' | 'weg_owner' | 'tenant' | 'employee';
   force_password_change: boolean;
 }
 
