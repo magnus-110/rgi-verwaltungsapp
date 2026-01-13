@@ -139,7 +139,15 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
         <SidebarGroup className="px-4 flex-1">
           <SidebarGroupContent>
             <SidebarMenu className="space-y-1">
-              {menuItems.map((item) => (
+              {menuItems
+                .filter((item) => {
+                  // Mitarbeiter: Kein Chatbot, keine Einstellungen
+                  if (profile?.role === 'employee') {
+                    return !['Chatbot', 'Einstellungen'].includes(item.title);
+                  }
+                  return true;
+                })
+                .map((item) => (
                 <SidebarMenuItem key={item.title}>
                    <NavLink 
                     to={item.url} 

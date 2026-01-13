@@ -27,6 +27,8 @@ const Index = () => {
     
     if (profile.role === 'admin') {
       return <Navigate to="/admin" replace />;
+    } else if (profile.role === 'employee') {
+      return <Navigate to="/admin" replace />;
     } else if (profile.role === 'weg_owner') {
       return <Navigate to="/weg-owner" replace />;
     } else if (profile.role === 'tenant') {

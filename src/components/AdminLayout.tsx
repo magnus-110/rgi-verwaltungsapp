@@ -31,7 +31,7 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
     return <Navigate to="/admin/change-password" replace />;
   }
 
-  if (profile?.role !== 'admin') {
+  if (profile?.role !== 'admin' && profile?.role !== 'employee') {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">

@@ -7,9 +7,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { ArrowLeft, Save, Loader2, FileText, Globe2 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { DocumentSourcesList } from "@/components/documents/DocumentSourcesList";
 import { cn } from "@/lib/utils";
 
@@ -69,6 +70,7 @@ const AVAILABLE_MODELS = [
 export function DocumentSettings() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { profile } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [promptMode, setPromptMode] = useState<'document' | 'web'>('document');
@@ -174,6 +176,11 @@ export function DocumentSettings() {
       setSettings(prev => ({ ...prev, web_system_prompt: DEFAULT_WEB_SYSTEM_PROMPT }));
     }
   };
+
+  // Redirect employees to documents page
+  if (profile?.role === 'employee') {
+    return <Navigate to="/documents" replace />;
+  }
 
   if (isLoading) {
     return (
