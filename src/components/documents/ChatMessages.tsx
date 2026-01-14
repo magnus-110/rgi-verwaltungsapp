@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { FileText, Loader2, ExternalLink, Wifi, ChevronDown, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PdfViewerModal } from "./PdfViewerModal";
