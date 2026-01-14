@@ -353,10 +353,23 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
     resetState();
     onOpenChange(false);
 
-    // Upload all files in parallel
-    await Promise.all(
-      filesToUpload.map(file => uploadSingleFile(file, selectedBuilding))
-    );
+    // Upload files sequentially to avoid resource contention for large files
+    // This prevents multiple large documents from overwhelming the processing pipeline
+    const hasLargeFilesToProcess = filesToUpload.some(f => f.file.size > 100 * 1024 * 1024);
+    
+    if (hasLargeFilesToProcess && filesToUpload.length > 1) {
+      // Sequential upload for large files
+      for (const file of filesToUpload) {
+        await uploadSingleFile(file, selectedBuilding);
+        // Small delay between uploads to prevent overwhelming the server
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    } else {
+      // Parallel upload for small files
+      await Promise.all(
+        filesToUpload.map(file => uploadSingleFile(file, selectedBuilding))
+      );
+    }
   };
 
   const handleClose = (newOpen: boolean) => {
