@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -51,9 +51,9 @@ export function AddPromptDialog({
   const [localCategories, setLocalCategories] = useState<PromptCategory[]>(categories);
 
   // Update local categories when props change
-  useState(() => {
+  useEffect(() => {
     setLocalCategories(categories);
-  });
+  }, [categories]);
 
   const handleSubmit = async () => {
     if (!title.trim() || !content.trim() || !categoryId) {
