@@ -19,6 +19,7 @@ import {
   Check,
   Loader2,
   AlertTriangle,
+  Files,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -38,6 +39,11 @@ interface UploadDialogProps {
   buildings: Building[];
 }
 
+interface SelectedFile {
+  id: string;
+  file: File;
+}
+
 export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProps) {
   const { toast } = useToast();
   const { addUpload, updateUpload } = useUpload();
@@ -47,7 +53,7 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isDragging, setIsDragging] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
 
   const filteredBuildings = buildings.filter(
@@ -66,34 +72,60 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
     setIsDragging(false);
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
+  const addFiles = useCallback((files: FileList) => {
+    const pdfFiles = Array.from(files).filter(f => f.type === 'application/pdf');
     
-    const files = e.dataTransfer.files;
-    if (files.length > 0 && files[0].type === 'application/pdf') {
-      setSelectedFile(files[0]);
-    } else {
+    if (pdfFiles.length === 0) {
       toast({
         title: "Ungültiges Dateiformat",
         description: "Bitte laden Sie nur PDF-Dateien hoch.",
         variant: "destructive",
       });
+      return;
     }
+
+    if (pdfFiles.length < files.length) {
+      toast({
+        title: "Einige Dateien übersprungen",
+        description: "Nur PDF-Dateien werden akzeptiert.",
+        variant: "default",
+      });
+    }
+
+    const newFiles: SelectedFile[] = pdfFiles.map(file => ({
+      id: crypto.randomUUID(),
+      file,
+    }));
+
+    setSelectedFiles(prev => [...prev, ...newFiles]);
   }, [toast]);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    addFiles(e.dataTransfer.files);
+  }, [addFiles]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (files && files.length > 0 && files[0].type === 'application/pdf') {
-      setSelectedFile(files[0]);
+    if (files && files.length > 0) {
+      addFiles(files);
     }
+    // Reset input so same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, [addFiles]);
+
+  const removeFile = useCallback((id: string) => {
+    setSelectedFiles(prev => prev.filter(f => f.id !== id));
   }, []);
 
   const resetState = () => {
     setCategory('general');
     setSelectedBuildingId(null);
     setSearchQuery("");
-    setSelectedFile(null);
+    setSelectedFiles([]);
     setIsUploading(false);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -113,39 +145,21 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
       .replace(/^_|_$/g, ''); // Trim leading/trailing underscores
   };
 
-  const handleUpload = async () => {
-    if (!selectedFile) return;
-    if (category === 'building' && !selectedBuildingId) {
-      toast({
-        title: "Kein Gebäude ausgewählt",
-        description: "Bitte wählen Sie zuerst ein Gebäude aus.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsUploading(true);
-    const selectedBuilding = buildings.find((b) => b.id === selectedBuildingId);
-
-    // Add to upload context immediately
+  const uploadSingleFile = async (selectedFile: SelectedFile, building: Building | undefined) => {
     const uploadId = addUpload({
-      fileName: selectedFile.name,
-      fileSize: selectedFile.size,
+      fileName: selectedFile.file.name,
+      fileSize: selectedFile.file.size,
       category,
       buildingId: selectedBuildingId,
-      buildingName: selectedBuilding?.name,
+      buildingName: building?.name,
       status: 'uploading',
       progress: 0,
       step: 'Wird hochgeladen...',
     });
 
-    // Close dialog immediately so user can continue working
-    resetState();
-    onOpenChange(false);
-
     try {
       const timestamp = Date.now();
-      const sanitizedName = sanitizeFileName(selectedFile.name);
+      const sanitizedName = sanitizeFileName(selectedFile.file.name);
       const fileName = `${timestamp}_${sanitizedName}`;
       const filePath = category === 'building' 
         ? `buildings/${selectedBuildingId}/${fileName}`
@@ -156,7 +170,7 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
       const { error: uploadError } = await supabase
         .storage
         .from('building-documents')
-        .upload(filePath, selectedFile);
+        .upload(filePath, selectedFile.file);
 
       if (uploadError) {
         throw new Error(`Upload fehlgeschlagen: ${uploadError.message}`);
@@ -169,9 +183,9 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
         .insert({
           building_id: category === 'building' ? selectedBuildingId : null,
           category,
-          file_name: selectedFile.name,
+          file_name: selectedFile.file.name,
           file_path: filePath,
-          file_size: selectedFile.size,
+          file_size: selectedFile.file.size,
           status: 'processing',
           processing_progress: 0,
           processing_step: 'Wartend auf Verarbeitung...',
@@ -217,7 +231,6 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
         });
       });
 
-
     } catch (error) {
       console.error('Upload error:', error);
       updateUpload(uploadId, { 
@@ -225,12 +238,32 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
         error: error instanceof Error ? error.message : 'Unbekannter Fehler',
         step: 'Upload fehlgeschlagen'
       });
+    }
+  };
+
+  const handleUpload = async () => {
+    if (selectedFiles.length === 0) return;
+    if (category === 'building' && !selectedBuildingId) {
       toast({
-        title: "Fehler beim Hochladen",
-        description: error instanceof Error ? error.message : "Ein unbekannter Fehler ist aufgetreten.",
+        title: "Kein Gebäude ausgewählt",
+        description: "Bitte wählen Sie zuerst ein Gebäude aus.",
         variant: "destructive",
       });
+      return;
     }
+
+    setIsUploading(true);
+    const selectedBuilding = buildings.find((b) => b.id === selectedBuildingId);
+    const filesToUpload = [...selectedFiles];
+
+    // Close dialog immediately so user can continue working
+    resetState();
+    onOpenChange(false);
+
+    // Upload all files in parallel
+    await Promise.all(
+      filesToUpload.map(file => uploadSingleFile(file, selectedBuilding))
+    );
   };
 
   const handleClose = (newOpen: boolean) => {
@@ -241,12 +274,13 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
   };
 
   const selectedBuilding = buildings.find((b) => b.id === selectedBuildingId);
+  const totalSize = selectedFiles.reduce((acc, f) => acc + f.file.size, 0);
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Dokument hochladen</DialogTitle>
+          <DialogTitle>Dokumente hochladen</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-5">
@@ -317,12 +351,12 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
             </div>
           )}
 
-          {/* Replace Warning */}
+          {/* Info about multiple documents */}
           {category === 'building' && selectedBuildingId && (
-            <Alert className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
-              <AlertTriangle className="h-4 w-4 text-amber-600" />
-              <AlertDescription className="text-amber-700 dark:text-amber-300 text-xs">
-                Vorhandenes Dokument für dieses Gebäude wird ersetzt.
+            <Alert className="border-blue-500/50 bg-blue-50 dark:bg-blue-950/20">
+              <Files className="h-4 w-4 text-blue-600" />
+              <AlertDescription className="text-blue-700 dark:text-blue-300 text-xs">
+                Sie können mehrere Dokumente für dieses Gebäude hochladen.
               </AlertDescription>
             </Alert>
           )}
@@ -345,49 +379,64 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
               ref={fileInputRef}
               type="file"
               accept=".pdf"
+              multiple
               onChange={handleFileSelect}
               className="hidden"
             />
             
-            {selectedFile ? (
-              <div className="flex items-center justify-center gap-3">
-                <FileText className="h-6 w-6 text-primary" />
-                <div className="text-left">
-                  <p className="text-sm font-medium truncate max-w-[200px]">
-                    {selectedFile.name}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                  </p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedFile(null);
-                  }}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            ) : (
-              <>
-                <FileText className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-                <p className="text-sm font-medium">PDF hier ablegen</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  oder klicken zum Auswählen
-                </p>
-              </>
-            )}
+            <FileText className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+            <p className="text-sm font-medium">PDFs hier ablegen</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              oder klicken zum Auswählen (mehrere möglich)
+            </p>
           </div>
+
+          {/* Selected Files List */}
+          {selectedFiles.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">
+                  Ausgewählte Dateien ({selectedFiles.length})
+                </Label>
+                <span className="text-xs text-muted-foreground">
+                  {(totalSize / 1024 / 1024).toFixed(2)} MB gesamt
+                </span>
+              </div>
+              <ScrollArea className="max-h-[120px] border rounded-md">
+                <div className="p-2 space-y-1">
+                  {selectedFiles.map((sf) => (
+                    <div
+                      key={sf.id}
+                      className="flex items-center gap-2 p-2 bg-muted/50 rounded text-sm"
+                    >
+                      <FileText className="h-4 w-4 text-primary flex-shrink-0" />
+                      <span className="flex-1 truncate">{sf.file.name}</span>
+                      <span className="text-xs text-muted-foreground flex-shrink-0">
+                        {(sf.file.size / 1024 / 1024).toFixed(1)} MB
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 flex-shrink-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeFile(sf.id);
+                        }}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </div>
+          )}
 
           {/* Upload Button */}
           <Button
             onClick={handleUpload}
             disabled={
-              !selectedFile ||
+              selectedFiles.length === 0 ||
               isUploading ||
               (category === 'building' && !selectedBuildingId)
             }
@@ -401,7 +450,10 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
             ) : (
               <>
                 <Upload className="h-4 w-4 mr-2" />
-                Hochladen
+                {selectedFiles.length > 1 
+                  ? `${selectedFiles.length} Dokumente hochladen`
+                  : 'Hochladen'
+                }
               </>
             )}
           </Button>
