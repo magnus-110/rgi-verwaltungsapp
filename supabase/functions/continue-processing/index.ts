@@ -14,6 +14,8 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 const OCR_BATCH_SIZE = 30;
 // Batch size for embedding generation
 const EMBEDDING_BATCH_SIZE = 10;
+// Signed URL validity: 24 hours
+const SIGNED_URL_EXPIRY = 86400;
 
 interface ContinueRequest {
   documentId: string;
@@ -46,13 +48,59 @@ async function updateProgress(
   console.log(`Progress: ${progress}% - ${step} (phase: ${phase || 'unknown'})`);
 }
 
-// OCR a specific page range with Mistral
+// Check and refresh signed URL if needed
+async function ensureValidSignedUrl(
+  supabase: any,
+  documentId: string,
+  filePath: string,
+  existingUrl: string | null,
+  expiresAt: string | null
+): Promise<string> {
+  // Check if existing URL is still valid (with 1 hour buffer)
+  if (existingUrl && expiresAt) {
+    const expiryTime = new Date(expiresAt).getTime();
+    const bufferTime = 60 * 60 * 1000; // 1 hour buffer
+    
+    if (Date.now() + bufferTime < expiryTime) {
+      console.log('Using existing signed URL');
+      return existingUrl;
+    }
+  }
+  
+  console.log('Creating new signed URL');
+  
+  const { data: signedUrlData, error: signedUrlError } = await supabase
+    .storage
+    .from('building-documents')
+    .createSignedUrl(filePath, SIGNED_URL_EXPIRY);
+
+  if (signedUrlError || !signedUrlData?.signedUrl) {
+    throw new Error(`Failed to create signed URL: ${signedUrlError?.message}`);
+  }
+
+  const newExpiresAt = new Date(Date.now() + SIGNED_URL_EXPIRY * 1000).toISOString();
+  
+  // Store new signed URL
+  await supabase
+    .from('building_documents')
+    .update({
+      signed_url: signedUrlData.signedUrl,
+      signed_url_expires_at: newExpiresAt
+    })
+    .eq('id', documentId);
+
+  return signedUrlData.signedUrl;
+}
+
+// OCR a specific page range with Mistral using signed URL
 async function extractPagesWithOCR(
-  pdfBase64: string, 
+  signedUrl: string, 
   startPage: number, 
   endPage: number
 ): Promise<{ text: string; pageCount: number }> {
-  console.log(`OCR for pages ${startPage}-${endPage}...`);
+  console.log(`OCR for pages ${startPage}-${endPage} using signed URL...`);
+  
+  const pages = Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
   
   const response = await fetch('https://api.mistral.ai/v1/ocr', {
     method: 'POST',
@@ -64,10 +112,10 @@ async function extractPagesWithOCR(
       model: 'mistral-ocr-latest',
       document: {
         type: 'document_url',
-        document_url: `data:application/pdf;base64,${pdfBase64}`
+        document_url: signedUrl
       },
       include_image_base64: false,
-      pages: Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i)
+      pages: pages
     }),
   });
 
@@ -90,7 +138,10 @@ async function extractPagesWithOCR(
     }
   }
   
-  return { text: fullText, pageCount };
+  // Also get actual total page count from first response
+  const actualTotalPages = data.pages?.length > 0 ? Math.max(...data.pages.map((p: any) => p.index + 1)) : pageCount;
+  
+  return { text: fullText, pageCount: actualTotalPages };
 }
 
 // Semantic chunking - rule-based but quality-focused
@@ -108,7 +159,6 @@ function createSemanticChunks(text: string, documentName: string): Array<{ conte
   const TARGET_SIZE = 1000;
   const MIN_SIZE = 400;
   const MAX_SIZE = 1800;
-  const OVERLAP = 100;
   
   for (let i = 0; i < pageSplits.length; i++) {
     const segment = pageSplits[i];
@@ -286,64 +336,66 @@ serve(async (req) => {
       extracted_text: existingText,
       processing_phase: currentPhase,
       processing_batch: currentBatch,
-      name: documentName
+      name: documentName,
+      signed_url: existingSignedUrl,
+      signed_url_expires_at: signedUrlExpiresAt,
+      retry_count: retryCount
     } = doc;
 
     console.log(`Document state: phase=${currentPhase}, batch=${currentBatch}, processedPages=${processedPages}/${totalPages}`);
 
-    // Download PDF if we need it for OCR
-    let pdfBase64: string | null = null;
-    
-    if (currentPhase === 'ocr' || currentPhase === 'pending') {
-      const { data: fileData, error: downloadError } = await supabase
-        .storage
-        .from('building-documents')
-        .download(filePath);
-
-      if (downloadError) {
-        throw new Error(`Failed to download file: ${downloadError.message}`);
-      }
-
-      const arrayBuffer = await fileData.arrayBuffer();
-      const pdfBytes = new Uint8Array(arrayBuffer);
-      pdfBase64 = btoa(
-        pdfBytes.reduce((data, byte) => data + String.fromCharCode(byte), '')
-      );
+    // Check retry limit
+    if (retryCount >= 3) {
+      throw new Error('Maximale Anzahl an Verarbeitungsversuchen erreicht');
     }
+
+    // Ensure we have a valid signed URL (no PDF download needed!)
+    const signedUrl = await ensureValidSignedUrl(
+      supabase,
+      documentId,
+      filePath,
+      existingSignedUrl,
+      signedUrlExpiresAt
+    );
 
     // Phase: OCR
     if (currentPhase === 'ocr' || currentPhase === 'pending') {
       const startPage = processedPages || 0;
-      const endPage = Math.min(startPage + OCR_BATCH_SIZE - 1, totalPages - 1);
+      const endPage = Math.min(startPage + OCR_BATCH_SIZE - 1, (totalPages || 1000) - 1);
       
-      const progressPercent = Math.round(5 + (processedPages / totalPages) * 35);
+      const progressPercent = Math.round(5 + (processedPages / (totalPages || 100)) * 35);
       await updateProgress(
         supabase, 
         documentId, 
         progressPercent, 
-        `OCR: Seite ${startPage + 1}-${endPage + 1} von ${totalPages}`,
+        `OCR: Seite ${startPage + 1}-${endPage + 1} von ${totalPages || '?'}`,
         'ocr'
       );
 
-      const result = await extractPagesWithOCR(pdfBase64!, startPage, endPage);
+      // Use signed URL for OCR - no memory usage!
+      const result = await extractPagesWithOCR(signedUrl, startPage, endPage);
       const newText = (existingText || '') + result.text;
       const newProcessedPages = endPage + 1;
+      
+      // Update actual total pages if we now know it
+      const actualTotalPages = Math.max(totalPages || 0, result.pageCount);
 
       // Check if OCR is complete
-      if (newProcessedPages >= totalPages) {
+      if (newProcessedPages >= actualTotalPages) {
         // OCR complete, move to chunking phase
-        await updateProgress(
-          supabase, 
-          documentId, 
-          45, 
-          'Text vollständig extrahiert',
-          'chunking',
-          newProcessedPages,
-          newText
-        );
+        await supabase
+          .from('building_documents')
+          .update({
+            total_pages: actualTotalPages,
+            processed_pages: newProcessedPages,
+            extracted_text: newText,
+            processing_phase: 'chunking',
+            processing_progress: 45,
+            processing_step: 'Text vollständig extrahiert'
+          })
+          .eq('id', documentId);
         
-        // Continue to chunking in same request if time allows
-        // For simplicity, we'll call continue-processing again
+        // Continue to chunking
         const continueUrl = `${SUPABASE_URL}/functions/v1/continue-processing`;
         EdgeRuntime.waitUntil(
           fetch(continueUrl, {
@@ -360,9 +412,10 @@ serve(async (req) => {
         await supabase
           .from('building_documents')
           .update({
+            total_pages: actualTotalPages,
             processed_pages: newProcessedPages,
             extracted_text: newText,
-            processing_batch: currentBatch + 1
+            processing_batch: (currentBatch || 0) + 1
           })
           .eq('id', documentId);
 
@@ -381,7 +434,7 @@ serve(async (req) => {
       }
 
       return new Response(
-        JSON.stringify({ success: true, phase: 'ocr', processedPages: endPage + 1, totalPages }),
+        JSON.stringify({ success: true, phase: 'ocr', processedPages: newProcessedPages, totalPages: actualTotalPages }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -396,19 +449,16 @@ serve(async (req) => {
         throw new Error('No chunks created from document');
       }
 
-      // Store chunks in temporary storage (using metadata field)
+      // Move to embedding phase
       await supabase
         .from('building_documents')
         .update({
           processing_phase: 'embedding',
           processing_batch: 0,
-          // Store chunk count for progress tracking
           processed_pages: 0 // Reuse for tracking embedding progress
         })
         .eq('id', documentId);
 
-      // Store chunks temporarily - we'll process embeddings in batches
-      // For now, generate all embeddings
       await updateProgress(supabase, documentId, 55, `${chunks.length} Abschnitte erstellt`, 'embedding');
 
       // Generate embeddings in batches
@@ -474,7 +524,7 @@ serve(async (req) => {
         throw new Error(`Failed to insert chunks: ${insertError.message}`);
       }
 
-      // Mark as complete
+      // Mark as complete - clear signed URL and extracted text to save space
       await supabase
         .from('building_documents')
         .update({
@@ -484,7 +534,9 @@ serve(async (req) => {
           processing_progress: 100,
           processing_step: 'Fertig',
           processing_phase: 'complete',
-          extracted_text: null // Clear to save space
+          extracted_text: null,
+          signed_url: null,
+          signed_url_expires_at: null
         })
         .eq('id', documentId);
 
@@ -511,12 +563,23 @@ serve(async (req) => {
     
     if (documentId && supabase) {
       try {
+        // Increment retry count
+        const { data: doc } = await supabase
+          .from('building_documents')
+          .select('retry_count')
+          .eq('id', documentId)
+          .single();
+        
+        const newRetryCount = (doc?.retry_count || 0) + 1;
+        
         await supabase
           .from('building_documents')
           .update({
             status: 'error',
             error_message: error instanceof Error ? error.message : 'Unknown error',
-            processing_step: 'Fehler bei der Verarbeitung'
+            processing_step: 'Fehler bei der Verarbeitung',
+            retry_count: newRetryCount,
+            last_error: error instanceof Error ? error.message : 'Unknown error'
           })
           .eq('id', documentId);
       } catch (e) {

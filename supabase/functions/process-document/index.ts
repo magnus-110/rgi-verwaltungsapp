@@ -12,6 +12,8 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
 // Threshold: Documents with more pages use batch processing
 const BATCH_THRESHOLD_PAGES = 50;
+// Signed URL validity: 24 hours for batch processing
+const SIGNED_URL_EXPIRY = 86400;
 
 interface ProcessDocumentRequest {
   documentId: string;
@@ -35,34 +37,18 @@ async function updateProgress(supabase: any, documentId: string, progress: numbe
   console.log(`Progress: ${progress}% - ${step}`);
 }
 
-// Count pages in PDF by checking for page markers in structure
-function countPdfPages(pdfBytes: Uint8Array): number {
-  const pdfContent = new TextDecoder('latin1').decode(pdfBytes);
-  
-  // Method 1: Count /Page objects (most reliable)
-  const pageMatches = pdfContent.match(/\/Type\s*\/Page[^s]/g) || [];
-  if (pageMatches.length > 0) {
-    console.log(`Detected ${pageMatches.length} pages via /Page objects`);
-    return pageMatches.length;
-  }
-  
-  // Method 2: Look for /Count in page tree
-  const countMatch = pdfContent.match(/\/Count\s+(\d+)/);
-  if (countMatch) {
-    const count = parseInt(countMatch[1]);
-    console.log(`Detected ${count} pages via /Count`);
-    return count;
-  }
-  
-  // Fallback: estimate based on size (roughly 50KB per page for scans)
-  const estimatedPages = Math.max(1, Math.ceil(pdfBytes.length / 50000));
-  console.log(`Estimated ${estimatedPages} pages based on file size`);
+// Estimate page count from file size (no download needed for initial estimate)
+function estimatePageCount(fileSize: number): number {
+  // Rough estimate: ~500KB per page for scanned PDFs, ~50KB for native
+  // Use conservative estimate (scanned) to trigger batch processing when needed
+  const estimatedPages = Math.max(1, Math.ceil(fileSize / 300000));
+  console.log(`Estimated ${estimatedPages} pages based on file size ${fileSize} bytes`);
   return estimatedPages;
 }
 
-// OCR with Mistral (full document for small files)
-async function extractTextWithMistralOCR(pdfBase64: string): Promise<{ text: string; pageCount: number }> {
-  console.log('Starting Mistral OCR extraction...');
+// OCR with Mistral using signed URL (no memory consumption!)
+async function extractTextWithMistralOCR(signedUrl: string): Promise<{ text: string; pageCount: number }> {
+  console.log('Starting Mistral OCR extraction with signed URL...');
   
   const response = await fetch('https://api.mistral.ai/v1/ocr', {
     method: 'POST',
@@ -74,7 +60,7 @@ async function extractTextWithMistralOCR(pdfBase64: string): Promise<{ text: str
       model: 'mistral-ocr-latest',
       document: {
         type: 'document_url',
-        document_url: `data:application/pdf;base64,${pdfBase64}`
+        document_url: signedUrl
       },
       include_image_base64: false
     }),
@@ -311,6 +297,25 @@ serve(async (req) => {
 
     supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
 
+    // Get document info including file size
+    const { data: doc, error: docError } = await supabase
+      .from('building_documents')
+      .select('file_size, retry_count')
+      .eq('id', documentId)
+      .single();
+
+    if (docError) {
+      console.error('Error fetching document:', docError);
+    }
+
+    const fileSize = doc?.file_size || 0;
+    const retryCount = doc?.retry_count || 0;
+
+    // Check retry limit
+    if (retryCount >= 3) {
+      throw new Error('Maximale Anzahl an Verarbeitungsversuchen erreicht. Bitte laden Sie das Dokument erneut hoch.');
+    }
+
     // Update status to processing
     await supabase
       .from('building_documents')
@@ -318,38 +323,52 @@ serve(async (req) => {
         status: 'processing',
         processing_progress: 5,
         processing_step: 'Dokument wird analysiert...',
-        processing_phase: 'pending'
+        processing_phase: 'pending',
+        last_error: null
       })
       .eq('id', documentId);
 
-    // Download PDF
-    await updateProgress(supabase, documentId, 10, 'PDF wird heruntergeladen...');
+    // Create signed URL for Mistral (no download needed!)
+    await updateProgress(supabase, documentId, 8, 'Zugriff wird vorbereitet...');
     
-    const { data: fileData, error: downloadError } = await supabase
+    const { data: signedUrlData, error: signedUrlError } = await supabase
       .storage
       .from('building-documents')
-      .download(filePath);
+      .createSignedUrl(filePath, SIGNED_URL_EXPIRY);
 
-    if (downloadError) {
-      throw new Error(`Failed to download file: ${downloadError.message}`);
+    if (signedUrlError || !signedUrlData?.signedUrl) {
+      throw new Error(`Failed to create signed URL: ${signedUrlError?.message}`);
     }
 
-    const arrayBuffer = await fileData.arrayBuffer();
-    const pdfBytes = new Uint8Array(arrayBuffer);
+    const signedUrl = signedUrlData.signedUrl;
+    const signedUrlExpiresAt = new Date(Date.now() + SIGNED_URL_EXPIRY * 1000).toISOString();
     
-    // Count pages to decide processing strategy
-    const pageCount = countPdfPages(pdfBytes);
-    console.log(`Document has ${pageCount} pages`);
+    console.log('Created signed URL for document access');
 
-    // Store page count for progress tracking
+    // Store signed URL for batch processing
     await supabase
       .from('building_documents')
-      .update({ total_pages: pageCount })
+      .update({
+        signed_url: signedUrl,
+        signed_url_expires_at: signedUrlExpiresAt
+      })
       .eq('id', documentId);
 
-    // Decision: Use batch processing for large documents
-    if (pageCount > BATCH_THRESHOLD_PAGES) {
-      console.log(`Large document detected (${pageCount} pages), using batch processing`);
+    // Estimate page count from file size
+    const estimatedPages = estimatePageCount(fileSize);
+    
+    // Store estimated page count
+    await supabase
+      .from('building_documents')
+      .update({ total_pages: estimatedPages })
+      .eq('id', documentId);
+
+    // Decision: Use batch processing for large documents (based on estimated size)
+    // Use 200MB as threshold for batch processing (very large files)
+    const useBatchProcessing = fileSize > 200 * 1024 * 1024 || estimatedPages > BATCH_THRESHOLD_PAGES;
+    
+    if (useBatchProcessing) {
+      console.log(`Large document detected (${fileSize} bytes, ~${estimatedPages} pages), using batch processing`);
       
       await supabase
         .from('building_documents')
@@ -360,7 +379,7 @@ serve(async (req) => {
         })
         .eq('id', documentId);
 
-      await updateProgress(supabase, documentId, 8, `Großes Dokument (${pageCount} Seiten) - Batch-Verarbeitung`, 'ocr');
+      await updateProgress(supabase, documentId, 10, `Großes Dokument (~${estimatedPages} Seiten) - Batch-Verarbeitung`, 'ocr');
 
       // Trigger continue-processing for batch processing
       const continueUrl = `${SUPABASE_URL}/functions/v1/continue-processing`;
@@ -380,25 +399,27 @@ serve(async (req) => {
           success: true,
           documentId,
           message: 'Batch processing started',
-          pageCount,
+          estimatedPages,
           batchProcessing: true
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Small document: Process directly
-    console.log(`Small document (${pageCount} pages), processing directly`);
-    
-    const base64 = btoa(
-      pdfBytes.reduce((data, byte) => data + String.fromCharCode(byte), '')
-    );
+    // Small/medium document: Process directly with signed URL
+    console.log(`Document (${fileSize} bytes, ~${estimatedPages} pages), processing directly`);
 
-    // OCR
+    // OCR with signed URL - no memory usage for PDF download!
     await updateProgress(supabase, documentId, 20, 'Texterkennung läuft...', 'ocr');
-    const extraction = await extractTextWithMistralOCR(base64);
+    const extraction = await extractTextWithMistralOCR(signedUrl);
     
-    console.log(`Extracted ${extraction.text.length} characters`);
+    console.log(`Extracted ${extraction.text.length} characters from ${extraction.pageCount} pages`);
+
+    // Update actual page count
+    await supabase
+      .from('building_documents')
+      .update({ total_pages: extraction.pageCount })
+      .eq('id', documentId);
 
     if (!extraction.text || extraction.text.length < 100) {
       throw new Error('Insufficient text extracted from document');
@@ -464,7 +485,7 @@ serve(async (req) => {
       throw new Error(`Failed to insert chunks: ${insertError.message}`);
     }
 
-    // Mark complete
+    // Mark complete - clear signed URL to save space
     await supabase
       .from('building_documents')
       .update({
@@ -473,7 +494,9 @@ serve(async (req) => {
         processed_at: new Date().toISOString(),
         processing_progress: 100,
         processing_step: 'Fertig',
-        processing_phase: 'complete'
+        processing_phase: 'complete',
+        signed_url: null,
+        signed_url_expires_at: null
       })
       .eq('id', documentId);
 
@@ -495,13 +518,24 @@ serve(async (req) => {
     
     if (documentId && supabase) {
       try {
+        // Increment retry count and store error
+        const { data: doc } = await supabase
+          .from('building_documents')
+          .select('retry_count')
+          .eq('id', documentId)
+          .single();
+        
+        const newRetryCount = (doc?.retry_count || 0) + 1;
+        
         await supabase
           .from('building_documents')
           .update({
             status: 'error',
             error_message: error instanceof Error ? error.message : 'Unknown error',
             processing_progress: 0,
-            processing_step: 'Fehler bei der Verarbeitung'
+            processing_step: 'Fehler bei der Verarbeitung',
+            retry_count: newRetryCount,
+            last_error: error instanceof Error ? error.message : 'Unknown error'
           })
           .eq('id', documentId);
       } catch (e) {

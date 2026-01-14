@@ -27,6 +27,7 @@ export type Database = {
           file_path: string
           file_size: number
           id: string
+          last_error: string | null
           page_count: number | null
           processed_at: string | null
           processed_pages: number | null
@@ -34,6 +35,9 @@ export type Database = {
           processing_phase: string | null
           processing_progress: number | null
           processing_step: string | null
+          retry_count: number | null
+          signed_url: string | null
+          signed_url_expires_at: string | null
           status: string
           total_pages: number | null
           updated_at: string
@@ -50,6 +54,7 @@ export type Database = {
           file_path: string
           file_size: number
           id?: string
+          last_error?: string | null
           page_count?: number | null
           processed_at?: string | null
           processed_pages?: number | null
@@ -57,6 +62,9 @@ export type Database = {
           processing_phase?: string | null
           processing_progress?: number | null
           processing_step?: string | null
+          retry_count?: number | null
+          signed_url?: string | null
+          signed_url_expires_at?: string | null
           status?: string
           total_pages?: number | null
           updated_at?: string
@@ -73,6 +81,7 @@ export type Database = {
           file_path?: string
           file_size?: number
           id?: string
+          last_error?: string | null
           page_count?: number | null
           processed_at?: string | null
           processed_pages?: number | null
@@ -80,6 +89,9 @@ export type Database = {
           processing_phase?: string | null
           processing_progress?: number | null
           processing_step?: string | null
+          retry_count?: number | null
+          signed_url?: string | null
+          signed_url_expires_at?: string | null
           status?: string
           total_pages?: number | null
           updated_at?: string
