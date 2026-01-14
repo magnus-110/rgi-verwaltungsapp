@@ -1,10 +1,9 @@
 import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { FileText, Loader2, ExternalLink, Wifi, ChevronDown, Copy, Check } from "lucide-react";
+import { FileText, ExternalLink, Wifi, ChevronDown, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PdfViewerModal } from "./PdfViewerModal";
-import { useToast } from "@/hooks/use-toast";
 
 interface ChatSource {
   content: string;
@@ -30,8 +29,61 @@ interface ChatMessagesProps {
   isLoading: boolean;
 }
 
+// Table wrapper component with permanent copy button
+function CopyableTable({ children }: { children: React.ReactNode }) {
+  const [copied, setCopied] = useState(false);
+  const tableRef = React.useRef<HTMLDivElement>(null);
+
+  const handleCopyTable = async () => {
+    if (!tableRef.current) return;
+    
+    const table = tableRef.current.querySelector('table');
+    if (!table) return;
+
+    // Extract text from table
+    const rows = table.querySelectorAll('tr');
+    let text = '';
+    rows.forEach(row => {
+      const cells = row.querySelectorAll('th, td');
+      const rowText = Array.from(cells).map(cell => cell.textContent?.trim() || '').join('\t');
+      text += rowText + '\n';
+    });
+
+    try {
+      await navigator.clipboard.writeText(text.trim());
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy table:', err);
+    }
+  };
+
+  return (
+    <div className="relative my-4" ref={tableRef}>
+      <button
+        onClick={handleCopyTable}
+        className={cn(
+          "absolute -top-2 -right-2 z-10 p-1.5 rounded-md transition-all duration-200",
+          "bg-background/90 hover:bg-muted border border-border/50 shadow-sm"
+        )}
+        title="Tabelle kopieren"
+      >
+        {copied ? (
+          <Check className="h-3.5 w-3.5 text-green-500" />
+        ) : (
+          <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+        )}
+      </button>
+      <div className="w-full overflow-auto rounded-lg border border-border">
+        <table className="w-full text-sm border-collapse">
+          {children}
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
-  const { toast } = useToast();
   const [pdfViewerOpen, setPdfViewerOpen] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<{
     url: string | null;
@@ -45,23 +97,14 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
     try {
       await navigator.clipboard.writeText(content);
       setCopiedMessageId(messageId);
-      toast({
-        title: "Kopiert",
-        description: "Nachricht wurde in die Zwischenablage kopiert.",
-      });
       setTimeout(() => setCopiedMessageId(null), 2000);
     } catch (err) {
-      toast({
-        title: "Fehler",
-        description: "Kopieren fehlgeschlagen.",
-        variant: "destructive"
-      });
+      console.error('Failed to copy message:', err);
     }
   };
 
   const handleSourceClick = (source: ChatSource) => {
     if (source.documentUrl) {
-      // Ensure pageNumber is a valid number
       let page = 1;
       if (source.pageNumber !== undefined && source.pageNumber !== null) {
         const parsed = typeof source.pageNumber === 'string' 
@@ -110,24 +153,6 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
             )}
           >
             <div className="relative max-w-[85%]">
-              {/* Copy Button */}
-              <button
-                onClick={() => handleCopy(message.content, message.id)}
-                className={cn(
-                  "absolute -top-2 right-0 p-1.5 rounded-md transition-all duration-200",
-                  "opacity-0 group-hover:opacity-100",
-                  "bg-background/80 hover:bg-muted border border-border/50 shadow-sm",
-                  message.role === 'user' ? "-right-2" : "-right-2"
-                )}
-                title="Kopieren"
-              >
-                {copiedMessageId === message.id ? (
-                  <Check className="h-3.5 w-3.5 text-green-500" />
-                ) : (
-                  <Copy className="h-3.5 w-3.5 text-muted-foreground" />
-                )}
-              </button>
-
               <div
                 className={cn(
                   message.role === 'user'
@@ -166,11 +191,7 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
                         ),
                         hr: () => <hr className="my-4 border-border" />,
                         table: ({ children }) => (
-                          <div className="my-4 w-full overflow-auto rounded-lg border border-border">
-                            <table className="w-full text-sm border-collapse">
-                              {children}
-                            </table>
-                          </div>
+                          <CopyableTable>{children}</CopyableTable>
                         ),
                         thead: ({ children }) => (
                           <thead className="bg-muted/50 border-b border-border">
@@ -228,6 +249,17 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
                             ? (source.fileName && source.fileName !== 'Internet-Suche' ? source.fileName : 'Internet-Suche')
                             : source.fileName || source.metadata?.section || `Dokument ${index + 1}`;
                           
+                          // Parse page number for display
+                          let pageNum: number | null = null;
+                          if (source.pageNumber !== undefined && source.pageNumber !== null) {
+                            const parsed = typeof source.pageNumber === 'string' 
+                              ? parseInt(source.pageNumber, 10) 
+                              : source.pageNumber;
+                            if (!isNaN(parsed) && parsed > 0) {
+                              pageNum = parsed;
+                            }
+                          }
+                          
                           if (isWebSource) {
                             const webUrl = source.documentUrl || source.metadata?.url;
                             return (
@@ -267,14 +299,14 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
                               )}
                             >
                               <FileText className="h-3 w-3 flex-shrink-0" />
+                              {pageNum && (
+                                <span className="font-semibold flex-shrink-0">
+                                  S. {pageNum}
+                                </span>
+                              )}
                               <span className="font-medium truncate max-w-[150px]">
                                 {displayName}
                               </span>
-                              {source.pageNumber && (
-                                <span className="opacity-70 flex-shrink-0">
-                                  S. {source.pageNumber}
-                                </span>
-                              )}
                               {hasLink && (
                                 <ExternalLink className="h-3 w-3 opacity-50 flex-shrink-0" />
                               )}
@@ -286,6 +318,23 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
                   </div>
                 )}
               </div>
+
+              {/* Copy Button - bottom right, appears on hover */}
+              <button
+                onClick={() => handleCopy(message.content, message.id)}
+                className={cn(
+                  "absolute -bottom-2 -right-2 p-1.5 rounded-md transition-all duration-200",
+                  "opacity-0 group-hover:opacity-100",
+                  "bg-background/80 hover:bg-muted border border-border/50 shadow-sm"
+                )}
+                title="Kopieren"
+              >
+                {copiedMessageId === message.id ? (
+                  <Check className="h-3.5 w-3.5 text-green-500" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+                )}
+              </button>
             </div>
           </div>
         ))}
