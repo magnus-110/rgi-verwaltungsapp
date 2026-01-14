@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowUp, Loader2, Mic, MicOff, Plus, Globe, Check, Star, X, FileText, ChevronLeft, SearchCheck, Pencil } from "lucide-react";
+import { ArrowUp, Loader2, Mic, MicOff, Plus, Globe, Check, Star, X, FileText, ChevronLeft, SearchCheck, Pencil, ChevronRight, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -21,6 +21,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { AddPromptDialog } from "./AddPromptDialog";
 import { EditPromptDialog } from "./EditPromptDialog";
 import { Scale, Receipt, Building2, MessageCircle, Folder } from "lucide-react";
+import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 
 interface PromptCategory {
   id: string;
@@ -34,6 +35,7 @@ interface PromptTemplate {
   category_id: string;
   title: string;
   content: string;
+  sort_order?: number;
 }
 
 interface ChatInputFieldProps {
@@ -68,7 +70,8 @@ export function ChatInputField({
   const [value, setValue] = useState("");
   const [isListening, setIsListening] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [menuView, setMenuView] = useState<'main' | 'prompts'>('main');
+  const [menuView, setMenuView] = useState<'main' | 'prompts' | 'category'>('main');
+  const [selectedCategory, setSelectedCategory] = useState<PromptCategory | null>(null);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState<PromptTemplate | null>(null);
@@ -117,7 +120,8 @@ export function ChatInputField({
 
       const { data: promptsData } = await supabase
         .from("prompt_templates")
-        .select("*");
+        .select("*")
+        .order("sort_order", { ascending: true });
 
       const { data: favoritesData } = await supabase
         .from("prompt_favorites")
@@ -164,11 +168,58 @@ export function ChatInputField({
   };
 
   const getPromptsByCategory = (categoryId: string) => {
-    return prompts.filter(p => p.category_id === categoryId);
+    return prompts
+      .filter(p => p.category_id === categoryId)
+      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
   };
 
   const getFavoritePrompts = () => {
     return prompts.filter(p => favorites.has(p.id));
+  };
+
+  const handleCategoryClick = (category: PromptCategory) => {
+    setSelectedCategory(category);
+    setMenuView('category');
+  };
+
+  const handleDragEnd = async (result: DropResult) => {
+    if (!result.destination || !selectedCategory) return;
+
+    const categoryPrompts = getPromptsByCategory(selectedCategory.id);
+    const reordered = Array.from(categoryPrompts);
+    const [removed] = reordered.splice(result.source.index, 1);
+    reordered.splice(result.destination.index, 0, removed);
+
+    // Update local state immediately for responsiveness
+    const updatedPrompts = prompts.map(p => {
+      const newIndex = reordered.findIndex(rp => rp.id === p.id);
+      if (newIndex !== -1) {
+        return { ...p, sort_order: newIndex };
+      }
+      return p;
+    });
+    setPrompts(updatedPrompts);
+
+    // Update database
+    try {
+      await Promise.all(
+        reordered.map((prompt, index) =>
+          supabase
+            .from("prompt_templates")
+            .update({ sort_order: index })
+            .eq("id", prompt.id)
+        )
+      );
+    } catch (error) {
+      console.error("Error updating prompt order:", error);
+      toast({
+        title: "Fehler",
+        description: "Die Reihenfolge konnte nicht gespeichert werden.",
+        variant: "destructive",
+      });
+      // Refetch to restore correct order
+      fetchPromptData();
+    }
   };
 
   const renderIcon = (iconName: string) => {
@@ -195,6 +246,7 @@ export function ChatInputField({
     setMenuOpen(open);
     if (!open) {
       setMenuView('main');
+      setSelectedCategory(null);
     }
   };
 
@@ -368,8 +420,8 @@ export function ChatInputField({
                     <span className="text-sm flex-1 text-left">Prompt-Vorlagen</span>
                   </button>
                 </div>
-              ) : (
-                /* Prompts View */
+              ) : menuView === 'prompts' ? (
+                /* Categories Overview */
                 <div className="p-2">
                   {/* Back Button */}
                   <button
@@ -425,48 +477,25 @@ export function ChatInputField({
                           </div>
                         )}
 
-                        {/* Categories */}
+                        {/* Categories as clickable items */}
                         {categories.map((category) => {
                           const categoryPrompts = getPromptsByCategory(category.id);
-                          if (categoryPrompts.length === 0) return null;
-
+                          
                           return (
-                            <div key={category.id} className="mb-3">
-                              <div className="flex items-center gap-2 px-2 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            <button
+                              key={category.id}
+                              onClick={() => handleCategoryClick(category)}
+                              className="flex items-center justify-between w-full px-3 py-2.5 text-sm text-left rounded-md hover:bg-muted transition-colors"
+                            >
+                              <div className="flex items-center gap-2">
                                 {renderIcon(category.icon)}
-                                {category.name}
+                                <span>{category.name}</span>
                               </div>
-                              {categoryPrompts.map((prompt) => (
-                                <Tooltip key={prompt.id}>
-                                  <TooltipTrigger asChild>
-                                    <button
-                                      onClick={() => handleSelectPrompt(prompt.content)}
-                                      className="flex items-center justify-between w-full px-3 py-2 text-sm text-left rounded-md hover:bg-muted transition-colors group"
-                                    >
-                                      <span className="truncate pr-2">{prompt.title}</span>
-                                      <div className="flex items-center gap-1 flex-shrink-0">
-                                        <Pencil
-                                          onClick={(e) => handleEditPrompt(prompt, e)}
-                                          className="h-3.5 w-3.5 text-muted-foreground/50 opacity-0 group-hover:opacity-100 cursor-pointer hover:text-foreground transition-all"
-                                        />
-                                        <Star
-                                          onClick={(e) => toggleFavorite(prompt.id, e)}
-                                          className={cn(
-                                            "h-4 w-4 cursor-pointer hover:scale-110 transition-transform",
-                                            favorites.has(prompt.id)
-                                              ? "fill-yellow-400 text-yellow-400"
-                                              : "text-muted-foreground/50 hover:text-yellow-400"
-                                          )}
-                                        />
-                                      </div>
-                                    </button>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="right" className="max-w-sm p-3" sideOffset={8}>
-                                    <p className="text-sm whitespace-pre-wrap">{prompt.content}</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              ))}
-                            </div>
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <span className="text-xs">{categoryPrompts.length}</span>
+                                <ChevronRight className="h-4 w-4" />
+                              </div>
+                            </button>
                           );
                         })}
 
@@ -485,6 +514,112 @@ export function ChatInputField({
                         </button>
                       </TooltipProvider>
                     )}
+                  </ScrollArea>
+                </div>
+              ) : (
+                /* Category Detail View with Drag and Drop */
+                <div className="p-2">
+                  {/* Back Button */}
+                  <button
+                    onClick={() => {
+                      setMenuView('prompts');
+                      setSelectedCategory(null);
+                    }}
+                    className="flex items-center gap-2 w-full px-3 py-2 mb-2 text-sm text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    <span>{selectedCategory?.name || 'Zurück'}</span>
+                  </button>
+                  
+                  <Separator className="mb-2" />
+
+                  <ScrollArea className="max-h-[350px]">
+                    {selectedCategory && (
+                      <DragDropContext onDragEnd={handleDragEnd}>
+                        <Droppable droppableId="prompts-list">
+                          {(provided) => (
+                            <div
+                              ref={provided.innerRef}
+                              {...provided.droppableProps}
+                            >
+                              <TooltipProvider delayDuration={300}>
+                                {getPromptsByCategory(selectedCategory.id).map((prompt, index) => (
+                                  <Draggable key={prompt.id} draggableId={prompt.id} index={index}>
+                                    {(provided, snapshot) => (
+                                      <div
+                                        ref={provided.innerRef}
+                                        {...provided.draggableProps}
+                                        className={cn(
+                                          "flex items-center gap-1 rounded-md transition-colors",
+                                          snapshot.isDragging && "bg-muted shadow-lg"
+                                        )}
+                                      >
+                                        <div
+                                          {...provided.dragHandleProps}
+                                          className="p-2 cursor-grab active:cursor-grabbing text-muted-foreground/50 hover:text-muted-foreground"
+                                        >
+                                          <GripVertical className="h-4 w-4" />
+                                        </div>
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <button
+                                              onClick={() => handleSelectPrompt(prompt.content)}
+                                              className="flex items-center justify-between flex-1 px-2 py-2 text-sm text-left rounded-md hover:bg-muted transition-colors group"
+                                            >
+                                              <span className="truncate pr-2">{prompt.title}</span>
+                                              <div className="flex items-center gap-1 flex-shrink-0">
+                                                <Pencil
+                                                  onClick={(e) => handleEditPrompt(prompt, e)}
+                                                  className="h-3.5 w-3.5 text-muted-foreground/50 opacity-0 group-hover:opacity-100 cursor-pointer hover:text-foreground transition-all"
+                                                />
+                                                <Star
+                                                  onClick={(e) => toggleFavorite(prompt.id, e)}
+                                                  className={cn(
+                                                    "h-4 w-4 cursor-pointer hover:scale-110 transition-transform",
+                                                    favorites.has(prompt.id)
+                                                      ? "fill-yellow-400 text-yellow-400"
+                                                      : "text-muted-foreground/50 hover:text-yellow-400"
+                                                  )}
+                                                />
+                                              </div>
+                                            </button>
+                                          </TooltipTrigger>
+                                          <TooltipContent side="right" className="max-w-sm p-3" sideOffset={8}>
+                                            <p className="text-sm whitespace-pre-wrap">{prompt.content}</p>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      </div>
+                                    )}
+                                  </Draggable>
+                                ))}
+                                {provided.placeholder}
+                              </TooltipProvider>
+
+                              {getPromptsByCategory(selectedCategory.id).length === 0 && (
+                                <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">
+                                  Keine Prompts in dieser Kategorie
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </Droppable>
+                      </DragDropContext>
+                    )}
+
+                    {/* Add Prompt Button */}
+                    <Separator className="my-2" />
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        setMenuView('main');
+                        setSelectedCategory(null);
+                        setAddDialogOpen(true);
+                      }}
+                      className="flex items-center gap-2 w-full px-3 py-2 text-sm text-left rounded-md hover:bg-muted transition-colors text-primary"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Prompt hinzufügen
+                    </button>
                   </ScrollArea>
                 </div>
               )}
