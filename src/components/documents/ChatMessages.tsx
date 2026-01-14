@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { FileText, Loader2, ExternalLink, Wifi, ChevronDown } from "lucide-react";
+import { FileText, Loader2, ExternalLink, Wifi, ChevronDown, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PdfViewerModal } from "./PdfViewerModal";
+import { useToast } from "@/hooks/use-toast";
 
 interface ChatSource {
   content: string;
@@ -29,6 +30,7 @@ interface ChatMessagesProps {
 }
 
 export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
+  const { toast } = useToast();
   const [pdfViewerOpen, setPdfViewerOpen] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<{
     url: string | null;

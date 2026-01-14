@@ -460,16 +460,6 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
             </div>
           )}
 
-          {/* Info about multiple documents */}
-          {category === 'building' && selectedBuildingId && (
-            <Alert className="border-blue-500/50 bg-blue-50 dark:bg-blue-950/20">
-              <Files className="h-4 w-4 text-blue-600" />
-              <AlertDescription className="text-blue-700 dark:text-blue-300 text-xs">
-                Sie können mehrere Dokumente für dieses Gebäude hochladen.
-              </AlertDescription>
-            </Alert>
-          )}
-
           {/* Warning for large files */}
           {hasLargeFiles && (
             <Alert className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
