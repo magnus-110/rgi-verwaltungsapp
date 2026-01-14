@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback } from "react";
+import * as tus from 'tus-js-client';
 import {
   Dialog,
   DialogContent,
@@ -25,6 +26,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useUpload } from "@/contexts/UploadContext";
 import { cn } from "@/lib/utils";
+
+// Supabase URL for TUS uploads
+const SUPABASE_URL = "https://eebphowrbarzawwixqcc.supabase.co";
+
+// Threshold for using resumable upload (10 MB)
+const RESUMABLE_THRESHOLD = 10 * 1024 * 1024;
+
+// Max file size (1 GB)
+const MAX_FILE_SIZE = 1024 * 1024 * 1024;
 
 interface Building {
   id: string;
@@ -79,6 +89,17 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
       toast({
         title: "Ungültiges Dateiformat",
         description: "Bitte laden Sie nur PDF-Dateien hoch.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check file size
+    const oversizedFiles = pdfFiles.filter(f => f.size > MAX_FILE_SIZE);
+    if (oversizedFiles.length > 0) {
+      toast({
+        title: "Datei zu groß",
+        description: `Maximale Dateigröße: 1 GB. ${oversizedFiles.map(f => f.name).join(', ')} überschreitet das Limit.`,
         variant: "destructive",
       });
       return;
@@ -145,7 +166,73 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
       .replace(/^_|_$/g, ''); // Trim leading/trailing underscores
   };
 
+  // Resumable upload using TUS protocol for large files
+  const uploadWithTus = async (
+    file: File, 
+    filePath: string, 
+    onProgress: (progress: number) => void
+  ): Promise<void> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session?.access_token) {
+      throw new Error('Nicht authentifiziert');
+    }
+
+    return new Promise((resolve, reject) => {
+      const upload = new tus.Upload(file, {
+        endpoint: `${SUPABASE_URL}/storage/v1/upload/resumable`,
+        retryDelays: [0, 3000, 5000, 10000, 20000],
+        headers: {
+          authorization: `Bearer ${session.access_token}`,
+          'x-upsert': 'false',
+        },
+        uploadDataDuringCreation: true,
+        removeFingerprintOnSuccess: true,
+        metadata: {
+          bucketName: 'building-documents',
+          objectName: filePath,
+          contentType: 'application/pdf',
+          cacheControl: '3600',
+        },
+        chunkSize: 6 * 1024 * 1024, // 6 MB chunks
+        onError: (error) => {
+          console.error('TUS upload error:', error);
+          reject(new Error(`Upload fehlgeschlagen: ${error.message}`));
+        },
+        onProgress: (bytesUploaded, bytesTotal) => {
+          const percentage = Math.round((bytesUploaded / bytesTotal) * 100);
+          onProgress(percentage);
+        },
+        onSuccess: () => {
+          resolve();
+        },
+      });
+
+      // Check for previous uploads to resume
+      upload.findPreviousUploads().then((previousUploads) => {
+        if (previousUploads.length) {
+          upload.resumeFromPreviousUpload(previousUploads[0]);
+        }
+        upload.start();
+      });
+    });
+  };
+
+  // Standard upload for smaller files
+  const uploadStandard = async (file: File, filePath: string): Promise<void> => {
+    const { error: uploadError } = await supabase
+      .storage
+      .from('building-documents')
+      .upload(filePath, file);
+
+    if (uploadError) {
+      throw new Error(`Upload fehlgeschlagen: ${uploadError.message}`);
+    }
+  };
+
   const uploadSingleFile = async (selectedFile: SelectedFile, building: Building | undefined) => {
+    const isLargeFile = selectedFile.file.size > RESUMABLE_THRESHOLD;
+    
     const uploadId = addUpload({
       fileName: selectedFile.file.name,
       fileSize: selectedFile.file.size,
@@ -154,7 +241,7 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
       buildingName: building?.name,
       status: 'uploading',
       progress: 0,
-      step: 'Wird hochgeladen...',
+      step: isLargeFile ? 'Großer Upload wird vorbereitet...' : 'Wird hochgeladen...',
     });
 
     try {
@@ -165,15 +252,21 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
         ? `buildings/${selectedBuildingId}/${fileName}`
         : `general/${fileName}`;
 
-      updateUpload(uploadId, { progress: 20, step: 'Datei wird hochgeladen...' });
-
-      const { error: uploadError } = await supabase
-        .storage
-        .from('building-documents')
-        .upload(filePath, selectedFile.file);
-
-      if (uploadError) {
-        throw new Error(`Upload fehlgeschlagen: ${uploadError.message}`);
+      // Use TUS for large files, standard upload for small files
+      if (isLargeFile) {
+        updateUpload(uploadId, { step: 'Wird hochgeladen (Resumable)...' });
+        
+        await uploadWithTus(selectedFile.file, filePath, (progress) => {
+          // Map 0-100% to 0-40% of total progress (upload phase)
+          const mappedProgress = Math.round(progress * 0.4);
+          updateUpload(uploadId, { 
+            progress: mappedProgress, 
+            step: `Wird hochgeladen... ${progress}%` 
+          });
+        });
+      } else {
+        updateUpload(uploadId, { progress: 20, step: 'Datei wird hochgeladen...' });
+        await uploadStandard(selectedFile.file, filePath);
       }
 
       updateUpload(uploadId, { progress: 40, step: 'Dokument wird registriert...' });
@@ -275,6 +368,8 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
 
   const selectedBuilding = buildings.find((b) => b.id === selectedBuildingId);
   const totalSize = selectedFiles.reduce((acc, f) => acc + f.file.size, 0);
+  const hasLargeFiles = selectedFiles.some(f => f.file.size > 100 * 1024 * 1024);
+  const hasVeryLargeFiles = selectedFiles.some(f => f.file.size > 300 * 1024 * 1024);
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -361,6 +456,26 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
             </Alert>
           )}
 
+          {/* Warning for large files */}
+          {hasLargeFiles && (
+            <Alert className="border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-700 dark:text-amber-300 text-xs">
+                {hasVeryLargeFiles ? (
+                  <>
+                    Sehr große Dateien (&gt;300MB) werden in Teilen hochgeladen. 
+                    Dies kann <strong>mehrere Minuten</strong> dauern. Der Upload kann bei Verbindungsabbruch fortgesetzt werden.
+                  </>
+                ) : (
+                  <>
+                    Große Dateien (&gt;100MB) werden in Teilen hochgeladen. 
+                    Dies kann einige Minuten dauern.
+                  </>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+
           {/* Drop Zone */}
           <div
             onDragOver={handleDragOver}
@@ -387,7 +502,7 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
             <FileText className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
             <p className="text-sm font-medium">PDFs hier ablegen</p>
             <p className="text-xs text-muted-foreground mt-1">
-              oder klicken zum Auswählen (mehrere möglich)
+              oder klicken zum Auswählen (max. 1 GB pro Datei)
             </p>
           </div>
 
@@ -412,7 +527,10 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
                       <FileText className="h-4 w-4 text-primary flex-shrink-0" />
                       <span className="flex-1 truncate">{sf.file.name}</span>
                       <span className="text-xs text-muted-foreground flex-shrink-0">
-                        {(sf.file.size / 1024 / 1024).toFixed(1)} MB
+                        {sf.file.size > 1024 * 1024 * 1024 
+                          ? `${(sf.file.size / 1024 / 1024 / 1024).toFixed(2)} GB`
+                          : `${(sf.file.size / 1024 / 1024).toFixed(1)} MB`
+                        }
                       </span>
                       <Button
                         variant="ghost"
