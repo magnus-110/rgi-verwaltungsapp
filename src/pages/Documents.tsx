@@ -38,6 +38,9 @@ interface ChatMessage {
 }
 
 const NOVA_SESSION_KEY = 'nova_current_session_id';
+const NOVA_SCOPE_KEY = 'nova_knowledge_scope';
+const NOVA_BUILDING_KEY = 'nova_selected_building_id';
+const NOVA_INCLUDE_GENERAL_KEY = 'nova_include_general';
 
 export function Documents() {
   const { user, profile } = useAuth();
@@ -45,10 +48,18 @@ export function Documents() {
   const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Knowledge scope state
-  const [scope, setScope] = useState<KnowledgeScope>('general');
-  const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
-  const [includeGeneral, setIncludeGeneral] = useState(true);
+  // Knowledge scope state - load from localStorage
+  const [scope, setScope] = useState<KnowledgeScope>(() => {
+    const saved = localStorage.getItem(NOVA_SCOPE_KEY);
+    return (saved as KnowledgeScope) || 'general';
+  });
+  const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(() => {
+    return localStorage.getItem(NOVA_BUILDING_KEY);
+  });
+  const [includeGeneral, setIncludeGeneral] = useState(() => {
+    const saved = localStorage.getItem(NOVA_INCLUDE_GENERAL_KEY);
+    return saved !== null ? saved === 'true' : true;
+  });
 
   // Data state
   const [buildings, setBuildings] = useState<Building[]>([]);
@@ -69,6 +80,23 @@ export function Documents() {
       localStorage.setItem(NOVA_SESSION_KEY, sessionId);
     }
   }, [sessionId]);
+
+  // Persist scope settings to localStorage
+  useEffect(() => {
+    localStorage.setItem(NOVA_SCOPE_KEY, scope);
+  }, [scope]);
+
+  useEffect(() => {
+    if (selectedBuildingId) {
+      localStorage.setItem(NOVA_BUILDING_KEY, selectedBuildingId);
+    } else {
+      localStorage.removeItem(NOVA_BUILDING_KEY);
+    }
+  }, [selectedBuildingId]);
+
+  useEffect(() => {
+    localStorage.setItem(NOVA_INCLUDE_GENERAL_KEY, String(includeGeneral));
+  }, [includeGeneral]);
 
   // Fetch buildings
   useEffect(() => {
@@ -195,9 +223,19 @@ export function Documents() {
   };
 
   const handleNewSession = () => {
+    // Clear session
     localStorage.removeItem(NOVA_SESSION_KEY);
     setSessionId(null);
     setMessages([]);
+    
+    // Reset scope to default
+    localStorage.removeItem(NOVA_SCOPE_KEY);
+    localStorage.removeItem(NOVA_BUILDING_KEY);
+    localStorage.removeItem(NOVA_INCLUDE_GENERAL_KEY);
+    setScope('general');
+    setSelectedBuildingId(null);
+    setIncludeGeneral(true);
+    
     toast({
       title: "Neue Session",
       description: "Eine neue Chat-Session wurde gestartet.",
