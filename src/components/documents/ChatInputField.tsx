@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowUp, Loader2, Mic, MicOff, Plus, Globe, Check, Star, X, FileText, ChevronLeft, SearchCheck } from "lucide-react";
+import { ArrowUp, Loader2, Mic, MicOff, Plus, Globe, Check, Star, X, FileText, ChevronLeft, SearchCheck, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -19,6 +19,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AddPromptDialog } from "./AddPromptDialog";
+import { EditPromptDialog } from "./EditPromptDialog";
 import { Scale, Receipt, Building2, MessageCircle, Folder } from "lucide-react";
 
 interface PromptCategory {
@@ -69,6 +70,8 @@ export function ChatInputField({
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuView, setMenuView] = useState<'main' | 'prompts'>('main');
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingPrompt, setEditingPrompt] = useState<PromptTemplate | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const { toast } = useToast();
@@ -80,11 +83,15 @@ export function ChatInputField({
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [promptsLoading, setPromptsLoading] = useState(false);
 
+  // Get initial height for max calculation (approx. 40px for single row)
+  const initialHeight = 40;
+  const maxHeight = initialHeight * 2; // Max double the initial size
+
   const adjustHeight = () => {
     const textarea = textareaRef.current;
     if (textarea) {
       textarea.style.height = 'auto';
-      const newHeight = Math.min(textarea.scrollHeight, 200);
+      const newHeight = Math.min(textarea.scrollHeight, maxHeight);
       textarea.style.height = `${newHeight}px`;
     }
   };
@@ -173,6 +180,14 @@ export function ChatInputField({
     setValue(content);
     setMenuOpen(false);
     setMenuView('main');
+  };
+
+  const handleEditPrompt = (prompt: PromptTemplate, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingPrompt(prompt);
+    setMenuOpen(false);
+    setMenuView('main');
+    setEditDialogOpen(true);
   };
 
   // Reset menu view when closing
@@ -386,13 +401,19 @@ export function ChatInputField({
                                 <TooltipTrigger asChild>
                                   <button
                                     onClick={() => handleSelectPrompt(prompt.content)}
-                                    className="flex items-center justify-between w-full px-3 py-2 text-sm text-left rounded-md hover:bg-muted transition-colors"
+                                    className="flex items-center justify-between w-full px-3 py-2 text-sm text-left rounded-md hover:bg-muted transition-colors group"
                                   >
                                     <span className="truncate pr-2">{prompt.title}</span>
-                                    <Star
-                                      onClick={(e) => toggleFavorite(prompt.id, e)}
-                                      className="h-4 w-4 flex-shrink-0 fill-yellow-400 text-yellow-400 cursor-pointer hover:scale-110 transition-transform"
-                                    />
+                                    <div className="flex items-center gap-1 flex-shrink-0">
+                                      <Pencil
+                                        onClick={(e) => handleEditPrompt(prompt, e)}
+                                        className="h-3.5 w-3.5 text-muted-foreground/50 opacity-0 group-hover:opacity-100 cursor-pointer hover:text-foreground transition-all"
+                                      />
+                                      <Star
+                                        onClick={(e) => toggleFavorite(prompt.id, e)}
+                                        className="h-4 w-4 fill-yellow-400 text-yellow-400 cursor-pointer hover:scale-110 transition-transform"
+                                      />
+                                    </div>
                                   </button>
                                 </TooltipTrigger>
                                 <TooltipContent side="right" className="max-w-sm p-3" sideOffset={8}>
@@ -420,18 +441,24 @@ export function ChatInputField({
                                   <TooltipTrigger asChild>
                                     <button
                                       onClick={() => handleSelectPrompt(prompt.content)}
-                                      className="flex items-center justify-between w-full px-3 py-2 text-sm text-left rounded-md hover:bg-muted transition-colors"
+                                      className="flex items-center justify-between w-full px-3 py-2 text-sm text-left rounded-md hover:bg-muted transition-colors group"
                                     >
                                       <span className="truncate pr-2">{prompt.title}</span>
-                                      <Star
-                                        onClick={(e) => toggleFavorite(prompt.id, e)}
-                                        className={cn(
-                                          "h-4 w-4 flex-shrink-0 cursor-pointer hover:scale-110 transition-transform",
-                                          favorites.has(prompt.id)
-                                            ? "fill-yellow-400 text-yellow-400"
-                                            : "text-muted-foreground/50 hover:text-yellow-400"
-                                        )}
-                                      />
+                                      <div className="flex items-center gap-1 flex-shrink-0">
+                                        <Pencil
+                                          onClick={(e) => handleEditPrompt(prompt, e)}
+                                          className="h-3.5 w-3.5 text-muted-foreground/50 opacity-0 group-hover:opacity-100 cursor-pointer hover:text-foreground transition-all"
+                                        />
+                                        <Star
+                                          onClick={(e) => toggleFavorite(prompt.id, e)}
+                                          className={cn(
+                                            "h-4 w-4 cursor-pointer hover:scale-110 transition-transform",
+                                            favorites.has(prompt.id)
+                                              ? "fill-yellow-400 text-yellow-400"
+                                              : "text-muted-foreground/50 hover:text-yellow-400"
+                                          )}
+                                        />
+                                      </div>
                                     </button>
                                   </TooltipTrigger>
                                   <TooltipContent side="right" className="max-w-sm p-3" sideOffset={8}>
@@ -477,7 +504,7 @@ export function ChatInputField({
               "placeholder:text-muted-foreground",
               "focus:outline-none",
               "disabled:opacity-50 disabled:cursor-not-allowed",
-              "min-h-[40px] max-h-[200px]"
+              "min-h-[40px] max-h-[80px]"
             )}
           />
           
@@ -521,6 +548,14 @@ export function ChatInputField({
       <AddPromptDialog
         open={addDialogOpen}
         onOpenChange={setAddDialogOpen}
+        categories={categories}
+        onSuccess={fetchPromptData}
+      />
+
+      <EditPromptDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        prompt={editingPrompt}
         categories={categories}
         onSuccess={fetchPromptData}
       />
