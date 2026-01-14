@@ -11,6 +11,7 @@ import { ChatMessages } from "@/components/documents/ChatMessages";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
+import { useManagementMode } from "@/hooks/useManagementMode";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,6 +48,7 @@ export function Documents() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const { managementMode } = useManagementMode();
 
   // Knowledge scope state - load from localStorage
   const [scope, setScope] = useState<KnowledgeScope>(() => {
@@ -98,21 +100,26 @@ export function Documents() {
     localStorage.setItem(NOVA_INCLUDE_GENERAL_KEY, String(includeGeneral));
   }, [includeGeneral]);
 
-  // Fetch buildings
+  // Fetch buildings filtered by management mode
   useEffect(() => {
     const fetchBuildings = async () => {
       const { data, error } = await supabase
         .from('buildings')
         .select('id, name, address, building_code')
+        .eq('management_mode', managementMode)
         .order('name');
 
       if (!error && data) {
         setBuildings(data);
+        // Clear selected building if it's no longer in the filtered list
+        if (selectedBuildingId && !data.find(b => b.id === selectedBuildingId)) {
+          setSelectedBuildingId(null);
+        }
       }
     };
 
     fetchBuildings();
-  }, []);
+  }, [managementMode]);
 
   // Auto-scroll to bottom
   useEffect(() => {
