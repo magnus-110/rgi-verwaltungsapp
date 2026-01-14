@@ -563,8 +563,11 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
               </ScrollArea>
             </div>
           )}
+          </div>
+        </ScrollArea>
 
-          {/* Upload Button */}
+        {/* Upload Button - outside ScrollArea */}
+        <div className="flex-shrink-0 pt-4 border-t">
           <Button
             onClick={handleUpload}
             disabled={
