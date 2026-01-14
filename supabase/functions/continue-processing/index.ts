@@ -483,27 +483,9 @@ serve(async (req) => {
 
       await updateProgress(supabase, documentId, 88, 'Daten werden gespeichert...', 'saving');
 
-      // Delete old chunks for this building if exists
-      if (buildingId) {
-        const { data: existingDocs } = await supabase
-          .from('building_documents')
-          .select('id')
-          .eq('building_id', buildingId)
-          .neq('id', documentId);
-
-        if (existingDocs && existingDocs.length > 0) {
-          const oldDocIds = existingDocs.map((d: any) => d.id);
-          await supabase
-            .from('document_chunks')
-            .delete()
-            .in('document_id', oldDocIds);
-          await supabase
-            .from('building_documents')
-            .delete()
-            .in('id', oldDocIds);
-          console.log(`Deleted ${oldDocIds.length} old documents for building ${buildingId}`);
-        }
-      }
+      // NOTE: Multiple documents per building are now allowed
+      // No automatic deletion of existing documents
+      console.log(`Adding chunks for document ${documentId} to building ${buildingId || 'general'}`);
 
       // Insert all chunks
       const chunkRecords = chunks.map((chunk, index) => ({
