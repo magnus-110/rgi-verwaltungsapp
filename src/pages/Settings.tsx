@@ -236,15 +236,23 @@ export const Settings = () => {
     if (!confirm("Sind Sie sicher, dass Sie diesen Admin löschen möchten?")) return;
 
     try {
-      const { error } = await supabase.auth.admin.deleteUser(adminId);
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const { data, error } = await supabase.functions.invoke('admin-delete-user', {
+        body: { userId: adminId },
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`
+        }
+      });
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
       toast.success("Admin erfolgreich gelöscht");
       fetchAdminUsers();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting admin:", error);
-      toast.error("Fehler beim Löschen des Admins");
+      toast.error(error?.message || "Fehler beim Löschen des Admins");
     }
   };
 
@@ -355,15 +363,23 @@ export const Settings = () => {
     if (!confirm("Sind Sie sicher, dass Sie diesen Mitarbeiter löschen möchten?")) return;
 
     try {
-      const { error } = await supabase.auth.admin.deleteUser(employeeId);
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const { data, error } = await supabase.functions.invoke('admin-delete-user', {
+        body: { userId: employeeId },
+        headers: {
+          'Authorization': `Bearer ${session?.access_token}`
+        }
+      });
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
       toast.success("Mitarbeiter erfolgreich gelöscht");
       fetchEmployeeUsers();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error deleting employee:", error);
-      toast.error("Fehler beim Löschen des Mitarbeiters");
+      toast.error(error?.message || "Fehler beim Löschen des Mitarbeiters");
     }
   };
 
