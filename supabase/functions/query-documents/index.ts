@@ -96,14 +96,16 @@ async function searchSimilarChunks(
   embedding: number[],
   buildingId: string | null,
   includeGeneral: boolean,
-  limit: number = 10
+  limit: number = 10,
+  searchAllBuildings: boolean = false
 ): Promise<Array<{id: string, document_id: string, content: string, metadata: any, building_id: string | null, similarity: number}>> {
   // Use RPC for vector similarity search
   const { data, error } = await supabase.rpc('search_document_chunks', {
     query_embedding: `[${embedding.join(',')}]`,
     filter_building_id: buildingId,
     include_general: includeGeneral,
-    match_count: limit
+    match_count: limit,
+    search_all_buildings: searchAllBuildings
   });
 
   if (error) {
@@ -513,7 +515,7 @@ async function performDeepResearch(
     try {
       const embedding = await generateQuestionEmbedding(subQuery);
       const effectiveBuildingId = searchAllBuildings ? null : buildingId;
-      const chunks = await searchSimilarChunks(supabase, embedding, effectiveBuildingId, includeGeneral, 15);
+      const chunks = await searchSimilarChunks(supabase, embedding, effectiveBuildingId, includeGeneral, 15, searchAllBuildings);
       
       for (const chunk of chunks) {
         if (!seenChunkIds.has(chunk.id)) {
@@ -678,7 +680,8 @@ serve(async (req) => {
         questionEmbedding,
         buildingId,
         includeGeneral,
-        10
+        10,
+        searchAllBuildings || false
       );
 
       // Build document context from chunks
@@ -873,7 +876,8 @@ serve(async (req) => {
       questionEmbedding,
       effectiveBuildingId,
       includeGeneral,
-      10
+      10,
+      searchAllBuildings || false
     );
 
     if (relevantChunks.length === 0) {

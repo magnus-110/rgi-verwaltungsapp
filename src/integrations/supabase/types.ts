@@ -964,23 +964,42 @@ export type Database = {
         }
         Returns: undefined
       }
-      search_document_chunks: {
-        Args: {
-          filter_building_id?: string
-          include_general?: boolean
-          match_count?: number
-          query_embedding: string
-        }
-        Returns: {
-          building_id: string
-          category: string
-          content: string
-          document_id: string
-          id: string
-          metadata: Json
-          similarity: number
-        }[]
-      }
+      search_document_chunks:
+        | {
+            Args: {
+              filter_building_id?: string
+              include_general?: boolean
+              match_count?: number
+              query_embedding: string
+            }
+            Returns: {
+              building_id: string
+              category: string
+              content: string
+              document_id: string
+              id: string
+              metadata: Json
+              similarity: number
+            }[]
+          }
+        | {
+            Args: {
+              filter_building_id?: string
+              include_general?: boolean
+              match_count?: number
+              query_embedding: string
+              search_all_buildings?: boolean
+            }
+            Returns: {
+              building_id: string
+              category: string
+              content: string
+              document_id: string
+              id: string
+              metadata: Json
+              similarity: number
+            }[]
+          }
       user_has_admin_access: { Args: { user_id: string }; Returns: boolean }
     }
     Enums: {
