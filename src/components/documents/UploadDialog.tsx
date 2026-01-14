@@ -386,12 +386,13 @@ export function UploadDialog({ open, onOpenChange, buildings }: UploadDialogProp
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>Dokumente hochladen</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-5">
+        <ScrollArea className="flex-1 -mx-6 px-6">
+          <div className="space-y-5 pb-2">
           {/* Category Selection */}
           <div className="space-y-3">
             <Label className="text-sm font-medium">Kategorie</Label>
