@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MoreHorizontal, RefreshCw, Settings, Upload } from "lucide-react";
+import { MoreHorizontal, RefreshCw, Settings, Upload, BookOpen } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { KnowledgeScopeSelector, KnowledgeScope } from "@/components/documents/KnowledgeScopeSelector";
 import { UploadDialog } from "@/components/documents/UploadDialog";
 import { ChatWelcome } from "@/components/documents/ChatWelcome";
 import { ChatInputField } from "@/components/documents/ChatInputField";
 import { ChatMessages } from "@/components/documents/ChatMessages";
+import { PromptGuideSheet } from "@/components/documents/PromptGuideSheet";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -66,6 +67,7 @@ export function Documents() {
   // Data state
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
+  const [isPromptGuideOpen, setIsPromptGuideOpen] = useState(false);
 
   // Chat state - load sessionId from localStorage on init
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -282,7 +284,11 @@ export function Documents() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {profile?.role === 'admin' && (
+            <DropdownMenuItem onClick={() => setIsPromptGuideOpen(true)}>
+              <BookOpen className="h-4 w-4 mr-2" />
+              Prompt-Guide
+            </DropdownMenuItem>
+            {(profile?.role === 'admin' || profile?.role === 'employee') && (
               <DropdownMenuItem onClick={() => navigate('/documents/settings')}>
                 <Settings className="h-4 w-4 mr-2" />
                 Einstellungen
@@ -342,6 +348,12 @@ export function Documents() {
         open={isUploadOpen}
         onOpenChange={setIsUploadOpen}
         buildings={buildings}
+      />
+
+      {/* Prompt Guide Sheet */}
+      <PromptGuideSheet
+        open={isPromptGuideOpen}
+        onOpenChange={setIsPromptGuideOpen}
       />
     </div>
   );
