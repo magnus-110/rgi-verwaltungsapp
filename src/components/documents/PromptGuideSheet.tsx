@@ -100,61 +100,37 @@ export function PromptGuideSheet({ open, onOpenChange }: PromptGuideSheetProps) 
                 {/* Standard Template */}
                 <div className="bg-muted/50 rounded-lg p-3">
                   <p className="text-sm font-medium mb-2">Standard (eine WEG)</p>
-                  <div className="text-sm space-y-2">
-                    <div>
-                      <p className="text-muted-foreground text-xs mb-1">Frage:</p>
-                      <p className="text-xs bg-background p-2 rounded border">
-                        Welche Regelung zur Kostenverteilung ist laut Teilungserklärung und aktuellen Beschlüssen (bis 01.01.2026) aus Eigentümerversammlungen für Instandhaltung vorgesehen?
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs mb-1">Vorgaben:</p>
-                      <ul className="text-xs bg-background p-2 rounded border list-disc ml-4">
-                        <li>Wenn keine klare Regelung existiert, bitte sagen</li>
-                        <li>Antwort in Stichpunkten</li>
-                      </ul>
-                    </div>
+                  <div className="text-xs bg-background p-3 rounded border whitespace-pre-wrap">
+{`Welche Regelung zur Kostenverteilung ist laut Teilungserklärung und aktuellen Beschlüssen (bis 01.01.2026) aus Eigentümerversammlungen für Instandhaltung vorgesehen?
+
+Vorgaben:
+- Wenn keine klare Regelung existiert, bitte sagen
+- Antwort in Stichpunkten`}
                   </div>
                 </div>
 
                 {/* Mehrere WEGs Template */}
                 <div className="bg-muted/50 rounded-lg p-3">
                   <p className="text-sm font-medium mb-2">Mehrere WEGs / Vergleich</p>
-                  <div className="text-sm space-y-2">
-                    <div>
-                      <p className="text-muted-foreground text-xs mb-1">Frage:</p>
-                      <p className="text-xs bg-background p-2 rounded border">
-                        Bitte prüfe bei allen vorliegenden WEGs, welche Heizungsart genutzt wird. Prüfe hierfür jeweils die letzte Abrechnung (Datum heute: 14.01.2026) und suche nach Brennstoffbestellungen in der Buchhaltung für eine doppelte Überprüfung?
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs mb-1">Vorgaben:</p>
-                      <ul className="text-xs bg-background p-2 rounded border list-disc ml-4">
-                        <li>Erstelle eine übersichtliche Tabelle mit WEG und Heizungsart</li>
-                        <li>Wenn keine Informationen gefunden werden, markiere diese Zeile</li>
-                      </ul>
-                    </div>
+                  <div className="text-xs bg-background p-3 rounded border whitespace-pre-wrap">
+{`Bitte prüfe bei allen vorliegenden WEGs, welche Heizungsart genutzt wird. Prüfe hierfür jeweils die letzte Abrechnung (Datum heute: 14.01.2026) und suche nach Brennstoffbestellungen in der Buchhaltung für eine doppelte Überprüfung?
+
+Vorgaben:
+- Erstelle eine übersichtliche Tabelle mit WEG und Heizungsart
+- Wenn keine Informationen gefunden werden, markiere diese Zeile`}
                   </div>
                 </div>
 
                 {/* Allgemeine Infos Template */}
                 <div className="bg-muted/50 rounded-lg p-3">
                   <p className="text-sm font-medium mb-2">Allgemeine Infos</p>
-                  <div className="text-sm space-y-2">
-                    <div>
-                      <p className="text-muted-foreground text-xs mb-1">Frage:</p>
-                      <p className="text-xs bg-background p-2 rounded border">
-                        Ist die Heizungswartung nach der Betriebskostenverordnung umlagefähig in der Mietverwaltung?
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-xs mb-1">Vorgaben:</p>
-                      <ul className="text-xs bg-background p-2 rounded border list-disc ml-4">
-                        <li>Gesetzesbezug nennen</li>
-                        <li>Begründung</li>
-                        <li>Sachliche Zusammenfassung</li>
-                      </ul>
-                    </div>
+                  <div className="text-xs bg-background p-3 rounded border whitespace-pre-wrap">
+{`Ist die Heizungswartung nach der Betriebskostenverordnung umlagefähig in der Mietverwaltung?
+
+Vorgaben:
+- Gesetzesbezug nennen
+- Begründung
+- Sachliche Zusammenfassung`}
                   </div>
                 </div>
               </div>
