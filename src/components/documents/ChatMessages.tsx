@@ -1,9 +1,10 @@
 import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { FileText, ExternalLink, Wifi, ChevronDown, Copy, Check } from "lucide-react";
+import { FileText, ExternalLink, Wifi, ChevronDown, Copy, Check, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PdfViewerModal } from "./PdfViewerModal";
+import * as XLSX from "xlsx";
 
 interface ChatSource {
   content: string;
@@ -29,28 +30,37 @@ interface ChatMessagesProps {
   isLoading: boolean;
 }
 
-// Table wrapper component with permanent copy button
+// Table wrapper component with copy and Excel export buttons
 function CopyableTable({ children }: { children: React.ReactNode }) {
   const [copied, setCopied] = useState(false);
   const tableRef = React.useRef<HTMLDivElement>(null);
 
-  const handleCopyTable = async () => {
-    if (!tableRef.current) return;
+  const getTableData = () => {
+    if (!tableRef.current) return null;
     
     const table = tableRef.current.querySelector('table');
-    if (!table) return;
+    if (!table) return null;
 
-    // Extract text from table
     const rows = table.querySelectorAll('tr');
-    let text = '';
+    const data: string[][] = [];
+    
     rows.forEach(row => {
       const cells = row.querySelectorAll('th, td');
-      const rowText = Array.from(cells).map(cell => cell.textContent?.trim() || '').join('\t');
-      text += rowText + '\n';
+      const rowData = Array.from(cells).map(cell => cell.textContent?.trim() || '');
+      data.push(rowData);
     });
 
+    return data;
+  };
+
+  const handleCopyTable = async () => {
+    const data = getTableData();
+    if (!data) return;
+
+    const text = data.map(row => row.join('\t')).join('\n');
+
     try {
-      await navigator.clipboard.writeText(text.trim());
+      await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
@@ -58,22 +68,58 @@ function CopyableTable({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const handleExportExcel = () => {
+    const data = getTableData();
+    if (!data || data.length === 0) return;
+
+    // Create workbook and worksheet
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(data);
+
+    // Auto-size columns
+    const colWidths = data[0].map((_, colIndex) => {
+      const maxLength = Math.max(
+        ...data.map(row => (row[colIndex] || '').length)
+      );
+      return { wch: Math.min(Math.max(maxLength, 10), 50) };
+    });
+    ws['!cols'] = colWidths;
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Daten');
+
+    // Generate filename with timestamp
+    const timestamp = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, `NOVA_Export_${timestamp}.xlsx`);
+  };
+
   return (
     <div className="relative my-4" ref={tableRef}>
-      <button
-        onClick={handleCopyTable}
-        className={cn(
-          "absolute -top-2 -right-2 z-10 p-1.5 rounded-md transition-all duration-200",
-          "bg-background/90 hover:bg-muted border border-border/50 shadow-sm"
-        )}
-        title="Tabelle kopieren"
-      >
-        {copied ? (
-          <Check className="h-3.5 w-3.5 text-green-500" />
-        ) : (
-          <Copy className="h-3.5 w-3.5 text-muted-foreground" />
-        )}
-      </button>
+      <div className="absolute -top-2 -right-2 z-10 flex gap-1">
+        <button
+          onClick={handleExportExcel}
+          className={cn(
+            "p-1.5 rounded-md transition-all duration-200",
+            "bg-background/90 hover:bg-muted border border-border/50 shadow-sm"
+          )}
+          title="Als Excel exportieren"
+        >
+          <Download className="h-3.5 w-3.5 text-muted-foreground" />
+        </button>
+        <button
+          onClick={handleCopyTable}
+          className={cn(
+            "p-1.5 rounded-md transition-all duration-200",
+            "bg-background/90 hover:bg-muted border border-border/50 shadow-sm"
+          )}
+          title="Tabelle kopieren"
+        >
+          {copied ? (
+            <Check className="h-3.5 w-3.5 text-green-500" />
+          ) : (
+            <Copy className="h-3.5 w-3.5 text-muted-foreground" />
+          )}
+        </button>
+      </div>
       <div className="w-full overflow-auto rounded-lg border border-border">
         <table className="w-full text-sm border-collapse">
           {children}
