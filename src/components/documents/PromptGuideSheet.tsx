@@ -144,46 +144,58 @@ Vorgaben:
               
               <div className="space-y-4">
                 {/* Beschlussprüfung */}
-                <div>
+                <div className="bg-muted/50 rounded-lg p-3">
                   <p className="text-sm font-medium mb-2">Beschlussprüfung</p>
                   <div className="space-y-2">
-                    <div className="flex gap-2">
-                      <span className="text-destructive text-sm">Schlecht:</span>
-                      <span className="text-sm text-muted-foreground">„Darf man das beschließen?"</span>
+                    <div>
+                      <p className="text-destructive text-xs mb-1">Schlecht:</p>
+                      <div className="text-xs bg-background p-2 rounded border text-muted-foreground">
+                        Darf man das beschließen?
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <span className="text-green-600 dark:text-green-400 text-sm">Gut:</span>
-                      <span className="text-sm">„Ist für die Maßnahme laut Teilungserklärung der WEG Lindenweg 4 eine einfache Mehrheit ausreichend?"</span>
+                    <div>
+                      <p className="text-green-600 dark:text-green-400 text-xs mb-1">Gut:</p>
+                      <div className="text-xs bg-background p-2 rounded border">
+                        Ist für die Maßnahme laut Teilungserklärung der WEG Lindenweg 4 eine einfache Mehrheit ausreichend?
+                      </div>
                     </div>
                   </div>
                 </div>
 
                 {/* Buchhaltung */}
-                <div>
+                <div className="bg-muted/50 rounded-lg p-3">
                   <p className="text-sm font-medium mb-2">Buchhaltung</p>
                   <div className="space-y-2">
-                    <div className="flex gap-2">
-                      <span className="text-destructive text-sm">Schlecht:</span>
-                      <span className="text-sm text-muted-foreground">„Was kostet die Heizung ungefähr?"</span>
+                    <div>
+                      <p className="text-destructive text-xs mb-1">Schlecht:</p>
+                      <div className="text-xs bg-background p-2 rounded border text-muted-foreground">
+                        Was kostet die Heizung ungefähr?
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <span className="text-green-600 dark:text-green-400 text-sm">Gut:</span>
-                      <span className="text-sm">„Welche Heizungswartungskosten wurden 2023 für Einheit 5 der WEG Lindenweg 4 verbucht? Prüfe hierfür die Abrechnung sowie die Buchhaltung vom Jahr 2023."</span>
+                    <div>
+                      <p className="text-green-600 dark:text-green-400 text-xs mb-1">Gut:</p>
+                      <div className="text-xs bg-background p-2 rounded border">
+                        Welche Heizungswartungskosten wurden 2023 für Einheit 5 der WEG Lindenweg 4 verbucht? Prüfe hierfür die Abrechnung sowie die Buchhaltung vom Jahr 2023.
+                      </div>
                     </div>
                   </div>
                 </div>
 
                 {/* Rechtliche Einordnung */}
-                <div>
+                <div className="bg-muted/50 rounded-lg p-3">
                   <p className="text-sm font-medium mb-2">Rechtliche Einordnung</p>
                   <div className="space-y-2">
-                    <div className="flex gap-2">
-                      <span className="text-destructive text-sm">Schlecht:</span>
-                      <span className="text-sm text-muted-foreground">„Ist das rechtens?"</span>
+                    <div>
+                      <p className="text-destructive text-xs mb-1">Schlecht:</p>
+                      <div className="text-xs bg-background p-2 rounded border text-muted-foreground">
+                        Ist das rechtens?
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <span className="text-green-600 dark:text-green-400 text-sm">Gut:</span>
-                      <span className="text-sm">„Welche gesetzlichen Pflichten des Verwalters sind im Zusammenhang mit der vorliegenden Akte dokumentiert?"</span>
+                    <div>
+                      <p className="text-green-600 dark:text-green-400 text-xs mb-1">Gut:</p>
+                      <div className="text-xs bg-background p-2 rounded border">
+                        Welche gesetzlichen Pflichten des Verwalters sind im Zusammenhang mit der vorliegenden Akte dokumentiert?
+                      </div>
                     </div>
                   </div>
                 </div>
