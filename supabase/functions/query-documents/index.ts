@@ -14,6 +14,7 @@ interface QueryDocumentsRequest {
   sessionId: string;
   question: string;
   buildingId: string | null;
+  buildingIds?: string[] | null;
   includeGeneral: boolean;
   userId: string;
   searchAllBuildings?: boolean;
@@ -128,6 +129,54 @@ async function searchSimilarChunks(
   }
 
   return data || [];
+}
+
+// Search for similar chunks across multiple buildings
+async function searchSimilarChunksMultipleBuildings(
+  supabase: any,
+  embedding: number[],
+  buildingIds: string[],
+  includeGeneral: boolean,
+  limit: number = 10
+): Promise<Array<{id: string, document_id: string, content: string, metadata: any, building_id: string | null, similarity: number}>> {
+  if (buildingIds.length === 0) {
+    return [];
+  }
+  
+  if (buildingIds.length === 1) {
+    // Single building - use the regular function
+    return searchSimilarChunks(supabase, embedding, buildingIds[0], includeGeneral, limit, false);
+  }
+  
+  // Multiple buildings - search each and combine results
+  const allResults: Array<{id: string, document_id: string, content: string, metadata: any, building_id: string | null, similarity: number}> = [];
+  const seenIds = new Set<string>();
+  
+  // Search each building
+  for (const buildingId of buildingIds) {
+    const chunks = await searchSimilarChunks(supabase, embedding, buildingId, false, Math.ceil(limit / buildingIds.length) + 5, false);
+    for (const chunk of chunks) {
+      if (!seenIds.has(chunk.id)) {
+        seenIds.add(chunk.id);
+        allResults.push(chunk);
+      }
+    }
+  }
+  
+  // Include general documents if requested
+  if (includeGeneral) {
+    const generalChunks = await searchSimilarChunks(supabase, embedding, null, true, 5, false);
+    for (const chunk of generalChunks) {
+      if (!seenIds.has(chunk.id) && chunk.building_id === null) {
+        seenIds.add(chunk.id);
+        allResults.push(chunk);
+      }
+    }
+  }
+  
+  // Sort by similarity and take top results
+  allResults.sort((a, b) => (b.similarity || 0) - (a.similarity || 0));
+  return allResults.slice(0, limit);
 }
 
 // Get document info and generate signed URLs
@@ -611,9 +660,14 @@ serve(async (req) => {
   }
 
   try {
-    const { sessionId, question, buildingId, includeGeneral, userId, useWebSearch, searchAllBuildings, useDeepResearch } = await req.json() as QueryDocumentsRequest;
+    const { sessionId, question, buildingId, buildingIds, includeGeneral, userId, useWebSearch, searchAllBuildings, useDeepResearch } = await req.json() as QueryDocumentsRequest;
     
-    console.log(`Query: "${question}", Session: ${sessionId}, Building: ${buildingId}, IncludeGeneral: ${includeGeneral}, WebSearch: ${useWebSearch}, DeepResearch: ${useDeepResearch}, SearchAll: ${searchAllBuildings}`);
+    // Handle multiple building IDs - if buildingIds is provided, use it; otherwise use buildingId
+    const effectiveBuildingIds: string[] = buildingIds && buildingIds.length > 0 
+      ? buildingIds 
+      : (buildingId ? [buildingId] : []);
+    
+    console.log(`Query: "${question}", Session: ${sessionId}, BuildingIds: ${JSON.stringify(effectiveBuildingIds)}, IncludeGeneral: ${includeGeneral}, WebSearch: ${useWebSearch}, DeepResearch: ${useDeepResearch}, SearchAll: ${searchAllBuildings}`);
 
     if (!MISTRAL_API_KEY) {
       throw new Error('MISTRAL_API_KEY is not configured');
@@ -674,15 +728,26 @@ serve(async (req) => {
       // Generate embedding for the question
       const questionEmbedding = await generateQuestionEmbedding(question);
 
-      // Search for relevant chunks (same as document mode)
-      const relevantChunks = await searchSimilarChunks(
-        supabase,
-        questionEmbedding,
-        buildingId,
-        includeGeneral,
-        10,
-        searchAllBuildings || false
-      );
+      // Search for relevant chunks - support multiple building IDs
+      let relevantChunks;
+      if (effectiveBuildingIds.length > 1) {
+        relevantChunks = await searchSimilarChunksMultipleBuildings(
+          supabase,
+          questionEmbedding,
+          effectiveBuildingIds,
+          includeGeneral,
+          10
+        );
+      } else {
+        relevantChunks = await searchSimilarChunks(
+          supabase,
+          questionEmbedding,
+          effectiveBuildingIds[0] || null,
+          includeGeneral,
+          10,
+          searchAllBuildings || false
+        );
+      }
 
       // Build document context from chunks
       let documentContext = '';
@@ -766,18 +831,22 @@ serve(async (req) => {
     }
 
     // Determine effective building ID based on searchAllBuildings
-    const effectiveBuildingId = searchAllBuildings ? null : buildingId;
+    const effectiveBuildingId = searchAllBuildings ? null : (effectiveBuildingIds.length === 1 ? effectiveBuildingIds[0] : null);
 
     // DEEP RESEARCH MODE
     if (useDeepResearch) {
       console.log('Deep research mode activated');
       
+      // For deep research with multiple buildings, use the first building ID or null
+      const deepResearchBuildingId = effectiveBuildingIds.length > 0 ? effectiveBuildingIds[0] : null;
+      const searchAll = searchAllBuildings || effectiveBuildingIds.length > 1;
+      
       const { chunks: relevantChunks } = await performDeepResearch(
         supabase,
         question,
-        buildingId,
+        deepResearchBuildingId,
         includeGeneral,
-        searchAllBuildings || false
+        searchAll
       );
 
       if (relevantChunks.length === 0) {
@@ -870,15 +939,26 @@ serve(async (req) => {
     // NORMAL MODE - Generate embedding for the question
     const questionEmbedding = await generateQuestionEmbedding(question);
 
-    // Search for relevant chunks (use effectiveBuildingId to support searchAllBuildings)
-    const relevantChunks = await searchSimilarChunks(
-      supabase,
-      questionEmbedding,
-      effectiveBuildingId,
-      includeGeneral,
-      10,
-      searchAllBuildings || false
-    );
+    // Search for relevant chunks - support multiple building IDs
+    let relevantChunks;
+    if (effectiveBuildingIds.length > 1) {
+      relevantChunks = await searchSimilarChunksMultipleBuildings(
+        supabase,
+        questionEmbedding,
+        effectiveBuildingIds,
+        includeGeneral,
+        10
+      );
+    } else {
+      relevantChunks = await searchSimilarChunks(
+        supabase,
+        questionEmbedding,
+        effectiveBuildingId,
+        includeGeneral,
+        10,
+        searchAllBuildings || false
+      );
+    }
 
     if (relevantChunks.length === 0) {
       const noDocsAnswer = 'Es wurden keine relevanten Dokumente gefunden. Bitte laden Sie zunächst Dokumente hoch oder aktivieren Sie die Internet-Suche (🌐).';

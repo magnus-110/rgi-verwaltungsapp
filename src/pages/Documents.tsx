@@ -41,7 +41,7 @@ interface ChatMessage {
 
 const NOVA_SESSION_KEY = 'nova_current_session_id';
 const NOVA_SCOPE_KEY = 'nova_knowledge_scope';
-const NOVA_BUILDING_KEY = 'nova_selected_building_id';
+const NOVA_BUILDING_IDS_KEY = 'nova_selected_building_ids';
 const NOVA_INCLUDE_GENERAL_KEY = 'nova_include_general';
 
 export function Documents() {
@@ -56,8 +56,9 @@ export function Documents() {
     const saved = localStorage.getItem(NOVA_SCOPE_KEY);
     return (saved as KnowledgeScope) || 'general';
   });
-  const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(() => {
-    return localStorage.getItem(NOVA_BUILDING_KEY);
+  const [selectedBuildingIds, setSelectedBuildingIds] = useState<string[]>(() => {
+    const saved = localStorage.getItem(NOVA_BUILDING_IDS_KEY);
+    return saved ? JSON.parse(saved) : [];
   });
   const [includeGeneral, setIncludeGeneral] = useState(() => {
     const saved = localStorage.getItem(NOVA_INCLUDE_GENERAL_KEY);
@@ -91,12 +92,8 @@ export function Documents() {
   }, [scope]);
 
   useEffect(() => {
-    if (selectedBuildingId) {
-      localStorage.setItem(NOVA_BUILDING_KEY, selectedBuildingId);
-    } else {
-      localStorage.removeItem(NOVA_BUILDING_KEY);
-    }
-  }, [selectedBuildingId]);
+    localStorage.setItem(NOVA_BUILDING_IDS_KEY, JSON.stringify(selectedBuildingIds));
+  }, [selectedBuildingIds]);
 
   useEffect(() => {
     localStorage.setItem(NOVA_INCLUDE_GENERAL_KEY, String(includeGeneral));
@@ -113,10 +110,9 @@ export function Documents() {
 
       if (!error && data) {
         setBuildings(data);
-        // Clear selected building if it's no longer in the filtered list
-        if (selectedBuildingId && !data.find(b => b.id === selectedBuildingId)) {
-          setSelectedBuildingId(null);
-        }
+        // Clear selected buildings if they're no longer in the filtered list
+        const validIds = data.map(b => b.id);
+        setSelectedBuildingIds(prev => prev.filter(id => validIds.includes(id)));
       }
     };
 
@@ -177,10 +173,10 @@ export function Documents() {
     setIsLoading(true);
 
     try {
-      // Determine buildingId based on scope
-      let buildingId: string | null = null;
-      if (scope === 'specific' && selectedBuildingId) {
-        buildingId = selectedBuildingId;
+      // Determine buildingIds based on scope
+      let buildingIds: string[] = [];
+      if (scope === 'specific' && selectedBuildingIds.length > 0) {
+        buildingIds = selectedBuildingIds;
       }
 
       // Determine includeGeneral based on scope
@@ -190,7 +186,8 @@ export function Documents() {
         body: {
           sessionId,
           question: messageContent,
-          buildingId: scope === 'specific' ? buildingId : null,
+          buildingId: scope === 'specific' && buildingIds.length === 1 ? buildingIds[0] : null,
+          buildingIds: scope === 'specific' && buildingIds.length > 1 ? buildingIds : null,
           includeGeneral: shouldIncludeGeneral,
           userId: user?.id,
           searchAllBuildings: scope === 'all',
@@ -239,10 +236,10 @@ export function Documents() {
     
     // Reset scope to default
     localStorage.removeItem(NOVA_SCOPE_KEY);
-    localStorage.removeItem(NOVA_BUILDING_KEY);
+    localStorage.removeItem(NOVA_BUILDING_IDS_KEY);
     localStorage.removeItem(NOVA_INCLUDE_GENERAL_KEY);
     setScope('general');
-    setSelectedBuildingId(null);
+    setSelectedBuildingIds([]);
     setIncludeGeneral(true);
     
     toast({
@@ -259,8 +256,8 @@ export function Documents() {
           <KnowledgeScopeSelector
             scope={scope}
             onScopeChange={setScope}
-            selectedBuildingId={selectedBuildingId}
-            onBuildingChange={setSelectedBuildingId}
+            selectedBuildingIds={selectedBuildingIds}
+            onBuildingChange={setSelectedBuildingIds}
             includeGeneral={includeGeneral}
             onIncludeGeneralChange={setIncludeGeneral}
             buildings={buildings}
