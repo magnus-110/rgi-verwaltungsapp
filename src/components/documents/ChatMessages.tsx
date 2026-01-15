@@ -129,6 +129,11 @@ function CopyableTable({ children }: { children: React.ReactNode }) {
   );
 }
 
+// Ersetzt <br> und <br/> Tags durch echte Zeilenumbrüche
+const preprocessContent = (content: string): string => {
+  return content.replace(/<br\s*\/?>/gi, '\n');
+};
+
 export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
   const [pdfViewerOpen, setPdfViewerOpen] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<{
@@ -260,13 +265,13 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
                           </th>
                         ),
                         td: ({ children }) => (
-                          <td className="px-4 py-2 text-foreground">
+                          <td className="px-4 py-2 text-foreground whitespace-pre-line">
                             {children}
                           </td>
                         ),
                       }}
                     >
-                      {message.content}
+                      {preprocessContent(message.content)}
                     </ReactMarkdown>
                   </div>
                 )}
