@@ -146,35 +146,34 @@ export function ChatHistorySidebar({
       <div
         className={cn(
           "hidden md:flex flex-col transition-all duration-300",
-          isOpen ? "w-72 border-r border-border bg-muted/30" : "w-3"
+          isOpen ? "w-72 border-r border-border bg-muted/30" : "w-3 justify-center"
         )}
       >
-        {/* Header with toggle */}
-        <div className={cn(
-          "flex items-center",
-          isOpen ? "justify-between p-2 border-b border-border" : "justify-start py-2"
-        )}>
-          {isOpen && (
+        {/* Header with toggle - only when open */}
+        {isOpen ? (
+          <div className="flex items-center justify-between p-2 border-b border-border">
             <span className="text-sm font-medium text-muted-foreground px-2">
               Verlauf
             </span>
-          )}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsOpen(false)}
+              className="h-8 w-8 shrink-0"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+          </div>
+        ) : (
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => setIsOpen(!isOpen)}
-            className={cn(
-              "shrink-0",
-              isOpen ? "h-8 w-8" : "h-5 w-5 p-0 hover:bg-transparent"
-            )}
+            onClick={() => setIsOpen(true)}
+            className="h-5 w-5 p-0 hover:bg-transparent shrink-0"
           >
-            {isOpen ? (
-              <ChevronLeft className="h-4 w-4" />
-            ) : (
-              <ChevronRight className="h-3 w-3 text-muted-foreground" />
-            )}
+            <ChevronRight className="h-3 w-3 text-muted-foreground" />
           </Button>
-        </div>
+        )}
 
         {/* Content */}
         {isOpen && (
