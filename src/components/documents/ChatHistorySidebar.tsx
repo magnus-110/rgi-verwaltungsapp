@@ -1,12 +1,16 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Input } from "@/components/ui/input";
 import { 
   ChevronLeft, 
   ChevronRight, 
   MessageSquare, 
   Trash2,
-  Plus
+  Plus,
+  Pencil,
+  Check,
+  X
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -28,6 +32,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { toast } from "sonner";
 
 interface ChatSession {
   id: string;
@@ -56,6 +61,9 @@ export function ChatHistorySidebar({
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [deleteSessionId, setDeleteSessionId] = useState<string | null>(null);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState("");
+  const editInputRef = useRef<HTMLInputElement>(null);
 
   // Load sessions
   useEffect(() => {
@@ -123,6 +131,43 @@ export function ChatHistorySidebar({
     }
     
     setDeleteSessionId(null);
+  };
+
+  const handleStartEdit = (session: ChatSession, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingSessionId(session.id);
+    setEditingTitle(session.title || "");
+    setTimeout(() => editInputRef.current?.focus(), 0);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingSessionId(null);
+    setEditingTitle("");
+  };
+
+  const handleSaveEdit = async (sessionId: string) => {
+    const trimmedTitle = editingTitle.trim();
+    if (!trimmedTitle) {
+      toast.error("Titel darf nicht leer sein");
+      return;
+    }
+
+    const { error } = await supabase
+      .from('document_chat_sessions')
+      .update({ title: trimmedTitle })
+      .eq('id', sessionId);
+
+    if (error) {
+      toast.error("Fehler beim Speichern des Titels");
+      return;
+    }
+
+    setSessions(prev => 
+      prev.map(s => s.id === sessionId ? { ...s, title: trimmedTitle } : s)
+    );
+    setEditingSessionId(null);
+    setEditingTitle("");
+    toast.success("Titel gespeichert");
   };
 
   const formatDate = (dateString: string) => {
@@ -212,42 +257,91 @@ export function ChatHistorySidebar({
                             : "hover:bg-muted"
                         )}
                       >
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button
-                              onClick={() => onSelectSession(session)}
-                              className="w-full text-left p-2 pr-8"
+                        {editingSessionId === session.id ? (
+                          /* Edit Mode */
+                          <div className="flex items-center gap-1 p-2">
+                            <Input
+                              ref={editInputRef}
+                              value={editingTitle}
+                              onChange={(e) => setEditingTitle(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  handleSaveEdit(session.id);
+                                } else if (e.key === 'Escape') {
+                                  handleCancelEdit();
+                                }
+                              }}
+                              className="h-7 text-sm"
+                              placeholder="Titel eingeben..."
+                            />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 shrink-0"
+                              onClick={() => handleSaveEdit(session.id)}
                             >
-                              <div className="flex items-start gap-2">
-                                <MessageSquare className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-sm font-medium truncate">
-                                    {getSessionTitle(session)}
-                                  </p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {formatDate(session.updated_at)}
-                                  </p>
-                                </div>
-                              </div>
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent side="right" className="max-w-xs">
-                            <p>{getSessionTitle(session)}</p>
-                          </TooltipContent>
-                        </Tooltip>
+                              <Check className="h-3.5 w-3.5 text-green-600" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 shrink-0"
+                              onClick={handleCancelEdit}
+                            >
+                              <X className="h-3.5 w-3.5 text-muted-foreground" />
+                            </Button>
+                          </div>
+                        ) : (
+                          /* Display Mode */
+                          <>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  onClick={() => onSelectSession(session)}
+                                  className="w-full text-left p-2 pr-16"
+                                >
+                                  <div className="flex items-start gap-2">
+                                    <MessageSquare className="h-4 w-4 mt-0.5 shrink-0 text-muted-foreground" />
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-sm font-medium truncate">
+                                        {getSessionTitle(session)}
+                                      </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {formatDate(session.updated_at)}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent side="right" className="max-w-xs">
+                                <p>{getSessionTitle(session)}</p>
+                              </TooltipContent>
+                            </Tooltip>
 
-                        {/* Delete button */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeleteSessionId(session.id);
-                          }}
-                        >
-                          <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-                        </Button>
+                            {/* Action buttons */}
+                            <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={(e) => handleStartEdit(session, e)}
+                              >
+                                <Pencil className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeleteSessionId(session.id);
+                                }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                              </Button>
+                            </div>
+                          </>
+                        )}
                       </div>
                     </TooltipProvider>
                   ))
