@@ -146,11 +146,14 @@ export function ChatHistorySidebar({
       <div
         className={cn(
           "hidden md:flex flex-col border-r border-border bg-muted/30 transition-all duration-300",
-          isOpen ? "w-72" : "w-10"
+          isOpen ? "w-72" : "w-6"
         )}
       >
         {/* Header with toggle */}
-        <div className="flex items-center justify-between p-2 border-b border-border">
+        <div className={cn(
+          "flex items-center border-b border-border",
+          isOpen ? "justify-between p-2" : "justify-center py-2"
+        )}>
           {isOpen && (
             <span className="text-sm font-medium text-muted-foreground px-2">
               Verlauf
@@ -160,12 +163,12 @@ export function ChatHistorySidebar({
             variant="ghost"
             size="icon"
             onClick={() => setIsOpen(!isOpen)}
-            className="h-8 w-8 shrink-0"
+            className={cn("shrink-0", isOpen ? "h-8 w-8" : "h-6 w-6")}
           >
             {isOpen ? (
               <ChevronLeft className="h-4 w-4" />
             ) : (
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="h-3 w-3" />
             )}
           </Button>
         </div>
@@ -252,46 +255,7 @@ export function ChatHistorySidebar({
           </>
         )}
 
-        {/* Collapsed state - just show icon */}
-        {!isOpen && (
-          <div className="flex-1 flex flex-col items-center pt-2 gap-2">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={onNewSession}
-                    className="h-8 w-8"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="right">
-                  Neues Gespräch
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setIsOpen(true)}
-                    className="h-8 w-8"
-                  >
-                    <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="right">
-                  Verlauf öffnen ({sessions.length})
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-        )}
+        {/* Collapsed state - empty, just the chevron in header */}
       </div>
 
       {/* Delete Confirmation Dialog */}
