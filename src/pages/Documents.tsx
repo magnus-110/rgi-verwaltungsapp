@@ -9,6 +9,7 @@ import { ChatWelcome } from "@/components/documents/ChatWelcome";
 import { ChatInputField } from "@/components/documents/ChatInputField";
 import { ChatMessages } from "@/components/documents/ChatMessages";
 import { PromptGuideSheet } from "@/components/documents/PromptGuideSheet";
+import { ChatHistorySidebar } from "@/components/documents/ChatHistorySidebar";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -37,6 +38,16 @@ interface ChatMessage {
     buildingId?: string;
   }>;
   created_at: string;
+}
+
+interface ChatSession {
+  id: string;
+  title: string | null;
+  created_at: string;
+  updated_at: string;
+  search_scope: string;
+  include_general: boolean;
+  building_ids: string[] | null;
 }
 
 const NOVA_SESSION_KEY = 'nova_current_session_id';
@@ -248,8 +259,64 @@ export function Documents() {
     });
   };
 
+  const handleSelectSession = async (session: ChatSession) => {
+    // Set session ID
+    setSessionId(session.id);
+    localStorage.setItem(NOVA_SESSION_KEY, session.id);
+    
+    // Restore scope settings
+    if (session.building_ids && session.building_ids.length > 0) {
+      setScope('specific');
+      setSelectedBuildingIds(session.building_ids);
+      localStorage.setItem(NOVA_SCOPE_KEY, 'specific');
+      localStorage.setItem(NOVA_BUILDING_IDS_KEY, JSON.stringify(session.building_ids));
+    } else if (session.search_scope === 'all') {
+      setScope('all');
+      setSelectedBuildingIds([]);
+      localStorage.setItem(NOVA_SCOPE_KEY, 'all');
+      localStorage.setItem(NOVA_BUILDING_IDS_KEY, '[]');
+    } else {
+      setScope('general');
+      setSelectedBuildingIds([]);
+      localStorage.setItem(NOVA_SCOPE_KEY, 'general');
+      localStorage.setItem(NOVA_BUILDING_IDS_KEY, '[]');
+    }
+    
+    setIncludeGeneral(session.include_general);
+    localStorage.setItem(NOVA_INCLUDE_GENERAL_KEY, String(session.include_general));
+    
+    // Load messages for this session
+    const { data, error } = await supabase
+      .from('document_chat_messages')
+      .select('*')
+      .eq('session_id', session.id)
+      .order('created_at', { ascending: true });
+
+    if (!error && data) {
+      setMessages(data.map(msg => ({
+        id: msg.id,
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+        sources: msg.sources as any,
+        created_at: msg.created_at,
+      })));
+    }
+  };
+
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] bg-background">
+    <div className="flex h-[calc(100vh-4rem)] bg-background">
+      {/* Chat History Sidebar */}
+      {user && (
+        <ChatHistorySidebar
+          userId={user.id}
+          currentSessionId={sessionId}
+          onSelectSession={handleSelectSession}
+          onNewSession={handleNewSession}
+        />
+      )}
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col min-w-0">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-background/95 backdrop-blur-sm">
         <div className="flex items-center gap-3">
@@ -352,6 +419,7 @@ export function Documents() {
         open={isPromptGuideOpen}
         onOpenChange={setIsPromptGuideOpen}
       />
+      </div>
     </div>
   );
 }
