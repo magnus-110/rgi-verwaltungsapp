@@ -332,28 +332,34 @@ export type Database = {
       document_chat_sessions: {
         Row: {
           building_id: string | null
+          building_ids: string[] | null
           created_at: string
           id: string
           include_general: boolean
           search_scope: string
+          title: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           building_id?: string | null
+          building_ids?: string[] | null
           created_at?: string
           id?: string
           include_general?: boolean
           search_scope?: string
+          title?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           building_id?: string | null
+          building_ids?: string[] | null
           created_at?: string
           id?: string
           include_general?: boolean
           search_scope?: string
+          title?: string | null
           updated_at?: string
           user_id?: string
         }

@@ -681,14 +681,44 @@ serve(async (req) => {
 
     // Get or create session
     let currentSessionId = sessionId;
+    let isNewSession = false;
     if (!currentSessionId) {
+      // Check if user already has 20 sessions - if so, delete the oldest one
+      const { data: existingSessions } = await supabase
+        .from('document_chat_sessions')
+        .select('id, created_at')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true });
+      
+      if (existingSessions && existingSessions.length >= 20) {
+        const oldestSessionId = existingSessions[0].id;
+        console.log(`User has ${existingSessions.length} sessions, deleting oldest: ${oldestSessionId}`);
+        
+        // Delete messages first
+        await supabase
+          .from('document_chat_messages')
+          .delete()
+          .eq('session_id', oldestSessionId);
+        
+        // Then delete session
+        await supabase
+          .from('document_chat_sessions')
+          .delete()
+          .eq('id', oldestSessionId);
+      }
+      
+      // Generate title from first question (truncated)
+      const title = question.length > 50 ? question.substring(0, 47) + '...' : question;
+      
       const { data: newSession, error: sessionError } = await supabase
         .from('document_chat_sessions')
         .insert({
           user_id: userId,
           building_id: buildingId,
+          building_ids: effectiveBuildingIds.length > 0 ? effectiveBuildingIds : null,
           include_general: includeGeneral,
-          search_scope: buildingId ? (includeGeneral ? 'all' : 'building') : 'all'
+          search_scope: buildingId ? (includeGeneral ? 'all' : 'building') : 'all',
+          title: title
         })
         .select()
         .single();
@@ -697,6 +727,7 @@ serve(async (req) => {
         throw new Error(`Failed to create session: ${sessionError.message}`);
       }
       currentSessionId = newSession.id;
+      isNewSession = true;
     }
 
     // Get conversation history
