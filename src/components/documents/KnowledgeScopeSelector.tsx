@@ -267,25 +267,24 @@ export function KnowledgeScopeSelector({
                     className="pl-8 h-9 text-sm"
                   />
                 </div>
+                
+                {/* Manager Filter Button */}
+                {managers.length > 0 && (
+                  <Select value={managerFilter} onValueChange={setManagerFilter}>
+                    <SelectTrigger className="h-9 w-9 p-0 flex-shrink-0">
+                      <User className={`h-4 w-4 ${managerFilter !== 'all' ? 'text-primary' : 'text-muted-foreground'}`} />
+                    </SelectTrigger>
+                    <SelectContent align="end">
+                      <SelectItem value="all">Alle Verwalter</SelectItem>
+                      {managers.map((manager) => (
+                        <SelectItem key={manager.user_id} value={manager.user_id}>
+                          {manager.first_name} {manager.last_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
-
-              {/* Manager Filter */}
-              {managers.length > 0 && (
-                <Select value={managerFilter} onValueChange={setManagerFilter}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <User className="h-3.5 w-3.5 mr-1.5 opacity-50" />
-                    <SelectValue placeholder="Verwalter" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Alle Verwalter</SelectItem>
-                    {managers.map((manager) => (
-                      <SelectItem key={manager.user_id} value={manager.user_id}>
-                        {manager.first_name} {manager.last_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
 
               {/* Select/Deselect All */}
               {filteredBuildings.length > 0 && (
