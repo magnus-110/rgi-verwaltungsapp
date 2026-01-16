@@ -145,14 +145,14 @@ export function ChatHistorySidebar({
       {/* Toggle Button - Always visible */}
       <div
         className={cn(
-          "hidden md:flex flex-col border-r border-border bg-muted/30 transition-all duration-300",
-          isOpen ? "w-72" : "w-6"
+          "hidden md:flex flex-col transition-all duration-300",
+          isOpen ? "w-72 border-r border-border bg-muted/30" : "w-3"
         )}
       >
         {/* Header with toggle */}
         <div className={cn(
-          "flex items-center border-b border-border",
-          isOpen ? "justify-between p-2" : "justify-center py-2"
+          "flex items-center",
+          isOpen ? "justify-between p-2 border-b border-border" : "justify-start py-2"
         )}>
           {isOpen && (
             <span className="text-sm font-medium text-muted-foreground px-2">
@@ -163,12 +163,15 @@ export function ChatHistorySidebar({
             variant="ghost"
             size="icon"
             onClick={() => setIsOpen(!isOpen)}
-            className={cn("shrink-0", isOpen ? "h-8 w-8" : "h-6 w-6")}
+            className={cn(
+              "shrink-0",
+              isOpen ? "h-8 w-8" : "h-5 w-5 p-0 hover:bg-transparent"
+            )}
           >
             {isOpen ? (
               <ChevronLeft className="h-4 w-4" />
             ) : (
-              <ChevronRight className="h-3 w-3" />
+              <ChevronRight className="h-3 w-3 text-muted-foreground" />
             )}
           </Button>
         </div>
