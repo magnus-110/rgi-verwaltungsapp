@@ -32,3 +32,6 @@ verify_jwt = true
 
 [functions.continue-processing]
 verify_jwt = false
+
+[functions.enhance-prompt]
+verify_jwt = true

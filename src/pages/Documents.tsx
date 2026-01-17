@@ -170,7 +170,11 @@ export function Documents() {
     loadSession();
   }, [sessionId]);
 
-  const handleSend = async (messageContent: string) => {
+  const handleSend = async (messageContent: string, options?: {
+    enhancedQuery?: string;
+    filterCategories?: string[];
+    filterFeatures?: string[];
+  }) => {
     if (isLoading) return;
 
     const userMessage: ChatMessage = {
@@ -204,6 +208,9 @@ export function Documents() {
           searchAllBuildings: scope === 'all',
           useWebSearch: webSearchEnabled,
           useDeepResearch: deepResearchEnabled,
+          // New metadata filter options from enhancer
+          filterCategories: options?.filterCategories,
+          filterFeatures: options?.filterFeatures,
         },
       });
 
