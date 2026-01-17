@@ -20,6 +20,45 @@ interface QueryDocumentsRequest {
   searchAllBuildings?: boolean;
   useWebSearch?: boolean;
   useDeepResearch?: boolean;
+  // New metadata filter options
+  filterCategories?: string[];
+  filterFeatures?: string[];
+}
+
+// Rule-based metadata extraction (no LLM call needed)
+function extractMetadataFromQuestion(question: string): {
+  categories: string[];
+  features: string[];
+} {
+  const lowerQuestion = question.toLowerCase();
+  
+  const categoryKeywords: Record<string, string[]> = {
+    'finanzen': ['hausgeld', 'abrechnung', 'kosten', 'rücklage', 'wirtschaftsplan', 'zahlung', 'geld', 'euro', 'preis', 'gebühr', 'budget', 'konto', 'bilanz', 'einnahmen', 'ausgaben'],
+    'rechtlich': ['teilungserklärung', 'gemeinschaftsordnung', 'gesetz', 'recht', 'vertrag', 'paragraph', 'klausel', 'satzung', 'ordnung', 'regelung'],
+    'protokoll': ['beschluss', 'versammlung', 'abstimmung', 'protokoll', 'eigentümerversammlung', 'weg', 'tagesordnung', 'antrag'],
+    'technik': ['heizung', 'aufzug', 'lift', 'wartung', 'reparatur', 'dach', 'fassade', 'sanitär', 'elektro', 'installation', 'instandhaltung', 'anlage'],
+    'versicherung': ['versicherung', 'police', 'schaden', 'deckung', 'prämie', 'versichert', 'schadensfall'],
+    'eigentuemer': ['eigentümer', 'wohnung', 'einheit', 'miteigentumsanteil', 'mea', 'sondereigentum', 'teileigentum']
+  };
+  
+  const featureKeywords: Record<string, string[]> = {
+    'elevator': ['aufzug', 'lift', 'fahrstuhl'],
+    'gas_heating': ['gasheizung', 'gas-heizung', 'erdgas'],
+    'oil_heating': ['ölheizung', 'öl-heizung', 'heizöl'],
+    'heat_pump': ['wärmepumpe', 'wärme-pumpe'],
+    'solar': ['solar', 'photovoltaik', 'pv-anlage'],
+    'parking': ['tiefgarage', 'stellplatz', 'parkplatz', 'garage']
+  };
+  
+  const categories = Object.entries(categoryKeywords)
+    .filter(([_, keywords]) => keywords.some(kw => lowerQuestion.includes(kw)))
+    .map(([category]) => category);
+  
+  const features = Object.entries(featureKeywords)
+    .filter(([_, keywords]) => keywords.some(kw => lowerQuestion.includes(kw)))
+    .map(([feature]) => feature);
+  
+  return { categories, features };
 }
 
 // Default system prompts

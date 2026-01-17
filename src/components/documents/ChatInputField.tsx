@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowUp, Loader2, Mic, MicOff, Plus, Globe, Check, Star, X, FileText, ChevronLeft, SearchCheck, Pencil, ChevronRight, GripVertical } from "lucide-react";
+import { ArrowUp, Loader2, Mic, MicOff, Plus, Globe, Check, Star, X, FileText, ChevronLeft, SearchCheck, Pencil, ChevronRight, GripVertical, Wand2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -20,6 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { AddPromptDialog } from "./AddPromptDialog";
 import { EditPromptDialog } from "./EditPromptDialog";
+import { PromptEnhancerSuggestion } from "./PromptEnhancerSuggestion";
 import { Scale, Receipt, Building2, MessageCircle, Folder } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 
@@ -38,8 +39,21 @@ interface PromptTemplate {
   sort_order?: number;
 }
 
+interface EnhancedPromptData {
+  original: string;
+  enhanced: string;
+  categories: string[];
+  features: string[];
+  sourceHint: string;
+  keywords: string[];
+}
+
 interface ChatInputFieldProps {
-  onSend: (message: string) => void;
+  onSend: (message: string, options?: {
+    enhancedQuery?: string;
+    filterCategories?: string[];
+    filterFeatures?: string[];
+  }) => void;
   isLoading: boolean;
   disabled?: boolean;
   className?: string;
@@ -85,6 +99,14 @@ export function ChatInputField({
   const [prompts, setPrompts] = useState<PromptTemplate[]>([]);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [promptsLoading, setPromptsLoading] = useState(false);
+
+  // Prompt enhancer state
+  const [enhancedPrompt, setEnhancedPrompt] = useState<EnhancedPromptData | null>(null);
+  const [isEnhancing, setIsEnhancing] = useState(false);
+  const [activeFilters, setActiveFilters] = useState<{
+    categories: string[];
+    features: string[];
+  } | null>(null);
 
   // Get initial height for max calculation (approx. 40px for single row)
   const initialHeight = 40;
@@ -319,8 +341,20 @@ export function ChatInputField({
 
   const handleSend = () => {
     if (!value.trim() || isLoading || disabled) return;
-    onSend(value.trim());
+    
+    // If we have active filters from the enhancer, pass them along
+    if (activeFilters) {
+      onSend(value.trim(), {
+        filterCategories: activeFilters.categories,
+        filterFeatures: activeFilters.features,
+      });
+      setActiveFilters(null);
+    } else {
+      onSend(value.trim());
+    }
+    
     setValue("");
+    setEnhancedPrompt(null);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -330,25 +364,93 @@ export function ChatInputField({
     }
   };
 
+  // Prompt Enhancer handlers
+  const handleEnhancePrompt = async () => {
+    if (!value.trim() || isEnhancing) return;
+    setIsEnhancing(true);
+    setEnhancedPrompt({
+      original: value,
+      enhanced: '',
+      categories: [],
+      features: [],
+      sourceHint: '',
+      keywords: [],
+    });
+
+    try {
+      const { data, error } = await supabase.functions.invoke('enhance-prompt', {
+        body: { question: value }
+      });
+
+      if (error) throw error;
+
+      setEnhancedPrompt({
+        original: value,
+        enhanced: data.enhanced_query || value,
+        categories: data.categories || [],
+        features: data.features || [],
+        sourceHint: data.source_hint || '',
+        keywords: data.keywords || [],
+      });
+    } catch (error) {
+      console.error('Enhance prompt error:', error);
+      toast({
+        title: "Fehler",
+        description: "Prompt konnte nicht optimiert werden.",
+        variant: "destructive",
+      });
+      setEnhancedPrompt(null);
+    } finally {
+      setIsEnhancing(false);
+    }
+  };
+
+  const handleAcceptEnhanced = () => {
+    if (enhancedPrompt) {
+      setValue(enhancedPrompt.enhanced);
+      setActiveFilters({
+        categories: enhancedPrompt.categories,
+        features: enhancedPrompt.features,
+      });
+      setEnhancedPrompt(null);
+    }
+  };
+
+  const handleCloseEnhanced = () => {
+    setEnhancedPrompt(null);
+  };
+
   const hasSpeechRecognition = typeof window !== 'undefined' && 
     (window.SpeechRecognition || window.webkitSpeechRecognition);
 
   return (
     <>
-      <div className={cn("w-full max-w-3xl mx-auto px-4", className)}>
-        {/* Badges (positioned above the pill) */}
-        {(webSearchEnabled || deepResearchEnabled) && (
-          <div className="mb-2 ml-1 flex gap-2">
-            {webSearchEnabled && (
-              <button
-                onClick={onWebSearchToggle}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-full text-xs hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors"
-              >
-                <Globe className="h-3.5 w-3.5" />
-                <span>Suche</span>
-                <X className="h-3 w-3 ml-0.5" />
-              </button>
-            )}
+      <div className={cn("w-full max-w-3xl mx-auto", className)}>
+        {/* Prompt Enhancer Suggestion */}
+        {enhancedPrompt && (
+          <PromptEnhancerSuggestion
+            data={enhancedPrompt}
+            isLoading={isEnhancing}
+            onAccept={handleAcceptEnhanced}
+            onRegenerate={handleEnhancePrompt}
+            onClose={handleCloseEnhanced}
+          />
+        )}
+
+        <div className="px-4">
+          {/* Badges (positioned above the pill) */}
+          {(webSearchEnabled || deepResearchEnabled || activeFilters) && (
+            <div className="mb-2 ml-1 flex flex-wrap gap-2">
+              {webSearchEnabled && (
+                <button
+                  onClick={onWebSearchToggle}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 rounded-full text-xs hover:bg-orange-200 dark:hover:bg-orange-900/50 transition-colors"
+                >
+                  <Globe className="h-3.5 w-3.5" />
+                  <span>Suche</span>
+                  <X className="h-3 w-3 ml-0.5" />
+                </button>
+              )}
               {deepResearchEnabled && (
                 <button
                   onClick={onDeepResearchToggle}
@@ -359,8 +461,18 @@ export function ChatInputField({
                   <X className="h-3 w-3 ml-0.5" />
                 </button>
               )}
-          </div>
-        )}
+              {activeFilters && activeFilters.categories.length > 0 && (
+                <button
+                  onClick={() => setActiveFilters(null)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 text-primary rounded-full text-xs hover:bg-primary/20 transition-colors"
+                >
+                  <Wand2 className="h-3.5 w-3.5" />
+                  <span>Filter aktiv</span>
+                  <X className="h-3 w-3 ml-0.5" />
+                </button>
+              )}
+            </div>
+          )}
 
         <div className="relative flex items-end gap-2 rounded-full border border-border bg-muted/50 shadow-sm px-4 py-2">
           {/* Plus Menu */}
@@ -643,6 +755,34 @@ export function ChatInputField({
             )}
           />
           
+          {/* Prompt Enhancer Button */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  onClick={handleEnhancePrompt}
+                  disabled={!value.trim() || isLoading || disabled || isEnhancing}
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    "h-9 w-9 rounded-full flex-shrink-0",
+                    isEnhancing && "text-primary bg-primary/10"
+                  )}
+                >
+                  {isEnhancing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Wand2 className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                <p>Prompt optimieren</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          
           {/* Voice Input Button */}
           {hasSpeechRecognition && (
             <Button
@@ -677,6 +817,7 @@ export function ChatInputField({
               <ArrowUp className="h-4 w-4" />
             )}
           </Button>
+        </div>
         </div>
       </div>
 

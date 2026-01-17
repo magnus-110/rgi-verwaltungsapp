@@ -1009,6 +1009,26 @@ export type Database = {
               similarity: number
             }[]
           }
+      search_document_chunks_with_metadata: {
+        Args: {
+          filter_building_id?: string
+          filter_categories?: string[]
+          filter_features?: string[]
+          include_general?: boolean
+          match_count?: number
+          query_embedding: string
+          search_all_buildings?: boolean
+        }
+        Returns: {
+          building_id: string
+          category: string
+          content: string
+          document_id: string
+          id: string
+          metadata: Json
+          similarity: number
+        }[]
+      }
       user_has_admin_access: { Args: { user_id: string }; Returns: boolean }
     }
     Enums: {
