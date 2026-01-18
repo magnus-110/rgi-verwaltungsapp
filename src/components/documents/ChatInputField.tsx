@@ -405,9 +405,9 @@ export function ChatInputField({
     }
   };
 
-  const handleAcceptEnhanced = () => {
+  const handleAcceptEnhanced = (editedText: string) => {
     if (enhancedPrompt) {
-      setValue(enhancedPrompt.enhanced);
+      setValue(editedText);
       setActiveFilters({
         categories: enhancedPrompt.categories,
         features: enhancedPrompt.features,
