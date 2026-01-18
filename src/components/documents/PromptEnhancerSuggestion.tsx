@@ -1,8 +1,7 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
-import { Sparkles, RefreshCw, X, Check, MapPin, Loader2, Pencil } from "lucide-react";
+import { Sparkles, RefreshCw, X, Check, MapPin, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface EnhancedPromptData {
@@ -49,14 +48,21 @@ export function PromptEnhancerSuggestion({
   onRegenerate,
   onClose,
 }: PromptEnhancerSuggestionProps) {
-  const [isEditing, setIsEditing] = useState(false);
   const [editedText, setEditedText] = useState(data.enhanced);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Update editedText when data changes (e.g., on regenerate)
   useEffect(() => {
     setEditedText(data.enhanced);
-    setIsEditing(false);
   }, [data.enhanced]);
+
+  // Auto-resize textarea to fit content
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+    }
+  }, [editedText]);
 
   const handleAccept = () => {
     onAccept(editedText);
@@ -103,25 +109,14 @@ export function PromptEnhancerSuggestion({
             </div>
           ) : (
             <>
-              {/* Enhanced Query - Editable */}
-              <div className="relative group">
-                {isEditing ? (
-                  <Textarea
-                    value={editedText}
-                    onChange={(e) => setEditedText(e.target.value)}
-                    className="text-sm leading-relaxed min-h-[80px] resize-none"
-                    autoFocus
-                  />
-                ) : (
-                  <div 
-                    className="relative cursor-pointer rounded-md p-2 -m-2 hover:bg-muted/50 transition-colors"
-                    onClick={() => setIsEditing(true)}
-                  >
-                    <p className="text-sm leading-relaxed pr-6">{editedText}</p>
-                    <Pencil className="absolute top-2 right-2 h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                )}
-              </div>
+              {/* Enhanced Query - Inline Editable */}
+              <textarea
+                ref={textareaRef}
+                value={editedText}
+                onChange={(e) => setEditedText(e.target.value)}
+                className="w-full text-sm leading-relaxed bg-transparent border-none outline-none resize-none focus:ring-0 p-0 text-foreground placeholder:text-muted-foreground"
+                rows={1}
+              />
 
               {/* Categories & Features */}
               {(data.categories.length > 0 || data.features.length > 0) && (
@@ -160,21 +155,11 @@ export function PromptEnhancerSuggestion({
 
         {/* Footer */}
         {!isLoading && (
-          <div className="px-4 pb-4 flex gap-2">
-            {isEditing && (
-              <Button
-                onClick={() => setIsEditing(false)}
-                size="sm"
-                variant="outline"
-                className="flex-1"
-              >
-                Fertig
-              </Button>
-            )}
+          <div className="px-4 pb-4">
             <Button
               onClick={handleAccept}
               size="sm"
-              className={isEditing ? "flex-1" : "w-full"}
+              className="w-full"
             >
               <Check className="h-4 w-4 mr-2" />
               Übernehmen
