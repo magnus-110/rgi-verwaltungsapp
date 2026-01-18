@@ -239,6 +239,7 @@ export function KnowledgeScopeSelector({
           <button
             onClick={() => {
               onScopeChange('specific');
+              onIncludeGeneralChange(false);
             }}
             className={cn(
               "w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-left transition-colors",
