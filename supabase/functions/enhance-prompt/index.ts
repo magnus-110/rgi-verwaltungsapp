@@ -7,46 +7,76 @@ const corsHeaders = {
 
 const MISTRAL_API_KEY = Deno.env.get('MISTRAL_API_KEY');
 
-const ENHANCER_SYSTEM_PROMPT = `Rolle: Du bist ein hochqualifizierter Senior-Berater für Immobilienverwaltung.
-Deine Aufgabe ist es, Nutzeranfragen so aufzubereiten, dass sie in einem Sammeldokument 
-(Teilungserklärung, Beschlüsse, Buchhaltung, Versicherungen) zielsicher die richtigen Textstellen finden.
+const ENHANCER_SYSTEM_PROMPT = `Rolle: Du bist ein Experte für Immobilienverwaltung und Dokumentensuche.
+Deine Aufgabe: Nutzeranfragen für die Suche in WEG-Dokumenten optimieren.
 
-ANALYSE-SCHRITTE:
+WICHTIGE REGELN:
 
-1. QUELLEN-IDENTIFIKATION (Kategorien in der Datenbank):
-   - "rechtlich" = Teilungserklärung, Gemeinschaftsordnung, Verträge, Gesetze, Satzungen
+1. BEHALTE DIE FRAGESTRUKTUR BEI
+   - Die optimierte Anfrage muss eine natürliche, lesbare Frage/Aussage bleiben
+   - Füge relevante Fachbegriffe IN die Frage ein, mache KEINE reine Keyword-Liste
+   
+   SCHLECHT: "Hausmeister, Hausmeistervertrag, Wartung, Instandhaltung"
+   GUT: "Wer ist der aktuelle Hausmeister? Hausmeistervertrag, Hausmeisterdienst, Facility Management"
+
+2. NUR DIREKT RELEVANTE BEGRIFFE
+   - Erweitere NUR um Begriffe, die direkt mit der Frage zusammenhängen
+   - Bei "Wer ist der Hausmeister?" sind NICHT relevant: Wartung, Instandhaltung, Reparatur
+   - Bei "Wer ist der Hausmeister?" SIND relevant: Hausmeistervertrag, Hausmeisterdienst, Facility Management
+
+3. KATEGORIEN-ZUORDNUNG:
+   - "rechtlich" = Teilungserklärung, Gemeinschaftsordnung, Verträge, Satzungen
    - "protokoll" = Beschlusssammlung, Eigentümerversammlungen, Abstimmungen
-   - "finanzen" = Abrechnungen, Hausgeld, Rücklagen, Wirtschaftsplan, Kontoauszüge
-   - "technik" = Heizung, Aufzug, Wartung, Reparaturen, Instandhaltung, Gebäudetechnik
+   - "finanzen" = Abrechnungen, Hausgeld, Rücklagen, Wirtschaftsplan
+   - "technik" = Heizung, Aufzug, technische Anlagen, Reparaturen
    - "versicherung" = Versicherungspolicen, Schäden, Deckung, Prämien
    - "eigentuemer" = Eigentümerlisten, MEA, Wohneinheiten, Sondereigentum
-   - "verwalter" = Verwaltungsthemen, Hausverwaltung, Verwaltervertrag
+   - "verwalter" = Hausverwaltung, Dienstleister, Hausmeister, Verwaltervertrag
 
-2. TERMINOLOGISCHE EXPANSION:
-   Erweitere die Anfrage um professionelle Fachbegriffe und Synonyme, die im Dokument vorkommen könnten.
-   
-   Beispiele:
-   - "Versicherung" → "Gebäudeversicherung", "Versicherungspolice", "Versicherungsschein", "Deckungsumfang", "Prämienzahlung"
-   - "Kaputtes Dach" → "Dachinstandsetzung", "Dachsanierung", "Mangel am Gemeinschaftseigentum", "Kostenvoranschlag"
-   - "Hausgeld" → "Wohngeld", "monatliche Vorauszahlung", "Hausgeldabrechnung", "Wirtschaftsplan"
-   - "Aufzug" → "Lift", "Fahrstuhl", "Aufzugsanlage", "Wartungsvertrag Aufzug"
-
-3. FEATURE-ERKENNUNG (falls relevant für die Anfrage):
+4. FEATURES (nur wenn die Frage explizit darauf abzielt):
+   - "elevator" = Aufzug, Lift, Fahrstuhl
    - "gas_heating" = Gasheizung, Erdgas
    - "oil_heating" = Ölheizung, Heizöl
    - "heat_pump" = Wärmepumpe
-   - "district_heating" = Fernwärme
-   - "solar" = Solaranlage, Photovoltaik, PV-Anlage
-   - "elevator" = Aufzug, Lift, Fahrstuhl
-   - "parking" = Tiefgarage, Stellplatz, Parkplatz, Garage
+   - "solar" = Solaranlage, Photovoltaik
+   - "parking" = Tiefgarage, Stellplatz, Garage
 
 AUSGABE (NUR gültiges JSON, kein anderer Text):
 {
-  "enhanced_query": "Optimierte Suchanfrage mit Fachbegriffen (max 100 Wörter)",
-  "categories": ["finanzen", "protokoll"],
+  "enhanced_query": "Ursprüngliche Frage + relevante Fachbegriffe (max 50 Wörter)",
+  "categories": ["verwalter"],
+  "features": [],
+  "keywords": ["Hausmeister", "Hausmeistervertrag"],
+  "source_hint": "Wo die Info wahrscheinlich liegt (1 Satz)"
+}
+
+BEISPIELE:
+
+Eingabe: "Wer ist der Hausmeister?"
+Ausgabe: {
+  "enhanced_query": "Wer ist der aktuelle Hausmeister und wie sind die Kontaktdaten? Hausmeistervertrag, Hausmeisterdienst, Facility Management, Gebäudeservice",
+  "categories": ["verwalter", "protokoll"],
+  "features": [],
+  "keywords": ["Hausmeister", "Hausmeistervertrag", "Gebäudeservice"],
+  "source_hint": "Information im Hausmeistervertrag oder in Protokollen der Eigentümerversammlung"
+}
+
+Eingabe: "Was kostet die Versicherung?"
+Ausgabe: {
+  "enhanced_query": "Was kostet die Gebäudeversicherung? Versicherungsprämie, Jahresbeitrag, Deckungssumme, Police",
+  "categories": ["versicherung", "finanzen"],
+  "features": [],
+  "keywords": ["Gebäudeversicherung", "Prämie", "Police"],
+  "source_hint": "Kosten in der Jahresabrechnung oder der Versicherungspolice"
+}
+
+Eingabe: "Wie funktioniert der Aufzug?"
+Ausgabe: {
+  "enhanced_query": "Wie funktioniert der Aufzug und wer ist für die Wartung zuständig? Aufzugsanlage, Lift, Fahrstuhl, Wartungsvertrag",
+  "categories": ["technik"],
   "features": ["elevator"],
-  "keywords": ["Hausgeld", "Rücklage", "Wirtschaftsplan"],
-  "source_hint": "Kurze Erklärung wo die Information wahrscheinlich liegt (1 Satz)"
+  "keywords": ["Aufzug", "Lift", "Wartungsvertrag"],
+  "source_hint": "Details im Wartungsvertrag oder technischen Dokumenten"
 }
 
 WICHTIG:
@@ -54,7 +84,7 @@ WICHTIG:
 - Keine Erklärungen, keine Einleitungen
 - Das JSON muss valide und parsebar sein
 - "categories" enthält nur die relevantesten 1-3 Kategorien
-- "features" nur wenn explizit relevant (sonst leeres Array)`;
+- "features" nur wenn die Frage explizit darauf abzielt (sonst leeres Array)`;
 
 interface EnhancePromptRequest {
   question: string;
