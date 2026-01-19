@@ -917,6 +917,9 @@ BEISPIELE:
         // Extract document sources
         documentSources = relevantChunks.slice(0, 3).map(chunk => {
           const docInfo = documentMap.get(chunk.document_id);
+          // Parse page number from metadata - handles formats like "10-11" or "13"
+          const rawPage = chunk.metadata?.pages || chunk.metadata?.page;
+          const pageNumber = rawPage ? parseInt(String(rawPage).split('-')[0], 10) : null;
           return {
             type: 'document',
             content: chunk.content.slice(0, 150) + '...',
@@ -924,7 +927,7 @@ BEISPIELE:
             documentId: chunk.document_id,
             fileName: docInfo?.file_name || null,
             documentUrl: docInfo?.signedUrl || null,
-            pageNumber: chunk.metadata?.page || null
+            pageNumber: pageNumber && !isNaN(pageNumber) ? pageNumber : null
           };
         });
       } else {
@@ -1158,9 +1161,9 @@ BEISPIELE:
     // Extract sources from chunks with document URLs
     const extractedSources = relevantChunks.slice(0, 5).map(chunk => {
       const docInfo = documentMap.get(chunk.document_id);
-      // Ensure pageNumber is a valid integer
-      const rawPage = chunk.metadata?.page;
-      const pageNumber = rawPage ? parseInt(String(rawPage), 10) : null;
+      // Parse page number from metadata - handles formats like "10-11" or "13"
+      const rawPage = chunk.metadata?.pages || chunk.metadata?.page;
+      const pageNumber = rawPage ? parseInt(String(rawPage).split('-')[0], 10) : null;
       
       return {
         content: chunk.content.slice(0, 200) + '...',
