@@ -802,21 +802,42 @@ BEISPIELE:
         // Keep the truncated question as fallback
       }
       
-      const { data: newSession, error: sessionError } = await supabase
-        .from('document_chat_sessions')
-        .insert({
-          user_id: userId,
-          building_id: buildingId,
-          building_ids: effectiveBuildingIds.length > 0 ? effectiveBuildingIds : null,
-          include_general: includeGeneral,
-          search_scope: buildingId ? (includeGeneral ? 'all' : 'building') : 'all',
-          title: title
-        })
-        .select()
-        .single();
+      // Create session with retry logic for transient network errors
+      let newSession = null;
+      let sessionError = null;
+      const maxRetries = 3;
+      
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        const { data, error } = await supabase
+          .from('document_chat_sessions')
+          .insert({
+            user_id: userId,
+            building_id: buildingId,
+            building_ids: effectiveBuildingIds.length > 0 ? effectiveBuildingIds : null,
+            include_general: includeGeneral,
+            search_scope: buildingId ? (includeGeneral ? 'all' : 'building') : 'all',
+            title: title
+          })
+          .select()
+          .single();
+        
+        if (!error) {
+          newSession = data;
+          sessionError = null;
+          break;
+        }
+        
+        sessionError = error;
+        console.log(`Session creation attempt ${attempt} failed:`, error.message);
+        
+        if (attempt < maxRetries) {
+          // Wait before retry (exponential backoff: 100ms, 200ms, 400ms)
+          await new Promise(resolve => setTimeout(resolve, 100 * Math.pow(2, attempt - 1)));
+        }
+      }
 
-      if (sessionError) {
-        throw new Error(`Failed to create session: ${sessionError.message}`);
+      if (sessionError || !newSession) {
+        throw new Error(`Failed to create session after ${maxRetries} attempts: ${sessionError?.message}`);
       }
       currentSessionId = newSession.id;
       isNewSession = true;
