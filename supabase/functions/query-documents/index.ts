@@ -746,8 +746,61 @@ serve(async (req) => {
           .eq('id', oldestSessionId);
       }
       
-      // Generate title from first question (truncated)
-      const title = question.length > 50 ? question.substring(0, 47) + '...' : question;
+      // Generate AI-powered short title (max 3 words) using Mistral Small
+      let title = question.length > 50 ? question.substring(0, 47) + '...' : question;
+      
+      try {
+        console.log('Generating AI title for new session...');
+        const titleResponse = await fetch('https://api.mistral.ai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${MISTRAL_API_KEY}`
+          },
+          body: JSON.stringify({
+            model: 'mistral-small-latest',
+            messages: [
+              {
+                role: 'system',
+                content: `Du generierst ultra-kurze Chat-Titel (maximal 3 Wörter) für Immobilienverwaltungs-Anfragen.
+
+REGELN:
+- Maximal 3 Wörter
+- Deutsch
+- Beschreibe das Thema/die Absicht, nicht die Frage
+- Keine Satzzeichen
+- Keine Artikel (der, die, das)
+- Substantive großschreiben
+
+BEISPIELE:
+"Was kostet die Heizungsreparatur?" → "Heizung Kosten"
+"Wann findet die nächste Eigentümerversammlung statt?" → "Nächste Versammlung"
+"Wie hoch ist die Rücklage?" → "Rücklage Stand"
+"Was steht in der Teilungserklärung zu Balkonen?" → "Balkon Regelung"
+"Wer ist für den Aufzug zuständig?" → "Aufzug Zuständigkeit"`
+              },
+              {
+                role: 'user',
+                content: question
+              }
+            ],
+            max_tokens: 20,
+            temperature: 0.3
+          })
+        });
+
+        if (titleResponse.ok) {
+          const titleData = await titleResponse.json();
+          const generatedTitle = titleData.choices?.[0]?.message?.content?.trim();
+          if (generatedTitle && generatedTitle.length > 0 && generatedTitle.length <= 50) {
+            title = generatedTitle;
+            console.log('Generated AI title:', title);
+          }
+        }
+      } catch (titleError) {
+        console.log('Failed to generate AI title, using fallback:', titleError);
+        // Keep the truncated question as fallback
+      }
       
       const { data: newSession, error: sessionError } = await supabase
         .from('document_chat_sessions')
