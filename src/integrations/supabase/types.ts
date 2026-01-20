@@ -14,6 +14,111 @@ export type Database = {
   }
   public: {
     Tables: {
+      agent_presets: {
+        Row: {
+          agent_ids: string[] | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          id: string
+          is_default: boolean | null
+          is_template: boolean | null
+          management_mode: Database["public"]["Enums"]["management_mode"] | null
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          agent_ids?: string[] | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_default?: boolean | null
+          is_template?: boolean | null
+          management_mode?:
+            | Database["public"]["Enums"]["management_mode"]
+            | null
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          agent_ids?: string[] | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_default?: boolean | null
+          is_template?: boolean | null
+          management_mode?:
+            | Database["public"]["Enums"]["management_mode"]
+            | null
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_presets_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      agent_search_results: {
+        Row: {
+          agent_id: string
+          chunk_results: Json | null
+          confidence_scores: Json | null
+          created_at: string | null
+          error_message: string | null
+          found_pages: number[] | null
+          id: string
+          job_id: string
+          processing_time_ms: number | null
+          status: string | null
+        }
+        Insert: {
+          agent_id: string
+          chunk_results?: Json | null
+          confidence_scores?: Json | null
+          created_at?: string | null
+          error_message?: string | null
+          found_pages?: number[] | null
+          id?: string
+          job_id: string
+          processing_time_ms?: number | null
+          status?: string | null
+        }
+        Update: {
+          agent_id?: string
+          chunk_results?: Json | null
+          confidence_scores?: Json | null
+          created_at?: string | null
+          error_message?: string | null
+          found_pages?: number[] | null
+          id?: string
+          job_id?: string
+          processing_time_ms?: number | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agent_search_results_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "reorganization_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agent_search_results_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "reorganization_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       building_documents: {
         Row: {
           building_id: string | null
@@ -457,6 +562,50 @@ export type Database = {
           },
         ]
       }
+      document_page_index: {
+        Row: {
+          confidence_score: number | null
+          created_at: string | null
+          detected_type: string | null
+          document_id: string
+          id: string
+          keywords: string[] | null
+          page_number: number
+          page_summary: string | null
+          raw_text: string | null
+        }
+        Insert: {
+          confidence_score?: number | null
+          created_at?: string | null
+          detected_type?: string | null
+          document_id: string
+          id?: string
+          keywords?: string[] | null
+          page_number: number
+          page_summary?: string | null
+          raw_text?: string | null
+        }
+        Update: {
+          confidence_score?: number | null
+          created_at?: string | null
+          detected_type?: string | null
+          document_id?: string
+          id?: string
+          keywords?: string[] | null
+          page_number?: number
+          page_summary?: string | null
+          raw_text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_page_index_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "building_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       forum_post_templates: {
         Row: {
           content: string
@@ -722,6 +871,246 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "prompt_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reorganization_agents: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          example_content: string | null
+          icon: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          output_filename_pattern: string | null
+          search_keywords: string[] | null
+          sort_order: number | null
+          system_prompt: string
+          updated_at: string | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          example_content?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          output_filename_pattern?: string | null
+          search_keywords?: string[] | null
+          sort_order?: number | null
+          system_prompt: string
+          updated_at?: string | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          example_content?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          output_filename_pattern?: string | null
+          search_keywords?: string[] | null
+          sort_order?: number | null
+          system_prompt?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reorganization_agents_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      reorganization_jobs: {
+        Row: {
+          building_id: string | null
+          completed_at: string | null
+          created_at: string | null
+          created_by: string | null
+          current_agent_name: string | null
+          current_phase: string | null
+          error_message: string | null
+          id: string
+          page_mappings: Json | null
+          preset_id: string | null
+          processed_pages: number | null
+          progress: number | null
+          selected_agent_ids: string[] | null
+          source_document_id: string
+          status: string | null
+          total_pages: number | null
+          unassigned_pages: number[] | null
+          updated_at: string | null
+          validation_report: Json | null
+        }
+        Insert: {
+          building_id?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          current_agent_name?: string | null
+          current_phase?: string | null
+          error_message?: string | null
+          id?: string
+          page_mappings?: Json | null
+          preset_id?: string | null
+          processed_pages?: number | null
+          progress?: number | null
+          selected_agent_ids?: string[] | null
+          source_document_id: string
+          status?: string | null
+          total_pages?: number | null
+          unassigned_pages?: number[] | null
+          updated_at?: string | null
+          validation_report?: Json | null
+        }
+        Update: {
+          building_id?: string | null
+          completed_at?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          current_agent_name?: string | null
+          current_phase?: string | null
+          error_message?: string | null
+          id?: string
+          page_mappings?: Json | null
+          preset_id?: string | null
+          processed_pages?: number | null
+          progress?: number | null
+          selected_agent_ids?: string[] | null
+          source_document_id?: string
+          status?: string | null
+          total_pages?: number | null
+          unassigned_pages?: number[] | null
+          updated_at?: string | null
+          validation_report?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reorganization_jobs_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reorganization_jobs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "reorganization_jobs_preset_id_fkey"
+            columns: ["preset_id"]
+            isOneToOne: false
+            referencedRelation: "agent_presets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reorganization_jobs_source_document_id_fkey"
+            columns: ["source_document_id"]
+            isOneToOne: false
+            referencedRelation: "building_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reorganized_documents: {
+        Row: {
+          agent_id: string | null
+          building_id: string | null
+          category_label: string | null
+          created_at: string | null
+          download_count: number | null
+          file_name: string
+          file_path: string
+          file_size: number | null
+          id: string
+          is_indexed: boolean | null
+          job_id: string
+          page_count: number | null
+          source_document_id: string
+          source_page_ranges: string | null
+          source_pages: number[] | null
+          storage_url: string | null
+        }
+        Insert: {
+          agent_id?: string | null
+          building_id?: string | null
+          category_label?: string | null
+          created_at?: string | null
+          download_count?: number | null
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          id?: string
+          is_indexed?: boolean | null
+          job_id: string
+          page_count?: number | null
+          source_document_id: string
+          source_page_ranges?: string | null
+          source_pages?: number[] | null
+          storage_url?: string | null
+        }
+        Update: {
+          agent_id?: string | null
+          building_id?: string | null
+          category_label?: string | null
+          created_at?: string | null
+          download_count?: number | null
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          id?: string
+          is_indexed?: boolean | null
+          job_id?: string
+          page_count?: number | null
+          source_document_id?: string
+          source_page_ranges?: string | null
+          source_pages?: number[] | null
+          storage_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reorganized_documents_agent_id_fkey"
+            columns: ["agent_id"]
+            isOneToOne: false
+            referencedRelation: "reorganization_agents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reorganized_documents_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reorganized_documents_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "reorganization_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reorganized_documents_source_document_id_fkey"
+            columns: ["source_document_id"]
+            isOneToOne: false
+            referencedRelation: "building_documents"
             referencedColumns: ["id"]
           },
         ]
