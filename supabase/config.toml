@@ -35,3 +35,12 @@ verify_jwt = false
 
 [functions.enhance-prompt]
 verify_jwt = true
+
+[functions.classify-document-pages]
+verify_jwt = true
+
+[functions.run-agent-search]
+verify_jwt = false
+
+[functions.orchestrate-reorganization]
+verify_jwt = true
