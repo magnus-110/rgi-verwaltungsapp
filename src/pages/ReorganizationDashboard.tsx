@@ -378,12 +378,12 @@ export function ReorganizationDashboard() {
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Gebäude (optional)</label>
-                  <Select value={selectedBuilding} onValueChange={setSelectedBuilding}>
+                  <Select value={selectedBuilding || "all"} onValueChange={(val) => setSelectedBuilding(val === "all" ? "" : val)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Alle Gebäude" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Alle Gebäude</SelectItem>
+                      <SelectItem value="all">Alle Gebäude</SelectItem>
                       {buildings.map(b => (
                         <SelectItem key={b.id} value={b.id}>
                           {b.name} ({b.building_code})
@@ -401,7 +401,7 @@ export function ReorganizationDashboard() {
                     </SelectTrigger>
                     <SelectContent>
                       {filteredDocuments.length === 0 ? (
-                        <SelectItem value="" disabled>
+                        <SelectItem value="none" disabled>
                           Keine verarbeiteten Dokumente gefunden
                         </SelectItem>
                       ) : (
