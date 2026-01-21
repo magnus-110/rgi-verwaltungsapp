@@ -164,40 +164,22 @@ export function AgentEditDialog({ open, onOpenChange, agent, onSave }: AgentEdit
               />
             </div>
 
-            {/* Icon and Color */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Icon</Label>
-                <div className="flex flex-wrap gap-2">
-                  {ICON_OPTIONS.slice(0, 8).map(icon => (
-                    <Button
-                      key={icon}
-                      type="button"
-                      variant={formData.icon === icon ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setFormData(prev => ({ ...prev, icon }))}
-                      className="w-10 h-10 p-0"
-                    >
-                      {icon.slice(0, 2)}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Farbe</Label>
-                <div className="flex flex-wrap gap-2">
-                  {COLOR_OPTIONS.slice(0, 8).map(color => (
-                    <button
-                      key={color}
-                      type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, color }))}
-                      className={`w-8 h-8 rounded-lg transition-all ${
-                        formData.color === color ? "ring-2 ring-offset-2 ring-primary" : ""
-                      }`}
-                      style={{ backgroundColor: color }}
-                    />
-                  ))}
-                </div>
+            {/* Icon */}
+            <div className="space-y-2">
+              <Label>Icon</Label>
+              <div className="flex flex-wrap gap-2">
+                {ICON_OPTIONS.map(icon => (
+                  <Button
+                    key={icon}
+                    type="button"
+                    variant={formData.icon === icon ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setFormData(prev => ({ ...prev, icon }))}
+                    className="w-10 h-10 p-0"
+                  >
+                    {icon.slice(0, 2)}
+                  </Button>
+                ))}
               </div>
             </div>
 

@@ -243,28 +243,17 @@ serve(async (req) => {
       .filter(p => !allAssignedPages.has(p))
       .sort((a, b) => a - b);
 
-    // Update job with results
+    // Update job with results - pause for user review
     await supabase
       .from("reorganization_jobs")
       .update({
-        status: "validating",
-        progress: 80,
-        current_phase: "Ergebnisse werden validiert...",
+        status: "awaiting_review",
+        progress: 85,
+        current_phase: "Warte auf Überprüfung",
         page_mappings: pageMappings,
         unassigned_pages: unassignedPages,
         total_pages: allPages?.length || 0,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", jobId);
-
-    // Validation step (simplified - just mark complete for now)
-    await supabase
-      .from("reorganization_jobs")
-      .update({
-        status: "complete",
-        progress: 100,
-        current_phase: "Abgeschlossen",
-        completed_at: new Date().toISOString(),
+        awaiting_review: true,
         validation_report: {
           totalPages: allPages?.length || 0,
           assignedPages: allAssignedPages.size,
@@ -272,6 +261,7 @@ serve(async (req) => {
           agentsUsed: agents.length,
           categoriesFound: Object.keys(pageMappings).length,
         },
+        updated_at: new Date().toISOString(),
       })
       .eq("id", jobId);
 

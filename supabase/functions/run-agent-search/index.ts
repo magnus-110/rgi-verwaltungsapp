@@ -39,7 +39,7 @@ async function searchWithAgent(
   pageIndex: PageIndex[],
   chunkNumber: number,
   totalChunks: number
-): Promise<{ pages: number[]; confidences: Record<number, number> }> {
+): Promise<{ pages: number[]; confidences: Record<number, number>; justifications: Record<number, string> }> {
   console.log(`Agent "${agent.name}" searching chunk ${chunkNumber}/${totalChunks}...`);
 
   // Format page index for prompt
@@ -55,6 +55,8 @@ Dies ist Chunk ${chunkNumber} von ${totalChunks} - analysiere gründlich!
 WICHTIG: 
 - Gib NUR Seitenzahlen zurück, die WIRKLICH zu deiner Kategorie gehören
 - Bewerte jede Seite mit einer Konfidenz von 0.0 bis 1.0
+- BEGRÜNDE kurz für jede gefundene Seite, WARUM sie zu dieser Kategorie gehört
+- Die Begründung sollte konkret sein (z.B. "Wartungsvertrag mit Firma XY, datiert 2023")
 - Lieber weniger Seiten mit hoher Konfidenz als viele mit niedriger`;
 
   const userPrompt = `Suchbegriffe: ${agent.search_keywords.join(", ")}
@@ -66,7 +68,14 @@ ${indexContext}
 Finde ALLE Seiten die zu "${agent.name}" gehören.
 
 Antworte NUR mit JSON im Format:
-{"pages": [1, 5, 12], "confidences": {"1": 0.95, "5": 0.87, "12": 0.92}}`;
+{
+  "pages": [43, 89],
+  "confidences": {"43": 0.95, "89": 0.87},
+  "justifications": {
+    "43": "Wartungsvertrag mit Firma ABC GmbH, datiert 15.03.2022",
+    "89": "Fortsetzung des Wartungsvertrags von Seite 43, Seite 2 von 3"
+  }
+}`;
 
   const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
     method: "POST",
@@ -100,10 +109,11 @@ Antworte NUR mit JSON im Format:
     return {
       pages: parsed.pages || [],
       confidences: parsed.confidences || {},
+      justifications: parsed.justifications || {},
     };
   } catch (e) {
     console.error("Failed to parse agent response:", content);
-    return { pages: [], confidences: {} };
+    return { pages: [], confidences: {}, justifications: {} };
   }
 }
 
@@ -168,6 +178,7 @@ serve(async (req) => {
     // Process all chunks and collect results
     const allPages: number[] = [];
     const allConfidences: Record<number, number> = {};
+    const allJustifications: Record<number, string> = {};
     const chunkResults: Record<string, any> = {};
 
     for (let i = 0; i < chunks.length; i++) {
@@ -177,6 +188,7 @@ serve(async (req) => {
       // Merge results
       allPages.push(...result.pages);
       Object.assign(allConfidences, result.confidences);
+      Object.assign(allJustifications, result.justifications);
       chunkResults[`chunk_${i + 1}`] = {
         pagesSearched: chunk.length,
         pagesFound: result.pages.length,
@@ -189,12 +201,13 @@ serve(async (req) => {
 
     const processingTime = Date.now() - startTime;
 
-    // Save results
+    // Save results with justifications
     const { error: saveError } = await supabase
       .from("agent_search_results")
       .update({
         found_pages: uniquePages,
         confidence_scores: allConfidences,
+        justifications: allJustifications,
         chunk_results: chunkResults,
         status: "complete",
         processing_time_ms: processingTime,
@@ -215,6 +228,7 @@ serve(async (req) => {
         pagesFound: uniquePages.length,
         pages: uniquePages,
         confidences: allConfidences,
+        justifications: allJustifications,
         processingTimeMs: processingTime,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
