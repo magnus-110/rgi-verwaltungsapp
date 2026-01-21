@@ -41,6 +41,7 @@ import {
   ArrowLeft,
   StopCircle,
   RotateCcw,
+  Trash2,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -128,6 +129,7 @@ export function ReorganizationDashboard() {
   const [reviewingJobId, setReviewingJobId] = useState<string | null>(null);
   const [cancellingJobId, setCancellingJobId] = useState<string | null>(null);
   const [retryingJobId, setRetryingJobId] = useState<string | null>(null);
+  const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
 
   // Load initial data
   useEffect(() => {
@@ -371,6 +373,41 @@ export function ReorganizationDashboard() {
       });
     } finally {
       setRetryingJobId(null);
+    }
+  };
+
+  const deleteJob = async (jobId: string) => {
+    setDeletingJobId(jobId);
+    try {
+      // First delete associated agent_search_results
+      await supabase
+        .from("agent_search_results")
+        .delete()
+        .eq("job_id", jobId);
+
+      // Then delete the job itself
+      const { error } = await supabase
+        .from("reorganization_jobs")
+        .delete()
+        .eq("id", jobId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Job gelöscht",
+        description: "Der Job wurde erfolgreich entfernt.",
+      });
+
+      loadData();
+    } catch (error) {
+      console.error("Delete error:", error);
+      toast({
+        title: "Fehler",
+        description: "Der Job konnte nicht gelöscht werden.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeletingJobId(null);
     }
   };
 
@@ -679,7 +716,21 @@ export function ReorganizationDashboard() {
                               <span>{job.error_message}</span>
                             </div>
                           )}
-                          <div className="flex justify-end">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => deleteJob(job.id)}
+                              disabled={deletingJobId === job.id}
+                              className="text-muted-foreground hover:text-destructive"
+                            >
+                              {deletingJobId === job.id ? (
+                                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-4 w-4 mr-1" />
+                              )}
+                              Löschen
+                            </Button>
                             <Button
                               variant="outline"
                               size="sm"

@@ -342,25 +342,47 @@ serve(async (req) => {
     const hasMorePages = endPage < totalPages;
     const nextStartPage = endPage + 1;
 
-    // If more pages, trigger next batch (fire and forget but with error handling)
+    // If more pages, trigger next batch with retry logic
     if (hasMorePages) {
       const nextBatchUrl = `${SUPABASE_URL}/functions/v1/classify-document-pages`;
-      fetch(nextBatchUrl, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          documentId,
-          startPage: nextStartPage,
-          forceReindex,
-        }),
-      }).catch(err => {
-        console.error("Failed to trigger next batch:", err);
-        // Update status to error if batch fails to start
-        updateIndexingProgress(supabase, documentId, currentCount || endPage, "error");
-      });
+      const maxRetries = 3;
+      let retries = 0;
+      let batchTriggered = false;
+
+      while (retries < maxRetries && !batchTriggered) {
+        try {
+          const resp = await fetch(nextBatchUrl, {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              documentId,
+              startPage: nextStartPage,
+              forceReindex,
+            }),
+          });
+
+          if (!resp.ok) {
+            throw new Error(`Batch response status: ${resp.status}`);
+          }
+          
+          batchTriggered = true;
+          console.log(`Successfully triggered next batch starting at page ${nextStartPage}`);
+        } catch (err) {
+          retries++;
+          console.error(`Batch trigger attempt ${retries}/${maxRetries} failed:`, err);
+          
+          if (retries >= maxRetries) {
+            console.error("All retry attempts failed, marking as error");
+            await updateIndexingProgress(supabase, documentId, currentCount || endPage, "error");
+          } else {
+            // Wait 2 seconds before retrying
+            await new Promise(r => setTimeout(r, 2000));
+          }
+        }
+      }
     } else {
       // All pages processed - mark as complete
       await updateIndexingProgress(supabase, documentId, currentCount || endPage, "complete");
