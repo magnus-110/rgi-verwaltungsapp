@@ -44,3 +44,6 @@ verify_jwt = false
 
 [functions.orchestrate-reorganization]
 verify_jwt = true
+
+[functions.split-merge-pdf]
+verify_jwt = false
