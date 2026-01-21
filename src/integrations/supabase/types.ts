@@ -75,6 +75,7 @@ export type Database = {
           found_pages: number[] | null
           id: string
           job_id: string
+          justifications: Json | null
           processing_time_ms: number | null
           status: string | null
         }
@@ -87,6 +88,7 @@ export type Database = {
           found_pages?: number[] | null
           id?: string
           job_id: string
+          justifications?: Json | null
           processing_time_ms?: number | null
           status?: string | null
         }
@@ -99,6 +101,7 @@ export type Database = {
           found_pages?: number[] | null
           id?: string
           job_id?: string
+          justifications?: Json | null
           processing_time_ms?: number | null
           status?: string | null
         }
@@ -936,6 +939,7 @@ export type Database = {
       }
       reorganization_jobs: {
         Row: {
+          awaiting_review: boolean | null
           building_id: string | null
           completed_at: string | null
           created_at: string | null
@@ -957,6 +961,7 @@ export type Database = {
           validation_report: Json | null
         }
         Insert: {
+          awaiting_review?: boolean | null
           building_id?: string | null
           completed_at?: string | null
           created_at?: string | null
@@ -978,6 +983,7 @@ export type Database = {
           validation_report?: Json | null
         }
         Update: {
+          awaiting_review?: boolean | null
           building_id?: string | null
           completed_at?: string | null
           created_at?: string | null

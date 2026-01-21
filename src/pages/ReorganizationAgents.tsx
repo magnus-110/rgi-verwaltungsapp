@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Plus, 
-  Settings, 
   FileText, 
   Users, 
   Calculator, 
@@ -29,7 +29,8 @@ import {
   Pencil,
   Trash2,
   Copy,
-  RotateCcw
+  RotateCcw,
+  ArrowLeft
 } from "lucide-react";
 import { AgentEditDialog } from "@/components/reorganization/AgentEditDialog";
 import { PresetManagement } from "@/components/reorganization/PresetManagement";
@@ -263,11 +264,18 @@ export function ReorganizationAgents() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold">Reorganisations-Agenten</h1>
-          <p className="text-muted-foreground">
-            Konfigurieren Sie spezialisierte KI-Agenten zur automatischen PDF-Kategorisierung
-          </p>
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" asChild>
+            <Link to="/documents/reorganize">
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
+          </Button>
+          <div>
+            <h1 className="text-2xl font-semibold">Reorganisations-Agenten</h1>
+            <p className="text-muted-foreground">
+              Konfigurieren Sie spezialisierte KI-Agenten zur automatischen PDF-Kategorisierung
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="secondary" className="h-8 px-3">
@@ -324,10 +332,7 @@ export function ReorganizationAgents() {
                           <GripVertical className="h-5 w-5" />
                         </div>
                         
-                        <div 
-                          className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
-                          style={{ backgroundColor: agent.color + "20", color: agent.color }}
-                        >
+                        <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0 text-muted-foreground">
                           <IconComponent className="h-5 w-5" />
                         </div>
 

@@ -25,9 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Upload,
   Play,
-  Pause,
   CheckCircle2,
   XCircle,
   Clock,
@@ -39,8 +37,10 @@ import {
   Loader2,
   FolderOpen,
   Sparkles,
+  Eye,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { MappingPreview } from "@/components/reorganization/MappingPreview";
 
 interface Building {
   id: string;
@@ -76,6 +76,7 @@ interface ReorganizationJob {
   processed_pages: number;
   page_mappings: Record<string, unknown>;
   unassigned_pages: number[];
+  awaiting_review: boolean;
   error_message: string | null;
   created_at: string;
   completed_at: string | null;
@@ -111,6 +112,7 @@ export function ReorganizationDashboard() {
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
   const [activeTab, setActiveTab] = useState("start");
+  const [reviewingJobId, setReviewingJobId] = useState<string | null>(null);
 
   // Load initial data
   useEffect(() => {
@@ -119,7 +121,7 @@ export function ReorganizationDashboard() {
 
   // Poll for job updates
   useEffect(() => {
-    const activeJobs = jobs.filter(j => ['pending', 'indexing', 'searching', 'validating', 'splitting'].includes(j.status));
+    const activeJobs = jobs.filter(j => ['pending', 'indexing', 'searching', 'validating', 'splitting', 'awaiting_review'].includes(j.status));
     if (activeJobs.length === 0) return;
 
     const interval = setInterval(() => {
@@ -190,6 +192,7 @@ export function ReorganizationDashboard() {
           ? job.page_mappings 
           : {}) as Record<string, unknown>,
         unassigned_pages: Array.isArray(job.unassigned_pages) ? job.unassigned_pages : [],
+        awaiting_review: job.awaiting_review || false,
         source_document: job.source_document as unknown as Document,
         preset: job.preset as unknown as Preset,
       })));
@@ -289,6 +292,7 @@ export function ReorganizationDashboard() {
       case "validating":
       case "splitting":
         return <Loader2 className="h-4 w-4 text-primary animate-spin" />;
+      case "awaiting_review": return <Eye className="h-4 w-4 text-amber-500" />;
       case "completed": return <CheckCircle2 className="h-4 w-4 text-green-500" />;
       case "failed": return <XCircle className="h-4 w-4 text-destructive" />;
       default: return <Clock className="h-4 w-4" />;
@@ -301,6 +305,7 @@ export function ReorganizationDashboard() {
       case "indexing": return "Indexierung";
       case "searching": return "Suche läuft";
       case "validating": return "Validierung";
+      case "awaiting_review": return "Überprüfung erforderlich";
       case "splitting": return "PDF-Erstellung";
       case "completed": return "Abgeschlossen";
       case "failed": return "Fehlgeschlagen";
@@ -516,13 +521,29 @@ export function ReorganizationDashboard() {
                         </Badge>
                       </div>
 
-                      {!['completed', 'failed'].includes(job.status) && (
+                      {!['completed', 'failed', 'awaiting_review'].includes(job.status) && (
                         <div className="space-y-1">
                           <div className="flex justify-between text-sm">
                             <span>{job.current_phase}: {job.current_agent_name || "..."}</span>
                             <span>{job.progress}%</span>
                           </div>
                           <Progress value={job.progress} />
+                        </div>
+                      )}
+
+                      {job.status === "awaiting_review" && (
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-sm text-amber-600">
+                            <Eye className="h-4 w-4" />
+                            <span>Mapping bereit zur Überprüfung</span>
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={() => setReviewingJobId(job.id)}
+                          >
+                            <Eye className="h-4 w-4 mr-2" />
+                            Überprüfen
+                          </Button>
                         </div>
                       )}
 
@@ -606,6 +627,22 @@ export function ReorganizationDashboard() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Mapping Preview Modal */}
+      {reviewingJobId && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-4xl">
+            <MappingPreview
+              jobId={reviewingJobId}
+              onConfirm={() => {
+                setReviewingJobId(null);
+                loadJobs();
+              }}
+              onCancel={() => setReviewingJobId(null)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
