@@ -276,22 +276,37 @@ export function PresetManagement({ agents }: PresetManagementProps) {
         agents={agents}
         onSave={async (data) => {
           try {
+            const insertData = {
+              name: data.name!,
+              description: data.description,
+              agent_ids: data.agent_ids,
+              management_mode: data.management_mode as "weg" | "rent",
+              is_template: false,
+              is_default: false,
+            };
+            
             if (isCreateMode) {
               const { data: newPreset, error } = await supabase
                 .from("agent_presets")
-                .insert(data)
+                .insert([insertData])
                 .select()
                 .single();
               if (error) throw error;
               setPresets(prev => [...prev, newPreset]);
               toast({ title: "Preset erstellt" });
             } else if (editingPreset) {
+              const updateData = {
+                name: data.name,
+                description: data.description,
+                agent_ids: data.agent_ids,
+                management_mode: data.management_mode as "weg" | "rent",
+              };
               const { error } = await supabase
                 .from("agent_presets")
-                .update(data)
+                .update(updateData)
                 .eq("id", editingPreset.id);
               if (error) throw error;
-              setPresets(prev => prev.map(p => p.id === editingPreset.id ? { ...p, ...data } : p));
+              setPresets(prev => prev.map(p => p.id === editingPreset.id ? { ...p, ...updateData } : p));
               toast({ title: "Preset aktualisiert" });
             }
           } catch (error) {

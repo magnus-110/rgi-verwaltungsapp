@@ -34,7 +34,7 @@ const menuItems = [
   { title: "Gebäude", url: "/buildings", icon: Castle },
   { title: "Schwarzes Brett", url: "/forum", icon: Newspaper },
   { title: "Chatbot", url: "/chatbot", icon: MessageCircle },
-  { title: "Einstellungen", url: "/settings", icon: Settings },
+  { title: "Einstellungen", url: "/settings", icon: Settings, adminOnly: true },
 ];
 
 interface AdminSidebarProps {
