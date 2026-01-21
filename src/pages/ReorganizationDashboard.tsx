@@ -38,8 +38,15 @@ import {
   FolderOpen,
   Sparkles,
   Eye,
+  ArrowLeft,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { MappingPreview } from "@/components/reorganization/MappingPreview";
 
 interface Building {
@@ -321,17 +328,24 @@ export function ReorganizationDashboard() {
     );
   }
 
+  const navigate = useNavigate();
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Sparkles className="h-6 w-6 text-primary" />
-            PDF-Reorganisation
-          </h1>
-          <p className="text-muted-foreground">
-            Große PDFs automatisch nach Kategorien aufteilen
-          </p>
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="icon" onClick={() => navigate("/documents")}>
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <Sparkles className="h-6 w-6 text-primary" />
+              PDF-Reorganisation
+            </h1>
+            <p className="text-muted-foreground">
+              Große PDFs automatisch nach Kategorien aufteilen
+            </p>
+          </div>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" asChild>
@@ -407,15 +421,24 @@ export function ReorganizationDashboard() {
                       ) : (
                         filteredDocuments.map(d => (
                           <SelectItem key={d.id} value={d.id}>
-                            <div className="flex items-center gap-2">
-                              <FileText className="h-4 w-4" />
-                              <span className="truncate max-w-[200px]">{d.file_name}</span>
-                              {d.page_count && (
-                                <Badge variant="secondary" className="text-xs">
-                                  {d.page_count} Seiten
-                                </Badge>
-                              )}
-                            </div>
+                            <TooltipProvider delayDuration={500}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="flex items-center gap-2">
+                                    <FileText className="h-4 w-4 flex-shrink-0" />
+                                    <span className="truncate max-w-[200px]">{d.file_name}</span>
+                                    {d.page_count && (
+                                      <Badge variant="secondary" className="text-xs flex-shrink-0">
+                                        {d.page_count} Seiten
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-[400px]">
+                                  <p className="break-all">{d.file_name}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                           </SelectItem>
                         ))
                       )}
