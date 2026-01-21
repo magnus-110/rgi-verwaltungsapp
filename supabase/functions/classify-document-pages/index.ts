@@ -67,6 +67,12 @@ async function extractPagesWithOCR(
 ): Promise<{ pages: Array<{ pageNumber: number; text: string }> }> {
   console.log(`Extracting pages ${startPage}-${endPage} with Mistral OCR...`);
 
+  // Generate array of 0-indexed page numbers for Mistral API
+  const pageIndices = Array.from(
+    { length: endPage - startPage + 1 },
+    (_, i) => startPage + i - 1 // Convert to 0-indexed
+  );
+
   const response = await fetch("https://api.mistral.ai/v1/ocr", {
     method: "POST",
     headers: {
@@ -80,7 +86,7 @@ async function extractPagesWithOCR(
         document_url: signedUrl,
       },
       include_image_base64: false,
-      page_range: [startPage, endPage],
+      pages: pageIndices,
     }),
   });
 
