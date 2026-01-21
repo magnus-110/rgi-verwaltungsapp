@@ -136,6 +136,8 @@ export type Database = {
           file_size: number
           id: string
           indexed_pages: number | null
+          indexing_error_message: string | null
+          indexing_last_activity: string | null
           indexing_started_at: string | null
           indexing_status: string | null
           last_error: string | null
@@ -166,6 +168,8 @@ export type Database = {
           file_size: number
           id?: string
           indexed_pages?: number | null
+          indexing_error_message?: string | null
+          indexing_last_activity?: string | null
           indexing_started_at?: string | null
           indexing_status?: string | null
           last_error?: string | null
@@ -196,6 +200,8 @@ export type Database = {
           file_size?: number
           id?: string
           indexed_pages?: number | null
+          indexing_error_message?: string | null
+          indexing_last_activity?: string | null
           indexing_started_at?: string | null
           indexing_status?: string | null
           last_error?: string | null
@@ -958,6 +964,8 @@ export type Database = {
           error_message: string | null
           id: string
           indexed_pages_at_start: number | null
+          indexing_started_at: string | null
+          last_activity_at: string | null
           page_mappings: Json | null
           preset_id: string | null
           processed_pages: number | null
@@ -982,6 +990,8 @@ export type Database = {
           error_message?: string | null
           id?: string
           indexed_pages_at_start?: number | null
+          indexing_started_at?: string | null
+          last_activity_at?: string | null
           page_mappings?: Json | null
           preset_id?: string | null
           processed_pages?: number | null
@@ -1006,6 +1016,8 @@ export type Database = {
           error_message?: string | null
           id?: string
           indexed_pages_at_start?: number | null
+          indexing_started_at?: string | null
+          last_activity_at?: string | null
           page_mappings?: Json | null
           preset_id?: string | null
           processed_pages?: number | null

@@ -6,11 +6,13 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const MISTRAL_API_KEY = Deno.env.get("MISTRAL_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 interface OrchestrationRequest {
   jobId: string;
+  skipIndexing?: boolean; // Skip indexing phase if document is already indexed
 }
 
 // Update job status
@@ -29,14 +31,14 @@ async function updateJobStatus(
       progress,
       current_phase: phase,
       current_agent_name: agentName || null,
+      last_activity_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
     .eq("id", jobId);
 }
 
 // Get total pages from PDF info or estimate
-async function getTotalPages(supabase: any, documentId: string, filePath: string): Promise<number> {
-  // First check if document has page count stored
+async function getTotalPages(supabase: any, documentId: string): Promise<number> {
   const { data: doc } = await supabase
     .from("building_documents")
     .select("page_count, total_pages")
@@ -46,7 +48,6 @@ async function getTotalPages(supabase: any, documentId: string, filePath: string
   if (doc?.page_count) return doc.page_count;
   if (doc?.total_pages) return doc.total_pages;
   
-  // Fallback: estimate based on file size or return a max
   return 1000; // Will be refined during indexing
 }
 
@@ -56,7 +57,18 @@ serve(async (req) => {
   }
 
   try {
-    const { jobId }: OrchestrationRequest = await req.json();
+    // CRITICAL: Validate API Key before processing
+    if (!MISTRAL_API_KEY) {
+      console.error("MISTRAL_API_KEY is not configured");
+      return new Response(
+        JSON.stringify({ 
+          error: "MISTRAL_API_KEY nicht konfiguriert. Bitte in den Supabase Edge Function Secrets hinzufügen." 
+        }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { jobId, skipIndexing = false }: OrchestrationRequest = await req.json();
 
     if (!jobId) {
       return new Response(
@@ -70,7 +82,7 @@ serve(async (req) => {
     // Fetch job details
     const { data: job, error: jobError } = await supabase
       .from("reorganization_jobs")
-      .select("*, source_document:building_documents!source_document_id(id, file_path, file_name, page_count, total_pages)")
+      .select("*, source_document:building_documents!source_document_id(id, file_path, file_name, page_count, total_pages, indexing_status, indexed_pages)")
       .eq("id", jobId)
       .single();
 
@@ -133,16 +145,15 @@ serve(async (req) => {
     console.log(`Starting reorganization with ${agents.length} agents...`);
 
     // Get estimated total pages for the document
-    const totalPages = await getTotalPages(
-      supabase, 
-      job.source_document_id, 
-      job.source_document?.file_path
-    );
+    const totalPages = await getTotalPages(supabase, job.source_document_id);
     
     // Save total pages to job
     await supabase
       .from("reorganization_jobs")
-      .update({ total_document_pages: totalPages })
+      .update({ 
+        total_document_pages: totalPages,
+        indexing_started_at: new Date().toISOString(),
+      })
       .eq("id", jobId);
 
     console.log(`Document has approximately ${totalPages} pages`);
@@ -155,131 +166,84 @@ serve(async (req) => {
 
     const documentTotalPages = job.source_document?.page_count || job.source_document?.total_pages || totalPages;
     const isFullyIndexed = indexCount && indexCount >= documentTotalPages;
+    const docIndexingStatus = job.source_document?.indexing_status;
 
-    if (!isFullyIndexed) {
-      // Need to create or complete index first
-      await updateJobStatus(supabase, jobId, "indexing", 5, `Seiten werden indexiert (${indexCount || 0}/${documentTotalPages})...`);
+    // PHASE 1: Handle Indexing
+    if (!isFullyIndexed && !skipIndexing) {
+      // Check if indexing is already in progress
+      if (docIndexingStatus === "in_progress") {
+        // Indexing is running, return and let UI poll
+        await updateJobStatus(
+          supabase, 
+          jobId, 
+          "indexing", 
+          5 + Math.floor(((indexCount || 0) / documentTotalPages) * 15), 
+          `Indexierung läuft... (${indexCount || 0}/${documentTotalPages} Seiten)`
+        );
+        
+        return new Response(
+          JSON.stringify({
+            success: true,
+            status: "indexing_in_progress",
+            message: "Indexierung läuft im Hintergrund. UI pollt den Status.",
+            indexedPages: indexCount || 0,
+            totalPages: documentTotalPages,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Need to start indexing
+      await updateJobStatus(supabase, jobId, "indexing", 5, `Starte Indexierung (0/${documentTotalPages} Seiten)...`);
       
       // Mark document as indexing
       await supabase
         .from("building_documents")
         .update({ 
           indexing_status: "in_progress",
-          indexing_started_at: new Date().toISOString()
+          indexing_started_at: new Date().toISOString(),
+          indexing_error_message: null,
         })
         .eq("id", job.source_document_id);
       
-      // Trigger indexing
-      const indexResponse = await fetch(`${SUPABASE_URL}/functions/v1/classify-document-pages`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ documentId: job.source_document_id }),
-      });
+      // Trigger indexing - fire and forget, UI will poll for completion
+      try {
+        const indexResponse = await fetch(`${SUPABASE_URL}/functions/v1/classify-document-pages`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ documentId: job.source_document_id }),
+        });
 
-      if (!indexResponse.ok) {
-        const error = await indexResponse.text();
-        throw new Error(`Indexing failed: ${error}`);
+        if (!indexResponse.ok) {
+          const error = await indexResponse.text();
+          throw new Error(`Indexing failed to start: ${error}`);
+        }
+      } catch (err) {
+        console.error("Failed to trigger indexing:", err);
+        await updateJobStatus(supabase, jobId, "error", 0, `Indexierung konnte nicht gestartet werden: ${err}`);
+        throw err;
       }
 
-      // IMPROVED POLLING: Dynamic timeout based on document size
-      // ~2 seconds per page for OCR + classification, with buffer
-      const estimatedMinutes = Math.max(10, Math.ceil(documentTotalPages / 10));
-      const maxAttempts = estimatedMinutes * 12; // Check every 5 seconds
-      
-      console.log(`Will poll for up to ${estimatedMinutes} minutes (${maxAttempts} attempts) for ${documentTotalPages} pages`);
-      
-      let attempts = 0;
-      let indexed = false;
-      let lastIndexedCount = 0;
-      let staleAttempts = 0;
-      const MAX_STALE_ATTEMPTS = 24; // 2 minutes with no progress
-
-      while (attempts < maxAttempts && !indexed) {
-        await new Promise(resolve => setTimeout(resolve, 5000)); // 5 second intervals
-        
-        const { count } = await supabase
-          .from("document_page_index")
-          .select("*", { count: "exact", head: true })
-          .eq("document_id", job.source_document_id);
-        
-        const currentCount = count || 0;
-        
-        // Check if ALL pages are indexed
-        if (currentCount >= documentTotalPages) {
-          indexed = true;
-          await updateJobStatus(supabase, jobId, "searching", 20, `${currentCount} Seiten indexiert ✓`);
-          
-          // Mark document as fully indexed
-          await supabase
-            .from("building_documents")
-            .update({ 
-              indexing_status: "complete",
-              indexed_pages: currentCount
-            })
-            .eq("id", job.source_document_id);
-          
-          break;
-        }
-
-        // Detect stale indexing (no progress)
-        if (currentCount === lastIndexedCount) {
-          staleAttempts++;
-          if (staleAttempts >= MAX_STALE_ATTEMPTS) {
-            // Check if indexing might have stopped - if we have most pages, continue anyway
-            if (currentCount >= documentTotalPages * 0.9) {
-              console.log(`Indexing stalled but ${currentCount}/${documentTotalPages} pages indexed (90%+), continuing...`);
-              indexed = true;
-              break;
-            }
-            throw new Error(`Indexierung gestoppt bei ${currentCount}/${documentTotalPages} Seiten - keine Fortschritte seit 2 Minuten`);
-          }
-        } else {
-          staleAttempts = 0;
-          lastIndexedCount = currentCount;
-        }
-        
-        // Update progress
-        const indexProgress = Math.min(5 + Math.floor((currentCount / documentTotalPages) * 15), 19);
-        await updateJobStatus(
-          supabase, 
-          jobId, 
-          "indexing", 
-          indexProgress, 
-          `Seiten indexiert: ${currentCount}/${documentTotalPages}`
-        );
-        
-        attempts++;
-      }
-
-      if (!indexed) {
-        // Get final count
-        const { count: finalCount } = await supabase
-          .from("document_page_index")
-          .select("*", { count: "exact", head: true })
-          .eq("document_id", job.source_document_id);
-        
-        // If we have most pages, continue anyway
-        if (finalCount && finalCount >= documentTotalPages * 0.8) {
-          console.log(`Timeout but ${finalCount}/${documentTotalPages} pages indexed (80%+), continuing...`);
-          indexed = true;
-        } else {
-          throw new Error(`Indexierung Timeout nach ${estimatedMinutes} Minuten (${finalCount || 0}/${documentTotalPages} Seiten)`);
-        }
-      }
+      // Return immediately - UI will poll and call again with skipIndexing=true when ready
+      return new Response(
+        JSON.stringify({
+          success: true,
+          status: "indexing_started",
+          message: "Indexierung gestartet. UI pollt den Status und startet Suche wenn fertig.",
+          totalPages: documentTotalPages,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
+    // PHASE 2: Document is indexed, proceed with agent search
     // Save how many pages were indexed when we started searching
-    const { count: indexedAtStart } = await supabase
-      .from("document_page_index")
-      .select("*", { count: "exact", head: true })
-      .eq("document_id", job.source_document_id);
-    
     await supabase
       .from("reorganization_jobs")
-      .update({ indexed_pages_at_start: indexedAtStart })
+      .update({ indexed_pages_at_start: indexCount || documentTotalPages })
       .eq("id", jobId);
 
     // Update status to searching
@@ -377,6 +341,7 @@ serve(async (req) => {
           agentsUsed: agents.length,
           categoriesFound: Object.keys(pageMappings).length,
         },
+        last_activity_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq("id", jobId);

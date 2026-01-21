@@ -32,15 +32,27 @@ async function updateIndexingProgress(
   supabase: any,
   documentId: string,
   indexedPages: number,
-  status: "in_progress" | "complete" | "error"
+  status: "in_progress" | "complete" | "error",
+  errorMessage?: string
 ) {
+  const updateData: any = {
+    indexing_status: status,
+    indexed_pages: indexedPages,
+    indexing_last_activity: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  
+  if (errorMessage) {
+    updateData.indexing_error_message = errorMessage;
+  }
+  
+  if (status === "complete" || status === "error") {
+    updateData.indexing_error_message = status === "error" ? errorMessage : null;
+  }
+  
   await supabase
     .from("building_documents")
-    .update({
-      indexing_status: status,
-      indexed_pages: indexedPages,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updateData)
     .eq("id", documentId);
 }
 
@@ -227,13 +239,38 @@ async function saveClassifications(
   }
 }
 
+// Get last indexed page for auto-resume
+async function getLastIndexedPage(supabase: any, documentId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from("document_page_index")
+    .select("page_number")
+    .eq("document_id", documentId)
+    .order("page_number", { ascending: false })
+    .limit(1)
+    .single();
+  
+  if (error || !data) return 0;
+  return data.page_number;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { documentId, startPage = 1, forceReindex = false }: ClassifyRequest = await req.json();
+    // CRITICAL: Validate API Key before processing
+    if (!MISTRAL_API_KEY) {
+      console.error("MISTRAL_API_KEY is not configured");
+      return new Response(
+        JSON.stringify({ 
+          error: "MISTRAL_API_KEY nicht konfiguriert. Bitte in den Supabase Edge Function Secrets hinzufügen." 
+        }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    let { documentId, startPage = 1, forceReindex = false }: ClassifyRequest = await req.json();
 
     if (!documentId) {
       return new Response(
@@ -247,7 +284,7 @@ serve(async (req) => {
     // Fetch document details
     const { data: document, error: docError } = await supabase
       .from("building_documents")
-      .select("id, file_path, file_name, total_pages, page_count, status")
+      .select("id, file_path, file_name, total_pages, page_count, status, indexing_status, indexed_pages")
       .eq("id", documentId)
       .single();
 
@@ -261,7 +298,25 @@ serve(async (req) => {
     // Use page_count or total_pages, with fallback
     const totalPages = document.page_count || document.total_pages || 1000;
 
-    // Check if already indexed (unless force reindex)
+    // AUTO-RESUME: If startPage is 1 and we have existing indexed pages (not force reindex), resume from last page
+    if (startPage === 1 && !forceReindex) {
+      const lastIndexedPage = await getLastIndexedPage(supabase, documentId);
+      if (lastIndexedPage > 0 && lastIndexedPage < totalPages) {
+        console.log(`Auto-resuming from page ${lastIndexedPage + 1} (was at ${lastIndexedPage}/${totalPages})`);
+        startPage = lastIndexedPage + 1;
+        
+        // Clear any previous error state
+        await supabase
+          .from("building_documents")
+          .update({ 
+            indexing_status: "in_progress",
+            indexing_error_message: null 
+          })
+          .eq("id", documentId);
+      }
+    }
+
+    // Check if already fully indexed (unless force reindex)
     if (!forceReindex) {
       const { count } = await supabase
         .from("document_page_index")
@@ -285,9 +340,19 @@ serve(async (req) => {
     }
 
     // Mark as in progress on first batch
-    if (startPage === 1) {
-      await updateIndexingProgress(supabase, documentId, 0, "in_progress");
+    if (startPage === 1 || document.indexing_status !== "in_progress") {
+      await supabase
+        .from("building_documents")
+        .update({
+          indexing_status: "in_progress",
+          indexing_started_at: new Date().toISOString(),
+          indexing_error_message: null,
+        })
+        .eq("id", documentId);
     }
+
+    // Update heartbeat
+    await updateIndexingProgress(supabase, documentId, startPage - 1, "in_progress");
 
     // Get signed URL
     const signedUrl = await getSignedUrl(supabase, document.file_path);
@@ -375,8 +440,9 @@ serve(async (req) => {
           console.error(`Batch trigger attempt ${retries}/${maxRetries} failed:`, err);
           
           if (retries >= maxRetries) {
-            console.error("All retry attempts failed, marking as error");
-            await updateIndexingProgress(supabase, documentId, currentCount || endPage, "error");
+            const errorMsg = `Indexierung pausiert bei Seite ${currentCount || endPage}/${totalPages}. Bitte "Fortsetzen" klicken.`;
+            console.error("All retry attempts failed, marking as stalled (not error for easy resume)");
+            await updateIndexingProgress(supabase, documentId, currentCount || endPage, "error", errorMsg);
           } else {
             // Wait 2 seconds before retrying
             await new Promise(r => setTimeout(r, 2000));
@@ -393,7 +459,7 @@ serve(async (req) => {
         success: true,
         complete: !hasMorePages,
         processedPages: pages.length,
-        totalProcessed: endPage,
+        totalProcessed: currentCount || endPage,
         totalPages,
         nextStartPage: hasMorePages ? nextStartPage : null,
         classifications: classifications.map(c => ({
@@ -407,11 +473,12 @@ serve(async (req) => {
   } catch (error) {
     console.error("Classification error:", error);
     
-    // Try to mark document as error
+    // Try to mark document as error with message
     try {
       const { documentId } = await req.clone().json();
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-      await updateIndexingProgress(supabase, documentId, 0, "error");
+      const errorMsg = error instanceof Error ? error.message : "Unknown error";
+      await updateIndexingProgress(supabase, documentId, 0, "error", errorMsg);
     } catch (e) {
       // Ignore
     }
