@@ -105,6 +105,7 @@ export function ReorganizationDashboard() {
   const { profile } = useAuth();
   const { managementMode } = useManagementMode();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [presets, setPresets] = useState<Preset[]>([]);
@@ -327,8 +328,6 @@ export function ReorganizationDashboard() {
       </div>
     );
   }
-
-  const navigate = useNavigate();
 
   return (
     <div className="space-y-6">
