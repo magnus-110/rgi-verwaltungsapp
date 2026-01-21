@@ -168,7 +168,7 @@ export function ReorganizationDashboard() {
     const { data } = await supabase
       .from("building_documents")
       .select("id, file_name, status, page_count, created_at, building_id")
-      .eq("status", "completed")
+      .eq("status", "ready")
       .order("created_at", { ascending: false })
       .limit(100);
     setDocuments(data || []);
