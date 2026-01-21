@@ -39,6 +39,8 @@ import {
   Sparkles,
   Eye,
   ArrowLeft,
+  StopCircle,
+  RotateCcw,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -75,11 +77,14 @@ interface ReorganizationJob {
   id: string;
   source_document_id: string;
   preset_id: string | null;
+  building_id: string | null;
   status: string;
   progress: number;
   current_phase: string | null;
   current_agent_name: string | null;
   total_pages: number | null;
+  total_document_pages: number | null;
+  indexed_pages_at_start: number | null;
   processed_pages: number;
   page_mappings: Record<string, unknown>;
   unassigned_pages: number[];
@@ -121,6 +126,8 @@ export function ReorganizationDashboard() {
   const [starting, setStarting] = useState(false);
   const [activeTab, setActiveTab] = useState("start");
   const [reviewingJobId, setReviewingJobId] = useState<string | null>(null);
+  const [cancellingJobId, setCancellingJobId] = useState<string | null>(null);
+  const [retryingJobId, setRetryingJobId] = useState<string | null>(null);
 
   // Load initial data
   useEffect(() => {
@@ -289,6 +296,81 @@ export function ReorganizationDashboard() {
         description: "Das Dokument konnte nicht heruntergeladen werden.",
         variant: "destructive",
       });
+    }
+  };
+
+  const cancelJob = async (jobId: string) => {
+    setCancellingJobId(jobId);
+    try {
+      const { error } = await supabase
+        .from("reorganization_jobs")
+        .update({
+          status: "error",
+          error_message: "Job wurde vom Benutzer abgebrochen",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", jobId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Job abgebrochen",
+        description: "Der Reorganisations-Job wurde erfolgreich abgebrochen.",
+      });
+
+      loadJobs();
+    } catch (error) {
+      console.error("Cancel error:", error);
+      toast({
+        title: "Fehler",
+        description: "Der Job konnte nicht abgebrochen werden.",
+        variant: "destructive",
+      });
+    } finally {
+      setCancellingJobId(null);
+    }
+  };
+
+  const retryJob = async (job: ReorganizationJob) => {
+    setRetryingJobId(job.id);
+    try {
+      // Create a new job based on the failed one
+      const { data: newJob, error: createError } = await supabase
+        .from("reorganization_jobs")
+        .insert({
+          source_document_id: job.source_document_id,
+          preset_id: job.preset_id,
+          building_id: job.building_id || null,
+          status: "pending",
+          created_by: profile?.user_id,
+        })
+        .select()
+        .single();
+
+      if (createError) throw createError;
+
+      // Start the orchestration
+      const { error: orchError } = await supabase.functions.invoke("orchestrate-reorganization", {
+        body: { jobId: newJob.id },
+      });
+
+      if (orchError) throw orchError;
+
+      toast({
+        title: "Job neu gestartet",
+        description: "Der Reorganisations-Job wurde erneut gestartet.",
+      });
+
+      loadJobs();
+    } catch (error) {
+      console.error("Retry error:", error);
+      toast({
+        title: "Fehler",
+        description: "Der Job konnte nicht neu gestartet werden.",
+        variant: "destructive",
+      });
+    } finally {
+      setRetryingJobId(null);
     }
   };
 
@@ -543,16 +625,35 @@ export function ReorganizationDashboard() {
                         </Badge>
                       </div>
 
-                      {!['completed', 'failed', 'awaiting_review'].includes(job.status) && (
-                        <div className="space-y-1">
+                      {/* Progress for running jobs */}
+                      {!['completed', 'failed', 'error', 'awaiting_review'].includes(job.status) && (
+                        <div className="space-y-2">
                           <div className="flex justify-between text-sm">
-                            <span>{job.current_phase}: {job.current_agent_name || "..."}</span>
-                            <span>{job.progress}%</span>
+                            <span className="text-muted-foreground">{job.current_phase || "Wird verarbeitet..."}</span>
+                            <span className="font-medium">{job.progress}%</span>
                           </div>
                           <Progress value={job.progress} />
+                          {/* Cancel button for running jobs */}
+                          <div className="flex justify-end">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => cancelJob(job.id)}
+                              disabled={cancellingJobId === job.id}
+                              className="text-destructive hover:text-destructive"
+                            >
+                              {cancellingJobId === job.id ? (
+                                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                              ) : (
+                                <StopCircle className="h-4 w-4 mr-1" />
+                              )}
+                              Abbrechen
+                            </Button>
+                          </div>
                         </div>
                       )}
 
+                      {/* Awaiting review state */}
                       {job.status === "awaiting_review" && (
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2 text-sm text-amber-600">
@@ -569,13 +670,34 @@ export function ReorganizationDashboard() {
                         </div>
                       )}
 
-                      {job.status === "failed" && job.error_message && (
-                        <div className="flex items-start gap-2 text-sm text-destructive bg-destructive/10 p-2 rounded">
-                          <AlertTriangle className="h-4 w-4 mt-0.5" />
-                          <span>{job.error_message}</span>
+                      {/* Error state with retry button */}
+                      {(job.status === "failed" || job.status === "error") && (
+                        <div className="space-y-2">
+                          {job.error_message && (
+                            <div className="flex items-start gap-2 text-sm text-destructive bg-destructive/10 p-2 rounded">
+                              <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                              <span>{job.error_message}</span>
+                            </div>
+                          )}
+                          <div className="flex justify-end">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => retryJob(job)}
+                              disabled={retryingJobId === job.id}
+                            >
+                              {retryingJobId === job.id ? (
+                                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                              ) : (
+                                <RotateCcw className="h-4 w-4 mr-1" />
+                              )}
+                              Erneut versuchen
+                            </Button>
+                          </div>
                         </div>
                       )}
 
+                      {/* Completed state */}
                       {job.status === "completed" && (
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
                           <span>{job.total_pages} Seiten verarbeitet</span>

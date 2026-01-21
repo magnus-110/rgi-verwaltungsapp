@@ -135,6 +135,9 @@ export type Database = {
           file_path: string
           file_size: number
           id: string
+          indexed_pages: number | null
+          indexing_started_at: string | null
+          indexing_status: string | null
           last_error: string | null
           page_count: number | null
           processed_at: string | null
@@ -162,6 +165,9 @@ export type Database = {
           file_path: string
           file_size: number
           id?: string
+          indexed_pages?: number | null
+          indexing_started_at?: string | null
+          indexing_status?: string | null
           last_error?: string | null
           page_count?: number | null
           processed_at?: string | null
@@ -189,6 +195,9 @@ export type Database = {
           file_path?: string
           file_size?: number
           id?: string
+          indexed_pages?: number | null
+          indexing_started_at?: string | null
+          indexing_status?: string | null
           last_error?: string | null
           page_count?: number | null
           processed_at?: string | null
@@ -948,6 +957,7 @@ export type Database = {
           current_phase: string | null
           error_message: string | null
           id: string
+          indexed_pages_at_start: number | null
           page_mappings: Json | null
           preset_id: string | null
           processed_pages: number | null
@@ -955,6 +965,7 @@ export type Database = {
           selected_agent_ids: string[] | null
           source_document_id: string
           status: string | null
+          total_document_pages: number | null
           total_pages: number | null
           unassigned_pages: number[] | null
           updated_at: string | null
@@ -970,6 +981,7 @@ export type Database = {
           current_phase?: string | null
           error_message?: string | null
           id?: string
+          indexed_pages_at_start?: number | null
           page_mappings?: Json | null
           preset_id?: string | null
           processed_pages?: number | null
@@ -977,6 +989,7 @@ export type Database = {
           selected_agent_ids?: string[] | null
           source_document_id: string
           status?: string | null
+          total_document_pages?: number | null
           total_pages?: number | null
           unassigned_pages?: number[] | null
           updated_at?: string | null
@@ -992,6 +1005,7 @@ export type Database = {
           current_phase?: string | null
           error_message?: string | null
           id?: string
+          indexed_pages_at_start?: number | null
           page_mappings?: Json | null
           preset_id?: string | null
           processed_pages?: number | null
@@ -999,6 +1013,7 @@ export type Database = {
           selected_agent_ids?: string[] | null
           source_document_id?: string
           status?: string | null
+          total_document_pages?: number | null
           total_pages?: number | null
           unassigned_pages?: number[] | null
           updated_at?: string | null

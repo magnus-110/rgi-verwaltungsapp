@@ -27,23 +27,21 @@ interface PageClassification {
   confidence: number;
 }
 
-// Update job progress in database
-async function updateProgress(
+// Update document indexing progress
+async function updateIndexingProgress(
   supabase: any,
-  jobId: string,
-  progress: number,
-  phase: string,
-  processedPages?: number
+  documentId: string,
+  indexedPages: number,
+  status: "in_progress" | "complete" | "error"
 ) {
   await supabase
-    .from("reorganization_jobs")
+    .from("building_documents")
     .update({
-      progress,
-      current_phase: phase,
-      processed_pages: processedPages,
+      indexing_status: status,
+      indexed_pages: indexedPages,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", jobId);
+    .eq("id", documentId);
 }
 
 // Get or create signed URL for document
@@ -249,7 +247,7 @@ serve(async (req) => {
     // Fetch document details
     const { data: document, error: docError } = await supabase
       .from("building_documents")
-      .select("id, file_path, file_name, total_pages, status")
+      .select("id, file_path, file_name, total_pages, page_count, status")
       .eq("id", documentId)
       .single();
 
@@ -260,6 +258,9 @@ serve(async (req) => {
       );
     }
 
+    // Use page_count or total_pages, with fallback
+    const totalPages = document.page_count || document.total_pages || 1000;
+
     // Check if already indexed (unless force reindex)
     if (!forceReindex) {
       const { count } = await supabase
@@ -267,37 +268,53 @@ serve(async (req) => {
         .select("*", { count: "exact", head: true })
         .eq("document_id", documentId);
 
-      if (count && count > 0 && count >= (document.total_pages || 0)) {
+      if (count && count >= totalPages) {
+        // Mark as complete
+        await updateIndexingProgress(supabase, documentId, count, "complete");
+        
         return new Response(
           JSON.stringify({ 
             success: true, 
             message: "Document already indexed",
-            totalPages: count 
+            totalPages: count,
+            complete: true
           }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
     }
 
+    // Mark as in progress on first batch
+    if (startPage === 1) {
+      await updateIndexingProgress(supabase, documentId, 0, "in_progress");
+    }
+
     // Get signed URL
     const signedUrl = await getSignedUrl(supabase, document.file_path);
 
-    // Estimate total pages if not known
-    const totalPages = document.total_pages || 100; // Default estimate
+    // Calculate batch end page
     const endPage = Math.min(startPage + BATCH_SIZE - 1, totalPages);
 
-    console.log(`Processing pages ${startPage}-${endPage} of ~${totalPages}`);
+    console.log(`Processing pages ${startPage}-${endPage} of ${totalPages}`);
 
     // Extract text from pages
     const { pages } = await extractPagesWithOCR(signedUrl, startPage, endPage);
 
     if (pages.length === 0) {
       // No more pages - we're done
+      const { count: finalCount } = await supabase
+        .from("document_page_index")
+        .select("*", { count: "exact", head: true })
+        .eq("document_id", documentId);
+      
+      // Mark as complete
+      await updateIndexingProgress(supabase, documentId, finalCount || 0, "complete");
+      
       return new Response(
         JSON.stringify({ 
           success: true, 
           complete: true,
-          totalPages: startPage - 1 
+          totalPages: finalCount || startPage - 1 
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
@@ -313,13 +330,20 @@ serve(async (req) => {
     // Save to database
     await saveClassifications(supabase, documentId, classifications, rawTexts);
 
+    // Update progress
+    const { count: currentCount } = await supabase
+      .from("document_page_index")
+      .select("*", { count: "exact", head: true })
+      .eq("document_id", documentId);
+    
+    await updateIndexingProgress(supabase, documentId, currentCount || endPage, "in_progress");
+
     // Check if more pages to process
     const hasMorePages = endPage < totalPages;
     const nextStartPage = endPage + 1;
 
-    // If more pages, trigger next batch
+    // If more pages, trigger next batch (fire and forget but with error handling)
     if (hasMorePages) {
-      // Schedule next batch (fire and forget)
       const nextBatchUrl = `${SUPABASE_URL}/functions/v1/classify-document-pages`;
       fetch(nextBatchUrl, {
         method: "POST",
@@ -332,7 +356,14 @@ serve(async (req) => {
           startPage: nextStartPage,
           forceReindex,
         }),
-      }).catch(err => console.error("Failed to trigger next batch:", err));
+      }).catch(err => {
+        console.error("Failed to trigger next batch:", err);
+        // Update status to error if batch fails to start
+        updateIndexingProgress(supabase, documentId, currentCount || endPage, "error");
+      });
+    } else {
+      // All pages processed - mark as complete
+      await updateIndexingProgress(supabase, documentId, currentCount || endPage, "complete");
     }
 
     return new Response(
@@ -341,6 +372,7 @@ serve(async (req) => {
         complete: !hasMorePages,
         processedPages: pages.length,
         totalProcessed: endPage,
+        totalPages,
         nextStartPage: hasMorePages ? nextStartPage : null,
         classifications: classifications.map(c => ({
           page: c.pageNumber,
@@ -352,6 +384,16 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error("Classification error:", error);
+    
+    // Try to mark document as error
+    try {
+      const { documentId } = await req.clone().json();
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+      await updateIndexingProgress(supabase, documentId, 0, "error");
+    } catch (e) {
+      // Ignore
+    }
+    
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
