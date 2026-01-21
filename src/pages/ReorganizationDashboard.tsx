@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select,
@@ -42,6 +41,7 @@ import {
   StopCircle,
   RotateCcw,
   Trash2,
+  PlayCircle,
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -72,6 +72,9 @@ interface Document {
   page_count: number | null;
   created_at: string;
   building_id: string | null;
+  indexing_status?: string | null;
+  indexed_pages?: number | null;
+  indexing_error_message?: string | null;
 }
 
 interface ReorganizationJob {
@@ -130,18 +133,64 @@ export function ReorganizationDashboard() {
   const [cancellingJobId, setCancellingJobId] = useState<string | null>(null);
   const [retryingJobId, setRetryingJobId] = useState<string | null>(null);
   const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
+  const [continuingIndexing, setContinuingIndexing] = useState<string | null>(null);
 
   // Load initial data
   useEffect(() => {
     loadData();
   }, [managementMode]);
 
-  // Poll for job updates
+  // Poll for job updates AND check for indexing completion
   useEffect(() => {
-    const activeJobs = jobs.filter(j => ['pending', 'indexing', 'searching', 'validating', 'splitting', 'awaiting_review'].includes(j.status));
+    const activeJobs = jobs.filter(j => 
+      ['pending', 'indexing', 'searching', 'validating', 'splitting', 'awaiting_review'].includes(j.status)
+    );
     if (activeJobs.length === 0) return;
 
-    const interval = setInterval(() => {
+    const interval = setInterval(async () => {
+      // Check for jobs that are indexing - poll document status
+      const indexingJobs = activeJobs.filter(j => j.status === 'indexing');
+      
+      for (const job of indexingJobs) {
+        try {
+          // Get document indexing status
+          const { data: doc } = await supabase
+            .from("building_documents")
+            .select("indexing_status, indexed_pages, page_count, total_pages")
+            .eq("id", job.source_document_id)
+            .single();
+          
+          if (doc) {
+            const totalPages = doc.page_count || doc.total_pages || 1000;
+            
+            // If indexing is complete, trigger search phase
+            if (doc.indexing_status === "complete") {
+              console.log(`Document ${job.source_document_id} indexing complete, triggering search phase`);
+              
+              // Trigger orchestrator with skipIndexing=true
+              await supabase.functions.invoke("orchestrate-reorganization", {
+                body: { jobId: job.id, skipIndexing: true },
+              });
+            }
+            // If indexing errored, check if we can continue
+            else if (doc.indexing_status === "error" && doc.indexed_pages && doc.indexed_pages > 0) {
+              // Update job to show error with continue option
+              if (!job.error_message?.includes("Indexierung pausiert")) {
+                await supabase
+                  .from("reorganization_jobs")
+                  .update({
+                    error_message: `Indexierung pausiert bei Seite ${doc.indexed_pages}/${totalPages}. Klicken Sie "Fortsetzen" um fortzufahren.`,
+                    current_phase: `Indexierung pausiert (${doc.indexed_pages}/${totalPages})`,
+                  })
+                  .eq("id", job.id);
+              }
+            }
+          }
+        } catch (err) {
+          console.error("Error polling document status:", err);
+        }
+      }
+      
       loadJobs();
     }, 3000);
 
@@ -184,7 +233,7 @@ export function ReorganizationDashboard() {
   const loadDocuments = async () => {
     const { data } = await supabase
       .from("building_documents")
-      .select("id, file_name, status, page_count, created_at, building_id")
+      .select("id, file_name, status, page_count, created_at, building_id, indexing_status, indexed_pages, indexing_error_message")
       .eq("status", "ready")
       .order("created_at", { ascending: false })
       .limit(100);
@@ -196,7 +245,7 @@ export function ReorganizationDashboard() {
       .from("reorganization_jobs")
       .select(`
         *,
-        source_document:building_documents(id, file_name, page_count),
+        source_document:building_documents(id, file_name, page_count, indexing_status, indexed_pages, total_pages),
         preset:agent_presets(id, name)
       `)
       .order("created_at", { ascending: false })
@@ -236,6 +285,22 @@ export function ReorganizationDashboard() {
         description: "Bitte wählen Sie ein Dokument und ein Preset aus.",
         variant: "destructive",
       });
+      return;
+    }
+
+    // DUPLICATE CHECK: Check if there's already an active job for this document
+    const existingActiveJobs = jobs.filter(
+      j => j.source_document_id === selectedDocument && 
+      ['pending', 'indexing', 'searching', 'validating', 'awaiting_review'].includes(j.status)
+    );
+
+    if (existingActiveJobs.length > 0) {
+      toast({
+        title: "Job bereits vorhanden",
+        description: "Es läuft bereits ein aktiver Job für dieses Dokument. Bitte warten Sie, bis dieser abgeschlossen ist.",
+        variant: "destructive",
+      });
+      setActiveTab("jobs");
       return;
     }
 
@@ -279,6 +344,46 @@ export function ReorganizationDashboard() {
       });
     } finally {
       setStarting(false);
+    }
+  };
+
+  const continueIndexing = async (job: ReorganizationJob) => {
+    if (!job.source_document) return;
+    
+    setContinuingIndexing(job.id);
+    try {
+      // Trigger indexing continuation
+      const { error } = await supabase.functions.invoke("classify-document-pages", {
+        body: { documentId: job.source_document_id },
+      });
+
+      if (error) throw error;
+
+      // Update job status back to indexing
+      await supabase
+        .from("reorganization_jobs")
+        .update({
+          status: "indexing",
+          error_message: null,
+          current_phase: "Indexierung wird fortgesetzt...",
+        })
+        .eq("id", job.id);
+
+      toast({
+        title: "Indexierung fortgesetzt",
+        description: "Die Indexierung wird ab der letzten Seite fortgesetzt.",
+      });
+
+      loadJobs();
+    } catch (error) {
+      console.error("Continue indexing error:", error);
+      toast({
+        title: "Fehler",
+        description: "Die Indexierung konnte nicht fortgesetzt werden.",
+        variant: "destructive",
+      });
+    } finally {
+      setContinuingIndexing(null);
     }
   };
 
@@ -421,7 +526,9 @@ export function ReorganizationDashboard() {
         return <Loader2 className="h-4 w-4 text-primary animate-spin" />;
       case "awaiting_review": return <Eye className="h-4 w-4 text-amber-500" />;
       case "completed": return <CheckCircle2 className="h-4 w-4 text-green-500" />;
-      case "failed": return <XCircle className="h-4 w-4 text-destructive" />;
+      case "failed": 
+      case "error":
+        return <XCircle className="h-4 w-4 text-destructive" />;
       default: return <Clock className="h-4 w-4" />;
     }
   };
@@ -435,9 +542,25 @@ export function ReorganizationDashboard() {
       case "awaiting_review": return "Überprüfung erforderlich";
       case "splitting": return "PDF-Erstellung";
       case "completed": return "Abgeschlossen";
-      case "failed": return "Fehlgeschlagen";
+      case "failed": 
+      case "error":
+        return "Fehlgeschlagen";
       default: return status;
     }
+  };
+
+  // Check if a job's indexing can be continued
+  const canContinueIndexing = (job: ReorganizationJob): boolean => {
+    if (job.status !== "error" && job.status !== "indexing") return false;
+    
+    const doc = job.source_document;
+    if (!doc) return false;
+    
+    const totalPages = doc.page_count || 1000;
+    const indexedPages = doc.indexed_pages || 0;
+    
+    // Can continue if we have indexed some pages but not all
+    return indexedPages > 0 && indexedPages < totalPages;
   };
 
   if (loading) {
@@ -484,9 +607,9 @@ export function ReorganizationDashboard() {
           <TabsTrigger value="start">Neue Reorganisation</TabsTrigger>
           <TabsTrigger value="jobs">
             Laufende Jobs
-            {jobs.filter(j => !['completed', 'failed'].includes(j.status)).length > 0 && (
+            {jobs.filter(j => !['completed', 'failed', 'error'].includes(j.status)).length > 0 && (
               <Badge variant="secondary" className="ml-2">
-                {jobs.filter(j => !['completed', 'failed'].includes(j.status)).length}
+                {jobs.filter(j => !['completed', 'failed', 'error'].includes(j.status)).length}
               </Badge>
             )}
           </TabsTrigger>
@@ -548,6 +671,11 @@ export function ReorganizationDashboard() {
                                     {d.page_count && (
                                       <Badge variant="secondary" className="text-xs flex-shrink-0">
                                         {d.page_count} Seiten
+                                      </Badge>
+                                    )}
+                                    {d.indexing_status === "complete" && (
+                                      <Badge variant="outline" className="text-xs flex-shrink-0 text-green-600">
+                                        Indexiert
                                       </Badge>
                                     )}
                                   </div>
@@ -657,7 +785,7 @@ export function ReorganizationDashboard() {
                             </p>
                           </div>
                         </div>
-                        <Badge variant={job.status === "failed" ? "destructive" : "secondary"}>
+                        <Badge variant={job.status === "failed" || job.status === "error" ? "destructive" : "secondary"}>
                           {getStatusLabel(job.status)}
                         </Badge>
                       </div>
@@ -707,7 +835,7 @@ export function ReorganizationDashboard() {
                         </div>
                       )}
 
-                      {/* Error state with retry button */}
+                      {/* Error state with retry/continue/delete buttons */}
                       {(job.status === "failed" || job.status === "error") && (
                         <div className="space-y-2">
                           {job.error_message && (
@@ -731,6 +859,25 @@ export function ReorganizationDashboard() {
                               )}
                               Löschen
                             </Button>
+                            
+                            {/* Continue indexing button - shown when indexing was interrupted */}
+                            {canContinueIndexing(job) && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => continueIndexing(job)}
+                                disabled={continuingIndexing === job.id}
+                                className="text-primary"
+                              >
+                                {continuingIndexing === job.id ? (
+                                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                ) : (
+                                  <PlayCircle className="h-4 w-4 mr-1" />
+                                )}
+                                Fortsetzen ({job.source_document?.indexed_pages || 0}/{job.source_document?.page_count || "?"})
+                              </Button>
+                            )}
+                            
                             <Button
                               variant="outline"
                               size="sm"
@@ -742,7 +889,7 @@ export function ReorganizationDashboard() {
                               ) : (
                                 <RotateCcw className="h-4 w-4 mr-1" />
                               )}
-                              Erneut versuchen
+                              Neu starten
                             </Button>
                           </div>
                         </div>

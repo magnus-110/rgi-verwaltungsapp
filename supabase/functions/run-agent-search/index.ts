@@ -10,6 +10,11 @@ const MISTRAL_API_KEY = Deno.env.get("MISTRAL_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+// Validate API key at startup
+if (!MISTRAL_API_KEY) {
+  console.error("WARNING: MISTRAL_API_KEY is not configured");
+}
+
 const CHUNK_SIZE = 150; // Pages per chunk for context window management
 
 interface SearchRequest {
@@ -125,6 +130,17 @@ serve(async (req) => {
   const startTime = Date.now();
 
   try {
+    // CRITICAL: Validate API Key before processing
+    if (!MISTRAL_API_KEY) {
+      console.error("MISTRAL_API_KEY is not configured");
+      return new Response(
+        JSON.stringify({ 
+          error: "MISTRAL_API_KEY nicht konfiguriert. Bitte in den Supabase Edge Function Secrets hinzufügen." 
+        }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const { jobId, agentId, documentId }: SearchRequest = await req.json();
 
     if (!jobId || !agentId || !documentId) {
