@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MoreHorizontal, RefreshCw, Settings, Upload, BookOpen, Sparkles } from "lucide-react";
+import { MoreHorizontal, RefreshCw, Settings, Upload, BookOpen } from "lucide-react";
 import { useNavigate, Link } from "react-router-dom";
 import { KnowledgeScopeSelector, KnowledgeScope } from "@/components/documents/KnowledgeScopeSelector";
 import { UploadDialog } from "@/components/documents/UploadDialog";
@@ -355,25 +355,15 @@ export function Documents() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => navigate('/documents/reorganize')}>
-              <Sparkles className="h-4 w-4 mr-2" />
-              PDF-Reorganisation
-            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => setIsPromptGuideOpen(true)}>
               <BookOpen className="h-4 w-4 mr-2" />
               Prompt-Guide
             </DropdownMenuItem>
             {(profile?.role === 'admin' || profile?.role === 'employee') && (
-              <>
-                <DropdownMenuItem onClick={() => navigate('/documents/agents')}>
-                  <Settings className="h-4 w-4 mr-2" />
-                  Agenten verwalten
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate('/documents/settings')}>
-                  <Settings className="h-4 w-4 mr-2" />
-                  Einstellungen
-                </DropdownMenuItem>
-              </>
+              <DropdownMenuItem onClick={() => navigate('/documents/settings')}>
+                <Settings className="h-4 w-4 mr-2" />
+                Einstellungen
+              </DropdownMenuItem>
             )}
             <DropdownMenuItem onClick={() => setIsUploadOpen(true)}>
               <Upload className="h-4 w-4 mr-2" />

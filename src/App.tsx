@@ -19,8 +19,6 @@ import { Settings } from "./pages/Settings";
 import { Documents } from "./pages/Documents";
 import { DocumentSettings } from "./pages/DocumentSettings";
 import { WebhookSettings } from "./pages/WebhookSettings";
-import { ReorganizationAgents } from "./pages/ReorganizationAgents";
-import { ReorganizationDashboard } from "./pages/ReorganizationDashboard";
 import { AdminLayout } from "./components/AdminLayout";
 import { WegOwnerLayout } from "./components/WegOwnerLayout";
 import { WegOwnerDashboard } from "./pages/weg-owner/Dashboard";
@@ -61,8 +59,6 @@ const App = () => (
               <Route path="/forum" element={<AdminLayout><Forum /></AdminLayout>} />
               <Route path="/documents" element={<AdminLayout><Documents /></AdminLayout>} />
               <Route path="/documents/settings" element={<AdminLayout><DocumentSettings /></AdminLayout>} />
-              <Route path="/documents/agents" element={<AdminLayout><ReorganizationAgents /></AdminLayout>} />
-              <Route path="/documents/reorganize" element={<AdminLayout><ReorganizationDashboard /></AdminLayout>} />
               <Route path="/chatbot" element={<AdminLayout><ChatbotSettings /></AdminLayout>} />
               <Route path="/webhooks" element={<AdminLayout><WebhookSettings /></AdminLayout>} />
               <Route path="/settings" element={<AdminLayout><Settings /></AdminLayout>} />
