@@ -144,7 +144,7 @@ async function extractPagesWithOCR(
   return { text: fullText, pageCount: actualTotalPages };
 }
 
-// Semantic chunking - rule-based but quality-focused
+// Intelligent semantic chunking - structure-aware with table preservation
 function createSemanticChunks(text: string, documentName: string): Array<{ content: string; metadata: any }> {
   const chunks: Array<{ content: string; metadata: any }> = [];
   
@@ -159,38 +159,90 @@ function createSemanticChunks(text: string, documentName: string): Array<{ conte
   const TARGET_SIZE = 1000;
   const MIN_SIZE = 400;
   const MAX_SIZE = 1800;
+  // Tables can exceed MAX_SIZE if needed
+  const TABLE_MAX_SIZE = 4000;
+  
+  // Helper: Extract tables from text
+  const extractTables = (text: string): { tables: string[]; textWithoutTables: string } => {
+    const tablePattern = /(\|[^\n]+\|\n\|[-:\s|]+\|\n(?:\|[^\n]+\|\n?)+)/g;
+    const tables: string[] = [];
+    const textWithoutTables = text.replace(tablePattern, (match) => {
+      tables.push(match.trim());
+      return '\n[TABELLE_PLATZHALTER]\n';
+    });
+    return { tables, textWithoutTables };
+  };
+  
+  // Helper: Check if segment starts with a heading
+  const isHeading = (line: string): boolean => {
+    const trimmed = line.trim();
+    if (/^#{1,4}\s+/.test(trimmed)) return true;
+    if (/^(?:\d+\.)+\s*[A-ZÄÖÜa-zäöü]/.test(trimmed)) return true;
+    if (/^[A-ZÄÖÜ][A-ZÄÖÜ\s]{10,}$/.test(trimmed)) return true;
+    return false;
+  };
   
   for (let i = 0; i < pageSplits.length; i++) {
     const segment = pageSplits[i];
     
-    // Check if this segment is a page number
     if (/^\d+$/.test(segment.trim())) {
       currentPage = parseInt(segment.trim());
       continue;
     }
     
-    // Split segment into paragraphs
-    const paragraphs = segment.split(/\n\n+/).filter(p => p.trim().length > 20);
+    const { tables, textWithoutTables } = extractTables(segment);
+    let tableIndex = 0;
+    
+    const lines = textWithoutTables.split('\n');
+    let currentParagraph = '';
+    const paragraphs: string[] = [];
+    
+    for (const line of lines) {
+      if (line.trim() === '[TABELLE_PLATZHALTER]' && tableIndex < tables.length) {
+        if (currentParagraph.trim()) {
+          paragraphs.push(currentParagraph.trim());
+        }
+        paragraphs.push(tables[tableIndex]);
+        tableIndex++;
+        currentParagraph = '';
+      } else if (isHeading(line) && currentParagraph.trim()) {
+        paragraphs.push(currentParagraph.trim());
+        currentParagraph = line + '\n';
+      } else if (line.trim() === '' && currentParagraph.trim().length > 100) {
+        paragraphs.push(currentParagraph.trim());
+        currentParagraph = '';
+      } else {
+        currentParagraph += line + '\n';
+      }
+    }
+    
+    if (currentParagraph.trim()) {
+      paragraphs.push(currentParagraph.trim());
+    }
     
     for (const para of paragraphs) {
-      if (buffer.length + para.length < MAX_SIZE) {
+      const isTable = para.startsWith('|') && para.includes('\n|');
+      const maxSize = isTable ? TABLE_MAX_SIZE : MAX_SIZE;
+      
+      if (buffer.length + para.length < maxSize) {
         buffer += (buffer ? '\n\n' : '') + para;
       } else {
-        // Flush buffer if it has enough content
         if (buffer.length >= MIN_SIZE) {
           chunks.push(createChunkWithMetadata(buffer, bufferStartPage, currentPage, documentName));
           
-          // Keep overlap for context
-          const words = buffer.split(/\s+/);
-          const overlapWords = words.slice(-Math.min(20, Math.floor(words.length * 0.1)));
-          buffer = overlapWords.join(' ') + '\n\n' + para;
+          if (!isTable && !buffer.startsWith('|')) {
+            const words = buffer.split(/\s+/);
+            const overlapWords = words.slice(-Math.min(20, Math.floor(words.length * 0.1)));
+            buffer = overlapWords.join(' ') + '\n\n' + para;
+          } else {
+            buffer = para;
+          }
           bufferStartPage = currentPage;
         } else {
           buffer += (buffer ? '\n\n' : '') + para;
         }
         
-        // If paragraph itself is too large, split it
-        if (para.length > MAX_SIZE) {
+        if (para.length > maxSize && !isTable) {
           const sentences = para.match(/[^.!?]+[.!?]+/g) || [para];
           let sentenceBuffer = '';
           
@@ -213,17 +265,15 @@ function createSemanticChunks(text: string, documentName: string): Array<{ conte
     }
   }
   
-  // Don't forget remaining buffer
   if (buffer.trim().length >= MIN_SIZE) {
     chunks.push(createChunkWithMetadata(buffer, bufferStartPage, currentPage, documentName));
   } else if (buffer.trim().length > 50 && chunks.length > 0) {
-    // Append small remainder to last chunk
     chunks[chunks.length - 1].content += '\n\n' + buffer.trim();
   } else if (buffer.trim().length > 50) {
     chunks.push(createChunkWithMetadata(buffer, bufferStartPage, currentPage, documentName));
   }
   
-  console.log(`Created ${chunks.length} semantic chunks from text`);
+  console.log(`Created ${chunks.length} semantic chunks with table preservation`);
   return chunks;
 }
 
@@ -233,10 +283,11 @@ function createChunkWithMetadata(
   endPage: number,
   documentName: string
 ): { content: string; metadata: any } {
-  // Detect category based on keywords
   const contentLower = content.toLowerCase();
   let category = 'allgemein';
+  let documentType = 'unknown';
   
+  // Enhanced category detection
   if (/eigentümer|miteigentum|wohneinheit|sondereigentum/.test(contentLower)) {
     category = 'eigentuemer';
   } else if (/verwalter|hausverwaltung|verwaltung/.test(contentLower)) {
@@ -249,10 +300,47 @@ function createChunkWithMetadata(
     category = 'technik';
   } else if (/gesetz|paragraph|§|recht|urteil|bgh|vertrag/.test(contentLower)) {
     category = 'rechtlich';
+  } else if (/versicherung|police|schaden|deckung|prämie/.test(contentLower)) {
+    category = 'versicherung';
   }
   
-  // Extract first line as potential title/summary
+  // Extended document type detection
+  if (/eigentümer(?:liste|verzeichnis)|wer.*gehört|mea[\s-]*anteil/i.test(content)) {
+    documentType = 'eigentumerliste';
+  } else if (/hausgeld(?:abrechnung)?|jahresabrechnung|einzelabrechnung/i.test(content)) {
+    documentType = 'hausgeldabrechnung';
+  } else if (/wirtschaftsplan|vorauszahlung(?:en)?|plan\s*\d{4}/i.test(content)) {
+    documentType = 'wirtschaftsplan';
+  } else if (/eigentümerversammlung|versammlung(?:sprotokoll)?|top\s*\d/i.test(content)) {
+    documentType = 'versammlungsprotokoll';
+  } else if (/teilungserkl|sondereigentum|gemeinschaftseigentum/i.test(content)) {
+    documentType = 'teilungserklarung';
+  } else if (/wartung(?:svertrag)?|service(?:vertrag)?/i.test(content)) {
+    documentType = 'wartungsvertrag';
+  } else if (/versicherung(?:spolice)?|police(?:nnummer)?|deckung(?:ssumme)?/i.test(content)) {
+    documentType = 'versicherungspolice';
+  } else if (/rechnung(?:snummer)?|re[\s-]*nr|mwst|netto|brutto/i.test(content)) {
+    documentType = 'rechnung';
+  }
+  
   const firstLine = content.split('\n')[0].trim().slice(0, 100);
+  
+  // Year extraction
+  const yearMatch = content.match(/(?:jahr|abrechnungszeitraum|wirtschaftsjahr)[:\s]*(\d{4})/i) ||
+                    content.match(/(?:für das jahr|für \d{4}|stand[:\s]*\d{1,2}\.\d{1,2}\.)(\d{4})/i);
+  const documentYear = yearMatch ? yearMatch[1] : null;
+  
+  // Technical features
+  const features: string[] = [];
+  if (/gas(?:heizung|therme|kessel|anschluss)/i.test(content)) features.push('gas_heating');
+  if (/öl(?:heizung|tank|kessel)/i.test(content)) features.push('oil_heating');
+  if (/wärmepumpe/i.test(content)) features.push('heat_pump');
+  if (/fernwärme/i.test(content)) features.push('district_heating');
+  if (/photovoltaik|solar|pv-anlage/i.test(content)) features.push('solar');
+  if (/aufzug|fahrstuhl|lift/i.test(content)) features.push('elevator');
+  if (/tiefgarage|stellplatz/i.test(content)) features.push('parking');
+  
+  const hasTable = content.includes('|') && /\|[^|]+\|/.test(content);
   
   return {
     content: content.trim(),
@@ -261,8 +349,12 @@ function createChunkWithMetadata(
       page_end: endPage,
       pages: startPage === endPage ? `${startPage}` : `${startPage}-${endPage}`,
       category,
+      document_type: documentType,
       document: documentName,
-      summary: firstLine.length > 10 ? firstLine : null
+      summary: firstLine.length > 10 ? firstLine : null,
+      document_year: documentYear,
+      features: features.length > 0 ? features : null,
+      has_table: hasTable,
     }
   };
 }

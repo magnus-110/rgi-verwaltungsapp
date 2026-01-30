@@ -130,41 +130,55 @@ async function generateQuestionEmbedding(question: string): Promise<number[]> {
   return data.data[0].embedding;
 }
 
-// Search for similar chunks using vector similarity
+// Search for similar chunks using vector similarity with AUTOMATIC metadata filtering
 async function searchSimilarChunks(
   supabase: any,
   embedding: number[],
   buildingId: string | null,
   includeGeneral: boolean,
   limit: number = 10,
-  searchAllBuildings: boolean = false
+  searchAllBuildings: boolean = false,
+  filterCategories: string[] | null = null,
+  filterFeatures: string[] | null = null
 ): Promise<Array<{id: string, document_id: string, content: string, metadata: any, building_id: string | null, similarity: number}>> {
-  // Use RPC for vector similarity search
-  const { data, error } = await supabase.rpc('search_document_chunks', {
+  
+  // Use the metadata-aware RPC function for filtered search
+  const hasFilters = (filterCategories && filterCategories.length > 0) || 
+                     (filterFeatures && filterFeatures.length > 0);
+  
+  if (hasFilters) {
+    console.log(`Searching with metadata filters: categories=${JSON.stringify(filterCategories)}, features=${JSON.stringify(filterFeatures)}`);
+  }
+  
+  // Use search_document_chunks_with_metadata RPC for filtered search
+  const { data, error } = await supabase.rpc('search_document_chunks_with_metadata', {
     query_embedding: `[${embedding.join(',')}]`,
     filter_building_id: buildingId,
     include_general: includeGeneral,
     match_count: limit,
-    search_all_buildings: searchAllBuildings
+    search_all_buildings: searchAllBuildings,
+    filter_categories: filterCategories && filterCategories.length > 0 ? filterCategories : null,
+    filter_features: filterFeatures && filterFeatures.length > 0 ? filterFeatures : null
   });
 
   if (error) {
     console.error('Vector search error:', error);
     
-    // Fallback: use simple query without vector search
-    const { data: fallbackData, error: fallbackError } = await supabase
-      .from('document_chunks')
-      .select('id, document_id, content, metadata, building_id')
-      .limit(limit);
+    // Fallback to simple RPC without metadata filters
+    const { data: fallbackData, error: fallbackError } = await supabase.rpc('search_document_chunks', {
+      query_embedding: `[${embedding.join(',')}]`,
+      filter_building_id: buildingId,
+      include_general: includeGeneral,
+      match_count: limit,
+      search_all_buildings: searchAllBuildings
+    });
     
     if (fallbackError) {
-      throw new Error(`Search failed: ${fallbackError.message}`);
+      console.error('Fallback search also failed:', fallbackError);
+      return [];
     }
     
-    return fallbackData.map((chunk: any) => ({
-      ...chunk,
-      similarity: 0.5
-    }));
+    return fallbackData || [];
   }
 
   return data || [];
@@ -1086,9 +1100,14 @@ BEISPIELE:
     // NORMAL MODE - Generate embedding for the question
     const questionEmbedding = await generateQuestionEmbedding(question);
 
-    // Search for relevant chunks - support multiple building IDs
+    // AUTOMATIC METADATA FILTERING: Extract categories and features from question
+    const autoFilters = extractMetadataFromQuestion(question);
+    console.log(`Auto-detected filters: categories=${JSON.stringify(autoFilters.categories)}, features=${JSON.stringify(autoFilters.features)}`);
+
+    // Search for relevant chunks - support multiple building IDs with automatic filtering
     let relevantChunks;
     if (effectiveBuildingIds.length > 1) {
+      // For multiple buildings, search each with filters then combine
       relevantChunks = await searchSimilarChunksMultipleBuildings(
         supabase,
         questionEmbedding,
@@ -1097,13 +1116,16 @@ BEISPIELE:
         10
       );
     } else {
+      // Single building or all buildings - use automatic filters
       relevantChunks = await searchSimilarChunks(
         supabase,
         questionEmbedding,
         effectiveBuildingId,
         includeGeneral,
         10,
-        searchAllBuildings || false
+        searchAllBuildings || false,
+        autoFilters.categories.length > 0 ? autoFilters.categories : null,
+        autoFilters.features.length > 0 ? autoFilters.features : null
       );
     }
 

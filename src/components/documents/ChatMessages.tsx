@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { FileText, ExternalLink, Wifi, ChevronDown, Copy, Check, Download } from "lucide-react";
+import { FileText, ExternalLink, Wifi, ChevronDown, Copy, Check, Download, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PdfViewerModal } from "./PdfViewerModal";
+import { supabase } from "@/integrations/supabase/client";
 import * as XLSX from "xlsx";
 
 interface ChatSource {
@@ -12,7 +13,7 @@ interface ChatSource {
   buildingId?: string;
   documentId?: string;
   fileName?: string;
-  documentUrl?: string;
+  documentUrl?: string; // May be null - loaded on-demand
   pageNumber?: number;
   type?: 'web' | 'document';
 }
@@ -29,6 +30,9 @@ interface ChatMessagesProps {
   messages: ChatMessage[];
   isLoading: boolean;
 }
+
+// Cache for document URLs to avoid repeated fetches
+const urlCache = new Map<string, { url: string; expiresAt: Date }>();
 
 // Table wrapper component with copy and Excel export buttons
 function CopyableTable({ children }: { children: React.ReactNode }) {
@@ -143,6 +147,7 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
   } | null>(null);
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [loadingDocumentId, setLoadingDocumentId] = useState<string | null>(null);
 
   const handleCopy = async (content: string, messageId: string) => {
     try {
@@ -154,25 +159,83 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
     }
   };
 
-  const handleSourceClick = (source: ChatSource) => {
-    if (source.documentUrl) {
-      let page = 1;
-      if (source.pageNumber !== undefined && source.pageNumber !== null) {
-        const parsed = typeof source.pageNumber === 'string' 
-          ? parseInt(source.pageNumber, 10) 
-          : source.pageNumber;
-        if (!isNaN(parsed) && parsed > 0) {
-          page = parsed;
-        }
-      }
-      
-      setSelectedDocument({
-        url: source.documentUrl,
-        name: source.fileName || 'Dokument',
-        page
-      });
-      setPdfViewerOpen(true);
+  // Fetch document URL on-demand (EGRESS OPTIMIZATION)
+  const fetchDocumentUrl = useCallback(async (documentId: string): Promise<string | null> => {
+    // Check cache first
+    const cached = urlCache.get(documentId);
+    if (cached && cached.expiresAt > new Date()) {
+      console.log('Using cached URL for document:', documentId);
+      return cached.url;
     }
+
+    try {
+      console.log('Fetching on-demand URL for document:', documentId);
+      const { data, error } = await supabase.functions.invoke('get-document-url', {
+        body: { documentId }
+      });
+
+      if (error) {
+        console.error('Error fetching document URL:', error);
+        return null;
+      }
+
+      if (data?.signedUrl) {
+        // Cache for 50 minutes (URL valid for 60 min)
+        urlCache.set(documentId, {
+          url: data.signedUrl,
+          expiresAt: new Date(Date.now() + 50 * 60 * 1000)
+        });
+        return data.signedUrl;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('Error fetching document URL:', error);
+      return null;
+    }
+  }, []);
+
+  const handleSourceClick = async (source: ChatSource) => {
+    // For web sources, use the URL directly
+    if (source.type === 'web') {
+      return;
+    }
+
+    // If we already have a URL, use it
+    if (source.documentUrl) {
+      openPdfViewer(source.documentUrl, source.fileName || 'Dokument', source.pageNumber);
+      return;
+    }
+
+    // Otherwise, fetch the URL on-demand (EGRESS OPTIMIZATION)
+    if (source.documentId) {
+      setLoadingDocumentId(source.documentId);
+      const url = await fetchDocumentUrl(source.documentId);
+      setLoadingDocumentId(null);
+      
+      if (url) {
+        openPdfViewer(url, source.fileName || 'Dokument', source.pageNumber);
+      }
+    }
+  };
+
+  const openPdfViewer = (url: string, name: string, pageNumber?: number) => {
+    let page = 1;
+    if (pageNumber !== undefined && pageNumber !== null) {
+      const parsed = typeof pageNumber === 'string' 
+        ? parseInt(pageNumber, 10) 
+        : pageNumber;
+      if (!isNaN(parsed) && parsed > 0) {
+        page = parsed;
+      }
+    }
+    
+    setSelectedDocument({
+      url,
+      name,
+      page
+    });
+    setPdfViewerOpen(true);
   };
 
   const closePdfViewer = () => {
@@ -337,19 +400,26 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
                             );
                           }
                           
+                          const canLoad = hasLink || !!source.documentId;
+                          const isLoadingThis = loadingDocumentId === source.documentId;
+                          
                           return (
                             <button
                               key={index}
                               onClick={() => handleSourceClick(source)}
-                              disabled={!hasLink}
+                              disabled={!canLoad || isLoadingThis}
                               className={cn(
                                 "inline-flex items-center gap-1.5 text-xs rounded-full px-3 py-1.5 transition-colors",
-                                hasLink 
+                                canLoad 
                                   ? "bg-primary/10 text-primary hover:bg-primary/20 cursor-pointer" 
                                   : "bg-muted text-muted-foreground cursor-default"
                               )}
                             >
-                              <FileText className="h-3 w-3 flex-shrink-0" />
+                              {isLoadingThis ? (
+                                <Loader2 className="h-3 w-3 flex-shrink-0 animate-spin" />
+                              ) : (
+                                <FileText className="h-3 w-3 flex-shrink-0" />
+                              )}
                               {pageNum && (
                                 <span className="font-semibold flex-shrink-0">
                                   S. {pageNum}
@@ -358,7 +428,7 @@ export function ChatMessages({ messages, isLoading }: ChatMessagesProps) {
                               <span className="font-medium truncate max-w-[150px]">
                                 {displayName}
                               </span>
-                              {hasLink && (
+                              {canLoad && !isLoadingThis && (
                                 <ExternalLink className="h-3 w-3 opacity-50 flex-shrink-0" />
                               )}
                             </button>

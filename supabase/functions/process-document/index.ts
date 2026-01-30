@@ -92,10 +92,11 @@ async function extractTextWithMistralOCR(signedUrl: string): Promise<{ text: str
   return { text: fullText, pageCount };
 }
 
-// Semantic chunking - fast, rule-based, but preserves context
+// Intelligent semantic chunking - structure-aware with table preservation
 function createSemanticChunks(text: string, documentName: string): Array<{ content: string; metadata: any }> {
   const chunks: Array<{ content: string; metadata: any }> = [];
   
+  // Split by pages first
   const pagePattern = /\n\n--- Seite (\d+) ---\n\n/g;
   const pageSplits = text.split(pagePattern);
   
@@ -106,33 +107,105 @@ function createSemanticChunks(text: string, documentName: string): Array<{ conte
   const TARGET_SIZE = 1000;
   const MIN_SIZE = 400;
   const MAX_SIZE = 1800;
+  // Tables can exceed MAX_SIZE if needed
+  const TABLE_MAX_SIZE = 4000;
+  
+  // Helper: Check if text contains a complete table
+  const extractTables = (text: string): { tables: string[]; textWithoutTables: string } => {
+    // Match markdown tables (header + separator + rows)
+    const tablePattern = /(\|[^\n]+\|\n\|[-:\s|]+\|\n(?:\|[^\n]+\|\n?)+)/g;
+    const tables: string[] = [];
+    const textWithoutTables = text.replace(tablePattern, (match) => {
+      tables.push(match.trim());
+      return '\n[TABELLE_PLATZHALTER]\n';
+    });
+    return { tables, textWithoutTables };
+  };
+  
+  // Helper: Check if segment starts with a heading
+  const isHeading = (line: string): boolean => {
+    const trimmed = line.trim();
+    // Markdown headings
+    if (/^#{1,4}\s+/.test(trimmed)) return true;
+    // Numbered headings like "1.", "1.1", "1.1.1"
+    if (/^(?:\d+\.)+\s*[A-ZÄÖÜa-zäöü]/.test(trimmed)) return true;
+    // All caps headings (likely section titles)
+    if (/^[A-ZÄÖÜ][A-ZÄÖÜ\s]{10,}$/.test(trimmed)) return true;
+    return false;
+  };
   
   for (let i = 0; i < pageSplits.length; i++) {
     const segment = pageSplits[i];
     
+    // Check if this segment is a page number
     if (/^\d+$/.test(segment.trim())) {
       currentPage = parseInt(segment.trim());
       continue;
     }
     
-    const paragraphs = segment.split(/\n\n+/).filter(p => p.trim().length > 20);
+    // Extract tables first - they should stay together
+    const { tables, textWithoutTables } = extractTables(segment);
+    let tableIndex = 0;
     
+    // Split segment into paragraphs, respecting headings
+    const lines = textWithoutTables.split('\n');
+    let currentParagraph = '';
+    const paragraphs: string[] = [];
+    
+    for (const line of lines) {
+      if (line.trim() === '[TABELLE_PLATZHALTER]' && tableIndex < tables.length) {
+        // Flush current paragraph
+        if (currentParagraph.trim()) {
+          paragraphs.push(currentParagraph.trim());
+        }
+        // Add table as its own paragraph (priority: keep together)
+        paragraphs.push(tables[tableIndex]);
+        tableIndex++;
+        currentParagraph = '';
+      } else if (isHeading(line) && currentParagraph.trim()) {
+        // Heading starts a new chunk
+        paragraphs.push(currentParagraph.trim());
+        currentParagraph = line + '\n';
+      } else if (line.trim() === '' && currentParagraph.trim().length > 100) {
+        // Empty line after substantial content
+        paragraphs.push(currentParagraph.trim());
+        currentParagraph = '';
+      } else {
+        currentParagraph += line + '\n';
+      }
+    }
+    
+    if (currentParagraph.trim()) {
+      paragraphs.push(currentParagraph.trim());
+    }
+    
+    // Process paragraphs with table-awareness
     for (const para of paragraphs) {
-      if (buffer.length + para.length < MAX_SIZE) {
+      const isTable = para.startsWith('|') && para.includes('\n|');
+      const maxSize = isTable ? TABLE_MAX_SIZE : MAX_SIZE;
+      
+      if (buffer.length + para.length < maxSize) {
         buffer += (buffer ? '\n\n' : '') + para;
       } else {
+        // Flush buffer if it has enough content
         if (buffer.length >= MIN_SIZE) {
           chunks.push(createChunkWithMetadata(buffer, bufferStartPage, currentPage, documentName));
           
-          const words = buffer.split(/\s+/);
-          const overlapWords = words.slice(-Math.min(20, Math.floor(words.length * 0.1)));
-          buffer = overlapWords.join(' ') + '\n\n' + para;
+          // Keep overlap for context (but not for tables)
+          if (!isTable && !buffer.startsWith('|')) {
+            const words = buffer.split(/\s+/);
+            const overlapWords = words.slice(-Math.min(20, Math.floor(words.length * 0.1)));
+            buffer = overlapWords.join(' ') + '\n\n' + para;
+          } else {
+            buffer = para;
+          }
           bufferStartPage = currentPage;
         } else {
           buffer += (buffer ? '\n\n' : '') + para;
         }
         
-        if (para.length > MAX_SIZE) {
+        // If paragraph itself is too large and NOT a table, split it
+        if (para.length > maxSize && !isTable) {
           const sentences = para.match(/[^.!?]+[.!?]+/g) || [para];
           let sentenceBuffer = '';
           
@@ -155,15 +228,17 @@ function createSemanticChunks(text: string, documentName: string): Array<{ conte
     }
   }
   
+  // Don't forget remaining buffer
   if (buffer.trim().length >= MIN_SIZE) {
     chunks.push(createChunkWithMetadata(buffer, bufferStartPage, currentPage, documentName));
   } else if (buffer.trim().length > 50 && chunks.length > 0) {
+    // Append small remainder to last chunk
     chunks[chunks.length - 1].content += '\n\n' + buffer.trim();
   } else if (buffer.trim().length > 50) {
     chunks.push(createChunkWithMetadata(buffer, bufferStartPage, currentPage, documentName));
   }
   
-  console.log(`Created ${chunks.length} semantic chunks`);
+  console.log(`Created ${chunks.length} semantic chunks with table preservation`);
   return chunks;
 }
 
@@ -175,7 +250,9 @@ function createChunkWithMetadata(
 ): { content: string; metadata: any } {
   const contentLower = content.toLowerCase();
   let category = 'allgemein';
+  let documentType = 'unknown';
   
+  // Enhanced category detection
   if (/eigentümer|miteigentum|wohneinheit|sondereigentum/.test(contentLower)) {
     category = 'eigentuemer';
   } else if (/verwalter|hausverwaltung|verwaltung/.test(contentLower)) {
@@ -188,6 +265,27 @@ function createChunkWithMetadata(
     category = 'technik';
   } else if (/gesetz|paragraph|§|recht|urteil|bgh|vertrag/.test(contentLower)) {
     category = 'rechtlich';
+  } else if (/versicherung|police|schaden|deckung|prämie/.test(contentLower)) {
+    category = 'versicherung';
+  }
+  
+  // Extended document type detection for scans
+  if (/eigentümer(?:liste|verzeichnis)|wer.*gehört|mea[\s-]*anteil/i.test(content)) {
+    documentType = 'eigentumerliste';
+  } else if (/hausgeld(?:abrechnung)?|jahresabrechnung|einzelabrechnung|abrechnungs(?:zeitraum|jahr)/i.test(content)) {
+    documentType = 'hausgeldabrechnung';
+  } else if (/wirtschaftsplan|vorauszahlung(?:en)?|plan\s*\d{4}/i.test(content)) {
+    documentType = 'wirtschaftsplan';
+  } else if (/eigentümerversammlung|versammlung(?:sprotokoll)?|top\s*\d|beschluss(?:fassung)?/i.test(content)) {
+    documentType = 'versammlungsprotokoll';
+  } else if (/teilungserkl|sondereigentum|gemeinschaftseigentum|aufteilungsplan/i.test(content)) {
+    documentType = 'teilungserklarung';
+  } else if (/wartung(?:svertrag)?|service(?:vertrag)?|vollwartung/i.test(content)) {
+    documentType = 'wartungsvertrag';
+  } else if (/versicherung(?:spolice)?|police(?:nnummer)?|deckung(?:ssumme)?|prämie/i.test(content)) {
+    documentType = 'versicherungspolice';
+  } else if (/rechnung(?:snummer)?|re[\s-]*nr|mwst|netto|brutto|fällig(?:keit)?/i.test(content)) {
+    documentType = 'rechnung';
   }
   
   const firstLine = content.split('\n')[0].trim().slice(0, 100);
@@ -207,6 +305,15 @@ function createChunkWithMetadata(
     if (match) extractedDates[key] = match[1];
   }
   
+  // Extract year from content (for financial documents)
+  const yearMatch = content.match(/(?:jahr|abrechnungszeitraum|wirtschaftsjahr)[:\s]*(\d{4})/i) ||
+                    content.match(/(?:für das jahr|für \d{4}|stand[:\s]*\d{1,2}\.\d{1,2}\.)(\d{4})/i);
+  const documentYear = yearMatch ? yearMatch[1] : null;
+  
+  // Extract amounts (for financial documents)
+  const amountMatches = content.match(/(?:gesamt|summe|betrag|hausgeld)[:\s]*[\d.,]+(?:\s*(?:€|eur|euro))?/gi) || [];
+  const amounts = amountMatches.slice(0, 5); // Keep top 5 amounts
+  
   // Technical features for cross-building search
   const features: string[] = [];
   if (/gas(?:heizung|therme|kessel|anschluss)/i.test(content)) features.push('gas_heating');
@@ -217,6 +324,9 @@ function createChunkWithMetadata(
   if (/aufzug|fahrstuhl|lift/i.test(content)) features.push('elevator');
   if (/tiefgarage|stellplatz/i.test(content)) features.push('parking');
   
+  // Check if content contains a table
+  const hasTable = content.includes('|') && /\|[^|]+\|/.test(content);
+  
   return {
     content: content.trim(),
     metadata: {
@@ -224,10 +334,14 @@ function createChunkWithMetadata(
       page_end: endPage,
       pages: startPage === endPage ? `${startPage}` : `${startPage}-${endPage}`,
       category,
+      document_type: documentType,
       document: documentName,
       summary: firstLine.length > 10 ? firstLine : null,
       dates: Object.keys(extractedDates).length > 0 ? extractedDates : null,
+      document_year: documentYear,
+      amounts: amounts.length > 0 ? amounts : null,
       features: features.length > 0 ? features : null,
+      has_table: hasTable,
     }
   };
 }
@@ -276,6 +390,35 @@ async function generateEmbeddings(texts: string[], supabase: any, documentId: st
   return allEmbeddings;
 }
 
+// Validate Mistral API key with a minimal test request
+async function validateMistralApiKey(): Promise<{ valid: boolean; error?: string }> {
+  try {
+    console.log('Validating Mistral API key...');
+    const response = await fetch('https://api.mistral.ai/v1/models', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${MISTRAL_API_KEY}`,
+      },
+    });
+    
+    if (response.status === 401) {
+      return { valid: false, error: 'Ungültiger API-Key. Bitte überprüfen Sie den MISTRAL_API_KEY in den Supabase Secrets.' };
+    }
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('API validation error:', errorText);
+      return { valid: false, error: `API-Fehler: ${response.status}` };
+    }
+    
+    console.log('Mistral API key is valid');
+    return { valid: true };
+  } catch (error) {
+    console.error('API validation network error:', error);
+    return { valid: false, error: 'Netzwerkfehler bei API-Validierung. Bitte versuchen Sie es später erneut.' };
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -292,7 +435,7 @@ serve(async (req) => {
     console.log(`Processing document: ${documentId}, path: ${filePath}, category: ${category}`);
 
     if (!MISTRAL_API_KEY) {
-      throw new Error('MISTRAL_API_KEY is not configured');
+      throw new Error('MISTRAL_API_KEY ist nicht konfiguriert. Bitte fügen Sie den API-Key in den Supabase Secrets hinzu.');
     }
 
     supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
@@ -314,6 +457,22 @@ serve(async (req) => {
     // Check retry limit
     if (retryCount >= 3) {
       throw new Error('Maximale Anzahl an Verarbeitungsversuchen erreicht. Bitte laden Sie das Dokument erneut hoch.');
+    }
+
+    // COST PROTECTION: Validate API key BEFORE any processing
+    const apiValidation = await validateMistralApiKey();
+    if (!apiValidation.valid) {
+      // Set document to error status immediately - NO costs incurred
+      await supabase
+        .from('building_documents')
+        .update({
+          status: 'error',
+          error_message: apiValidation.error,
+          processing_step: 'API-Fehler'
+        })
+        .eq('id', documentId);
+      
+      throw new Error(apiValidation.error);
     }
 
     // Update status to processing
