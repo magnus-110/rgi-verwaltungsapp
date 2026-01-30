@@ -36,3 +36,6 @@ verify_jwt = false
 [functions.enhance-prompt]
 verify_jwt = true
 
+[functions.get-document-url]
+verify_jwt = true
+
