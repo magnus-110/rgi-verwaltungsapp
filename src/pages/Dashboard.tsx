@@ -303,7 +303,7 @@ export const Dashboard = () => {
       </div>
 
       {/* Statistik Widgets */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
         <DashboardWidget
           title="Offene Meldungen"
           value={stats.openReports}
@@ -320,6 +320,7 @@ export const Dashboard = () => {
           trend={chatbotStatus.online ? "Verfügbar" : "Nicht verfügbar"}
           isLoading={loading}
         />
+        <TodoDashboardWidget />
       </div>
 
       {/* Charts Section */}

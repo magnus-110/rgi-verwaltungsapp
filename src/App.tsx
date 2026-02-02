@@ -63,6 +63,7 @@ const App = () => (
               <Route path="/chatbot" element={<AdminLayout><ChatbotSettings /></AdminLayout>} />
               <Route path="/webhooks" element={<AdminLayout><WebhookSettings /></AdminLayout>} />
               <Route path="/settings" element={<AdminLayout><Settings /></AdminLayout>} />
+              <Route path="/todos" element={<AdminLayout><Todos /></AdminLayout>} />
               
               {/* Legacy admin routes for compatibility */}
               <Route path="/admin" element={<AdminLayout><Dashboard /></AdminLayout>} />
