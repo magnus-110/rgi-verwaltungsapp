@@ -69,186 +69,173 @@ export function TodoFilters({ filters, onFiltersChange }: TodoFiltersProps) {
             className="pl-9"
           />
         </div>
-        <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-          <CollapsibleTrigger asChild>
-            <Button variant="outline" className="gap-2">
-              <Filter className="h-4 w-4" />
-              <span className="hidden sm:inline">Filter</span>
-              {activeFilterCount > 0 && (
-                <span className="bg-primary text-primary-foreground text-xs rounded-full px-1.5 py-0.5 min-w-[20px]">
-                  {activeFilterCount}
-                </span>
-              )}
-              {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </Button>
-          </CollapsibleTrigger>
-        </Collapsible>
+        <Button variant="outline" className="gap-2" onClick={() => setIsOpen(!isOpen)}>
+          <Filter className="h-4 w-4" />
+          <span className="hidden sm:inline">Filter</span>
+          {activeFilterCount > 0 && (
+            <span className="bg-primary text-primary-foreground text-xs rounded-full px-1.5 py-0.5 min-w-[20px]">
+              {activeFilterCount}
+            </span>
+          )}
+          {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </Button>
       </div>
 
       {/* Collapsible filter section */}
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <CollapsibleContent>
           <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
-      {/* Search and primary filters */}
-      <div className="flex flex-col lg:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Aufgaben durchsuchen..."
-            value={filters.search}
-            onChange={(e) => updateFilter('search', e.target.value)}
-            className="pl-9"
-          />
-        </div>
+            {/* Primary filters */}
+            <div className="flex flex-col lg:flex-row gap-3">
+              <Select value={filters.assignedTo} onValueChange={(v) => updateFilter('assignedTo', v)}>
+                <SelectTrigger className="w-full lg:w-[180px]">
+                  <SelectValue placeholder="Verantwortlich" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle</SelectItem>
+                  <SelectItem value="unassigned">Nicht zugewiesen</SelectItem>
+                  {users.map((user) => (
+                    <SelectItem key={user.user_id} value={user.user_id}>
+                      {user.first_name} {user.last_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-        <Select value={filters.assignedTo} onValueChange={(v) => updateFilter('assignedTo', v)}>
-          <SelectTrigger className="w-full lg:w-[180px]">
-            <SelectValue placeholder="Verantwortlich" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Alle</SelectItem>
-            <SelectItem value="unassigned">Nicht zugewiesen</SelectItem>
-            {users.map((user) => (
-              <SelectItem key={user.user_id} value={user.user_id}>
-                {user.first_name} {user.last_name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+              <Select value={filters.category} onValueChange={(v) => updateFilter('category', v)}>
+                <SelectTrigger className="w-full lg:w-[150px]">
+                  <SelectValue placeholder="Kategorie" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle Kategorien</SelectItem>
+                  {categories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.id}>
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-2 h-2 rounded-full" 
+                          style={{ backgroundColor: cat.color }} 
+                        />
+                        {cat.name}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-        <Select value={filters.category} onValueChange={(v) => updateFilter('category', v)}>
-          <SelectTrigger className="w-full lg:w-[150px]">
-            <SelectValue placeholder="Kategorie" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Alle Kategorien</SelectItem>
-            {categories.map((cat) => (
-              <SelectItem key={cat.id} value={cat.id}>
-                <div className="flex items-center gap-2">
-                  <div 
-                    className="w-2 h-2 rounded-full" 
-                    style={{ backgroundColor: cat.color }} 
-                  />
-                  {cat.name}
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+              <Select value={filters.priority} onValueChange={(v) => updateFilter('priority', v)}>
+                <SelectTrigger className="w-full lg:w-[130px]">
+                  <SelectValue placeholder="Priorität" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle</SelectItem>
+                  <SelectItem value="urgent">Dringend</SelectItem>
+                  <SelectItem value="high">Hoch</SelectItem>
+                  <SelectItem value="medium">Mittel</SelectItem>
+                  <SelectItem value="low">Niedrig</SelectItem>
+                </SelectContent>
+              </Select>
 
-        <Select value={filters.priority} onValueChange={(v) => updateFilter('priority', v)}>
-          <SelectTrigger className="w-full lg:w-[130px]">
-            <SelectValue placeholder="Priorität" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Alle</SelectItem>
-            <SelectItem value="urgent">Dringend</SelectItem>
-            <SelectItem value="high">Hoch</SelectItem>
-            <SelectItem value="medium">Mittel</SelectItem>
-            <SelectItem value="low">Niedrig</SelectItem>
-          </SelectContent>
-        </Select>
+              <Select value={filters.status} onValueChange={(v) => updateFilter('status', v)}>
+                <SelectTrigger className="w-full lg:w-[150px]">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle Status</SelectItem>
+                  <SelectItem value="open">Offen</SelectItem>
+                  <SelectItem value="in_progress">In Bearbeitung</SelectItem>
+                  <SelectItem value="done">Erledigt</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-        <Select value={filters.status} onValueChange={(v) => updateFilter('status', v)}>
-          <SelectTrigger className="w-full lg:w-[150px]">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Alle Status</SelectItem>
-            <SelectItem value="open">Offen</SelectItem>
-            <SelectItem value="in_progress">In Bearbeitung</SelectItem>
-            <SelectItem value="done">Erledigt</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+            {/* Date filters and sorting */}
+            <div className="flex flex-col lg:flex-row gap-3 items-start lg:items-center">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm text-muted-foreground whitespace-nowrap">Fälligkeit:</span>
+                
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-[130px] justify-start text-left font-normal",
+                        !filters.dueDateFrom && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {filters.dueDateFrom ? format(new Date(filters.dueDateFrom), "dd.MM.yyyy", { locale: de }) : "Von"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={filters.dueDateFrom ? new Date(filters.dueDateFrom) : undefined}
+                      onSelect={(date) => updateFilter('dueDateFrom', date ? format(date, 'yyyy-MM-dd') : '')}
+                      initialFocus
+                      locale={de}
+                    />
+                  </PopoverContent>
+                </Popover>
 
-      {/* Date filters and sorting */}
-      <div className="flex flex-col lg:flex-row gap-3 items-start lg:items-center">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm text-muted-foreground whitespace-nowrap">Fälligkeit:</span>
-          
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className={cn(
-                  "w-[130px] justify-start text-left font-normal",
-                  !filters.dueDateFrom && "text-muted-foreground"
+                <span className="text-sm text-muted-foreground">–</span>
+
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-[130px] justify-start text-left font-normal",
+                        !filters.dueDateTo && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {filters.dueDateTo ? format(new Date(filters.dueDateTo), "dd.MM.yyyy", { locale: de }) : "Bis"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={filters.dueDateTo ? new Date(filters.dueDateTo) : undefined}
+                      onSelect={(date) => updateFilter('dueDateTo', date ? format(date, 'yyyy-MM-dd') : '')}
+                      initialFocus
+                      locale={de}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div className="flex items-center gap-2 ml-auto">
+                <span className="text-sm text-muted-foreground whitespace-nowrap">Sortieren:</span>
+                
+                <Select value={filters.sortBy} onValueChange={(v) => updateFilter('sortBy', v as TodoFiltersType['sortBy'])}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="due_date">Fälligkeit</SelectItem>
+                    <SelectItem value="priority">Priorität</SelectItem>
+                    <SelectItem value="created_at">Erstelldatum</SelectItem>
+                    <SelectItem value="task_number">Nummer</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select value={filters.sortOrder} onValueChange={(v) => updateFilter('sortOrder', v as 'asc' | 'desc')}>
+                  <SelectTrigger className="w-[120px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="asc">Aufsteigend</SelectItem>
+                    <SelectItem value="desc">Absteigend</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {hasActiveFilters && (
+                  <Button variant="ghost" size="sm" onClick={clearFilters}>
+                    <X className="h-4 w-4 mr-1" />
+                    Zurücksetzen
+                  </Button>
                 )}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {filters.dueDateFrom ? format(new Date(filters.dueDateFrom), "dd.MM.yyyy", { locale: de }) : "Von"}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0">
-              <Calendar
-                mode="single"
-                selected={filters.dueDateFrom ? new Date(filters.dueDateFrom) : undefined}
-                onSelect={(date) => updateFilter('dueDateFrom', date ? format(date, 'yyyy-MM-dd') : '')}
-                initialFocus
-                locale={de}
-              />
-            </PopoverContent>
-          </Popover>
-
-          <span className="text-sm text-muted-foreground">–</span>
-
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className={cn(
-                  "w-[130px] justify-start text-left font-normal",
-                  !filters.dueDateTo && "text-muted-foreground"
-                )}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {filters.dueDateTo ? format(new Date(filters.dueDateTo), "dd.MM.yyyy", { locale: de }) : "Bis"}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0">
-              <Calendar
-                mode="single"
-                selected={filters.dueDateTo ? new Date(filters.dueDateTo) : undefined}
-                onSelect={(date) => updateFilter('dueDateTo', date ? format(date, 'yyyy-MM-dd') : '')}
-                initialFocus
-                locale={de}
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
-
-        <div className="flex items-center gap-2 ml-auto">
-          <span className="text-sm text-muted-foreground whitespace-nowrap">Sortieren:</span>
-          
-          <Select value={filters.sortBy} onValueChange={(v) => updateFilter('sortBy', v as TodoFiltersType['sortBy'])}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="due_date">Fälligkeit</SelectItem>
-              <SelectItem value="priority">Priorität</SelectItem>
-              <SelectItem value="created_at">Erstelldatum</SelectItem>
-              <SelectItem value="task_number">Nummer</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select value={filters.sortOrder} onValueChange={(v) => updateFilter('sortOrder', v as 'asc' | 'desc')}>
-            <SelectTrigger className="w-[120px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="asc">Aufsteigend</SelectItem>
-              <SelectItem value="desc">Absteigend</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {hasActiveFilters && (
-            <Button variant="ghost" size="sm" onClick={clearFilters}>
-              <X className="h-4 w-4 mr-1" />
-              Zurücksetzen
-            </Button>
-          )}
+              </div>
             </div>
           </div>
         </CollapsibleContent>
