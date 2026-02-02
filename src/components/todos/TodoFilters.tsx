@@ -249,8 +249,10 @@ export function TodoFilters({ filters, onFiltersChange }: TodoFiltersProps) {
               Zurücksetzen
             </Button>
           )}
-        </div>
-      </div>
+            </div>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   );
 }
