@@ -19,6 +19,7 @@ import { Settings } from "./pages/Settings";
 import { Documents } from "./pages/Documents";
 import { DocumentSettings } from "./pages/DocumentSettings";
 import { WebhookSettings } from "./pages/WebhookSettings";
+import { Todos } from "./pages/Todos";
 import { AdminLayout } from "./components/AdminLayout";
 import { WegOwnerLayout } from "./components/WegOwnerLayout";
 import { WegOwnerDashboard } from "./pages/weg-owner/Dashboard";
@@ -62,6 +63,7 @@ const App = () => (
               <Route path="/chatbot" element={<AdminLayout><ChatbotSettings /></AdminLayout>} />
               <Route path="/webhooks" element={<AdminLayout><WebhookSettings /></AdminLayout>} />
               <Route path="/settings" element={<AdminLayout><Settings /></AdminLayout>} />
+              <Route path="/todos" element={<AdminLayout><Todos /></AdminLayout>} />
               
               {/* Legacy admin routes for compatibility */}
               <Route path="/admin" element={<AdminLayout><Dashboard /></AdminLayout>} />

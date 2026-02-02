@@ -10,6 +10,7 @@ import {
   LogOut,
   ToggleLeft,
   ToggleRight,
+  CheckSquare,
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -30,6 +31,7 @@ import { Button } from "@/components/ui/button";
 const menuItems = [
   { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
   { title: "NOVA", url: "/documents", icon: Sparkles },
+  { title: "Aufgaben", url: "/todos", icon: CheckSquare },
   { title: "Meldungen", url: "/reports", icon: ClipboardList },
   { title: "Gebäude", url: "/buildings", icon: Castle },
   { title: "Schwarzes Brett", url: "/forum", icon: Newspaper },
