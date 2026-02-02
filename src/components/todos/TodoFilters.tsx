@@ -1,13 +1,15 @@
+import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Search, X } from "lucide-react";
+import { CalendarIcon, Search, X, ChevronDown, ChevronUp, Filter } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useCategories, useAssignableUsers, TodoFilters as TodoFiltersType } from "@/hooks/useTodos";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface TodoFiltersProps {
   filters: TodoFiltersType;
@@ -17,6 +19,7 @@ interface TodoFiltersProps {
 export function TodoFilters({ filters, onFiltersChange }: TodoFiltersProps) {
   const { data: categories = [] } = useCategories();
   const { data: users = [] } = useAssignableUsers();
+  const [isOpen, setIsOpen] = useState(false);
 
   const updateFilter = <K extends keyof TodoFiltersType>(key: K, value: TodoFiltersType[K]) => {
     onFiltersChange({ ...filters, [key]: value });
@@ -44,8 +47,48 @@ export function TodoFilters({ filters, onFiltersChange }: TodoFiltersProps) {
     filters.dueDateFrom ||
     filters.dueDateTo;
 
+  const activeFilterCount = [
+    filters.assignedTo !== 'all',
+    filters.category !== 'all',
+    filters.priority !== 'all',
+    filters.status !== 'all',
+    filters.dueDateFrom,
+    filters.dueDateTo,
+  ].filter(Boolean).length;
+
   return (
-    <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
+    <div className="space-y-3">
+      {/* Search bar always visible */}
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Aufgaben durchsuchen..."
+            value={filters.search}
+            onChange={(e) => updateFilter('search', e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+          <CollapsibleTrigger asChild>
+            <Button variant="outline" className="gap-2">
+              <Filter className="h-4 w-4" />
+              <span className="hidden sm:inline">Filter</span>
+              {activeFilterCount > 0 && (
+                <span className="bg-primary text-primary-foreground text-xs rounded-full px-1.5 py-0.5 min-w-[20px]">
+                  {activeFilterCount}
+                </span>
+              )}
+              {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+          </CollapsibleTrigger>
+        </Collapsible>
+      </div>
+
+      {/* Collapsible filter section */}
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        <CollapsibleContent>
+          <div className="space-y-4 p-4 bg-muted/30 rounded-lg border">
       {/* Search and primary filters */}
       <div className="flex flex-col lg:flex-row gap-3">
         <div className="relative flex-1">
