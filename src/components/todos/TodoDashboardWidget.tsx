@@ -1,9 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckSquare, ArrowRight, AlertTriangle, Clock } from "lucide-react";
+import { CheckSquare, ArrowRight, AlertTriangle, Clock, Calendar } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useTodos, isOverdue, priorityLabels, TodoFilters } from "@/hooks/useTodos";
+import { useTodos, isOverdue, TodoFilters } from "@/hooks/useTodos";
 import { useAuth } from "@/hooks/useAuth";
 import { format, differenceInDays } from "date-fns";
 import { de } from "date-fns/locale";
@@ -15,11 +15,19 @@ const widgetFilters: TodoFilters = {
   assignedTo: 'all',
   category: 'all',
   priority: 'all',
-  status: 'all', // We'll filter in component
+  status: 'all',
   dueDateFrom: '',
   dueDateTo: '',
   sortBy: 'due_date',
   sortOrder: 'asc',
+};
+
+// Priority colors: Low = Green, Medium = Orange, High = Red, Urgent = Dark Red
+const priorityConfig: Record<string, { label: string; className: string }> = {
+  low: { label: 'Niedrig', className: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
+  medium: { label: 'Mittel', className: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' },
+  high: { label: 'Hoch', className: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' },
+  urgent: { label: 'Dringend', className: 'bg-red-200 text-red-950 dark:bg-red-950 dark:text-red-100' },
 };
 
 export function TodoDashboardWidget() {
@@ -30,21 +38,24 @@ export function TodoDashboardWidget() {
   // Filter for active todos (not done)
   const activeTodos = allTodos.filter(t => t.status !== 'done');
   
-  // Filter for user's tasks
-  const myTodos = activeTodos.filter(t => t.assigned_to === user?.id);
-  
-  // Count unassigned
-  const unassignedCount = activeTodos.filter(t => !t.assigned_to).length;
+  // Sort by priority and due date
+  const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
+  const sortedTodos = [...activeTodos].sort((a, b) => {
+    const aOverdue = isOverdue(a);
+    const bOverdue = isOverdue(b);
+    if (aOverdue && !bOverdue) return -1;
+    if (!aOverdue && bOverdue) return 1;
+    return priorityOrder[a.priority] - priorityOrder[b.priority];
+  });
 
-  // Group by priority
-  const urgentTodos = myTodos.filter(t => t.priority === 'urgent');
-  const highTodos = myTodos.filter(t => t.priority === 'high');
-  const otherTodos = myTodos.filter(t => t.priority !== 'urgent' && t.priority !== 'high');
+  // Take top 5 tasks
+  const displayTodos = sortedTodos.slice(0, 5);
 
   // Count stats
-  const openCount = myTodos.filter(t => t.status === 'open').length;
-  const inProgressCount = myTodos.filter(t => t.status === 'in_progress').length;
-  const overdueCount = myTodos.filter(t => isOverdue(t)).length;
+  const openCount = activeTodos.filter(t => t.status === 'open').length;
+  const inProgressCount = activeTodos.filter(t => t.status === 'in_progress').length;
+  const overdueCount = activeTodos.filter(t => isOverdue(t)).length;
+  const unassignedCount = activeTodos.filter(t => !t.assigned_to).length;
 
   const formatDueDate = (dueDate: string | null) => {
     if (!dueDate) return null;
@@ -52,27 +63,20 @@ export function TodoDashboardWidget() {
     const today = new Date();
     const days = differenceInDays(date, today);
     
-    if (days < 0) return 'überfällig';
-    if (days === 0) return 'heute';
-    if (days === 1) return 'morgen';
-    if (days <= 7) return `in ${days} Tagen`;
-    return format(date, "dd.MM.", { locale: de });
-  };
-
-  const priorityColors: Record<string, string> = {
-    urgent: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
-    high: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
-    medium: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-    low: 'bg-muted text-muted-foreground',
+    if (days < 0) return { text: 'überfällig', isOverdue: true };
+    if (days === 0) return { text: 'heute', isOverdue: false };
+    if (days === 1) return { text: 'morgen', isOverdue: false };
+    if (days <= 7) return { text: `in ${days} Tagen`, isOverdue: false };
+    return { text: format(date, "dd.MM.yyyy", { locale: de }), isOverdue: false };
   };
 
   if (isLoading) {
     return (
-      <Card>
+      <Card className="col-span-full">
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-lg font-semibold flex items-center gap-2">
             <CheckSquare className="h-5 w-5" />
-            Meine Aufgaben
+            Aufgaben
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -83,74 +87,87 @@ export function TodoDashboardWidget() {
   }
 
   return (
-    <Card className="hover:shadow-elegant transition-shadow">
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
+    <Card className="col-span-full hover:shadow-elegant transition-shadow">
+      <CardHeader className="flex flex-row items-center justify-between pb-3">
         <CardTitle className="text-lg font-semibold flex items-center gap-2">
           <CheckSquare className="h-5 w-5" />
-          Meine Aufgaben
+          Aufgaben
+          {overdueCount > 0 && (
+            <Badge variant="destructive" className="ml-2">
+              {overdueCount} überfällig
+            </Badge>
+          )}
         </CardTitle>
-        <Button variant="ghost" size="sm" onClick={() => navigate('/todos')}>
+        <Button variant="ghost" size="sm" onClick={() => navigate('/todos')} className="gap-1">
+          Alle anzeigen
           <ArrowRight className="h-4 w-4" />
         </Button>
       </CardHeader>
-      <CardContent className="space-y-4">
-        {myTodos.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">
-            Keine Aufgaben zugewiesen
+      <CardContent className="space-y-3">
+        {activeTodos.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-6">
+            Keine offenen Aufgaben
           </p>
         ) : (
           <>
-            {/* Urgent tasks */}
-            {urgentTodos.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Badge className={priorityColors.urgent}>DRINGEND</Badge>
-                  <span className="text-xs text-muted-foreground">{urgentTodos.length} Aufgabe(n)</span>
-                </div>
-                {urgentTodos.slice(0, 2).map(todo => (
-                  <TodoWidgetItem key={todo.id} todo={todo} formatDueDate={formatDueDate} />
-                ))}
-              </div>
-            )}
+            {/* Task list */}
+            <div className="space-y-2">
+              {displayTodos.map(todo => {
+                const dueInfo = formatDueDate(todo.due_date);
+                const overdue = isOverdue(todo);
+                const config = priorityConfig[todo.priority];
+                
+                return (
+                  <div 
+                    key={todo.id}
+                    className={cn(
+                      "flex items-center justify-between p-3 rounded-lg bg-muted/50 cursor-pointer hover:bg-muted transition-colors",
+                      overdue && "border-l-4 border-destructive bg-destructive/5"
+                    )}
+                    onClick={() => navigate('/todos')}
+                  >
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <span className="text-xs font-mono text-muted-foreground shrink-0">
+                        #{todo.task_number}
+                      </span>
+                      <Badge className={cn("shrink-0 text-xs", config.className)}>
+                        {config.label}
+                      </Badge>
+                      <span className="text-sm font-medium truncate">{todo.title}</span>
+                    </div>
+                    {dueInfo && (
+                      <div className={cn(
+                        "flex items-center gap-1 text-xs shrink-0 ml-2",
+                        dueInfo.isOverdue ? "text-destructive font-medium" : "text-muted-foreground"
+                      )}>
+                        <Calendar className="h-3 w-3" />
+                        {dueInfo.text}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
 
-            {/* High priority tasks */}
-            {highTodos.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Badge className={priorityColors.high}>HOCH</Badge>
-                  <span className="text-xs text-muted-foreground">{highTodos.length} Aufgabe(n)</span>
-                </div>
-                {highTodos.slice(0, 2).map(todo => (
-                  <TodoWidgetItem key={todo.id} todo={todo} formatDueDate={formatDueDate} />
-                ))}
-              </div>
-            )}
-
-            {/* Other tasks count */}
-            {otherTodos.length > 0 && (
-              <div className="text-sm text-muted-foreground">
-                + {otherTodos.length} weitere Aufgabe(n)
-              </div>
+            {/* Show more indicator */}
+            {sortedTodos.length > 5 && (
+              <p className="text-sm text-muted-foreground text-center">
+                + {sortedTodos.length - 5} weitere Aufgaben
+              </p>
             )}
           </>
         )}
 
         {/* Stats footer */}
-        <div className="pt-2 border-t flex flex-wrap gap-2 text-xs">
-          <span className="flex items-center gap-1">
+        <div className="pt-3 border-t flex flex-wrap gap-4 text-sm">
+          <span className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-red-500" />
             {openCount} offen
           </span>
-          <span className="flex items-center gap-1">
+          <span className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-yellow-500" />
             {inProgressCount} in Bearbeitung
           </span>
-          {overdueCount > 0 && (
-            <span className="flex items-center gap-1 text-destructive">
-              <AlertTriangle className="h-3 w-3" />
-              {overdueCount} überfällig
-            </span>
-          )}
           {unassignedCount > 0 && (
             <span className="text-muted-foreground">
               ({unassignedCount} nicht zugewiesen)
@@ -159,41 +176,5 @@ export function TodoDashboardWidget() {
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-function TodoWidgetItem({ 
-  todo, 
-  formatDueDate 
-}: { 
-  todo: any; 
-  formatDueDate: (date: string | null) => string | null;
-}) {
-  const navigate = useNavigate();
-  const overdue = isOverdue(todo);
-  const dueDateText = formatDueDate(todo.due_date);
-
-  return (
-    <div 
-      className={cn(
-        "flex items-center justify-between p-2 rounded-md bg-muted/50 cursor-pointer hover:bg-muted transition-colors",
-        overdue && "border-l-2 border-destructive bg-destructive/5"
-      )}
-      onClick={() => navigate('/todos')}
-    >
-      <div className="flex items-center gap-2 min-w-0">
-        <span className="text-xs font-mono text-muted-foreground">#{todo.task_number}</span>
-        <span className="text-sm truncate">{todo.title}</span>
-      </div>
-      {dueDateText && (
-        <span className={cn(
-          "text-xs flex items-center gap-1 shrink-0",
-          overdue ? "text-destructive font-medium" : "text-muted-foreground"
-        )}>
-          <Clock className="h-3 w-3" />
-          {dueDateText}
-        </span>
-      )}
-    </div>
   );
 }

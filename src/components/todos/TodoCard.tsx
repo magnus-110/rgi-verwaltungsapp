@@ -29,11 +29,12 @@ export function TodoCard({ todo, onEdit }: TodoCardProps) {
   const completedSubtasks = subtasks.filter(s => s.is_completed).length;
   const totalSubtasks = subtasks.length;
 
+  // Priority colors: Low = Green, Medium = Orange, High = Red, Urgent = Dark Red
   const priorityColors: Record<string, string> = {
-    low: 'bg-muted text-muted-foreground',
-    medium: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
-    high: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
-    urgent: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+    low: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+    medium: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+    high: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+    urgent: 'bg-red-200 text-red-950 dark:bg-red-950 dark:text-red-100',
   };
 
   const statusColors: Record<string, string> = {
