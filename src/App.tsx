@@ -19,6 +19,7 @@ import { Settings } from "./pages/Settings";
 import { Documents } from "./pages/Documents";
 import { DocumentSettings } from "./pages/DocumentSettings";
 import { WebhookSettings } from "./pages/WebhookSettings";
+import { Todos } from "./pages/Todos";
 import { AdminLayout } from "./components/AdminLayout";
 import { WegOwnerLayout } from "./components/WegOwnerLayout";
 import { WegOwnerDashboard } from "./pages/weg-owner/Dashboard";
