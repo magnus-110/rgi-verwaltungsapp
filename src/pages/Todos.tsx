@@ -8,20 +8,24 @@ import { TodoDialog } from "@/components/todos/TodoDialog";
 import { TodoExportDialog } from "@/components/todos/TodoExportDialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Skeleton } from "@/components/ui/skeleton";
-
-const defaultFilters: TodoFiltersType = {
-  search: '',
-  assignedTo: 'all',
-  category: 'all',
-  priority: 'all',
-  status: 'all',
-  dueDateFrom: '',
-  dueDateTo: '',
-  sortBy: 'due_date',
-  sortOrder: 'asc',
-};
+import { useAuth } from "@/hooks/useAuth";
 
 export function Todos() {
+  const { user } = useAuth();
+  
+  // Default filter: mine + unassigned
+  const defaultFilters: TodoFiltersType = {
+    search: '',
+    assignedTo: 'mine_and_unassigned',
+    category: 'all',
+    priority: 'all',
+    status: 'all',
+    dueDateFrom: '',
+    dueDateTo: '',
+    sortBy: 'due_date',
+    sortOrder: 'asc',
+  };
+  
   const [filters, setFilters] = useState<TodoFiltersType>(defaultFilters);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
@@ -84,50 +88,50 @@ export function Todos() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-3xl font-semibold">Aufgaben</h1>
-          <p className="text-muted-foreground mt-1">
+          <h1 className="text-xl sm:text-3xl font-semibold">Aufgaben</h1>
+          <p className="text-muted-foreground text-sm mt-0.5 hidden sm:block">
             Verwalten Sie alle Aufgaben und To-Dos
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setExportDialogOpen(true)}>
-            <Download className="h-4 w-4 mr-2" />
-            Exportieren
+          <Button variant="outline" size="sm" className="sm:size-default" onClick={() => setExportDialogOpen(true)}>
+            <Download className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Exportieren</span>
           </Button>
-          <Button onClick={handleCreate}>
-            <Plus className="h-4 w-4 mr-2" />
-            Neue Aufgabe
+          <Button size="sm" className="sm:size-default" onClick={handleCreate}>
+            <Plus className="h-4 w-4 sm:mr-2" />
+            <span className="hidden sm:inline">Neue Aufgabe</span>
           </Button>
         </div>
       </div>
 
       {/* Filters */}
-      <TodoFilters filters={filters} onFiltersChange={setFilters} />
+      <TodoFilters filters={filters} onFiltersChange={setFilters} currentUserId={user?.id} />
 
       {/* Loading state */}
       {isLoading && (
-        <div className="space-y-4">
+        <div className="space-y-3">
           {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-24 w-full" />
+            <Skeleton key={i} className="h-20 w-full" />
           ))}
         </div>
       )}
 
       {/* Todo lists */}
       {!isLoading && (
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {/* Open tasks */}
           {groupedTodos.open.length > 0 && (
-            <div className="space-y-3">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
+            <div className="space-y-2 sm:space-y-3">
+              <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-red-500" />
                 Offen ({groupedTodos.open.length})
               </h2>
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3">
                 {groupedTodos.open.map((todo) => (
                   <TodoCard key={todo.id} todo={todo} onEdit={handleEdit} />
                 ))}
@@ -137,12 +141,12 @@ export function Todos() {
 
           {/* In progress tasks */}
           {groupedTodos.inProgress.length > 0 && (
-            <div className="space-y-3">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
+            <div className="space-y-2 sm:space-y-3">
+              <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-yellow-500" />
                 In Bearbeitung ({groupedTodos.inProgress.length})
               </h2>
-              <div className="space-y-3">
+              <div className="space-y-2 sm:space-y-3">
                 {groupedTodos.inProgress.map((todo) => (
                   <TodoCard key={todo.id} todo={todo} onEdit={handleEdit} />
                 ))}
@@ -154,8 +158,8 @@ export function Todos() {
           {groupedTodos.done.length > 0 && (
             <Collapsible open={showCompleted} onOpenChange={setShowCompleted}>
               <CollapsibleTrigger asChild>
-                <Button variant="ghost" className="w-full justify-between py-6">
-                  <span className="flex items-center gap-2 text-lg font-semibold">
+                <Button variant="ghost" className="w-full justify-between py-4 sm:py-6">
+                  <span className="flex items-center gap-2 text-base sm:text-lg font-semibold">
                     <span className="w-2 h-2 rounded-full bg-green-500" />
                     Erledigt ({groupedTodos.done.length})
                   </span>
@@ -166,7 +170,7 @@ export function Todos() {
                   )}
                 </Button>
               </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-3 pt-2">
+              <CollapsibleContent className="space-y-2 sm:space-y-3 pt-2">
                 {groupedTodos.done.map((todo) => (
                   <TodoCard key={todo.id} todo={todo} onEdit={handleEdit} />
                 ))}
@@ -176,8 +180,8 @@ export function Todos() {
 
           {/* Empty state */}
           {todos.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground text-lg">
+            <div className="text-center py-8 sm:py-12">
+              <p className="text-muted-foreground text-base sm:text-lg">
                 Keine Aufgaben gefunden
               </p>
               <Button className="mt-4" onClick={handleCreate}>

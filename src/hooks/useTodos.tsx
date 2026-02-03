@@ -31,6 +31,9 @@ export interface Todo {
   building?: { name: string; address: string };
   subtasks?: TodoSubtask[];
   comments?: TodoComment[];
+  // Multi-assignment fields
+  assignees?: { user: { user_id: string; first_name: string; last_name: string } }[];
+  buildings?: { building: { id: string; name: string } }[];
 }
 
 export interface TodoCategory {
@@ -80,9 +83,11 @@ export interface CreateTodoInput {
   description?: string;
   category_id?: string;
   assigned_to?: string;
+  assignees?: string[];
   due_date?: string;
   priority?: 'low' | 'medium' | 'high' | 'urgent';
   building_id?: string;
+  building_ids?: string[];
   is_recurring?: boolean;
   recurrence_pattern?: 'daily' | 'weekly' | 'monthly' | 'yearly';
   recurrence_interval?: number;
@@ -93,8 +98,10 @@ export interface CreateTodoInput {
 
 // Fetch all todos with filters
 export function useTodos(filters: TodoFilters) {
+  const { profile } = useAuth();
+
   return useQuery({
-    queryKey: ['todos', filters],
+    queryKey: ['todos', filters, profile?.role],
     queryFn: async () => {
       let query = supabase
         .from('todos')
@@ -103,20 +110,27 @@ export function useTodos(filters: TodoFilters) {
           category:todo_categories(*),
           assigned_user:profiles!todos_assigned_to_fkey(first_name, last_name, email),
           created_user:profiles!todos_created_by_fkey(first_name, last_name, email),
-          building:buildings(name, address)
+          building:buildings(name, address),
+          assignees:todo_assignees(user:profiles(user_id, first_name, last_name)),
+          buildings:todo_buildings(building:buildings(id, name))
         `);
 
       // Apply filters
       if (filters.search) {
         query = query.or(`title.ilike.%${filters.search}%,description.ilike.%${filters.search}%`);
       }
+      
+      // Handle assignedTo filter including "mine_and_unassigned"
       if (filters.assignedTo && filters.assignedTo !== 'all') {
         if (filters.assignedTo === 'unassigned') {
           query = query.is('assigned_to', null);
+        } else if (filters.assignedTo === 'mine_and_unassigned') {
+          // This will be filtered client-side after fetching
         } else {
           query = query.eq('assigned_to', filters.assignedTo);
         }
       }
+      
       if (filters.category && filters.category !== 'all') {
         query = query.eq('category_id', filters.category);
       }
@@ -136,7 +150,6 @@ export function useTodos(filters: TodoFilters) {
       // Apply sorting
       const sortOrder = filters.sortOrder === 'asc' ? true : false;
       if (filters.sortBy === 'priority') {
-        // Custom priority order: urgent > high > medium > low
         query = query.order('priority', { ascending: sortOrder });
       } else {
         query = query.order(filters.sortBy, { ascending: sortOrder, nullsFirst: false });
@@ -144,7 +157,47 @@ export function useTodos(filters: TodoFilters) {
 
       const { data, error } = await query;
       if (error) throw error;
-      return data as Todo[];
+      
+      let todos = data as Todo[];
+      
+      // Get current user ID for filtering
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id;
+      
+      // Apply "mine_and_unassigned" filter client-side
+      if (filters.assignedTo === 'mine_and_unassigned' && userId) {
+        todos = todos.filter(todo => {
+          // Check legacy assigned_to
+          if (todo.assigned_to === userId) return true;
+          if (todo.assigned_to === null) return true;
+          // Check new assignees array
+          if (todo.assignees?.some(a => a.user?.user_id === userId)) return true;
+          return false;
+        });
+      }
+      
+      // For employees: only show tasks assigned to employees or unassigned
+      if (profile?.role === 'employee' && userId) {
+        // Get all employee IDs
+        const { data: employees } = await supabase
+          .from('profiles')
+          .select('user_id')
+          .eq('role', 'employee');
+        
+        const employeeIds = employees?.map(e => e.user_id) || [];
+        
+        todos = todos.filter(todo => {
+          // Unassigned tasks are visible
+          if (todo.assigned_to === null && (!todo.assignees || todo.assignees.length === 0)) return true;
+          // Tasks assigned to an employee
+          if (todo.assigned_to && employeeIds.includes(todo.assigned_to)) return true;
+          // Check new assignees array - at least one assignee must be an employee
+          if (todo.assignees?.some(a => employeeIds.includes(a.user?.user_id))) return true;
+          return false;
+        });
+      }
+      
+      return todos;
     },
   });
 }
@@ -163,7 +216,9 @@ export function useTodo(todoId: string | null) {
           category:todo_categories(*),
           assigned_user:profiles!todos_assigned_to_fkey(first_name, last_name, email),
           created_user:profiles!todos_created_by_fkey(first_name, last_name, email),
-          building:buildings(name, address)
+          building:buildings(name, address),
+          assignees:todo_assignees(user:profiles(user_id, first_name, last_name)),
+          buildings:todo_buildings(building:buildings(id, name))
         `)
         .eq('id', todoId)
         .single();
@@ -261,7 +316,7 @@ export function useCreateTodo() {
 
   return useMutation({
     mutationFn: async (input: CreateTodoInput) => {
-      const { subtasks, ...todoData } = input;
+      const { subtasks, assignees, building_ids, ...todoData } = input;
       
       const { data: todo, error } = await supabase
         .from('todos')
@@ -290,6 +345,34 @@ export function useCreateTodo() {
         if (subtaskError) throw subtaskError;
       }
 
+      // Create assignees if provided
+      if (assignees && assignees.length > 0 && todo) {
+        const assigneeInserts = assignees.map(userId => ({
+          todo_id: todo.id,
+          user_id: userId,
+        }));
+
+        const { error: assigneeError } = await supabase
+          .from('todo_assignees')
+          .insert(assigneeInserts);
+
+        if (assigneeError) console.error('Error creating assignees:', assigneeError);
+      }
+
+      // Create building associations if provided
+      if (building_ids && building_ids.length > 0 && todo) {
+        const buildingInserts = building_ids.map(buildingId => ({
+          todo_id: todo.id,
+          building_id: buildingId,
+        }));
+
+        const { error: buildingError } = await supabase
+          .from('todo_buildings')
+          .insert(buildingInserts);
+
+        if (buildingError) console.error('Error creating building associations:', buildingError);
+      }
+
       return todo;
     },
     onSuccess: () => {
@@ -307,7 +390,8 @@ export function useUpdateTodo() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, ...updates }: Partial<Todo> & { id: string }) => {
+    mutationFn: async (input: Partial<Todo> & { id: string; assignees?: string[]; building_ids?: string[] }) => {
+      const { id, assignees, building_ids, ...updates } = input;
       const { data, error } = await supabase
         .from('todos')
         .update({
@@ -319,6 +403,37 @@ export function useUpdateTodo() {
         .single();
 
       if (error) throw error;
+
+      // Update assignees if provided (array of user_id strings)
+      if (assignees !== undefined && Array.isArray(assignees)) {
+        // Delete existing assignees
+        await supabase.from('todo_assignees').delete().eq('todo_id', id);
+        
+        // Insert new assignees
+        if (assignees.length > 0) {
+          const assigneeInserts = assignees.map((userId: string) => ({
+            todo_id: id,
+            user_id: userId,
+          }));
+          await supabase.from('todo_assignees').insert(assigneeInserts);
+        }
+      }
+
+      // Update building associations if provided (array of building_id strings)
+      if (building_ids !== undefined && Array.isArray(building_ids)) {
+        // Delete existing associations
+        await supabase.from('todo_buildings').delete().eq('todo_id', id);
+        
+        // Insert new associations
+        if (building_ids.length > 0) {
+          const buildingInserts = building_ids.map(buildingId => ({
+            todo_id: id,
+            building_id: buildingId,
+          }));
+          await supabase.from('todo_buildings').insert(buildingInserts);
+        }
+      }
+
       return data;
     },
     onSuccess: () => {
@@ -433,6 +548,31 @@ export function useToggleSubtask() {
           completed_at: isCompleted ? new Date().toISOString() : null,
           completed_by: isCompleted ? user?.id : null,
         })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { data, todoId };
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['todo-subtasks', result.todoId] });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Fehler', description: error.message, variant: 'destructive' });
+    },
+  });
+}
+
+// Update subtask mutation
+export function useUpdateSubtask() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, todoId, title }: { id: string; todoId: string; title: string }) => {
+      const { data, error } = await supabase
+        .from('todo_subtasks')
+        .update({ title })
         .eq('id', id)
         .select()
         .single();

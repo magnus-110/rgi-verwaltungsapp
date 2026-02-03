@@ -14,7 +14,8 @@ import {
   Menu,
   Castle,
   BarChart3,
-  MessageCircle
+  MessageCircle,
+  CheckSquare
 } from "lucide-react";
 
 interface MobileHeaderProps {
@@ -43,6 +44,12 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
           label: "NOVA", 
           path: '/documents',
           active: location.pathname.startsWith('/documents')
+        },
+        { 
+          icon: CheckSquare, 
+          label: "Aufgaben", 
+          path: '/todos',
+          active: location.pathname.startsWith('/todos')
         },
         { 
           icon: ClipboardList, 

@@ -51,9 +51,32 @@ export function TodoCard({ todo, onEdit }: TodoCardProps) {
     deleteTodo.mutate(todo.id);
   };
 
-  const assignedName = todo.assigned_user 
-    ? `${todo.assigned_user.first_name || ''} ${todo.assigned_user.last_name || ''}`.trim() 
-    : null;
+  // Get assigned names - support both legacy and multi-assign
+  const getAssignedNames = () => {
+    if (todo.assignees && todo.assignees.length > 0) {
+      return todo.assignees.map(a => 
+        `${a.user?.first_name || ''} ${a.user?.last_name || ''}`.trim()
+      ).filter(Boolean).join(', ');
+    }
+    if (todo.assigned_user) {
+      return `${todo.assigned_user.first_name || ''} ${todo.assigned_user.last_name || ''}`.trim();
+    }
+    return null;
+  };
+
+  // Get building names - support both legacy and multi-assign
+  const getBuildingNames = () => {
+    if (todo.buildings && todo.buildings.length > 0) {
+      return todo.buildings.map(b => b.building?.name).filter(Boolean).join(', ');
+    }
+    if (todo.building) {
+      return todo.building.name;
+    }
+    return null;
+  };
+
+  const assignedNames = getAssignedNames();
+  const buildingNames = getBuildingNames();
 
   return (
     <Card className={cn(
@@ -63,76 +86,41 @@ export function TodoCard({ todo, onEdit }: TodoCardProps) {
     )}>
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <CollapsibleTrigger asChild>
-          <CardContent className="p-4 cursor-pointer">
-            <div className="flex items-start gap-3">
-              {/* Task number */}
-              <div className="text-sm font-mono text-muted-foreground min-w-[50px]">
-                #{todo.task_number}
-              </div>
-
-              {/* Priority badge */}
-              <Badge className={cn("shrink-0", priorityColors[todo.priority])}>
-                {priorityLabels[todo.priority]}
-              </Badge>
-
-              {/* Title and info */}
-              <div className="flex-1 min-w-0">
-                <h3 className="font-medium truncate">{todo.title}</h3>
-                
-                <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-muted-foreground">
-                  {assignedName && (
-                    <span className="flex items-center gap-1">
-                      <User className="h-3 w-3" />
-                      {assignedName}
-                    </span>
-                  )}
-                  {!assignedName && (
-                    <span className="flex items-center gap-1 text-amber-600">
-                      <User className="h-3 w-3" />
-                      Nicht zugewiesen
-                    </span>
-                  )}
-                  
-                  {todo.building && (
-                    <span className="flex items-center gap-1">
-                      <Building2 className="h-3 w-3" />
-                      {todo.building.name}
-                    </span>
-                  )}
-                  
-                  {totalSubtasks > 0 && (
-                    <span>Checkliste: {completedSubtasks}/{totalSubtasks}</span>
-                  )}
-                  
-                  {todo.is_recurring && (
-                    <span className="flex items-center gap-1">
-                      <RefreshCw className="h-3 w-3" />
-                      Wiederkehrend
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Due date */}
-              <div className="flex items-center gap-2 shrink-0">
+          <CardContent className="p-3 sm:p-4 cursor-pointer">
+            {/* Mobile-optimized layout */}
+            <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3">
+              {/* First row: Number + Priority + Date (mobile) */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-mono text-muted-foreground">
+                  #{todo.task_number}
+                </span>
+                <Badge className={cn("text-xs px-1.5 py-0", priorityColors[todo.priority])}>
+                  {priorityLabels[todo.priority]}
+                </Badge>
                 {todo.due_date && (
-                  <div className={cn(
-                    "flex items-center gap-1 text-sm",
-                    overdue && todo.status !== 'done' && "text-destructive font-medium"
+                  <span className={cn(
+                    "text-xs flex items-center gap-1",
+                    overdue && todo.status !== 'done' ? "text-destructive font-medium" : "text-muted-foreground"
                   )}>
-                    <Calendar className="h-4 w-4" />
-                    {format(new Date(todo.due_date), "dd.MM.yyyy", { locale: de })}
-                  </div>
+                    <Calendar className="h-3 w-3" />
+                    {format(new Date(todo.due_date), "dd.MM.", { locale: de })}
+                  </span>
                 )}
-                
                 {overdue && todo.status !== 'done' && (
-                  <Badge variant="destructive" className="gap-1">
-                    <AlertTriangle className="h-3 w-3" />
+                  <Badge variant="destructive" className="text-xs px-1 py-0">
+                    <AlertTriangle className="h-3 w-3 mr-0.5" />
                     Überfällig
                   </Badge>
                 )}
+              </div>
 
-                {/* Expand/collapse icon */}
+              {/* Title */}
+              <h3 className="font-medium text-sm sm:text-base line-clamp-2 sm:flex-1">
+                {todo.title}
+              </h3>
+
+              {/* Chevron (desktop) */}
+              <div className="hidden sm:block shrink-0">
                 {isOpen ? (
                   <ChevronUp className="h-5 w-5 text-muted-foreground" />
                 ) : (
@@ -140,11 +128,45 @@ export function TodoCard({ todo, onEdit }: TodoCardProps) {
                 )}
               </div>
             </div>
+
+            {/* Metadata row - compact on mobile */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-muted-foreground">
+              {assignedNames && (
+                <span className="flex items-center gap-1">
+                  <User className="h-3 w-3" />
+                  {assignedNames}
+                </span>
+              )}
+              {!assignedNames && (
+                <span className="flex items-center gap-1 text-amber-600">
+                  <User className="h-3 w-3" />
+                  Nicht zugewiesen
+                </span>
+              )}
+              
+              {buildingNames && (
+                <span className="flex items-center gap-1">
+                  <Building2 className="h-3 w-3" />
+                  {buildingNames}
+                </span>
+              )}
+              
+              {totalSubtasks > 0 && (
+                <span>Checkliste: {completedSubtasks}/{totalSubtasks}</span>
+              )}
+              
+              {todo.is_recurring && (
+                <span className="flex items-center gap-1">
+                  <RefreshCw className="h-3 w-3" />
+                  Wiederkehrend
+                </span>
+              )}
+            </div>
           </CardContent>
         </CollapsibleTrigger>
 
         <CollapsibleContent>
-          <CardContent className="pt-0 pb-4 px-4 space-y-4 border-t mt-2">
+          <CardContent className="pt-0 pb-4 px-3 sm:px-4 space-y-4 border-t mt-2">
             {/* Description */}
             {todo.description && (
               <div className="space-y-1">
@@ -156,7 +178,7 @@ export function TodoCard({ todo, onEdit }: TodoCardProps) {
             )}
 
             {/* Metadata grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 text-sm">
               <div>
                 <span className="text-muted-foreground">Kategorie:</span>
                 {todo.category ? (
@@ -182,7 +204,7 @@ export function TodoCard({ todo, onEdit }: TodoCardProps) {
               <div>
                 <span className="text-muted-foreground">Verantwortlich:</span>
                 <div className="mt-1">
-                  {assignedName || 'Nicht zugewiesen'}
+                  {assignedNames || 'Nicht zugewiesen'}
                 </div>
               </div>
 
@@ -207,9 +229,9 @@ export function TodoCard({ todo, onEdit }: TodoCardProps) {
             <TodoComments todoId={todo.id} />
 
             {/* Actions */}
-            <div className="flex items-center justify-between pt-2 border-t">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2 border-t">
               <Select value={todo.status} onValueChange={handleStatusChange}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-full sm:w-[180px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -226,14 +248,14 @@ export function TodoCard({ todo, onEdit }: TodoCardProps) {
               </Select>
 
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => onEdit(todo)}>
+                <Button variant="outline" size="sm" className="flex-1 sm:flex-none" onClick={() => onEdit(todo)}>
                   <Pencil className="h-4 w-4 mr-1" />
                   Bearbeiten
                 </Button>
                 
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
+                    <Button variant="outline" size="sm" className="flex-1 sm:flex-none text-destructive hover:text-destructive">
                       <Trash2 className="h-4 w-4 mr-1" />
                       Löschen
                     </Button>
