@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import { CalendarIcon, Plus, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -20,11 +21,28 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
+const STORAGE_KEY = 'todo_dialog_draft';
+
 interface TodoDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   todo?: Todo | null;
   mode: 'create' | 'edit';
+}
+
+interface DraftData {
+  title: string;
+  description: string;
+  categoryId: string | null;
+  assignees: string[];
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  dueDate: string | null;
+  buildingIds: string[];
+  isRecurring: boolean;
+  recurrencePattern: 'daily' | 'weekly' | 'monthly' | 'yearly';
+  recurrenceInterval: number;
+  recurrenceEndDate: string | null;
+  subtasks: string[];
 }
 
 export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) {
@@ -41,10 +59,10 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState<string | null>(null);
-  const [assignedTo, setAssignedTo] = useState<string | null>(null);
+  const [assignees, setAssignees] = useState<string[]>([]);
   const [dueDate, setDueDate] = useState<string | null>(null);
   const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
-  const [buildingId, setBuildingId] = useState<string | null>(null);
+  const [buildingIds, setBuildingIds] = useState<string[]>([]);
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrencePattern, setRecurrencePattern] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('weekly');
   const [recurrenceInterval, setRecurrenceInterval] = useState(1);
@@ -62,6 +80,60 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
       .then(({ data }) => setBuildings(data || []));
   }, []);
 
+  // Load draft from localStorage for create mode
+  useEffect(() => {
+    if (open && mode === 'create') {
+      const savedDraft = localStorage.getItem(STORAGE_KEY);
+      if (savedDraft) {
+        try {
+          const draft: DraftData = JSON.parse(savedDraft);
+          setTitle(draft.title || '');
+          setDescription(draft.description || '');
+          setCategoryId(draft.categoryId);
+          setAssignees(draft.assignees || []);
+          setPriority(draft.priority || 'medium');
+          setDueDate(draft.dueDate);
+          setBuildingIds(draft.buildingIds || []);
+          setIsRecurring(draft.isRecurring || false);
+          setRecurrencePattern(draft.recurrencePattern || 'weekly');
+          setRecurrenceInterval(draft.recurrenceInterval || 1);
+          setRecurrenceEndDate(draft.recurrenceEndDate);
+          setSubtasks(draft.subtasks || []);
+        } catch (e) {
+          // Invalid draft, ignore
+        }
+      }
+    }
+  }, [open, mode]);
+
+  // Save draft to localStorage (debounced)
+  const saveDraft = useCallback(() => {
+    if (mode === 'create') {
+      const draft: DraftData = {
+        title,
+        description,
+        categoryId,
+        assignees,
+        priority,
+        dueDate,
+        buildingIds,
+        isRecurring,
+        recurrencePattern,
+        recurrenceInterval,
+        recurrenceEndDate,
+        subtasks,
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
+    }
+  }, [mode, title, description, categoryId, assignees, priority, dueDate, buildingIds, isRecurring, recurrencePattern, recurrenceInterval, recurrenceEndDate, subtasks]);
+
+  useEffect(() => {
+    if (mode === 'create' && open) {
+      const timeout = setTimeout(saveDraft, 500);
+      return () => clearTimeout(timeout);
+    }
+  }, [saveDraft, mode, open]);
+
   // Reset form when dialog opens/closes or mode changes
   useEffect(() => {
     if (open) {
@@ -69,34 +141,53 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
         setTitle(todo.title);
         setDescription(todo.description || '');
         setCategoryId(todo.category_id);
-        setAssignedTo(todo.assigned_to);
+        // Set assignees from new junction table or legacy field
+        if (todo.assignees && todo.assignees.length > 0) {
+          setAssignees(todo.assignees.map(a => a.user?.user_id).filter(Boolean) as string[]);
+        } else if (todo.assigned_to) {
+          setAssignees([todo.assigned_to]);
+        } else {
+          setAssignees([]);
+        }
         setDueDate(todo.due_date);
         setPriority(todo.priority);
-        setBuildingId(todo.building_id);
+        // Set building IDs from new junction table or legacy field
+        if (todo.buildings && todo.buildings.length > 0) {
+          setBuildingIds(todo.buildings.map(b => b.building?.id).filter(Boolean) as string[]);
+        } else if (todo.building_id) {
+          setBuildingIds([todo.building_id]);
+        } else {
+          setBuildingIds([]);
+        }
         setIsRecurring(todo.is_recurring);
         setRecurrencePattern(todo.recurrence_pattern || 'weekly');
         setRecurrenceInterval(todo.recurrence_interval || 1);
         setRecurrenceEndDate(todo.recurrence_end_date);
         setSubtasks([]);
         setFiles([]);
-      } else {
-        // Reset for create mode
-        setTitle("");
-        setDescription("");
-        setCategoryId(null);
-        setAssignedTo(null);
-        setDueDate(null);
-        setPriority('medium');
-        setBuildingId(null);
-        setIsRecurring(false);
-        setRecurrencePattern('weekly');
-        setRecurrenceInterval(1);
-        setRecurrenceEndDate(null);
-        setSubtasks([]);
-        setFiles([]);
+      } else if (mode === 'create') {
+        // Don't reset if we're loading from draft
+        // The useEffect above will handle loading the draft
       }
     }
   }, [open, mode, todo]);
+
+  const clearForm = () => {
+    setTitle("");
+    setDescription("");
+    setCategoryId(null);
+    setAssignees([]);
+    setDueDate(null);
+    setPriority('medium');
+    setBuildingIds([]);
+    setIsRecurring(false);
+    setRecurrencePattern('weekly');
+    setRecurrenceInterval(1);
+    setRecurrenceEndDate(null);
+    setSubtasks([]);
+    setFiles([]);
+    localStorage.removeItem(STORAGE_KEY);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,22 +196,17 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
     setUploading(true);
 
     try {
-      // Handle file uploads for new todo
-      let attachments: any[] = [];
-      if (files.length > 0 && mode === 'create') {
-        // We'll upload files after todo is created
-        // For now, just prepare the metadata
-      }
-
       if (mode === 'create') {
         const input: CreateTodoInput = {
           title: title.trim(),
           description: description.trim() || undefined,
           category_id: categoryId || undefined,
-          assigned_to: assignedTo || undefined,
+          assigned_to: assignees.length === 1 ? assignees[0] : undefined,
+          assignees: assignees.length > 0 ? assignees : undefined,
           due_date: dueDate || undefined,
           priority,
-          building_id: buildingId || undefined,
+          building_id: buildingIds.length === 1 ? buildingIds[0] : undefined,
+          building_ids: buildingIds.length > 0 ? buildingIds : undefined,
           is_recurring: isRecurring,
           recurrence_pattern: isRecurring ? recurrencePattern : undefined,
           recurrence_interval: isRecurring ? recurrenceInterval : undefined,
@@ -158,30 +244,52 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
                   .eq('id', newTodo.id);
               }
             }
+            clearForm();
             onOpenChange(false);
           },
         });
       } else if (mode === 'edit' && todo) {
-        updateTodo.mutate({
+        const updatePayload: any = {
           id: todo.id,
           title: title.trim(),
           description: description.trim() || null,
           category_id: categoryId,
-          assigned_to: assignedTo,
+          assigned_to: assignees.length === 1 ? assignees[0] : null,
           due_date: dueDate,
           priority,
-          building_id: buildingId,
+          building_id: buildingIds.length === 1 ? buildingIds[0] : null,
           is_recurring: isRecurring,
           recurrence_pattern: isRecurring ? recurrencePattern : null,
           recurrence_interval: isRecurring ? recurrenceInterval : null,
           recurrence_end_date: isRecurring ? recurrenceEndDate : null,
-        }, {
+        };
+        // Add arrays for junction tables separately to avoid type issues
+        updatePayload.assignees = assignees;
+        updatePayload.building_ids = buildingIds;
+        
+        updateTodo.mutate(updatePayload, {
           onSuccess: () => onOpenChange(false),
         });
       }
     } finally {
       setUploading(false);
     }
+  };
+
+  const toggleAssignee = (userId: string) => {
+    setAssignees(prev => 
+      prev.includes(userId) 
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId]
+    );
+  };
+
+  const toggleBuilding = (buildingId: string) => {
+    setBuildingIds(prev => 
+      prev.includes(buildingId) 
+        ? prev.filter(id => id !== buildingId)
+        : [...prev, buildingId]
+    );
   };
 
   const isPending = createTodo.isPending || updateTodo.isPending || uploading;
@@ -259,25 +367,45 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
                 </div>
               </div>
 
-              {/* Assigned to */}
+              {/* Assignees - Multi-select */}
               <div className="space-y-2">
-                <Label>Verantwortlich</Label>
-                <Select 
-                  value={assignedTo || 'none'} 
-                  onValueChange={(v) => setAssignedTo(v === 'none' ? null : v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Optional - Nicht zugewiesen" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Nicht zugewiesen</SelectItem>
-                    {users.map((u) => (
-                      <SelectItem key={u.user_id} value={u.user_id}>
-                        {u.first_name} {u.last_name} ({u.role})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Verantwortliche</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start font-normal">
+                      {assignees.length > 0 
+                        ? `${assignees.length} Person${assignees.length > 1 ? 'en' : ''} ausgewählt`
+                        : 'Optional - Nicht zugewiesen'
+                      }
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[300px] p-2" align="start">
+                    <div className="space-y-1 max-h-[200px] overflow-y-auto">
+                      {users.map((u) => (
+                        <div 
+                          key={u.user_id} 
+                          className="flex items-center gap-2 p-2 hover:bg-muted rounded cursor-pointer"
+                          onClick={() => toggleAssignee(u.user_id)}
+                        >
+                          <Checkbox checked={assignees.includes(u.user_id)} />
+                          <span className="text-sm">{u.first_name} {u.last_name}</span>
+                          <span className="text-xs text-muted-foreground">({u.role})</span>
+                        </div>
+                      ))}
+                    </div>
+                    {assignees.length > 0 && (
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="sm" 
+                        className="w-full mt-2"
+                        onClick={() => setAssignees([])}
+                      >
+                        Auswahl aufheben
+                      </Button>
+                    )}
+                  </PopoverContent>
+                </Popover>
               </div>
 
               {/* Priority */}
@@ -325,25 +453,44 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
                 </Popover>
               </div>
 
-              {/* Building */}
+              {/* Buildings - Multi-select */}
               <div className="space-y-2">
                 <Label>Gebäude</Label>
-                <Select 
-                  value={buildingId || 'none'} 
-                  onValueChange={(v) => setBuildingId(v === 'none' ? null : v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Optional..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Kein Gebäude</SelectItem>
-                    {buildings.map((b) => (
-                      <SelectItem key={b.id} value={b.id}>
-                        {b.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full justify-start font-normal">
+                      {buildingIds.length > 0 
+                        ? `${buildingIds.length} Gebäude ausgewählt`
+                        : 'Optional...'
+                      }
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[300px] p-2" align="start">
+                    <div className="space-y-1 max-h-[200px] overflow-y-auto">
+                      {buildings.map((b) => (
+                        <div 
+                          key={b.id} 
+                          className="flex items-center gap-2 p-2 hover:bg-muted rounded cursor-pointer"
+                          onClick={() => toggleBuilding(b.id)}
+                        >
+                          <Checkbox checked={buildingIds.includes(b.id)} />
+                          <span className="text-sm">{b.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {buildingIds.length > 0 && (
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="sm" 
+                        className="w-full mt-2"
+                        onClick={() => setBuildingIds([])}
+                      >
+                        Auswahl aufheben
+                      </Button>
+                    )}
+                  </PopoverContent>
+                </Popover>
               </div>
 
               {/* Recurrence settings (discreet) */}

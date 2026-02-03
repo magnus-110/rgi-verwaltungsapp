@@ -14,9 +14,10 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 interface TodoFiltersProps {
   filters: TodoFiltersType;
   onFiltersChange: (filters: TodoFiltersType) => void;
+  currentUserId?: string;
 }
 
-export function TodoFilters({ filters, onFiltersChange }: TodoFiltersProps) {
+export function TodoFilters({ filters, onFiltersChange, currentUserId }: TodoFiltersProps) {
   const { data: categories = [] } = useCategories();
   const { data: users = [] } = useAssignableUsers();
   const [isOpen, setIsOpen] = useState(false);
@@ -28,7 +29,7 @@ export function TodoFilters({ filters, onFiltersChange }: TodoFiltersProps) {
   const clearFilters = () => {
     onFiltersChange({
       search: '',
-      assignedTo: 'all',
+      assignedTo: 'mine_and_unassigned',
       category: 'all',
       priority: 'all',
       status: 'all',
@@ -40,7 +41,7 @@ export function TodoFilters({ filters, onFiltersChange }: TodoFiltersProps) {
   };
 
   const hasActiveFilters = filters.search || 
-    filters.assignedTo !== 'all' || 
+    (filters.assignedTo !== 'all' && filters.assignedTo !== 'mine_and_unassigned') || 
     filters.category !== 'all' || 
     filters.priority !== 'all' || 
     filters.status !== 'all' ||
@@ -48,7 +49,7 @@ export function TodoFilters({ filters, onFiltersChange }: TodoFiltersProps) {
     filters.dueDateTo;
 
   const activeFilterCount = [
-    filters.assignedTo !== 'all',
+    filters.assignedTo !== 'all' && filters.assignedTo !== 'mine_and_unassigned',
     filters.category !== 'all',
     filters.priority !== 'all',
     filters.status !== 'all',
@@ -88,10 +89,11 @@ export function TodoFilters({ filters, onFiltersChange }: TodoFiltersProps) {
             {/* Primary filters */}
             <div className="flex flex-col lg:flex-row gap-3">
               <Select value={filters.assignedTo} onValueChange={(v) => updateFilter('assignedTo', v)}>
-                <SelectTrigger className="w-full lg:w-[180px]">
+                <SelectTrigger className="w-full lg:w-[200px]">
                   <SelectValue placeholder="Verantwortlich" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="mine_and_unassigned">Meine + Nicht zugewiesen</SelectItem>
                   <SelectItem value="all">Alle</SelectItem>
                   <SelectItem value="unassigned">Nicht zugewiesen</SelectItem>
                   {users.map((user) => (
@@ -204,7 +206,7 @@ export function TodoFilters({ filters, onFiltersChange }: TodoFiltersProps) {
                 </Popover>
               </div>
 
-              <div className="flex items-center gap-2 ml-auto">
+              <div className="flex items-center gap-2 ml-auto flex-wrap">
                 <span className="text-sm text-muted-foreground whitespace-nowrap">Sortieren:</span>
                 
                 <Select value={filters.sortBy} onValueChange={(v) => updateFilter('sortBy', v as TodoFiltersType['sortBy'])}>

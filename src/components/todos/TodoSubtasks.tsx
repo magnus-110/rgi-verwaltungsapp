@@ -3,8 +3,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
-import { useSubtasks, useCreateSubtask, useToggleSubtask, useDeleteSubtask, TodoSubtask } from "@/hooks/useTodos";
+import { useSubtasks, useCreateSubtask, useToggleSubtask, useDeleteSubtask, useUpdateSubtask, TodoSubtask } from "@/hooks/useTodos";
 import { cn } from "@/lib/utils";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
 interface TodoSubtasksProps {
   todoId: string;
@@ -16,7 +17,10 @@ export function TodoSubtasks({ todoId, readOnly = false }: TodoSubtasksProps) {
   const createSubtask = useCreateSubtask();
   const toggleSubtask = useToggleSubtask();
   const deleteSubtask = useDeleteSubtask();
+  const updateSubtask = useUpdateSubtask();
   const [newSubtask, setNewSubtask] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
 
   const completedCount = subtasks.filter(s => s.is_completed).length;
   const totalCount = subtasks.length;
@@ -37,6 +41,25 @@ export function TodoSubtasks({ todoId, readOnly = false }: TodoSubtasksProps) {
 
   const handleDelete = (subtaskId: string) => {
     deleteSubtask.mutate({ id: subtaskId, todoId });
+  };
+
+  const handleStartEdit = (subtask: TodoSubtask) => {
+    if (readOnly) return;
+    setEditingId(subtask.id);
+    setEditText(subtask.title);
+  };
+
+  const handleSaveEdit = (subtaskId: string) => {
+    if (editText.trim() && editText.trim() !== subtasks.find(s => s.id === subtaskId)?.title) {
+      updateSubtask.mutate({ id: subtaskId, todoId, title: editText.trim() });
+    }
+    setEditingId(null);
+    setEditText("");
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setEditText("");
   };
 
   if (isLoading) {
@@ -62,7 +85,7 @@ export function TodoSubtasks({ todoId, readOnly = false }: TodoSubtasksProps) {
       )}
 
       {/* Subtasks list */}
-      <div className="space-y-2">
+      <div className="space-y-1">
         {subtasks.map((subtask) => (
           <div
             key={subtask.id}
@@ -76,26 +99,73 @@ export function TodoSubtasks({ todoId, readOnly = false }: TodoSubtasksProps) {
               onCheckedChange={() => handleToggle(subtask)}
               disabled={readOnly}
             />
-            <span className={cn(
-              "flex-1 text-sm",
-              subtask.is_completed && "line-through text-muted-foreground"
-            )}>
-              {subtask.title}
-            </span>
+            
+            {/* Inline editable text */}
+            {editingId === subtask.id ? (
+              <Input
+                value={editText}
+                onChange={(e) => setEditText(e.target.value)}
+                onBlur={() => handleSaveEdit(subtask.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSaveEdit(subtask.id);
+                  }
+                  if (e.key === 'Escape') {
+                    handleCancelEdit();
+                  }
+                }}
+                autoFocus
+                className="flex-1 text-sm h-7 py-0"
+              />
+            ) : (
+              <span 
+                className={cn(
+                  "flex-1 text-sm cursor-text hover:bg-muted/50 rounded px-1 py-0.5",
+                  subtask.is_completed && "line-through text-muted-foreground",
+                  !readOnly && "hover:ring-1 hover:ring-border"
+                )}
+                onClick={() => handleStartEdit(subtask)}
+              >
+                {subtask.title}
+              </span>
+            )}
+            
             {subtask.completed_user && subtask.is_completed && (
               <span className="text-xs text-muted-foreground">
                 ({subtask.completed_user.first_name})
               </span>
             )}
-            {!readOnly && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={() => handleDelete(subtask.id)}
-              >
-                <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
-              </Button>
+            
+            {!readOnly && editingId !== subtask.id && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Punkt löschen?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Dieser Checklistenpunkt wird unwiderruflich gelöscht.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                    <AlertDialogAction 
+                      onClick={() => handleDelete(subtask.id)}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Löschen
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             )}
           </div>
         ))}
@@ -143,6 +213,12 @@ export function InlineSubtasksCreator({ subtasks, onChange }: InlineSubtasksCrea
     onChange(subtasks.filter((_, i) => i !== index));
   };
 
+  const updateItem = (index: number, value: string) => {
+    const updated = [...subtasks];
+    updated[index] = value;
+    onChange(updated);
+  };
+
   return (
     <div className="space-y-2">
       <label className="text-sm font-medium">Checkliste (optional)</label>
@@ -150,17 +226,41 @@ export function InlineSubtasksCreator({ subtasks, onChange }: InlineSubtasksCrea
       {subtasks.length > 0 && (
         <div className="space-y-1">
           {subtasks.map((item, index) => (
-            <div key={index} className="flex items-center gap-2 p-2 bg-muted/50 rounded-md">
-              <span className="text-sm flex-1">{item}</span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={() => removeItem(index)}
-              >
-                <Trash2 className="h-3 w-3" />
-              </Button>
+            <div key={index} className="flex items-center gap-2 p-2 bg-muted/50 rounded-md group">
+              <Input
+                value={item}
+                onChange={(e) => updateItem(index, e.target.value)}
+                className="text-sm flex-1 h-7 py-0"
+              />
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Punkt entfernen?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Dieser Punkt wird aus der Checkliste entfernt.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                    <AlertDialogAction 
+                      onClick={() => removeItem(index)}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Entfernen
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           ))}
         </div>

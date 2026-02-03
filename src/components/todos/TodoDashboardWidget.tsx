@@ -1,26 +1,13 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { CheckSquare, ArrowRight, AlertTriangle, Clock, Calendar } from "lucide-react";
+import { CheckSquare, ArrowRight, AlertTriangle, Calendar } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useTodos, isOverdue, TodoFilters } from "@/hooks/useTodos";
 import { useAuth } from "@/hooks/useAuth";
 import { format, differenceInDays } from "date-fns";
 import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-
-// Default filters for widget - show all open/in_progress tasks
-const widgetFilters: TodoFilters = {
-  search: '',
-  assignedTo: 'all',
-  category: 'all',
-  priority: 'all',
-  status: 'all',
-  dueDateFrom: '',
-  dueDateTo: '',
-  sortBy: 'due_date',
-  sortOrder: 'asc',
-};
 
 // Priority colors: Low = Green, Medium = Orange, High = Red, Urgent = Dark Red
 const priorityConfig: Record<string, { label: string; className: string }> = {
@@ -33,6 +20,20 @@ const priorityConfig: Record<string, { label: string; className: string }> = {
 export function TodoDashboardWidget() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  
+  // Default filters for widget - show mine + unassigned
+  const widgetFilters: TodoFilters = {
+    search: '',
+    assignedTo: 'mine_and_unassigned',
+    category: 'all',
+    priority: 'all',
+    status: 'all',
+    dueDateFrom: '',
+    dueDateTo: '',
+    sortBy: 'due_date',
+    sortOrder: 'asc',
+  };
+  
   const { data: allTodos = [], isLoading } = useTodos(widgetFilters);
 
   // Filter for active todos (not done)
@@ -55,7 +56,7 @@ export function TodoDashboardWidget() {
   const openCount = activeTodos.filter(t => t.status === 'open').length;
   const inProgressCount = activeTodos.filter(t => t.status === 'in_progress').length;
   const overdueCount = activeTodos.filter(t => isOverdue(t)).length;
-  const unassignedCount = activeTodos.filter(t => !t.assigned_to).length;
+  const unassignedCount = activeTodos.filter(t => !t.assigned_to && (!t.assignees || t.assignees.length === 0)).length;
 
   const formatDueDate = (dueDate: string | null) => {
     if (!dueDate) return null;

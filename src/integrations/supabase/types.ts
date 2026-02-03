@@ -797,6 +797,78 @@ export type Database = {
           },
         ]
       }
+      todo_assignees: {
+        Row: {
+          created_at: string | null
+          id: string
+          todo_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          todo_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          todo_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "todo_assignees_todo_id_fkey"
+            columns: ["todo_id"]
+            isOneToOne: false
+            referencedRelation: "todos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "todo_assignees_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      todo_buildings: {
+        Row: {
+          building_id: string
+          created_at: string | null
+          id: string
+          todo_id: string
+        }
+        Insert: {
+          building_id: string
+          created_at?: string | null
+          id?: string
+          todo_id: string
+        }
+        Update: {
+          building_id?: string
+          created_at?: string | null
+          id?: string
+          todo_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "todo_buildings_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "todo_buildings_todo_id_fkey"
+            columns: ["todo_id"]
+            isOneToOne: false
+            referencedRelation: "todos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       todo_categories: {
         Row: {
           color: string | null
