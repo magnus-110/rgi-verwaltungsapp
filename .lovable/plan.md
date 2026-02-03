@@ -1,540 +1,485 @@
 
+# Implementierungsplan: Erweiterungen des Aufgabensystems
 
-# To-Do-Verwaltung: Erweiterter Implementierungsplan
+## Ubersicht der Anderungen
 
-## Zusammenfassung der zusätzlichen Features
-
-| Feature | Beschreibung |
-|---------|--------------|
-| Wiederkehrende Aufgaben | Diskret integriert, nicht prominent |
-| Unteraufgaben/Checklisten | Für Ersteller UND Bearbeiter |
-| Datei-Upload | Anhänge an Aufgaben |
-| Optionale Zuweisung | Verantwortlicher nicht Pflicht |
-| Professioneller Export | PDF mit Logo, Filtereinstellungen, kundengerecht |
-
----
-
-## Datenbankstruktur (erweitert)
-
-### 1. `todo_categories` - Frei definierbare Kategorien
-```sql
-CREATE TABLE todo_categories (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name TEXT NOT NULL UNIQUE,
-  color TEXT DEFAULT '#6B7280',
-  created_at TIMESTAMPTZ DEFAULT now(),
-  created_by UUID REFERENCES profiles(user_id)
-);
-```
-
-### 2. `todos` - Haupttabelle (erweitert)
-```sql
-CREATE TABLE todos (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  task_number SERIAL,
-  title TEXT NOT NULL,
-  description TEXT,
-  
-  -- Kategorisierung
-  category_id UUID REFERENCES todo_categories(id),
-  
-  -- Zuweisung (OPTIONAL - kann NULL sein)
-  assigned_to UUID REFERENCES profiles(user_id), -- NULL erlaubt!
-  created_by UUID NOT NULL REFERENCES profiles(user_id),
-  
-  -- Zeitangaben
-  due_date DATE,
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  completed_at TIMESTAMPTZ,
-  
-  -- Status und Priorität
-  priority TEXT NOT NULL DEFAULT 'medium' 
-    CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
-  status TEXT NOT NULL DEFAULT 'open' 
-    CHECK (status IN ('open', 'in_progress', 'done')),
-  
-  -- Gebäudebezug (optional)
-  building_id UUID REFERENCES buildings(id),
-  
-  -- Dateianhänge (JSONB-Array)
-  attachments JSONB DEFAULT '[]'::jsonb,
-  
-  -- Wiederkehrend (NEU - diskret)
-  is_recurring BOOLEAN DEFAULT false,
-  recurrence_pattern TEXT, -- 'daily', 'weekly', 'monthly', 'yearly'
-  recurrence_interval INTEGER DEFAULT 1, -- z.B. alle 2 Wochen
-  recurrence_end_date DATE, -- Wann endet die Wiederholung
-  parent_todo_id UUID REFERENCES todos(id), -- Verknüpfung zur Original-Aufgabe
-  next_occurrence_date DATE -- Wann ist die nächste Instanz fällig
-);
-```
-
-### 3. `todo_subtasks` - Unteraufgaben/Checklisten (NEU)
-```sql
-CREATE TABLE todo_subtasks (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  todo_id UUID NOT NULL REFERENCES todos(id) ON DELETE CASCADE,
-  title TEXT NOT NULL,
-  is_completed BOOLEAN DEFAULT false,
-  completed_at TIMESTAMPTZ,
-  completed_by UUID REFERENCES profiles(user_id),
-  created_by UUID NOT NULL REFERENCES profiles(user_id),
-  created_at TIMESTAMPTZ DEFAULT now(),
-  sort_order INTEGER DEFAULT 0
-);
-```
-
-### 4. `todo_comments` - Kommentare
-```sql
-CREATE TABLE todo_comments (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  todo_id UUID NOT NULL REFERENCES todos(id) ON DELETE CASCADE,
-  content TEXT NOT NULL,
-  created_by UUID NOT NULL REFERENCES profiles(user_id),
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-```
-
-### RLS-Policies
-```sql
--- Alle 4 Tabellen: Admins und Mitarbeiter haben vollen Zugriff
-ALTER TABLE todos ENABLE ROW LEVEL SECURITY;
-ALTER TABLE todo_categories ENABLE ROW LEVEL SECURITY;
-ALTER TABLE todo_subtasks ENABLE ROW LEVEL SECURITY;
-ALTER TABLE todo_comments ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Admins and employees can manage todos"
-ON todos FOR ALL USING (user_has_admin_access(auth.uid()));
-
-CREATE POLICY "Admins and employees can manage categories"
-ON todo_categories FOR ALL USING (user_has_admin_access(auth.uid()));
-
-CREATE POLICY "Admins and employees can manage subtasks"
-ON todo_subtasks FOR ALL USING (user_has_admin_access(auth.uid()));
-
-CREATE POLICY "Admins and employees can manage comments"
-ON todo_comments FOR ALL USING (user_has_admin_access(auth.uid()));
-```
-
-### Neuer Storage Bucket
-```sql
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('todo-attachments', 'todo-attachments', false);
-
--- RLS für Storage
-CREATE POLICY "Admins and employees can manage todo attachments"
-ON storage.objects FOR ALL
-USING (bucket_id = 'todo-attachments' AND user_has_admin_access(auth.uid()));
-```
+| Anderung | Beschreibung |
+|----------|--------------|
+| Mobile Navigation | Aufgaben-Link in MobileHeader hinzufugen |
+| Mitarbeiter-Sichtbarkeit | Mitarbeiter sehen nur Mitarbeiter-Aufgaben |
+| Standard-Filter | Zeigt eigene + nicht zugewiesene Aufgaben |
+| Mehrfachzuweisung | Personen und Gebaude als Arrays |
+| Formular-Persistenz | localStorage-Speicherung |
+| Editierbare Checkliste | Inline-Bearbeitung mit Click-to-Edit |
+| Losch-Bestatigung | Bestatigung vor Checklisten-Loschung |
+| Mobile Optimierung | Kompaktere Darstellung |
 
 ---
 
-## UI-Komponenten
+## Phase 1: Mobile Navigation
 
-### 1. Hauptseite: `/todos`
+**Datei:** `src/components/MobileHeader.tsx`
 
-```text
-+------------------------------------------------------------------+
-| Aufgaben                            [+ Neue Aufgabe] [Exportieren]|
-+------------------------------------------------------------------+
-| Filter:                                                           |
-| [Suche...        ] [Verantwortlich v] [Kategorie v] [Priorität v]|
-| [Status v]  [Fälligkeit: Von ___ Bis ___]           [Sortieren v]|
-+------------------------------------------------------------------+
-|                                                                   |
-| OFFENE AUFGABEN (12)                                              |
-| +---------------------------------------------------------------+ |
-| | #42 | [DRINGEND] | Heizungswartung | Max M.  | Fällig: 05.02  | |
-| |     |    [!]     |                 |         | [ÜBERFÄLLIG]   | |
-| | Checkliste: 2/5 erledigt                        [v] Ausklappen | |
-| +---------------------------------------------------------------+ |
-|                                                                   |
-| IN BEARBEITUNG (3)                                                |
-| +---------------------------------------------------------------+ |
-| | #38 | [MITTEL] | Treppenhausreinigung | - | Fällig: 10.02    | |
-| | Checkliste: 0/3 erledigt                        [v] Ausklappen | |
-| +---------------------------------------------------------------+ |
-|                                                                   |
-| ERLEDIGT                                               [Einblenden]|
-| +---------------------------------------------------------------+ |
-| | 45 erledigte Aufgaben (eingeklappt)                           | |
-| +---------------------------------------------------------------+ |
-+------------------------------------------------------------------+
-```
-
-### 2. Aufgaben-Karte (ausgeklappt)
-
-```text
-+------------------------------------------------------------------+
-| #42 | [DRINGEND] | Heizungswartung planen              [Bearbeiten]|
-+------------------------------------------------------------------+
-| Beschreibung:                                                     |
-| Die jährliche Heizungswartung für alle WEG-Gebäude muss          |
-| koordiniert werden.                                               |
-|                                                                   |
-| Kategorie: Technik           Verantwortlich: Max Mustermann       |
-| Erstellt: 01.02.2025         Fällig: 05.02.2025 [ÜBERFÄLLIG]     |
-| Gebäude: WEG Musterstr. 1    🔄 Wiederholt sich: Jährlich        |
-|                                                                   |
-| CHECKLISTE (2/5)                                   [+ Hinzufügen] |
-| +-------------------------------------------------------------+  |
-| | [x] Angebote einholen                          (Anna S.)    |  |
-| | [x] Termine abstimmen                          (Max M.)     |  |
-| | [ ] Techniker beauftragen                                   |  |
-| | [ ] Termine an Eigentümer kommunizieren                     |  |
-| | [ ] Abnahme durchführen                                     |  |
-| +-------------------------------------------------------------+  |
-|                                                                   |
-| ANHÄNGE (2)                                        [+ Hochladen]  |
-| +-------------------------------------------------------------+  |
-| | 📄 Angebot_HeizGmbH.pdf (245 KB)                [Öffnen] [x] |  |
-| | 📷 Heizungsraum_Foto.jpg (1.2 MB)               [Öffnen] [x] |  |
-| +-------------------------------------------------------------+  |
-|                                                                   |
-| KOMMENTARE (3)                                                    |
-| +-------------------------------------------------------------+  |
-| | Anna S. (02.02.): Angebot von HeizGmbH eingeholt - 1.250€   |  |
-| | Max M. (03.02.): Termin für 07.02. vereinbart               |  |
-| | Admin (04.02.): Bitte Eigentümer informieren                |  |
-| +-------------------------------------------------------------+  |
-| [ Kommentar schreiben...                       ] [Senden]        |
-|                                                                   |
-| [Status: In Bearbeitung v]                          [Löschen]    |
-+------------------------------------------------------------------+
-```
-
-### 3. Dialog: Neue Aufgabe erstellen
-
-```text
-+--------------------------------------------------+
-| Neue Aufgabe erstellen                           |
-+--------------------------------------------------+
-| Titel*: [_________________________________]      |
-|                                                  |
-| Beschreibung:                                    |
-| [____________________________________]           |
-| [____________________________________]           |
-|                                                  |
-| Kategorie: [Auswählen...              v]         |
-|            [+ Neue Kategorie]                    |
-|                                                  |
-| Verantwortlich: [Optional - Nicht zugewiesen v]  |
-|   - (Keine Zuweisung)                            |
-|   - Admin Admin                                  |
-|   - Max Mustermann (Mitarbeiter)                 |
-|                                                  |
-| Priorität: [Mittel                   v]          |
-|                                                  |
-| Fälligkeitsdatum: [Datum wählen       📅]        |
-| (optional)                                       |
-|                                                  |
-| Gebäude: [Optional...                 v]         |
-|                                                  |
-| ----------------------------------------         |
-| ▼ Erweiterte Optionen (diskret)                  |
-|   [ ] Wiederkehrende Aufgabe                     |
-|       Wiederholung: [Wöchentlich      v]         |
-|       Alle: [1] Wochen                           |
-|       Endet am: [Datum wählen         📅]        |
-| ----------------------------------------         |
-|                                                  |
-| Checkliste (optional):                           |
-| [+ Punkt hinzufügen                          ]   |
-| • Schritt 1                              [x]     |
-| • Schritt 2                              [x]     |
-|                                                  |
-| Anhänge:                                         |
-| [Dateien auswählen...]                           |
-| 📄 Dokument.pdf (245 KB)             [Entfernen] |
-|                                                  |
-| [Abbrechen]                      [Erstellen]     |
-+--------------------------------------------------+
-```
-
-### 4. Export-Dialog (professionell)
-
-```text
-+--------------------------------------------------+
-| Aufgaben exportieren                             |
-+--------------------------------------------------+
-| Format:                                          |
-| (o) PDF (professionell mit Logo)                 |
-| ( ) Excel                                        |
-|                                                  |
-| Aktuelle Filter werden übernommen:               |
-| +----------------------------------------------+ |
-| | Verantwortlich: Max Mustermann               | |
-| | Kategorie: Technik                           | |
-| | Status: Offen, In Bearbeitung                | |
-| | Zeitraum: 01.01.2025 - 31.01.2025           | |
-| +----------------------------------------------+ |
-|                                                  |
-| [ ] Nur überfällige Aufgaben                     |
-| [ ] Checklisten-Details einschließen             |
-| [ ] Kommentare einschließen                      |
-|                                                  |
-| [Abbrechen]                    [Exportieren]     |
-+--------------------------------------------------+
-```
-
-### 5. Exportiertes PDF (Professionell)
-
-```text
-+------------------------------------------------------------------+
-|  [RGI LOGO]           AUFGABENÜBERSICHT                          |
-|                                                                   |
-|  Erstellt am: 05.02.2025                                         |
-|  Verantwortlich: Max Mustermann                                  |
-|  Kategorie: Technik | Status: Offen, In Bearbeitung              |
-+------------------------------------------------------------------+
-|                                                                   |
-|  #42 - Heizungswartung planen                     Priorität: HOCH |
-|  ---------------------------------------------------------------- |
-|  Beschreibung: Die jährliche Heizungswartung für alle            |
-|  WEG-Gebäude muss koordiniert werden.                            |
-|                                                                   |
-|  Verantwortlich: Max Mustermann                                  |
-|  Erstellt: 01.02.2025          Fällig: 05.02.2025 (ÜBERFÄLLIG)  |
-|  Gebäude: WEG Musterstraße 1                                     |
-|                                                                   |
-|  Checkliste (2/5):                                               |
-|  ✓ Angebote einholen                                             |
-|  ✓ Termine abstimmen                                             |
-|  ○ Techniker beauftragen                                         |
-|  ○ Termine kommunizieren                                         |
-|  ○ Abnahme durchführen                                           |
-|  ---------------------------------------------------------------- |
-|                                                                   |
-|  #41 - Mülltonnen bestellen                      Priorität: MITTEL|
-|  ---------------------------------------------------------------- |
-|  ...                                                              |
-+------------------------------------------------------------------+
-|  Seite 1 von 3                    RGI Immobilienverwaltung       |
-+------------------------------------------------------------------+
-```
-
-### 6. Dashboard-Widget
-
-```text
-+-------------------------------------------+
-| 📋 Meine Aufgaben                   [→]   |
-+-------------------------------------------+
-| [DRINGEND] 2 Aufgaben                     |
-| • #42 Heizungswartung [ÜBERFÄLLIG]        |
-| • #45 Protokoll erstellen - morgen        |
-|                                           |
-| [HOCH] 3 Aufgaben                         |
-| • #41 Mülltonnen - in 3 Tagen             |
-|                                           |
-| [MITTEL] 5 Aufgaben                       |
-+-------------------------------------------+
-| Gesamt: 10 offen | 2 in Bearbeitung       |
-| Davon nicht zugewiesen: 3                 |
-+-------------------------------------------+
-```
-
----
-
-## Neue Dateien
-
-### Frontend-Komponenten
-
-| Datei | Beschreibung |
-|-------|--------------|
-| `src/pages/Todos.tsx` | Hauptseite mit Aufgabenliste |
-| `src/components/todos/TodoCard.tsx` | Ausklappbare Aufgaben-Karte |
-| `src/components/todos/TodoDialog.tsx` | Dialog zum Erstellen/Bearbeiten |
-| `src/components/todos/TodoFilters.tsx` | Filter-Leiste mit allen Optionen |
-| `src/components/todos/TodoSubtasks.tsx` | Checklisten-Komponente |
-| `src/components/todos/TodoComments.tsx` | Kommentar-Bereich |
-| `src/components/todos/TodoAttachments.tsx` | Dateianhänge-Komponente |
-| `src/components/todos/CategoryDialog.tsx` | Dialog für neue Kategorie |
-| `src/components/todos/RecurrenceSettings.tsx` | Wiederholungs-Einstellungen (diskret) |
-| `src/components/todos/TodoExportDialog.tsx` | Export-Dialog |
-| `src/components/todos/TodoDashboardWidget.tsx` | Dashboard-Widget |
-| `src/components/todos/TodoPdfExport.tsx` | PDF-Generierung mit Logo |
-
-### Hooks
-
-| Datei | Beschreibung |
-|-------|--------------|
-| `src/hooks/useTodos.tsx` | React Query Hooks für alle Todo-Operationen |
-
----
-
-## Technische Details
-
-### PDF-Export mit Logo
-
-Verwendung von `jspdf` und `jspdf-autotable` (bereits ähnliche Patterns im Projekt):
-
+Aufgaben-Link nach NOVA einfugen:
 ```typescript
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+// Nach Zeile 45: Sparkles/NOVA hinzufugen
+{
+  icon: CheckSquare,
+  label: "Aufgaben",
+  path: '/todos',
+  active: location.pathname.startsWith('/todos')
+},
+```
 
-const exportToPdf = async (todos: Todo[], filters: TodoFilters) => {
-  const doc = new jsPDF();
-  
-  // Logo einbinden
-  const logoUrl = '/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png';
-  doc.addImage(logoUrl, 'PNG', 15, 10, 40, 20);
-  
-  // Titel
-  doc.setFontSize(18);
-  doc.text('AUFGABENÜBERSICHT', 60, 25);
-  
-  // Filter-Info
-  doc.setFontSize(10);
-  doc.text(`Erstellt am: ${new Date().toLocaleDateString('de-DE')}`, 15, 40);
-  doc.text(`Filter: ${formatFiltersForPdf(filters)}`, 15, 46);
-  
-  // Tabelle mit Aufgaben
-  autoTable(doc, {
-    startY: 55,
-    head: [['Nr.', 'Titel', 'Priorität', 'Verantwortlich', 'Fällig', 'Status']],
-    body: todos.map(t => [
-      `#${t.task_number}`,
-      t.title,
-      getPriorityLabel(t.priority),
-      t.assigned_to_name || 'Nicht zugewiesen',
-      t.due_date ? formatDate(t.due_date) : '-',
-      getStatusLabel(t.status)
-    ]),
-    // Styling...
-  });
-  
-  // Footer
-  const pageCount = doc.getNumberOfPages();
-  for (let i = 1; i <= pageCount; i++) {
-    doc.setPage(i);
-    doc.setFontSize(8);
-    doc.text(
-      `Seite ${i} von ${pageCount}`,
-      doc.internal.pageSize.width / 2,
-      doc.internal.pageSize.height - 10,
-      { align: 'center' }
-    );
-  }
-  
-  doc.save(`Aufgaben_${new Date().toISOString().slice(0,10)}.pdf`);
+---
+
+## Phase 2: Mitarbeiter-Sichtbarkeit
+
+Aktuell sehen alle Admins und Mitarbeiter alle Aufgaben. Mitarbeiter sollen nur Aufgaben sehen, die:
+- Ihnen zugewiesen sind
+- Anderen Mitarbeitern zugewiesen sind
+- Niemandem zugewiesen sind
+
+**Datei:** `src/hooks/useTodos.tsx`
+
+Neue Funktion `useTodosWithRole`:
+```typescript
+// Prufe Rolle des aktuellen Benutzers
+const { profile } = useAuth();
+const isEmployee = profile?.role === 'employee';
+
+// Im Query: Filter fur Mitarbeiter
+if (isEmployee) {
+  // Hole alle Mitarbeiter-IDs
+  const employeeIds = await supabase
+    .from('profiles')
+    .select('user_id')
+    .eq('role', 'employee');
+
+  // Nur Aufgaben die:
+  // - assigned_to IS NULL (nicht zugewiesen)
+  // - assigned_to in employeeIds (Mitarbeiter-Aufgaben)
+  query = query.or(`assigned_to.is.null,assigned_to.in.(${employeeIds.map(e => e.user_id).join(',')})`);
+}
+```
+
+---
+
+## Phase 3: Standard-Filter
+
+**Datei:** `src/pages/Todos.tsx`
+
+Standard-Filter auf aktuelle Person + nicht zugewiesene andern:
+```typescript
+// useAuth Hook verwenden
+const { user } = useAuth();
+
+// Default-Filter mit "mine_and_unassigned"
+const defaultFilters: TodoFiltersType = {
+  assignedTo: 'mine_and_unassigned', // Neuer Spezialwert
+  // ... andere Felder
 };
 ```
 
-### Wiederkehrende Aufgaben (Backend-Logik)
+**Datei:** `src/components/todos/TodoFilters.tsx`
 
-Ein einfacher Trigger oder Edge Function, die bei Abschluss einer wiederkehrenden Aufgabe die nächste erstellt:
-
-```sql
--- Trigger bei Status-Änderung auf 'done'
-CREATE OR REPLACE FUNCTION handle_recurring_todo_completion()
-RETURNS TRIGGER AS $$
-BEGIN
-  IF NEW.status = 'done' AND NEW.is_recurring = true AND OLD.status != 'done' THEN
-    -- Berechne nächstes Fälligkeitsdatum
-    INSERT INTO todos (
-      title, description, category_id, assigned_to, created_by,
-      priority, building_id, is_recurring, recurrence_pattern,
-      recurrence_interval, recurrence_end_date, parent_todo_id,
-      due_date
-    )
-    SELECT
-      NEW.title, NEW.description, NEW.category_id, NEW.assigned_to, NEW.created_by,
-      NEW.priority, NEW.building_id, NEW.is_recurring, NEW.recurrence_pattern,
-      NEW.recurrence_interval, NEW.recurrence_end_date, 
-      COALESCE(NEW.parent_todo_id, NEW.id),
-      CASE NEW.recurrence_pattern
-        WHEN 'daily' THEN NEW.due_date + (NEW.recurrence_interval || ' days')::interval
-        WHEN 'weekly' THEN NEW.due_date + (NEW.recurrence_interval * 7 || ' days')::interval
-        WHEN 'monthly' THEN NEW.due_date + (NEW.recurrence_interval || ' months')::interval
-        WHEN 'yearly' THEN NEW.due_date + (NEW.recurrence_interval || ' years')::interval
-      END
-    WHERE NEW.recurrence_end_date IS NULL 
-       OR (NEW.due_date + calculate_next_occurrence(NEW.*)) <= NEW.recurrence_end_date;
-  END IF;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-```
-
----
-
-## Sidebar-Integration
-
+Neue Filter-Option:
 ```typescript
-// In AdminSidebar.tsx
-import { CheckSquare } from "lucide-react";
+<SelectItem value="mine_and_unassigned">
+  Meine + Nicht zugewiesen
+</SelectItem>
+```
 
-const menuItems = [
-  { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
-  { title: "NOVA", url: "/documents", icon: Sparkles },
-  { title: "Aufgaben", url: "/todos", icon: CheckSquare }, // NEU
-  { title: "Meldungen", url: "/reports", icon: ClipboardList },
+**Datei:** `src/hooks/useTodos.tsx`
+
+Neue Filter-Logik:
+```typescript
+if (filters.assignedTo === 'mine_and_unassigned') {
+  query = query.or(`assigned_to.eq.${userId},assigned_to.is.null`);
+}
+```
+
+**Datei:** `src/components/todos/TodoDashboardWidget.tsx`
+
+Widget zeigt auch nur eigene + nicht zugewiesene:
+```typescript
+const widgetFilters: TodoFilters = {
+  assignedTo: 'mine_and_unassigned',
   // ...
-];
+};
 ```
 
 ---
 
-## Zusammenfassung aller Features
+## Phase 4: Mehrfachzuweisung (Personen und Gebaude)
 
-### Kerfeatures
-- Aufgaben erstellen, bearbeiten, löschen
-- Prioritäten: Niedrig, Mittel, Hoch, Dringend
-- Status: Offen, In Bearbeitung, Erledigt
-- Optionale Zuweisung (kann leer bleiben)
-- Fälligkeitsdatum (optional)
-- Gebäudebezug (optional)
+### Datenbank-Migration
 
-### Erweiterungen
-- **Unteraufgaben/Checklisten**: Jeder (Ersteller + Bearbeiter) kann Punkte hinzufügen und abhaken
-- **Datei-Upload**: Mehrere Anhänge pro Aufgabe (PDFs, Bilder, etc.)
-- **Wiederkehrende Aufgaben**: Diskret unter "Erweiterte Optionen", täglich/wöchentlich/monatlich/jährlich
-- **Kommentare**: Kommunikation zur Aufgabe
+Neue Junction-Tabellen:
+```sql
+-- Aufgaben-zu-Personen (n:m)
+CREATE TABLE public.todo_assignees (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  todo_id UUID NOT NULL REFERENCES public.todos(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES public.profiles(user_id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(todo_id, user_id)
+);
 
-### Filterung & Sortierung
-- Nach Verantwortlichem
-- Nach Kategorie
-- Nach Priorität
-- Nach Status
-- Nach Fälligkeit (Zeitraum)
-- Freitextsuche
+-- Aufgaben-zu-Gebaude (n:m)
+CREATE TABLE public.todo_buildings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  todo_id UUID NOT NULL REFERENCES public.todos(id) ON DELETE CASCADE,
+  building_id UUID NOT NULL REFERENCES public.buildings(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(todo_id, building_id)
+);
 
-### Export
-- **PDF**: Professionell mit RGI-Logo, Filtereinstellungen, kundengerecht
-- **Excel**: Für Weiterverarbeitung
-- Aktuelle Filter werden automatisch übernommen
-- Optional: Checklisten-Details, Kommentare einschließen
+-- RLS
+ALTER TABLE public.todo_assignees ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.todo_buildings ENABLE ROW LEVEL SECURITY;
 
-### Dashboard-Widget
-- Persönliche Aufgabenübersicht
-- Gruppiert nach Priorität
-- Überfällige Aufgaben hervorgehoben
-- Nicht zugewiesene Aufgaben zählen
+CREATE POLICY "Admins and employees can manage todo assignees"
+ON public.todo_assignees FOR ALL
+USING (public.user_has_admin_access(auth.uid()));
 
----
+CREATE POLICY "Admins and employees can manage todo buildings"
+ON public.todo_buildings FOR ALL
+USING (public.user_has_admin_access(auth.uid()));
 
-## Neue Dependencies
-
-```bash
-npm install jspdf jspdf-autotable
+-- Alte Spalten behalten fur Abwartskompatibilitat
+-- assigned_to und building_id in todos bleiben als Legacy
 ```
 
-Die xlsx-Bibliothek ist bereits im Projekt vorhanden.
+### Frontend-Anderungen
+
+**Datei:** `src/components/todos/TodoDialog.tsx`
+
+Multi-Select fur Personen:
+```typescript
+// Statt einzelnem Select:
+<MultiSelect
+  options={users.map(u => ({ value: u.user_id, label: `${u.first_name} ${u.last_name}` }))}
+  selected={assignees}
+  onChange={setAssignees}
+  placeholder="Verantwortliche auswahlen..."
+/>
+
+// Gleiches fur Gebaude
+<MultiSelect
+  options={buildings.map(b => ({ value: b.id, label: b.name }))}
+  selected={selectedBuildings}
+  onChange={setSelectedBuildings}
+  placeholder="Gebaude auswahlen..."
+/>
+```
+
+**Datei:** `src/hooks/useTodos.tsx`
+
+Erweitertes Query:
+```typescript
+.select(`
+  *,
+  assignees:todo_assignees(
+    user:profiles(user_id, first_name, last_name)
+  ),
+  buildings:todo_buildings(
+    building:buildings(id, name)
+  ),
+  // ... rest
+`)
+```
 
 ---
 
-## Implementierungsreihenfolge
+## Phase 5: Formular-Persistenz
 
-1. **Datenbank-Migration**: Tabellen, RLS, Storage Bucket
-2. **Hook erstellen**: `useTodos.tsx` mit allen CRUD-Operationen
-3. **Basis-Seite**: `Todos.tsx` mit Filterung und Sortierung
-4. **Aufgaben-Karte**: Ausklappbar mit allen Details
-5. **Unteraufgaben**: Checklisten-Komponente
-6. **Datei-Upload**: Anhänge-Komponente
-7. **Wiederkehrende Aufgaben**: Diskrete Einstellungen + Trigger
-8. **Kommentare**: Kommentar-Bereich
-9. **Export**: PDF + Excel mit Filter-Übernahme
-10. **Dashboard-Widget**: Persönliche Übersicht
-11. **Sidebar + Routing**: Navigation einbinden
+**Datei:** `src/components/todos/TodoDialog.tsx`
 
+LocalStorage fur Formularfelder:
+```typescript
+const STORAGE_KEY = 'todo_dialog_draft';
+
+// Beim Laden
+useEffect(() => {
+  if (mode === 'create' && open) {
+    const draft = localStorage.getItem(STORAGE_KEY);
+    if (draft) {
+      const parsed = JSON.parse(draft);
+      setTitle(parsed.title || '');
+      setDescription(parsed.description || '');
+      // ... weitere Felder
+    }
+  }
+}, [mode, open]);
+
+// Beim Andern speichern (debounced)
+useEffect(() => {
+  if (mode === 'create') {
+    const draft = { title, description, categoryId, priority, ... };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
+  }
+}, [title, description, categoryId, priority, ...]);
+
+// Bei erfolgreichem Speichern loschen
+onSuccess: () => {
+  localStorage.removeItem(STORAGE_KEY);
+  onOpenChange(false);
+}
+
+// Bei Abbrechen: Bestatigung wenn Draft existiert
+const handleCancel = () => {
+  if (title || description || subtasks.length > 0) {
+    // Optional: Bestatigung zeigen
+    // Oder: Draft wird einfach behalten
+  }
+  onOpenChange(false);
+};
+```
+
+---
+
+## Phase 6: Editierbare Checkliste
+
+**Datei:** `src/components/todos/TodoSubtasks.tsx`
+
+Inline-Bearbeitung:
+```typescript
+const [editingId, setEditingId] = useState<string | null>(null);
+const [editText, setEditText] = useState("");
+const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+// Neue Mutation
+const updateSubtask = useUpdateSubtask();
+
+// UI fur jeden Punkt
+{subtasks.map((subtask) => (
+  <div key={subtask.id} className="flex items-center gap-2 p-2 rounded-md group">
+    <Checkbox
+      checked={subtask.is_completed}
+      onCheckedChange={() => handleToggle(subtask)}
+    />
+
+    {/* Editierbar durch Klick */}
+    {editingId === subtask.id ? (
+      <Input
+        value={editText}
+        onChange={(e) => setEditText(e.target.value)}
+        onBlur={() => handleSaveEdit(subtask.id)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') handleSaveEdit(subtask.id);
+          if (e.key === 'Escape') setEditingId(null);
+        }}
+        autoFocus
+        className="flex-1 text-sm"
+      />
+    ) : (
+      <span
+        onClick={() => {
+          setEditingId(subtask.id);
+          setEditText(subtask.title);
+        }}
+        className="flex-1 text-sm cursor-text hover:bg-muted/50 rounded px-1"
+      >
+        {subtask.title}
+      </span>
+    )}
+
+    {/* Loschen mit Bestatigung */}
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant="ghost" size="icon" className="h-6 w-6">
+          <Trash2 className="h-3 w-3" />
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Punkt loschen?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Dieser Checklistenpunkt wird unwiderruflich geloscht.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+          <AlertDialogAction onClick={() => handleDelete(subtask.id)}>
+            Loschen
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  </div>
+))}
+```
+
+**Datei:** `src/hooks/useTodos.tsx`
+
+Neue Mutation:
+```typescript
+export function useUpdateSubtask() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, todoId, title }: { id: string; todoId: string; title: string }) => {
+      const { data, error } = await supabase
+        .from('todo_subtasks')
+        .update({ title })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { data, todoId };
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['todo-subtasks', result.todoId] });
+    },
+  });
+}
+```
+
+---
+
+## Phase 7: Mobile Optimierung
+
+**Datei:** `src/components/todos/TodoCard.tsx`
+
+Kompaktere mobile Darstellung:
+```typescript
+<CardContent className="p-3 md:p-4 cursor-pointer">
+  <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3">
+    {/* Erste Zeile: Nummer + Prioritat + Datum */}
+    <div className="flex items-center gap-2 flex-wrap">
+      <span className="text-xs font-mono text-muted-foreground">
+        #{todo.task_number}
+      </span>
+      <Badge className={cn("text-xs px-1.5 py-0", priorityColors[todo.priority])}>
+        {priorityLabels[todo.priority]}
+      </Badge>
+      {todo.due_date && (
+        <span className="text-xs text-muted-foreground flex items-center gap-1">
+          <Calendar className="h-3 w-3" />
+          {format(new Date(todo.due_date), "dd.MM.", { locale: de })}
+        </span>
+      )}
+      {overdue && <Badge variant="destructive" className="text-xs px-1">Uberfällig</Badge>}
+    </div>
+
+    {/* Zweite Zeile: Titel */}
+    <h3 className="font-medium text-sm sm:text-base line-clamp-2 sm:flex-1">
+      {todo.title}
+    </h3>
+
+    {/* Chevron */}
+    <div className="hidden sm:block">
+      {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+    </div>
+  </div>
+
+  {/* Metadaten kompakt auf Mobile */}
+  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-2 text-xs text-muted-foreground">
+    {assignedName && (
+      <span className="flex items-center gap-1">
+        <User className="h-3 w-3" />
+        {assignedName}
+      </span>
+    )}
+    {todo.building && (
+      <span className="flex items-center gap-1">
+        <Building2 className="h-3 w-3" />
+        {todo.building.name}
+      </span>
+    )}
+    {totalSubtasks > 0 && (
+      <span>Checkliste: {completedSubtasks}/{totalSubtasks}</span>
+    )}
+  </div>
+</CardContent>
+```
+
+**Datei:** `src/pages/Todos.tsx`
+
+Kompaktere Uberschriften:
+```typescript
+{/* Mobile: Knappe Uberschrift */}
+<h1 className="text-xl sm:text-3xl font-semibold">Aufgaben</h1>
+<p className="text-muted-foreground text-sm mt-0.5 hidden sm:block">
+  Verwalten Sie alle Aufgaben und To-Dos
+</p>
+```
+
+---
+
+## Zusammenfassung der Dateianderungen
+
+### Neue Dateien
+| Datei | Beschreibung |
+|-------|--------------|
+| Migration | Junction-Tabellen fur Mehrfachzuweisung |
+
+### Genderte Dateien
+| Datei | Anderung |
+|-------|----------|
+| `MobileHeader.tsx` | Aufgaben-Link hinzufugen |
+| `Todos.tsx` | Standard-Filter, Mobile-Optimierung |
+| `TodoFilters.tsx` | "Meine + Nicht zugewiesen" Option |
+| `TodoCard.tsx` | Mobile Layout optimieren |
+| `TodoDialog.tsx` | LocalStorage-Persistenz, Multi-Select |
+| `TodoSubtasks.tsx` | Inline-Edit, Losch-Bestatigung |
+| `TodoDashboardWidget.tsx` | Default-Filter andern |
+| `useTodos.tsx` | Neue Filter-Logik, Update-Subtask Mutation |
+
+---
+
+## Technische Notizen
+
+### LocalStorage Schema
+```json
+{
+  "todo_dialog_draft": {
+    "title": "string",
+    "description": "string",
+    "categoryId": "uuid | null",
+    "assignees": ["uuid"],
+    "priority": "low|medium|high|urgent",
+    "dueDate": "yyyy-MM-dd | null",
+    "buildings": ["uuid"],
+    "subtasks": ["string"],
+    "isRecurring": false,
+    "recurrencePattern": "weekly",
+    "recurrenceInterval": 1
+  }
+}
+```
+
+### Filter-Logik fur Mitarbeiter
+```text
+1. Benutzer ist Mitarbeiter?
+   -> Hole alle Mitarbeiter-IDs aus profiles
+   -> Filter: assigned_to IS NULL OR assigned_to IN (mitarbeiter_ids)
+
+2. Default-Filter "mine_and_unassigned":
+   -> assigned_to = current_user_id OR assigned_to IS NULL
+```
+
+### Multi-Select Komponente
+Verwendet bestehende Checkbox + Popover Pattern:
+```typescript
+<Popover>
+  <PopoverTrigger>
+    <Button variant="outline">
+      {selected.length > 0 ? `${selected.length} ausgewahlt` : "Auswahlen..."}
+    </Button>
+  </PopoverTrigger>
+  <PopoverContent>
+    {options.map(opt => (
+      <div key={opt.value} className="flex items-center gap-2">
+        <Checkbox
+          checked={selected.includes(opt.value)}
+          onCheckedChange={() => toggle(opt.value)}
+        />
+        <span>{opt.label}</span>
+      </div>
+    ))}
+  </PopoverContent>
+</Popover>
+```
