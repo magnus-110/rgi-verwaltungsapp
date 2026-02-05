@@ -110,24 +110,6 @@ serve(async (req) => {
       });
     }
 
-    // Load conversation history (last 20 messages from last 30 days)
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    
-    const { data: conversationHistory, error: historyError } = await supabase
-      .from('chatbot_messages')
-      .select('role, content, created_at')
-      .eq('user_id', userId)
-      .eq('management_mode', managementMode)
-      .gte('created_at', thirtyDaysAgo.toISOString())
-      .order('created_at', { ascending: true })
-      .limit(20);
-
-    if (historyError) {
-      console.error('Error fetching conversation history:', historyError);
-      // Continue without history - don't fail the request
-    }
-
     // Build context data
     let contextData = "";
 
@@ -261,21 +243,52 @@ serve(async (req) => {
       knowledgeString = settings.knowledge_base;
     }
 
-    // Construct system prompt
-     // Check if this is the first message in the conversation (no history = first message)
-     const isFirstMessage = !conversationHistory || conversationHistory.length === 0;
-     
-     // Build conversation behavior instructions
-     const conversationBehavior = `
- 
- 🗣️ WICHTIG - Gesprächsverhalten:
- - Begrüßen Sie den Nutzer NUR bei der ERSTEN Nachricht mit Namen (z.B. "Guten Tag, ${profile?.first_name} ${profile?.last_name}!").
- - Bei ALLEN WEITEREN Nachrichten in derselben Konversation: KEINE erneute Begrüßung mit Namen.
- - Variieren Sie Ihre Abschlussformulierungen. Vermeiden Sie repetitive Phrasen wie "Kann ich Ihnen sonst noch weiterhelfen?". Nutzen Sie stattdessen natürliche Varianten oder lassen Sie die Schlussformel ganz weg, wenn die Antwort vollständig ist.
- - Der Gesprächsverlauf wird Ihnen bereitgestellt - nutzen Sie diesen Kontext für kohärente Antworten.
- ${isFirstMessage ? '- Dies ist die ERSTE Nachricht - begrüßen Sie den Nutzer mit Namen.' : '- Dies ist eine FOLGENACHRICHT - KEINE Begrüßung mit Namen mehr.'}`;
- 
-     const systemPrompt = `${settings.system_prompt}${conversationBehavior}\n\nWissensdatenbank:\n${knowledgeString}\n\nAktuelle Kontextdaten:${contextData}\n\nNutzerinformationen (nur für Kontext, NICHT bei jeder Nachricht ansprechen): ${profile?.first_name} ${profile?.last_name} (${profile?.email})${managementMode === 'weg' ? ' - WEG-Eigentümer' : ' - Mieter'}${buildingId ? `. Gebäude-ID: ${buildingId}` : managementMode === 'weg' ? '. Keine spezifische Gebäude-ID angegeben - bitten Sie um die Gebäude-ID für spezifische Informationen.' : ''}`;
+    // Load conversation history for CURRENT SESSION only (not all user messages)
+    const { data: conversationHistory, error: historyError } = await supabase
+      .from('chatbot_messages')
+      .select('role, content, created_at')
+      .eq('session_id', currentSessionId)
+      .order('created_at', { ascending: true })
+      .limit(20);
+
+    if (historyError) {
+      console.error('Error fetching conversation history:', historyError);
+      // Continue without history - don't fail the request
+    }
+
+    // Check if this is the first message in the SESSION (not across all conversations)
+    const isFirstMessage = !conversationHistory || conversationHistory.length === 0;
+    
+    // Build conversation behavior instructions with strict rules
+    const conversationBehavior = `
+
+=== KRITISCHE VERHALTENSREGELN (IMMER BEFOLGEN) ===
+
+1. BEGRÜSSUNG:
+${isFirstMessage 
+  ? `   ✓ ERSTE NACHRICHT: Beginnen Sie mit "Guten Tag, ${profile?.first_name} ${profile?.last_name}!" und beantworten Sie dann die Frage.` 
+  : `   ✗ FOLGENACHRICHT: KEINE Begrüßung, KEIN Name. Antworten Sie DIREKT auf die Frage ohne jede Anrede.`}
+
+2. ABSCHLUSS:
+   ✗ VERBOTEN (niemals verwenden): "Kann ich Ihnen sonst noch weiterhelfen?"
+   ✓ ERLAUBT (abwechselnd oder gar nicht):
+     - Einfach mit der Antwort enden (oft am besten)
+     - "Bei weiteren Fragen stehe ich gerne zur Verfügung."
+     - "Melden Sie sich gerne bei Rückfragen."
+     - "Lassen Sie mich wissen, wenn Sie weitere Informationen benötigen."
+   Jede Antwort sollte einen ANDEREN oder gar keinen Abschluss haben.
+
+3. WAHRHEIT & EHRLICHKEIT (EXTREM WICHTIG - ANTI-HALLUZINATION):
+   ✗ Erfinden Sie NIEMALS Namen, Telefonnummern, E-Mail-Adressen oder andere Fakten
+   ✗ Nennen Sie KEINE Verwalter, Kontaktpersonen oder Details, die nicht explizit in den Kontextdaten stehen
+   ✓ Wenn Information NICHT verfügbar: "Diese Information liegt mir leider nicht vor."
+   ✓ Bei Fragen nach unbekannten Kontaktdaten: "Bitte kontaktieren Sie die Hausverwaltung direkt unter info@rgi-immobilien.de oder 08363 960656."
+   ✓ Sagen Sie lieber "Das weiß ich leider nicht" als etwas zu erfinden
+
+=== ENDE VERHALTENSREGELN ===`;
+
+    // Construct system prompt using admin-configured prompt + behavioral rules
+    const systemPrompt = `${settings.system_prompt}${conversationBehavior}\n\nWissensdatenbank:\n${knowledgeString}\n\nAktuelle Kontextdaten:${contextData}\n\nNutzerinformationen (nur für Kontext): ${profile?.first_name} ${profile?.last_name} (${profile?.email})${managementMode === 'weg' ? ' - WEG-Eigentümer' : ' - Mieter'}${buildingId ? `. Gebäude-ID: ${buildingId}` : managementMode === 'weg' ? '. Keine spezifische Gebäude-ID angegeben.' : ''}`;
 
     // Construct messages for OpenAI with conversation history
     const messages = [
@@ -302,7 +315,7 @@ serve(async (req) => {
       content: message
     });
 
-    console.log('Sending request to Mistral with model: mistral-small-latest and', messages.length, 'messages');
+    console.log('Sending request to Mistral with model: mistral-small-latest,', messages.length, 'messages, isFirstMessage:', isFirstMessage);
 
     // Save user message
     const { error: userMsgError } = await supabase
