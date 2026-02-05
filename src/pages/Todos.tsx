@@ -159,7 +159,13 @@ export function Todos() {
               </h2>
               <div className="space-y-2 sm:space-y-3">
                 {groupedTodos.inProgress.map((todo) => (
-                  <TodoCard key={todo.id} todo={todo} onEdit={handleEdit} />
+                  <TodoCard 
+                    key={todo.id} 
+                    todo={todo} 
+                    onEdit={handleEdit}
+                    isExpanded={expandedTodoId === todo.id}
+                    onToggle={() => handleToggleExpand(todo.id)}
+                  />
                 ))}
               </div>
             </div>
