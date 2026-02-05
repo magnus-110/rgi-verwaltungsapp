@@ -256,23 +256,24 @@
    const queryClient = useQueryClient();
  
    return useMutation({
-     mutationFn: async (input: Partial<CalendarEvent> & { id: string; assignees?: string[]; building_ids?: string[] }) => {
+     mutationFn: async (input: { id: string; title?: string; description?: string | null; start_datetime?: string; end_datetime?: string; is_all_day?: boolean; category_id?: string; color?: string; assignees?: string[]; building_ids?: string[] }) => {
        const { id, assignees, building_ids, ...updates } = input;
        
-       const { data, error } = await supabase
-         .from('calendar_events')
-         .update(updates)
-         .eq('id', id)
-         .select()
-         .single();
+       // Only update if there are actual field updates
+       if (Object.keys(updates).length > 0) {
+         const { error } = await supabase
+           .from('calendar_events')
+           .update(updates)
+           .eq('id', id);
  
-       if (error) throw error;
+         if (error) throw error;
+       }
  
        // Update assignees
        if (assignees !== undefined) {
          await supabase.from('calendar_event_assignees').delete().eq('event_id', id);
          if (assignees.length > 0) {
-           const assigneeInserts = assignees.map(userId => ({
+           const assigneeInserts = assignees.map((userId: string) => ({
              event_id: id,
              user_id: userId,
            }));
@@ -284,7 +285,7 @@
        if (building_ids !== undefined) {
          await supabase.from('calendar_event_buildings').delete().eq('event_id', id);
          if (building_ids.length > 0) {
-           const buildingInserts = building_ids.map(buildingId => ({
+           const buildingInserts = building_ids.map((buildingId: string) => ({
              event_id: id,
              building_id: buildingId,
            }));
@@ -292,7 +293,7 @@
          }
        }
  
-       return data;
+       return { id };
      },
      onSuccess: () => {
        queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
