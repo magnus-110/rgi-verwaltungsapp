@@ -382,7 +382,7 @@ export const ChatbotSettings = () => {
 
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>System Prompt & Wissensbasis</CardTitle>
+          <CardTitle>System Prompt</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
@@ -398,94 +398,16 @@ export const ChatbotSettings = () => {
               Beschreibt die Rolle und das Verhalten des Chatbots.
             </p>
           </div>
-
-          <div>
-            <Label>Wissensbasis-Themen</Label>
-            <div className="space-y-3">
-              {settings.knowledge_items.map((item, index) => (
-                <Card key={index} className="p-3">
-                  {editingItem === index ? (
-                    <div className="space-y-2">
-                      <Input
-                        value={item.title}
-                        onChange={(e) => handleEditItem(index, { ...item, title: e.target.value })}
-                        placeholder="Thema-Titel"
-                      />
-                      <Textarea
-                        value={item.content}
-                        onChange={(e) => handleEditItem(index, { ...item, content: e.target.value })}
-                        placeholder="Inhalt..."
-                        rows={4}
-                      />
-                      <div className="flex gap-2">
-                        <Button size="sm" onClick={() => setEditingItem(null)}>
-                          Speichern
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => setEditingItem(null)}>
-                          Abbrechen
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-medium cursor-pointer flex items-center gap-2" onClick={() => toggleExpanded(index)}>
-                          {item.title}
-                          {expandedItems.has(index) ? (
-                            <ChevronUp className="w-4 h-4" />
-                          ) : (
-                            <ChevronDown className="w-4 h-4" />
-                          )}
-                        </h4>
-                        <div className="flex gap-1">
-                          <Button size="sm" variant="ghost" onClick={() => setEditingItem(index)}>
-                            <Edit className="w-3 h-3" />
-                          </Button>
-                          <Button size="sm" variant="ghost" onClick={() => handleDeleteItem(index)}>
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
-                        </div>
-                      </div>
-                      {expandedItems.has(index) && (
-                        <div className="mt-2 text-sm text-muted-foreground">
-                          {item.content}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </Card>
-              ))}
-              
-              <Card className="p-3 border-dashed">
-                <div className="space-y-2">
-                  <Input
-                    value={newItem.title}
-                    onChange={(e) => setNewItem({ ...newItem, title: e.target.value })}
-                    placeholder="Neues Thema..."
-                  />
-                  <Textarea
-                    value={newItem.content}
-                    onChange={(e) => setNewItem({ ...newItem, content: e.target.value })}
-                    placeholder="Inhalt..."
-                    rows={3}
-                  />
-                  <Button size="sm" onClick={handleAddItem} className="flex items-center gap-2">
-                    <Plus className="w-3 h-3" />
-                    Thema hinzufügen
-                  </Button>
-                </div>
-              </Card>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Organisieren Sie Ihr Wissen in thematische Bereiche. Klicken Sie auf einen Titel, um den Inhalt zu sehen.
-            </p>
-          </div>
+          <Button onClick={handleSave} className="w-full">
+            System Prompt speichern
+          </Button>
         </CardContent>
       </Card>
-      
-      <Button onClick={handleSave} className="w-full">
-        Einstellungen speichern
-      </Button>
+
+      {/* Knowledge Documents Manager */}
+      <div className="mb-6">
+        <KnowledgeDocumentsManager />
+      </div>
 
       {/* Chatbot Conversations Section */}
       <Card>
