@@ -1,16 +1,52 @@
- import { useState } from 'react';
- import { format, setHours, setMinutes } from 'date-fns';
- import { de } from 'date-fns/locale';
- import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
- import { Button } from '@/components/ui/button';
- import { Input } from '@/components/ui/input';
- import { Label } from '@/components/ui/label';
- import { Switch } from '@/components/ui/switch';
- import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
- import { Calendar } from '@/components/ui/calendar';
- import { CalendarIcon } from 'lucide-react';
- import { useCreateCalendarEvent } from '@/hooks/useCalendar';
- import { Todo } from '@/hooks/useTodos';
+import { useState } from 'react';
+import { format, setHours, setMinutes } from 'date-fns';
+import { de } from 'date-fns/locale';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { CalendarIcon, ExternalLink } from 'lucide-react';
+import { useCreateCalendarEvent } from '@/hooks/useCalendar';
+import { Todo } from '@/hooks/useTodos';
+import { toast } from 'sonner';
+
+// Format date for Google Calendar URL (YYYYMMDDTHHmmssZ)
+function formatGoogleDate(date: Date): string {
+  return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+}
+
+// Generate Google Calendar URL
+function generateGoogleCalendarUrl(
+  title: string,
+  startDate: Date,
+  endDate: Date | undefined,
+  description?: string,
+  isAllDay?: boolean
+): string {
+  const url = new URL('https://calendar.google.com/calendar/render');
+  url.searchParams.set('action', 'TEMPLATE');
+  url.searchParams.set('text', title);
+  
+  if (isAllDay) {
+    // All-day events use date only format YYYYMMDD/YYYYMMDD
+    const startStr = format(startDate, 'yyyyMMdd');
+    const endStr = format(endDate || startDate, 'yyyyMMdd');
+    url.searchParams.set('dates', `${startStr}/${endStr}`);
+  } else {
+    const startStr = formatGoogleDate(startDate);
+    const endStr = endDate ? formatGoogleDate(endDate) : formatGoogleDate(new Date(startDate.getTime() + 60 * 60 * 1000));
+    url.searchParams.set('dates', `${startStr}/${endStr}`);
+  }
+  
+  if (description) {
+    url.searchParams.set('details', description);
+  }
+  
+  return url.toString();
+}
  
  interface AddToCalendarDialogProps {
    todo: Todo;
@@ -123,14 +159,49 @@
            )}
          </div>
          
-         <DialogFooter>
-           <Button variant="outline" onClick={() => onOpenChange(false)}>
-             Abbrechen
-           </Button>
-           <Button onClick={handleSave} disabled={createEvent.isPending}>
-             {createEvent.isPending ? 'Speichern...' : 'Eintragen'}
-           </Button>
-         </DialogFooter>
+          {/* Google Calendar Button */}
+          <div className="pt-2 border-t">
+            <Button
+              variant="outline"
+              className="w-full h-12 text-base gap-2"
+              onClick={() => {
+                const [startHour, startMin] = startTime.split(':').map(Number);
+                const [endHour, endMin] = endTime.split(':').map(Number);
+                
+                const startDateTime = isAllDay 
+                  ? setHours(setMinutes(date, 0), 0)
+                  : setHours(setMinutes(date, startMin), startHour);
+                
+                const endDateTime = isAllDay
+                  ? undefined
+                  : setHours(setMinutes(date, endMin), endHour);
+                
+                const googleUrl = generateGoogleCalendarUrl(
+                  todo.title,
+                  startDateTime,
+                  endDateTime,
+                  todo.description || undefined,
+                  isAllDay
+                );
+                
+                window.open(googleUrl, '_blank');
+                toast.success('Google Kalender wird geöffnet...');
+                onOpenChange(false);
+              }}
+            >
+              <ExternalLink className="h-5 w-5" />
+              In Google Kalender öffnen
+            </Button>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+              Abbrechen
+            </Button>
+            <Button size="sm" onClick={handleSave} disabled={createEvent.isPending}>
+              {createEvent.isPending ? 'Speichern...' : 'In App-Kalender'}
+            </Button>
+          </DialogFooter>
        </DialogContent>
      </Dialog>
    );

@@ -31,6 +31,11 @@ export function Todos() {
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
+  const [expandedTodoId, setExpandedTodoId] = useState<string | null>(null);
+
+  const handleToggleExpand = (todoId: string) => {
+    setExpandedTodoId(prev => prev === todoId ? null : todoId);
+  };
 
   const { data: todos = [], isLoading } = useTodos(filters);
 
@@ -133,7 +138,13 @@ export function Todos() {
               </h2>
               <div className="space-y-2 sm:space-y-3">
                 {groupedTodos.open.map((todo) => (
-                  <TodoCard key={todo.id} todo={todo} onEdit={handleEdit} />
+                  <TodoCard 
+                    key={todo.id} 
+                    todo={todo} 
+                    onEdit={handleEdit}
+                    isExpanded={expandedTodoId === todo.id}
+                    onToggle={() => handleToggleExpand(todo.id)}
+                  />
                 ))}
               </div>
             </div>
@@ -148,7 +159,13 @@ export function Todos() {
               </h2>
               <div className="space-y-2 sm:space-y-3">
                 {groupedTodos.inProgress.map((todo) => (
-                  <TodoCard key={todo.id} todo={todo} onEdit={handleEdit} />
+                  <TodoCard 
+                    key={todo.id} 
+                    todo={todo} 
+                    onEdit={handleEdit}
+                    isExpanded={expandedTodoId === todo.id}
+                    onToggle={() => handleToggleExpand(todo.id)}
+                  />
                 ))}
               </div>
             </div>
@@ -172,7 +189,13 @@ export function Todos() {
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-2 sm:space-y-3 pt-2">
                 {groupedTodos.done.map((todo) => (
-                  <TodoCard key={todo.id} todo={todo} onEdit={handleEdit} />
+                  <TodoCard 
+                    key={todo.id} 
+                    todo={todo} 
+                    onEdit={handleEdit}
+                    isExpanded={expandedTodoId === todo.id}
+                    onToggle={() => handleToggleExpand(todo.id)}
+                  />
                 ))}
               </CollapsibleContent>
             </Collapsible>
