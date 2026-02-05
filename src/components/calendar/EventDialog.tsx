@@ -376,38 +376,62 @@ function generateGoogleCalendarUrl(
            </div>
          </div>
          
-         <DialogFooter className="flex-col sm:flex-row gap-2">
-           {isEditing && (
-             <AlertDialog>
-               <AlertDialogTrigger asChild>
-                 <Button variant="outline" className="text-destructive hover:text-destructive mr-auto">
-                   <Trash2 className="h-4 w-4 mr-2" />
-                   Löschen
-                 </Button>
-               </AlertDialogTrigger>
-               <AlertDialogContent>
-                 <AlertDialogHeader>
-                   <AlertDialogTitle>Termin löschen?</AlertDialogTitle>
-                   <AlertDialogDescription>
-                     Diese Aktion kann nicht rückgängig gemacht werden.
-                   </AlertDialogDescription>
-                 </AlertDialogHeader>
-                 <AlertDialogFooter>
-                   <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                   <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
-                     Löschen
-                   </AlertDialogAction>
-                 </AlertDialogFooter>
-               </AlertDialogContent>
-             </AlertDialog>
-           )}
-           <Button variant="outline" onClick={() => onOpenChange(false)}>
-             Abbrechen
-           </Button>
-           <Button onClick={handleSave} disabled={!title.trim()}>
-             {isEditing ? 'Speichern' : 'Erstellen'}
-           </Button>
-         </DialogFooter>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <div className="flex gap-2 mr-auto">
+              {isEditing && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" size="icon" className="text-destructive hover:text-destructive">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Termin löschen?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Diese Aktion kann nicht rückgängig gemacht werden.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
+                        Löschen
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+              {/* Google Calendar Export */}
+              {title.trim() && (
+                <Button 
+                  variant="outline" 
+                  size="icon"
+                  onClick={() => {
+                    const [startHour, startMin] = startTime.split(':').map(Number);
+                    const [endHour, endMin] = endTime.split(':').map(Number);
+                    const startDateTime = isAllDay 
+                      ? setHours(setMinutes(date, 0), 0)
+                      : setHours(setMinutes(date, startMin), startHour);
+                    const endDateTime = isAllDay
+                      ? undefined
+                      : setHours(setMinutes(date, endMin), endHour);
+                    const googleUrl = generateGoogleCalendarUrl(title, startDateTime, endDateTime, description, isAllDay);
+                    window.open(googleUrl, '_blank');
+                    toast.success('Google Kalender wird geöffnet...');
+                  }}
+                  title="In Google Kalender exportieren"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Abbrechen
+            </Button>
+            <Button onClick={handleSave} disabled={!title.trim()}>
+              {isEditing ? 'Speichern' : 'Erstellen'}
+            </Button>
+          </DialogFooter>
        </DialogContent>
      </Dialog>
    );
