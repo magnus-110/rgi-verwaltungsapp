@@ -100,9 +100,7 @@ export const ChatbotSettings = () => {
   const handleSave = async () => {
     try {
       const settingsData = {
-        system_prompt: settings.system_prompt,
-        knowledge_items: settings.knowledge_items as any,
-        knowledge_base: settings.knowledge_items.map(item => `${item.title}: ${item.content}`).join('\n\n')
+        system_prompt: settings.system_prompt
       };
 
       // Save identical settings for both management modes
@@ -129,43 +127,6 @@ export const ChatbotSettings = () => {
         variant: "destructive",
       });
     }
-  };
-
-  const toggleExpanded = (index: number) => {
-    const newExpanded = new Set(expandedItems);
-    if (newExpanded.has(index)) {
-      newExpanded.delete(index);
-    } else {
-      newExpanded.add(index);
-    }
-    setExpandedItems(newExpanded);
-  };
-
-  const handleAddItem = () => {
-    if (newItem.title.trim() && newItem.content.trim()) {
-      setSettings({
-        ...settings,
-        knowledge_items: [...settings.knowledge_items, { ...newItem }]
-      });
-      setNewItem({ title: "", content: "" });
-    }
-  };
-
-  const handleEditItem = (index: number, item: KnowledgeItem) => {
-    const newItems = [...settings.knowledge_items];
-    newItems[index] = item;
-    setSettings({ ...settings, knowledge_items: newItems });
-    setEditingItem(null);
-  };
-
-  const handleDeleteItem = (index: number) => {
-    const newItems = settings.knowledge_items.filter((_, i) => i !== index);
-    setSettings({ ...settings, knowledge_items: newItems });
-    setExpandedItems(prev => {
-      const newSet = new Set(prev);
-      newSet.delete(index);
-      return newSet;
-    });
   };
 
   const loadSessions = async () => {
