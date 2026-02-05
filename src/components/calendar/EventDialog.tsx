@@ -141,7 +141,7 @@
        start_datetime: startDateTime.toISOString(),
        end_datetime: endDateTime?.toISOString(),
        is_all_day: isAllDay,
-       category_id: categoryId || undefined,
+        category_id: categoryId && categoryId !== 'none' ? categoryId : undefined,
        assignees: selectedAssignees,
        building_ids: selectedBuildings,
      };
