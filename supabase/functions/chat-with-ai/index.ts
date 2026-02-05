@@ -18,15 +18,15 @@ serve(async (req) => {
 
     // Health check endpoint
     if (healthCheck === true || message === '__healthcheck__') {
-      const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
-      if (openaiApiKey) {
+      const mistralApiKey = Deno.env.get('MISTRAL_API_KEY');
+      if (mistralApiKey) {
         return new Response(
           JSON.stringify({ online: true, status: 'healthy' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       } else {
         return new Response(
-          JSON.stringify({ online: false, status: 'unhealthy', error: 'API key not configured' }),
+          JSON.stringify({ online: false, status: 'unhealthy', error: 'Mistral API key not configured' }),
           { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
@@ -50,11 +50,11 @@ serve(async (req) => {
     }
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get OpenAI API key from secrets
-    const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
-    if (!openaiApiKey) {
+    // Get Mistral API key from secrets
+    const mistralApiKey = Deno.env.get('MISTRAL_API_KEY');
+    if (!mistralApiKey) {
       return new Response(
-        JSON.stringify({ error: 'OpenAI API key not configured' }),
+        JSON.stringify({ error: 'Mistral API key not configured' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -289,7 +289,7 @@ serve(async (req) => {
       content: message
     });
 
-    console.log('Sending request to OpenAI with model:', settings.model, 'and', messages.length, 'messages');
+    console.log('Sending request to Mistral with model: mistral-small-latest and', messages.length, 'messages');
 
     // Save user message
     const { error: userMsgError } = await supabase
@@ -309,21 +309,18 @@ serve(async (req) => {
       // Continue - don't fail the request for logging issues
     }
 
-    // Call OpenAI API
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    // Call Mistral API
+    const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
+        'Authorization': `Bearer ${mistralApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: settings.model || 'gpt-4.1-2025-04-14',
+        model: 'mistral-small-latest',
         messages: messages,
-        // Use max_completion_tokens for newer models (GPT-4.1+), max_tokens for legacy (gpt-4o)
-        ...(settings.model?.includes('gpt-4o') ? 
-          { max_tokens: settings.max_tokens || 1000, temperature: settings.temperature || 0.7 } : 
-          { max_completion_tokens: settings.max_tokens || 1000 }
-        )
+        max_tokens: settings.max_tokens || 1000,
+        temperature: settings.temperature || 0.7
       }),
     });
 
