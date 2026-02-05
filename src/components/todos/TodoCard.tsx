@@ -4,13 +4,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronUp, Calendar, User, Building2, RefreshCw, Pencil, Trash2, AlertTriangle } from "lucide-react";
+import { ChevronDown, ChevronUp, Calendar, User, Building2, RefreshCw, Pencil, Trash2, AlertTriangle, CalendarPlus } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { Todo, isOverdue, priorityLabels, statusLabels, useUpdateTodo, useDeleteTodo, useSubtasks } from "@/hooks/useTodos";
 import { TodoSubtasks } from "./TodoSubtasks";
 import { TodoComments } from "./TodoComments";
 import { TodoAttachments } from "./TodoAttachments";
+import { AddToCalendarDialog } from "./AddToCalendarDialog";
 import { cn } from "@/lib/utils";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
@@ -21,6 +22,7 @@ interface TodoCardProps {
 
 export function TodoCard({ todo, onEdit }: TodoCardProps) {
   const [isOpen, setIsOpen] = useState(false);
+   const [calendarDialogOpen, setCalendarDialogOpen] = useState(false);
   const updateTodo = useUpdateTodo();
   const deleteTodo = useDeleteTodo();
   const { data: subtasks = [] } = useSubtasks(todo.id);
@@ -248,6 +250,15 @@ export function TodoCard({ todo, onEdit }: TodoCardProps) {
               </Select>
 
               <div className="flex gap-2">
+                 <Button 
+                   variant="outline" 
+                   size="sm" 
+                   className="flex-1 sm:flex-none"
+                   onClick={() => setCalendarDialogOpen(true)}
+                 >
+                   <CalendarPlus className="h-4 w-4 mr-1" />
+                   <span className="hidden sm:inline">Kalender</span>
+                 </Button>
                 <Button variant="outline" size="sm" className="flex-1 sm:flex-none" onClick={() => onEdit(todo)}>
                   <Pencil className="h-4 w-4 mr-1" />
                   Bearbeiten
@@ -280,6 +291,12 @@ export function TodoCard({ todo, onEdit }: TodoCardProps) {
           </CardContent>
         </CollapsibleContent>
       </Collapsible>
+       
+       <AddToCalendarDialog 
+         todo={todo} 
+         open={calendarDialogOpen} 
+         onOpenChange={setCalendarDialogOpen} 
+       />
     </Card>
   );
 }

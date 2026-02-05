@@ -15,7 +15,8 @@ import {
   Castle,
   BarChart3,
   MessageCircle,
-  CheckSquare
+   CheckSquare,
+   CalendarDays
 } from "lucide-react";
 
 interface MobileHeaderProps {
@@ -51,6 +52,12 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
           path: '/todos',
           active: location.pathname.startsWith('/todos')
         },
+         { 
+           icon: CalendarDays, 
+           label: "Kalender", 
+           path: '/calendar',
+           active: location.pathname.startsWith('/calendar')
+         },
         { 
           icon: ClipboardList, 
           label: "Meldungen", 
