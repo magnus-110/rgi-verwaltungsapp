@@ -18,10 +18,15 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 interface TodoCardProps {
   todo: Todo;
   onEdit: (todo: Todo) => void;
+  isExpanded?: boolean;
+  onToggle?: () => void;
 }
 
-export function TodoCard({ todo, onEdit }: TodoCardProps) {
-  const [isOpen, setIsOpen] = useState(false);
+export function TodoCard({ todo, onEdit, isExpanded, onToggle }: TodoCardProps) {
+  // Fallback to internal state if no controlled props provided
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isOpen = isExpanded !== undefined ? isExpanded : internalOpen;
+  const handleToggle = onToggle || (() => setInternalOpen(!internalOpen));
    const [calendarDialogOpen, setCalendarDialogOpen] = useState(false);
   const updateTodo = useUpdateTodo();
   const deleteTodo = useDeleteTodo();
