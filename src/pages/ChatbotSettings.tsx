@@ -58,13 +58,9 @@ interface Message {
 export const ChatbotSettings = () => {
   const { profile } = useAuth();
   const [settings, setSettings] = useState({
-    system_prompt: "Sie sind ein hilfreicher Assistent für die Immobilienverwaltung.",
-    knowledge_items: [] as KnowledgeItem[]
+    system_prompt: "Sie sind ein hilfreicher Assistent für die Immobilienverwaltung."
   });
   const [loading, setLoading] = useState(true);
-  const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
-  const [editingItem, setEditingItem] = useState<number | null>(null);
-  const [newItem, setNewItem] = useState<KnowledgeItem>({ title: "", content: "" });
   
   // Conversations state
   const [sessions, setSessions] = useState<ChatSession[]>([]);
