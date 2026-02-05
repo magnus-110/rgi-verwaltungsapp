@@ -1,6 +1,8 @@
-import { useState } from "react";
+ import { useState, useEffect } from "react";
 import { Navigate, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+ import { TermsAcceptanceDialog } from "@/components/TermsAcceptanceDialog";
+ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { 
@@ -23,6 +25,32 @@ export const TenantLayout = ({ children }: TenantLayoutProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
+ const [showTermsDialog, setShowTermsDialog] = useState(false);
+ const [termsAccepted, setTermsAccepted] = useState<boolean | null>(null);
+ 
+ useEffect(() => {
+   const checkTermsAcceptance = async () => {
+     if (profile?.user_id) {
+       const { data, error } = await supabase
+         .from("profiles")
+         .select("terms_accepted_at")
+         .eq("user_id", profile.user_id)
+         .single();
+       
+       if (!error && data) {
+         const accepted = !!data.terms_accepted_at;
+         setTermsAccepted(accepted);
+         setShowTermsDialog(!accepted);
+       }
+     }
+   };
+   checkTermsAcceptance();
+ }, [profile?.user_id]);
+ 
+ const handleTermsAccepted = () => {
+   setTermsAccepted(true);
+   setShowTermsDialog(false);
+ };
 
   if (loading) {
     return (
@@ -169,6 +197,14 @@ export const TenantLayout = ({ children }: TenantLayoutProps) => {
       <main className="pt-16">
         {children}
       </main>
+     
+     {profile?.user_id && (
+       <TermsAcceptanceDialog 
+         open={showTermsDialog} 
+         userId={profile.user_id}
+         onAccepted={handleTermsAccepted}
+       />
+     )}
     </div>
   );
 };
