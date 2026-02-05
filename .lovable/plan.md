@@ -1,157 +1,104 @@
 
-# Plan: NOVA Chatbot auf Mistral umstellen
+# Plan: Einheitlicher Kalender-Dialog mit Google Kalender Integration
 
-## Ubersicht
+## Ziel
+Alle Elemente im Kalender (Termine UND Aufgaben) sollen denselben Dialog verwenden, um eine konsistente Nutzererfahrung zu bieten. Der Google Kalender Export-Button soll immer verfügbar sein.
 
-Die Edge Function `chat-with-ai` wird von OpenAI auf Mistral umgestellt. Das Modell `mistral-small-latest` wird verwendet, da es schnell, zuverlassig und kostengunstig ist.
+## Konzeptionelle Entscheidung
 
----
+### Aktuelle Architektur
+- **Termine (Events)**: Eigene Tabelle `calendar_events`, volle Terminfelder
+- **Aufgaben (Todos)**: Tabelle `todos` mit optionalem `due_date` und `calendar_start_time`
 
-## Technische Anderungen
+### Lösungsansatz
+Beim Klick auf eine Aufgabe im Kalender wird ein **schreibgeschützter Vorschau-Dialog** geöffnet, der:
+1. Die Aufgaben-Details anzeigt
+2. Einen prominenten Google Kalender Export-Button enthalt
+3. Einen Link zur vollständigen Aufgabenbearbeitung bietet
 
-### Datei: `supabase/functions/chat-with-ai/index.ts`
-
-**1. API-Endpunkt andern**
-```typescript
-// ALT: OpenAI
-const response = await fetch('https://api.openai.com/v1/chat/completions', {...});
-
-// NEU: Mistral
-const response = await fetch('https://api.mistral.ai/v1/chat/completions', {...});
-```
-
-**2. API-Key andern**
-```typescript
-// ALT
-const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
-headers: { 'Authorization': `Bearer ${openaiApiKey}` }
-
-// NEU
-const mistralApiKey = Deno.env.get('MISTRAL_API_KEY');
-headers: { 'Authorization': `Bearer ${mistralApiKey}` }
-```
-
-**3. Request-Body anpassen**
-```typescript
-// ALT: OpenAI-spezifische Parameter
-body: JSON.stringify({
-  model: settings.model || 'gpt-4.1-2025-04-14',
-  messages: messages,
-  ...(settings.model?.includes('gpt-4o') ? 
-    { max_tokens: settings.max_tokens || 1000, temperature: settings.temperature || 0.7 } : 
-    { max_completion_tokens: settings.max_tokens || 1000 }
-  )
-})
-
-// NEU: Mistral-kompatible Parameter
-body: JSON.stringify({
-  model: 'mistral-small-latest',
-  messages: messages,
-  max_tokens: settings.max_tokens || 1000,
-  temperature: settings.temperature || 0.7
-})
-```
-
-**4. Health Check anpassen**
-```typescript
-// ALT
-const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
-
-// NEU
-const mistralApiKey = Deno.env.get('MISTRAL_API_KEY');
-```
+Alternativ: Aufgaben im Kalender werden bei Klick in den EventDialog mit vorausgefüllten Daten übernommen (konvertiert).
 
 ---
 
-## Vollstandige Anderungen in chat-with-ai/index.ts
+## Implementierung
+
+### Schritt 1: Neuen universellen CalendarItemDialog erstellen
+Eine neue Komponente `CalendarItemDialog.tsx` die beide Typen handhabt:
 
 ```text
-Zeile 21-22: OPENAI_API_KEY -> MISTRAL_API_KEY (Health Check)
-Zeile 54-59: OPENAI_API_KEY -> MISTRAL_API_KEY
-Zeile 292: Log-Ausgabe aktualisieren
-Zeile 313-328: API-Aufruf von OpenAI auf Mistral andern
++------------------------------------------+
+|  [Termin/Aufgabe] Details               |
++------------------------------------------+
+|  Titel: Meeting mit Kunde               |
+|  Datum: 15.02.2026, 09:00 - 10:00      |
+|  Kategorie: Kundentermine               |
+|  Beschreibung: ...                      |
++------------------------------------------+
+|  [Google Kalender]  [Bearbeiten] [X]   |
++------------------------------------------+
 ```
 
-### Geanderte Abschnitte im Detail:
+### Schritt 2: Calendar.tsx anpassen
+- Entfernen des separaten `TodoDialog` für Kalender-Kontext
+- Neuen `CalendarItemDialog` verwenden
+- Bei Klick auf jedes Element (Event oder Todo) wird derselbe Dialog geöffnet
 
-**Health Check (Zeile 20-32)**
+### Schritt 3: Google Kalender Button immer sichtbar
+- Button erscheint sowohl bei neuen Terminen als auch bei bestehenden
+- Bei Aufgaben: Daten werden aus dem Todo übernommen (Titel, Datum, Beschreibung)
+
+---
+
+## Technische Details
+
+### CalendarItemDialog Props
 ```typescript
-if (healthCheck === true || message === '__healthcheck__') {
-  const mistralApiKey = Deno.env.get('MISTRAL_API_KEY');
-  if (mistralApiKey) {
-    return new Response(
-      JSON.stringify({ online: true, status: 'healthy' }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  } else {
-    return new Response(
-      JSON.stringify({ online: false, status: 'unhealthy', error: 'Mistral API key not configured' }),
-      { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
+interface CalendarItemDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  item: CalendarItem | null;  // Unified item type
+  onEditClick?: () => void;   // Falls vollständige Bearbeitung gewünscht
 }
 ```
 
-**API Key Prufung (Zeile 53-60)**
-```typescript
-const mistralApiKey = Deno.env.get('MISTRAL_API_KEY');
-if (!mistralApiKey) {
-  return new Response(
-    JSON.stringify({ error: 'Mistral API key not configured' }),
-    { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  );
-}
+### Google Calendar URL Generation
+Bereits implementiert in `EventDialog.tsx` (Zeilen 28-56):
+- Unterstützt ganztägige Events und Termine mit Uhrzeiten
+- Übergibt Titel, Datum, Beschreibung
+
+### Betroffene Dateien
+1. **Neu**: `src/components/calendar/CalendarItemDialog.tsx`
+2. **Ändern**: `src/pages/Calendar.tsx` - Neuer Dialog statt TodoDialog
+3. **Behalten**: `EventDialog.tsx` - Für Erstellen/Bearbeiten von Terminen
+
+---
+
+## Ablauf im Kalender
+
+```text
+Nutzer klickt auf Element im Kalender
+            |
+            v
+    +---------------+
+    | CalendarItem  |
+    | Dialog öffnet |
+    +---------------+
+            |
+    +-------+-------+
+    |               |
+    v               v
+[Event]         [Aufgabe]
+    |               |
+    v               v
+Bearbeiten     Details anzeigen
+möglich        + Google Export
+               + Link zu Aufgabe
 ```
 
-**API-Aufruf (Zeile 312-328)**
-```typescript
-console.log('Sending request to Mistral with model: mistral-small-latest and', messages.length, 'messages');
-
-const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
-  method: 'POST',
-  headers: {
-    'Authorization': `Bearer ${mistralApiKey}`,
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    model: 'mistral-small-latest',
-    messages: messages,
-    max_tokens: settings.max_tokens || 1000,
-    temperature: settings.temperature || 0.7
-  }),
-});
-```
-
 ---
 
-## Keine Anderungen erforderlich
-
-Die folgenden Dateien benotigen keine Anderungen:
-
-| Datei | Grund |
-|-------|-------|
-| `src/pages/tenant/Chatbot.tsx` | Ruft nur Edge Function auf |
-| `src/pages/weg-owner/Chatbot.tsx` | Ruft nur Edge Function auf |
-| `chatbot_settings` Tabelle | Model-Feld wird ignoriert (hardcoded) |
-
----
-
-## Vorteile der Umstellung
-
-| Aspekt | Vorher (GPT-4o) | Nachher (Mistral Small) |
-|--------|-----------------|-------------------------|
-| Antwortzeit | 3-5 Sekunden | 1-2 Sekunden |
-| Kosten/Anfrage | ~0.01-0.02 EUR | ~0.001 EUR |
-| Halluzination | Gelegentlich | Seltener bei strukturierten Daten |
-| API-Konsistenz | Stabil | Stabil |
-
----
-
-## Testempfehlung
-
-Nach der Umstellung sollten folgende Szenarien getestet werden:
-
-1. Mieter-Chat: Meldungsstatus abfragen
-2. Eigentumer-Chat: Gebaudeinformationen abrufen
-3. Fehlerfall: Reaktion bei unbekannter Frage
-4. Konversationsgedachtnis: Folge-Fragen im Chat
+## Vorteile dieser Lösung
+1. **Einheitliche UX**: Alle Kalenderelemente werden gleich behandelt
+2. **Aufgaben bleiben intakt**: Die Aufgabenverwaltung bleibt separat auf `/todos`
+3. **Google Export immer verfügbar**: Sowohl für Termine als auch Aufgaben
+4. **Keine Datenvermischung**: Aufgaben und Termine bleiben in getrennten Tabellen
