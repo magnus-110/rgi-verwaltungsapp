@@ -747,6 +747,7 @@ export type Database = {
           last_name: string | null
           phone: string | null
           role: Database["public"]["Enums"]["app_role"]
+          terms_accepted_at: string | null
           updated_at: string | null
           user_id: string
         }
@@ -760,6 +761,7 @@ export type Database = {
           last_name?: string | null
           phone?: string | null
           role?: Database["public"]["Enums"]["app_role"]
+          terms_accepted_at?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -773,6 +775,7 @@ export type Database = {
           last_name?: string | null
           phone?: string | null
           role?: Database["public"]["Enums"]["app_role"]
+          terms_accepted_at?: string | null
           updated_at?: string | null
           user_id?: string
         }
