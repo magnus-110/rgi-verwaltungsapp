@@ -262,7 +262,20 @@ serve(async (req) => {
     }
 
     // Construct system prompt
-    const systemPrompt = `${settings.system_prompt}\n\nWissensdatenbank:\n${knowledgeString}\n\nAktuelle Kontextdaten:${contextData}\n\nSie sprechen mit: ${profile?.first_name} ${profile?.last_name} (${profile?.email})${managementMode === 'weg' ? ' - WEG-Eigentümer' : ' - Mieter'}${buildingId ? `. Gebäude-ID: ${buildingId}` : managementMode === 'weg' ? '. Keine spezifische Gebäude-ID angegeben - bitten Sie um die Gebäude-ID für spezifische Informationen.' : ''}`;
+     // Check if this is the first message in the conversation (no history = first message)
+     const isFirstMessage = !conversationHistory || conversationHistory.length === 0;
+     
+     // Build conversation behavior instructions
+     const conversationBehavior = `
+ 
+ 🗣️ WICHTIG - Gesprächsverhalten:
+ - Begrüßen Sie den Nutzer NUR bei der ERSTEN Nachricht mit Namen (z.B. "Guten Tag, ${profile?.first_name} ${profile?.last_name}!").
+ - Bei ALLEN WEITEREN Nachrichten in derselben Konversation: KEINE erneute Begrüßung mit Namen.
+ - Variieren Sie Ihre Abschlussformulierungen. Vermeiden Sie repetitive Phrasen wie "Kann ich Ihnen sonst noch weiterhelfen?". Nutzen Sie stattdessen natürliche Varianten oder lassen Sie die Schlussformel ganz weg, wenn die Antwort vollständig ist.
+ - Der Gesprächsverlauf wird Ihnen bereitgestellt - nutzen Sie diesen Kontext für kohärente Antworten.
+ ${isFirstMessage ? '- Dies ist die ERSTE Nachricht - begrüßen Sie den Nutzer mit Namen.' : '- Dies ist eine FOLGENACHRICHT - KEINE Begrüßung mit Namen mehr.'}`;
+ 
+     const systemPrompt = `${settings.system_prompt}${conversationBehavior}\n\nWissensdatenbank:\n${knowledgeString}\n\nAktuelle Kontextdaten:${contextData}\n\nNutzerinformationen (nur für Kontext, NICHT bei jeder Nachricht ansprechen): ${profile?.first_name} ${profile?.last_name} (${profile?.email})${managementMode === 'weg' ? ' - WEG-Eigentümer' : ' - Mieter'}${buildingId ? `. Gebäude-ID: ${buildingId}` : managementMode === 'weg' ? '. Keine spezifische Gebäude-ID angegeben - bitten Sie um die Gebäude-ID für spezifische Informationen.' : ''}`;
 
     // Construct messages for OpenAI with conversation history
     const messages = [
