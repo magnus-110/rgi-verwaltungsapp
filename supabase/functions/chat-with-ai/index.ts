@@ -113,6 +113,29 @@ serve(async (req) => {
     // Build context data
     let contextData = "";
 
+    // Helper function to fetch building managers
+    const fetchBuildingManagers = async (buildingId: string) => {
+      const { data: managers } = await supabase
+        .from('building_managers')
+        .select('building_id, user_id')
+        .eq('building_id', buildingId);
+      
+      if (managers && managers.length > 0) {
+        const managerProfiles = await Promise.all(
+          managers.map(async (m) => {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('first_name, last_name, email, phone')
+              .eq('user_id', m.user_id)
+              .single();
+            return profile;
+          })
+        );
+        return managerProfiles.filter(p => p !== null);
+      }
+      return [];
+    };
+
     // For tenants - get building info from profile
     if (managementMode === 'rent' && profile?.building_id) {
       const { data: building } = await supabase
@@ -123,6 +146,18 @@ serve(async (req) => {
       
       if (building) {
         contextData += `\n\nGebäudeinformationen:\nName: ${building.name}\nAdresse: ${building.address}\nTyp: ${building.type}\nVerwaltungsmodus: ${building.management_mode}`;
+        
+        // Fetch building managers for tenant's building
+        const managerProfiles = await fetchBuildingManagers(profile.building_id);
+        if (managerProfiles.length > 0) {
+          contextData += `\n\nIhr zuständiger Verwalter:\n`;
+          managerProfiles.forEach(manager => {
+            const fullName = [manager.first_name, manager.last_name].filter(Boolean).join(' ') || 'Nicht angegeben';
+            contextData += `Name: ${fullName}\n`;
+            if (manager.email) contextData += `E-Mail: ${manager.email}\n`;
+            if (manager.phone) contextData += `Telefon: ${manager.phone}\n`;
+          });
+        }
       }
 
       // Get tenant reports
