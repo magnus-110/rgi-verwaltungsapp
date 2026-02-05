@@ -1,28 +1,59 @@
- import { useState, useEffect } from 'react';
- import { format, setHours, setMinutes } from 'date-fns';
- import { de } from 'date-fns/locale';
- import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
- import { Button } from '@/components/ui/button';
- import { Input } from '@/components/ui/input';
- import { Label } from '@/components/ui/label';
- import { Textarea } from '@/components/ui/textarea';
- import { Switch } from '@/components/ui/switch';
- import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
- import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
- import { Calendar } from '@/components/ui/calendar';
- import { CalendarIcon, Trash2 } from 'lucide-react';
- import { cn } from '@/lib/utils';
- import { useQuery } from '@tanstack/react-query';
- import { supabase } from '@/integrations/supabase/client';
- import { 
-   useCreateCalendarEvent, 
-   useUpdateCalendarEvent, 
-   useDeleteCalendarEvent,
-   CalendarEvent,
- } from '@/hooks/useCalendar';
- import { useCategories, useAssignableUsers } from '@/hooks/useTodos';
- import { Checkbox } from '@/components/ui/checkbox';
- import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { useState, useEffect } from 'react';
+import { format, setHours, setMinutes } from 'date-fns';
+import { de } from 'date-fns/locale';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { CalendarIcon, Trash2, ExternalLink } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { 
+  useCreateCalendarEvent, 
+  useUpdateCalendarEvent, 
+  useDeleteCalendarEvent,
+  CalendarEvent,
+} from '@/hooks/useCalendar';
+import { useCategories, useAssignableUsers } from '@/hooks/useTodos';
+import { Checkbox } from '@/components/ui/checkbox';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { toast } from 'sonner';
+
+// Generate Google Calendar URL for an event
+function generateGoogleCalendarUrl(
+  title: string,
+  startDate: Date,
+  endDate: Date | undefined,
+  description?: string,
+  isAllDay?: boolean
+): string {
+  const url = new URL('https://calendar.google.com/calendar/render');
+  url.searchParams.set('action', 'TEMPLATE');
+  url.searchParams.set('text', title);
+  
+  if (isAllDay) {
+    const startStr = format(startDate, 'yyyyMMdd');
+    const endStr = format(endDate || startDate, 'yyyyMMdd');
+    url.searchParams.set('dates', `${startStr}/${endStr}`);
+  } else {
+    const formatGoogleDate = (date: Date) => date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+    const startStr = formatGoogleDate(startDate);
+    const endStr = endDate ? formatGoogleDate(endDate) : formatGoogleDate(new Date(startDate.getTime() + 60 * 60 * 1000));
+    url.searchParams.set('dates', `${startStr}/${endStr}`);
+  }
+  
+  if (description) {
+    url.searchParams.set('details', description);
+  }
+  
+  return url.toString();
+}
  
  interface EventDialogProps {
    open: boolean;
