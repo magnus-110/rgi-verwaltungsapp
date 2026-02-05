@@ -12,16 +12,30 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { Bot, Plus, Edit, Trash2, ChevronDown, ChevronUp, MessageCircle, Download, Search, Calendar, User, Building } from "lucide-react";
+import { Bot, MessageCircle, Download, Search, Calendar, User, Building } from "lucide-react";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { DateRangePicker } from "@/components/DateRangePicker";
-
-interface KnowledgeItem {
-  title: string;
-  content: string;
-}
+import { KnowledgeDocumentsManager } from "@/components/chatbot/KnowledgeDocumentsManager";
 
 interface ChatSession {
+  id: string;
+  started_at: string;
+  ended_at?: string;
+  user_id: string;
+  building_id?: string;
+  management_mode: 'rent' | 'weg';
+  user_name?: string;
+  user_email?: string;
+  building_name?: string;
+  message_count: number;
+}
+
+interface Message {
+  id: string;
+  content: string;
+  role: 'user' | 'assistant';
+  created_at: string;
+}
   id: string;
   started_at: string;
   ended_at?: string;
