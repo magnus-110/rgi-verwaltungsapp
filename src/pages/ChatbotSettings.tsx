@@ -36,24 +36,6 @@ interface Message {
   role: 'user' | 'assistant';
   created_at: string;
 }
-  id: string;
-  started_at: string;
-  ended_at?: string;
-  user_id: string;
-  building_id?: string;
-  management_mode: 'rent' | 'weg';
-  user_name?: string;
-  user_email?: string;
-  building_name?: string;
-  message_count: number;
-}
-
-interface Message {
-  id: string;
-  content: string;
-  role: 'user' | 'assistant';
-  created_at: string;
-}
 
 export const ChatbotSettings = () => {
   const { profile } = useAuth();
