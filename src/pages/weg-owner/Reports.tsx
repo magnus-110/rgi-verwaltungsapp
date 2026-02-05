@@ -428,9 +428,9 @@ export const WegOwnerReports = () => {
       <div className="max-w-2xl mx-auto space-y-8">
         {/* Header */}
         <div className="text-center space-y-4 py-8">
-          <h1 className="text-4xl font-light text-foreground">WEG-Meldungen</h1>
+           <h1 className="text-4xl font-light text-foreground">Meldungen</h1>
           <p className="text-lg text-muted-foreground">
-            Erstellen und verwalten Sie Ihre WEG-Meldungen
+             Erstellen und verwalten Sie Ihre Meldungen
           </p>
         </div>
 
@@ -445,7 +445,7 @@ export const WegOwnerReports = () => {
             </DialogTrigger>
             <DialogContent className="sm:max-w-[600px]">
               <DialogHeader>
-                <DialogTitle>Neue WEG-Meldung erstellen</DialogTitle>
+                 <DialogTitle>Neue Meldung erstellen</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 max-h-[70vh] overflow-y-auto">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
