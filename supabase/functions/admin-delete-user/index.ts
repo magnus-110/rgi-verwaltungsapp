@@ -85,7 +85,68 @@ Deno.serve(async (req) => {
 
     console.log('Deleting user:', userId);
 
-    // Delete from profiles first (cascade will handle related tables)
+    // First, reassign or nullify records that reference this user
+    // Update todo_categories to remove created_by reference
+    const { error: categoryError } = await supabaseAdmin
+      .from('todo_categories')
+      .update({ created_by: null })
+      .eq('created_by', userId);
+
+    if (categoryError) {
+      console.log('Note: Could not update todo_categories:', categoryError.message);
+    }
+
+    // Update todos created_by to null or reassign
+    const { error: todosCreatedError } = await supabaseAdmin
+      .from('todos')
+      .update({ created_by: user.id }) // Reassign to requesting admin
+      .eq('created_by', userId);
+
+    if (todosCreatedError) {
+      console.log('Note: Could not reassign todos:', todosCreatedError.message);
+    }
+
+    // Update todos assigned_to to null
+    const { error: todosAssignedError } = await supabaseAdmin
+      .from('todos')
+      .update({ assigned_to: null })
+      .eq('assigned_to', userId);
+
+    if (todosAssignedError) {
+      console.log('Note: Could not update todos assigned_to:', todosAssignedError.message);
+    }
+
+    // Delete from todo_assignees
+    const { error: todoAssigneesError } = await supabaseAdmin
+      .from('todo_assignees')
+      .delete()
+      .eq('user_id', userId);
+
+    if (todoAssigneesError) {
+      console.log('Note: Could not delete todo_assignees:', todoAssigneesError.message);
+    }
+
+    // Delete from calendar_event_assignees
+    const { error: calendarAssigneesError } = await supabaseAdmin
+      .from('calendar_event_assignees')
+      .delete()
+      .eq('user_id', userId);
+
+    if (calendarAssigneesError) {
+      console.log('Note: Could not delete calendar_event_assignees:', calendarAssigneesError.message);
+    }
+
+    // Delete from building_managers
+    const { error: buildingManagersError } = await supabaseAdmin
+      .from('building_managers')
+      .delete()
+      .eq('user_id', userId);
+
+    if (buildingManagersError) {
+      console.log('Note: Could not delete building_managers:', buildingManagersError.message);
+    }
+
+    // Delete from profiles
     const { error: profileDeleteError } = await supabaseAdmin
       .from('profiles')
       .delete()
