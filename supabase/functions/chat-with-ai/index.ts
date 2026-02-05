@@ -298,7 +298,71 @@ serve(async (req) => {
       });
     }
 
-    // Build knowledge base string from knowledge_items or fallback to knowledge_base
+    // Intelligent knowledge document search based on user message
+    let knowledgeContext = "";
+    
+    // Extract keywords from user message for matching
+    const messageWords = message.toLowerCase()
+      .replace(/[^\wäöüß\s]/g, '')
+      .split(/\s+/)
+      .filter((w: string) => w.length > 2);
+    
+    // Determine user type for applies_to filter
+    const userType = managementMode === 'rent' ? 'mieter' : 'weg_eigentuemer';
+    
+    // Fetch relevant knowledge documents
+    const { data: knowledgeDocs, error: knowledgeError } = await supabase
+      .from('chatbot_knowledge_documents')
+      .select('*')
+      .or(`applies_to.eq.alle,applies_to.eq.${userType}`)
+      .order('created_at', { ascending: false });
+    
+    if (knowledgeError) {
+      console.error('Error fetching knowledge documents:', knowledgeError);
+    } else if (knowledgeDocs && knowledgeDocs.length > 0) {
+      // Score documents by keyword match
+      const scoredDocs = knowledgeDocs.map(doc => {
+        let score = 0;
+        const docKeywords = doc.keywords || [];
+        const docCategory = doc.category?.toLowerCase() || '';
+        const docTitle = doc.title?.toLowerCase() || '';
+        
+        // Check keyword matches
+        messageWords.forEach((word: string) => {
+          if (docKeywords.some((k: string) => k.toLowerCase().includes(word) || word.includes(k.toLowerCase()))) {
+            score += 3; // High score for keyword match
+          }
+          if (docCategory.includes(word)) {
+            score += 2; // Medium score for category match
+          }
+          if (docTitle.includes(word)) {
+            score += 1; // Lower score for title match
+          }
+        });
+        
+        return { ...doc, score };
+      });
+      
+      // Sort by score and take top documents
+      const relevantDocs = scoredDocs
+        .filter(doc => doc.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 3); // Max 3 documents
+      
+      if (relevantDocs.length > 0) {
+        knowledgeContext = "\n\n=== RELEVANTE WISSENSDOKUMENTE ===\n";
+        relevantDocs.forEach(doc => {
+          knowledgeContext += `\n--- ${doc.title} (${doc.category}) ---\n`;
+          knowledgeContext += doc.content;
+          knowledgeContext += "\n";
+        });
+        knowledgeContext += "\n=== ENDE WISSENSDOKUMENTE ===\n";
+        
+        console.log(`Loaded ${relevantDocs.length} relevant knowledge documents for query`);
+      }
+    }
+
+    // Build knowledge base string from knowledge_items or fallback to knowledge_base (legacy)
     let knowledgeString = "";
     if (settings.knowledge_items && Array.isArray(settings.knowledge_items) && settings.knowledge_items.length > 0) {
       knowledgeString = settings.knowledge_items
