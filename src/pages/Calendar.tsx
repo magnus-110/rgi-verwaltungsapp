@@ -3,6 +3,12 @@ import { format, addMonths, subMonths, addWeeks, subWeeks, addDays, subDays } fr
 import { de } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { CalendarView } from '@/components/calendar/CalendarView';
+import { EventDialog } from '@/components/calendar/EventDialog';
+import { CalendarFilters } from '@/components/calendar/CalendarFilters';
+import { TodoDialog } from '@/components/todos/TodoDialog';
+import { useTodo } from '@/hooks/useTodos';
+import { cn } from '@/lib/utils';
  
  export type ViewMode = 'month' | 'week' | 'day';
  
