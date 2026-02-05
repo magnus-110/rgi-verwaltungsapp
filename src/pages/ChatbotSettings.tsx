@@ -73,17 +73,8 @@ export const ChatbotSettings = () => {
       if (error && error.code !== 'PGRST116') throw error;
 
       if (data) {
-        let knowledgeItems = [];
-        if (data.knowledge_items && Array.isArray(data.knowledge_items)) {
-          knowledgeItems = data.knowledge_items;
-        } else if (data.knowledge_base) {
-          // Fallback: migrate old knowledge_base to new format
-          knowledgeItems = [{ title: "Allgemein", content: data.knowledge_base }];
-        }
-
         setSettings({
-          system_prompt: data.system_prompt || "Sie sind ein hilfreicher Assistent für die Immobilienverwaltung.",
-          knowledge_items: knowledgeItems
+          system_prompt: data.system_prompt || "Sie sind ein hilfreicher Assistent für die Immobilienverwaltung."
         });
       }
     } catch (error) {
