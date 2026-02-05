@@ -91,7 +91,7 @@ export function TodoCard({ todo, onEdit, isExpanded, onToggle }: TodoCardProps) 
       overdue && todo.status !== 'done' && "border-destructive/50 bg-destructive/5",
       todo.status === 'done' && "opacity-75"
     )}>
-      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <Collapsible open={isOpen} onOpenChange={handleToggle}>
         <CollapsibleTrigger asChild>
           <CardContent className="p-3 sm:p-4 cursor-pointer">
             {/* Mobile-optimized layout */}

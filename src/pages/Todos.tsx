@@ -189,7 +189,13 @@ export function Todos() {
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-2 sm:space-y-3 pt-2">
                 {groupedTodos.done.map((todo) => (
-                  <TodoCard key={todo.id} todo={todo} onEdit={handleEdit} />
+                  <TodoCard 
+                    key={todo.id} 
+                    todo={todo} 
+                    onEdit={handleEdit}
+                    isExpanded={expandedTodoId === todo.id}
+                    onToggle={() => handleToggleExpand(todo.id)}
+                  />
                 ))}
               </CollapsibleContent>
             </Collapsible>
