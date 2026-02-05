@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { User, Lock, Mail } from "lucide-react";
+ import { LegalDocumentsSheet } from "@/components/LegalDocumentsSheet";
 
 
 export const TenantSettings = () => {
@@ -20,6 +21,14 @@ export const TenantSettings = () => {
     newPassword: "",
     confirmPassword: "",
   });
+ 
+   const [legalSheetOpen, setLegalSheetOpen] = useState(false);
+   const [legalSheetTab, setLegalSheetTab] = useState<"agb" | "datenschutz">("agb");
+ 
+   const openLegalSheet = (tab: "agb" | "datenschutz") => {
+     setLegalSheetTab(tab);
+     setLegalSheetOpen(true);
+   };
 
   useEffect(() => {
     if (profile?.user_id) {
@@ -189,5 +198,29 @@ export const TenantSettings = () => {
 
 
     </div>
-  );
+ 
+       {/* Legal Documents Footer */}
+       <div className="flex justify-center gap-4 pt-4 pb-8">
+         <button 
+           onClick={() => openLegalSheet("agb")}
+           className="text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors"
+         >
+           AGB
+         </button>
+         <span className="text-xs text-muted-foreground">|</span>
+         <button 
+           onClick={() => openLegalSheet("datenschutz")}
+           className="text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors"
+         >
+           Datenschutz
+         </button>
+       </div>
+ 
+       <LegalDocumentsSheet 
+         open={legalSheetOpen} 
+         onOpenChange={setLegalSheetOpen}
+         defaultTab={legalSheetTab}
+       />
+     </div>
+   );
 };
