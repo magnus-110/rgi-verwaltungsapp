@@ -85,68 +85,124 @@ Deno.serve(async (req) => {
 
     console.log('Deleting user:', userId);
 
-    // First, reassign or nullify records that reference this user
-    // Update todo_categories to remove created_by reference
+    // Clean up ALL references to this user before deleting
+
+    // 1. todo_comments - reassign to requesting admin
+    const { error: commentsError } = await supabaseAdmin
+      .from('todo_comments')
+      .update({ created_by: user.id })
+      .eq('created_by', userId);
+    if (commentsError) console.log('Note: todo_comments:', commentsError.message);
+
+    // 2. todo_subtasks - created_by and completed_by
+    const { error: subtasksCreatedError } = await supabaseAdmin
+      .from('todo_subtasks')
+      .update({ created_by: user.id })
+      .eq('created_by', userId);
+    if (subtasksCreatedError) console.log('Note: todo_subtasks created_by:', subtasksCreatedError.message);
+
+    const { error: subtasksCompletedError } = await supabaseAdmin
+      .from('todo_subtasks')
+      .update({ completed_by: null })
+      .eq('completed_by', userId);
+    if (subtasksCompletedError) console.log('Note: todo_subtasks completed_by:', subtasksCompletedError.message);
+
+    // 3. calendar_events - reassign to requesting admin
+    const { error: calendarEventsError } = await supabaseAdmin
+      .from('calendar_events')
+      .update({ created_by: user.id })
+      .eq('created_by', userId);
+    if (calendarEventsError) console.log('Note: calendar_events:', calendarEventsError.message);
+
+    // 4. todo_categories - set created_by to null
     const { error: categoryError } = await supabaseAdmin
       .from('todo_categories')
       .update({ created_by: null })
       .eq('created_by', userId);
+    if (categoryError) console.log('Note: todo_categories:', categoryError.message);
 
-    if (categoryError) {
-      console.log('Note: Could not update todo_categories:', categoryError.message);
-    }
-
-    // Update todos created_by to null or reassign
+    // 5. todos - reassign created_by to requesting admin
     const { error: todosCreatedError } = await supabaseAdmin
       .from('todos')
-      .update({ created_by: user.id }) // Reassign to requesting admin
+      .update({ created_by: user.id })
       .eq('created_by', userId);
+    if (todosCreatedError) console.log('Note: todos created_by:', todosCreatedError.message);
 
-    if (todosCreatedError) {
-      console.log('Note: Could not reassign todos:', todosCreatedError.message);
-    }
-
-    // Update todos assigned_to to null
+    // 6. todos - set assigned_to to null
     const { error: todosAssignedError } = await supabaseAdmin
       .from('todos')
       .update({ assigned_to: null })
       .eq('assigned_to', userId);
+    if (todosAssignedError) console.log('Note: todos assigned_to:', todosAssignedError.message);
 
-    if (todosAssignedError) {
-      console.log('Note: Could not update todos assigned_to:', todosAssignedError.message);
-    }
-
-    // Delete from todo_assignees
+    // 7. Delete from junction tables
     const { error: todoAssigneesError } = await supabaseAdmin
       .from('todo_assignees')
       .delete()
       .eq('user_id', userId);
+    if (todoAssigneesError) console.log('Note: todo_assignees:', todoAssigneesError.message);
 
-    if (todoAssigneesError) {
-      console.log('Note: Could not delete todo_assignees:', todoAssigneesError.message);
-    }
-
-    // Delete from calendar_event_assignees
     const { error: calendarAssigneesError } = await supabaseAdmin
       .from('calendar_event_assignees')
       .delete()
       .eq('user_id', userId);
+    if (calendarAssigneesError) console.log('Note: calendar_event_assignees:', calendarAssigneesError.message);
 
-    if (calendarAssigneesError) {
-      console.log('Note: Could not delete calendar_event_assignees:', calendarAssigneesError.message);
-    }
-
-    // Delete from building_managers
     const { error: buildingManagersError } = await supabaseAdmin
       .from('building_managers')
       .delete()
       .eq('user_id', userId);
+    if (buildingManagersError) console.log('Note: building_managers:', buildingManagersError.message);
 
-    if (buildingManagersError) {
-      console.log('Note: Could not delete building_managers:', buildingManagersError.message);
-    }
+    // 8. Delete from weg_owner_buildings
+    const { error: wegOwnerBuildingsError } = await supabaseAdmin
+      .from('weg_owner_buildings')
+      .delete()
+      .eq('user_id', userId);
+    if (wegOwnerBuildingsError) console.log('Note: weg_owner_buildings:', wegOwnerBuildingsError.message);
 
-    // Delete from profiles
+    // 9. Delete from weg_owners
+    const { error: wegOwnersError } = await supabaseAdmin
+      .from('weg_owners')
+      .delete()
+      .eq('user_id', userId);
+    if (wegOwnersError) console.log('Note: weg_owners:', wegOwnersError.message);
+
+    // 10. Delete from tenants
+    const { error: tenantsError } = await supabaseAdmin
+      .from('tenants')
+      .delete()
+      .eq('user_id', userId);
+    if (tenantsError) console.log('Note: tenants:', tenantsError.message);
+
+    // 11. Delete chatbot sessions and messages
+    const { error: chatMessagesError } = await supabaseAdmin
+      .from('chatbot_messages')
+      .delete()
+      .eq('user_id', userId);
+    if (chatMessagesError) console.log('Note: chatbot_messages:', chatMessagesError.message);
+
+    const { error: chatSessionsError } = await supabaseAdmin
+      .from('chatbot_sessions')
+      .delete()
+      .eq('user_id', userId);
+    if (chatSessionsError) console.log('Note: chatbot_sessions:', chatSessionsError.message);
+
+    // 12. Delete document chat sessions
+    const { error: docChatSessionsError } = await supabaseAdmin
+      .from('document_chat_sessions')
+      .delete()
+      .eq('user_id', userId);
+    if (docChatSessionsError) console.log('Note: document_chat_sessions:', docChatSessionsError.message);
+
+    // 13. Delete prompt favorites
+    const { error: promptFavoritesError } = await supabaseAdmin
+      .from('prompt_favorites')
+      .delete()
+      .eq('user_id', userId);
+    if (promptFavoritesError) console.log('Note: prompt_favorites:', promptFavoritesError.message);
+
+    // Finally delete profile
     const { error: profileDeleteError } = await supabaseAdmin
       .from('profiles')
       .delete()
@@ -154,8 +210,13 @@ Deno.serve(async (req) => {
 
     if (profileDeleteError) {
       console.error('Error deleting profile:', profileDeleteError);
-      // Continue anyway, the auth user deletion is more important
+      return new Response(
+        JSON.stringify({ error: `Profil konnte nicht gelöscht werden: ${profileDeleteError.message}` }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
+
+    console.log('Profile deleted, now deleting auth user');
 
     // Delete the auth user using admin API
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId);
