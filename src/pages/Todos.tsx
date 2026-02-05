@@ -31,6 +31,11 @@ export function Todos() {
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [showCompleted, setShowCompleted] = useState(false);
+  const [expandedTodoId, setExpandedTodoId] = useState<string | null>(null);
+
+  const handleToggleExpand = (todoId: string) => {
+    setExpandedTodoId(prev => prev === todoId ? null : todoId);
+  };
 
   const { data: todos = [], isLoading } = useTodos(filters);
 
