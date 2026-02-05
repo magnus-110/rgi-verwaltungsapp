@@ -6,6 +6,8 @@
  import { CalendarView } from '@/components/calendar/CalendarView';
  import { EventDialog } from '@/components/calendar/EventDialog';
  import { CalendarFilters } from '@/components/calendar/CalendarFilters';
+import { TodoDialog } from '@/components/todos/TodoDialog';
+import { useTodo } from '@/hooks/useTodos';
  import { cn } from '@/lib/utils';
  
  export type ViewMode = 'month' | 'week' | 'day';
@@ -16,6 +18,8 @@
    const [eventDialogOpen, setEventDialogOpen] = useState(false);
    const [selectedDate, setSelectedDate] = useState<Date | null>(null);
    const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [todoDialogOpen, setTodoDialogOpen] = useState(false);
+  const [selectedTodoId, setSelectedTodoId] = useState<string | null>(null);
    const [filters, setFilters] = useState({
      showTodos: true,
      showEvents: true,
@@ -23,6 +27,8 @@
      assignees: [] as string[],
      buildings: [] as string[],
    });
+  // Fetch selected todo for editing
+  const { data: selectedTodo } = useTodo(selectedTodoId || '');
  
    const navigatePrev = () => {
      if (viewMode === 'month') setCurrentDate(subMonths(currentDate, 1));
@@ -49,8 +55,10 @@
        setEditingEventId(eventId);
        setSelectedDate(null);
        setEventDialogOpen(true);
+    } else if (type === 'todo') {
+      setSelectedTodoId(eventId);
+      setTodoDialogOpen(true);
      }
-     // For todos, could navigate to task page or open task dialog
    };
  
    const getHeaderText = () => {
@@ -136,6 +144,17 @@
          selectedDate={selectedDate}
          eventId={editingEventId}
        />
+
+      {/* Todo Dialog */}
+      <TodoDialog
+        open={todoDialogOpen}
+        onOpenChange={(open) => {
+          setTodoDialogOpen(open);
+          if (!open) setSelectedTodoId(null);
+        }}
+        todo={selectedTodo}
+        mode="edit"
+      />
      </div>
    );
  }
