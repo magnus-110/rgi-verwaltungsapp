@@ -178,6 +178,157 @@ export type Database = {
         }
         Relationships: []
       }
+      calendar_event_assignees: {
+        Row: {
+          created_at: string | null
+          event_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          event_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          event_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_event_assignees_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_event_assignees_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      calendar_event_buildings: {
+        Row: {
+          building_id: string
+          created_at: string | null
+          event_id: string
+          id: string
+        }
+        Insert: {
+          building_id: string
+          created_at?: string | null
+          event_id: string
+          id?: string
+        }
+        Update: {
+          building_id?: string
+          created_at?: string | null
+          event_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_event_buildings_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_event_buildings_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      calendar_events: {
+        Row: {
+          category_id: string | null
+          color: string | null
+          created_at: string | null
+          created_by: string
+          description: string | null
+          end_datetime: string | null
+          id: string
+          is_all_day: boolean | null
+          is_recurring: boolean | null
+          recurrence_end_date: string | null
+          recurrence_interval: number | null
+          recurrence_pattern: string | null
+          start_datetime: string
+          title: string
+          todo_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          category_id?: string | null
+          color?: string | null
+          created_at?: string | null
+          created_by: string
+          description?: string | null
+          end_datetime?: string | null
+          id?: string
+          is_all_day?: boolean | null
+          is_recurring?: boolean | null
+          recurrence_end_date?: string | null
+          recurrence_interval?: number | null
+          recurrence_pattern?: string | null
+          start_datetime: string
+          title: string
+          todo_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          category_id?: string | null
+          color?: string | null
+          created_at?: string | null
+          created_by?: string
+          description?: string | null
+          end_datetime?: string | null
+          id?: string
+          is_all_day?: boolean | null
+          is_recurring?: boolean | null
+          recurrence_end_date?: string | null
+          recurrence_interval?: number | null
+          recurrence_pattern?: string | null
+          start_datetime?: string
+          title?: string
+          todo_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_events_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "todo_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_events_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "calendar_events_todo_id_fkey"
+            columns: ["todo_id"]
+            isOneToOne: false
+            referencedRelation: "todos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chatbot_messages: {
         Row: {
           building_id: string | null
@@ -1003,6 +1154,8 @@ export type Database = {
           assigned_to: string | null
           attachments: Json | null
           building_id: string | null
+          calendar_end_time: string | null
+          calendar_start_time: string | null
           category_id: string | null
           completed_at: string | null
           created_at: string | null
@@ -1016,6 +1169,7 @@ export type Database = {
           recurrence_end_date: string | null
           recurrence_interval: number | null
           recurrence_pattern: string | null
+          show_in_calendar: boolean | null
           status: string
           task_number: number
           title: string
@@ -1025,6 +1179,8 @@ export type Database = {
           assigned_to?: string | null
           attachments?: Json | null
           building_id?: string | null
+          calendar_end_time?: string | null
+          calendar_start_time?: string | null
           category_id?: string | null
           completed_at?: string | null
           created_at?: string | null
@@ -1038,6 +1194,7 @@ export type Database = {
           recurrence_end_date?: string | null
           recurrence_interval?: number | null
           recurrence_pattern?: string | null
+          show_in_calendar?: boolean | null
           status?: string
           task_number?: number
           title: string
@@ -1047,6 +1204,8 @@ export type Database = {
           assigned_to?: string | null
           attachments?: Json | null
           building_id?: string | null
+          calendar_end_time?: string | null
+          calendar_start_time?: string | null
           category_id?: string | null
           completed_at?: string | null
           created_at?: string | null
@@ -1060,6 +1219,7 @@ export type Database = {
           recurrence_end_date?: string | null
           recurrence_interval?: number | null
           recurrence_pattern?: string | null
+          show_in_calendar?: boolean | null
           status?: string
           task_number?: number
           title?: string

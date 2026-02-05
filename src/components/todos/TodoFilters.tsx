@@ -4,8 +4,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Search, X, ChevronDown, ChevronUp, Filter } from "lucide-react";
-import { format } from "date-fns";
+import { CalendarIcon, Search, X, ChevronDown, ChevronUp, Filter, Clock } from "lucide-react";
+import { format, startOfDay, endOfDay, addDays, startOfWeek, endOfWeek } from "date-fns";
 import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useCategories, useAssignableUsers, TodoFilters as TodoFiltersType } from "@/hooks/useTodos";
@@ -57,8 +57,67 @@ export function TodoFilters({ filters, onFiltersChange, currentUserId }: TodoFil
     filters.dueDateTo,
   ].filter(Boolean).length;
 
+   // Quick date filters
+   const applyQuickFilter = (filterType: 'today' | 'week' | 'overdue') => {
+     const today = new Date();
+     if (filterType === 'today') {
+       const todayStr = format(today, 'yyyy-MM-dd');
+       onFiltersChange({
+         ...filters,
+         dueDateFrom: todayStr,
+         dueDateTo: todayStr,
+       });
+     } else if (filterType === 'week') {
+       const weekStart = startOfWeek(today, { weekStartsOn: 1 });
+       const weekEnd = endOfWeek(today, { weekStartsOn: 1 });
+       onFiltersChange({
+         ...filters,
+         dueDateFrom: format(weekStart, 'yyyy-MM-dd'),
+         dueDateTo: format(weekEnd, 'yyyy-MM-dd'),
+       });
+     } else if (filterType === 'overdue') {
+       const yesterday = format(addDays(today, -1), 'yyyy-MM-dd');
+       onFiltersChange({
+         ...filters,
+         dueDateFrom: '',
+         dueDateTo: yesterday,
+         status: 'open',
+       });
+     }
+   };
+ 
   return (
     <div className="space-y-3">
+       {/* Quick filters */}
+       <div className="flex flex-wrap gap-2">
+         <Button 
+           variant="outline" 
+           size="sm"
+           onClick={() => applyQuickFilter('today')}
+           className="gap-1.5"
+         >
+           <Clock className="h-3.5 w-3.5" />
+           Heute fällig
+         </Button>
+         <Button 
+           variant="outline" 
+           size="sm"
+           onClick={() => applyQuickFilter('week')}
+           className="gap-1.5"
+         >
+           <CalendarIcon className="h-3.5 w-3.5" />
+           Diese Woche
+         </Button>
+         <Button 
+           variant="outline" 
+           size="sm"
+           onClick={() => applyQuickFilter('overdue')}
+           className="gap-1.5 text-destructive hover:text-destructive"
+         >
+           Überfällig
+         </Button>
+       </div>
+ 
       {/* Search bar always visible */}
       <div className="flex gap-2">
         <div className="relative flex-1">
