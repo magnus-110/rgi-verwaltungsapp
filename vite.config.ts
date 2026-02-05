@@ -47,7 +47,7 @@ export default defineConfig(({ mode }) => ({
         ]
       },
       workbox: {
-        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4 MB limit instead of default 2 MB
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB limit instead of default 2 MB
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         navigateFallback: '/offline',
         navigateFallbackDenylist: [/^\/_/],
