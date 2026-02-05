@@ -223,4 +223,29 @@ export const TenantSettings = () => {
        />
      </div>
    );
-};
+ 
+       {/* Legal Documents Footer */}
+       <div className="flex justify-center gap-4 pt-4 pb-8">
+         <button 
+           onClick={() => openLegalSheet("agb")}
+           className="text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors"
+         >
+           AGB
+         </button>
+         <span className="text-xs text-muted-foreground">|</span>
+         <button 
+           onClick={() => openLegalSheet("datenschutz")}
+           className="text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors"
+         >
+           Datenschutz
+         </button>
+       </div>
+ 
+       <LegalDocumentsSheet 
+         open={legalSheetOpen} 
+         onOpenChange={setLegalSheetOpen}
+         defaultTab={legalSheetTab}
+       />
+     </div>
+   );
+ };
