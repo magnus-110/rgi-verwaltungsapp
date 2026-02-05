@@ -114,10 +114,23 @@ function generateGoogleCalendarUrl(
            </p>
          </div>
          
-         <Button onClick={() => { setSelectedDate(new Date()); setEditingEventId(null); setEventDialogOpen(true); }}>
-           <Plus className="h-4 w-4 mr-2" />
-           Neuer Termin
-         </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => {
+              // Open selected event in Google Calendar
+              // For now, open Google Calendar with today's date
+              const today = new Date();
+              const googleUrl = generateGoogleCalendarUrl('Neuer Termin', today, undefined, undefined, false);
+              window.open(googleUrl, '_blank');
+              toast.success('Google Kalender wird geöffnet...');
+            }}>
+              <ExternalLink className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">Google</span>
+            </Button>
+            <Button onClick={() => { setSelectedDate(new Date()); setEditingEventId(null); setEventDialogOpen(true); }}>
+              <Plus className="h-4 w-4 sm:mr-2" />
+              <span className="hidden sm:inline">Neuer Termin</span>
+            </Button>
+          </div>
        </div>
  
        {/* Navigation and View Toggle */}

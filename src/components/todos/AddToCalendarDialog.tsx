@@ -12,40 +12,6 @@ import { CalendarIcon } from 'lucide-react';
 import { useCreateCalendarEvent } from '@/hooks/useCalendar';
 import { Todo } from '@/hooks/useTodos';
 
-// Format date for Google Calendar URL (YYYYMMDDTHHmmssZ)
-function formatGoogleDate(date: Date): string {
-  return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
-}
-
-// Generate Google Calendar URL
-function generateGoogleCalendarUrl(
-  title: string,
-  startDate: Date,
-  endDate: Date | undefined,
-  description?: string,
-  isAllDay?: boolean
-): string {
-  const url = new URL('https://calendar.google.com/calendar/render');
-  url.searchParams.set('action', 'TEMPLATE');
-  url.searchParams.set('text', title);
-  
-  if (isAllDay) {
-    // All-day events use date only format YYYYMMDD/YYYYMMDD
-    const startStr = format(startDate, 'yyyyMMdd');
-    const endStr = format(endDate || startDate, 'yyyyMMdd');
-    url.searchParams.set('dates', `${startStr}/${endStr}`);
-  } else {
-    const startStr = formatGoogleDate(startDate);
-    const endStr = endDate ? formatGoogleDate(endDate) : formatGoogleDate(new Date(startDate.getTime() + 60 * 60 * 1000));
-    url.searchParams.set('dates', `${startStr}/${endStr}`);
-  }
-  
-  if (description) {
-    url.searchParams.set('details', description);
-  }
-  
-  return url.toString();
-}
  
  interface AddToCalendarDialogProps {
    todo: Todo;
