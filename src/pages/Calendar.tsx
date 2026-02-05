@@ -2,45 +2,7 @@ import { useState } from 'react';
 import { format, addMonths, subMonths, addWeeks, subWeeks, addDays, subDays } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, Plus, ExternalLink } from 'lucide-react';
-import { CalendarView } from '@/components/calendar/CalendarView';
-import { EventDialog } from '@/components/calendar/EventDialog';
-import { CalendarFilters } from '@/components/calendar/CalendarFilters';
-import { TodoDialog } from '@/components/todos/TodoDialog';
-import { useTodo } from '@/hooks/useTodos';
-import { useCalendarEvents } from '@/hooks/useCalendar';
-import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
-
-// Generate Google Calendar URL for an event
-function generateGoogleCalendarUrl(
-  title: string,
-  startDate: Date,
-  endDate: Date | undefined,
-  description?: string,
-  isAllDay?: boolean
-): string {
-  const url = new URL('https://calendar.google.com/calendar/render');
-  url.searchParams.set('action', 'TEMPLATE');
-  url.searchParams.set('text', title);
-  
-  if (isAllDay) {
-    const startStr = format(startDate, 'yyyyMMdd');
-    const endStr = format(endDate || startDate, 'yyyyMMdd');
-    url.searchParams.set('dates', `${startStr}/${endStr}`);
-  } else {
-    const formatGoogleDate = (date: Date) => date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
-    const startStr = formatGoogleDate(startDate);
-    const endStr = endDate ? formatGoogleDate(endDate) : formatGoogleDate(new Date(startDate.getTime() + 60 * 60 * 1000));
-    url.searchParams.set('dates', `${startStr}/${endStr}`);
-  }
-  
-  if (description) {
-    url.searchParams.set('details', description);
-  }
-  
-  return url.toString();
-}
+import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
  
  export type ViewMode = 'month' | 'week' | 'day';
  
