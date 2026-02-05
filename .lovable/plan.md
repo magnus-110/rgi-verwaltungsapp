@@ -1,104 +1,92 @@
 
-# Plan: Einheitlicher Kalender-Dialog mit Google Kalender Integration
+# Plan: Nova mit Verwalter-Kontaktdaten erweitern
 
 ## Ziel
-Alle Elemente im Kalender (Termine UND Aufgaben) sollen denselben Dialog verwenden, um eine konsistente Nutzererfahrung zu bieten. Der Google Kalender Export-Button soll immer verfügbar sein.
+Nova soll automatisch wissen, wer der Verwalter eines Gebäudes ist und dessen Kontaktdaten (Name, E-Mail, Telefon) bereitstellen können.
 
-## Konzeptionelle Entscheidung
+## Aktuelle Datenbankstruktur
 
-### Aktuelle Architektur
-- **Termine (Events)**: Eigene Tabelle `calendar_events`, volle Terminfelder
-- **Aufgaben (Todos)**: Tabelle `todos` mit optionalem `due_date` und `calendar_start_time`
-
-### Lösungsansatz
-Beim Klick auf eine Aufgabe im Kalender wird ein **schreibgeschützter Vorschau-Dialog** geöffnet, der:
-1. Die Aufgaben-Details anzeigt
-2. Einen prominenten Google Kalender Export-Button enthalt
-3. Einen Link zur vollständigen Aufgabenbearbeitung bietet
-
-Alternativ: Aufgaben im Kalender werden bei Klick in den EventDialog mit vorausgefüllten Daten übernommen (konvertiert).
-
----
+Die benötigten Tabellen existieren bereits:
+- **building_managers**: Verknüpft `building_id` mit `user_id` (Admin)
+- **profiles**: Enthält `first_name`, `last_name`, `email`, `phone` der Admins
 
 ## Implementierung
 
-### Schritt 1: Neuen universellen CalendarItemDialog erstellen
-Eine neue Komponente `CalendarItemDialog.tsx` die beide Typen handhabt:
+### Edge Function anpassen (chat-with-ai/index.ts)
 
-```text
-+------------------------------------------+
-|  [Termin/Aufgabe] Details               |
-+------------------------------------------+
-|  Titel: Meeting mit Kunde               |
-|  Datum: 15.02.2026, 09:00 - 10:00      |
-|  Kategorie: Kundentermine               |
-|  Beschreibung: ...                      |
-+------------------------------------------+
-|  [Google Kalender]  [Bearbeiten] [X]   |
-+------------------------------------------+
+**Für Mieter (rent mode):**
+```
+Aktuell: Gebäudedaten werden geladen (Name, Adresse, Typ)
+Neu: Zusätzlich Verwalter-Kontaktdaten über building_managers abrufen
 ```
 
-### Schritt 2: Calendar.tsx anpassen
-- Entfernen des separaten `TodoDialog` für Kalender-Kontext
-- Neuen `CalendarItemDialog` verwenden
-- Bei Klick auf jedes Element (Event oder Todo) wird derselbe Dialog geöffnet
+**Für WEG-Eigentümer (weg mode):**
+```
+Aktuell: Gebäude werden aufgelistet, spezifisches Gebäude bei buildingId
+Neu: Für jedes zugewiesene Gebäude den zuständigen Verwalter mit Kontaktdaten
+```
 
-### Schritt 3: Google Kalender Button immer sichtbar
-- Button erscheint sowohl bei neuen Terminen als auch bei bestehenden
-- Bei Aufgaben: Daten werden aus dem Todo übernommen (Titel, Datum, Beschreibung)
+### Neue Datenbankabfrage
 
----
+Nach dem Laden der Gebäudedaten wird eine zusätzliche Abfrage durchgeführt:
 
-## Technische Details
-
-### CalendarItemDialog Props
 ```typescript
-interface CalendarItemDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  item: CalendarItem | null;  // Unified item type
-  onEditClick?: () => void;   // Falls vollständige Bearbeitung gewünscht
-}
+// Verwalter für Gebäude abrufen
+const { data: managers } = await supabase
+  .from('building_managers')
+  .select(`
+    building_id,
+    profiles!user_id (
+      first_name,
+      last_name,
+      email,
+      phone
+    )
+  `)
+  .eq('building_id', buildingId);
 ```
 
-### Google Calendar URL Generation
-Bereits implementiert in `EventDialog.tsx` (Zeilen 28-56):
-- Unterstützt ganztägige Events und Termine mit Uhrzeiten
-- Übergibt Titel, Datum, Beschreibung
+### Kontext für Nova
+
+Der Kontext wird erweitert um:
+
+```
+Ihr zuständiger Verwalter:
+Name: Maximilian Mustermann
+E-Mail: max@rgi-immobilien.de
+Telefon: 08363 12345
+```
 
 ### Betroffene Dateien
-1. **Neu**: `src/components/calendar/CalendarItemDialog.tsx`
-2. **Ändern**: `src/pages/Calendar.tsx` - Neuer Dialog statt TodoDialog
-3. **Behalten**: `EventDialog.tsx` - Für Erstellen/Bearbeiten von Terminen
 
----
+| Datei | Änderung |
+|-------|----------|
+| `supabase/functions/chat-with-ai/index.ts` | Verwalter-Abfrage hinzufügen, Kontext erweitern |
 
-## Ablauf im Kalender
+### Ablauf
 
-```text
-Nutzer klickt auf Element im Kalender
-            |
-            v
-    +---------------+
-    | CalendarItem  |
-    | Dialog öffnet |
-    +---------------+
-            |
-    +-------+-------+
-    |               |
-    v               v
-[Event]         [Aufgabe]
-    |               |
-    v               v
-Bearbeiten     Details anzeigen
-möglich        + Google Export
-               + Link zu Aufgabe
+```
+Nutzer stellt Frage
+        |
+        v
+  Edge Function
+        |
+        v
+  Lade Profil + Gebäude
+        |
+        v
+  NEU: Lade Verwalter für Gebäude
+  aus building_managers + profiles
+        |
+        v
+  Baue Kontext mit Verwalter-Info
+        |
+        v
+  Nova antwortet mit korrekten Daten
 ```
 
----
+### Beispielantwort von Nova
 
-## Vorteile dieser Lösung
-1. **Einheitliche UX**: Alle Kalenderelemente werden gleich behandelt
-2. **Aufgaben bleiben intakt**: Die Aufgabenverwaltung bleibt separat auf `/todos`
-3. **Google Export immer verfügbar**: Sowohl für Termine als auch Aufgaben
-4. **Keine Datenvermischung**: Aufgaben und Termine bleiben in getrennten Tabellen
+**Frage:** "Wer ist mein Verwalter?"
+
+**Antwort:** "Ihr zuständiger Verwalter für das Gebäude Am Jürgenfeld 5 ist Maximilian Mustermann. Sie erreichen ihn unter max@rgi-immobilien.de oder telefonisch unter 08363 12345."
