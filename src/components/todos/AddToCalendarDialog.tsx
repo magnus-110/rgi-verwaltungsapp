@@ -8,10 +8,9 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
-import { CalendarIcon, ExternalLink } from 'lucide-react';
+import { CalendarIcon } from 'lucide-react';
 import { useCreateCalendarEvent } from '@/hooks/useCalendar';
 import { Todo } from '@/hooks/useTodos';
-import { toast } from 'sonner';
 
 // Format date for Google Calendar URL (YYYYMMDDTHHmmssZ)
 function formatGoogleDate(date: Date): string {
