@@ -113,6 +113,29 @@ serve(async (req) => {
     // Build context data
     let contextData = "";
 
+    // Helper function to fetch building managers
+    const fetchBuildingManagers = async (buildingId: string) => {
+      const { data: managers } = await supabase
+        .from('building_managers')
+        .select('building_id, user_id')
+        .eq('building_id', buildingId);
+      
+      if (managers && managers.length > 0) {
+        const managerProfiles = await Promise.all(
+          managers.map(async (m) => {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('first_name, last_name, email, phone')
+              .eq('user_id', m.user_id)
+              .single();
+            return profile;
+          })
+        );
+        return managerProfiles.filter(p => p !== null);
+      }
+      return [];
+    };
+
     // For tenants - get building info from profile
     if (managementMode === 'rent' && profile?.building_id) {
       const { data: building } = await supabase
@@ -123,6 +146,18 @@ serve(async (req) => {
       
       if (building) {
         contextData += `\n\nGebäudeinformationen:\nName: ${building.name}\nAdresse: ${building.address}\nTyp: ${building.type}\nVerwaltungsmodus: ${building.management_mode}`;
+        
+        // Fetch building managers for tenant's building
+        const managerProfiles = await fetchBuildingManagers(profile.building_id);
+        if (managerProfiles.length > 0) {
+          contextData += `\n\nIhr zuständiger Verwalter:\n`;
+          managerProfiles.forEach(manager => {
+            const fullName = [manager.first_name, manager.last_name].filter(Boolean).join(' ') || 'Nicht angegeben';
+            contextData += `Name: ${fullName}\n`;
+            if (manager.email) contextData += `E-Mail: ${manager.email}\n`;
+            if (manager.phone) contextData += `Telefon: ${manager.phone}\n`;
+          });
+        }
       }
 
       // Get tenant reports
@@ -198,23 +233,53 @@ serve(async (req) => {
           if (specificBuilding) {
             contextData += `\n\nSpezifisches Gebäude (${buildingId}):\n`;
             contextData += `- Name: ${specificBuilding.name}\n- Adresse: ${specificBuilding.address}\n- Typ: ${specificBuilding.type}\n`;
+            
+            // Fetch managers for this specific building
+            const managerProfiles = await fetchBuildingManagers(specificBuilding.id);
+            if (managerProfiles.length > 0) {
+              contextData += `\nZuständiger Verwalter:\n`;
+              managerProfiles.forEach(manager => {
+                const fullName = [manager.first_name, manager.last_name].filter(Boolean).join(' ') || 'Nicht angegeben';
+                contextData += `  Name: ${fullName}\n`;
+                if (manager.email) contextData += `  E-Mail: ${manager.email}\n`;
+                if (manager.phone) contextData += `  Telefon: ${manager.phone}\n`;
+              });
+            }
           }
         } else {
           contextData += `\n\nHinweis: Sie haben keinen Zugriff auf Gebäude-ID "${buildingId}". Bitte überprüfen Sie Ihre Gebäude-Zuordnungen in den Einstellungen.\n`;
         }
       }
 
-      // Add user's assigned buildings context
+      // Add user's assigned buildings context with manager info
       const { data: userBuildings } = await supabase
         .from('weg_owner_buildings')
         .select('building_id')
         .eq('user_id', userId);
 
       if (userBuildings && userBuildings.length > 0) {
-        contextData += `\n\nIhre zugewiesenen Gebäude-IDs:\n`;
-        userBuildings.forEach(building => {
-          contextData += `- ${building.building_id}\n`;
-        });
+        contextData += `\n\nIhre zugewiesenen Gebäude mit Verwaltern:\n`;
+        for (const ub of userBuildings) {
+          const { data: building } = await supabase
+            .from('buildings')
+            .select('name, address')
+            .eq('id', ub.building_id)
+            .single();
+          
+          if (building) {
+            contextData += `\n- ${building.name} (${building.address})\n`;
+            const managerProfiles = await fetchBuildingManagers(ub.building_id);
+            if (managerProfiles.length > 0) {
+              managerProfiles.forEach(manager => {
+                const fullName = [manager.first_name, manager.last_name].filter(Boolean).join(' ') || 'Nicht angegeben';
+                contextData += `  Verwalter: ${fullName}`;
+                if (manager.email) contextData += ` | ${manager.email}`;
+                if (manager.phone) contextData += ` | ${manager.phone}`;
+                contextData += `\n`;
+              });
+            }
+          }
+        }
       }
     }
 
