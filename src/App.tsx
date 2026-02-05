@@ -20,6 +20,7 @@ import { Documents } from "./pages/Documents";
 import { DocumentSettings } from "./pages/DocumentSettings";
 import { WebhookSettings } from "./pages/WebhookSettings";
 import { Todos } from "./pages/Todos";
+import { Calendar } from "./pages/Calendar";
 import { AdminLayout } from "./components/AdminLayout";
 import { WegOwnerLayout } from "./components/WegOwnerLayout";
 import { WegOwnerDashboard } from "./pages/weg-owner/Dashboard";
@@ -64,6 +65,7 @@ const App = () => (
               <Route path="/webhooks" element={<AdminLayout><WebhookSettings /></AdminLayout>} />
               <Route path="/settings" element={<AdminLayout><Settings /></AdminLayout>} />
               <Route path="/todos" element={<AdminLayout><Todos /></AdminLayout>} />
+               <Route path="/calendar" element={<AdminLayout><Calendar /></AdminLayout>} />
               
               {/* Legacy admin routes for compatibility */}
               <Route path="/admin" element={<AdminLayout><Dashboard /></AdminLayout>} />
