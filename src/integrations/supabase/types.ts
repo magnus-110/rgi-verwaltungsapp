@@ -329,6 +329,51 @@ export type Database = {
           },
         ]
       }
+      chatbot_knowledge_documents: {
+        Row: {
+          applies_to: string
+          category: string
+          char_count: number | null
+          content: string
+          created_at: string
+          file_path: string | null
+          id: string
+          keywords: string[] | null
+          management_mode: Database["public"]["Enums"]["management_mode"]
+          page_count: number | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          applies_to?: string
+          category?: string
+          char_count?: number | null
+          content: string
+          created_at?: string
+          file_path?: string | null
+          id?: string
+          keywords?: string[] | null
+          management_mode: Database["public"]["Enums"]["management_mode"]
+          page_count?: number | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          applies_to?: string
+          category?: string
+          char_count?: number | null
+          content?: string
+          created_at?: string
+          file_path?: string | null
+          id?: string
+          keywords?: string[] | null
+          management_mode?: Database["public"]["Enums"]["management_mode"]
+          page_count?: number | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       chatbot_messages: {
         Row: {
           building_id: string | null

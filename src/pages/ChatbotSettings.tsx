@@ -12,14 +12,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { Bot, Plus, Edit, Trash2, ChevronDown, ChevronUp, MessageCircle, Download, Search, Calendar, User, Building } from "lucide-react";
+import { Bot, MessageCircle, Download, Search, Calendar, User, Building } from "lucide-react";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { DateRangePicker } from "@/components/DateRangePicker";
-
-interface KnowledgeItem {
-  title: string;
-  content: string;
-}
+import { KnowledgeDocumentsManager } from "@/components/chatbot/KnowledgeDocumentsManager";
 
 interface ChatSession {
   id: string;
@@ -44,13 +40,9 @@ interface Message {
 export const ChatbotSettings = () => {
   const { profile } = useAuth();
   const [settings, setSettings] = useState({
-    system_prompt: "Sie sind ein hilfreicher Assistent für die Immobilienverwaltung.",
-    knowledge_items: [] as KnowledgeItem[]
+    system_prompt: "Sie sind ein hilfreicher Assistent für die Immobilienverwaltung."
   });
   const [loading, setLoading] = useState(true);
-  const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
-  const [editingItem, setEditingItem] = useState<number | null>(null);
-  const [newItem, setNewItem] = useState<KnowledgeItem>({ title: "", content: "" });
   
   // Conversations state
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -81,17 +73,8 @@ export const ChatbotSettings = () => {
       if (error && error.code !== 'PGRST116') throw error;
 
       if (data) {
-        let knowledgeItems = [];
-        if (data.knowledge_items && Array.isArray(data.knowledge_items)) {
-          knowledgeItems = data.knowledge_items;
-        } else if (data.knowledge_base) {
-          // Fallback: migrate old knowledge_base to new format
-          knowledgeItems = [{ title: "Allgemein", content: data.knowledge_base }];
-        }
-
         setSettings({
-          system_prompt: data.system_prompt || "Sie sind ein hilfreicher Assistent für die Immobilienverwaltung.",
-          knowledge_items: knowledgeItems
+          system_prompt: data.system_prompt || "Sie sind ein hilfreicher Assistent für die Immobilienverwaltung."
         });
       }
     } catch (error) {
@@ -117,9 +100,7 @@ export const ChatbotSettings = () => {
   const handleSave = async () => {
     try {
       const settingsData = {
-        system_prompt: settings.system_prompt,
-        knowledge_items: settings.knowledge_items as any,
-        knowledge_base: settings.knowledge_items.map(item => `${item.title}: ${item.content}`).join('\n\n')
+        system_prompt: settings.system_prompt
       };
 
       // Save identical settings for both management modes
@@ -146,43 +127,6 @@ export const ChatbotSettings = () => {
         variant: "destructive",
       });
     }
-  };
-
-  const toggleExpanded = (index: number) => {
-    const newExpanded = new Set(expandedItems);
-    if (newExpanded.has(index)) {
-      newExpanded.delete(index);
-    } else {
-      newExpanded.add(index);
-    }
-    setExpandedItems(newExpanded);
-  };
-
-  const handleAddItem = () => {
-    if (newItem.title.trim() && newItem.content.trim()) {
-      setSettings({
-        ...settings,
-        knowledge_items: [...settings.knowledge_items, { ...newItem }]
-      });
-      setNewItem({ title: "", content: "" });
-    }
-  };
-
-  const handleEditItem = (index: number, item: KnowledgeItem) => {
-    const newItems = [...settings.knowledge_items];
-    newItems[index] = item;
-    setSettings({ ...settings, knowledge_items: newItems });
-    setEditingItem(null);
-  };
-
-  const handleDeleteItem = (index: number) => {
-    const newItems = settings.knowledge_items.filter((_, i) => i !== index);
-    setSettings({ ...settings, knowledge_items: newItems });
-    setExpandedItems(prev => {
-      const newSet = new Set(prev);
-      newSet.delete(index);
-      return newSet;
-    });
   };
 
   const loadSessions = async () => {
@@ -438,7 +382,7 @@ export const ChatbotSettings = () => {
 
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>System Prompt & Wissensbasis</CardTitle>
+          <CardTitle>System Prompt</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
@@ -454,94 +398,16 @@ export const ChatbotSettings = () => {
               Beschreibt die Rolle und das Verhalten des Chatbots.
             </p>
           </div>
-
-          <div>
-            <Label>Wissensbasis-Themen</Label>
-            <div className="space-y-3">
-              {settings.knowledge_items.map((item, index) => (
-                <Card key={index} className="p-3">
-                  {editingItem === index ? (
-                    <div className="space-y-2">
-                      <Input
-                        value={item.title}
-                        onChange={(e) => handleEditItem(index, { ...item, title: e.target.value })}
-                        placeholder="Thema-Titel"
-                      />
-                      <Textarea
-                        value={item.content}
-                        onChange={(e) => handleEditItem(index, { ...item, content: e.target.value })}
-                        placeholder="Inhalt..."
-                        rows={4}
-                      />
-                      <div className="flex gap-2">
-                        <Button size="sm" onClick={() => setEditingItem(null)}>
-                          Speichern
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => setEditingItem(null)}>
-                          Abbrechen
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <h4 className="font-medium cursor-pointer flex items-center gap-2" onClick={() => toggleExpanded(index)}>
-                          {item.title}
-                          {expandedItems.has(index) ? (
-                            <ChevronUp className="w-4 h-4" />
-                          ) : (
-                            <ChevronDown className="w-4 h-4" />
-                          )}
-                        </h4>
-                        <div className="flex gap-1">
-                          <Button size="sm" variant="ghost" onClick={() => setEditingItem(index)}>
-                            <Edit className="w-3 h-3" />
-                          </Button>
-                          <Button size="sm" variant="ghost" onClick={() => handleDeleteItem(index)}>
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
-                        </div>
-                      </div>
-                      {expandedItems.has(index) && (
-                        <div className="mt-2 text-sm text-muted-foreground">
-                          {item.content}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </Card>
-              ))}
-              
-              <Card className="p-3 border-dashed">
-                <div className="space-y-2">
-                  <Input
-                    value={newItem.title}
-                    onChange={(e) => setNewItem({ ...newItem, title: e.target.value })}
-                    placeholder="Neues Thema..."
-                  />
-                  <Textarea
-                    value={newItem.content}
-                    onChange={(e) => setNewItem({ ...newItem, content: e.target.value })}
-                    placeholder="Inhalt..."
-                    rows={3}
-                  />
-                  <Button size="sm" onClick={handleAddItem} className="flex items-center gap-2">
-                    <Plus className="w-3 h-3" />
-                    Thema hinzufügen
-                  </Button>
-                </div>
-              </Card>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Organisieren Sie Ihr Wissen in thematische Bereiche. Klicken Sie auf einen Titel, um den Inhalt zu sehen.
-            </p>
-          </div>
+          <Button onClick={handleSave} className="w-full">
+            System Prompt speichern
+          </Button>
         </CardContent>
       </Card>
-      
-      <Button onClick={handleSave} className="w-full">
-        Einstellungen speichern
-      </Button>
+
+      {/* Knowledge Documents Manager */}
+      <div className="mb-6">
+        <KnowledgeDocumentsManager />
+      </div>
 
       {/* Chatbot Conversations Section */}
       <Card>
