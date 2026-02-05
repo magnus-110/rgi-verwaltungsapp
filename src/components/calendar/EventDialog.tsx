@@ -270,7 +270,7 @@
                  <SelectValue placeholder="Kategorie wählen" />
                </SelectTrigger>
                <SelectContent>
-                 <SelectItem value="">Keine Kategorie</SelectItem>
+                  <SelectItem value="none">Keine Kategorie</SelectItem>
                  {categories.map(cat => (
                    <SelectItem key={cat.id} value={cat.id}>
                      <div className="flex items-center gap-2">
