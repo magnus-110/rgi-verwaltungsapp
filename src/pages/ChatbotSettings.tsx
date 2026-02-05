@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
@@ -13,7 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { Bot, Settings, Plus, Edit, Trash2, ChevronDown, ChevronUp, MessageCircle, Download, Search, Calendar, Filter, User, Building, CalendarIcon } from "lucide-react";
+import { Bot, Plus, Edit, Trash2, ChevronDown, ChevronUp, MessageCircle, Download, Search, Calendar, User, Building } from "lucide-react";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { DateRangePicker } from "@/components/DateRangePicker";
 
@@ -45,9 +44,6 @@ interface Message {
 export const ChatbotSettings = () => {
   const { profile } = useAuth();
   const [settings, setSettings] = useState({
-    model: "gpt-4o-mini",
-    temperature: [0.7],
-    max_tokens: [500],
     system_prompt: "Sie sind ein hilfreicher Assistent für die Immobilienverwaltung.",
     knowledge_items: [] as KnowledgeItem[]
   });
@@ -94,9 +90,6 @@ export const ChatbotSettings = () => {
         }
 
         setSettings({
-          model: data.model || "gpt-4o-mini",
-          temperature: [data.temperature || 0.7],
-          max_tokens: [data.max_tokens || 500],
           system_prompt: data.system_prompt || "Sie sind ein hilfreicher Assistent für die Immobilienverwaltung.",
           knowledge_items: knowledgeItems
         });
@@ -124,9 +117,6 @@ export const ChatbotSettings = () => {
   const handleSave = async () => {
     try {
       const settingsData = {
-        model: settings.model,
-        temperature: settings.temperature[0],
-        max_tokens: settings.max_tokens[0],
         system_prompt: settings.system_prompt,
         knowledge_items: settings.knowledge_items as any,
         knowledge_base: settings.knowledge_items.map(item => `${item.title}: ${item.content}`).join('\n\n')
@@ -548,70 +538,10 @@ export const ChatbotSettings = () => {
           </div>
         </CardContent>
       </Card>
-
-      <div className="space-y-6 overflow-x-hidden">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Settings className="w-5 h-5" />
-              KI-Konfiguration & Erweiterte Einstellungen
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div>
-              <Label htmlFor="model">KI-Modell</Label>
-              <Select value={settings.model} onValueChange={(value) => setSettings({ ...settings, model: value })}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="gpt-4o-mini">GPT-4o Mini (Empfohlen)</SelectItem>
-                  <SelectItem value="gpt-4o">GPT-4o</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label>Temperatur: {settings.temperature[0]}</Label>
-              <div className="px-2">
-                <Slider
-                  value={settings.temperature}
-                  onValueChange={(value) => setSettings({ ...settings, temperature: value })}
-                  max={1}
-                  min={0}
-                  step={0.1}
-                  className="mt-2 w-full"
-                />
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Steuert die Kreativität der Antworten (0 = fokussiert, 1 = kreativ)
-              </p>
-            </div>
-
-            <div>
-              <Label>Max. Tokens: {settings.max_tokens[0]}</Label>
-              <div className="px-2">
-                <Slider
-                  value={settings.max_tokens}
-                  onValueChange={(value) => setSettings({ ...settings, max_tokens: value })}
-                  max={2000}
-                  min={100}
-                  step={50}
-                  className="mt-2 w-full"
-                />
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Begrenzt die Länge der Antworten
-              </p>
-            </div>
-
-            <Button onClick={handleSave} className="w-full">
-              Einstellungen speichern
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
+      
+      <Button onClick={handleSave} className="w-full">
+        Einstellungen speichern
+      </Button>
 
       {/* Chatbot Conversations Section */}
       <Card>
