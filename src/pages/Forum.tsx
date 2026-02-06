@@ -965,7 +965,6 @@ export const Forum = () => {
                   onFilesChange={setEditAttachments}
                   maxFiles={5}
                   bucketName="forum-attachments"
-                  existingFiles={editAttachments}
                 />
               </div>
               <div className="flex gap-2">
