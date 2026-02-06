@@ -586,7 +586,8 @@ export const Settings = () => {
                               setEditAdminData({
                                 first_name: admin.first_name || "",
                                 last_name: admin.last_name || "",
-                                email: admin.email
+                                email: admin.email,
+                                phone: admin.phone || ""
                               });
                             }}
                           >
