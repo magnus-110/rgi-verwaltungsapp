@@ -291,6 +291,41 @@ export const Forum = () => {
     }
   };
 
+  const handleEditPost = (post: ForumPost) => {
+    setEditingPost({ ...post });
+    setEditAttachments(post.attachments || []);
+    setIsEditPostOpen(true);
+  };
+
+  const handleUpdatePost = async () => {
+    if (!editingPost || !editingPost.title || !editingPost.content) {
+      toast.error('Bitte füllen Sie alle Felder aus');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('forum_posts')
+        .update({
+          title: editingPost.title,
+          content: editingPost.content,
+          attachments: editAttachments,
+        })
+        .eq('id', editingPost.id);
+
+      if (error) throw error;
+
+      setPosts(posts.map(p => p.id === editingPost.id ? { ...p, title: editingPost.title, content: editingPost.content, attachments: editAttachments } : p));
+      setEditingPost(null);
+      setIsEditPostOpen(false);
+      setEditAttachments([]);
+      toast.success('Beitrag erfolgreich aktualisiert');
+    } catch (error) {
+      console.error('Error updating post:', error);
+      toast.error('Fehler beim Aktualisieren des Beitrags');
+    }
+  };
+
   const handleTemplateSelect = (templateId: string) => {
     if (templateId === "none") {
       // Reset to empty template
