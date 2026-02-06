@@ -66,7 +66,8 @@ export const Settings = () => {
   const [editEmployeeData, setEditEmployeeData] = useState({
     first_name: "",
     last_name: "",
-    email: ""
+    email: "",
+    phone: ""
   });
 
   useEffect(() => {
