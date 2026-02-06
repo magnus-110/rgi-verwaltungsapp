@@ -671,7 +671,7 @@ export const Forum = () => {
       </div>
 
       {/* Filter Section */}
-      {canCreatePosts && (
+      {(canCreatePosts || canEditPosts) && (
         <Card>
           <Collapsible open={isFilterOpen} onOpenChange={setIsFilterOpen}>
             <CollapsibleTrigger asChild>
