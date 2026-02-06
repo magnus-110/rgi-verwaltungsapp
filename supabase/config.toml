@@ -42,3 +42,6 @@ verify_jwt = true
 [functions.process-knowledge-document]
 verify_jwt = true
 
+[functions.query-documents]
+verify_jwt = true
+
