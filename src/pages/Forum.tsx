@@ -65,14 +65,18 @@ export const Forum = () => {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   const canCreatePosts = profile?.role === 'admin';
+  const canEditPosts = profile?.role === 'admin' || profile?.role === 'employee';
+  const [editingPost, setEditingPost] = useState<ForumPost | null>(null);
+  const [isEditPostOpen, setIsEditPostOpen] = useState(false);
+  const [editAttachments, setEditAttachments] = useState<{ name: string; path: string; size: number; type: string }[]>([]);
 
   useEffect(() => {
     fetchPosts();
-    if (canCreatePosts) {
+    if (canCreatePosts || canEditPosts) {
       fetchBuildings();
       fetchTemplates();
     }
-  }, [managementMode, canCreatePosts]);
+  }, [managementMode, canCreatePosts, canEditPosts]);
 
   const fetchTemplates = async () => {
     try {
