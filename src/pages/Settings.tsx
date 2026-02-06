@@ -150,7 +150,8 @@ export const Settings = () => {
         password: newAdminPassword,
         role: 'admin',
         first_name: newAdminFirstName,
-        last_name: newAdminLastName
+        last_name: newAdminLastName,
+        phone: newAdminPhone || undefined
       };
       
       console.log('Creating admin user with data:', requestData);
