@@ -332,6 +332,7 @@ export const Settings = () => {
       setNewEmployeeEmail("");
       setNewEmployeeFirstName("");
       setNewEmployeeLastName("");
+      setNewEmployeePhone("");
       setNewEmployeePassword("");
       fetchEmployeeUsers();
     } catch (error: any) {
