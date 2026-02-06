@@ -50,7 +50,8 @@ export const Settings = () => {
   const [editAdminData, setEditAdminData] = useState({
     first_name: "",
     last_name: "",
-    email: ""
+    email: "",
+    phone: ""
   });
 
   // Employee management states
