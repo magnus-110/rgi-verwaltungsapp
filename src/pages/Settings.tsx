@@ -98,7 +98,7 @@ export const Settings = () => {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("user_id, first_name, last_name, email")
+        .select("user_id, first_name, last_name, email, phone")
         .eq("role", "employee")
         .order("first_name");
 
