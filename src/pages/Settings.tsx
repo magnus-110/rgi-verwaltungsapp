@@ -40,6 +40,7 @@ export const Settings = () => {
   const [newAdminEmail, setNewAdminEmail] = useState("");
   const [newAdminFirstName, setNewAdminFirstName] = useState("");
   const [newAdminLastName, setNewAdminLastName] = useState("");
+  const [newAdminPhone, setNewAdminPhone] = useState("");
   const [newAdminPassword, setNewAdminPassword] = useState("");
   const [isCreatingAdmin, setIsCreatingAdmin] = useState(false);
   
