@@ -202,6 +202,7 @@ export const Settings = () => {
       setNewAdminEmail("");
       setNewAdminFirstName("");
       setNewAdminLastName("");
+      setNewAdminPhone("");
       setNewAdminPassword("");
       fetchAdminUsers(); // Refresh the admin list
     } catch (error: any) {
