@@ -92,8 +92,14 @@ serve(async (req) => {
           );
         }
 
-        // Convert to base64
-        const base64Data = btoa(String.fromCharCode(...fileBytes));
+        // Convert to base64 in chunks to avoid stack overflow
+        let binary = '';
+        const chunkSize = 8192;
+        for (let i = 0; i < fileBytes.length; i += chunkSize) {
+          const chunk = fileBytes.subarray(i, i + chunkSize);
+          binary += String.fromCharCode(...chunk);
+        }
+        const base64Data = btoa(binary);
         const dataUrl = `data:application/pdf;base64,${base64Data}`;
 
         console.log('Processing PDF with Mistral OCR...');
