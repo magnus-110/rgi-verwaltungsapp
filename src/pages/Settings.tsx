@@ -666,6 +666,15 @@ export const Settings = () => {
                       />
                     </div>
                     <div>
+                      <Label htmlFor="newEmployeePhone">Telefon</Label>
+                      <Input
+                        id="newEmployeePhone"
+                        value={newEmployeePhone}
+                        onChange={(e) => setNewEmployeePhone(e.target.value)}
+                        placeholder="Telefonnummer"
+                      />
+                    </div>
+                    <div>
                       <Label htmlFor="newEmployeePassword">Temporäres Passwort</Label>
                       <Input
                         id="newEmployeePassword"
