@@ -59,6 +59,7 @@ export const Settings = () => {
   const [newEmployeeEmail, setNewEmployeeEmail] = useState("");
   const [newEmployeeFirstName, setNewEmployeeFirstName] = useState("");
   const [newEmployeeLastName, setNewEmployeeLastName] = useState("");
+  const [newEmployeePhone, setNewEmployeePhone] = useState("");
   const [newEmployeePassword, setNewEmployeePassword] = useState("");
   const [isCreatingEmployee, setIsCreatingEmployee] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<EmployeeUser | null>(null);
