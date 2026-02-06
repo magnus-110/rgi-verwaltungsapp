@@ -846,6 +846,15 @@ export const Settings = () => {
                   required
                 />
               </div>
+              <div>
+                <Label htmlFor="editEmployeePhone">Telefon</Label>
+                <Input
+                  id="editEmployeePhone"
+                  value={editEmployeeData.phone}
+                  onChange={(e) => setEditEmployeeData(prev => ({ ...prev, phone: e.target.value }))}
+                  placeholder="Telefonnummer"
+                />
+              </div>
               <div className="flex justify-end space-x-2">
                 <Button type="button" variant="outline" onClick={() => setEditingEmployee(null)}>
                   Abbrechen
