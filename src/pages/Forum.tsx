@@ -927,6 +927,62 @@ export const Forum = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Post Dialog */}
+      <Dialog open={isEditPostOpen} onOpenChange={(open) => {
+        setIsEditPostOpen(open);
+        if (!open) {
+          setEditingPost(null);
+          setEditAttachments([]);
+        }
+      }}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Beitrag bearbeiten</DialogTitle>
+          </DialogHeader>
+          {editingPost && (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit-post-title">Titel</Label>
+                <Input
+                  id="edit-post-title"
+                  value={editingPost.title}
+                  onChange={(e) => setEditingPost({ ...editingPost, title: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-post-content">Inhalt</Label>
+                <Textarea
+                  id="edit-post-content"
+                  value={editingPost.content}
+                  onChange={(e) => setEditingPost({ ...editingPost, content: e.target.value })}
+                  rows={8}
+                />
+              </div>
+              <div>
+                <Label>Anhänge</Label>
+                <FileUpload
+                  onFilesChange={setEditAttachments}
+                  maxFiles={5}
+                  bucketName="forum-attachments"
+                  existingFiles={editAttachments}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleUpdatePost}
+                  disabled={!editingPost.title || !editingPost.content}
+                >
+                  Speichern
+                </Button>
+                <Button variant="outline" onClick={() => { setIsEditPostOpen(false); setEditingPost(null); setEditAttachments([]); }}>
+                  Abbrechen
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
