@@ -823,6 +823,11 @@ export const Forum = () => {
                       <Building2 className="w-3 h-3 flex-shrink-0" />
                       <span className="truncate">{post.buildings?.name || 'Unbekannt'}</span>
                     </Badge>
+                    {canEditPosts && (
+                      <Button variant="ghost" size="sm" className="flex-shrink-0" onClick={() => handleEditPost(post)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    )}
                     {canCreatePosts && (
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
