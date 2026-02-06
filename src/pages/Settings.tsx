@@ -280,7 +280,8 @@ export const Settings = () => {
         password: newEmployeePassword,
         role: 'employee',
         first_name: newEmployeeFirstName,
-        last_name: newEmployeeLastName
+        last_name: newEmployeeLastName,
+        phone: newEmployeePhone || undefined
       };
       
       console.log('Creating employee user with data:', requestData);
