@@ -27,6 +27,7 @@ interface EmployeeUser {
   first_name: string | null;
   last_name: string | null;
   email: string;
+  phone: string | null;
 }
 
 export const Settings = () => {
