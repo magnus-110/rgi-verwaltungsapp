@@ -701,7 +701,8 @@ export const Settings = () => {
                               setEditEmployeeData({
                                 first_name: employee.first_name || "",
                                 last_name: employee.last_name || "",
-                                email: employee.email
+                                email: employee.email,
+                                phone: employee.phone || ""
                               });
                             }}
                           >
