@@ -65,14 +65,18 @@ export const Forum = () => {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   const canCreatePosts = profile?.role === 'admin';
+  const canEditPosts = profile?.role === 'admin' || profile?.role === 'employee';
+  const [editingPost, setEditingPost] = useState<ForumPost | null>(null);
+  const [isEditPostOpen, setIsEditPostOpen] = useState(false);
+  const [editAttachments, setEditAttachments] = useState<{ name: string; path: string; size: number; type: string }[]>([]);
 
   useEffect(() => {
     fetchPosts();
-    if (canCreatePosts) {
+    if (canCreatePosts || canEditPosts) {
       fetchBuildings();
       fetchTemplates();
     }
-  }, [managementMode, canCreatePosts]);
+  }, [managementMode, canCreatePosts, canEditPosts]);
 
   const fetchTemplates = async () => {
     try {
@@ -284,6 +288,41 @@ export const Forum = () => {
     } catch (error) {
       console.error('Error deleting post:', error);
       toast.error('Fehler beim Löschen des Beitrags');
+    }
+  };
+
+  const handleEditPost = (post: ForumPost) => {
+    setEditingPost({ ...post });
+    setEditAttachments(post.attachments || []);
+    setIsEditPostOpen(true);
+  };
+
+  const handleUpdatePost = async () => {
+    if (!editingPost || !editingPost.title || !editingPost.content) {
+      toast.error('Bitte füllen Sie alle Felder aus');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('forum_posts')
+        .update({
+          title: editingPost.title,
+          content: editingPost.content,
+          attachments: editAttachments,
+        })
+        .eq('id', editingPost.id);
+
+      if (error) throw error;
+
+      setPosts(posts.map(p => p.id === editingPost.id ? { ...p, title: editingPost.title, content: editingPost.content, attachments: editAttachments } : p));
+      setEditingPost(null);
+      setIsEditPostOpen(false);
+      setEditAttachments([]);
+      toast.success('Beitrag erfolgreich aktualisiert');
+    } catch (error) {
+      console.error('Error updating post:', error);
+      toast.error('Fehler beim Aktualisieren des Beitrags');
     }
   };
 
@@ -632,7 +671,7 @@ export const Forum = () => {
       </div>
 
       {/* Filter Section */}
-      {canCreatePosts && (
+      {(canCreatePosts || canEditPosts) && (
         <Card>
           <Collapsible open={isFilterOpen} onOpenChange={setIsFilterOpen}>
             <CollapsibleTrigger asChild>
@@ -784,6 +823,11 @@ export const Forum = () => {
                       <Building2 className="w-3 h-3 flex-shrink-0" />
                       <span className="truncate">{post.buildings?.name || 'Unbekannt'}</span>
                     </Badge>
+                    {canEditPosts && (
+                      <Button variant="ghost" size="sm" className="flex-shrink-0" onClick={() => handleEditPost(post)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                    )}
                     {canCreatePosts && (
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
@@ -881,6 +925,61 @@ export const Forum = () => {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Post Dialog */}
+      <Dialog open={isEditPostOpen} onOpenChange={(open) => {
+        setIsEditPostOpen(open);
+        if (!open) {
+          setEditingPost(null);
+          setEditAttachments([]);
+        }
+      }}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Beitrag bearbeiten</DialogTitle>
+          </DialogHeader>
+          {editingPost && (
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="edit-post-title">Titel</Label>
+                <Input
+                  id="edit-post-title"
+                  value={editingPost.title}
+                  onChange={(e) => setEditingPost({ ...editingPost, title: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-post-content">Inhalt</Label>
+                <Textarea
+                  id="edit-post-content"
+                  value={editingPost.content}
+                  onChange={(e) => setEditingPost({ ...editingPost, content: e.target.value })}
+                  rows={8}
+                />
+              </div>
+              <div>
+                <Label>Anhänge</Label>
+                <FileUpload
+                  onFilesChange={setEditAttachments}
+                  maxFiles={5}
+                  bucketName="forum-attachments"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleUpdatePost}
+                  disabled={!editingPost.title || !editingPost.content}
+                >
+                  Speichern
+                </Button>
+                <Button variant="outline" onClick={() => { setIsEditPostOpen(false); setEditingPost(null); setEditAttachments([]); }}>
+                  Abbrechen
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
