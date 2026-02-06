@@ -19,6 +19,7 @@ interface AdminUser {
   first_name: string | null;
   last_name: string | null;
   email: string;
+  phone: string | null;
 }
 
 interface EmployeeUser {
@@ -26,6 +27,7 @@ interface EmployeeUser {
   first_name: string | null;
   last_name: string | null;
   email: string;
+  phone: string | null;
 }
 
 export const Settings = () => {
@@ -40,6 +42,7 @@ export const Settings = () => {
   const [newAdminEmail, setNewAdminEmail] = useState("");
   const [newAdminFirstName, setNewAdminFirstName] = useState("");
   const [newAdminLastName, setNewAdminLastName] = useState("");
+  const [newAdminPhone, setNewAdminPhone] = useState("");
   const [newAdminPassword, setNewAdminPassword] = useState("");
   const [isCreatingAdmin, setIsCreatingAdmin] = useState(false);
   
@@ -49,7 +52,8 @@ export const Settings = () => {
   const [editAdminData, setEditAdminData] = useState({
     first_name: "",
     last_name: "",
-    email: ""
+    email: "",
+    phone: ""
   });
 
   // Employee management states
@@ -57,13 +61,15 @@ export const Settings = () => {
   const [newEmployeeEmail, setNewEmployeeEmail] = useState("");
   const [newEmployeeFirstName, setNewEmployeeFirstName] = useState("");
   const [newEmployeeLastName, setNewEmployeeLastName] = useState("");
+  const [newEmployeePhone, setNewEmployeePhone] = useState("");
   const [newEmployeePassword, setNewEmployeePassword] = useState("");
   const [isCreatingEmployee, setIsCreatingEmployee] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<EmployeeUser | null>(null);
   const [editEmployeeData, setEditEmployeeData] = useState({
     first_name: "",
     last_name: "",
-    email: ""
+    email: "",
+    phone: ""
   });
 
   useEffect(() => {
@@ -77,7 +83,7 @@ export const Settings = () => {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("user_id, first_name, last_name, email")
+        .select("user_id, first_name, last_name, email, phone")
         .eq("role", "admin")
         .order("first_name");
 
@@ -92,7 +98,7 @@ export const Settings = () => {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("user_id, first_name, last_name, email")
+        .select("user_id, first_name, last_name, email, phone")
         .eq("role", "employee")
         .order("first_name");
 
@@ -146,7 +152,8 @@ export const Settings = () => {
         password: newAdminPassword,
         role: 'admin',
         first_name: newAdminFirstName,
-        last_name: newAdminLastName
+        last_name: newAdminLastName,
+        phone: newAdminPhone || undefined
       };
       
       console.log('Creating admin user with data:', requestData);
@@ -197,6 +204,7 @@ export const Settings = () => {
       setNewAdminEmail("");
       setNewAdminFirstName("");
       setNewAdminLastName("");
+      setNewAdminPhone("");
       setNewAdminPassword("");
       fetchAdminUsers(); // Refresh the admin list
     } catch (error: any) {
@@ -217,7 +225,8 @@ export const Settings = () => {
         .update({
           first_name: editAdminData.first_name,
           last_name: editAdminData.last_name,
-          email: editAdminData.email
+          email: editAdminData.email,
+          phone: editAdminData.phone || null
         })
         .eq("user_id", editingAdmin.user_id);
 
@@ -273,7 +282,8 @@ export const Settings = () => {
         password: newEmployeePassword,
         role: 'employee',
         first_name: newEmployeeFirstName,
-        last_name: newEmployeeLastName
+        last_name: newEmployeeLastName,
+        phone: newEmployeePhone || undefined
       };
       
       console.log('Creating employee user with data:', requestData);
@@ -324,6 +334,7 @@ export const Settings = () => {
       setNewEmployeeEmail("");
       setNewEmployeeFirstName("");
       setNewEmployeeLastName("");
+      setNewEmployeePhone("");
       setNewEmployeePassword("");
       fetchEmployeeUsers();
     } catch (error: any) {
@@ -344,7 +355,8 @@ export const Settings = () => {
         .update({
           first_name: editEmployeeData.first_name,
           last_name: editEmployeeData.last_name,
-          email: editEmployeeData.email
+          email: editEmployeeData.email,
+          phone: editEmployeeData.phone || null
         })
         .eq("user_id", editingEmployee.user_id);
 
@@ -528,6 +540,15 @@ export const Settings = () => {
                       />
                     </div>
                     <div>
+                      <Label htmlFor="newAdminPhone">Telefon</Label>
+                      <Input
+                        id="newAdminPhone"
+                        value={newAdminPhone}
+                        onChange={(e) => setNewAdminPhone(e.target.value)}
+                        placeholder="Telefonnummer"
+                      />
+                    </div>
+                    <div>
                       <Label htmlFor="newAdminPassword">Temporäres Passwort</Label>
                       <Input
                         id="newAdminPassword"
@@ -574,7 +595,8 @@ export const Settings = () => {
                               setEditAdminData({
                                 first_name: admin.first_name || "",
                                 last_name: admin.last_name || "",
-                                email: admin.email
+                                email: admin.email,
+                                phone: admin.phone || ""
                               });
                             }}
                           >
@@ -645,6 +667,15 @@ export const Settings = () => {
                       />
                     </div>
                     <div>
+                      <Label htmlFor="newEmployeePhone">Telefon</Label>
+                      <Input
+                        id="newEmployeePhone"
+                        value={newEmployeePhone}
+                        onChange={(e) => setNewEmployeePhone(e.target.value)}
+                        placeholder="Telefonnummer"
+                      />
+                    </div>
+                    <div>
                       <Label htmlFor="newEmployeePassword">Temporäres Passwort</Label>
                       <Input
                         id="newEmployeePassword"
@@ -688,7 +719,8 @@ export const Settings = () => {
                               setEditEmployeeData({
                                 first_name: employee.first_name || "",
                                 last_name: employee.last_name || "",
-                                email: employee.email
+                                email: employee.email,
+                                phone: employee.phone || ""
                               });
                             }}
                           >
@@ -756,6 +788,15 @@ export const Settings = () => {
                   required
                 />
               </div>
+              <div>
+                <Label htmlFor="editAdminPhone">Telefon</Label>
+                <Input
+                  id="editAdminPhone"
+                  value={editAdminData.phone}
+                  onChange={(e) => setEditAdminData(prev => ({ ...prev, phone: e.target.value }))}
+                  placeholder="Telefonnummer"
+                />
+              </div>
               <div className="flex justify-end space-x-2">
                 <Button type="button" variant="outline" onClick={() => setEditingAdmin(null)}>
                   Abbrechen
@@ -804,6 +845,15 @@ export const Settings = () => {
                   onChange={(e) => setEditEmployeeData(prev => ({ ...prev, email: e.target.value }))}
                   placeholder="E-Mail"
                   required
+                />
+              </div>
+              <div>
+                <Label htmlFor="editEmployeePhone">Telefon</Label>
+                <Input
+                  id="editEmployeePhone"
+                  value={editEmployeeData.phone}
+                  onChange={(e) => setEditEmployeeData(prev => ({ ...prev, phone: e.target.value }))}
+                  placeholder="Telefonnummer"
                 />
               </div>
               <div className="flex justify-end space-x-2">
