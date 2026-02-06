@@ -548,6 +548,7 @@ export const Settings = () => {
                         placeholder="Telefonnummer"
                       />
                     </div>
+                    <div>
                       <Label htmlFor="newAdminPassword">Temporäres Passwort</Label>
                       <Input
                         id="newAdminPassword"
