@@ -223,7 +223,8 @@ export const Settings = () => {
         .update({
           first_name: editAdminData.first_name,
           last_name: editAdminData.last_name,
-          email: editAdminData.email
+          email: editAdminData.email,
+          phone: editAdminData.phone || null
         })
         .eq("user_id", editingAdmin.user_id);
 
