@@ -353,7 +353,8 @@ export const Settings = () => {
         .update({
           first_name: editEmployeeData.first_name,
           last_name: editEmployeeData.last_name,
-          email: editEmployeeData.email
+          email: editEmployeeData.email,
+          phone: editEmployeeData.phone || null
         })
         .eq("user_id", editingEmployee.user_id);
 
