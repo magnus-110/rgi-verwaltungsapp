@@ -14,6 +14,7 @@ interface Building {
   building_code?: string;
   management_mode: string;
   manager_name?: string;
+  unit_count?: number;
 }
 
 interface EditBuildingDialogProps {
@@ -31,7 +32,8 @@ export const EditBuildingDialog = ({
 }: EditBuildingDialogProps) => {
   const [formData, setFormData] = useState({
     name: "",
-    address: ""
+    address: "",
+    unit_count: ""
   });
   const [loading, setLoading] = useState(false);
 
@@ -39,7 +41,8 @@ export const EditBuildingDialog = ({
     if (building) {
       setFormData({
         name: building.name || "",
-        address: building.address || ""
+        address: building.address || "",
+        unit_count: building.unit_count?.toString() || "0"
       });
     }
   }, [building]);
@@ -55,6 +58,7 @@ export const EditBuildingDialog = ({
         .update({
           name: formData.name,
           address: formData.address,
+          unit_count: formData.unit_count ? parseInt(formData.unit_count) : 0,
           updated_at: new Date().toISOString()
         })
         .eq("id", building.id);
@@ -95,6 +99,16 @@ export const EditBuildingDialog = ({
               value={formData.address}
               onChange={(e) => setFormData({ ...formData, address: e.target.value })}
               required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="unit_count">Anzahl Einheiten</Label>
+            <Input
+              id="unit_count"
+              type="number"
+              min="0"
+              value={formData.unit_count}
+              onChange={(e) => setFormData({ ...formData, unit_count: e.target.value })}
             />
           </div>
           <div className="space-y-2">

@@ -1,0 +1,1 @@
+ALTER TABLE public.buildings ADD COLUMN unit_count integer NOT NULL DEFAULT 0;

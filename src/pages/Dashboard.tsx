@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertCircle, FileText, Building2, Users, Sparkles, TrendingUp, Activity, MessageSquare, BarChart3, LineChart } from "lucide-react";
+import { AlertCircle, FileText, Building2, Users, Sparkles, TrendingUp, Activity, MessageSquare, BarChart3, LineChart, Home } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useManagementMode } from "@/hooks/useManagementMode";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
@@ -61,8 +61,17 @@ export const Dashboard = () => {
   });
   const [loading, setLoading] = useState(true);
 
+  // Building overview state
+  const [buildingOverview, setBuildingOverview] = useState<{
+    totalBuildings: number;
+    totalUnits: number;
+    managers: Array<{ user_id: string; name: string; buildings: number; units: number }>;
+  }>({ totalBuildings: 0, totalUnits: 0, managers: [] });
+  const [overviewManagerFilter, setOverviewManagerFilter] = useState<string>("all");
+
   useEffect(() => {
     fetchData();
+    fetchBuildingOverview();
   }, [managementMode, timeframeDays]);
 
   const fetchData = async () => {
@@ -182,6 +191,45 @@ export const Dashboard = () => {
       console.error("Error fetching dashboard data:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchBuildingOverview = async () => {
+    try {
+      const { data: allBuildings } = await supabase
+        .from('buildings')
+        .select('id, name, unit_count')
+        .eq('management_mode', managementMode);
+
+      if (!allBuildings) return;
+
+      const { data: managers } = await supabase
+        .from('building_managers')
+        .select('building_id, user_id, profiles:user_id (first_name, last_name)');
+
+      const managerMap: Record<string, { user_id: string; name: string; buildings: number; units: number }> = {};
+      
+      (managers || []).forEach((bm: any) => {
+        const buildingInMode = allBuildings.find(b => b.id === bm.building_id);
+        if (!buildingInMode) return;
+        
+        if (!managerMap[bm.user_id]) {
+          const name = bm.profiles?.first_name && bm.profiles?.last_name
+            ? `${bm.profiles.first_name} ${bm.profiles.last_name}`
+            : 'Unbekannt';
+          managerMap[bm.user_id] = { user_id: bm.user_id, name, buildings: 0, units: 0 };
+        }
+        managerMap[bm.user_id].buildings++;
+        managerMap[bm.user_id].units += buildingInMode.unit_count || 0;
+      });
+
+      setBuildingOverview({
+        totalBuildings: allBuildings.length,
+        totalUnits: allBuildings.reduce((sum, b) => sum + ((b as any).unit_count || 0), 0),
+        managers: Object.values(managerMap).sort((a, b) => b.buildings - a.buildings)
+      });
+    } catch (error) {
+      console.error("Error fetching building overview:", error);
     }
   };
 
@@ -321,6 +369,79 @@ export const Dashboard = () => {
           isLoading={loading}
         />
       </div>
+
+      {/* Gebäude & Einheiten Übersicht */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <CardTitle className="heading-primary flex items-center text-lg font-semibold">
+                <Home className="mr-2 h-5 w-5" />
+                Gebäude & Einheiten
+              </CardTitle>
+              <CardDescription className="body-secondary">
+                Übersicht nach Verwalter
+              </CardDescription>
+            </div>
+            <Select value={overviewManagerFilter} onValueChange={setOverviewManagerFilter}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Verwalter filtern" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Alle Verwalter</SelectItem>
+                {buildingOverview.managers.map(m => (
+                  <SelectItem key={m.user_id} value={m.user_id}>{m.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {(() => {
+            const filtered = overviewManagerFilter === "all"
+              ? buildingOverview.managers
+              : buildingOverview.managers.filter(m => m.user_id === overviewManagerFilter);
+            
+            const totalBuildings = overviewManagerFilter === "all"
+              ? buildingOverview.totalBuildings
+              : filtered.reduce((s, m) => s + m.buildings, 0);
+            const totalUnits = overviewManagerFilter === "all"
+              ? buildingOverview.totalUnits
+              : filtered.reduce((s, m) => s + m.units, 0);
+
+            return (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="rounded-lg border p-4 text-center">
+                    <div className="text-2xl font-bold text-primary">{totalBuildings}</div>
+                    <div className="text-sm text-muted-foreground">Gebäude</div>
+                  </div>
+                  <div className="rounded-lg border p-4 text-center">
+                    <div className="text-2xl font-bold text-primary">{totalUnits}</div>
+                    <div className="text-sm text-muted-foreground">Einheiten</div>
+                  </div>
+                </div>
+                {filtered.length > 0 && (
+                  <div className="space-y-2">
+                    {filtered.map(m => (
+                      <div key={m.user_id} className="flex items-center justify-between rounded-lg border p-3">
+                        <span className="font-medium text-sm">{m.name}</span>
+                        <div className="flex gap-4 text-sm text-muted-foreground">
+                          <span>{m.buildings} Gebäude</span>
+                          <span>{m.units} Einheiten</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {filtered.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-2">Keine Verwalter zugewiesen</p>
+                )}
+              </div>
+            );
+          })()}
+        </CardContent>
+      </Card>
 
       {/* Aufgaben Widget - volle Breite */}
       <TodoDashboardWidget />
