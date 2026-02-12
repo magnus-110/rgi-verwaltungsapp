@@ -29,7 +29,8 @@ export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialog
     name: "",
     address: "",
     type: "weg",
-    manager_id: "unassigned"
+    manager_id: "unassigned",
+    unit_count: ""
   });
 
   useEffect(() => {
@@ -66,6 +67,7 @@ export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialog
           address: formData.address,
           management_mode: managementMode,
           type: formData.type,
+          unit_count: formData.unit_count ? parseInt(formData.unit_count) : 0,
           building_code: "" // Will be overwritten by trigger
         })
         .select()
@@ -87,7 +89,7 @@ export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialog
 
       toast.success("Gebäude erfolgreich erstellt");
       setIsOpen(false);
-      setFormData({ name: "", address: "", type: "weg", manager_id: "unassigned" });
+      setFormData({ name: "", address: "", type: "weg", manager_id: "unassigned", unit_count: "" });
       onBuildingCreated?.();
     } catch (error) {
       console.error("Error creating building:", error);
@@ -150,6 +152,18 @@ export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialog
             </Select>
           </div>
           
+          <div className="space-y-2">
+            <Label htmlFor="unit_count">Anzahl Einheiten</Label>
+            <Input
+              id="unit_count"
+              type="number"
+              min="0"
+              placeholder="z.B. 12"
+              value={formData.unit_count}
+              onChange={(e) => setFormData(prev => ({ ...prev, unit_count: e.target.value }))}
+            />
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="type">Typ</Label>
             <Select value={formData.type} onValueChange={(value) => setFormData(prev => ({ ...prev, type: value }))}>
