@@ -160,6 +160,15 @@ export function useTodos(filters: TodoFilters) {
       
       let todos = data as Todo[];
       
+      // Filter maintenance tasks: only show if show_in_list_date <= today
+      const todayStr = new Date().toISOString().split('T')[0];
+      todos = todos.filter(todo => {
+        if (!(todo as any).is_maintenance_task) return true;
+        const showDate = (todo as any).show_in_list_date;
+        if (!showDate) return true;
+        return showDate <= todayStr;
+      });
+      
       // Get current user ID for filtering
       const { data: { user } } = await supabase.auth.getUser();
       const userId = user?.id;
