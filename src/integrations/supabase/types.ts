@@ -727,6 +727,50 @@ export type Database = {
           },
         ]
       }
+      maintenance_configs: {
+        Row: {
+          building_id: string
+          created_at: string
+          custom_interval_months: number | null
+          custom_lead_time_days: number | null
+          id: string
+          is_active: boolean
+          last_generated_date: string | null
+          maintenance_type: string
+          updated_at: string
+        }
+        Insert: {
+          building_id: string
+          created_at?: string
+          custom_interval_months?: number | null
+          custom_lead_time_days?: number | null
+          id?: string
+          is_active?: boolean
+          last_generated_date?: string | null
+          maintenance_type: string
+          updated_at?: string
+        }
+        Update: {
+          building_id?: string
+          created_at?: string
+          custom_interval_months?: number | null
+          custom_lead_time_days?: number | null
+          id?: string
+          is_active?: boolean
+          last_generated_date?: string | null
+          maintenance_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_configs_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       miete_reports: {
         Row: {
           admin_notes: string | null
@@ -1214,13 +1258,16 @@ export type Database = {
           description: string | null
           due_date: string | null
           id: string
+          is_maintenance_task: boolean
           is_recurring: boolean | null
+          maintenance_type: string | null
           parent_todo_id: string | null
           priority: string
           recurrence_end_date: string | null
           recurrence_interval: number | null
           recurrence_pattern: string | null
           show_in_calendar: boolean | null
+          show_in_list_date: string | null
           status: string
           task_number: number
           title: string
@@ -1239,13 +1286,16 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           id?: string
+          is_maintenance_task?: boolean
           is_recurring?: boolean | null
+          maintenance_type?: string | null
           parent_todo_id?: string | null
           priority?: string
           recurrence_end_date?: string | null
           recurrence_interval?: number | null
           recurrence_pattern?: string | null
           show_in_calendar?: boolean | null
+          show_in_list_date?: string | null
           status?: string
           task_number?: number
           title: string
@@ -1264,13 +1314,16 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           id?: string
+          is_maintenance_task?: boolean
           is_recurring?: boolean | null
+          maintenance_type?: string | null
           parent_todo_id?: string | null
           priority?: string
           recurrence_end_date?: string | null
           recurrence_interval?: number | null
           recurrence_pattern?: string | null
           show_in_calendar?: boolean | null
+          show_in_list_date?: string | null
           status?: string
           task_number?: number
           title?: string

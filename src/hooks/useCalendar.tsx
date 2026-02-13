@@ -88,27 +88,28 @@
  }
  
  // Fetch todos that should appear in calendar
- export function useCalendarTodos(startDate: Date, endDate: Date) {
-   return useQuery({
-     queryKey: ['calendar-todos', format(startDate, 'yyyy-MM-dd'), format(endDate, 'yyyy-MM-dd')],
-     queryFn: async () => {
-       const { data, error } = await supabase
-         .from('todos')
-         .select(`
-           *,
-           category:todo_categories(id, name, color),
-           assignees:todo_assignees(user:profiles(user_id, first_name, last_name)),
-           buildings:todo_buildings(building:buildings(id, name))
-         `)
-         .gte('due_date', format(startDate, 'yyyy-MM-dd'))
-         .lte('due_date', format(endDate, 'yyyy-MM-dd'))
-         .neq('status', 'done');
- 
-       if (error) throw error;
-       return data;
-     },
-   });
- }
+export function useCalendarTodos(startDate: Date, endDate: Date) {
+  return useQuery({
+    queryKey: ['calendar-todos', format(startDate, 'yyyy-MM-dd'), format(endDate, 'yyyy-MM-dd')],
+    queryFn: async () => {
+      // Calendar shows ALL tasks (including maintenance tasks regardless of show_in_list_date)
+      const { data, error } = await supabase
+        .from('todos')
+        .select(`
+          *,
+          category:todo_categories(id, name, color),
+          assignees:todo_assignees(user:profiles(user_id, first_name, last_name)),
+          buildings:todo_buildings(building:buildings(id, name))
+        `)
+        .gte('due_date', format(startDate, 'yyyy-MM-dd'))
+        .lte('due_date', format(endDate, 'yyyy-MM-dd'))
+        .neq('status', 'done');
+
+      if (error) throw error;
+      return data;
+    },
+  });
+}
  
  // Merge events and todos into unified calendar items
  export function useCalendarItems(currentDate: Date, view: 'month' | 'week' | 'day') {
