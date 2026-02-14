@@ -67,6 +67,7 @@ export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialog
       is_active: true,
       custom_interval_months: c.custom_interval_months || null,
       custom_lead_time_days: c.custom_lead_time_days || null,
+      last_maintenance_date: c.last_maintenance_date || null,
     }));
 
     const { error } = await supabase.from("maintenance_configs").insert(rows);

@@ -172,10 +172,13 @@ Deno.serve(async (req) => {
         const intervalMonths = config.custom_interval_months || typeDef.defaultIntervalMonths;
         const leadTimeDays = config.custom_lead_time_days || typeDef.defaultLeadTimeDays;
 
-        // Generate due dates from today, stepping by interval
-        let cursor = new Date(today);
-        // Start from next occurrence
-        cursor = addMonths(cursor, 0); // start from today
+        // Generate due dates: if last_maintenance_date is set, start from there + interval
+        let cursor: Date;
+        if (config.last_maintenance_date) {
+          cursor = addMonths(new Date(config.last_maintenance_date), intervalMonths);
+        } else {
+          cursor = new Date(today);
+        }
 
         let iterations = 0;
         while (cursor <= horizon && iterations < 100) {

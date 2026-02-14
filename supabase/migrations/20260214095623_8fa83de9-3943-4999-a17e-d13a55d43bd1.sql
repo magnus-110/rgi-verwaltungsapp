@@ -1,0 +1,1 @@
+ALTER TABLE public.maintenance_configs ADD COLUMN last_maintenance_date date;

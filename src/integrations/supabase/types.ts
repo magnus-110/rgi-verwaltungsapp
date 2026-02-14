@@ -736,6 +736,7 @@ export type Database = {
           id: string
           is_active: boolean
           last_generated_date: string | null
+          last_maintenance_date: string | null
           maintenance_type: string
           updated_at: string
         }
@@ -747,6 +748,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           last_generated_date?: string | null
+          last_maintenance_date?: string | null
           maintenance_type: string
           updated_at?: string
         }
@@ -758,6 +760,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           last_generated_date?: string | null
+          last_maintenance_date?: string | null
           maintenance_type?: string
           updated_at?: string
         }

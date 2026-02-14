@@ -66,6 +66,7 @@ export const EditBuildingDialog = ({
         is_active: row.is_active,
         custom_interval_months: row.custom_interval_months,
         custom_lead_time_days: row.custom_lead_time_days,
+        last_maintenance_date: row.last_maintenance_date,
       }));
       setMaintenanceConfigs(configs);
       setInitialMaintenanceTypes(new Set(configs.filter(c => c.is_active).map(c => c.maintenance_type)));
@@ -87,6 +88,7 @@ export const EditBuildingDialog = ({
       is_active: true,
       custom_interval_months: c.custom_interval_months || null,
       custom_lead_time_days: c.custom_lead_time_days || null,
+      last_maintenance_date: c.last_maintenance_date || null,
     }));
 
     const { error } = await supabase.from("maintenance_configs").insert(rows);
