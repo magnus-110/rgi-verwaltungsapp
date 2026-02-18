@@ -19,10 +19,10 @@ export default {
 		},
 		extend: {
 			fontFamily: {
-				sans: ['Manrope', 'system-ui', 'sans-serif'],
-				'manrope': ['Manrope', 'system-ui', 'sans-serif'],
-				'display': ['Playfair Display', 'serif'],
-				'serif': ['Playfair Display', 'serif'],
+				sans: ['Alegreya', 'serif'],
+				'manrope': ['Alegreya', 'serif'],
+				'display': ['Alegreya', 'serif'],
+				'serif': ['Alegreya', 'serif'],
 			},
 			colors: {
 				/* RGI Specific Colors */
