@@ -46,7 +46,7 @@ interface DraftData {
 }
 
 export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { data: categories = [] } = useCategories();
   const { data: users = [] } = useAssignableUsers();
   const createTodo = useCreateTodo();
