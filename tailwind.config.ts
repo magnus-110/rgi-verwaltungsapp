@@ -18,12 +18,12 @@ export default {
 			}
 		},
 		extend: {
-			fontFamily: {
-				sans: ['Alegreya', 'serif'],
-				'manrope': ['Alegreya', 'serif'],
-				'display': ['Alegreya', 'serif'],
-				'serif': ['Alegreya', 'serif'],
-			},
+		fontFamily: {
+			sans: ['Work Sans', 'sans-serif'],
+			'manrope': ['Work Sans', 'sans-serif'],
+			'display': ['Century Gothic', 'Arial', 'sans-serif'],
+			'serif': ['Work Sans', 'sans-serif'],
+		},
 			colors: {
 				/* RGI Specific Colors */
 				'rgi-orange': 'hsl(25 94% 48%)',

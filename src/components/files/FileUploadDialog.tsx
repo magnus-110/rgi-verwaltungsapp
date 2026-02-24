@@ -99,7 +99,7 @@ export function FileUploadDialog({ open, onOpenChange, categories, buildings, us
       if (uploadError) throw uploadError;
 
       // Insert file record
-      const { error: insertError } = await supabase
+      const { data: insertedFile, error: insertError } = await supabase
         .from('building_files')
         .insert({
           display_name: displayName,
@@ -113,11 +113,28 @@ export function FileUploadDialog({ open, onOpenChange, categories, buildings, us
           management_mode: managementMode,
           description: description || null,
           visible_to_users: visibleToUsers,
-        });
+        })
+        .select('id')
+        .single();
 
       if (insertError) throw insertError;
 
       toast.success("Dokument hochgeladen");
+
+      // Trigger OCR processing in background for supported file types
+      const ocrTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+      if (insertedFile && ocrTypes.includes(file.type)) {
+        toast.info("Textextraktion wird im Hintergrund gestartet...");
+        supabase.functions.invoke('process-building-file', {
+          body: { fileId: insertedFile.id }
+        }).then(({ error: ocrError }) => {
+          if (ocrError) {
+            console.error('OCR processing error:', ocrError);
+          } else {
+            toast.success("Textextraktion abgeschlossen");
+          }
+        });
+      }
       resetForm();
       onOpenChange(false);
       onUploaded();

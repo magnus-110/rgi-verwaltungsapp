@@ -299,6 +299,12 @@ serve(async (req) => {
     }
 
     // ===== PERSÖNLICHE & GEBÄUDE-DOKUMENTE FÜR DEN CHATBOT =====
+    // Extract keywords from user message for matching
+    const messageWords = message.toLowerCase()
+      .replace(/[^\wäöüß\s]/g, '')
+      .split(/\s+/)
+      .filter((w: string) => w.length > 2);
+
     let fileDocContext = "";
     
     // Fetch files assigned to this user OR their building (with extracted_text)
@@ -369,12 +375,6 @@ serve(async (req) => {
 
     // Intelligent knowledge document search based on user message
     let knowledgeContext = "";
-    
-    // Extract keywords from user message for matching
-    const messageWords = message.toLowerCase()
-      .replace(/[^\wäöüß\s]/g, '')
-      .split(/\s+/)
-      .filter((w: string) => w.length > 2);
     
     // Determine user type for applies_to filter
     const userType = managementMode === 'rent' ? 'mieter' : 'weg_eigentuemer';
