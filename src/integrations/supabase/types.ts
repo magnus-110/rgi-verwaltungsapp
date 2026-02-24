@@ -106,6 +106,108 @@ export type Database = {
           },
         ]
       }
+      building_file_categories: {
+        Row: {
+          color: string | null
+          created_at: string
+          icon: string | null
+          id: string
+          management_mode: Database["public"]["Enums"]["management_mode"]
+          name: string
+          sort_order: number | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          icon?: string | null
+          id?: string
+          management_mode: Database["public"]["Enums"]["management_mode"]
+          name: string
+          sort_order?: number | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          icon?: string | null
+          id?: string
+          management_mode?: Database["public"]["Enums"]["management_mode"]
+          name?: string
+          sort_order?: number | null
+        }
+        Relationships: []
+      }
+      building_files: {
+        Row: {
+          assigned_user_id: string | null
+          building_id: string | null
+          category_id: string | null
+          created_at: string
+          description: string | null
+          display_name: string
+          extracted_text: string | null
+          file_path: string
+          file_size: number
+          id: string
+          management_mode: Database["public"]["Enums"]["management_mode"]
+          mime_type: string | null
+          rag_enabled: boolean
+          updated_at: string
+          uploaded_by: string
+          visible_to_users: boolean
+        }
+        Insert: {
+          assigned_user_id?: string | null
+          building_id?: string | null
+          category_id?: string | null
+          created_at?: string
+          description?: string | null
+          display_name: string
+          extracted_text?: string | null
+          file_path: string
+          file_size?: number
+          id?: string
+          management_mode: Database["public"]["Enums"]["management_mode"]
+          mime_type?: string | null
+          rag_enabled?: boolean
+          updated_at?: string
+          uploaded_by: string
+          visible_to_users?: boolean
+        }
+        Update: {
+          assigned_user_id?: string | null
+          building_id?: string | null
+          category_id?: string | null
+          created_at?: string
+          description?: string | null
+          display_name?: string
+          extracted_text?: string | null
+          file_path?: string
+          file_size?: number
+          id?: string
+          management_mode?: Database["public"]["Enums"]["management_mode"]
+          mime_type?: string | null
+          rag_enabled?: boolean
+          updated_at?: string
+          uploaded_by?: string
+          visible_to_users?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "building_files_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "building_files_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "building_file_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       building_managers: {
         Row: {
           assigned_at: string
