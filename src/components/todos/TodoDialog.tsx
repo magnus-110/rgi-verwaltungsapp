@@ -181,6 +181,7 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
     setPriority('medium');
     setBuildingIds([]);
     setIsRecurring(false);
+    setIsInternal(false);
     setRecurrencePattern('weekly');
     setRecurrenceInterval(1);
     setRecurrenceEndDate(null);
