@@ -96,6 +96,7 @@ const App = () => (
               <Route path="/tenant/forum" element={<TenantLayout><TenantForum /></TenantLayout>} />
               <Route path="/tenant/chatbot" element={<TenantLayout><TenantChatbot /></TenantLayout>} />
               <Route path="/tenant/settings" element={<TenantLayout><TenantSettings /></TenantLayout>} />
+              <Route path="/tenant/files" element={<TenantLayout><TenantFiles /></TenantLayout>} />
               
               <Route path="/offline" element={<Offline />} />
               <Route path="*" element={<NotFound />} />

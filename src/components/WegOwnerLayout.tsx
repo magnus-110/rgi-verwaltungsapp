@@ -90,6 +90,12 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
       active: location.pathname.startsWith('/weg-owner/reports')
     },
     { 
+      icon: FolderOpen, 
+      label: "Dokumente", 
+      path: '/weg-owner/files',
+      active: location.pathname.startsWith('/weg-owner/files')
+    },
+    { 
       icon: MessageSquare, 
       label: "Schwarzes Brett", 
       path: '/weg-owner/forum',

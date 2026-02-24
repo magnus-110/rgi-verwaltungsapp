@@ -90,6 +90,12 @@ export const TenantLayout = ({ children }: TenantLayoutProps) => {
       active: location.pathname.startsWith('/tenant/reports')
     },
     { 
+      icon: FolderOpen, 
+      label: "Dokumente", 
+      path: '/tenant/files',
+      active: location.pathname.startsWith('/tenant/files')
+    },
+    { 
       icon: Newspaper, 
       label: "Schwarzes Brett", 
       path: '/tenant/forum',
