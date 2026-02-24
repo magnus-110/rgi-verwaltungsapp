@@ -51,3 +51,6 @@ verify_jwt = false
 [functions.get-building-file-url]
 verify_jwt = true
 
+[functions.process-building-file]
+verify_jwt = true
+
