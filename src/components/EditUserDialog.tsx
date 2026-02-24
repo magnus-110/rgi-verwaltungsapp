@@ -60,6 +60,16 @@ export const EditUserDialog = ({
 
     setLoading(true);
     try {
+      const emailChanged = formData.email !== user.email;
+
+      // Update auth email via edge function if changed
+      if (emailChanged) {
+        const { error: authEmailError } = await supabase.functions.invoke("admin-update-email", {
+          body: { userId: user.user_id, newEmail: formData.email },
+        });
+        if (authEmailError) throw authEmailError;
+      }
+
       // Update the specific user table
       if (userType === 'tenants') {
         const { error } = await supabase
@@ -87,28 +97,29 @@ export const EditUserDialog = ({
           .eq("user_id", user.user_id);
 
         if (error) throw error;
-      } else if (userType === 'profiles') {
-        const { error } = await supabase
-          .from("profiles")
-          .update({
-            email: formData.email,
-            first_name: formData.first_name,
-            last_name: formData.last_name,
-            phone: formData.phone,
-            role: formData.role,
-            updated_at: new Date().toISOString()
-          })
-          .eq("user_id", user.user_id);
-
-        if (error) throw error;
       }
+
+      // Always update profiles table
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({
+          email: formData.email,
+          first_name: formData.first_name,
+          last_name: formData.last_name,
+          phone: formData.phone,
+          ...(userType === 'profiles' ? { role: formData.role } : {}),
+          updated_at: new Date().toISOString()
+        })
+        .eq("user_id", user.user_id);
+
+      if (profileError) throw profileError;
 
       toast.success("Benutzer erfolgreich aktualisiert");
       onUpdate();
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating user:", error);
-      toast.error("Fehler beim Aktualisieren des Benutzers");
+      toast.error("Fehler beim Aktualisieren: " + (error.message || "Unbekannter Fehler"));
     } finally {
       setLoading(false);
     }
