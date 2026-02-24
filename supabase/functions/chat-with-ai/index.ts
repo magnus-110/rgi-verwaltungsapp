@@ -543,7 +543,7 @@ ${isFirstMessage
       body: JSON.stringify({
         model: 'mistral-small-latest',
         messages: messages,
-        max_tokens: settings.max_tokens || 1000,
+        max_tokens: settings.max_tokens || 4096,
         temperature: settings.temperature || 0.7
       }),
     });
