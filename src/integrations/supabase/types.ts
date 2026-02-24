@@ -1363,6 +1363,7 @@ export type Database = {
           description: string | null
           due_date: string | null
           id: string
+          is_internal: boolean
           is_maintenance_task: boolean
           is_recurring: boolean | null
           maintenance_type: string | null
@@ -1391,6 +1392,7 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           id?: string
+          is_internal?: boolean
           is_maintenance_task?: boolean
           is_recurring?: boolean | null
           maintenance_type?: string | null
@@ -1419,6 +1421,7 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           id?: string
+          is_internal?: boolean
           is_maintenance_task?: boolean
           is_recurring?: boolean | null
           maintenance_type?: string | null
