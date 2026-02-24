@@ -87,6 +87,7 @@ const App = () => (
               <Route path="/weg-owner/forum" element={<WegOwnerLayout><WegOwnerForum /></WegOwnerLayout>} />
               <Route path="/weg-owner/chatbot" element={<WegOwnerLayout><WegOwnerChatbot /></WegOwnerLayout>} />
               <Route path="/weg-owner/settings" element={<WegOwnerLayout><WegOwnerSettings /></WegOwnerLayout>} />
+              <Route path="/weg-owner/files" element={<WegOwnerLayout><WegOwnerFiles /></WegOwnerLayout>} />
               
               {/* Tenant Routes */}
               <Route path="/tenant/change-password" element={<TenantLayout><ChangePassword /></TenantLayout>} />
