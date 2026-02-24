@@ -20,6 +20,7 @@ export interface Todo {
   building_id: string | null;
   attachments: any[];
   is_recurring: boolean;
+  is_internal: boolean;
   recurrence_pattern: 'daily' | 'weekly' | 'monthly' | 'yearly' | null;
   recurrence_interval: number | null;
   recurrence_end_date: string | null;
