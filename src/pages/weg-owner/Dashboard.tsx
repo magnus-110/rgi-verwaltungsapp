@@ -126,9 +126,7 @@ export const WegOwnerDashboard = () => {
             onClick={() => navigate("/weg-owner/reports")}
           >
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
-                <AlertTriangle className="w-5 h-5 text-orange-600" />
-              </div>
+              <AlertTriangle className="w-5 h-5 text-muted-foreground" />
               <div>
                 <div className="font-medium">Problem melden</div>
                 <div className="text-sm text-muted-foreground">Meldung erstellen oder verwalten</div>
@@ -142,9 +140,7 @@ export const WegOwnerDashboard = () => {
             onClick={() => navigate("/weg-owner/forum")}
           >
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                <MessageSquare className="w-5 h-5 text-green-600" />
-              </div>
+              <MessageSquare className="w-5 h-5 text-muted-foreground" />
               <div>
                 <div className="font-medium">Schwarzes Brett</div>
                 <div className="text-sm text-muted-foreground">Nachrichten und Ankündigungen</div>
@@ -158,9 +154,7 @@ export const WegOwnerDashboard = () => {
             onClick={() => navigate("/weg-owner/files")}
           >
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
-                <FileText className="w-5 h-5 text-purple-600" />
-              </div>
+              <FileText className="w-5 h-5 text-muted-foreground" />
               <div>
                 <div className="font-medium">Meine Dokumente</div>
                 <div className="text-sm text-muted-foreground">Dokumente einsehen</div>
@@ -174,9 +168,7 @@ export const WegOwnerDashboard = () => {
             onClick={() => navigate("/weg-owner/chatbot")}
           >
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                <MessageCircle className="w-5 h-5 text-blue-600" />
-              </div>
+              <MessageCircle className="w-5 h-5 text-muted-foreground" />
               <div>
                 <div className="font-medium">Frage stellen</div>
                 <div className="text-sm text-muted-foreground">RGI KI Assistent</div>
