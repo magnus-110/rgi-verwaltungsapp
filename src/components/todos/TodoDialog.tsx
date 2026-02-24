@@ -13,6 +13,7 @@ import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Todo, CreateTodoInput, useCreateTodo, useUpdateTodo, useCategories, useAssignableUsers } from "@/hooks/useTodos";
+import { useAuth } from "@/hooks/useAuth";
 import { CategoryDialog } from "./CategoryDialog";
 import { RecurrenceSettings } from "./RecurrenceSettings";
 import { InlineSubtasksCreator } from "./TodoSubtasks";
