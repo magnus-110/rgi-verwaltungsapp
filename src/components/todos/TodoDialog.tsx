@@ -261,6 +261,7 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
           priority,
           building_id: buildingIds.length === 1 ? buildingIds[0] : null,
           is_recurring: isRecurring,
+          is_internal: isInternal,
           recurrence_pattern: isRecurring ? recurrencePattern : null,
           recurrence_interval: isRecurring ? recurrenceInterval : null,
           recurrence_end_date: isRecurring ? recurrenceEndDate : null,
