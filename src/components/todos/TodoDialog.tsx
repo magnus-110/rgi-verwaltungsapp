@@ -209,6 +209,7 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
           building_id: buildingIds.length === 1 ? buildingIds[0] : undefined,
           building_ids: buildingIds.length > 0 ? buildingIds : undefined,
           is_recurring: isRecurring,
+          is_internal: isInternal,
           recurrence_pattern: isRecurring ? recurrencePattern : undefined,
           recurrence_interval: isRecurring ? recurrenceInterval : undefined,
           recurrence_end_date: isRecurring ? recurrenceEndDate || undefined : undefined,
