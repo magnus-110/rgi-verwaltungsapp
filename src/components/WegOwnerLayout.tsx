@@ -13,7 +13,8 @@ import {
   LogOut,
   UserRound,
   Menu,
-  MessageSquare
+  MessageSquare,
+  FolderOpen
 } from "lucide-react";
 
 interface WegOwnerLayoutProps {
