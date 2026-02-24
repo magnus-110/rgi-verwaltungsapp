@@ -11,7 +11,8 @@ import {
   ToggleLeft,
   ToggleRight,
   CheckSquare,
-   CalendarDays,
+  CalendarDays,
+  FolderOpen,
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -33,9 +34,10 @@ const menuItems = [
   { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
   { title: "NOVA", url: "/documents", icon: Sparkles },
   { title: "Aufgaben", url: "/todos", icon: CheckSquare },
-   { title: "Kalender", url: "/calendar", icon: CalendarDays },
+  { title: "Kalender", url: "/calendar", icon: CalendarDays },
   { title: "Meldungen", url: "/reports", icon: ClipboardList },
   { title: "Gebäude", url: "/buildings", icon: Castle },
+  { title: "Dokumente", url: "/files", icon: FolderOpen },
   { title: "Schwarzes Brett", url: "/forum", icon: Newspaper },
   { title: "Chatbot", url: "/chatbot", icon: MessageCircle },
   { title: "Einstellungen", url: "/settings", icon: Settings, adminOnly: true },

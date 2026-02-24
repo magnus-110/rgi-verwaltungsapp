@@ -13,7 +13,8 @@ import {
   Settings,
   LogOut,
   UserRound,
-  Menu
+  Menu,
+  FolderOpen
 } from "lucide-react";
 
 interface TenantLayoutProps {
@@ -87,6 +88,12 @@ export const TenantLayout = ({ children }: TenantLayoutProps) => {
       label: "Meine Meldungen", 
       path: '/tenant/reports',
       active: location.pathname.startsWith('/tenant/reports')
+    },
+    { 
+      icon: FolderOpen, 
+      label: "Dokumente", 
+      path: '/tenant/files',
+      active: location.pathname.startsWith('/tenant/files')
     },
     { 
       icon: Newspaper, 

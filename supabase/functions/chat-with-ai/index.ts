@@ -298,6 +298,75 @@ serve(async (req) => {
       });
     }
 
+    // ===== PERSÖNLICHE & GEBÄUDE-DOKUMENTE FÜR DEN CHATBOT =====
+    let fileDocContext = "";
+    
+    // Fetch files assigned to this user OR their building (with extracted_text)
+    const userBuildingId = profile?.building_id;
+    
+    // Personal files (assigned to this user)
+    const { data: personalFiles } = await supabase
+      .from('building_files')
+      .select('display_name, description, extracted_text, created_at, category_id')
+      .eq('assigned_user_id', userId)
+      .eq('visible_to_users', true)
+      .not('extracted_text', 'is', null);
+    
+    // Building files (assigned to user's building, not personal)
+    let buildingFilesList: any[] = [];
+    if (userBuildingId) {
+      const { data } = await supabase
+        .from('building_files')
+        .select('display_name, description, extracted_text, created_at, category_id')
+        .eq('building_id', userBuildingId)
+        .is('assigned_user_id', null)
+        .eq('visible_to_users', true)
+        .not('extracted_text', 'is', null);
+      if (data) buildingFilesList = data;
+    }
+
+    const allUserFiles = [...(personalFiles || []), ...buildingFilesList];
+    
+    if (allUserFiles.length > 0) {
+      // Score files by keyword relevance to the user's message
+      const scoredFiles = allUserFiles.map(file => {
+        let score = 0;
+        const fileName = file.display_name?.toLowerCase() || '';
+        const fileDesc = file.description?.toLowerCase() || '';
+        const fileText = file.extracted_text?.toLowerCase() || '';
+        
+        messageWords.forEach((word: string) => {
+          if (fileName.includes(word)) score += 3;
+          if (fileDesc.includes(word)) score += 2;
+          if (fileText.includes(word)) score += 1;
+        });
+        
+        return { ...file, score };
+      });
+      
+      // Take top 3 most relevant files with full content
+      const relevantFiles = scoredFiles
+        .filter(f => f.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 3);
+      
+      if (relevantFiles.length > 0) {
+        fileDocContext = "\n\n=== PERSÖNLICHE DOKUMENTE DES NUTZERS ===\n";
+        relevantFiles.forEach(file => {
+          fileDocContext += `\n--- ${file.display_name} (${new Date(file.created_at).toLocaleDateString('de-DE')}) ---\n`;
+          fileDocContext += file.extracted_text + "\n";
+        });
+        fileDocContext += "\n=== ENDE PERSÖNLICHE DOKUMENTE ===\n";
+        console.log(`Loaded ${relevantFiles.length} personal/building files as context`);
+      }
+      
+      // Also list all available files (metadata only) so the AI knows what exists
+      contextData += `\n\nVerfügbare Dokumente des Nutzers:\n`;
+      allUserFiles.forEach(file => {
+        contextData += `- ${file.display_name} (hochgeladen am ${new Date(file.created_at).toLocaleDateString('de-DE')})\n`;
+      });
+    }
+
     // Intelligent knowledge document search based on user message
     let knowledgeContext = "";
     
@@ -417,7 +486,7 @@ ${isFirstMessage
 === ENDE VERHALTENSREGELN ===`;
 
     // Construct system prompt using admin-configured prompt + behavioral rules
-    const systemPrompt = `${settings.system_prompt}${conversationBehavior}\n\nWissensdatenbank (allgemein):\n${knowledgeString}${knowledgeContext}\n\nAktuelle Kontextdaten:${contextData}\n\nNutzerinformationen (nur für Kontext): ${profile?.first_name} ${profile?.last_name} (${profile?.email})${managementMode === 'weg' ? ' - WEG-Eigentümer' : ' - Mieter'}${buildingId ? `. Gebäude-ID: ${buildingId}` : managementMode === 'weg' ? '. Keine spezifische Gebäude-ID angegeben.' : ''}`;
+    const systemPrompt = `${settings.system_prompt}${conversationBehavior}\n\nWissensdatenbank (allgemein):\n${knowledgeString}${knowledgeContext}${fileDocContext}\n\nAktuelle Kontextdaten:${contextData}\n\nNutzerinformationen (nur für Kontext): ${profile?.first_name} ${profile?.last_name} (${profile?.email})${managementMode === 'weg' ? ' - WEG-Eigentümer' : ' - Mieter'}${buildingId ? `. Gebäude-ID: ${buildingId}` : managementMode === 'weg' ? '. Keine spezifische Gebäude-ID angegeben.' : ''}`;
 
     // Construct messages for OpenAI with conversation history
     const messages = [

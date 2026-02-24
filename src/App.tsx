@@ -21,6 +21,7 @@ import { DocumentSettings } from "./pages/DocumentSettings";
 import { WebhookSettings } from "./pages/WebhookSettings";
 import { Todos } from "./pages/Todos";
 import { Calendar } from "./pages/Calendar";
+import { Files } from "./pages/Files";
 import { AdminLayout } from "./components/AdminLayout";
 import { WegOwnerLayout } from "./components/WegOwnerLayout";
 import { WegOwnerDashboard } from "./pages/weg-owner/Dashboard";
@@ -28,12 +29,14 @@ import { WegOwnerReports } from "./pages/weg-owner/Reports";
 import { WegOwnerForum } from "./pages/weg-owner/Forum";
 import { WegOwnerChatbot } from "./pages/weg-owner/Chatbot";
 import { WegOwnerSettings } from "./pages/weg-owner/Settings";
+import { WegOwnerFiles } from "./pages/weg-owner/Files";
 import { TenantLayout } from "./components/TenantLayout";
 import { TenantDashboard } from "./pages/tenant/Dashboard";
 import { TenantReports } from "./pages/tenant/Reports";
 import { TenantForum } from "./pages/tenant/Forum";
 import { TenantChatbot } from "./pages/tenant/Chatbot";
 import { TenantSettings } from "./pages/tenant/Settings";
+import { TenantFiles } from "./pages/tenant/Files";
 import NotFound from "./pages/NotFound";
 import Offline from "./pages/Offline";
 
@@ -65,7 +68,8 @@ const App = () => (
               <Route path="/webhooks" element={<AdminLayout><WebhookSettings /></AdminLayout>} />
               <Route path="/settings" element={<AdminLayout><Settings /></AdminLayout>} />
               <Route path="/todos" element={<AdminLayout><Todos /></AdminLayout>} />
-               <Route path="/calendar" element={<AdminLayout><Calendar /></AdminLayout>} />
+              <Route path="/calendar" element={<AdminLayout><Calendar /></AdminLayout>} />
+              <Route path="/files" element={<AdminLayout><Files /></AdminLayout>} />
               
               {/* Legacy admin routes for compatibility */}
               <Route path="/admin" element={<AdminLayout><Dashboard /></AdminLayout>} />
@@ -83,6 +87,7 @@ const App = () => (
               <Route path="/weg-owner/forum" element={<WegOwnerLayout><WegOwnerForum /></WegOwnerLayout>} />
               <Route path="/weg-owner/chatbot" element={<WegOwnerLayout><WegOwnerChatbot /></WegOwnerLayout>} />
               <Route path="/weg-owner/settings" element={<WegOwnerLayout><WegOwnerSettings /></WegOwnerLayout>} />
+              <Route path="/weg-owner/files" element={<WegOwnerLayout><WegOwnerFiles /></WegOwnerLayout>} />
               
               {/* Tenant Routes */}
               <Route path="/tenant/change-password" element={<TenantLayout><ChangePassword /></TenantLayout>} />
@@ -91,6 +96,7 @@ const App = () => (
               <Route path="/tenant/forum" element={<TenantLayout><TenantForum /></TenantLayout>} />
               <Route path="/tenant/chatbot" element={<TenantLayout><TenantChatbot /></TenantLayout>} />
               <Route path="/tenant/settings" element={<TenantLayout><TenantSettings /></TenantLayout>} />
+              <Route path="/tenant/files" element={<TenantLayout><TenantFiles /></TenantLayout>} />
               
               <Route path="/offline" element={<Offline />} />
               <Route path="*" element={<NotFound />} />

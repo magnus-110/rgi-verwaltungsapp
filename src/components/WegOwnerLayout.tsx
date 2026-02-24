@@ -13,7 +13,8 @@ import {
   LogOut,
   UserRound,
   Menu,
-  MessageSquare
+  MessageSquare,
+  FolderOpen
 } from "lucide-react";
 
 interface WegOwnerLayoutProps {
@@ -87,6 +88,12 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
       label: "Meine Meldungen", 
       path: '/weg-owner/reports',
       active: location.pathname.startsWith('/weg-owner/reports')
+    },
+    { 
+      icon: FolderOpen, 
+      label: "Dokumente", 
+      path: '/weg-owner/files',
+      active: location.pathname.startsWith('/weg-owner/files')
     },
     { 
       icon: MessageSquare, 
