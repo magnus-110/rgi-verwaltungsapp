@@ -142,7 +142,6 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
         setTitle(todo.title);
         setDescription(todo.description || '');
         setCategoryId(todo.category_id);
-        // Set assignees from new junction table or legacy field
         if (todo.assignees && todo.assignees.length > 0) {
           setAssignees(todo.assignees.map(a => a.user?.user_id).filter(Boolean) as string[]);
         } else if (todo.assigned_to) {
@@ -152,7 +151,6 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
         }
         setDueDate(todo.due_date);
         setPriority(todo.priority);
-        // Set building IDs from new junction table or legacy field
         if (todo.buildings && todo.buildings.length > 0) {
           setBuildingIds(todo.buildings.map(b => b.building?.id).filter(Boolean) as string[]);
         } else if (todo.building_id) {
@@ -161,6 +159,7 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
           setBuildingIds([]);
         }
         setIsRecurring(todo.is_recurring);
+        setIsInternal((todo as any).is_internal || false);
         setRecurrencePattern(todo.recurrence_pattern || 'weekly');
         setRecurrenceInterval(todo.recurrence_interval || 1);
         setRecurrenceEndDate(todo.recurrence_end_date);
