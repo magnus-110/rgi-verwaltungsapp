@@ -68,7 +68,8 @@ const App = () => (
               <Route path="/webhooks" element={<AdminLayout><WebhookSettings /></AdminLayout>} />
               <Route path="/settings" element={<AdminLayout><Settings /></AdminLayout>} />
               <Route path="/todos" element={<AdminLayout><Todos /></AdminLayout>} />
-               <Route path="/calendar" element={<AdminLayout><Calendar /></AdminLayout>} />
+              <Route path="/calendar" element={<AdminLayout><Calendar /></AdminLayout>} />
+              <Route path="/files" element={<AdminLayout><Files /></AdminLayout>} />
               
               {/* Legacy admin routes for compatibility */}
               <Route path="/admin" element={<AdminLayout><Dashboard /></AdminLayout>} />
