@@ -497,6 +497,23 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
                 </Popover>
               </div>
 
+              {/* Internal flag - only for admins */}
+              {profile?.role === 'admin' && (
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border border-border/50">
+                  <Checkbox
+                    id="is_internal"
+                    checked={isInternal}
+                    onCheckedChange={(checked) => setIsInternal(checked === true)}
+                  />
+                  <div>
+                    <Label htmlFor="is_internal" className="cursor-pointer font-medium text-sm">
+                      Interne Aufgabe
+                    </Label>
+                    <p className="text-xs text-muted-foreground">Nur für Admins sichtbar, nicht für Mitarbeiter</p>
+                  </div>
+                </div>
+              )}
+
               {/* Recurrence settings (discreet) */}
               <RecurrenceSettings
                 isRecurring={isRecurring}
