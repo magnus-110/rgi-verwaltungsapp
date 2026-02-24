@@ -189,10 +189,10 @@ export function FileDropCard({
 
   return (
     <Card
-      className={`relative transition-all duration-200 ${fullWidth ? "col-span-full" : ""} ${
+      className={`relative transition-all duration-300 overflow-hidden ${fullWidth ? "col-span-full" : ""} ${
         isDragOver
-          ? "border-primary border-2 bg-primary/5 shadow-lg"
-          : "border-border hover:border-primary/30"
+          ? "border-primary border-2 bg-primary/5 shadow-xl scale-[1.01]"
+          : "border-border hover:border-primary/30 hover:shadow-md"
       }`}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
@@ -201,20 +201,20 @@ export function FileDropCard({
     >
       {/* Drop zone / header */}
       <div
-        className="p-4 cursor-pointer flex items-center gap-3"
+        className="p-5 sm:p-6 cursor-pointer flex items-center gap-4"
         onClick={handleClick}
       >
-        <div className={`rounded-lg p-2.5 ${icon === "building" ? "bg-primary/10" : "bg-accent"}`}>
-          <IconComp className={`w-5 h-5 ${icon === "building" ? "text-primary" : "text-accent-foreground"}`} />
+        <div className={`rounded-xl p-3 ${icon === "building" ? "bg-primary/10" : "bg-muted"}`}>
+          <IconComp className={`w-6 h-6 ${icon === "building" ? "text-primary" : "text-muted-foreground"}`} />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-sm truncate">{title}</p>
-          {subtitle && <p className="text-xs text-muted-foreground truncate">{subtitle}</p>}
+          <p className="font-semibold text-base truncate">{title}</p>
+          {subtitle && <p className="text-sm text-muted-foreground truncate mt-0.5">{subtitle}</p>}
         </div>
         {uploading ? (
           <Loader2 className="w-5 h-5 animate-spin text-primary" />
         ) : (
-          <div className="text-xs text-muted-foreground flex items-center gap-1">
+          <div className="text-xs text-muted-foreground flex items-center gap-1.5 border border-dashed border-border rounded-lg px-3 py-2">
             <Upload className="w-4 h-4" />
             <span className="hidden sm:inline">Ablegen / Klicken</span>
           </div>
@@ -232,18 +232,18 @@ export function FileDropCard({
 
       {/* File list */}
       {files.length > 0 && (
-        <div className="border-t px-4 pb-3 pt-2 space-y-1">
+        <div className="border-t px-5 sm:px-6 pb-4 pt-3 space-y-1">
           {files.map((file) => {
             const cat = getCategoryInfo(file.category_id);
             return (
               <div
                 key={file.id}
-                className="flex items-center gap-2 py-1.5 text-sm group"
+                className="flex items-center gap-2 py-2 text-sm group rounded-md hover:bg-muted/50 px-2 -mx-2 transition-colors"
               >
-                <FileText className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                <FileText className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                 <span className="truncate flex-1 font-medium">{file.display_name}</span>
                 {cat && (
-                  <Badge variant="outline" className="text-[10px] px-1.5 py-0" style={{ borderColor: cat.color || undefined, color: cat.color || undefined }}>
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-normal">
                     {cat.name}
                   </Badge>
                 )}
@@ -256,23 +256,30 @@ export function FileDropCard({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                  className="h-7 w-7 opacity-0 group-hover:opacity-100"
                   onClick={(e) => { e.stopPropagation(); handleDownload(file); }}
                   disabled={downloading === file.id}
                 >
-                  <Download className="w-3 h-3" />
+                  <Download className="w-3.5 h-3.5" />
                 </Button>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive"
+                  className="h-7 w-7 opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive"
                   onClick={(e) => { e.stopPropagation(); onDelete(file.id, file.file_path); }}
                 >
-                  <Trash2 className="w-3 h-3" />
+                  <Trash2 className="w-3.5 h-3.5" />
                 </Button>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Empty state for tiles with no files */}
+      {files.length === 0 && (
+        <div className="border-t px-5 sm:px-6 py-6 text-center">
+          <p className="text-sm text-muted-foreground">Keine Dokumente – Datei hierher ziehen</p>
         </div>
       )}
     </Card>
