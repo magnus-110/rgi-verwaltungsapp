@@ -64,6 +64,7 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
   const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
   const [buildingIds, setBuildingIds] = useState<string[]>([]);
   const [isRecurring, setIsRecurring] = useState(false);
+  const [isInternal, setIsInternal] = useState(false);
   const [recurrencePattern, setRecurrencePattern] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('weekly');
   const [recurrenceInterval, setRecurrenceInterval] = useState(1);
   const [recurrenceEndDate, setRecurrenceEndDate] = useState<string | null>(null);
