@@ -307,8 +307,8 @@ serve(async (req) => {
 
     let fileDocContext = "";
     
-    // Fetch files assigned to this user OR their building (with extracted_text)
-    const userBuildingId = profile?.building_id;
+    // Determine the relevant building ID for document access
+    const userBuildingId = profile?.building_id || buildingId;
     
     // Personal files (assigned to this user)
     const { data: personalFiles } = await supabase
@@ -329,6 +329,41 @@ serve(async (req) => {
         .eq('visible_to_users', true)
         .not('extracted_text', 'is', null);
       if (data) buildingFilesList = data;
+    }
+
+    // ===== GEBÄUDEDOKUMENTE (building_documents mit OCR-Text) =====
+    let buildingDocsList: any[] = [];
+    // For tenants: use profile.building_id; for WEG owners: use provided buildingId or their assigned buildings
+    const docBuildingIds: string[] = [];
+    if (profile?.building_id) {
+      docBuildingIds.push(profile.building_id);
+    }
+    if (buildingId && !docBuildingIds.includes(buildingId)) {
+      docBuildingIds.push(buildingId);
+    }
+    // For WEG owners, also include their assigned buildings
+    if (managementMode === 'weg') {
+      const { data: wegBuildings } = await supabase
+        .from('weg_owner_buildings')
+        .select('building_id')
+        .eq('user_id', userId);
+      if (wegBuildings) {
+        wegBuildings.forEach(wb => {
+          if (!docBuildingIds.includes(wb.building_id)) {
+            docBuildingIds.push(wb.building_id);
+          }
+        });
+      }
+    }
+
+    if (docBuildingIds.length > 0) {
+      const { data: buildingDocs } = await supabase
+        .from('building_documents')
+        .select('file_name, category, extracted_text, created_at, building_id')
+        .in('building_id', docBuildingIds)
+        .eq('status', 'completed')
+        .not('extracted_text', 'is', null);
+      if (buildingDocs) buildingDocsList = buildingDocs;
     }
 
     const allUserFiles = [...(personalFiles || []), ...buildingFilesList];
