@@ -48,3 +48,6 @@ verify_jwt = true
 [functions.generate-maintenance-tasks]
 verify_jwt = false
 
+[functions.get-building-file-url]
+verify_jwt = true
+
