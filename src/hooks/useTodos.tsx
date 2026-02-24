@@ -90,6 +90,7 @@ export interface CreateTodoInput {
   building_id?: string;
   building_ids?: string[];
   is_recurring?: boolean;
+  is_internal?: boolean;
   recurrence_pattern?: 'daily' | 'weekly' | 'monthly' | 'yearly';
   recurrence_interval?: number;
   recurrence_end_date?: string;
