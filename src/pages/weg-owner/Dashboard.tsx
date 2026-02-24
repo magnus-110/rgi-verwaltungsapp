@@ -16,6 +16,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { useHasVisibleFiles } from "@/hooks/useHasVisibleFiles";
 
 export const WegOwnerDashboard = () => {
   const navigate = useNavigate();
