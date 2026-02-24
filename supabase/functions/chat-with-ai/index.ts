@@ -307,8 +307,8 @@ serve(async (req) => {
 
     let fileDocContext = "";
     
-    // Fetch files assigned to this user OR their building (with extracted_text)
-    const userBuildingId = profile?.building_id;
+    // Determine the relevant building ID for document access
+    const userBuildingId = profile?.building_id || buildingId;
     
     // Personal files (assigned to this user)
     const { data: personalFiles } = await supabase
@@ -329,6 +329,41 @@ serve(async (req) => {
         .eq('visible_to_users', true)
         .not('extracted_text', 'is', null);
       if (data) buildingFilesList = data;
+    }
+
+    // ===== GEBÄUDEDOKUMENTE (building_documents mit OCR-Text) =====
+    let buildingDocsList: any[] = [];
+    // For tenants: use profile.building_id; for WEG owners: use provided buildingId or their assigned buildings
+    const docBuildingIds: string[] = [];
+    if (profile?.building_id) {
+      docBuildingIds.push(profile.building_id);
+    }
+    if (buildingId && !docBuildingIds.includes(buildingId)) {
+      docBuildingIds.push(buildingId);
+    }
+    // For WEG owners, also include their assigned buildings
+    if (managementMode === 'weg') {
+      const { data: wegBuildings } = await supabase
+        .from('weg_owner_buildings')
+        .select('building_id')
+        .eq('user_id', userId);
+      if (wegBuildings) {
+        wegBuildings.forEach(wb => {
+          if (!docBuildingIds.includes(wb.building_id)) {
+            docBuildingIds.push(wb.building_id);
+          }
+        });
+      }
+    }
+
+    if (docBuildingIds.length > 0) {
+      const { data: buildingDocs } = await supabase
+        .from('building_documents')
+        .select('file_name, category, extracted_text, created_at, building_id')
+        .in('building_id', docBuildingIds)
+        .eq('status', 'completed')
+        .not('extracted_text', 'is', null);
+      if (buildingDocs) buildingDocsList = buildingDocs;
     }
 
     const allUserFiles = [...(personalFiles || []), ...buildingFilesList];
@@ -370,6 +405,45 @@ serve(async (req) => {
       contextData += `\n\nVerfügbare Dokumente des Nutzers:\n`;
       allUserFiles.forEach(file => {
         contextData += `- ${file.display_name} (hochgeladen am ${new Date(file.created_at).toLocaleDateString('de-DE')})\n`;
+      });
+    }
+
+    // ===== Score and inject building_documents (RAG-Dokumente) =====
+    if (buildingDocsList.length > 0) {
+      const scoredBuildingDocs = buildingDocsList.map(doc => {
+        let score = 0;
+        const docName = doc.file_name?.toLowerCase() || '';
+        const docCategory = doc.category?.toLowerCase() || '';
+        const docText = doc.extracted_text?.toLowerCase() || '';
+
+        messageWords.forEach((word: string) => {
+          if (docName.includes(word)) score += 3;
+          if (docCategory.includes(word)) score += 2;
+          if (docText.includes(word)) score += 1;
+        });
+
+        return { ...doc, score };
+      });
+
+      const relevantBuildingDocs = scoredBuildingDocs
+        .filter(d => d.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 3);
+
+      if (relevantBuildingDocs.length > 0) {
+        fileDocContext += "\n\n=== GEBÄUDEDOKUMENTE ===\n";
+        relevantBuildingDocs.forEach(doc => {
+          fileDocContext += `\n--- ${doc.file_name} (${doc.category}, ${new Date(doc.created_at).toLocaleDateString('de-DE')}) ---\n`;
+          const text = doc.extracted_text || '';
+          fileDocContext += text.substring(0, 8000) + (text.length > 8000 ? '\n[... Text gekürzt ...]' : '') + "\n";
+        });
+        fileDocContext += "\n=== ENDE GEBÄUDEDOKUMENTE ===\n";
+        console.log(`Loaded ${relevantBuildingDocs.length} building documents as context`);
+      }
+
+      contextData += `\n\nVerfügbare Gebäudedokumente:\n`;
+      buildingDocsList.forEach(doc => {
+        contextData += `- ${doc.file_name} (${doc.category}, ${new Date(doc.created_at).toLocaleDateString('de-DE')})\n`;
       });
     }
 
@@ -475,6 +549,13 @@ ${isFirstMessage
      - "Melden Sie sich gerne bei Rückfragen."
      - "Lassen Sie mich wissen, wenn Sie weitere Informationen benötigen."
    Jede Antwort sollte einen ANDEREN oder gar keinen Abschluss haben.
+
+4. FORMATIERUNG:
+   ✗ Verwende KEINE Markdown-Zeichen wie **, ##, ###, oder * für Aufzählungen
+   ✓ Verwende Fließtext mit klaren Absätzen
+   ✓ Verwende einfache Spiegelstriche (–) für Aufzählungen
+   ✓ Verwende Zeilenumbrüche für Struktur
+   ✓ Schreibe Überschriften als normalen fettgedruckten Text ohne # Zeichen
 
 3. WAHRHEIT & EHRLICHKEIT (EXTREM WICHTIG - ANTI-HALLUZINATION):
    ✗ Erfinden Sie NIEMALS Namen, Telefonnummern, E-Mail-Adressen oder andere Fakten
