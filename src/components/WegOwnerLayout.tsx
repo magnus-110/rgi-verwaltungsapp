@@ -3,6 +3,7 @@ import { Navigate, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
  import { TermsAcceptanceDialog } from "@/components/TermsAcceptanceDialog";
  import { supabase } from "@/integrations/supabase/client";
+import { useHasVisibleFiles } from "@/hooks/useHasVisibleFiles";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { 
@@ -26,6 +27,7 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
+  const hasVisibleFiles = useHasVisibleFiles(profile?.user_id);
  const [showTermsDialog, setShowTermsDialog] = useState(false);
  const [termsAccepted, setTermsAccepted] = useState<boolean | null>(null);
  
@@ -89,12 +91,12 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
       path: '/weg-owner/reports',
       active: location.pathname.startsWith('/weg-owner/reports')
     },
-    { 
+    ...(hasVisibleFiles ? [{ 
       icon: FolderOpen, 
       label: "Dokumente", 
       path: '/weg-owner/files',
       active: location.pathname.startsWith('/weg-owner/files')
-    },
+    }] : []),
     { 
       icon: MessageSquare, 
       label: "Schwarzes Brett", 

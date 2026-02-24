@@ -17,6 +17,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { useHasVisibleFiles } from "@/hooks/useHasVisibleFiles";
 
 interface Report {
   id: string;
@@ -44,6 +45,7 @@ interface ForumPost {
 export const TenantDashboard = () => {
   const { profile } = useAuth();
   const navigate = useNavigate();
+  const hasVisibleFiles = useHasVisibleFiles(profile?.user_id);
   const [reports, setReports] = useState<Report[]>([]);
   const [forumPosts, setForumPosts] = useState<ForumPost[]>([]);
   const [tenantInfo, setTenantInfo] = useState<any>(null);
@@ -194,21 +196,23 @@ export const TenantDashboard = () => {
             </div>
           </Button>
           
-          <Button 
-            variant="outline" 
-            className="w-full h-16 text-left justify-start border border-border/50 bg-card shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-200 group"
-            onClick={() => navigate("/tenant/files")}
-          >
-            <div className="flex items-center gap-4 w-full">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                <FileText className="w-5 h-5 text-primary" />
+          {hasVisibleFiles && (
+            <Button 
+              variant="outline" 
+              className="w-full h-16 text-left justify-start border border-border/50 bg-card shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-200 group"
+              onClick={() => navigate("/tenant/files")}
+            >
+              <div className="flex items-center gap-4 w-full">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                  <FileText className="w-5 h-5 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <div className="font-medium">Meine Dokumente</div>
+                  <div className="text-sm text-muted-foreground">Dokumente einsehen</div>
+                </div>
               </div>
-              <div className="flex-1">
-                <div className="font-medium">Meine Dokumente</div>
-                <div className="text-sm text-muted-foreground">Dokumente einsehen</div>
-              </div>
-            </div>
-          </Button>
+            </Button>
+          )}
 
           <Button 
             variant="outline" 
