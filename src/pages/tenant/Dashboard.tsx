@@ -11,7 +11,8 @@ import {
   Mail,
   Clock,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  FileText
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
