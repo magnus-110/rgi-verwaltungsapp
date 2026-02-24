@@ -11,7 +11,8 @@ import {
   Mail,
   Clock,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  FileText
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -193,6 +194,22 @@ export const TenantDashboard = () => {
             </div>
           </Button>
           
+          <Button 
+            variant="outline" 
+            className="w-full h-16 text-left justify-start border-0 bg-white shadow-sm hover:shadow-md transition-all duration-200"
+            onClick={() => navigate("/tenant/files")}
+          >
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                <FileText className="w-5 h-5 text-purple-600" />
+              </div>
+              <div>
+                <div className="font-medium">Meine Dokumente</div>
+                <div className="text-sm text-muted-foreground">Dokumente einsehen</div>
+              </div>
+            </div>
+          </Button>
+
           <Button 
             variant="outline" 
             className="w-full h-16 text-left justify-start border-0 bg-white shadow-sm hover:shadow-md transition-all duration-200"
