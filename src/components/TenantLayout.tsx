@@ -27,6 +27,7 @@ export const TenantLayout = ({ children }: TenantLayoutProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
+  const hasVisibleFiles = useHasVisibleFiles(profile?.user_id);
  const [showTermsDialog, setShowTermsDialog] = useState(false);
  const [termsAccepted, setTermsAccepted] = useState<boolean | null>(null);
  
