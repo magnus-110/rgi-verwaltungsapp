@@ -632,6 +632,31 @@ export function useCreateComment() {
   });
 }
 
+// Update comment mutation
+export function useUpdateComment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, todoId, content }: { id: string; todoId: string; content: string }) => {
+      const { data, error } = await supabase
+        .from('todo_comments')
+        .update({ content })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { data, todoId };
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['todo-comments', result.todoId] });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Fehler', description: error.message, variant: 'destructive' });
+    },
+  });
+}
+
 // Helper function to check if task is overdue
 export function isOverdue(todo: Todo): boolean {
   if (!todo.due_date || todo.status === 'done') return false;
