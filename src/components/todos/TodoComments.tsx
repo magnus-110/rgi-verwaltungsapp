@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, MessageSquare } from "lucide-react";
-import { useComments, useCreateComment, TodoComment } from "@/hooks/useTodos";
+import { Send, MessageSquare, Pencil, X, Check } from "lucide-react";
+import { useComments, useCreateComment, useUpdateComment, TodoComment } from "@/hooks/useTodos";
+import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 
@@ -35,11 +36,10 @@ export function TodoComments({ todoId, readOnly = false }: TodoCommentsProps) {
         </h4>
       </div>
 
-      {/* Comments list */}
       {comments.length > 0 && (
         <div className="space-y-3 max-h-64 overflow-y-auto">
           {comments.map((comment) => (
-            <CommentItem key={comment.id} comment={comment} />
+            <CommentItem key={comment.id} comment={comment} todoId={todoId} readOnly={readOnly} />
           ))}
         </div>
       )}
@@ -50,7 +50,6 @@ export function TodoComments({ todoId, readOnly = false }: TodoCommentsProps) {
         </p>
       )}
 
-      {/* Add comment */}
       {!readOnly && (
         <div className="flex gap-2">
           <Textarea
@@ -78,7 +77,22 @@ export function TodoComments({ todoId, readOnly = false }: TodoCommentsProps) {
   );
 }
 
-function CommentItem({ comment }: { comment: TodoComment }) {
+function CommentItem({ comment, todoId, readOnly }: { comment: TodoComment; todoId: string; readOnly?: boolean }) {
+  const { user } = useAuth();
+  const updateComment = useUpdateComment();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(comment.content);
+
+  const isOwner = user?.id === comment.created_by;
+
+  const handleSave = () => {
+    if (!editContent.trim()) return;
+    updateComment.mutate(
+      { id: comment.id, todoId, content: editContent.trim() },
+      { onSuccess: () => setIsEditing(false) }
+    );
+  };
+
   const userName = comment.user 
     ? `${comment.user.first_name || ''} ${comment.user.last_name || ''}`.trim() || comment.user.email
     : 'Unbekannt';
@@ -87,11 +101,42 @@ function CommentItem({ comment }: { comment: TodoComment }) {
     <div className="bg-muted/50 rounded-lg p-3 space-y-1">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium">{userName}</span>
-        <span className="text-xs text-muted-foreground">
-          {format(new Date(comment.created_at), "dd.MM.yyyy HH:mm", { locale: de })}
-        </span>
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-muted-foreground">
+            {format(new Date(comment.created_at), "dd.MM.yyyy HH:mm", { locale: de })}
+          </span>
+          {isOwner && !readOnly && !isEditing && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6"
+              onClick={() => { setEditContent(comment.content); setIsEditing(true); }}
+            >
+              <Pencil className="h-3 w-3" />
+            </Button>
+          )}
+        </div>
       </div>
-      <p className="text-sm whitespace-pre-wrap">{comment.content}</p>
+      {isEditing ? (
+        <div className="space-y-2">
+          <Textarea
+            value={editContent}
+            onChange={(e) => setEditContent(e.target.value)}
+            className="min-h-[50px] resize-none text-sm"
+            autoFocus
+          />
+          <div className="flex gap-1 justify-end">
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setIsEditing(false)}>
+              <X className="h-3.5 w-3.5" />
+            </Button>
+            <Button size="icon" className="h-7 w-7" onClick={handleSave} disabled={!editContent.trim() || updateComment.isPending}>
+              <Check className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm whitespace-pre-wrap">{comment.content}</p>
+      )}
     </div>
   );
 }
