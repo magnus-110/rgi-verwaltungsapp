@@ -408,6 +408,45 @@ serve(async (req) => {
       });
     }
 
+    // ===== Score and inject building_documents (RAG-Dokumente) =====
+    if (buildingDocsList.length > 0) {
+      const scoredBuildingDocs = buildingDocsList.map(doc => {
+        let score = 0;
+        const docName = doc.file_name?.toLowerCase() || '';
+        const docCategory = doc.category?.toLowerCase() || '';
+        const docText = doc.extracted_text?.toLowerCase() || '';
+
+        messageWords.forEach((word: string) => {
+          if (docName.includes(word)) score += 3;
+          if (docCategory.includes(word)) score += 2;
+          if (docText.includes(word)) score += 1;
+        });
+
+        return { ...doc, score };
+      });
+
+      const relevantBuildingDocs = scoredBuildingDocs
+        .filter(d => d.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 3);
+
+      if (relevantBuildingDocs.length > 0) {
+        fileDocContext += "\n\n=== GEBÄUDEDOKUMENTE ===\n";
+        relevantBuildingDocs.forEach(doc => {
+          fileDocContext += `\n--- ${doc.file_name} (${doc.category}, ${new Date(doc.created_at).toLocaleDateString('de-DE')}) ---\n`;
+          const text = doc.extracted_text || '';
+          fileDocContext += text.substring(0, 8000) + (text.length > 8000 ? '\n[... Text gekürzt ...]' : '') + "\n";
+        });
+        fileDocContext += "\n=== ENDE GEBÄUDEDOKUMENTE ===\n";
+        console.log(`Loaded ${relevantBuildingDocs.length} building documents as context`);
+      }
+
+      contextData += `\n\nVerfügbare Gebäudedokumente:\n`;
+      buildingDocsList.forEach(doc => {
+        contextData += `- ${doc.file_name} (${doc.category}, ${new Date(doc.created_at).toLocaleDateString('de-DE')})\n`;
+      });
+    }
+
     // Intelligent knowledge document search based on user message
     let knowledgeContext = "";
     
