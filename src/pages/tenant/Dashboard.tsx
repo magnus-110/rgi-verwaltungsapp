@@ -164,12 +164,14 @@ export const TenantDashboard = () => {
         <div className="space-y-3">
           <Button 
             variant="outline" 
-            className="w-full h-16 text-left justify-start border-0 bg-white shadow-sm hover:shadow-md transition-all duration-200"
+            className="w-full h-16 text-left justify-start border border-border/50 bg-card shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-200 group"
             onClick={() => navigate("/tenant/reports")}
           >
-            <div className="flex items-center gap-4">
-              <AlertTriangle className="w-5 h-5 text-muted-foreground" />
-              <div>
+            <div className="flex items-center gap-4 w-full">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                <AlertTriangle className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1">
                 <div className="font-medium">Problem melden</div>
                 <div className="text-sm text-muted-foreground">Meldung erstellen oder verwalten</div>
               </div>
@@ -178,12 +180,14 @@ export const TenantDashboard = () => {
 
           <Button 
             variant="outline" 
-            className="w-full h-16 text-left justify-start border-0 bg-white shadow-sm hover:shadow-md transition-all duration-200"
+            className="w-full h-16 text-left justify-start border border-border/50 bg-card shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-200 group"
             onClick={() => navigate("/tenant/forum")}
           >
-            <div className="flex items-center gap-4">
-              <MessageSquare className="w-5 h-5 text-muted-foreground" />
-              <div>
+            <div className="flex items-center gap-4 w-full">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                <MessageSquare className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1">
                 <div className="font-medium">Schwarzes Brett</div>
                 <div className="text-sm text-muted-foreground">Ankündigungen lesen</div>
               </div>
@@ -192,12 +196,14 @@ export const TenantDashboard = () => {
           
           <Button 
             variant="outline" 
-            className="w-full h-16 text-left justify-start border-0 bg-white shadow-sm hover:shadow-md transition-all duration-200"
+            className="w-full h-16 text-left justify-start border border-border/50 bg-card shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-200 group"
             onClick={() => navigate("/tenant/files")}
           >
-            <div className="flex items-center gap-4">
-              <FileText className="w-5 h-5 text-muted-foreground" />
-              <div>
+            <div className="flex items-center gap-4 w-full">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                <FileText className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1">
                 <div className="font-medium">Meine Dokumente</div>
                 <div className="text-sm text-muted-foreground">Dokumente einsehen</div>
               </div>
@@ -206,12 +212,14 @@ export const TenantDashboard = () => {
 
           <Button 
             variant="outline" 
-            className="w-full h-16 text-left justify-start border-0 bg-white shadow-sm hover:shadow-md transition-all duration-200"
+            className="w-full h-16 text-left justify-start border border-border/50 bg-card shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-200 group"
             onClick={() => navigate("/tenant/chatbot")}
           >
-            <div className="flex items-center gap-4">
-              <MessageCircle className="w-5 h-5 text-muted-foreground" />
-              <div>
+            <div className="flex items-center gap-4 w-full">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                <MessageCircle className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1">
                 <div className="font-medium">Frage stellen</div>
                 <div className="text-sm text-muted-foreground">RGI KI Assistent</div>
               </div>
