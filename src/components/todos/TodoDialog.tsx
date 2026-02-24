@@ -13,12 +13,12 @@ import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { Todo, CreateTodoInput, useCreateTodo, useUpdateTodo, useCategories, useAssignableUsers } from "@/hooks/useTodos";
+import { useAuth } from "@/hooks/useAuth";
 import { CategoryDialog } from "./CategoryDialog";
 import { RecurrenceSettings } from "./RecurrenceSettings";
 import { InlineSubtasksCreator } from "./TodoSubtasks";
 import { InlineAttachmentCreator } from "./TodoAttachments";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/useAuth";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 const STORAGE_KEY = 'todo_dialog_draft';
@@ -46,7 +46,7 @@ interface DraftData {
 }
 
 export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { data: categories = [] } = useCategories();
   const { data: users = [] } = useAssignableUsers();
   const createTodo = useCreateTodo();
@@ -64,6 +64,7 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
   const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
   const [buildingIds, setBuildingIds] = useState<string[]>([]);
   const [isRecurring, setIsRecurring] = useState(false);
+  const [isInternal, setIsInternal] = useState(false);
   const [recurrencePattern, setRecurrencePattern] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('weekly');
   const [recurrenceInterval, setRecurrenceInterval] = useState(1);
   const [recurrenceEndDate, setRecurrenceEndDate] = useState<string | null>(null);
@@ -141,7 +142,6 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
         setTitle(todo.title);
         setDescription(todo.description || '');
         setCategoryId(todo.category_id);
-        // Set assignees from new junction table or legacy field
         if (todo.assignees && todo.assignees.length > 0) {
           setAssignees(todo.assignees.map(a => a.user?.user_id).filter(Boolean) as string[]);
         } else if (todo.assigned_to) {
@@ -151,7 +151,6 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
         }
         setDueDate(todo.due_date);
         setPriority(todo.priority);
-        // Set building IDs from new junction table or legacy field
         if (todo.buildings && todo.buildings.length > 0) {
           setBuildingIds(todo.buildings.map(b => b.building?.id).filter(Boolean) as string[]);
         } else if (todo.building_id) {
@@ -160,6 +159,7 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
           setBuildingIds([]);
         }
         setIsRecurring(todo.is_recurring);
+        setIsInternal((todo as any).is_internal || false);
         setRecurrencePattern(todo.recurrence_pattern || 'weekly');
         setRecurrenceInterval(todo.recurrence_interval || 1);
         setRecurrenceEndDate(todo.recurrence_end_date);
@@ -181,6 +181,7 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
     setPriority('medium');
     setBuildingIds([]);
     setIsRecurring(false);
+    setIsInternal(false);
     setRecurrencePattern('weekly');
     setRecurrenceInterval(1);
     setRecurrenceEndDate(null);
@@ -208,6 +209,7 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
           building_id: buildingIds.length === 1 ? buildingIds[0] : undefined,
           building_ids: buildingIds.length > 0 ? buildingIds : undefined,
           is_recurring: isRecurring,
+          is_internal: isInternal,
           recurrence_pattern: isRecurring ? recurrencePattern : undefined,
           recurrence_interval: isRecurring ? recurrenceInterval : undefined,
           recurrence_end_date: isRecurring ? recurrenceEndDate || undefined : undefined,
@@ -259,6 +261,7 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
           priority,
           building_id: buildingIds.length === 1 ? buildingIds[0] : null,
           is_recurring: isRecurring,
+          is_internal: isInternal,
           recurrence_pattern: isRecurring ? recurrencePattern : null,
           recurrence_interval: isRecurring ? recurrenceInterval : null,
           recurrence_end_date: isRecurring ? recurrenceEndDate : null,
@@ -492,6 +495,23 @@ export function TodoDialog({ open, onOpenChange, todo, mode }: TodoDialogProps) 
                   </PopoverContent>
                 </Popover>
               </div>
+
+              {/* Internal flag - only for admins */}
+              {profile?.role === 'admin' && (
+                <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 border border-border/50">
+                  <Checkbox
+                    id="is_internal"
+                    checked={isInternal}
+                    onCheckedChange={(checked) => setIsInternal(checked === true)}
+                  />
+                  <div>
+                    <Label htmlFor="is_internal" className="cursor-pointer font-medium text-sm">
+                      Interne Aufgabe
+                    </Label>
+                    <p className="text-xs text-muted-foreground">Nur für Admins sichtbar, nicht für Mitarbeiter</p>
+                  </div>
+                </div>
+              )}
 
               {/* Recurrence settings (discreet) */}
               <RecurrenceSettings

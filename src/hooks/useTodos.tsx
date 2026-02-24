@@ -20,6 +20,7 @@ export interface Todo {
   building_id: string | null;
   attachments: any[];
   is_recurring: boolean;
+  is_internal: boolean;
   recurrence_pattern: 'daily' | 'weekly' | 'monthly' | 'yearly' | null;
   recurrence_interval: number | null;
   recurrence_end_date: string | null;
@@ -89,6 +90,7 @@ export interface CreateTodoInput {
   building_id?: string;
   building_ids?: string[];
   is_recurring?: boolean;
+  is_internal?: boolean;
   recurrence_pattern?: 'daily' | 'weekly' | 'monthly' | 'yearly';
   recurrence_interval?: number;
   recurrence_end_date?: string;
@@ -185,25 +187,9 @@ export function useTodos(filters: TodoFilters) {
         });
       }
       
-      // For employees: only show tasks assigned to employees or unassigned
-      if (profile?.role === 'employee' && userId) {
-        // Get all employee IDs
-        const { data: employees } = await supabase
-          .from('profiles')
-          .select('user_id')
-          .eq('role', 'employee');
-        
-        const employeeIds = employees?.map(e => e.user_id) || [];
-        
-        todos = todos.filter(todo => {
-          // Unassigned tasks are visible
-          if (todo.assigned_to === null && (!todo.assignees || todo.assignees.length === 0)) return true;
-          // Tasks assigned to an employee
-          if (todo.assigned_to && employeeIds.includes(todo.assigned_to)) return true;
-          // Check new assignees array - at least one assignee must be an employee
-          if (todo.assignees?.some(a => employeeIds.includes(a.user?.user_id))) return true;
-          return false;
-        });
+      // For employees: show all tasks EXCEPT internal ones
+      if (profile?.role === 'employee') {
+        todos = todos.filter(todo => !(todo as any).is_internal);
       }
       
       return todos;
@@ -631,6 +617,31 @@ export function useCreateComment() {
           content,
           created_by: user?.id,
         })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { data, todoId };
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['todo-comments', result.todoId] });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Fehler', description: error.message, variant: 'destructive' });
+    },
+  });
+}
+
+// Update comment mutation
+export function useUpdateComment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, todoId, content }: { id: string; todoId: string; content: string }) => {
+      const { data, error } = await supabase
+        .from('todo_comments')
+        .update({ content })
+        .eq('id', id)
         .select()
         .single();
 
