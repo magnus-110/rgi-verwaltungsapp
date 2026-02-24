@@ -90,7 +90,8 @@ function FilesByCategory({ files, categories, search }: { files: FileItem[]; cat
     <div className="space-y-6">
       {grouped.map(([catId, group]) => (
         <div key={catId || "__none__"}>
-          <h3 className="text-sm font-semibold text-foreground uppercase tracking-wide mb-3 px-1">
+          <h3 className="text-sm font-semibold text-primary uppercase tracking-wide mb-3 px-1 flex items-center gap-2">
+            <div className="w-1 h-4 rounded-full bg-primary" />
             {group.name}
           </h3>
           <div className="space-y-1">
