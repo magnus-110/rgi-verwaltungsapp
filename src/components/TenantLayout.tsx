@@ -13,7 +13,8 @@ import {
   Settings,
   LogOut,
   UserRound,
-  Menu
+  Menu,
+  FolderOpen
 } from "lucide-react";
 
 interface TenantLayoutProps {
