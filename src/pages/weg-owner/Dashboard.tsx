@@ -21,6 +21,7 @@ import { useHasVisibleFiles } from "@/hooks/useHasVisibleFiles";
 export const WegOwnerDashboard = () => {
   const navigate = useNavigate();
   const { profile } = useAuth();
+  const hasVisibleFiles = useHasVisibleFiles(profile?.user_id);
   const [reports, setReports] = useState<any[]>([]);
   const [buildings, setBuildings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
