@@ -91,12 +91,12 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
       path: '/weg-owner/reports',
       active: location.pathname.startsWith('/weg-owner/reports')
     },
-    { 
+    ...(hasVisibleFiles ? [{ 
       icon: FolderOpen, 
       label: "Dokumente", 
       path: '/weg-owner/files',
       active: location.pathname.startsWith('/weg-owner/files')
-    },
+    }] : []),
     { 
       icon: MessageSquare, 
       label: "Schwarzes Brett", 
