@@ -11,7 +11,8 @@ import {
   ToggleLeft,
   ToggleRight,
   CheckSquare,
-   CalendarDays,
+  CalendarDays,
+  FolderOpen,
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
