@@ -1,176 +1,137 @@
 
-# Plan: Intelligente Wissensbasis mit Dokumenten-Upload
 
-## Übersicht
+# Neue Dokumenten-Upload-Seite mit Drag & Drop Kacheln
 
-Bei ~30-40 DIN A4 Seiten (ca. 60.000-120.000 Zeichen) ist es zu viel, um alles in den Kontext zu laden. Stattdessen implementieren wir ein **Metadaten-basiertes System**, bei dem Nova nur relevante Dokumente lädt.
+## Uebersicht
 
-## Wie es funktionieren wird
+Die `/files`-Seite wird komplett umgebaut: Statt eines Upload-Dialogs werden alle Upload-Einstellungen (Kategorie, Sichtbarkeit, Beschreibung etc.) direkt in eine **Toolbar oben** auf der Seite verschoben. Darunter erscheinen bei Auswahl eines Gebaeudes grosse **Drag-and-Drop-Kacheln** fuer das Gebaeude und jeden zugehoerigen Eigentuemer/Mieter, auf die man Dateien einfach per Drag & Drop ablegen kann.
 
-```text
-+---------------------------+
-|  Admin lädt Dokument hoch |
-|  (PDF/Text + Metadaten)   |
-+------------+--------------+
-             |
-             v
-+---------------------------+
-|  OCR (bei PDF)            |
-|  Text-Extraktion          |
-+------------+--------------+
-             |
-             v
-+---------------------------+
-|  Speicherung als          |
-|  knowledge_documents      |
-|  (Volltext + Metadaten)   |
-+---------------------------+
+---
 
-===== Bei Nutzeranfrage =====
-
-+---------------------------+
-|  Nutzer fragt Nova        |
-+------------+--------------+
-             |
-             v
-+---------------------------+
-|  Keyword-Matching mit     |
-|  Metadaten (Kategorie,    |
-|  Schlagwörter)            |
-+------------+--------------+
-             |
-             v
-+---------------------------+
-|  Nur relevante Dokumente  |
-|  werden geladen           |
-|  (max 3-5 Stück)          |
-+------------+--------------+
-             |
-             v
-+---------------------------+
-|  Nova antwortet mit       |
-|  korrektem Kontext        |
-+---------------------------+
-```
-
-## Datenbankstruktur
-
-Neue Tabelle `chatbot_knowledge_documents`:
-
-| Spalte | Typ | Beschreibung |
-|--------|-----|--------------|
-| id | UUID | Primärschlüssel |
-| title | TEXT | Dokumenttitel (z.B. "Mietvertrag Standardvorlage") |
-| content | TEXT | Vollständiger Dokumentinhalt |
-| category | TEXT | Kategorie: "mietvertrag", "hausordnung", "rechtliches", "faq", "sonstiges" |
-| keywords | TEXT[] | Schlagwörter als Array (z.B. ["kaution", "kündigung", "miete"]) |
-| applies_to | TEXT | Für wen gilt es: "alle", "mieter", "weg_eigentuemer" |
-| file_path | TEXT | Optionaler Pfad zur Originaldatei |
-| created_at | TIMESTAMP | Erstellungsdatum |
-
-## Metadaten-Felder erklärt
-
-### 1. Kategorie (Pflichtfeld)
-Wählen Sie beim Hochladen:
-- **mietvertrag** - Mietverträge, Vertragsanlagen
-- **hausordnung** - Hausordnungen, Regeln
-- **rechtliches** - Gesetze, Verordnungen, rechtliche Hinweise
-- **faq** - Häufige Fragen, Anleitungen
-- **sonstiges** - Alles andere
-
-### 2. Schlagwörter (wichtig für Suche)
-Geben Sie 3-8 Begriffe ein, die Nutzer verwenden könnten:
-- Mietvertrag → "kaution", "kündigung", "miete", "nebenkosten", "mieterhöhung"
-- Hausordnung → "ruhezeiten", "müll", "haustiere", "grillen", "parken"
-
-### 3. Gilt für
-- **alle** - Für Mieter und WEG-Eigentümer
-- **mieter** - Nur für Mieter relevant
-- **weg_eigentuemer** - Nur für WEG-Eigentümer relevant
-
-## UI-Design für Chatbot-Einstellungen
+## Neues Layout der Seite
 
 ```text
-+--------------------------------------------------+
-| Wissensdokumente                     [+ Dokument]|
-+--------------------------------------------------+
-|                                                  |
-| [PDF] Mietvertrag Standardvorlage     [✏️] [🗑️] |
-|       Kategorie: Mietvertrag                     |
-|       Schlagwörter: kaution, kündigung, miete    |
-|       Gilt für: Mieter                           |
-|       8 Seiten, 12.450 Zeichen                   |
-|                                                  |
-| [TXT] Hausordnung 2024                [✏️] [🗑️] |
-|       Kategorie: Hausordnung                     |
-|       Schlagwörter: ruhezeiten, müll, grillen    |
-|       Gilt für: Alle                             |
-|       2 Seiten, 3.200 Zeichen                    |
-|                                                  |
-+--------------------------------------------------+
-
-[+ Dokument hinzufügen] - Dialog:
-+--------------------------------------------------+
-| Neues Wissensdokument                            |
-+--------------------------------------------------+
-| Titel: [________________________]                |
-|                                                  |
-| Quelle:  (○) Text eingeben  (●) PDF hochladen    |
-|                                                  |
-| [PDF auswählen oder hierher ziehen]              |
-|                                                  |
-| Kategorie: [Mietvertrag        ▼]                |
-|                                                  |
-| Schlagwörter (mit Komma getrennt):               |
-| [kaution, kündigung, miete, nebenkosten______]   |
-|                                                  |
-| Gilt für: [Mieter              ▼]                |
-|                                                  |
-|              [Abbrechen]  [Speichern]            |
-+--------------------------------------------------+
++---------------------------------------------------------------+
+| Dokumente                                                     |
+| Dokumente fuer Gebaeude und Nutzer verwalten                  |
++---------------------------------------------------------------+
+| [Gebaeude v]  [Kategorie v] [+Kat] [Sichtbar: On] [Refresh]  |
+| [Beschreibung (optional)...]                                  |
++---------------------------------------------------------------+
+|                                                               |
+| +-----------------------------------------------------------+ |
+| |  GEBAEUDE-KACHEL (volle Breite)                           | |
+| |  "Musterstr. 5" - Gebaeude-Dokumente                     | |
+| |  Dateien hierher ziehen oder klicken                      | |
+| |  [bereits hochgeladene Dateien als Liste darunter]        | |
+| +-----------------------------------------------------------+ |
+|                                                               |
+| +---------------------------+  +---------------------------+  |
+| |  Max Mustermann           |  |  Erika Muster             | |
+| |  max@example.com          |  |  erika@example.com        | |
+| |  Dateien hier ablegen     |  |  Dateien hier ablegen     | |
+| |  [Dateiliste]             |  |  [Dateiliste]             | |
+| +---------------------------+  +---------------------------+  |
++---------------------------------------------------------------+
 ```
 
-## Intelligente Suche in der Edge Function
+---
 
-Wenn ein Nutzer fragt "Was sind die Ruhezeiten?":
+## Aenderungen im Detail
 
-1. Keywords werden extrahiert: ["ruhezeiten"]
-2. Dokumente mit passendem Keyword oder Kategorie "hausordnung" werden gefunden
-3. Nur diese Dokumente (max. 3-5) werden in den Kontext geladen
-4. Nova antwortet basierend auf dem relevanten Wissen
+### 1. Kategorie-Management direkt in der Toolbar
 
-## Implementierung
+- Neben dem Kategorie-Dropdown erscheint ein **"+" Button** um neue Kategorien inline hinzuzufuegen (oeffnet einen kleinen Popover mit Name + Farbe)
+- Im Kategorie-Dropdown gibt es bei jeder Kategorie ein kleines **Loeschen-Icon** (X), um sie direkt zu entfernen
+- Der separate "Kategorien"-Button und das `FileCategoryManager`-Sheet bleiben als erweiterte Verwaltung erhalten
 
-### 1. Datenbank-Migration
-- Neue Tabelle `chatbot_knowledge_documents` erstellen
-- Bestehende `knowledge_items` migrieren (optional)
+### 2. Toolbar mit Upload-Einstellungen (ersetzt den Upload-Dialog)
 
-### 2. ChatbotSettings.tsx anpassen
-- Bearbeitungs-Bug beheben (lokaler State)
-- Neues UI für Dokumentenverwaltung
-- Upload-Dialog mit Metadaten-Eingabe
+Die Felder aus dem bisherigen `FileUploadDialog` wandern in eine kompakte Toolbar direkt auf der Seite:
 
-### 3. Neue Edge Function: process-knowledge-document
-- PDF-Upload → OCR → Text-Extraktion
-- Speicherung in neuer Tabelle
+- **Zeile 1**: Gebaeude-Dropdown | Kategorie-Dropdown (mit +/- Buttons) | Sichtbarkeit-Toggle | Refresh-Button
+- **Zeile 2**: Beschreibung (optionales Textfeld, eingeklappt, zeigt sich bei Bedarf)
 
-### 4. chat-with-ai Edge Function erweitern
-- Keyword-Matching für Dokumentensuche
-- Nur relevante Dokumente laden
+Der Upload-Dialog wird **entfernt**. Dateien werden stattdessen per Drag & Drop auf die Kacheln gezogen oder per Klick auf eine Kachel ausgewaehlt.
 
-### Betroffene Dateien
+### 3. Drag-and-Drop Kacheln
 
-| Datei | Änderung |
+Wenn ein **Gebaeude ausgewaehlt** ist:
+
+**Gebaeude-Kachel (volle Breite, ganz oben)**
+- Grosse Kachel ueber die gesamte Breite
+- Zeigt den Gebaeude-Namen und ein Building-Icon
+- Text: "Dateien fuer alle Bewohner hierher ziehen"
+- Dateien die hier abgelegt werden, bekommen `building_id` = Gebaeude, `assigned_user_id` = NULL
+- Darunter: Liste der bereits fuer dieses Gebaeude hochgeladenen allgemeinen Dateien
+
+**Personen-Kacheln (2-spaltig darunter)**
+- Je eine Kachel pro Mieter/Eigentuemer des Gebaeudes (gefiltert nach `building_id` in profiles bzw. `weg_owner_buildings`)
+- Zeigt Name, E-Mail, User-Icon
+- Dateien die hier abgelegt werden, bekommen `building_id` = Gebaeude, `assigned_user_id` = Person
+- Darunter: Liste der bereits fuer diese Person hochgeladenen Dateien
+
+Wenn **kein Gebaeude ausgewaehlt** ist ("Alle Gebaeude"):
+- Normale Tabellenansicht wie bisher (alle Dateien)
+
+### 4. Drag-and-Drop Logik
+
+Jede Kachel hat:
+- `onDragOver` / `onDragEnter` / `onDragLeave` / `onDrop` Event-Handler
+- Visuelles Feedback: Border-Farbe aendert sich beim Drag-Over (z.B. blauer Rahmen, leichter Hintergrund)
+- Beim Drop: Datei wird mit den aktuell in der Toolbar eingestellten Werten (Kategorie, Sichtbarkeit, Beschreibung) plus der Kachel-spezifischen Zuordnung (building_id / assigned_user_id) hochgeladen
+- Alternativ: Klick auf die Kachel oeffnet einen Datei-Picker
+
+### 5. WEG-Eigentuemer Zuordnung
+
+Fuer WEG-Verwaltungsmodus werden die Personen aus der `weg_owner_buildings`-Tabelle geladen statt nur aus `profiles`:
+- Alle `weg_owner_buildings`-Eintraege fuer das ausgewaehlte Gebaeude
+- Dann deren Profile aus `profiles` laden
+- So erscheinen nur die tatsaechlich dem Gebaeude zugeordneten WEG-Eigentuemer
+
+---
+
+## Betroffene Dateien
+
+### Geaendert
+| Datei | Aenderung |
 |-------|----------|
-| Migration | Neue Tabelle `chatbot_knowledge_documents` |
-| `src/pages/ChatbotSettings.tsx` | Komplett überarbeitete Wissensverwaltung |
-| `supabase/functions/process-knowledge-document/index.ts` | Neue Function für OCR |
-| `supabase/functions/chat-with-ai/index.ts` | Intelligente Dokumentensuche |
+| `src/pages/Files.tsx` | Komplett umgebaut: Toolbar mit Einstellungen, Kachel-Layout, Drag-and-Drop-Logik, Dateien pro Kachel laden |
+| `src/components/files/FileList.tsx` | Wird zu einer kompakten Inline-Liste (ohne eigene Suche), die innerhalb einer Kachel gerendert wird |
 
-## Vorteile dieses Systems
+### Bleibt unveraendert
+| Datei | Grund |
+|-------|-------|
+| `src/components/files/FileCategoryManager.tsx` | Bleibt als erweiterte Verwaltung per Sheet erhalten |
+| `src/components/files/FileUploadDialog.tsx` | Wird nicht mehr von Files.tsx genutzt, aber bleibt fuer moegliche andere Verwendung |
+| Tenant/WEG-Owner Files-Seiten | Nicht betroffen |
 
-1. **Dokumente bleiben vollständig** - Mietverträge werden nicht zerstückelt
-2. **Schnelle Suche** - Metadaten ermöglichen präzises Matching
-3. **Skalierbar** - Funktioniert auch mit 100+ Dokumenten
-4. **Einfache Pflege** - Klare Struktur mit Kategorien
-5. **Zielgruppenspezifisch** - Mieter sehen nur Mieter-relevante Infos
+### Neue Komponente
+| Datei | Beschreibung |
+|-------|-------------|
+| `src/components/files/FileDropCard.tsx` | Wiederverwendbare Drag-and-Drop-Kachel mit Datei-Upload-Logik, Dateiliste, visuellem Drop-Feedback |
+
+---
+
+## Technische Details
+
+### Drag-and-Drop Upload-Ablauf
+1. Nutzer waehlt Gebaeude und optional Kategorie/Sichtbarkeit in der Toolbar
+2. Nutzer zieht Datei auf eine Kachel (Gebaeude oder Person)
+3. `onDrop` wird ausgeloest mit der `File` aus dem `DataTransfer`
+4. Upload-Funktion wird aufgerufen mit:
+   - `building_id` = ausgewaehltes Gebaeude
+   - `assigned_user_id` = Person der Kachel (oder null fuer Gebaeude-Kachel)
+   - `category_id` = aus Toolbar
+   - `visible_to_users` = aus Toolbar
+   - `description` = aus Toolbar
+   - `management_mode` = aktueller Modus
+5. Datei wird in Supabase Storage hochgeladen, Eintrag in `building_files` erstellt
+6. OCR-Verarbeitung wird im Hintergrund gestartet (wie bisher)
+7. Kachel zeigt die neue Datei sofort an
+
+### Inline-Kategorie-Erstellung
+- Popover neben dem Kategorie-Dropdown
+- Einfaches Formular: Name + Farbe
+- Nach Erstellung wird die neue Kategorie automatisch ausgewaehlt
+
