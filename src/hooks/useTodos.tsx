@@ -187,25 +187,9 @@ export function useTodos(filters: TodoFilters) {
         });
       }
       
-      // For employees: only show tasks assigned to employees or unassigned
-      if (profile?.role === 'employee' && userId) {
-        // Get all employee IDs
-        const { data: employees } = await supabase
-          .from('profiles')
-          .select('user_id')
-          .eq('role', 'employee');
-        
-        const employeeIds = employees?.map(e => e.user_id) || [];
-        
-        todos = todos.filter(todo => {
-          // Unassigned tasks are visible
-          if (todo.assigned_to === null && (!todo.assignees || todo.assignees.length === 0)) return true;
-          // Tasks assigned to an employee
-          if (todo.assigned_to && employeeIds.includes(todo.assigned_to)) return true;
-          // Check new assignees array - at least one assignee must be an employee
-          if (todo.assignees?.some(a => employeeIds.includes(a.user?.user_id))) return true;
-          return false;
-        });
+      // For employees: show all tasks EXCEPT internal ones
+      if (profile?.role === 'employee') {
+        todos = todos.filter(todo => !(todo as any).is_internal);
       }
       
       return todos;
