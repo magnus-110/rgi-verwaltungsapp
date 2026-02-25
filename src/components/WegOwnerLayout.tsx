@@ -91,18 +91,18 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
       path: '/weg-owner/reports',
       active: location.pathname.startsWith('/weg-owner/reports')
     },
-    { 
-      icon: MessageSquare, 
-      label: "Schwarzes Brett", 
-      path: '/weg-owner/forum',
-      active: location.pathname.startsWith('/weg-owner/forum')
-    },
     ...(hasVisibleFiles ? [{ 
       icon: FolderOpen, 
       label: "Dokumente", 
       path: '/weg-owner/files',
       active: location.pathname.startsWith('/weg-owner/files')
     }] : []),
+    { 
+      icon: MessageSquare, 
+      label: "Schwarzes Brett", 
+      path: '/weg-owner/forum',
+      active: location.pathname.startsWith('/weg-owner/forum')
+    },
     { 
       icon: Sparkles, 
       label: "Chat", 
