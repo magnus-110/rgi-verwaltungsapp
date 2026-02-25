@@ -458,6 +458,7 @@ serve(async (req) => {
       .from('chatbot_knowledge_documents')
       .select('*')
       .or(`applies_to.eq.alle,applies_to.eq.${userType}`)
+      .eq('management_mode', managementMode)
       .order('created_at', { ascending: false });
     
     if (knowledgeError) {

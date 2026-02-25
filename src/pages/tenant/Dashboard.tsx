@@ -225,7 +225,7 @@ export const TenantDashboard = () => {
               </div>
               <div className="flex-1">
                 <div className="font-medium">Frage stellen</div>
-                <div className="text-sm text-muted-foreground">RGI KI Assistent</div>
+                <div className="text-sm text-muted-foreground">RGI KI Assistentin</div>
               </div>
             </div>
           </Button>
