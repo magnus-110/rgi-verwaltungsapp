@@ -509,9 +509,9 @@ Beschreibung: ${report.description}`;
         </div>
 
         {report.admin_notes && (
-          <div className="mb-4 p-3 bg-blue-50 rounded-lg border-l-4 border-blue-400">
-            <h4 className="font-medium mb-1 text-blue-800">Verwalter-Notiz:</h4>
-            <p className="text-sm text-blue-700">{report.admin_notes}</p>
+          <div className="mb-4 p-3 bg-green-50 rounded-lg border-l-4 border-green-400">
+            <h4 className="font-medium mb-1 text-green-800">Verwalter-Notiz:</h4>
+            <p className="text-sm text-green-700">{report.admin_notes}</p>
           </div>
         )}
 
