@@ -607,9 +607,9 @@ export const WegOwnerReports = () => {
                   <p className="text-muted-foreground mb-4">{report.description}</p>
                   
                   {report.admin_notes && report.admin_notes.trim() && (
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                      <h4 className="text-sm font-medium text-blue-800 mb-2">Notiz der Verwaltung:</h4>
-                      <p className="text-sm text-blue-700">{report.admin_notes}</p>
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                      <h4 className="text-sm font-medium text-green-800 mb-2">Notiz der Verwaltung:</h4>
+                      <p className="text-sm text-green-700">{report.admin_notes}</p>
                     </div>
                   )}
                   
