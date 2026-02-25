@@ -91,18 +91,18 @@ export const TenantLayout = ({ children }: TenantLayoutProps) => {
       path: '/tenant/reports',
       active: location.pathname.startsWith('/tenant/reports')
     },
-    { 
-      icon: Newspaper, 
-      label: "Schwarzes Brett", 
-      path: '/tenant/forum',
-      active: location.pathname.startsWith('/tenant/forum')
-    },
     ...(hasVisibleFiles ? [{ 
       icon: FolderOpen, 
       label: "Dokumente", 
       path: '/tenant/files',
       active: location.pathname.startsWith('/tenant/files')
     }] : []),
+    { 
+      icon: Newspaper, 
+      label: "Schwarzes Brett", 
+      path: '/tenant/forum',
+      active: location.pathname.startsWith('/tenant/forum')
+    },
     { 
       icon: Sparkles, 
       label: "Chat", 
