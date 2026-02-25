@@ -180,22 +180,6 @@ export const TenantDashboard = () => {
             </div>
           </Button>
 
-          <Button 
-            variant="outline" 
-            className="w-full h-16 text-left justify-start border border-border/50 bg-card shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-200 group"
-            onClick={() => navigate("/tenant/forum")}
-          >
-            <div className="flex items-center gap-4 w-full">
-              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                <MessageSquare className="w-5 h-5 text-primary" />
-              </div>
-              <div className="flex-1">
-                <div className="font-medium">Schwarzes Brett</div>
-                <div className="text-sm text-muted-foreground">Ankündigungen lesen</div>
-              </div>
-            </div>
-          </Button>
-          
           {hasVisibleFiles && (
             <Button 
               variant="outline" 
@@ -213,6 +197,22 @@ export const TenantDashboard = () => {
               </div>
             </Button>
           )}
+
+          <Button 
+            variant="outline" 
+            className="w-full h-16 text-left justify-start border border-border/50 bg-card shadow-sm hover:shadow-md hover:border-primary/30 transition-all duration-200 group"
+            onClick={() => navigate("/tenant/forum")}
+          >
+            <div className="flex items-center gap-4 w-full">
+              <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                <MessageSquare className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1">
+                <div className="font-medium">Schwarzes Brett</div>
+                <div className="text-sm text-muted-foreground">Ankündigungen lesen</div>
+              </div>
+            </div>
+          </Button>
 
           <Button 
             variant="outline" 
