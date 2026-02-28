@@ -1,55 +1,61 @@
 
 
-## Plan: Drei Anpassungen (Nova Text, Erklaerungsvideo, DSGVO-Pruefung)
+## Plan: Meldungsformular vereinfachen
 
-### 1. "KI Assistentin" statt "KI Assistent"
+Beide Formulare (Mieter und WEG-Eigentuemer) werden nach dem gleichen Prinzip ueberarbeitet.
 
-Textaenderung in drei Dateien:
-- `src/components/chat/WelcomeScreen.tsx` (Zeile 40): "Nova - RGI KI Assistentin"
-- `src/pages/tenant/Dashboard.tsx` (Zeile 228): "RGI KI Assistentin"
-- `src/pages/weg-owner/Dashboard.tsx` (Zeile 186): "RGI KI Assistentin"
+### Aenderungen im Ueberblick
 
-### 2. Erklaerungsvideo als zweiter Schritt im Onboarding-Dialog
+**1. Gebaeude automatisch auswaehlen (WEG-Eigentuemer)**
+- Wenn nur 1 Gebaeude zugeordnet ist: automatisch auswaehlen, Feld wird nicht als Auswahl angezeigt, sondern nur als fester Text im Kontaktbereich
+- Nur bei mehreren Gebaeuden wird das Select-Dropdown angezeigt
 
-Nach dem Akzeptieren der AGB und Datenschutzerklaerung wird ein zweiter Schritt angezeigt, der das Erklaerungsvideo vorschlaegt.
+**2. Kontaktdaten als aufklappbarer Bereich**
+- Oben wird nur der Name des Nutzers als fester Text angezeigt (kein Eingabefeld-Look)
+- Daneben ein kleiner Pfeil (ChevronDown), der beim Klick die weiteren Daten aufklappt (E-Mail, Telefon, Gebaeude)
+- Die Felder sehen aus wie normaler Text (kein Border, kein Input-Styling)
+- Beim Klick auf einen Wert wird er zu einem editierbaren Input-Feld
+- Collapsible-Komponente von Radix wird verwendet
 
-**Ablauf:**
-1. Schritt 1 (bestehend): AGB und Datenschutz akzeptieren - Button "Akzeptieren und fortfahren"
-2. Schritt 2 (neu): Erklaerungsvideo-Vorschlag mit Thumbnail und Link
-   - Das hochgeladene Bild wird als Thumbnail angezeigt (klickbar)
-   - YouTube-Link: https://youtube.com/shorts/Ccw9pb_Y6XY?si=ehjPVhZ5bVTikQul
-   - Button "Video ansehen" (oeffnet YouTube) und "Ueberspringen" (schliesst Dialog)
+**3. Formular-Reihenfolge vereinfacht**
+- Oben: Kontaktbereich (Name + aufklappbar: E-Mail, Telefon, Gebaeude)
+- Mitte: Titel und Beschreibung (die Hauptfelder, gut sichtbar)
+- Unten: Anhaenge und Absende-Button
 
-**Technische Umsetzung in `src/components/TermsAcceptanceDialog.tsx`:**
-- Neuer State `step` (1 oder 2)
-- Nach erfolgreichem Speichern der Terms-Akzeptanz wechselt der Dialog zu Schritt 2
-- Schritt 2 zeigt das Thumbnail-Bild und zwei Buttons
-- Das hochgeladene Bild wird nach `public/images/` kopiert
+### Technische Umsetzung
 
-### 3. DSGVO-Pruefung: Nova Dokumentenzugriff
+**Dateien:**
+- `src/pages/weg-owner/Reports.tsx` - Formular im Dialog ueberarbeiten
+- `src/pages/tenant/Reports.tsx` - Formular im Dialog ueberarbeiten
 
-**Ergebnis der Pruefung:**
+**Kontaktbereich-Design:**
+```text
++------------------------------------------+
+| Max Mustermann              [v] Details   |
++------------------------------------------+
+| (aufgeklappt:)                           |
+|   E-Mail: max@example.com               |
+|   Telefon: 0123 456789                   |
+|   Gebaeude: Musterstr. 1                 |
++------------------------------------------+
+```
 
-Die Dokumentenzugriffe in der `chat-with-ai` Edge Function sind korrekt geschuetzt:
+- Text-Felder nutzen `cursor-pointer` und wechseln bei Klick zu einem Input
+- Schriftgroesse bleibt gross genug fuer aeltere Nutzer (text-base)
+- Klarer visueller Hinweis "Zum Bearbeiten antippen" als kleiner Hilfetext
 
-- **Persoenliche Dateien**: Gefiltert nach `assigned_user_id = userId` -- nur eigene Dateien
-- **Gebaeude-Dateien**: Gefiltert nach `building_id` des Nutzers UND `assigned_user_id IS NULL` -- nur allgemeine Gebaeudedateien des eigenen Gebaeudes
-- **Gebaeudedokumente (RAG)**: Gefiltert nach den Gebaeude-IDs des Nutzers (bei Mietern: `profile.building_id`, bei WEG-Eigentuemern: `weg_owner_buildings`)
-- **RLS-Policies**: Zusaetzlich auf Datenbankebene abgesichert
+**WEG-Eigentuemer: Auto-Select Logik:**
+- In `useEffect` nach `fetchBuildings`: wenn `buildings.length === 1`, automatisch `building_id` und `contact_address` setzen
+- Select nur rendern wenn `buildings.length > 1`
 
-**Ein kleiner Verbesserungsvorschlag:** Die Wissensdokumente (`chatbot_knowledge_documents`) werden aktuell nicht nach `management_mode` gefiltert. Das bedeutet, ein Mieter koennte theoretisch auch WEG-spezifische Wissensdokumente als Kontext erhalten (und umgekehrt). Dies ist kein direktes DSGVO-Problem (da es sich um allgemeine, nicht personenbezogene Wissensinhalte handelt), aber fuer saubere Datentrennung sollte ein Filter ergaenzt werden.
+**Mieter:**
+- Gebaeude ist bereits automatisch gesetzt (ueber `tenantInfo`)
+- Adress-Feld wird in den aufklappbaren Bereich verschoben
 
-**Aenderung in `supabase/functions/chat-with-ai/index.ts`** (Zeile 457-461):
-- Filter `.eq('management_mode', managementMode)` zur Wissensdokumente-Abfrage hinzufuegen
-
-### Zusammenfassung der Dateiaenderungen
-
-| Datei | Aenderung |
-|-------|-----------|
-| `src/components/chat/WelcomeScreen.tsx` | "Assistentin" |
-| `src/pages/tenant/Dashboard.tsx` | "Assistentin" |
-| `src/pages/weg-owner/Dashboard.tsx` | "Assistentin" |
-| `src/components/TermsAcceptanceDialog.tsx` | Zweistufiger Dialog mit Video-Vorschlag |
-| `supabase/functions/chat-with-ai/index.ts` | management_mode Filter fuer Wissensdokumente |
-| Bild kopieren nach `public/images/` | Thumbnail fuer Video |
+### Barrierefreiheit (fuer aeltere Nutzer)
+- Grosse Schrift (text-base / text-lg)
+- Klare Beschriftungen
+- Deutlicher "Details anzeigen/verbergen"-Button mit Pfeil
+- Titel und Beschreibung bleiben prominente, normale Eingabefelder
+- Absende-Button bleibt gross und deutlich
 
