@@ -53,6 +53,38 @@ const parseAttachments = (attachments: any): any[] => {
   return [];
 };
 
+// Inline editable text field component
+const InlineEditField = ({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (val: string) => void; type?: string }) => {
+  const [editing, setEditing] = useState(false);
+  
+  if (editing) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-muted-foreground min-w-[70px]">{label}:</span>
+        <Input
+          type={type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={() => setEditing(false)}
+          autoFocus
+          className="h-8 text-base"
+        />
+      </div>
+    );
+  }
+  
+  return (
+    <div 
+      className="flex items-center gap-2 cursor-pointer group py-1 rounded-md hover:bg-muted/50 px-2 -mx-2 transition-colors"
+      onClick={() => setEditing(true)}
+    >
+      <span className="text-sm text-muted-foreground min-w-[70px]">{label}:</span>
+      <span className="text-base text-foreground">{value || "—"}</span>
+      <Pencil className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity ml-auto" />
+    </div>
+  );
+};
+
 export const WegOwnerReports = () => {
   const { profile } = useAuth();
   const [reports, setReports] = useState<Report[]>([]);
@@ -60,6 +92,7 @@ export const WegOwnerReports = () => {
   const [isCreateReportOpen, setIsCreateReportOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [attachmentUrls, setAttachmentUrls] = useState<{[key: string]: AttachmentWithUrl[]}>({});
+  const [contactOpen, setContactOpen] = useState(false);
   
   const [reportForm, setReportForm] = useState({
     title: "",
