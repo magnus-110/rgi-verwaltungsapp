@@ -204,30 +204,21 @@ export const WegOwnerReports = () => {
         if (buildingsError) throw buildingsError;
         
         setBuildings(buildingsData || []);
+        
+        // Auto-select if only one building
+        if (buildingsData && buildingsData.length === 1) {
+          const b = buildingsData[0];
+          setReportForm(prev => ({
+            ...prev,
+            building_id: b.id,
+            contact_address: `${b.name} - ${b.address}`,
+          }));
+        }
       }
     } catch (error) {
       console.error("Error fetching buildings:", error);
     }
   };
-
-  const prefillContactInfo = async () => {
-    try {
-      let contactName = '';
-      let contactEmail = profile?.email || '';
-      let contactPhone = '';
-
-      try {
-        const { data: wegOwnerData } = await supabase
-          .from("weg_owners")
-          .select("*")
-          .eq("user_id", profile?.user_id)
-          .maybeSingle();
-
-        if (wegOwnerData) {
-          const fullName = `${wegOwnerData.first_name || ''} ${wegOwnerData.last_name || ''}`.trim();
-          if (fullName) {
-            contactName = fullName;
-          }
           if (wegOwnerData.email) {
             contactEmail = wegOwnerData.email;
           }
