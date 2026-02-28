@@ -394,8 +394,8 @@ export const WegOwnerReports = () => {
         contact_name: prev.contact_name,
         contact_email: prev.contact_email,
         contact_phone: prev.contact_phone,
-        contact_address: '',
-        building_id: '',
+        contact_address: buildings.length === 1 ? prev.contact_address : '',
+        building_id: buildings.length === 1 ? prev.building_id : '',
       }));
       setAttachments([]);
       setIsCreateReportOpen(false);
