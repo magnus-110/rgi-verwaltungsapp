@@ -235,14 +235,18 @@ export const TenantDashboard = () => {
         <div className="mt-12 pt-8 border-t border-border">
             <div className="text-center space-y-4">
               <h3 className="text-lg font-medium">Kontakt & Notfall</h3>
-              <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
-                <div className="flex items-center justify-center gap-2">
-                  <Phone className="w-4 h-4" />
-                   <a href="tel:+498363960656" className="hover:underline hover:text-foreground transition-colors">08363 960656</a>
+              <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground">
+                <div className="flex items-center gap-2">
+                  <Phone className="w-4 h-4 shrink-0" />
+                  <a href="tel:+498363960656" className="hover:underline hover:text-foreground transition-colors">08363 960656</a>
                 </div>
-                <div className="flex items-center justify-center gap-2">
-                  <Mail className="w-4 h-4" />
-                   <a href="mailto:info@rgi-immobilien.de" className="hover:underline hover:text-foreground transition-colors">info@rgi-immobilien.de</a>
+                <div className="flex items-center gap-2">
+                  <Mail className="w-4 h-4 shrink-0" />
+                  <a href="mailto:info@rgi-immobilien.de" className="hover:underline hover:text-foreground transition-colors truncate">info@rgi-immobilien.de</a>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-4 h-4 shrink-0" />
+                  <a href="https://maps.app.goo.gl/nnWb3Dz5Rid1xzzv7" target="_blank" rel="noopener noreferrer" className="hover:underline hover:text-foreground transition-colors">Vilstalstr. 4, 87459 Pfronten</a>
                 </div>
               </div>
               <div className="text-xs text-muted-foreground">
