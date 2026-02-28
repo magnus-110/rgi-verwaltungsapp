@@ -203,11 +203,6 @@ export const WegOwnerDashboard = () => {
                     <div className="text-sm text-muted-foreground">
                       {building.building?.address || 'Keine Adresse'}
                     </div>
-                    {building.building?.building_code && (
-                      <div className="text-xs text-muted-foreground mt-1">
-                        Code: {building.building.building_code}
-                      </div>
-                    )}
                   </CardContent>
                 </Card>
               ))}

@@ -167,7 +167,7 @@
                      <div className="flex flex-col">
                        <span className="font-medium">{(building as any).buildings?.name || 'Unbekanntes Gebäude'}</span>
                        <span className="text-sm text-muted-foreground">{(building as any).buildings?.address}</span>
-                       <span className="text-xs font-mono text-muted-foreground">Code: {(building as any).buildings?.building_code}</span>
+                       
                      </div>
                    </div>
                  </div>
