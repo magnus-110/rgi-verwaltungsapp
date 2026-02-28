@@ -219,19 +219,25 @@ export const WegOwnerReports = () => {
       console.error("Error fetching buildings:", error);
     }
   };
-          if (wegOwnerData.email) {
-            contactEmail = wegOwnerData.email;
-          }
-          if (wegOwnerData.phone) {
-            contactPhone = wegOwnerData.phone;
-          }
-          console.log('WEG Owner Data loaded:', { 
-            first_name: wegOwnerData.first_name, 
-            last_name: wegOwnerData.last_name, 
-            fullName: contactName,
-            email: contactEmail,
-            phone: contactPhone
-          });
+
+  const prefillContactInfo = async () => {
+    try {
+      let contactName = '';
+      let contactEmail = profile?.email || '';
+      let contactPhone = '';
+
+      try {
+        const { data: wegOwnerData } = await supabase
+          .from("weg_owners")
+          .select("*")
+          .eq("user_id", profile?.user_id)
+          .maybeSingle();
+
+        if (wegOwnerData) {
+          const fullName = `${wegOwnerData.first_name || ''} ${wegOwnerData.last_name || ''}`.trim();
+          if (fullName) contactName = fullName;
+          if (wegOwnerData.email) contactEmail = wegOwnerData.email;
+          if (wegOwnerData.phone) contactPhone = wegOwnerData.phone;
         }
       } catch (error) {
         console.warn('Could not load WEG owner data:', error);
@@ -248,22 +254,16 @@ export const WegOwnerReports = () => {
           if (profileData) {
             if (!contactName) {
               const fullName = `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim();
-              if (fullName) {
-                contactName = fullName;
-              }
+              if (fullName) contactName = fullName;
             }
-            if (!contactPhone && profileData.phone) {
-              contactPhone = profileData.phone;
-            }
+            if (!contactPhone && profileData.phone) contactPhone = profileData.phone;
           }
         } catch (error) {
           console.warn('Could not load profile data:', error);
         }
       }
 
-      if (!contactName) {
-        contactName = contactEmail || 'WEG-Eigentümer';
-      }
+      if (!contactName) contactName = contactEmail || 'WEG-Eigentümer';
 
       setReportForm(prev => ({
         ...prev,
@@ -271,8 +271,6 @@ export const WegOwnerReports = () => {
         contact_email: contactEmail,
         contact_phone: contactPhone,
       }));
-
-      console.log('Final contact info set:', { contactName, contactEmail, contactPhone });
     } catch (error) {
       console.error("Error in prefillContactInfo:", error);
       setReportForm(prev => ({
