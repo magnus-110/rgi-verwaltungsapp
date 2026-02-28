@@ -458,73 +458,81 @@ export const TenantReports = () => {
               <DialogHeader>
                 <DialogTitle>Neue Meldung erstellen</DialogTitle>
               </DialogHeader>
-              <div className="space-y-4 max-h-[70vh] overflow-y-auto">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="contact_name">Name *</Label>
-                    <Input
-                      id="contact_name"
-                      value={reportForm.contact_name}
-                      onChange={(e) => setReportForm(prev => ({ ...prev, contact_name: e.target.value }))}
-                      placeholder="Ihr Name"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="contact_email">E-Mail *</Label>
-                    <Input
-                      id="contact_email"
-                      type="email"
-                      value={reportForm.contact_email}
-                      onChange={(e) => setReportForm(prev => ({ ...prev, contact_email: e.target.value }))}
-                      placeholder="Ihre E-Mail Adresse"
-                    />
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="contact_phone">Telefon</Label>
-                    <Input
-                      id="contact_phone"
-                      value={reportForm.contact_phone}
-                      onChange={(e) => setReportForm(prev => ({ ...prev, contact_phone: e.target.value }))}
-                      placeholder="Ihre Telefonnummer"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="contact_address">Adresse</Label>
-                    <Input
-                      id="contact_address"
-                      value={reportForm.contact_address}
-                      onChange={(e) => setReportForm(prev => ({ ...prev, contact_address: e.target.value }))}
-                      placeholder="Ihre Adresse"
-                    />
-                  </div>
+              <div className="space-y-5 max-h-[70vh] overflow-y-auto pr-1">
+                {/* Collapsible contact section */}
+                <div className="bg-muted/30 rounded-xl p-4">
+                  <Collapsible open={contactOpen} onOpenChange={setContactOpen}>
+                    <CollapsibleTrigger className="flex items-center justify-between w-full text-left">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-lg">
+                          {reportForm.contact_name?.charAt(0)?.toUpperCase() || "?"}
+                        </div>
+                        <div>
+                          <p className="text-base font-medium text-foreground">{reportForm.contact_name || "Name nicht gesetzt"}</p>
+                          <p className="text-xs text-muted-foreground">Ihre Kontaktdaten</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <span className="text-xs">Details</span>
+                        <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${contactOpen ? 'rotate-180' : ''}`} />
+                      </div>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="mt-3 space-y-1 border-t border-border/50 pt-3">
+                      <p className="text-xs text-muted-foreground mb-2">Zum Bearbeiten auf ein Feld tippen</p>
+                      <InlineEditField
+                        label="Name"
+                        value={reportForm.contact_name}
+                        onChange={(val) => setReportForm(prev => ({ ...prev, contact_name: val }))}
+                      />
+                      <InlineEditField
+                        label="E-Mail"
+                        value={reportForm.contact_email}
+                        onChange={(val) => setReportForm(prev => ({ ...prev, contact_email: val }))}
+                        type="email"
+                      />
+                      <InlineEditField
+                        label="Telefon"
+                        value={reportForm.contact_phone}
+                        onChange={(val) => setReportForm(prev => ({ ...prev, contact_phone: val }))}
+                        type="tel"
+                      />
+                      {reportForm.building_name && (
+                        <div className="flex items-center gap-2 py-1 px-2 -mx-2">
+                          <span className="text-sm text-muted-foreground min-w-[70px]">Gebäude:</span>
+                          <span className="text-base text-foreground">{reportForm.building_name}</span>
+                        </div>
+                      )}
+                    </CollapsibleContent>
+                  </Collapsible>
                 </div>
 
+                {/* Main form fields - prominent */}
                 <div>
-                  <Label htmlFor="title">Titel *</Label>
+                  <Label htmlFor="title" className="text-base font-medium">Was ist das Problem? *</Label>
                   <Input
                     id="title"
                     value={reportForm.title}
                     onChange={(e) => setReportForm(prev => ({ ...prev, title: e.target.value }))}
-                    placeholder="Kurze Beschreibung des Problems"
+                    placeholder="z.B. Heizung funktioniert nicht"
+                    className="mt-1.5 text-base h-12"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="description">Beschreibung *</Label>
+                  <Label htmlFor="description" className="text-base font-medium">Beschreibung *</Label>
                   <Textarea
                     id="description"
                     value={reportForm.description}
                     onChange={(e) => setReportForm(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder="Detaillierte Beschreibung des Problems"
+                    placeholder="Beschreiben Sie das Problem so genau wie möglich"
                     rows={4}
+                    className="mt-1.5 text-base"
                   />
                 </div>
 
+                {/* Attachments */}
                 <div>
-                  <Label htmlFor="attachments">Anhänge</Label>
-                  <div className="space-y-2">
+                  <Label htmlFor="attachments" className="text-base font-medium">Fotos oder Dokumente</Label>
+                  <div className="space-y-2 mt-1.5">
                     <Input
                       id="attachments"
                       type="file"
@@ -538,11 +546,7 @@ export const TenantReports = () => {
                         {attachments.map((file, index) => (
                           <div key={index} className="flex items-center justify-between p-2 bg-muted rounded">
                             <span className="text-sm">{file.name}</span>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeAttachment(index)}
-                            >
+                            <Button variant="ghost" size="sm" onClick={() => removeAttachment(index)}>
                               <X className="h-4 w-4" />
                             </Button>
                           </div>
@@ -552,8 +556,8 @@ export const TenantReports = () => {
                   </div>
                 </div>
 
-                <Button onClick={createReport} className="w-full" disabled={uploading}>
-                  {uploading ? "Wird erstellt..." : "Meldung erstellen"}
+                <Button onClick={createReport} className="w-full h-12 text-base font-medium" disabled={uploading}>
+                  {uploading ? "Wird erstellt..." : "Meldung absenden"}
                 </Button>
               </div>
             </DialogContent>
