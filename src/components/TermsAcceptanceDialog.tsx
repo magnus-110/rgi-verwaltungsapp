@@ -14,7 +14,7 @@ interface TermsAcceptanceDialogProps {
   onAccepted: () => void;
 }
 
-const VIDEO_URL = "https://youtube.com/shorts/Ccw9pb_Y6XY?si=ehjPVhZ5bVTikQul";
+const VIDEO_URL = "https://youtube.com/shorts/1LBJFaslZOQ?feature=share";
 
 export const TermsAcceptanceDialog = ({ open, userId, onAccepted }: TermsAcceptanceDialogProps) => {
   const [agbAccepted, setAgbAccepted] = useState(false);
