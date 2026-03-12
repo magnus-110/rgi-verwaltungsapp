@@ -41,6 +41,7 @@ interface FileDropCardProps {
   fullWidth?: boolean;
   onFileUploaded: () => void;
   onDelete: (fileId: string, filePath: string) => void;
+  onToggleVisibility?: (fileId: string, visible: boolean) => void;
 }
 
 function formatFileSize(bytes: number): string {
