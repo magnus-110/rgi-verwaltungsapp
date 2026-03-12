@@ -29,7 +29,7 @@ export function TodoCard({ todo, onEdit, isExpanded, onToggle }: TodoCardProps) 
   const handleToggle = onToggle || (() => setInternalOpen(!internalOpen));
    const [calendarDialogOpen, setCalendarDialogOpen] = useState(false);
   const updateTodo = useUpdateTodo();
-  const deleteTodo = useDeleteTodo();
+  const deleteTodo = useSoftDeleteTodo();
   const { data: subtasks = [] } = useSubtasks(todo.id);
   
   const overdue = isOverdue(todo);
