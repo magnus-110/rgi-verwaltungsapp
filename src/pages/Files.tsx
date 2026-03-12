@@ -362,6 +362,7 @@ export function Files() {
                   categories={categories}
                   onFileUploaded={fetchFiles}
                   onDelete={handleDelete}
+                  onToggleVisibility={handleToggleVisibility}
                 />
               ))}
             </div>
