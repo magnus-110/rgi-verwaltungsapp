@@ -223,7 +223,8 @@ Deno.serve(async (req) => {
       last_name: userData.last_name,
       phone: userData.phone,
       role: role,
-      force_password_change: userData.role === 'admin' ? false : false  // No forced password change
+      force_password_change: false,
+      terms_accepted_at: null  // Reset so AGB dialog appears again for re-created users
     }
 
     // For tenants, also set building_id in profile
