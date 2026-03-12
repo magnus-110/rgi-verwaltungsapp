@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { Building2, User, Upload, Loader2, FileText, Download, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -41,6 +42,7 @@ interface FileDropCardProps {
   fullWidth?: boolean;
   onFileUploaded: () => void;
   onDelete: (fileId: string, filePath: string) => void;
+  onToggleVisibility?: (fileId: string, visible: boolean) => void;
 }
 
 function formatFileSize(bytes: number): string {
@@ -64,6 +66,7 @@ export function FileDropCard({
   fullWidth = false,
   onFileUploaded,
   onDelete,
+  onToggleVisibility,
 }: FileDropCardProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -253,6 +256,16 @@ export function FileDropCard({
                 <span className="text-xs text-muted-foreground hidden md:inline">
                   {format(new Date(file.created_at), "dd.MM.yy", { locale: de })}
                 </span>
+                {onToggleVisibility && (
+                  <Switch
+                    checked={file.visible_to_users}
+                    onCheckedChange={(checked) => {
+                      onToggleVisibility(file.id, checked);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="h-5 w-9 data-[state=checked]:bg-primary"
+                  />
+                )}
                 <Button
                   variant="ghost"
                   size="icon"

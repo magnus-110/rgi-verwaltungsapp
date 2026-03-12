@@ -340,6 +340,7 @@ export function Files() {
             fullWidth
             onFileUploaded={fetchFiles}
             onDelete={handleDelete}
+            onToggleVisibility={handleToggleVisibility}
           />
 
           {/* Person tiles */}
@@ -361,6 +362,7 @@ export function Files() {
                   categories={categories}
                   onFileUploaded={fetchFiles}
                   onDelete={handleDelete}
+                  onToggleVisibility={handleToggleVisibility}
                 />
               ))}
             </div>
