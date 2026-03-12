@@ -66,6 +66,7 @@ export function FileDropCard({
   fullWidth = false,
   onFileUploaded,
   onDelete,
+  onToggleVisibility,
 }: FileDropCardProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
