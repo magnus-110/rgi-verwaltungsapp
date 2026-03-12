@@ -632,6 +632,25 @@ export function useCreateComment() {
   });
 }
 
+// Delete comment mutation
+export function useDeleteComment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, todoId }: { id: string; todoId: string }) => {
+      const { error } = await supabase.from('todo_comments').delete().eq('id', id);
+      if (error) throw error;
+      return todoId;
+    },
+    onSuccess: (todoId) => {
+      queryClient.invalidateQueries({ queryKey: ['todo-comments', todoId] });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Fehler', description: error.message, variant: 'destructive' });
+    },
+  });
+}
+
 // Update comment mutation
 export function useUpdateComment() {
   const queryClient = useQueryClient();
