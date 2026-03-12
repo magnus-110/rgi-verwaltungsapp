@@ -169,6 +169,17 @@ Deno.serve(async (req) => {
           )
         }
         
+        // Update the password of the existing auth user
+        const { error: updatePasswordError } = await supabaseAdmin.auth.admin.updateUserById(
+          existingUser.id,
+          { password: password }
+        )
+        if (updatePasswordError) {
+          console.error('Error updating password for existing user:', updatePasswordError)
+        } else {
+          console.log('Password updated for existing user:', existingUser.id)
+        }
+
         newUser = { user: existingUser }
       } else {
         return new Response(
@@ -212,7 +223,8 @@ Deno.serve(async (req) => {
       last_name: userData.last_name,
       phone: userData.phone,
       role: role,
-      force_password_change: userData.role === 'admin' ? false : false  // No forced password change
+      force_password_change: false,
+      terms_accepted_at: null  // Reset so AGB dialog appears again for re-created users
     }
 
     // For tenants, also set building_id in profile
@@ -309,7 +321,7 @@ Deno.serve(async (req) => {
           email: newUser.user.email,
           role: role
         },
-        password: userAlreadyExists ? null : password,
+        password: password,
         userAlreadyExists
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

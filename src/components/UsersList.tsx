@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ChevronDown, ChevronRight, Users, Mail, Phone, Edit, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -8,7 +8,7 @@ import { EditUserDialog } from "./EditUserDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { 
+import {
   AlertDialog, 
   AlertDialogAction, 
   AlertDialogCancel, 
@@ -106,34 +106,77 @@ export const UsersList = ({ buildingId, userType, count }: UsersListProps) => {
     setIsEditDialogOpen(true);
   };
 
-  const handleDeleteUser = (user: User) => {
+  const [isFullDeletion, setIsFullDeletion] = useState(false);
+  const [isCheckingAssignments, setIsCheckingAssignments] = useState(false);
+
+  const handleDeleteUser = async (user: User) => {
     setDeletingUser(user);
-    setIsDeleteDialogOpen(true);
+    setIsCheckingAssignments(true);
+    
+    try {
+      let otherAssignments = 0;
+      
+      if (userType === 'tenants') {
+        const { count } = await supabase
+          .from('tenants')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.user_id)
+          .neq('building_id', buildingId);
+        otherAssignments = count || 0;
+      } else {
+        const { count } = await supabase
+          .from('weg_owner_buildings')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.user_id)
+          .neq('building_id', buildingId);
+        otherAssignments = count || 0;
+      }
+      
+      setIsFullDeletion(otherAssignments === 0);
+    } catch (error) {
+      console.error('Error checking assignments:', error);
+      setIsFullDeletion(false);
+    } finally {
+      setIsCheckingAssignments(false);
+      setIsDeleteDialogOpen(true);
+    }
   };
 
   const confirmDeleteUser = async () => {
     if (!deletingUser) return;
 
     try {
-      if (userType === 'tenants') {
-        // Delete from tenants table
-        const { error } = await supabase
-          .from('tenants')
-          .delete()
-          .eq('user_id', deletingUser.user_id);
+      if (isFullDeletion) {
+        // Full deletion via edge function
+        const { data, error } = await supabase.functions.invoke('admin-delete-user', {
+          body: { userId: deletingUser.user_id }
+        });
         
         if (error) throw error;
-        toast.success("Mieter wurde erfolgreich entfernt");
+        if (data?.error) throw new Error(data.error);
+        
+        toast.success(userType === 'tenants' 
+          ? "Mieter wurde vollständig gelöscht" 
+          : "WEG-Eigentümer wurde vollständig gelöscht");
       } else {
-        // Delete from weg_owner_buildings table (only the building assignment)
-        const { error } = await supabase
-          .from('weg_owner_buildings')
-          .delete()
-          .eq('user_id', deletingUser.user_id)
-          .eq('building_id', buildingId);
-        
-        if (error) throw error;
-        toast.success("WEG-Eigentümer wurde erfolgreich vom Gebäude entfernt");
+        // Partial deletion - only remove building assignment
+        if (userType === 'tenants') {
+          const { error } = await supabase
+            .from('tenants')
+            .delete()
+            .eq('user_id', deletingUser.user_id)
+            .eq('building_id', buildingId);
+          if (error) throw error;
+          toast.success("Mieter wurde von diesem Gebäude entfernt");
+        } else {
+          const { error } = await supabase
+            .from('weg_owner_buildings')
+            .delete()
+            .eq('user_id', deletingUser.user_id)
+            .eq('building_id', buildingId);
+          if (error) throw error;
+          toast.success("WEG-Eigentümer wurde von diesem Gebäude entfernt");
+        }
       }
       
       handleUpdate();
@@ -271,12 +314,15 @@ export const UsersList = ({ buildingId, userType, count }: UsersListProps) => {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {userType === 'tenants' ? 'Mieter löschen' : 'WEG-Eigentümer entfernen'}
+              {isFullDeletion 
+                ? (userType === 'tenants' ? 'Mieter vollständig löschen' : 'WEG-Eigentümer vollständig löschen')
+                : (userType === 'tenants' ? 'Mieter vom Gebäude entfernen' : 'WEG-Eigentümer vom Gebäude entfernen')
+              }
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {userType === 'tenants' 
-                ? `Sind Sie sicher, dass Sie den Mieter "${deletingUser?.first_name} ${deletingUser?.last_name}" (${deletingUser?.email}) vollständig löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.`
-                : `Sind Sie sicher, dass Sie den WEG-Eigentümer "${deletingUser?.first_name} ${deletingUser?.last_name}" (${deletingUser?.email}) von diesem Gebäude entfernen möchten?`
+              {isFullDeletion 
+                ? `Der Benutzer "${deletingUser?.first_name} ${deletingUser?.last_name}" (${deletingUser?.email}) ist keinem weiteren Gebäude zugewiesen und wird vollständig aus dem System gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.`
+                : `Der Benutzer "${deletingUser?.first_name} ${deletingUser?.last_name}" (${deletingUser?.email}) ist noch weiteren Gebäuden zugewiesen und wird nur von diesem Gebäude entfernt.`
               }
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -286,7 +332,7 @@ export const UsersList = ({ buildingId, userType, count }: UsersListProps) => {
               onClick={confirmDeleteUser}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {userType === 'tenants' ? 'Löschen' : 'Entfernen'}
+              {isFullDeletion ? 'Vollständig löschen' : 'Vom Gebäude entfernen'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
