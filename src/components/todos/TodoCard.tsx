@@ -7,7 +7,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ChevronDown, ChevronUp, Calendar, User, Building2, RefreshCw, Pencil, Trash2, AlertTriangle, CalendarPlus } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { Todo, isOverdue, priorityLabels, statusLabels, useUpdateTodo, useDeleteTodo, useSubtasks } from "@/hooks/useTodos";
+import { Todo, isOverdue, priorityLabels, statusLabels, useUpdateTodo, useSoftDeleteTodo, useSubtasks } from "@/hooks/useTodos";
 import { TodoSubtasks } from "./TodoSubtasks";
 import { TodoComments } from "./TodoComments";
 import { TodoAttachments } from "./TodoAttachments";
@@ -29,7 +29,7 @@ export function TodoCard({ todo, onEdit, isExpanded, onToggle }: TodoCardProps) 
   const handleToggle = onToggle || (() => setInternalOpen(!internalOpen));
    const [calendarDialogOpen, setCalendarDialogOpen] = useState(false);
   const updateTodo = useUpdateTodo();
-  const deleteTodo = useDeleteTodo();
+  const deleteTodo = useSoftDeleteTodo();
   const { data: subtasks = [] } = useSubtasks(todo.id);
   
   const overdue = isOverdue(todo);

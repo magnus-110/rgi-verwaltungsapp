@@ -160,7 +160,7 @@ export function useTodos(filters: TodoFilters) {
       const { data, error } = await query;
       if (error) throw error;
       
-      let todos = data as Todo[];
+      let todos = (data as any[]).filter((t: any) => !t.deleted_at) as Todo[];
       
       // Filter maintenance tasks: only show if show_in_list_date <= today
       const todayStr = new Date().toISOString().split('T')[0];
@@ -442,7 +442,53 @@ export function useUpdateTodo() {
   });
 }
 
-// Delete todo mutation
+// Soft-delete todo mutation (move to trash)
+export function useSoftDeleteTodo() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('todos')
+        .update({ deleted_at: new Date().toISOString() } as any)
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['todos'] });
+      queryClient.invalidateQueries({ queryKey: ['deleted-todos'] });
+      toast({ title: 'Aufgabe gelöscht', description: 'Die Aufgabe wurde in den Papierkorb verschoben.' });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Fehler', description: error.message, variant: 'destructive' });
+    },
+  });
+}
+
+// Restore todo from trash
+export function useRestoreTodo() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from('todos')
+        .update({ deleted_at: null } as any)
+        .eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['todos'] });
+      queryClient.invalidateQueries({ queryKey: ['deleted-todos'] });
+      toast({ title: 'Wiederhergestellt', description: 'Die Aufgabe wurde wiederhergestellt.' });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Fehler', description: error.message, variant: 'destructive' });
+    },
+  });
+}
+
+// Permanently delete todo
 export function useDeleteTodo() {
   const queryClient = useQueryClient();
 
@@ -453,10 +499,33 @@ export function useDeleteTodo() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['todos'] });
-      toast({ title: 'Aufgabe gelöscht', description: 'Die Aufgabe wurde erfolgreich gelöscht.' });
+      queryClient.invalidateQueries({ queryKey: ['deleted-todos'] });
+      toast({ title: 'Endgültig gelöscht', description: 'Die Aufgabe wurde endgültig gelöscht.' });
     },
     onError: (error: Error) => {
       toast({ title: 'Fehler', description: error.message, variant: 'destructive' });
+    },
+  });
+}
+
+// Fetch deleted todos (trash)
+export function useDeletedTodos() {
+  return useQuery({
+    queryKey: ['deleted-todos'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('todos')
+        .select(`
+          *,
+          category:todo_categories(*),
+          assigned_user:profiles!todos_assigned_to_fkey(first_name, last_name, email),
+          created_user:profiles!todos_created_by_fkey(first_name, last_name, email)
+        `)
+        .not('deleted_at', 'is', null)
+        .order('deleted_at', { ascending: false });
+
+      if (error) throw error;
+      return (data as any[]) as (Todo & { deleted_at: string })[];
     },
   });
 }
@@ -625,6 +694,25 @@ export function useCreateComment() {
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['todo-comments', result.todoId] });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Fehler', description: error.message, variant: 'destructive' });
+    },
+  });
+}
+
+// Delete comment mutation
+export function useDeleteComment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ id, todoId }: { id: string; todoId: string }) => {
+      const { error } = await supabase.from('todo_comments').delete().eq('id', id);
+      if (error) throw error;
+      return todoId;
+    },
+    onSuccess: (todoId) => {
+      queryClient.invalidateQueries({ queryKey: ['todo-comments', todoId] });
     },
     onError: (error: Error) => {
       toast({ title: 'Fehler', description: error.message, variant: 'destructive' });

@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, MessageSquare, Pencil, X, Check } from "lucide-react";
-import { useComments, useCreateComment, useUpdateComment, TodoComment } from "@/hooks/useTodos";
+import { Send, MessageSquare, Pencil, X, Check, Trash2 } from "lucide-react";
+import { useComments, useCreateComment, useUpdateComment, useDeleteComment, TodoComment } from "@/hooks/useTodos";
 import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -80,6 +80,7 @@ export function TodoComments({ todoId, readOnly = false }: TodoCommentsProps) {
 function CommentItem({ comment, todoId, readOnly }: { comment: TodoComment; todoId: string; readOnly?: boolean }) {
   const { user } = useAuth();
   const updateComment = useUpdateComment();
+  const deleteComment = useDeleteComment();
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(comment.content);
 
@@ -91,6 +92,10 @@ function CommentItem({ comment, todoId, readOnly }: { comment: TodoComment; todo
       { id: comment.id, todoId, content: editContent.trim() },
       { onSuccess: () => setIsEditing(false) }
     );
+  };
+
+  const handleDelete = () => {
+    deleteComment.mutate({ id: comment.id, todoId });
   };
 
   const userName = comment.user 
@@ -106,14 +111,25 @@ function CommentItem({ comment, todoId, readOnly }: { comment: TodoComment; todo
             {format(new Date(comment.created_at), "dd.MM.yyyy HH:mm", { locale: de })}
           </span>
           {isOwner && !readOnly && !isEditing && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              onClick={() => { setEditContent(comment.content); setIsEditing(true); }}
-            >
-              <Pencil className="h-3 w-3" />
-            </Button>
+            <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6"
+                onClick={() => { setEditContent(comment.content); setIsEditing(true); }}
+              >
+                <Pencil className="h-3 w-3" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-destructive hover:text-destructive"
+                onClick={handleDelete}
+                disabled={deleteComment.isPending}
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            </>
           )}
         </div>
       </div>

@@ -1,11 +1,12 @@
 import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Plus, Download, ChevronDown, ChevronUp } from "lucide-react";
-import { useTodos, Todo, TodoFilters as TodoFiltersType, isOverdue } from "@/hooks/useTodos";
+import { useTodos, Todo, TodoFilters as TodoFiltersType, isOverdue, useSoftDeleteTodo } from "@/hooks/useTodos";
 import { TodoFilters } from "@/components/todos/TodoFilters";
 import { TodoCard } from "@/components/todos/TodoCard";
 import { TodoDialog } from "@/components/todos/TodoDialog";
 import { TodoExportDialog } from "@/components/todos/TodoExportDialog";
+import { TodoTrashBin } from "@/components/todos/TodoTrashBin";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
@@ -201,6 +202,10 @@ export function Todos() {
             </Collapsible>
           )}
 
+          {/* Trash bin */}
+          <div className="flex justify-center pt-2">
+            <TodoTrashBin />
+          </div>
           {/* Empty state */}
           {todos.length === 0 && (
             <div className="text-center py-8 sm:py-12">
