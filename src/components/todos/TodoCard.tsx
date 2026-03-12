@@ -7,7 +7,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ChevronDown, ChevronUp, Calendar, User, Building2, RefreshCw, Pencil, Trash2, AlertTriangle, CalendarPlus } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { Todo, isOverdue, priorityLabels, statusLabels, useUpdateTodo, useDeleteTodo, useSubtasks } from "@/hooks/useTodos";
+import { Todo, isOverdue, priorityLabels, statusLabels, useUpdateTodo, useSoftDeleteTodo, useSubtasks } from "@/hooks/useTodos";
 import { TodoSubtasks } from "./TodoSubtasks";
 import { TodoComments } from "./TodoComments";
 import { TodoAttachments } from "./TodoAttachments";
