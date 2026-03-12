@@ -160,7 +160,7 @@ export function useTodos(filters: TodoFilters) {
       const { data, error } = await query;
       if (error) throw error;
       
-      let todos = data as Todo[];
+      let todos = (data as any[]).filter((t: any) => !t.deleted_at) as Todo[];
       
       // Filter maintenance tasks: only show if show_in_list_date <= today
       const todayStr = new Date().toISOString().split('T')[0];
