@@ -256,6 +256,16 @@ export function FileDropCard({
                 <span className="text-xs text-muted-foreground hidden md:inline">
                   {format(new Date(file.created_at), "dd.MM.yy", { locale: de })}
                 </span>
+                {onToggleVisibility && (
+                  <Switch
+                    checked={file.visible_to_users}
+                    onCheckedChange={(checked) => {
+                      onToggleVisibility(file.id, checked);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="h-5 w-9 data-[state=checked]:bg-primary"
+                  />
+                )}
                 <Button
                   variant="ghost"
                   size="icon"
