@@ -202,6 +202,10 @@ export function Todos() {
             </Collapsible>
           )}
 
+          {/* Trash bin */}
+          <div className="flex justify-center pt-2">
+            <TodoTrashBin />
+
           {/* Empty state */}
           {todos.length === 0 && (
             <div className="text-center py-8 sm:py-12">
