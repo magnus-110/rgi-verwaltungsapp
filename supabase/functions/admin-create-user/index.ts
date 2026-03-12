@@ -169,6 +169,17 @@ Deno.serve(async (req) => {
           )
         }
         
+        // Update the password of the existing auth user
+        const { error: updatePasswordError } = await supabaseAdmin.auth.admin.updateUserById(
+          existingUser.id,
+          { password: password }
+        )
+        if (updatePasswordError) {
+          console.error('Error updating password for existing user:', updatePasswordError)
+        } else {
+          console.log('Password updated for existing user:', existingUser.id)
+        }
+
         newUser = { user: existingUser }
       } else {
         return new Response(
