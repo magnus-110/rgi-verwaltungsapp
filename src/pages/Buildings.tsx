@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -13,9 +13,8 @@ import { CreateUserDialog } from "@/components/CreateUserDialog";
 import { ManagerFilter } from "@/components/ManagerFilter";
 import { toast } from "sonner";
 import { useManagementMode } from "@/hooks/useManagementMode";
-import { Badge } from "@/components/ui/badge";
 import { ChevronDown, ChevronUp, Filter } from "lucide-react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 
 interface Building {
   id: string;
