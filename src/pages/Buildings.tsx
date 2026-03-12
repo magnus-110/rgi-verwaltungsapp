@@ -150,55 +150,57 @@ export const Buildings = () => {
           </div>
         </div>
 
-        {/* Collapsible Filters */}
-        <Card>
+        {/* Compact Filters */}
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Nach Gebäude suchen..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Button variant="outline" className="gap-2" onClick={() => setIsFilterOpen(!isFilterOpen)}>
+              <Filter className="h-4 w-4" />
+              <span className="hidden sm:inline">Filter</span>
+              {(typeFilter !== 'all' || managerFilter !== 'all') && (
+                <span className="bg-primary text-primary-foreground text-xs rounded-full px-1.5 py-0.5 min-w-[20px]">
+                  {[typeFilter !== 'all', managerFilter !== 'all'].filter(Boolean).length}
+                </span>
+              )}
+              {isFilterOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+          </div>
+
           <Collapsible open={isFilterOpen} onOpenChange={setIsFilterOpen}>
-            <CollapsibleTrigger asChild>
-              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <Filter className="h-5 w-5" />
-                    Filter
-                  </CardTitle>
-                  {isFilterOpen ? (
-                    <ChevronUp className="h-4 w-4" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4" />
-                  )}
-                </div>
-              </CardHeader>
-            </CollapsibleTrigger>
             <CollapsibleContent>
-              <CardContent className="pt-0">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div>
-                    <Input
-                      placeholder="Nach Gebäude suchen..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full"
-                    />
-                  </div>
-                  <div>
-                    <Select value={typeFilter} onValueChange={setTypeFilter}>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Typ filtern" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Alle Typen</SelectItem>
-                        <SelectItem value="weg">WEG</SelectItem>
-                        <SelectItem value="miete">Miete</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="sm:col-span-2 lg:col-span-1">
+              <div className="space-y-3 p-4 bg-muted/30 rounded-lg border">
+                <div className="flex flex-col lg:flex-row gap-3">
+                  <Select value={typeFilter} onValueChange={setTypeFilter}>
+                    <SelectTrigger className="w-full lg:w-[150px]">
+                      <SelectValue placeholder="Typ filtern" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Alle Typen</SelectItem>
+                      <SelectItem value="weg">WEG</SelectItem>
+                      <SelectItem value="miete">Miete</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <div className="w-full lg:w-[200px]">
                     <ManagerFilter value={managerFilter} onValueChange={setManagerFilter} />
                   </div>
+                  {(typeFilter !== 'all' || managerFilter !== 'all') && (
+                    <Button variant="ghost" size="sm" onClick={() => { setTypeFilter('all'); setManagerFilter('all'); }}>
+                      Zurücksetzen
+                    </Button>
+                  )}
                 </div>
-              </CardContent>
+              </div>
             </CollapsibleContent>
           </Collapsible>
-        </Card>
+        </div>
 
         {/* Buildings List */}
         <div className="space-y-4">

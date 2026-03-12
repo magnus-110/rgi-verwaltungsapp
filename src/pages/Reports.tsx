@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "@/hooks/use-toast";
-import { Filter, ChevronDown, ChevronUp, FileText, Download, Edit, Copy, CalendarIcon } from "lucide-react";
+import { Filter, ChevronDown, ChevronUp, FileText, Download, Edit, Copy, CalendarIcon, X } from "lucide-react";
 import { useManagementMode } from "@/hooks/useManagementMode";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { EditReportDialog } from "@/components/reports/EditReportDialog";
