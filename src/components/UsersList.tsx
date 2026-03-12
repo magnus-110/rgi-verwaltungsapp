@@ -8,8 +8,7 @@ import { EditUserDialog } from "./EditUserDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Spinner } from "lucide-react";
-import { 
+import {
   AlertDialog, 
   AlertDialogAction, 
   AlertDialogCancel, 
