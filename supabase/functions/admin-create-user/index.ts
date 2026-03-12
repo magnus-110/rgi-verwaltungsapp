@@ -321,7 +321,7 @@ Deno.serve(async (req) => {
           email: newUser.user.email,
           role: role
         },
-        password: userAlreadyExists ? null : password,
+        password: password,
         userAlreadyExists
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
