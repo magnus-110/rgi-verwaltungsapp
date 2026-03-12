@@ -107,34 +107,77 @@ export const UsersList = ({ buildingId, userType, count }: UsersListProps) => {
     setIsEditDialogOpen(true);
   };
 
-  const handleDeleteUser = (user: User) => {
+  const [isFullDeletion, setIsFullDeletion] = useState(false);
+  const [isCheckingAssignments, setIsCheckingAssignments] = useState(false);
+
+  const handleDeleteUser = async (user: User) => {
     setDeletingUser(user);
-    setIsDeleteDialogOpen(true);
+    setIsCheckingAssignments(true);
+    
+    try {
+      let otherAssignments = 0;
+      
+      if (userType === 'tenants') {
+        const { count } = await supabase
+          .from('tenants')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.user_id)
+          .neq('building_id', buildingId);
+        otherAssignments = count || 0;
+      } else {
+        const { count } = await supabase
+          .from('weg_owner_buildings')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.user_id)
+          .neq('building_id', buildingId);
+        otherAssignments = count || 0;
+      }
+      
+      setIsFullDeletion(otherAssignments === 0);
+    } catch (error) {
+      console.error('Error checking assignments:', error);
+      setIsFullDeletion(false);
+    } finally {
+      setIsCheckingAssignments(false);
+      setIsDeleteDialogOpen(true);
+    }
   };
 
   const confirmDeleteUser = async () => {
     if (!deletingUser) return;
 
     try {
-      if (userType === 'tenants') {
-        // Delete from tenants table
-        const { error } = await supabase
-          .from('tenants')
-          .delete()
-          .eq('user_id', deletingUser.user_id);
+      if (isFullDeletion) {
+        // Full deletion via edge function
+        const { data, error } = await supabase.functions.invoke('admin-delete-user', {
+          body: { userId: deletingUser.user_id }
+        });
         
         if (error) throw error;
-        toast.success("Mieter wurde erfolgreich entfernt");
+        if (data?.error) throw new Error(data.error);
+        
+        toast.success(userType === 'tenants' 
+          ? "Mieter wurde vollständig gelöscht" 
+          : "WEG-Eigentümer wurde vollständig gelöscht");
       } else {
-        // Delete from weg_owner_buildings table (only the building assignment)
-        const { error } = await supabase
-          .from('weg_owner_buildings')
-          .delete()
-          .eq('user_id', deletingUser.user_id)
-          .eq('building_id', buildingId);
-        
-        if (error) throw error;
-        toast.success("WEG-Eigentümer wurde erfolgreich vom Gebäude entfernt");
+        // Partial deletion - only remove building assignment
+        if (userType === 'tenants') {
+          const { error } = await supabase
+            .from('tenants')
+            .delete()
+            .eq('user_id', deletingUser.user_id)
+            .eq('building_id', buildingId);
+          if (error) throw error;
+          toast.success("Mieter wurde von diesem Gebäude entfernt");
+        } else {
+          const { error } = await supabase
+            .from('weg_owner_buildings')
+            .delete()
+            .eq('user_id', deletingUser.user_id)
+            .eq('building_id', buildingId);
+          if (error) throw error;
+          toast.success("WEG-Eigentümer wurde von diesem Gebäude entfernt");
+        }
       }
       
       handleUpdate();
