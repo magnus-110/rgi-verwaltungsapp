@@ -640,69 +640,71 @@ Beschreibung: ${report.description}`;
               </Card>
             </div>
 
-            {/* Collapsible Filters */}
-            <Card>
+            {/* Compact Filters */}
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Meldungen durchsuchen..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                <Button variant="outline" className="gap-2" onClick={() => setIsFilterOpen(!isFilterOpen)}>
+                  <Filter className="h-4 w-4" />
+                  <span className="hidden sm:inline">Filter</span>
+                  {(buildingFilter !== 'all' || managerFilter !== 'all') && (
+                    <span className="bg-primary text-primary-foreground text-xs rounded-full px-1.5 py-0.5 min-w-[20px]">
+                      {[buildingFilter !== 'all', managerFilter !== 'all'].filter(Boolean).length}
+                    </span>
+                  )}
+                  {isFilterOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </Button>
+              </div>
+
               <Collapsible open={isFilterOpen} onOpenChange={setIsFilterOpen}>
-                <CollapsibleTrigger asChild>
-                  <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="flex items-center gap-2">
-                        <Filter className="h-5 w-5" />
-                        Filter
-                      </CardTitle>
-                      {isFilterOpen ? (
-                        <ChevronUp className="h-4 w-4" />
-                      ) : (
-                        <ChevronDown className="h-4 w-4" />
+                <CollapsibleContent>
+                  <div className="space-y-3 p-4 bg-muted/30 rounded-lg border">
+                    <div className="flex flex-col lg:flex-row gap-3">
+                      <Select value={buildingFilter} onValueChange={setBuildingFilter}>
+                        <SelectTrigger className="w-full lg:w-[200px]">
+                          <SelectValue placeholder="Gebäude filtern" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Alle Gebäude</SelectItem>
+                          {buildings.map((building) => (
+                            <SelectItem key={building.id} value={building.id}>
+                              {building.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select value={managerFilter} onValueChange={setManagerFilter}>
+                        <SelectTrigger className="w-full lg:w-[200px]">
+                          <SelectValue placeholder="Verwalter filtern" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Alle Verwalter</SelectItem>
+                          {managers.map((manager) => (
+                            <SelectItem key={manager.id} value={manager.id}>
+                              {manager.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {(buildingFilter !== 'all' || managerFilter !== 'all') && (
+                        <Button variant="ghost" size="sm" onClick={() => { setBuildingFilter('all'); setManagerFilter('all'); }}>
+                          <X className="h-4 w-4 mr-1" />
+                          Zurücksetzen
+                        </Button>
                       )}
                     </div>
-                  </CardHeader>
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <CardContent className="pt-0">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div>
-                        <Input
-                          placeholder="Nach Meldung suchen..."
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <Select value={buildingFilter} onValueChange={setBuildingFilter}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Gebäude filtern" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">Alle Gebäude</SelectItem>
-                            {buildings.map((building) => (
-                              <SelectItem key={building.id} value={building.id}>
-                                {building.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Select value={managerFilter} onValueChange={setManagerFilter}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Verwalter filtern" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">Alle Verwalter</SelectItem>
-                            {managers.map((manager) => (
-                              <SelectItem key={manager.id} value={manager.id}>
-                                {manager.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                  </CardContent>
+                  </div>
                 </CollapsibleContent>
               </Collapsible>
-            </Card>
+            </div>
 
             {/* Open Reports */}
             <div className="space-y-4">
