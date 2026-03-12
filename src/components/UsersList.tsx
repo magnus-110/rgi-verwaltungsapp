@@ -315,12 +315,15 @@ export const UsersList = ({ buildingId, userType, count }: UsersListProps) => {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {userType === 'tenants' ? 'Mieter löschen' : 'WEG-Eigentümer entfernen'}
+              {isFullDeletion 
+                ? (userType === 'tenants' ? 'Mieter vollständig löschen' : 'WEG-Eigentümer vollständig löschen')
+                : (userType === 'tenants' ? 'Mieter vom Gebäude entfernen' : 'WEG-Eigentümer vom Gebäude entfernen')
+              }
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {userType === 'tenants' 
-                ? `Sind Sie sicher, dass Sie den Mieter "${deletingUser?.first_name} ${deletingUser?.last_name}" (${deletingUser?.email}) vollständig löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.`
-                : `Sind Sie sicher, dass Sie den WEG-Eigentümer "${deletingUser?.first_name} ${deletingUser?.last_name}" (${deletingUser?.email}) von diesem Gebäude entfernen möchten?`
+              {isFullDeletion 
+                ? `Der Benutzer "${deletingUser?.first_name} ${deletingUser?.last_name}" (${deletingUser?.email}) ist keinem weiteren Gebäude zugewiesen und wird vollständig aus dem System gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.`
+                : `Der Benutzer "${deletingUser?.first_name} ${deletingUser?.last_name}" (${deletingUser?.email}) ist noch weiteren Gebäuden zugewiesen und wird nur von diesem Gebäude entfernt.`
               }
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -330,7 +333,7 @@ export const UsersList = ({ buildingId, userType, count }: UsersListProps) => {
               onClick={confirmDeleteUser}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              {userType === 'tenants' ? 'Löschen' : 'Entfernen'}
+              {isFullDeletion ? 'Vollständig löschen' : 'Vom Gebäude entfernen'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
