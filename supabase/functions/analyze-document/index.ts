@@ -63,79 +63,53 @@ serve(async (req) => {
 
     console.log(`Analyzing document: ${filePath}, question: ${question}`);
 
-    // Download file from storage
-    const { data: fileData, error: downloadError } = await supabase.storage
+    // Create signed URL for Mistral OCR
+    const { data: signedUrlData, error: signedUrlError } = await supabase.storage
       .from("building-documents")
-      .download(filePath);
+      .createSignedUrl(filePath, 3600);
 
-    if (downloadError || !fileData) {
-      console.error("Download error:", downloadError);
-      return new Response(JSON.stringify({ error: "Datei konnte nicht heruntergeladen werden" }), {
+    if (signedUrlError || !signedUrlData?.signedUrl) {
+      console.error("Signed URL error:", signedUrlError);
+      return new Response(JSON.stringify({ error: "Signed URL konnte nicht erstellt werden" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Convert to base64 in chunks to avoid stack overflow
-    const arrayBuffer = await fileData.arrayBuffer();
-    const bytes = new Uint8Array(arrayBuffer);
-    const chunkSize = 8192;
-    let binaryString = "";
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-      const chunk = bytes.slice(i, i + chunkSize);
-      binaryString += String.fromCharCode(...chunk);
-    }
-    const base64Data = btoa(binaryString);
+    console.log(`Signed URL created, sending to Mistral OCR...`);
 
-    // Determine MIME type
-    const mimeType = filePath.toLowerCase().endsWith(".pdf")
-      ? "application/pdf"
-      : "image/jpeg";
-
-    console.log(`File size: ${bytes.length} bytes, sending to Mistral OCR...`);
-
-    // Step 1: OCR with Mistral pixtral-large
-    const ocrResponse = await fetch("https://api.mistral.ai/v1/chat/completions", {
+    // Step 1: OCR with Mistral OCR API
+    const ocrResponse = await fetch("https://api.mistral.ai/v1/ocr", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${mistralApiKey}`,
       },
       body: JSON.stringify({
-        model: "mistral-small-latest",
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: "Extrahiere den gesamten Text aus diesem Dokument. Gib den Text strukturiert und vollständig zurück, behalte die Formatierung bei (Tabellen, Listen, Überschriften etc.). Antworte nur mit dem extrahierten Text, keine zusätzlichen Kommentare.",
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:${mimeType};base64,${base64Data}`,
-                },
-              },
-            ],
-          },
-        ],
-        max_tokens: 16000,
+        model: "mistral-ocr-latest",
+        document: {
+          type: "document_url",
+          document_url: signedUrlData.signedUrl,
+        },
+        include_image_base64: false,
       }),
     });
 
+    let extractedText = "";
     if (!ocrResponse.ok) {
       const errorText = await ocrResponse.text();
       console.error("Mistral OCR error:", ocrResponse.status, errorText);
-      
-      // If vision fails, try without image (text-only analysis prompt)
-      // Fall through to analysis with a note
-    }
-
-    let extractedText = "";
-    if (ocrResponse.ok) {
+    } else {
       const ocrData = await ocrResponse.json();
-      extractedText = ocrData.choices?.[0]?.message?.content || "";
+      if (ocrData.pages) {
+        for (const page of ocrData.pages) {
+          extractedText += `\n\n--- Seite ${page.index + 1} ---\n\n`;
+          extractedText += page.markdown || "";
+        }
+      } else if (ocrData.text) {
+        extractedText = ocrData.text;
+      }
+      extractedText = extractedText.trim();
       console.log(`OCR extracted ${extractedText.length} characters`);
     }
 
