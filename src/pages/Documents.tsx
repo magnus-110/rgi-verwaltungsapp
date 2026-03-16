@@ -174,13 +174,13 @@ export function Documents() {
     enhancedQuery?: string;
     filterCategories?: string[];
     filterFeatures?: string[];
-    attachedFile?: { file: File; storagePath: string };
+    attachedFiles?: Array<{ file: File; storagePath: string }>;
   }) => {
     if (isLoading) return;
 
-    const isDocumentAnalysis = !!options?.attachedFile;
+    const isDocumentAnalysis = !!options?.attachedFiles && options.attachedFiles.length > 0;
     const displayContent = isDocumentAnalysis
-      ? `📄 **${options.attachedFile!.file.name}** hochgeladen\n\n${messageContent}`
+      ? `📄 ${options.attachedFiles!.map(f => `**${f.file.name}**`).join(', ')} hochgeladen\n\n${messageContent}`
       : messageContent;
 
     const userMessage: ChatMessage = {
