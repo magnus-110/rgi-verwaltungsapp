@@ -343,34 +343,46 @@ export function ChatInputField({
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-    // Validate file type
     const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
+    const validFiles: File[] = [];
+
+    for (const file of Array.from(files)) {
+      if (!allowedTypes.includes(file.type)) {
+        toast({
+          title: "Ungültiges Format",
+          description: `"${file.name}" wird nicht unterstützt. Erlaubt: PDF, JPEG, PNG, WebP.`,
+          variant: "destructive",
+        });
+        continue;
+      }
+      if (file.size > 20 * 1024 * 1024) {
+        toast({
+          title: "Datei zu groß",
+          description: `"${file.name}" überschreitet 20 MB.`,
+          variant: "destructive",
+        });
+        continue;
+      }
+      validFiles.push(file);
+    }
+
+    if (attachedFiles.length + validFiles.length > 5) {
       toast({
-        title: "Ungültiges Format",
-        description: "Bitte laden Sie eine PDF- oder Bilddatei hoch.",
+        title: "Zu viele Dateien",
+        description: "Maximal 5 Dateien gleichzeitig.",
         variant: "destructive",
       });
       return;
     }
 
-    // Validate file size (20MB)
-    if (file.size > 20 * 1024 * 1024) {
-      toast({
-        title: "Datei zu groß",
-        description: "Maximale Dateigröße: 20 MB",
-        variant: "destructive",
-      });
-      return;
+    if (validFiles.length > 0) {
+      setAttachedFiles(prev => [...prev, ...validFiles]);
     }
-
-    setAttachedFile(file);
     setMenuOpen(false);
 
-    // Reset file input
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
