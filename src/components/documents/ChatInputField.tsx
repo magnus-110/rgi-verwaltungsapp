@@ -387,17 +387,18 @@ export function ChatInputField({
   };
 
   const handleSend = () => {
-    if ((!value.trim() && !attachedFile) || isLoading || disabled) return;
+    if ((!value.trim() && attachedFiles.length === 0) || isLoading || disabled) return;
     
-    const messageText = value.trim() || (attachedFile ? `Analysiere das Dokument "${attachedFile.name}"` : "");
+    const defaultMsg = attachedFiles.length > 0
+      ? `Analysiere ${attachedFiles.length === 1 ? `das Dokument "${attachedFiles[0].name}"` : `die ${attachedFiles.length} Dokumente`}`
+      : "";
+    const messageText = value.trim() || defaultMsg;
 
-    // If we have an attached file, upload it first then send
-    if (attachedFile) {
-      handleSendWithFile(messageText);
+    if (attachedFiles.length > 0) {
+      handleSendWithFiles(messageText);
       return;
     }
     
-    // If we have active filters from the enhancer, pass them along
     if (activeFilters) {
       onSend(messageText, {
         filterCategories: activeFilters.categories,
@@ -412,44 +413,44 @@ export function ChatInputField({
     setEnhancedPrompt(null);
   };
 
-  const handleSendWithFile = async (messageText: string) => {
-    if (!attachedFile) return;
+  const handleSendWithFiles = async (messageText: string) => {
+    if (attachedFiles.length === 0) return;
 
-    const file = attachedFile;
     const timestamp = Date.now();
-    const storagePath = `analysis/${timestamp}_${file.name}`;
+    const uploaded: Array<{ file: File; storagePath: string }> = [];
 
     try {
-      // Upload to storage
-      const { error: uploadError } = await supabase.storage
-        .from("building-documents")
-        .upload(storagePath, file);
+      for (const file of attachedFiles) {
+        const storagePath = `analysis/${timestamp}_${file.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from("building-documents")
+          .upload(storagePath, file);
 
-      if (uploadError) {
-        console.error("Upload error:", uploadError);
-        toast({
-          title: "Upload fehlgeschlagen",
-          description: uploadError.message,
-          variant: "destructive",
-        });
-        return;
+        if (uploadError) {
+          console.error("Upload error:", uploadError);
+          toast({
+            title: "Upload fehlgeschlagen",
+            description: `${file.name}: ${uploadError.message}`,
+            variant: "destructive",
+          });
+          return;
+        }
+        uploaded.push({ file, storagePath });
       }
 
-      onSend(messageText, {
-        attachedFile: { file, storagePath },
-      });
+      onSend(messageText, { attachedFiles: uploaded });
     } catch (error) {
       console.error("File upload error:", error);
       toast({
         title: "Fehler",
-        description: "Datei konnte nicht hochgeladen werden.",
+        description: "Dateien konnten nicht hochgeladen werden.",
         variant: "destructive",
       });
       return;
     }
 
     setValue("");
-    setAttachedFile(null);
+    setAttachedFiles([]);
     setEnhancedPrompt(null);
   };
 
