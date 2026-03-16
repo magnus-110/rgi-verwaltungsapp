@@ -342,21 +342,102 @@ export function ChatInputField({
     }
   };
 
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast({
+        title: "Ungültiges Format",
+        description: "Bitte laden Sie eine PDF- oder Bilddatei hoch.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file size (20MB)
+    if (file.size > 20 * 1024 * 1024) {
+      toast({
+        title: "Datei zu groß",
+        description: "Maximale Dateigröße: 20 MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setAttachedFile(file);
+    setMenuOpen(false);
+
+    // Reset file input
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   const handleSend = () => {
-    if (!value.trim() || isLoading || disabled) return;
+    if ((!value.trim() && !attachedFile) || isLoading || disabled) return;
+    
+    const messageText = value.trim() || (attachedFile ? `Analysiere das Dokument "${attachedFile.name}"` : "");
+
+    // If we have an attached file, upload it first then send
+    if (attachedFile) {
+      handleSendWithFile(messageText);
+      return;
+    }
     
     // If we have active filters from the enhancer, pass them along
     if (activeFilters) {
-      onSend(value.trim(), {
+      onSend(messageText, {
         filterCategories: activeFilters.categories,
         filterFeatures: activeFilters.features,
       });
       setActiveFilters(null);
     } else {
-      onSend(value.trim());
+      onSend(messageText);
     }
     
     setValue("");
+    setEnhancedPrompt(null);
+  };
+
+  const handleSendWithFile = async (messageText: string) => {
+    if (!attachedFile) return;
+
+    const file = attachedFile;
+    const timestamp = Date.now();
+    const storagePath = `analysis/${timestamp}_${file.name}`;
+
+    try {
+      // Upload to storage
+      const { error: uploadError } = await supabase.storage
+        .from("building-documents")
+        .upload(storagePath, file);
+
+      if (uploadError) {
+        console.error("Upload error:", uploadError);
+        toast({
+          title: "Upload fehlgeschlagen",
+          description: uploadError.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      onSend(messageText, {
+        attachedFile: { file, storagePath },
+      });
+    } catch (error) {
+      console.error("File upload error:", error);
+      toast({
+        title: "Fehler",
+        description: "Datei konnte nicht hochgeladen werden.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setValue("");
+    setAttachedFile(null);
     setEnhancedPrompt(null);
   };
 
