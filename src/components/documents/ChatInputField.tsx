@@ -53,7 +53,7 @@ interface ChatInputFieldProps {
     enhancedQuery?: string;
     filterCategories?: string[];
     filterFeatures?: string[];
-    attachedFile?: { file: File; storagePath: string };
+    attachedFiles?: Array<{ file: File; storagePath: string }>;
   }) => void;
   isLoading: boolean;
   disabled?: boolean;
@@ -90,7 +90,7 @@ export function ChatInputField({
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState<PromptTemplate | null>(null);
-  const [attachedFile, setAttachedFile] = useState<File | null>(null);
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
@@ -343,49 +343,62 @@ export function ChatInputField({
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
-    // Validate file type
     const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
+    const validFiles: File[] = [];
+
+    for (const file of Array.from(files)) {
+      if (!allowedTypes.includes(file.type)) {
+        toast({
+          title: "Ungültiges Format",
+          description: `"${file.name}" wird nicht unterstützt. Erlaubt: PDF, JPEG, PNG, WebP.`,
+          variant: "destructive",
+        });
+        continue;
+      }
+      if (file.size > 20 * 1024 * 1024) {
+        toast({
+          title: "Datei zu groß",
+          description: `"${file.name}" überschreitet 20 MB.`,
+          variant: "destructive",
+        });
+        continue;
+      }
+      validFiles.push(file);
+    }
+
+    if (attachedFiles.length + validFiles.length > 5) {
       toast({
-        title: "Ungültiges Format",
-        description: "Bitte laden Sie eine PDF- oder Bilddatei hoch.",
+        title: "Zu viele Dateien",
+        description: "Maximal 5 Dateien gleichzeitig.",
         variant: "destructive",
       });
       return;
     }
 
-    // Validate file size (20MB)
-    if (file.size > 20 * 1024 * 1024) {
-      toast({
-        title: "Datei zu groß",
-        description: "Maximale Dateigröße: 20 MB",
-        variant: "destructive",
-      });
-      return;
+    if (validFiles.length > 0) {
+      setAttachedFiles(prev => [...prev, ...validFiles]);
     }
-
-    setAttachedFile(file);
     setMenuOpen(false);
 
-    // Reset file input
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleSend = () => {
-    if ((!value.trim() && !attachedFile) || isLoading || disabled) return;
+    if ((!value.trim() && attachedFiles.length === 0) || isLoading || disabled) return;
     
-    const messageText = value.trim() || (attachedFile ? `Analysiere das Dokument "${attachedFile.name}"` : "");
+    const defaultMsg = attachedFiles.length > 0
+      ? `Analysiere ${attachedFiles.length === 1 ? `das Dokument "${attachedFiles[0].name}"` : `die ${attachedFiles.length} Dokumente`}`
+      : "";
+    const messageText = value.trim() || defaultMsg;
 
-    // If we have an attached file, upload it first then send
-    if (attachedFile) {
-      handleSendWithFile(messageText);
+    if (attachedFiles.length > 0) {
+      handleSendWithFiles(messageText);
       return;
     }
     
-    // If we have active filters from the enhancer, pass them along
     if (activeFilters) {
       onSend(messageText, {
         filterCategories: activeFilters.categories,
@@ -400,44 +413,44 @@ export function ChatInputField({
     setEnhancedPrompt(null);
   };
 
-  const handleSendWithFile = async (messageText: string) => {
-    if (!attachedFile) return;
+  const handleSendWithFiles = async (messageText: string) => {
+    if (attachedFiles.length === 0) return;
 
-    const file = attachedFile;
     const timestamp = Date.now();
-    const storagePath = `analysis/${timestamp}_${file.name}`;
+    const uploaded: Array<{ file: File; storagePath: string }> = [];
 
     try {
-      // Upload to storage
-      const { error: uploadError } = await supabase.storage
-        .from("building-documents")
-        .upload(storagePath, file);
+      for (const file of attachedFiles) {
+        const storagePath = `analysis/${timestamp}_${file.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from("building-documents")
+          .upload(storagePath, file);
 
-      if (uploadError) {
-        console.error("Upload error:", uploadError);
-        toast({
-          title: "Upload fehlgeschlagen",
-          description: uploadError.message,
-          variant: "destructive",
-        });
-        return;
+        if (uploadError) {
+          console.error("Upload error:", uploadError);
+          toast({
+            title: "Upload fehlgeschlagen",
+            description: `${file.name}: ${uploadError.message}`,
+            variant: "destructive",
+          });
+          return;
+        }
+        uploaded.push({ file, storagePath });
       }
 
-      onSend(messageText, {
-        attachedFile: { file, storagePath },
-      });
+      onSend(messageText, { attachedFiles: uploaded });
     } catch (error) {
       console.error("File upload error:", error);
       toast({
         title: "Fehler",
-        description: "Datei konnte nicht hochgeladen werden.",
+        description: "Dateien konnten nicht hochgeladen werden.",
         variant: "destructive",
       });
       return;
     }
 
     setValue("");
-    setAttachedFile(null);
+    setAttachedFiles([]);
     setEnhancedPrompt(null);
   };
 
@@ -523,18 +536,19 @@ export function ChatInputField({
 
         <div className="px-4">
           {/* Badges (positioned above the pill) */}
-          {(webSearchEnabled || deepResearchEnabled || activeFilters || attachedFile) && (
+          {(webSearchEnabled || deepResearchEnabled || activeFilters || attachedFiles.length > 0) && (
             <div className="mb-2 ml-1 flex flex-wrap gap-2">
-              {attachedFile && (
+              {attachedFiles.map((file, index) => (
                 <button
-                  onClick={() => setAttachedFile(null)}
+                  key={`${file.name}-${index}`}
+                  onClick={() => setAttachedFiles(prev => prev.filter((_, i) => i !== index))}
                   className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 text-primary rounded-full text-xs hover:bg-primary/20 transition-colors"
                 >
                   <FileText className="h-3.5 w-3.5" />
-                  <span className="truncate max-w-[200px]">{attachedFile.name}</span>
+                  <span className="truncate max-w-[200px]">{file.name}</span>
                   <X className="h-3 w-3 ml-0.5" />
                 </button>
-              )}
+              ))}
               {webSearchEnabled && (
                 <button
                   onClick={onWebSearchToggle}
@@ -912,7 +926,7 @@ export function ChatInputField({
           {/* Send Button */}
           <Button
             onClick={handleSend}
-            disabled={!value.trim() || isLoading || disabled}
+            disabled={(!value.trim() && attachedFiles.length === 0) || isLoading || disabled}
             size="icon"
             className="h-9 w-9 rounded-full flex-shrink-0"
           >
@@ -946,6 +960,7 @@ export function ChatInputField({
         ref={fileInputRef}
         type="file"
         accept=".pdf,image/jpeg,image/png,image/webp"
+        multiple
         className="hidden"
         onChange={handleFileSelect}
       />

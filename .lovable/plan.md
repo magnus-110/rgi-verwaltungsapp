@@ -1,57 +1,55 @@
 
 
-## Plan: Multi-Dokument-Upload und Vergleichsanalyse
+## Plan: Drei Anpassungen (Nova Text, Erklaerungsvideo, DSGVO-Pruefung)
 
-### Aktueller Stand
-Derzeit kann nur **eine einzelne Datei** pro Nachricht hochgeladen werden. Die Edge Function `analyze-document` verarbeitet genau ein Dokument.
+### 1. "KI Assistentin" statt "KI Assistent"
 
-### Ziel
-Mehrere Dokumente (z.B. Kontenblaetter + Abrechnungen) gleichzeitig hochladen, damit Nova diese abgleichen und Unstimmigkeiten finden kann.
+Textaenderung in drei Dateien:
+- `src/components/chat/WelcomeScreen.tsx` (Zeile 40): "Nova - RGI KI Assistentin"
+- `src/pages/tenant/Dashboard.tsx` (Zeile 228): "RGI KI Assistentin"
+- `src/pages/weg-owner/Dashboard.tsx` (Zeile 186): "RGI KI Assistentin"
 
-### Aenderungen
+### 2. Erklaerungsvideo als zweiter Schritt im Onboarding-Dialog
 
-**1. `src/components/documents/ChatInputField.tsx`**
-- `attachedFile` (single) zu `attachedFiles: File[]` (array) aendern
-- File-Input auf `multiple` setzen
-- Badge zeigt Anzahl der Dateien oder Liste der Dateinamen
-- Beim Senden: alle Dateien nacheinander in Storage hochladen, dann alle Pfade an die Edge Function senden
+Nach dem Akzeptieren der AGB und Datenschutzerklaerung wird ein zweiter Schritt angezeigt, der das Erklaerungsvideo vorschlaegt.
 
-**2. `src/pages/Documents.tsx`**
-- `handleSend` anpassen: statt einem `attachedFile` ein Array `attachedFiles` mit mehreren `{ file, storagePath }` Objekten
-- Alle Dateien an `analyze-document` senden
+**Ablauf:**
+1. Schritt 1 (bestehend): AGB und Datenschutz akzeptieren - Button "Akzeptieren und fortfahren"
+2. Schritt 2 (neu): Erklaerungsvideo-Vorschlag mit Thumbnail und Link
+   - Das hochgeladene Bild wird als Thumbnail angezeigt (klickbar)
+   - YouTube-Link: https://youtube.com/shorts/Ccw9pb_Y6XY?si=ehjPVhZ5bVTikQul
+   - Button "Video ansehen" (oeffnet YouTube) und "Ueberspringen" (schliesst Dialog)
 
-**3. `supabase/functions/analyze-document/index.ts`**
-- Neuen Parameter `files` (Array von `{ filePath, fileName }`) akzeptieren, zusaetzlich zum bestehenden `filePath`/`fileName` fuer Rueckwaertskompatibilitaet
-- OCR fuer jedes Dokument einzeln ausfuehren
-- Alle extrahierten Texte zusammenfuehren mit klarer Kennzeichnung pro Dokument
-- Im Analyse-Prompt explizit darauf hinweisen, dass mehrere Dokumente verglichen werden sollen
-- Alle temporaeren Dateien nach OCR loeschen
+**Technische Umsetzung in `src/components/TermsAcceptanceDialog.tsx`:**
+- Neuer State `step` (1 oder 2)
+- Nach erfolgreichem Speichern der Terms-Akzeptanz wechselt der Dialog zu Schritt 2
+- Schritt 2 zeigt das Thumbnail-Bild und zwei Buttons
+- Das hochgeladene Bild wird nach `public/images/` kopiert
 
-### Ablauf
+### 3. DSGVO-Pruefung: Nova Dokumentenzugriff
 
-```text
-Admin klickt "+" -> "Dokument analysieren" -> waehlt 2+ PDFs
-  |
-  v
-Badges zeigen "Kontenblatt.pdf, Abrechnung.pdf"
-  |
-  v
-Admin tippt: "Vergleiche diese Dokumente und finde Unstimmigkeiten"
-  |
-  v
-Alle Dateien werden in Storage hochgeladen
-  |
-  v
-Edge Function: OCR pro Datei -> Texte zusammenfuehren -> Analyse-Prompt
-  |
-  v
-Antwort mit Vergleich und gefundenen Unstimmigkeiten
-```
+**Ergebnis der Pruefung:**
 
-### Technische Details
-- Maximale Anzahl Dateien: 5 (um Token-Limits nicht zu sprengen)
-- Jedes Dokument wird separat per Mistral OCR verarbeitet
-- Die Texte werden im Analyse-Prompt klar getrennt: `--- Dokument 1: Kontenblatt.pdf ---` etc.
-- Analyse-Modell bleibt `mistral-small-latest` mit erhoehtem `max_tokens: 12000` fuer Multi-Dokument-Antworten
-- Rueckwaertskompatibilitaet: einzelner `filePath` Parameter funktioniert weiterhin
+Die Dokumentenzugriffe in der `chat-with-ai` Edge Function sind korrekt geschuetzt:
+
+- **Persoenliche Dateien**: Gefiltert nach `assigned_user_id = userId` -- nur eigene Dateien
+- **Gebaeude-Dateien**: Gefiltert nach `building_id` des Nutzers UND `assigned_user_id IS NULL` -- nur allgemeine Gebaeudedateien des eigenen Gebaeudes
+- **Gebaeudedokumente (RAG)**: Gefiltert nach den Gebaeude-IDs des Nutzers (bei Mietern: `profile.building_id`, bei WEG-Eigentuemern: `weg_owner_buildings`)
+- **RLS-Policies**: Zusaetzlich auf Datenbankebene abgesichert
+
+**Ein kleiner Verbesserungsvorschlag:** Die Wissensdokumente (`chatbot_knowledge_documents`) werden aktuell nicht nach `management_mode` gefiltert. Das bedeutet, ein Mieter koennte theoretisch auch WEG-spezifische Wissensdokumente als Kontext erhalten (und umgekehrt). Dies ist kein direktes DSGVO-Problem (da es sich um allgemeine, nicht personenbezogene Wissensinhalte handelt), aber fuer saubere Datentrennung sollte ein Filter ergaenzt werden.
+
+**Aenderung in `supabase/functions/chat-with-ai/index.ts`** (Zeile 457-461):
+- Filter `.eq('management_mode', managementMode)` zur Wissensdokumente-Abfrage hinzufuegen
+
+### Zusammenfassung der Dateiaenderungen
+
+| Datei | Aenderung |
+|-------|-----------|
+| `src/components/chat/WelcomeScreen.tsx` | "Assistentin" |
+| `src/pages/tenant/Dashboard.tsx` | "Assistentin" |
+| `src/pages/weg-owner/Dashboard.tsx` | "Assistentin" |
+| `src/components/TermsAcceptanceDialog.tsx` | Zweistufiger Dialog mit Video-Vorschlag |
+| `supabase/functions/chat-with-ai/index.ts` | management_mode Filter fuer Wissensdokumente |
+| Bild kopieren nach `public/images/` | Thumbnail fuer Video |
 
