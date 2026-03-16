@@ -607,6 +607,17 @@ export function ChatInputField({
                       {deepResearchEnabled && <Check className="h-4 w-4 text-primary" />}
                     </button>
 
+                  {/* Document Analysis */}
+                  <button
+                    onClick={() => {
+                      fileInputRef.current?.click();
+                    }}
+                    className="flex items-center gap-3 w-full px-3 py-2.5 rounded-md hover:bg-muted transition-colors"
+                  >
+                    <FileText className="h-4 w-4" />
+                    <span className="text-sm flex-1 text-left">Dokument analysieren</span>
+                  </button>
+
                   {/* Prompts Menu Item */}
                   <button
                     onClick={() => setMenuView('prompts')}
