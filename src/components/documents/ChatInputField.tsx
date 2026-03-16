@@ -926,7 +926,7 @@ export function ChatInputField({
           {/* Send Button */}
           <Button
             onClick={handleSend}
-            disabled={!value.trim() || isLoading || disabled}
+            disabled={(!value.trim() && attachedFiles.length === 0) || isLoading || disabled}
             size="icon"
             className="h-9 w-9 rounded-full flex-shrink-0"
           >
