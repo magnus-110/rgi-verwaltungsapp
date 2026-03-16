@@ -624,7 +624,7 @@ export function ChatInputField({
                     }}
                     className="flex items-center gap-3 w-full px-3 py-2.5 rounded-md hover:bg-muted transition-colors"
                   >
-                    <FileText className="h-4 w-4" />
+                    <FileSearch className="h-4 w-4" />
                     <span className="text-sm flex-1 text-left">Dokument analysieren</span>
                   </button>
 
