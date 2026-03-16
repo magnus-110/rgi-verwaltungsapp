@@ -1,55 +1,32 @@
 
 
-## Plan: Drei Anpassungen (Nova Text, Erklaerungsvideo, DSGVO-Pruefung)
+## Problem
 
-### 1. "KI Assistentin" statt "KI Assistent"
+Die `analyze-document` Edge Function nutzt `mistral-small-latest` ueber die Chat-Completions-API mit base64-encodiertem PDF als `image_url`. Dieses Modell kann keine PDFs als Bild verarbeiten -- daher schlaegt die OCR fehl und es wird kein Text extrahiert.
 
-Textaenderung in drei Dateien:
-- `src/components/chat/WelcomeScreen.tsx` (Zeile 40): "Nova - RGI KI Assistentin"
-- `src/pages/tenant/Dashboard.tsx` (Zeile 228): "RGI KI Assistentin"
-- `src/pages/weg-owner/Dashboard.tsx` (Zeile 186): "RGI KI Assistentin"
+Die anderen funktionierenden Functions (`process-building-file`, `process-knowledge-document`) nutzen die dedizierte **Mistral OCR API** (`/v1/ocr` mit `mistral-ocr-latest`).
 
-### 2. Erklaerungsvideo als zweiter Schritt im Onboarding-Dialog
+## Loesung
 
-Nach dem Akzeptieren der AGB und Datenschutzerklaerung wird ein zweiter Schritt angezeigt, der das Erklaerungsvideo vorschlaegt.
+Die OCR-Logik in `analyze-document` auf die Mistral OCR API umstellen:
 
-**Ablauf:**
-1. Schritt 1 (bestehend): AGB und Datenschutz akzeptieren - Button "Akzeptieren und fortfahren"
-2. Schritt 2 (neu): Erklaerungsvideo-Vorschlag mit Thumbnail und Link
-   - Das hochgeladene Bild wird als Thumbnail angezeigt (klickbar)
-   - YouTube-Link: https://youtube.com/shorts/Ccw9pb_Y6XY?si=ehjPVhZ5bVTikQul
-   - Button "Video ansehen" (oeffnet YouTube) und "Ueberspringen" (schliesst Dialog)
+### `supabase/functions/analyze-document/index.ts`
 
-**Technische Umsetzung in `src/components/TermsAcceptanceDialog.tsx`:**
-- Neuer State `step` (1 oder 2)
-- Nach erfolgreichem Speichern der Terms-Akzeptanz wechselt der Dialog zu Schritt 2
-- Schritt 2 zeigt das Thumbnail-Bild und zwei Buttons
-- Das hochgeladene Bild wird nach `public/images/` kopiert
+1. **Signed URL statt base64**: Statt die Datei herunterzuladen und base64 zu encodieren, eine Signed URL fuer den Storage-Pfad erstellen (wie in `process-building-file`)
+2. **Mistral OCR API nutzen**: `POST /v1/ocr` mit `model: "mistral-ocr-latest"` und `document_url` statt Chat-Completions mit `image_url`
+3. **OCR-Ergebnis parsen**: Pages-Array auslesen und Markdown/Text zusammenfuehren
+4. **Analyse-Schritt beibehalten**: Der zweite Mistral-Call fuer die inhaltliche Analyse bleibt unveraendert
 
-### 3. DSGVO-Pruefung: Nova Dokumentenzugriff
+### Aenderungen im Detail
 
-**Ergebnis der Pruefung:**
+```text
+VORHER:
+  Download -> base64 -> chat/completions (mistral-small) mit image_url -> FAIL
 
-Die Dokumentenzugriffe in der `chat-with-ai` Edge Function sind korrekt geschuetzt:
+NACHHER:
+  Signed URL erstellen -> /v1/ocr (mistral-ocr-latest) mit document_url -> Text extrahiert
+  -> chat/completions (mistral-small) fuer Analyse -> Antwort
+```
 
-- **Persoenliche Dateien**: Gefiltert nach `assigned_user_id = userId` -- nur eigene Dateien
-- **Gebaeude-Dateien**: Gefiltert nach `building_id` des Nutzers UND `assigned_user_id IS NULL` -- nur allgemeine Gebaeudedateien des eigenen Gebaeudes
-- **Gebaeudedokumente (RAG)**: Gefiltert nach den Gebaeude-IDs des Nutzers (bei Mietern: `profile.building_id`, bei WEG-Eigentuemern: `weg_owner_buildings`)
-- **RLS-Policies**: Zusaetzlich auf Datenbankebene abgesichert
-
-**Ein kleiner Verbesserungsvorschlag:** Die Wissensdokumente (`chatbot_knowledge_documents`) werden aktuell nicht nach `management_mode` gefiltert. Das bedeutet, ein Mieter koennte theoretisch auch WEG-spezifische Wissensdokumente als Kontext erhalten (und umgekehrt). Dies ist kein direktes DSGVO-Problem (da es sich um allgemeine, nicht personenbezogene Wissensinhalte handelt), aber fuer saubere Datentrennung sollte ein Filter ergaenzt werden.
-
-**Aenderung in `supabase/functions/chat-with-ai/index.ts`** (Zeile 457-461):
-- Filter `.eq('management_mode', managementMode)` zur Wissensdokumente-Abfrage hinzufuegen
-
-### Zusammenfassung der Dateiaenderungen
-
-| Datei | Aenderung |
-|-------|-----------|
-| `src/components/chat/WelcomeScreen.tsx` | "Assistentin" |
-| `src/pages/tenant/Dashboard.tsx` | "Assistentin" |
-| `src/pages/weg-owner/Dashboard.tsx` | "Assistentin" |
-| `src/components/TermsAcceptanceDialog.tsx` | Zweistufiger Dialog mit Video-Vorschlag |
-| `supabase/functions/chat-with-ai/index.ts` | management_mode Filter fuer Wissensdokumente |
-| Bild kopieren nach `public/images/` | Thumbnail fuer Video |
+Nur eine Datei betroffen: `supabase/functions/analyze-document/index.ts`
 
