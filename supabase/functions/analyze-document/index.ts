@@ -113,6 +113,16 @@ serve(async (req) => {
       console.log(`OCR extracted ${extractedText.length} characters`);
     }
 
+    // Datei sofort nach OCR aus Storage loeschen (temporaer)
+    const { error: deleteError } = await supabase.storage
+      .from("building-documents")
+      .remove([filePath]);
+    if (deleteError) {
+      console.error("Failed to delete temporary file:", deleteError);
+    } else {
+      console.log(`Temporary file deleted: ${filePath}`);
+    }
+
     // Step 2: Analysis with Mistral
     const userQuestion = question?.trim() || "Analysiere dieses Dokument und fasse die wichtigsten Informationen zusammen.";
     
