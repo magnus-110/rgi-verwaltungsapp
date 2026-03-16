@@ -1,55 +1,63 @@
 
 
-## Plan: Drei Anpassungen (Nova Text, Erklaerungsvideo, DSGVO-Pruefung)
+## Plan: Dokument-Upload und KI-Analyse in Nova
 
-### 1. "KI Assistentin" statt "KI Assistent"
+### Ziel
+Im Nova-Chat soll der Admin ein Dokument (PDF) direkt hochladen und von Mistral AI analysieren lassen koennen -- z.B. eine Abrechnung pruefen, eine Rechnung zusammenfassen, etc. Dies ist eine Ad-hoc-Analyse, nicht das Hinzufuegen zum RAG-Wissensbestand.
 
-Textaenderung in drei Dateien:
-- `src/components/chat/WelcomeScreen.tsx` (Zeile 40): "Nova - RGI KI Assistentin"
-- `src/pages/tenant/Dashboard.tsx` (Zeile 228): "RGI KI Assistentin"
-- `src/pages/weg-owner/Dashboard.tsx` (Zeile 186): "RGI KI Assistentin"
+### Funktionsweise
 
-### 2. Erklaerungsvideo als zweiter Schritt im Onboarding-Dialog
+1. **Neuer Menuepunkt im Plus-Menu**: "Dokument analysieren" mit Datei-Upload (PDF)
+2. **Upload-Flow**: Datei wird in den bestehenden `building-documents` Bucket hochgeladen, dann per Edge Function an Mistral OCR gesendet
+3. **Neue Edge Function `analyze-document`**: Nimmt die hochgeladene Datei, extrahiert Text via Mistral OCR, sendet den Text zusammen mit der Nutzerfrage an Mistral Large zur Analyse
+4. **Chat-Integration**: Die Antwort erscheint als normale Assistenten-Nachricht im Chat, mit Hinweis auf das analysierte Dokument
 
-Nach dem Akzeptieren der AGB und Datenschutzerklaerung wird ein zweiter Schritt angezeigt, der das Erklaerungsvideo vorschlaegt.
+### Aenderungen
 
-**Ablauf:**
-1. Schritt 1 (bestehend): AGB und Datenschutz akzeptieren - Button "Akzeptieren und fortfahren"
-2. Schritt 2 (neu): Erklaerungsvideo-Vorschlag mit Thumbnail und Link
-   - Das hochgeladene Bild wird als Thumbnail angezeigt (klickbar)
-   - YouTube-Link: https://youtube.com/shorts/Ccw9pb_Y6XY?si=ehjPVhZ5bVTikQul
-   - Button "Video ansehen" (oeffnet YouTube) und "Ueberspringen" (schliesst Dialog)
+**1. Neue Edge Function: `supabase/functions/analyze-document/index.ts`**
+- Empfaengt: `filePath` (Storage-Pfad), `question` (optionale Nutzerfrage), `sessionId`
+- Laedt die Datei aus Storage, sendet an Mistral OCR (`pixtral-large-latest` mit document_url)
+- Sendet extrahierten Text + Frage an Mistral Large fuer Analyse
+- Speichert Nachrichten in `document_chat_messages`
+- Gibt strukturierte Antwort zurueck
 
-**Technische Umsetzung in `src/components/TermsAcceptanceDialog.tsx`:**
-- Neuer State `step` (1 oder 2)
-- Nach erfolgreichem Speichern der Terms-Akzeptanz wechselt der Dialog zu Schritt 2
-- Schritt 2 zeigt das Thumbnail-Bild und zwei Buttons
-- Das hochgeladene Bild wird nach `public/images/` kopiert
+**2. `src/components/documents/ChatInputField.tsx`**
+- Neuer Menuepunkt "Dokument analysieren" im Plus-Menu (zwischen Tiefenrecherche und Prompt-Vorlagen)
+- Klick oeffnet einen versteckten File-Input (nur PDF)
+- Nach Dateiauswahl: Datei wird hochgeladen, Badge "Dokument angehaengt" erscheint ueber dem Input
+- Beim Senden wird statt `query-documents` die neue `analyze-document` Function aufgerufen
 
-### 3. DSGVO-Pruefung: Nova Dokumentenzugriff
+**3. `src/pages/Documents.tsx`**
+- `handleSend` erweitern: Wenn ein Dokument angehaengt ist, `analyze-document` statt `query-documents` aufrufen
+- Neues State-Feld `attachedFile` durchreichen
 
-**Ergebnis der Pruefung:**
+**4. `supabase/config.toml`**
+- Neue Function `analyze-document` mit `verify_jwt = true` registrieren
 
-Die Dokumentenzugriffe in der `chat-with-ai` Edge Function sind korrekt geschuetzt:
+### Ablauf
 
-- **Persoenliche Dateien**: Gefiltert nach `assigned_user_id = userId` -- nur eigene Dateien
-- **Gebaeude-Dateien**: Gefiltert nach `building_id` des Nutzers UND `assigned_user_id IS NULL` -- nur allgemeine Gebaeudedateien des eigenen Gebaeudes
-- **Gebaeudedokumente (RAG)**: Gefiltert nach den Gebaeude-IDs des Nutzers (bei Mietern: `profile.building_id`, bei WEG-Eigentuemern: `weg_owner_buildings`)
-- **RLS-Policies**: Zusaetzlich auf Datenbankebene abgesichert
+```text
+Admin klickt "+" -> "Dokument analysieren" -> waehlt PDF
+  |
+  v
+Badge "Dokument.pdf angehaengt" erscheint ueber Input
+  |
+  v
+Admin tippt Frage (z.B. "Fasse diese Abrechnung zusammen")
+  |
+  v
+Datei wird in Storage hochgeladen
+  |
+  v
+Edge Function: OCR via Mistral -> Text + Frage -> Mistral Large
+  |
+  v
+Antwort erscheint als Chat-Nachricht
+```
 
-**Ein kleiner Verbesserungsvorschlag:** Die Wissensdokumente (`chatbot_knowledge_documents`) werden aktuell nicht nach `management_mode` gefiltert. Das bedeutet, ein Mieter koennte theoretisch auch WEG-spezifische Wissensdokumente als Kontext erhalten (und umgekehrt). Dies ist kein direktes DSGVO-Problem (da es sich um allgemeine, nicht personenbezogene Wissensinhalte handelt), aber fuer saubere Datentrennung sollte ein Filter ergaenzt werden.
-
-**Aenderung in `supabase/functions/chat-with-ai/index.ts`** (Zeile 457-461):
-- Filter `.eq('management_mode', managementMode)` zur Wissensdokumente-Abfrage hinzufuegen
-
-### Zusammenfassung der Dateiaenderungen
-
-| Datei | Aenderung |
-|-------|-----------|
-| `src/components/chat/WelcomeScreen.tsx` | "Assistentin" |
-| `src/pages/tenant/Dashboard.tsx` | "Assistentin" |
-| `src/pages/weg-owner/Dashboard.tsx` | "Assistentin" |
-| `src/components/TermsAcceptanceDialog.tsx` | Zweistufiger Dialog mit Video-Vorschlag |
-| `supabase/functions/chat-with-ai/index.ts` | management_mode Filter fuer Wissensdokumente |
-| Bild kopieren nach `public/images/` | Thumbnail fuer Video |
+### Technische Details
+- Mistral OCR nutzt `pixtral-large-latest` mit base64-encodiertem PDF
+- Maximale Dateigroesse: 20MB (Storage-Limit)
+- Temporaerer Upload-Pfad: `analysis/{timestamp}_{filename}`
+- Die Datei wird nach Analyse nicht geloescht (kann spaeter fuer Referenz genutzt werden)
 
