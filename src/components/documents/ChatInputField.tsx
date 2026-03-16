@@ -940,6 +940,15 @@ export function ChatInputField({
         categories={categories}
         onSuccess={fetchPromptData}
       />
+
+      {/* Hidden file input for document analysis */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={handleFileSelect}
+      />
     </>
   );
 }
