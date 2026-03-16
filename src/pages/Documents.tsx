@@ -199,12 +199,15 @@ export function Documents() {
 
       if (isDocumentAnalysis) {
         // Use analyze-document edge function
+        const files = options.attachedFiles!.map(f => ({
+          filePath: f.storagePath,
+          fileName: f.file.name,
+        }));
         const result = await supabase.functions.invoke('analyze-document', {
           body: {
-            filePath: options.attachedFile!.storagePath,
+            files,
             question: messageContent,
             sessionId,
-            fileName: options.attachedFile!.file.name,
           },
         });
         data = result.data;

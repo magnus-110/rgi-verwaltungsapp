@@ -960,6 +960,7 @@ export function ChatInputField({
         ref={fileInputRef}
         type="file"
         accept=".pdf,image/jpeg,image/png,image/webp"
+        multiple
         className="hidden"
         onChange={handleFileSelect}
       />
