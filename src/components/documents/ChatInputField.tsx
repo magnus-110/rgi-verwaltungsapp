@@ -53,7 +53,7 @@ interface ChatInputFieldProps {
     enhancedQuery?: string;
     filterCategories?: string[];
     filterFeatures?: string[];
-    attachedFile?: { file: File; storagePath: string };
+    attachedFiles?: Array<{ file: File; storagePath: string }>;
   }) => void;
   isLoading: boolean;
   disabled?: boolean;
