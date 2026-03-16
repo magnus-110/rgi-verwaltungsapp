@@ -523,8 +523,18 @@ export function ChatInputField({
 
         <div className="px-4">
           {/* Badges (positioned above the pill) */}
-          {(webSearchEnabled || deepResearchEnabled || activeFilters) && (
+          {(webSearchEnabled || deepResearchEnabled || activeFilters || attachedFile) && (
             <div className="mb-2 ml-1 flex flex-wrap gap-2">
+              {attachedFile && (
+                <button
+                  onClick={() => setAttachedFile(null)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 text-primary rounded-full text-xs hover:bg-primary/20 transition-colors"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  <span className="truncate max-w-[200px]">{attachedFile.name}</span>
+                  <X className="h-3 w-3 ml-0.5" />
+                </button>
+              )}
               {webSearchEnabled && (
                 <button
                   onClick={onWebSearchToggle}
