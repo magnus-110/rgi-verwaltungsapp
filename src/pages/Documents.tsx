@@ -174,13 +174,19 @@ export function Documents() {
     enhancedQuery?: string;
     filterCategories?: string[];
     filterFeatures?: string[];
+    attachedFile?: { file: File; storagePath: string };
   }) => {
     if (isLoading) return;
+
+    const isDocumentAnalysis = !!options?.attachedFile;
+    const displayContent = isDocumentAnalysis
+      ? `📄 **${options.attachedFile!.file.name}** hochgeladen\n\n${messageContent}`
+      : messageContent;
 
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: 'user',
-      content: messageContent,
+      content: displayContent,
       created_at: new Date().toISOString(),
     };
 
@@ -188,31 +194,47 @@ export function Documents() {
     setIsLoading(true);
 
     try {
-      // Determine buildingIds based on scope
-      let buildingIds: string[] = [];
-      if (scope === 'specific' && selectedBuildingIds.length > 0) {
-        buildingIds = selectedBuildingIds;
+      let data: any;
+      let error: any;
+
+      if (isDocumentAnalysis) {
+        // Use analyze-document edge function
+        const result = await supabase.functions.invoke('analyze-document', {
+          body: {
+            filePath: options.attachedFile!.storagePath,
+            question: messageContent,
+            sessionId,
+            fileName: options.attachedFile!.file.name,
+          },
+        });
+        data = result.data;
+        error = result.error;
+      } else {
+        // Use query-documents edge function (existing logic)
+        let buildingIds: string[] = [];
+        if (scope === 'specific' && selectedBuildingIds.length > 0) {
+          buildingIds = selectedBuildingIds;
+        }
+        const shouldIncludeGeneral = scope === 'general' ? true : includeGeneral;
+
+        const result = await supabase.functions.invoke('query-documents', {
+          body: {
+            sessionId,
+            question: messageContent,
+            buildingId: scope === 'specific' && buildingIds.length === 1 ? buildingIds[0] : null,
+            buildingIds: scope === 'specific' && buildingIds.length > 1 ? buildingIds : null,
+            includeGeneral: shouldIncludeGeneral,
+            userId: user?.id,
+            searchAllBuildings: scope === 'all',
+            useWebSearch: webSearchEnabled,
+            useDeepResearch: deepResearchEnabled,
+            filterCategories: options?.filterCategories,
+            filterFeatures: options?.filterFeatures,
+          },
+        });
+        data = result.data;
+        error = result.error;
       }
-
-      // Determine includeGeneral based on scope
-      const shouldIncludeGeneral = scope === 'general' ? true : includeGeneral;
-
-      const { data, error } = await supabase.functions.invoke('query-documents', {
-        body: {
-          sessionId,
-          question: messageContent,
-          buildingId: scope === 'specific' && buildingIds.length === 1 ? buildingIds[0] : null,
-          buildingIds: scope === 'specific' && buildingIds.length > 1 ? buildingIds : null,
-          includeGeneral: shouldIncludeGeneral,
-          userId: user?.id,
-          searchAllBuildings: scope === 'all',
-          useWebSearch: webSearchEnabled,
-          useDeepResearch: deepResearchEnabled,
-          // New metadata filter options from enhancer
-          filterCategories: options?.filterCategories,
-          filterFeatures: options?.filterFeatures,
-        },
-      });
 
       if (error) {
         throw new Error(error.message);

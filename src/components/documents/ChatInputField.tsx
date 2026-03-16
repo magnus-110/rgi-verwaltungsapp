@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowUp, Loader2, Mic, MicOff, Plus, Globe, Check, Star, X, FileText, ChevronLeft, SearchCheck, Pencil, ChevronRight, GripVertical, Wand2 } from "lucide-react";
+import { ArrowUp, Loader2, Mic, MicOff, Plus, Globe, Check, Star, X, FileText, ChevronLeft, SearchCheck, Pencil, ChevronRight, GripVertical, Wand2, FileSearch } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -53,6 +53,7 @@ interface ChatInputFieldProps {
     enhancedQuery?: string;
     filterCategories?: string[];
     filterFeatures?: string[];
+    attachedFile?: { file: File; storagePath: string };
   }) => void;
   isLoading: boolean;
   disabled?: boolean;
@@ -89,7 +90,9 @@ export function ChatInputField({
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState<PromptTemplate | null>(null);
+  const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
@@ -339,21 +342,102 @@ export function ChatInputField({
     }
   };
 
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast({
+        title: "Ungültiges Format",
+        description: "Bitte laden Sie eine PDF- oder Bilddatei hoch.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate file size (20MB)
+    if (file.size > 20 * 1024 * 1024) {
+      toast({
+        title: "Datei zu groß",
+        description: "Maximale Dateigröße: 20 MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setAttachedFile(file);
+    setMenuOpen(false);
+
+    // Reset file input
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
   const handleSend = () => {
-    if (!value.trim() || isLoading || disabled) return;
+    if ((!value.trim() && !attachedFile) || isLoading || disabled) return;
+    
+    const messageText = value.trim() || (attachedFile ? `Analysiere das Dokument "${attachedFile.name}"` : "");
+
+    // If we have an attached file, upload it first then send
+    if (attachedFile) {
+      handleSendWithFile(messageText);
+      return;
+    }
     
     // If we have active filters from the enhancer, pass them along
     if (activeFilters) {
-      onSend(value.trim(), {
+      onSend(messageText, {
         filterCategories: activeFilters.categories,
         filterFeatures: activeFilters.features,
       });
       setActiveFilters(null);
     } else {
-      onSend(value.trim());
+      onSend(messageText);
     }
     
     setValue("");
+    setEnhancedPrompt(null);
+  };
+
+  const handleSendWithFile = async (messageText: string) => {
+    if (!attachedFile) return;
+
+    const file = attachedFile;
+    const timestamp = Date.now();
+    const storagePath = `analysis/${timestamp}_${file.name}`;
+
+    try {
+      // Upload to storage
+      const { error: uploadError } = await supabase.storage
+        .from("building-documents")
+        .upload(storagePath, file);
+
+      if (uploadError) {
+        console.error("Upload error:", uploadError);
+        toast({
+          title: "Upload fehlgeschlagen",
+          description: uploadError.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      onSend(messageText, {
+        attachedFile: { file, storagePath },
+      });
+    } catch (error) {
+      console.error("File upload error:", error);
+      toast({
+        title: "Fehler",
+        description: "Datei konnte nicht hochgeladen werden.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setValue("");
+    setAttachedFile(null);
     setEnhancedPrompt(null);
   };
 
@@ -439,8 +523,18 @@ export function ChatInputField({
 
         <div className="px-4">
           {/* Badges (positioned above the pill) */}
-          {(webSearchEnabled || deepResearchEnabled || activeFilters) && (
+          {(webSearchEnabled || deepResearchEnabled || activeFilters || attachedFile) && (
             <div className="mb-2 ml-1 flex flex-wrap gap-2">
+              {attachedFile && (
+                <button
+                  onClick={() => setAttachedFile(null)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 text-primary rounded-full text-xs hover:bg-primary/20 transition-colors"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  <span className="truncate max-w-[200px]">{attachedFile.name}</span>
+                  <X className="h-3 w-3 ml-0.5" />
+                </button>
+              )}
               {webSearchEnabled && (
                 <button
                   onClick={onWebSearchToggle}
@@ -522,6 +616,17 @@ export function ChatInputField({
                       <span className="flex-1 text-left text-sm">Tiefenrecherche</span>
                       {deepResearchEnabled && <Check className="h-4 w-4 text-primary" />}
                     </button>
+
+                  {/* Document Analysis */}
+                  <button
+                    onClick={() => {
+                      fileInputRef.current?.click();
+                    }}
+                    className="flex items-center gap-3 w-full px-3 py-2.5 rounded-md hover:bg-muted transition-colors"
+                  >
+                    <FileSearch className="h-4 w-4" />
+                    <span className="text-sm flex-1 text-left">Dokument analysieren</span>
+                  </button>
 
                   {/* Prompts Menu Item */}
                   <button
@@ -834,6 +939,15 @@ export function ChatInputField({
         prompt={editingPrompt}
         categories={categories}
         onSuccess={fetchPromptData}
+      />
+
+      {/* Hidden file input for document analysis */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={handleFileSelect}
       />
     </>
   );
