@@ -46,6 +46,10 @@ export function BookingTemplatesTab() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<TemplateForm>(emptyForm);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [buildingOpen, setBuildingOpen] = useState(false);
+  const [buildingSearch, setBuildingSearch] = useState("");
+  const [accountSearch, setAccountSearch] = useState("");
 
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ["booking-templates"],
