@@ -95,7 +95,7 @@ async function matchTransactions(supabase: any, statementId: string) {
 
   const { data: paidInvoices } = await supabase
     .from("invoices")
-    .select("id, vendor_iban, gross_amount")
+    .select("id, vendor_iban, gross_amount, invoice_number")
     .eq("status", "paid");
 
   const { data: templates } = await supabase
