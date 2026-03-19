@@ -34,13 +34,14 @@ interface Props {
   onDeleted?: () => void;
 }
 
-export function ContactDetail({ contact, onBack, onUpdate }: Props) {
+export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
   const { toast } = useToast();
   const [form, setForm] = useState({ ...contact });
   const [phones, setPhones] = useState<ContactPhone[]>([]);
   const [emails, setEmails] = useState<ContactEmail[]>([]);
   const [bankAccounts, setBankAccounts] = useState<ContactBankAccount[]>([]);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     setForm({ ...contact });
