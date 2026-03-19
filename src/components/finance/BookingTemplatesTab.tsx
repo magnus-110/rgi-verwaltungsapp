@@ -105,6 +105,10 @@ export function BookingTemplatesTab() {
       toast.error("Name ist erforderlich");
       return;
     }
+    if (!form.building_id) {
+      toast.error("Liegenschaft ist erforderlich");
+      return;
+    }
 
     const payload = {
       name: form.name.trim(),
