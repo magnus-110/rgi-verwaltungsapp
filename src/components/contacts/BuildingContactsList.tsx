@@ -241,8 +241,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                     )}
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0 flex-wrap">
-                    {managementMode === 'weg' && isBeirat(a) && <Badge className="text-xs bg-amber-100 text-amber-700 hover:bg-amber-100">Beirat</Badge>}
-                    {hausgeld !== null && <Badge className="text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-100">{hausgeld.toFixed(2)} €</Badge>}
+                    {managementMode === 'weg' && isBeirat(a) && <Badge variant="secondary" className="text-xs">Beirat</Badge>}
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
