@@ -232,7 +232,11 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0 flex-wrap">
                     <Badge variant="outline" className="text-xs">{roleLabel}</Badge>
-                    {a.unit_number && <Badge variant="secondary" className="text-xs">Einheit {a.unit_number}</Badge>}
+                    {(a.unit_number || a.floor_location) && (
+                      <Badge variant="secondary" className="text-xs">
+                        {[a.unit_number, a.floor_location].filter(Boolean).join(" ")}
+                      </Badge>
+                    )}
                     {managementMode === 'weg' && isBeirat(a) && <Badge className="text-xs bg-amber-100 text-amber-700 hover:bg-amber-100">Beirat</Badge>}
                     {mea !== null && <Badge variant="secondary" className="text-xs">MEA: {mea}</Badge>}
                     {hausgeld !== null && <Badge className="text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-100">{hausgeld.toFixed(2)} €</Badge>}
