@@ -243,7 +243,11 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
             <div>
               <Label className="text-sm mb-1.5 block">Konto (Soll) *</Label>
               <AccountPicker
-                value={form.account_id} onChange={v => set("account_id", v)}
+                value={form.account_id} onChange={v => {
+                  set("account_id", v);
+                  const acc = accounts.find(a => a.id === v);
+                  if (acc?.is_35a_relevant) set("is_35a_relevant", true);
+                }}
                 search={accountSearch} onSearchChange={setAccountSearch}
                 isOpen={accountOpen} onOpenChange={setAccountOpen}
                 placeholder="Konto suchen (Nummer oder Name)..."
