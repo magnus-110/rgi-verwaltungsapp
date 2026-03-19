@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -6,19 +6,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { ChevronDown, Search } from "lucide-react";
+import { ChevronDown, Search, ArrowDownLeft, ArrowUpRight, X } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   buildings: { id: string; name: string; building_code: string }[];
+  preselectedBuildingId?: string;
+  preselectedYear?: string;
 }
 
 const VAT_RATES = [
@@ -27,7 +30,7 @@ const VAT_RATES = [
   { value: "19", label: "19 %" },
 ];
 
-export function CreateBookingDialog({ open, onOpenChange, buildings }: Props) {
+export function CreateBookingDialog({ open, onOpenChange, buildings, preselectedBuildingId, preselectedYear }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [form, setForm] = useState({
@@ -49,6 +52,19 @@ export function CreateBookingDialog({ open, onOpenChange, buildings }: Props) {
   const [accountSearch, setAccountSearch] = useState("");
   const [counterSearch, setCounterSearch] = useState("");
   const [showPeriod, setShowPeriod] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [counterOpen, setCounterOpen] = useState(false);
+
+  // Sync preselected values when dialog opens
+  useEffect(() => {
+    if (open) {
+      setForm(prev => ({
+        ...prev,
+        building_id: preselectedBuildingId || prev.building_id,
+        fiscal_year: preselectedYear || prev.fiscal_year,
+      }));
+    }
+  }, [open, preselectedBuildingId, preselectedYear]);
 
   const { data: accounts = [] } = useQuery({
     queryKey: ["chart-of-accounts"],
@@ -59,15 +75,10 @@ export function CreateBookingDialog({ open, onOpenChange, buildings }: Props) {
     },
   });
 
-  const filteredAccounts = useMemo(() => {
-    const q = accountSearch.toLowerCase();
-    return q ? accounts.filter(a => a.account_number.includes(q) || a.account_name.toLowerCase().includes(q)) : accounts;
-  }, [accounts, accountSearch]);
-
-  const filteredCounterAccounts = useMemo(() => {
-    const q = counterSearch.toLowerCase();
-    return q ? accounts.filter(a => a.account_number.includes(q) || a.account_name.toLowerCase().includes(q)) : accounts;
-  }, [accounts, counterSearch]);
+  const filterAccounts = (list: typeof accounts, query: string) => {
+    const q = query.toLowerCase().trim();
+    return q ? list.filter(a => a.account_number.includes(q) || a.account_name.toLowerCase().includes(q)) : list;
+  };
 
   const groupAccounts = (list: typeof accounts) => {
     return list.reduce((acc: Record<string, typeof accounts>, a) => {
@@ -83,7 +94,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings }: Props) {
   }, [form.amount, form.vat_rate]);
 
   const getAccountLabel = (id: string) => {
-    const a = accounts.find(a => a.id === id);
+    const a = accounts.find(acc => acc.id === id);
     return a ? `${a.account_number} – ${a.account_name}` : "";
   };
 
@@ -121,9 +132,9 @@ export function CreateBookingDialog({ open, onOpenChange, buildings }: Props) {
 
   const resetForm = () => {
     setForm({
-      building_id: "", account_id: "", counter_account_id: "",
+      building_id: preselectedBuildingId || "", account_id: "", counter_account_id: "",
       booking_date: new Date().toISOString().split("T")[0],
-      amount: "", description: "", fiscal_year: String(new Date().getFullYear()),
+      amount: "", description: "", fiscal_year: preselectedYear || String(new Date().getFullYear()),
       performance_period_from: "", performance_period_to: "",
       booking_type: "expense", receipt_number: "", booking_reference: "",
       vat_rate: "19", is_35a_relevant: false,
@@ -135,207 +146,248 @@ export function CreateBookingDialog({ open, onOpenChange, buildings }: Props) {
 
   const set = (key: string, value: string | boolean) => setForm(p => ({ ...p, [key]: value }));
 
-  const currentYear = new Date().getFullYear();
-  const years = Array.from({ length: 5 }, (_, i) => String(currentYear - i));
+  const selectedBuildingName = buildings.find(b => b.id === form.building_id)?.name || "–";
 
-  const AccountSelect = ({ value, onChange, search, onSearchChange, filtered, placeholder }: {
+  // Account picker component using Popover + searchable list
+  const AccountPicker = ({ value, onChange, search, onSearchChange, isOpen, onOpenChange, placeholder }: {
     value: string; onChange: (v: string) => void; search: string;
-    onSearchChange: (v: string) => void; filtered: typeof accounts; placeholder: string;
-  }) => (
-    <Select value={value} onValueChange={onChange}>
-      <SelectTrigger className="h-9 text-sm">
-        <SelectValue placeholder={placeholder}>
-          {value ? <span className="truncate">{getAccountLabel(value)}</span> : placeholder}
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent>
-        <div className="p-2 pb-1">
-          <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              value={search}
-              onChange={e => onSearchChange(e.target.value)}
-              placeholder="Suchen..."
-              className="h-8 pl-7 text-xs"
-            />
+    onSearchChange: (v: string) => void; isOpen: boolean; onOpenChange: (v: boolean) => void; placeholder: string;
+  }) => {
+    const inputRef = useRef<HTMLInputElement>(null);
+    const filtered = filterAccounts(accounts, search);
+    const grouped = groupAccounts(filtered);
+
+    return (
+      <Popover open={isOpen} onOpenChange={onOpenChange}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            className={cn(
+              "w-full h-11 justify-between text-left font-normal",
+              !value && "text-muted-foreground"
+            )}
+          >
+            <span className="truncate">
+              {value ? getAccountLabel(value) : placeholder}
+            </span>
+            {value ? (
+              <X className="h-4 w-4 shrink-0 opacity-50 hover:opacity-100"
+                onClick={(e) => { e.stopPropagation(); onChange(""); }} />
+            ) : (
+              <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+            )}
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[460px] p-0" align="start">
+          <div className="p-3 border-b">
+            <div className="relative">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                ref={inputRef}
+                value={search}
+                onChange={e => onSearchChange(e.target.value)}
+                placeholder="Kontonummer oder Name eingeben..."
+                className="pl-9 h-10"
+                autoFocus
+              />
+            </div>
           </div>
-        </div>
-        {Object.entries(groupAccounts(filtered)).map(([cat, accs]) => (
-          <div key={cat}>
-            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">{cat}</div>
-            {accs.map(a => (
-              <SelectItem key={a.id} value={a.id} className="text-xs">
-                <span className="font-mono">{a.account_number}</span> – {a.account_name}
-              </SelectItem>
-            ))}
+          <div className="max-h-[300px] overflow-y-auto p-1">
+            {Object.keys(grouped).length === 0 ? (
+              <div className="text-center py-6 text-sm text-muted-foreground">Kein Konto gefunden</div>
+            ) : (
+              Object.entries(grouped).map(([cat, accs]) => (
+                <div key={cat}>
+                  <div className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{cat}</div>
+                  {accs.map(a => (
+                    <button
+                      key={a.id}
+                      onClick={() => { onChange(a.id); onOpenChange(false); onSearchChange(""); }}
+                      className={cn(
+                        "w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-md hover:bg-accent transition-colors",
+                        value === a.id && "bg-accent"
+                      )}
+                    >
+                      <span className="font-mono text-sm font-medium w-14 shrink-0">{a.account_number}</span>
+                      <span className="text-sm truncate">{a.account_name}</span>
+                      {a.is_35a_relevant && (
+                        <Badge className="text-[10px] bg-amber-100 text-amber-800 hover:bg-amber-100 ml-auto shrink-0">§35a</Badge>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              ))
+            )}
           </div>
-        ))}
-      </SelectContent>
-    </Select>
-  );
+        </PopoverContent>
+      </Popover>
+    );
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Manuelle Buchung erstellen</DialogTitle>
+          <DialogTitle className="text-xl">Neue Buchung</DialogTitle>
+          <p className="text-sm text-muted-foreground">
+            {selectedBuildingName} · Wirtschaftsjahr {form.fiscal_year}
+          </p>
         </DialogHeader>
 
-        <div className="space-y-5">
-          {/* Row 1: Liegenschaft & Geschäftsjahr */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="text-xs font-medium">Liegenschaft *</Label>
-              <Select value={form.building_id} onValueChange={v => set("building_id", v)}>
-                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Auswählen..." /></SelectTrigger>
-                <SelectContent>
-                  {buildings.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs font-medium">Geschäftsjahr *</Label>
-              <Select value={form.fiscal_year} onValueChange={v => set("fiscal_year", v)}>
-                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+        <div className="space-y-6 py-2">
+          {/* Row 1: Buchung – Konto, Typ, Betrag */}
+          <div className="rounded-xl border p-5 space-y-4">
+            <p className="text-sm font-semibold text-foreground">Buchung</p>
 
-          {/* Row 2: Konto & Betrag */}
-          <div className="rounded-lg border p-4 space-y-3 bg-muted/30">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Buchung</p>
-            <div className="grid grid-cols-[1fr_auto_auto] gap-3 items-end">
-              <div>
-                <Label className="text-xs">Konto (Soll) *</Label>
-                <AccountSelect
-                  value={form.account_id} onChange={v => set("account_id", v)}
-                  search={accountSearch} onSearchChange={setAccountSearch}
-                  filtered={filteredAccounts} placeholder="Konto suchen..."
-                />
+            <div>
+              <Label className="text-sm mb-1.5 block">Konto (Soll) *</Label>
+              <AccountPicker
+                value={form.account_id} onChange={v => set("account_id", v)}
+                search={accountSearch} onSearchChange={setAccountSearch}
+                isOpen={accountOpen} onOpenChange={setAccountOpen}
+                placeholder="Konto suchen (Nummer oder Name)..."
+              />
+            </div>
+
+            <div className="flex items-end gap-4">
+              <div className="flex-1">
+                <Label className="text-sm mb-1.5 block">Zugang / Abgang *</Label>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant={form.booking_type === "expense" ? "default" : "outline"}
+                    className={cn("flex-1 h-11 gap-2", form.booking_type === "expense" && "bg-destructive hover:bg-destructive/90 text-destructive-foreground")}
+                    onClick={() => set("booking_type", "expense")}
+                  >
+                    <ArrowDownLeft className="h-4 w-4" />
+                    Abgang
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={form.booking_type === "income" ? "default" : "outline"}
+                    className={cn("flex-1 h-11 gap-2", form.booking_type === "income" && "bg-green-600 hover:bg-green-700 text-white")}
+                    onClick={() => set("booking_type", "income")}
+                  >
+                    <ArrowUpRight className="h-4 w-4" />
+                    Zugang
+                  </Button>
+                </div>
               </div>
-              <div>
-                <Label className="text-xs">Typ</Label>
-                <Select value={form.booking_type} onValueChange={v => set("booking_type", v)}>
-                  <SelectTrigger className="h-9 w-[120px] text-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="expense">Abgang</SelectItem>
-                    <SelectItem value="income">Zugang</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs">Betrag (€) *</Label>
+              <div className="w-[180px]">
+                <Label className="text-sm mb-1.5 block">Betrag (€) *</Label>
                 <Input
                   type="number" step="0.01" value={form.amount}
                   onChange={e => set("amount", e.target.value)}
-                  className="h-9 w-[130px] text-sm text-right font-medium"
+                  className="h-11 text-right text-lg font-semibold"
                   placeholder="0,00"
                 />
               </div>
             </div>
+
             <div>
-              <Label className="text-xs">Gegenkonto (Haben)</Label>
-              <AccountSelect
+              <Label className="text-sm mb-1.5 block">Gegenkonto (Haben)</Label>
+              <AccountPicker
                 value={form.counter_account_id} onChange={v => set("counter_account_id", v)}
                 search={counterSearch} onSearchChange={setCounterSearch}
-                filtered={filteredCounterAccounts} placeholder="z.B. Bank, Kasse..."
+                isOpen={counterOpen} onOpenChange={setCounterOpen}
+                placeholder="z.B. 1200 Bank, 1000 Kasse..."
               />
             </div>
           </div>
 
-          {/* Row 3: Beleg */}
-          <div className="rounded-lg border p-4 space-y-3 bg-muted/30">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Beleg</p>
-            <div className="grid grid-cols-3 gap-3">
+          {/* Row 2: Beleg */}
+          <div className="rounded-xl border p-5 space-y-4">
+            <p className="text-sm font-semibold text-foreground">Beleg</p>
+            <div className="grid grid-cols-3 gap-4">
               <div>
-                <Label className="text-xs">Buchungskürzel</Label>
+                <Label className="text-sm mb-1.5 block">Buchungskürzel</Label>
                 <Input value={form.booking_reference} onChange={e => set("booking_reference", e.target.value)}
-                  className="h-9 text-sm" placeholder="z.B. HG" />
+                  className="h-11" placeholder="z.B. HG" />
               </div>
               <div>
-                <Label className="text-xs">Beleg-Nr.</Label>
+                <Label className="text-sm mb-1.5 block">Beleg-Nr.</Label>
                 <Input value={form.receipt_number} onChange={e => set("receipt_number", e.target.value)}
-                  className="h-9 text-sm" placeholder="z.B. RE-2026-001" />
+                  className="h-11" placeholder="z.B. RE-2026-001" />
               </div>
               <div>
-                <Label className="text-xs">Belegdatum *</Label>
+                <Label className="text-sm mb-1.5 block">Belegdatum *</Label>
                 <Input type="date" value={form.booking_date} onChange={e => set("booking_date", e.target.value)}
-                  className="h-9 text-sm" />
+                  className="h-11" />
               </div>
             </div>
             <div>
-              <Label className="text-xs">Buchungstext</Label>
+              <Label className="text-sm mb-1.5 block">Buchungstext</Label>
               <Textarea value={form.description} onChange={e => set("description", e.target.value)}
-                rows={2} className="text-sm" placeholder="Beschreibung der Buchung..." />
+                rows={2} placeholder="Beschreibung der Buchung..." />
             </div>
           </div>
 
-          {/* Row 4: Steuer & Optionen */}
-          <div className="rounded-lg border p-4 space-y-3 bg-muted/30">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Steuer & Optionen</p>
-            <div className="flex items-end gap-6">
-              <div className="flex-1">
-                <Label className="text-xs mb-2 block">MwSt-Satz</Label>
+          {/* Row 3: Steuer & Optionen */}
+          <div className="rounded-xl border p-5 space-y-4">
+            <p className="text-sm font-semibold text-foreground">Steuer & Optionen</p>
+            <div className="flex items-end gap-6 flex-wrap">
+              <div className="flex-1 min-w-[200px]">
+                <Label className="text-sm mb-2 block">MwSt-Satz</Label>
                 <RadioGroup value={form.vat_rate} onValueChange={v => set("vat_rate", v)}
-                  className="flex gap-3">
+                  className="flex gap-4">
                   {VAT_RATES.map(r => (
-                    <div key={r.value} className="flex items-center gap-1.5">
-                      <RadioGroupItem value={r.value} id={`vat-${r.value}`} />
-                      <Label htmlFor={`vat-${r.value}`} className="text-xs cursor-pointer">{r.label}</Label>
+                    <div key={r.value} className="flex items-center gap-2">
+                      <RadioGroupItem value={r.value} id={`vat-${r.value}`} className="h-5 w-5" />
+                      <Label htmlFor={`vat-${r.value}`} className="text-sm cursor-pointer">{r.label}</Label>
                     </div>
                   ))}
                 </RadioGroup>
               </div>
-              <div className="w-[120px]">
-                <Label className="text-xs">MwSt-Betrag</Label>
-                <Input value={computedVat} readOnly className="h-9 text-sm text-right bg-muted" />
+              <div className="w-[140px]">
+                <Label className="text-sm mb-1.5 block">MwSt-Betrag</Label>
+                <Input value={computedVat} readOnly className="h-11 text-right bg-muted font-medium" />
               </div>
-              <div className="flex items-center gap-2 pb-1">
+              <div className="flex items-center gap-2.5 pb-1">
                 <Checkbox
                   id="is_35a"
                   checked={form.is_35a_relevant}
                   onCheckedChange={c => set("is_35a_relevant", !!c)}
+                  className="h-5 w-5"
                 />
-                <Label htmlFor="is_35a" className="text-xs cursor-pointer whitespace-nowrap">
+                <Label htmlFor="is_35a" className="text-sm cursor-pointer whitespace-nowrap font-medium">
                   §35a relevant
                 </Label>
               </div>
             </div>
           </div>
 
-          {/* Row 5: Leistungszeitraum (collapsible) */}
+          {/* Row 4: Leistungszeitraum (collapsible) */}
           <Collapsible open={showPeriod} onOpenChange={setShowPeriod}>
             <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="sm" className="text-xs text-muted-foreground gap-1 px-0">
-                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showPeriod ? "rotate-180" : ""}`} />
-                Leistungszeitraum {form.performance_period_from && (
-                  <Badge variant="secondary" className="text-[10px] ml-1">gesetzt</Badge>
+              <Button variant="ghost" className="text-sm text-muted-foreground gap-2 px-0 h-auto">
+                <ChevronDown className={`h-4 w-4 transition-transform ${showPeriod ? "rotate-180" : ""}`} />
+                Leistungszeitraum
+                {form.performance_period_from && (
+                  <Badge variant="secondary" className="text-xs ml-1">gesetzt</Badge>
                 )}
               </Button>
             </CollapsibleTrigger>
-            <CollapsibleContent className="pt-2">
+            <CollapsibleContent className="pt-3">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-xs">Von</Label>
+                  <Label className="text-sm mb-1.5 block">Von</Label>
                   <Input type="date" value={form.performance_period_from}
-                    onChange={e => set("performance_period_from", e.target.value)} className="h-9 text-sm" />
+                    onChange={e => set("performance_period_from", e.target.value)} className="h-11" />
                 </div>
                 <div>
-                  <Label className="text-xs">Bis</Label>
+                  <Label className="text-sm mb-1.5 block">Bis</Label>
                   <Input type="date" value={form.performance_period_to}
-                    onChange={e => set("performance_period_to", e.target.value)} className="h-9 text-sm" />
+                    onChange={e => set("performance_period_to", e.target.value)} className="h-11" />
                 </div>
               </div>
             </CollapsibleContent>
           </Collapsible>
         </div>
 
-        <DialogFooter className="pt-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Abbrechen</Button>
-          <Button onClick={handleSave}>Buchen</Button>
+        <DialogFooter className="pt-4 gap-2">
+          <Button variant="outline" size="lg" onClick={() => onOpenChange(false)}>Abbrechen</Button>
+          <Button size="lg" onClick={handleSave} className="min-w-[140px]">Buchen</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
