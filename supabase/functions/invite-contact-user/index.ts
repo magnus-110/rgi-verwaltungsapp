@@ -176,6 +176,14 @@ Deno.serve(async (req) => {
       }, { onConflict: 'user_id,building_id' })
     }
 
+    // For WEG mode: upsert weg_owner_buildings record
+    if (management_mode === 'weg') {
+      await supabaseAdmin.from('weg_owner_buildings').upsert({
+        user_id: authUserId,
+        building_id,
+      }, { onConflict: 'user_id,building_id' })
+    }
+
     // Send webhook
     await sendToMakeWebhook({
       event: 'user_created',
