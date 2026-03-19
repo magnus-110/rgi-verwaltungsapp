@@ -1,19 +1,27 @@
 
 
-## Adressen-System & Abrechnungsgrundlage
+# Expanded Contact View: Untertabs statt einer langen Liste
 
-### Status: Iteration 5 abgeschlossen ✅
+## Problem
+Beim Ausklappen einer Person im Gebäude-Hub wird alles untereinander angezeigt (Kontaktdaten, Bankverbindung, Einheitsdaten, Anteile, Kosten, Notizen). Das ist unübersichtlich.
 
-**Iteration 1** ✅: DB-Migration (7 Tabellen, RLS, SEPA-Generator) + Kontakte-Seite mit CRUD
-**Iteration 2** ✅: Gebaeude-Zuordnung (Einheit, Etage, Nutzung, Rolle, Bank-Override, Anteile)
-**Iteration 3** ✅: Kosten-Zuordnung komplett (Hausgeld, Ruecklage, Sonderumlage, etc.)
-**Iteration 4** ✅: Migration bestehender weg_owners Daten in contacts-System
-**Iteration 5** ✅: Nutzer-Einladung bei Gebäude-Zuordnung + System-Bereinigung:
-- `contacts.user_id` Spalte (Brücke Kontakt ↔ Auth-System)
-- `invite-contact-user` Edge Function (Auth-User + Profil + Make.com Webhook)
-- AssignContactDialog: Checkbox "Einladung mit Zugangsdaten senden"
-- BuildingFilesTab: Query auf `contact_building_assignments` umgestellt (statt Legacy-Tabellen)
+## Lösung
+Den expanded-Bereich in Tabs aufteilen:
 
-### Naechste Schritte (optional)
+| Tab | Inhalt |
+|-----|--------|
+| **Übersicht** | Kontaktdaten (Telefon, E-Mail, Adresse) + Einheitsdaten (Nr., Lage, Nutzungsart, seit) + Beirat-Checkbox + Notizen |
+| **Anteile** | Verteilerschlüssel (MEA, qm, etc.) mit Add/Edit/Delete |
+| **Kosten** | Hausgeld, Rücklage, etc. mit Add/Edit/Delete |
+| **Bank** | Bankverbindungen als kopierbare Felder (IBAN, BIC, Bank, Kontoinhaber, SEPA-Ref) |
 
-**Danach**: Abrechnungs-Engine, Wirtschaftsplan-Generator, E-Mail-Integration
+## Technische Details
+
+**Datei: `src/components/contacts/BuildingContactsList.tsx`**
+
+- Import `Tabs, TabsList, TabsTrigger, TabsContent` aus `@/components/ui/tabs`
+- Den gesamten expanded-Block (Zeilen 282-496) in eine `<Tabs defaultValue="overview">` Struktur wrappen
+- Kompakte TabsList mit kleinen Triggern (`text-xs`, `h-7`)
+- Jeder bisherige Abschnitt wandert in seinen eigenen `TabsContent`
+- State für aktiven Tab pro Person wird nicht benötigt (Tabs-Komponente verwaltet das intern)
+
