@@ -14,6 +14,130 @@ export type Database = {
   }
   public: {
     Tables: {
+      bookings: {
+        Row: {
+          account_id: string | null
+          amount: number
+          booking_date: string
+          building_id: string | null
+          confirmed_at: string | null
+          confirmed_by: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          fiscal_year: number
+          id: string
+          invoice_id: string | null
+          performance_period_from: string | null
+          performance_period_to: string | null
+          source: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          account_id?: string | null
+          amount: number
+          booking_date: string
+          building_id?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          fiscal_year: number
+          id?: string
+          invoice_id?: string | null
+          performance_period_from?: string | null
+          performance_period_to?: string | null
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string | null
+          amount?: number
+          booking_date?: string
+          building_id?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          fiscal_year?: number
+          id?: string
+          invoice_id?: string | null
+          performance_period_from?: string | null
+          performance_period_to?: string | null
+          source?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      building_account_overrides: {
+        Row: {
+          account_id: string
+          building_id: string
+          created_at: string
+          distribution_key: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          building_id: string
+          created_at?: string
+          distribution_key: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          building_id?: string
+          created_at?: string
+          distribution_key?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "building_account_overrides_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "building_account_overrides_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       building_documents: {
         Row: {
           building_id: string | null
@@ -433,6 +557,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      chart_of_accounts: {
+        Row: {
+          account_name: string
+          account_number: string
+          category: string
+          created_at: string
+          default_distribution_key: string | null
+          id: string
+          is_35a_relevant: boolean | null
+          is_system_account: boolean | null
+          sort_order: number | null
+          updated_at: string
+        }
+        Insert: {
+          account_name: string
+          account_number: string
+          category: string
+          created_at?: string
+          default_distribution_key?: string | null
+          id?: string
+          is_35a_relevant?: boolean | null
+          is_system_account?: boolean | null
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Update: {
+          account_name?: string
+          account_number?: string
+          category?: string
+          created_at?: string
+          default_distribution_key?: string | null
+          id?: string
+          is_35a_relevant?: boolean | null
+          is_system_account?: boolean | null
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       chatbot_knowledge_documents: {
         Row: {
@@ -1148,6 +1311,77 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "forum_posts_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoices: {
+        Row: {
+          building_id: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          due_date: string | null
+          file_path: string | null
+          gross_amount: number | null
+          id: string
+          invoice_date: string | null
+          invoice_number: string | null
+          net_amount: number | null
+          ocr_extracted_data: Json | null
+          ocr_raw_data: Json | null
+          paid_at: string | null
+          status: string
+          updated_at: string
+          vat_amount: number | null
+          vendor_name: string | null
+        }
+        Insert: {
+          building_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          file_path?: string | null
+          gross_amount?: number | null
+          id?: string
+          invoice_date?: string | null
+          invoice_number?: string | null
+          net_amount?: number | null
+          ocr_extracted_data?: Json | null
+          ocr_raw_data?: Json | null
+          paid_at?: string | null
+          status?: string
+          updated_at?: string
+          vat_amount?: number | null
+          vendor_name?: string | null
+        }
+        Update: {
+          building_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          due_date?: string | null
+          file_path?: string | null
+          gross_amount?: number | null
+          id?: string
+          invoice_date?: string | null
+          invoice_number?: string | null
+          net_amount?: number | null
+          ocr_extracted_data?: Json | null
+          ocr_raw_data?: Json | null
+          paid_at?: string | null
+          status?: string
+          updated_at?: string
+          vat_amount?: number | null
+          vendor_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_building_id_fkey"
             columns: ["building_id"]
             isOneToOne: false
             referencedRelation: "buildings"

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Building2, MapPin, Edit, Trash2, Users, FileText, AlertCircle, Newspaper, Wrench, ChevronLeft } from "lucide-react";
+import { Building2, MapPin, Edit, Trash2, Users, FileText, AlertCircle, Newspaper, Wrench, ChevronLeft, Landmark } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -16,6 +16,7 @@ import { BuildingReportsTab } from "./BuildingReportsTab";
 import { BuildingFilesTab } from "./BuildingFilesTab";
 import { BuildingForumTab } from "./BuildingForumTab";
 import { BuildingMaintenanceTab } from "./BuildingMaintenanceTab";
+import { BuildingFinanceSummary } from "@/components/finance/BuildingFinanceSummary";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -178,6 +179,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
               { value: "documents", label: "Dokumente" },
               { value: "forum", label: "Schwarzes Brett" },
               { value: "maintenance", label: "Wartung" },
+              { value: "finance", label: "Finanzen" },
             ].map(tab => (
               <TabsTrigger key={tab.value} value={tab.value}
                 className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-3 text-sm whitespace-nowrap">
@@ -293,6 +295,11 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
           {/* Maintenance Tab */}
           <TabsContent value="maintenance" className="p-4 md:p-6 mt-0">
             <BuildingMaintenanceTab buildingId={buildingId} />
+          </TabsContent>
+
+          {/* Finance Tab */}
+          <TabsContent value="finance" className="p-4 md:p-6 mt-0">
+            <BuildingFinanceSummary buildingId={buildingId} buildingName={building.name} />
           </TabsContent>
         </ScrollArea>
       </Tabs>

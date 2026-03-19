@@ -12,6 +12,7 @@ import {
   CheckSquare,
   CalendarDays,
   BookUser,
+  Landmark,
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -37,6 +38,7 @@ const menuItems = [
   { title: "Meldungen", url: "/reports", icon: ClipboardList },
   { title: "Gebäude", url: "/buildings", icon: Castle },
   { title: "Adressen", url: "/contacts", icon: BookUser },
+  { title: "Finanzen", url: "/finanzen", icon: Landmark },
   { title: "Chatbot", url: "/chatbot", icon: MessageCircle },
   { title: "Einstellungen", url: "/settings", icon: Settings, adminOnly: true },
 ];
