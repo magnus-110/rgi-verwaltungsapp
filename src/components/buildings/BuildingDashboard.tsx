@@ -295,6 +295,11 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
           <TabsContent value="maintenance" className="p-4 md:p-6 mt-0">
             <BuildingMaintenanceTab buildingId={buildingId} />
           </TabsContent>
+
+          {/* Finance Tab */}
+          <TabsContent value="finance" className="p-4 md:p-6 mt-0">
+            <BuildingFinanceSummary buildingId={buildingId} buildingName={building.name} />
+          </TabsContent>
         </ScrollArea>
       </Tabs>
 
