@@ -1,86 +1,56 @@
 
 
-# Plan: Rechnungseingang mit OCR-Extraktion
+# Plan: Automatische Liegenschaftserkennung aus Rechnung
 
 ## Uebersicht
 
-PDF-Rechnungen per Drag-Drop hochladen, automatisch via Mistral OCR auslesen und strukturierte Daten (Lieferant, Betrag, Datum, IBAN, Positionen) extrahieren. Ergebnis wird als Rechnungs-Entwurf angezeigt, den der Nutzer pruefen und freigeben kann.
+Statt vor dem Upload eine Liegenschaft auszuwaehlen, werden PDFs direkt hochgeladen. Die OCR-Extraktion liest die Adresse/den Empfaenger aus der Rechnung und matcht sie automatisch gegen die `buildings`-Tabelle. Der Nutzer sieht dann die erkannte Liegenschaft und kann sie bei Bedarf korrigieren.
 
-**Performance-Fokus**: Pagination, serverseitiges Filtern, kein vollstaendiges Laden aller Rechnungen.
+## Aenderungen
 
-## 1. Datenbank-Erweiterungen
+### 1. Edge Function `extract-invoice` erweitern
 
-Neue Spalten auf `invoices` Tabelle:
-- `file_name` (text) - Original-Dateiname
-- `vendor_iban` (text) - extrahierte IBAN
-- `line_items` (jsonb) - extrahierte Positionen
-- `suggested_account_id` (uuid, FK chart_of_accounts) - KI-Kontovorschlag
-- `ocr_status` (text, default 'pending') - Status: pending/processing/done/error
-- `ocr_error` (text) - Fehlermeldung
+- Neues Tool-Parameter `recipient_address` (string) zum Extrahieren der Empfaengeradresse aus der Rechnung
+- Nach Extraktion: Alle Buildings aus DB laden und per Adress-Aehnlichkeit (Teilstring-Match auf `address` und `name`) die passende Liegenschaft finden
+- Falls Match gefunden: `building_id` auf der Invoice setzen
+- Falls kein Match: `building_id` bleibt null, Nutzer muss manuell zuweisen
 
-Index auf `(building_id, status)` und `(created_at DESC)` fuer performante Abfragen bei 10.000+ Datensaetzen.
+### 2. Frontend `InvoiceDropZone` umbauen
 
-## 2. Edge Function: `extract-invoice`
+- Liegenschafts-Auswahl wird **optional** statt Pflichtfeld
+- Upload ohne Building moeglich: `building_id` wird als `null` gespeichert, Storage-Pfad nutzt `unassigned/` Prefix
+- Drop-Zone ist immer aktiv, kein `opacity-50` mehr
+- Hinweis-Text aendern: "Liegenschaft wird automatisch erkannt"
 
-Neue Edge Function die:
-1. PDF aus `invoices` Storage-Bucket liest (signierte URL)
-2. Mistral OCR aufruft (wie `analyze-document` bereits tut)
-3. Mistral Tool-Calling nutzt um strukturierte Daten zu extrahieren:
+### 3. `InvoicesTab` / `InvoiceDetailSheet` anpassen
 
+- Rechnungen ohne `building_id` zeigen Badge "Liegenschaft zuweisen" an
+- Im Detail-Sheet: Building-Dropdown zum manuellen Zuweisen/Korrigieren
+- Filter muss auch `building_id IS NULL` beruecksichtigen (neuer Filter "Nicht zugeordnet")
+
+## Technische Details
+
+**Adress-Matching im Edge Function:**
 ```text
-Tool: extract_invoice_data
-Parameters:
-  - vendor_name (string)
-  - vendor_iban (string)
-  - invoice_number (string)
-  - invoice_date (string, ISO)
-  - due_date (string, ISO)
-  - net_amount (number)
-  - vat_amount (number)
-  - gross_amount (number)
-  - line_items (array of {description, amount, vat_rate})
-  - suggested_account_number (string) - basierend auf Rechnungsinhalt
+1. Extrahiere recipient_address aus OCR
+2. Lade alle buildings (id, name, address)
+3. Fuer jedes Building: pruefe ob address oder name als Teilstring in recipient_address vorkommt
+4. Bei eindeutigem Match -> setze building_id
+5. Bei mehreren Matches -> nimm den laengsten Match (spezifischster)
+6. Bei keinem Match -> building_id bleibt null
 ```
 
-4. `invoices`-Zeile mit extrahierten Daten aktualisiert
-5. `ocr_status` auf 'done' setzt
+**Storage-Pfad ohne Building:**
+- Bisher: `{building_id}/{timestamp}_{filename}`
+- Neu ohne Building: `unassigned/{timestamp}_{filename}`
+- Bei spaeterer Zuweisung bleibt der Pfad unveraendert (kein Verschieben noetig)
 
-## 3. Frontend: InvoicesTab Redesign
+## Dateien
 
-**Upload-Bereich**: Drag-Drop-Zone oben auf der Rechnungsseite. Mehrere PDFs gleichzeitig moeglich. Upload in `invoices` Storage-Bucket, dann sofort `extract-invoice` Edge Function aufrufen.
-
-**Rechnungsliste mit Pagination**:
-- Server-seitige Pagination (25 pro Seite) via `.range(from, to)`
-- Filter: Liegenschaft, Status, Zeitraum
-- Count-Query fuer Gesamtanzahl
-- Virtualisierung nicht noetig bei 25 pro Seite
-
-**Rechnungsdetail-Ansicht**: 
-- Inline-Expandable Row oder Sheet/Dialog
-- Zeigt OCR-extrahierte Daten editierbar an
-- PDF-Vorschau (signierte URL)
-- Kontovorschlag aus KI anzeigen, aenderbar
-- Status-Flow: Offen -> Geprueft -> Bezahlt -> Gebucht
-
-**"Buchen"-Aktion**: Bei Status "Bezahlt" erscheint Button "Buchen". Erstellt automatisch eine Buchung in `bookings` mit allen Daten aus der Rechnung und setzt Status auf "Gebucht". Erst hier wird spaeter der Make.com Webhook ausgeloest.
-
-## 4. Dateien
-
-| Datei | Aktion |
+| Datei | Aenderung |
 |---|---|
-| Migration SQL | Neue Spalten + Indizes auf `invoices` |
-| `supabase/functions/extract-invoice/index.ts` | Neue Edge Function (OCR + Strukturextraktion) |
-| `supabase/config.toml` | Neuer Function-Eintrag |
-| `src/components/finance/InvoicesTab.tsx` | Redesign mit Upload, Pagination, Detail |
-| `src/components/finance/InvoiceDropZone.tsx` | Neue Drag-Drop Upload Komponente |
-| `src/components/finance/InvoiceDetailSheet.tsx` | Neue Detail/Edit Ansicht |
-| `src/components/finance/CreateInvoiceDialog.tsx` | Anpassung (optional, bleibt fuer manuelle Eingabe) |
-
-## 5. Performance-Massnahmen
-
-- **Pagination**: `.range(offset, offset+limit)` + Count-Header
-- **Indizes**: `(building_id, status)`, `(created_at DESC)` fuer schnelle Filterung
-- **Lazy Loading**: PDF-Preview nur bei Klick laden (signierte URL on-demand)
-- **Optimistic Updates**: Status-Aenderungen sofort im UI, Rollback bei Fehler
-- **Query-Keys**: Granular (`["invoices", buildingId, status, page]`) damit nur betroffene Seiten invalidiert werden
+| `supabase/functions/extract-invoice/index.ts` | `recipient_address` extrahieren, Building-Matching Logik |
+| `src/components/finance/InvoiceDropZone.tsx` | Building-Auswahl optional, Upload immer moeglich |
+| `src/components/finance/InvoicesTab.tsx` | Filter fuer "Nicht zugeordnet", Badge anzeigen |
+| `src/components/finance/InvoiceDetailSheet.tsx` | Building-Zuweisung im Detail |
 
