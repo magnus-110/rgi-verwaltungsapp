@@ -11,6 +11,7 @@ import { ManagerAssignmentDialog } from "@/components/ManagerAssignmentDialog";
 import { CreateUserDialog } from "@/components/CreateUserDialog";
 import { BulkUpload } from "@/components/BulkUpload";
 import { UsersList } from "@/components/UsersList";
+import { BuildingContactsList } from "@/components/contacts/BuildingContactsList";
 import { BuildingReportsTab } from "./BuildingReportsTab";
 import { BuildingFilesTab } from "./BuildingFilesTab";
 import { BuildingForumTab } from "./BuildingForumTab";
