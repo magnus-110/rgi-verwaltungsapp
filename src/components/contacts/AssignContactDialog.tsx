@@ -5,9 +5,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Search, User, Plus, ChevronRight, ChevronLeft } from "lucide-react";
+import { Search, User, Plus, ChevronRight, ChevronLeft, Mail, AlertCircle } from "lucide-react";
 import { CreateContactDialog } from "./CreateContactDialog";
 
 interface Props {
@@ -16,6 +17,7 @@ interface Props {
   buildingId: string;
   onAssigned: () => void;
   existingContactIds: string[];
+  managementMode?: "weg" | "rent";
 }
 
 interface ContactOption {
@@ -27,6 +29,7 @@ interface ContactOption {
   address_street: string | null;
   address_zip: string | null;
   address_city: string | null;
+  hasEmail?: boolean;
 }
 
 const ROLES = [
@@ -36,7 +39,7 @@ const ROLES = [
   { value: "beirat", label: "Beirat" },
 ];
 
-export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned, existingContactIds }: Props) {
+export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned, existingContactIds, managementMode = "weg" }: Props) {
   const [contacts, setContacts] = useState<ContactOption[]>([]);
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -53,6 +56,10 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
   const [newStreet, setNewStreet] = useState("");
   const [newZip, setNewZip] = useState("");
   const [newCity, setNewCity] = useState("");
+
+  // Invitation
+  const [sendInvite, setSendInvite] = useState(true);
+  const [inviting, setInviting] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -72,6 +79,7 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
     setNewStreet("");
     setNewZip("");
     setNewCity("");
+    setSendInvite(true);
   };
 
   const loadContacts = async () => {
@@ -79,7 +87,17 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
       .from("contacts")
       .select("id, first_name, last_name, company_name, salutation, address_street, address_zip, address_city")
       .order("last_name");
-    setContacts(data || []);
+    
+    if (!data) { setContacts([]); return; }
+
+    // Check which contacts have emails
+    const { data: emailData } = await supabase
+      .from("contact_emails")
+      .select("contact_id");
+    
+    const contactIdsWithEmail = new Set((emailData || []).map(e => e.contact_id));
+    
+    setContacts(data.map(c => ({ ...c, hasEmail: contactIdsWithEmail.has(c.id) })));
   };
 
   const available = contacts.filter(c => !existingContactIds.includes(c.id));
@@ -123,15 +141,40 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
       floor_location: floorLocation || null,
     });
 
-    setSaving(false);
     if (error) {
+      setSaving(false);
       toast({ title: "Fehler", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    // Send invitation if requested and contact has email
+    if (sendInvite && selectedContact?.hasEmail) {
+      setInviting(true);
+      try {
+        const { data: inviteResult, error: inviteError } = await supabase.functions.invoke("invite-contact-user", {
+          body: { contact_id: selectedId, building_id: buildingId, management_mode: managementMode },
+        });
+        if (inviteError) {
+          console.error("Invite error:", inviteError);
+          toast({ title: "Zugeordnet, aber Einladung fehlgeschlagen", description: inviteError.message, variant: "destructive" });
+        } else {
+          toast({ title: "Kontakt zugeordnet & Einladung gesendet" });
+        }
+      } catch (e) {
+        console.error("Invite exception:", e);
+        toast({ title: "Zugeordnet, aber Einladung fehlgeschlagen", variant: "destructive" });
+      }
+      setInviting(false);
     } else {
       toast({ title: "Kontakt zugeordnet" });
-      onOpenChange(false);
-      onAssigned();
     }
+
+    setSaving(false);
+    onOpenChange(false);
+    onAssigned();
   };
+
+  const isSaving = saving || inviting;
 
   return (
     <>
@@ -164,12 +207,13 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
                       }`}
                     >
                       <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <span className="text-sm block">{getName(c)}</span>
                         {getAddress(c) && (
                           <span className="text-xs text-muted-foreground block truncate">{getAddress(c)}</span>
                         )}
                       </div>
+                      {c.hasEmail && <Mail className="h-3 w-3 text-muted-foreground flex-shrink-0" />}
                     </div>
                   ))
                 )}
@@ -241,6 +285,35 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
                   </div>
                 )}
               </div>
+
+              {/* Invitation option */}
+              <div className="border-t border-border pt-3">
+                {selectedContact.hasEmail ? (
+                  <div className="flex items-start gap-2">
+                    <Checkbox
+                      id="send-invite"
+                      checked={sendInvite}
+                      onCheckedChange={(v) => setSendInvite(!!v)}
+                      className="mt-0.5"
+                    />
+                    <div>
+                      <Label htmlFor="send-invite" className="text-sm cursor-pointer">
+                        Einladung mit Zugangsdaten senden
+                      </Label>
+                      <p className="text-xs text-muted-foreground">
+                        Login-Daten werden per E-Mail verschickt
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-2 text-muted-foreground">
+                    <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs">
+                      Keine E-Mail hinterlegt – Einladung nicht möglich. Fügen Sie zuerst eine E-Mail zum Kontakt hinzu.
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -255,11 +328,11 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
             )}
             {step === "details" && (
               <>
-                <Button variant="outline" onClick={() => setStep("select")}>
+                <Button variant="outline" onClick={() => setStep("select")} disabled={isSaving}>
                   <ChevronLeft className="h-4 w-4 mr-1" /> Zurück
                 </Button>
-                <Button onClick={handleAssign} disabled={saving}>
-                  {saving ? "..." : "Zuordnen"}
+                <Button onClick={handleAssign} disabled={isSaving}>
+                  {isSaving ? "..." : sendInvite && selectedContact?.hasEmail ? "Zuordnen & Einladen" : "Zuordnen"}
                 </Button>
               </>
             )}

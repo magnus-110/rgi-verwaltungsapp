@@ -57,3 +57,6 @@ verify_jwt = true
 [functions.analyze-document]
 verify_jwt = true
 
+[functions.invite-contact-user]
+verify_jwt = false
+

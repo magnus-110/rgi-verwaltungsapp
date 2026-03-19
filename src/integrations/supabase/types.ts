@@ -887,6 +887,7 @@ export type Database = {
           salutation: string | null
           short_name: string | null
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           address_city?: string | null
@@ -901,6 +902,7 @@ export type Database = {
           salutation?: string | null
           short_name?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           address_city?: string | null
@@ -915,6 +917,7 @@ export type Database = {
           salutation?: string | null
           short_name?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: []
       }
