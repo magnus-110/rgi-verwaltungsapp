@@ -2,16 +2,18 @@
 
 ## Adressen-System & Abrechnungsgrundlage
 
-### Status: Iteration 2 abgeschlossen ✅
+### Status: Iteration 3 abgeschlossen ✅
 
 **Iteration 1** ✅: DB-Migration (7 Tabellen, RLS, SEPA-Generator) + Kontakte-Seite mit CRUD
-**Iteration 2** ✅: Gebaeude-Zuordnung komplett:
-- Neuer "Gebaeude"-Tab in Kontaktdetail mit Zuordnung, Einheit/Etage/Nutzung, Rolle, Bank-Override, Anteile
-- BuildingContactsList im Gebaeude-Dashboard Personen-Tab (kompakte Ansicht mit aufklappbaren Details)
-- AssignContactDialog zum Zuordnen bestehender oder neuer Kontakte
-- Anteile/Verteilerschluessel (MEA, qm, Personen, etc.) pro Zuordnung
+**Iteration 2** ✅: Gebaeude-Zuordnung (Einheit, Etage, Nutzung, Rolle, Bank-Override, Anteile)
+**Iteration 3** ✅: Kosten-Zuordnung komplett:
+- Kosten-CRUD im Kontakt-Detail (Gebaeude-Tab, pro Zuordnung)
+- Kostenarten: Hausgeld, Ruecklage, Sonderumlage, Heizkosten, Nebenkosten, Miete, Stellplatz, Garage
+- Intervalle: monatlich, quartal, jaehrlich
+- Kosten-Anzeige in BuildingContactsList (Gebaeude Personen-Tab) als Badge
+- Hausgeld-Badge in kompakter Kontakt-Header-Ansicht
 
-### Naechste Iterationen
+### Naechste Schritte (optional)
 
-**Iteration 3**: Kosten-Zuordnung (Hausgeld etc.) im Contact-Building-Assignment + Uebersicht
-**Iteration 4**: Migration bestehender tenants/weg_owners Daten (optional)
+**Iteration 4**: Migration bestehender tenants/weg_owners Daten in contacts-System
+**Danach**: Abrechnungs-Engine, Wirtschaftsplan-Generator, E-Mail-Integration

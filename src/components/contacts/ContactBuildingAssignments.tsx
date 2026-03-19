@@ -61,12 +61,29 @@ interface Share {
   share_value: number;
 }
 
+interface Cost {
+  id: string;
+  assignment_id: string;
+  cost_type: string;
+  amount: number;
+  interval: string;
+  valid_from: string | null;
+  valid_to: string | null;
+}
+
 interface BankAccount {
   id: string;
   account_holder: string | null;
   iban: string | null;
   sepa_mandate_ref: string | null;
 }
+
+const COST_TYPES = ["Hausgeld", "Rücklage", "Sonderumlage", "Heizkosten", "Nebenkosten", "Miete", "Stellplatz", "Garage"];
+const INTERVALS = [
+  { value: "monatlich", label: "Monatlich" },
+  { value: "quartal", label: "Quartalsweise" },
+  { value: "jaehrlich", label: "Jährlich" },
+];
 
 interface Props {
   contactId: string;
@@ -76,6 +93,7 @@ export function ContactBuildingAssignments({ contactId }: Props) {
   const { toast } = useToast();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [shares, setShares] = useState<Record<string, Share[]>>({});
+  const [costs, setCosts] = useState<Record<string, Cost[]>>({});
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [buildings, setBuildings] = useState<{ id: string; name: string; address: string }[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -95,20 +113,29 @@ export function ContactBuildingAssignments({ contactId }: Props) {
     setBuildings(buildingsRes.data || []);
     setBankAccounts((banksRes.data || []) as BankAccount[]);
 
-    // Load shares for all assignments
+    // Load shares and costs for all assignments
     if (assignData.length > 0) {
-      const { data: sharesData } = await supabase
-        .from("contact_building_shares")
-        .select("*")
-        .in("assignment_id", assignData.map(a => a.id));
-      const grouped: Record<string, Share[]> = {};
-      (sharesData || []).forEach((s: any) => {
-        if (!grouped[s.assignment_id]) grouped[s.assignment_id] = [];
-        grouped[s.assignment_id].push(s as Share);
+      const ids = assignData.map(a => a.id);
+      const [sharesRes, costsRes] = await Promise.all([
+        supabase.from("contact_building_shares").select("*").in("assignment_id", ids),
+        supabase.from("contact_building_costs").select("*").in("assignment_id", ids),
+      ]);
+      const groupedShares: Record<string, Share[]> = {};
+      (sharesRes.data || []).forEach((s: any) => {
+        if (!groupedShares[s.assignment_id]) groupedShares[s.assignment_id] = [];
+        groupedShares[s.assignment_id].push(s as Share);
       });
-      setShares(grouped);
+      setShares(groupedShares);
+
+      const groupedCosts: Record<string, Cost[]> = {};
+      (costsRes.data || []).forEach((c: any) => {
+        if (!groupedCosts[c.assignment_id]) groupedCosts[c.assignment_id] = [];
+        groupedCosts[c.assignment_id].push(c as Cost);
+      });
+      setCosts(groupedCosts);
     } else {
       setShares({});
+      setCosts({});
     }
   };
 
@@ -147,6 +174,20 @@ export function ContactBuildingAssignments({ contactId }: Props) {
   };
   const deleteShare = async (id: string) => {
     await supabase.from("contact_building_shares").delete().eq("id", id);
+    load();
+  };
+
+  // Costs
+  const addCost = async (assignmentId: string) => {
+    await supabase.from("contact_building_costs").insert({ assignment_id: assignmentId, cost_type: "Hausgeld", amount: 0, interval: "monatlich" });
+    load();
+  };
+  const updateCost = async (id: string, field: string, value: any) => {
+    await supabase.from("contact_building_costs").update({ [field]: value }).eq("id", id);
+    load();
+  };
+  const deleteCost = async (id: string) => {
+    await supabase.from("contact_building_costs").delete().eq("id", id);
     load();
   };
 
@@ -191,6 +232,7 @@ export function ContactBuildingAssignments({ contactId }: Props) {
       {assignments.map((a) => {
         const isExpanded = expanded === a.id;
         const assignmentShares = shares[a.id] || [];
+        const assignmentCosts = costs[a.id] || [];
         return (
           <Card key={a.id}>
             <CardContent className="pt-4">
@@ -208,6 +250,11 @@ export function ContactBuildingAssignments({ contactId }: Props) {
                     {assignmentShares.find(s => s.share_type === 'mea') && (
                       <Badge variant="secondary" className="text-xs">
                         MEA: {assignmentShares.find(s => s.share_type === 'mea')?.share_value}
+                      </Badge>
+                    )}
+                    {assignmentCosts.find(c => c.cost_type === 'Hausgeld') && (
+                      <Badge variant="outline" className="text-xs">
+                        HG: {assignmentCosts.find(c => c.cost_type === 'Hausgeld')?.amount.toFixed(2)} €
                       </Badge>
                     )}
                   </div>
@@ -298,6 +345,45 @@ export function ContactBuildingAssignments({ contactId }: Props) {
                           className="w-32"
                         />
                         <Button size="icon" variant="ghost" onClick={() => deleteShare(s.id)}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Kosten */}
+                  <div className="border-t border-border pt-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <Label className="text-sm font-semibold">Kosten</Label>
+                      <Button size="sm" variant="outline" onClick={() => addCost(a.id)}>
+                        <Plus className="h-3 w-3 mr-1" /> Kosten
+                      </Button>
+                    </div>
+                    {assignmentCosts.length === 0 && <p className="text-xs text-muted-foreground">Keine Kosten definiert</p>}
+                    {assignmentCosts.map(c => (
+                      <div key={c.id} className="flex items-center gap-2 mt-2">
+                        <Select value={c.cost_type} onValueChange={(v) => updateCost(c.id, "cost_type", v)}>
+                          <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {COST_TYPES.map(ct => <SelectItem key={ct} value={ct}>{ct}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={c.amount}
+                          onChange={(e) => updateCost(c.id, "amount", parseFloat(e.target.value) || 0)}
+                          className="w-28"
+                          placeholder="Betrag"
+                        />
+                        <span className="text-sm text-muted-foreground">€</span>
+                        <Select value={c.interval} onValueChange={(v) => updateCost(c.id, "interval", v)}>
+                          <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {INTERVALS.map(i => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <Button size="icon" variant="ghost" onClick={() => deleteCost(c.id)}>
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       </div>
