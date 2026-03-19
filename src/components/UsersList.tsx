@@ -37,7 +37,7 @@ interface UsersListProps {
 }
 
 export const UsersList = ({ buildingId, userType, count, defaultExpanded = false }: UsersListProps) => {
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const [isExpanded] = useState(true); // Always expanded
   const [page, setPage] = useState(0);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
