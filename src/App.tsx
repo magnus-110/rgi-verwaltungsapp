@@ -70,7 +70,7 @@ const App = () => (
               <Route path="/settings" element={<AdminLayout><Settings /></AdminLayout>} />
               <Route path="/todos" element={<AdminLayout><Todos /></AdminLayout>} />
               <Route path="/calendar" element={<AdminLayout><Calendar /></AdminLayout>} />
-              <Route path="/files" element={<AdminLayout><Files /></AdminLayout>} />
+              <Route path="/files" element={<Navigate to="/buildings" replace />} />
               
               {/* Legacy admin routes for compatibility */}
               <Route path="/admin" element={<AdminLayout><Dashboard /></AdminLayout>} />
