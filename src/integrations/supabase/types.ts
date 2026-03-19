@@ -1377,6 +1377,7 @@ export type Database = {
           ocr_raw_data: Json | null
           ocr_status: string
           paid_at: string | null
+          review_status: string
           status: string
           suggested_account_id: string | null
           updated_at: string
@@ -1403,6 +1404,7 @@ export type Database = {
           ocr_raw_data?: Json | null
           ocr_status?: string
           paid_at?: string | null
+          review_status?: string
           status?: string
           suggested_account_id?: string | null
           updated_at?: string
@@ -1429,6 +1431,7 @@ export type Database = {
           ocr_raw_data?: Json | null
           ocr_status?: string
           paid_at?: string | null
+          review_status?: string
           status?: string
           suggested_account_id?: string | null
           updated_at?: string

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, FileText, CheckCircle, CreditCard, BookOpen, Loader2, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
+import { Plus, FileText, Loader2, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { CreateInvoiceDialog } from "./CreateInvoiceDialog";
 import { InvoiceDropZone } from "./InvoiceDropZone";
 import { InvoiceDetailSheet } from "./InvoiceDetailSheet";
@@ -15,13 +15,6 @@ import { format } from "date-fns";
 import { de } from "date-fns/locale";
 
 const PAGE_SIZE = 25;
-
-const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive"; icon: any }> = {
-  open: { label: "Offen", variant: "destructive", icon: FileText },
-  verified: { label: "Geprüft", variant: "outline", icon: CheckCircle },
-  paid: { label: "Bezahlt", variant: "secondary", icon: CreditCard },
-  booked: { label: "Gebucht", variant: "default", icon: BookOpen },
-};
 
 const OCR_STATUS: Record<string, { label: string; className: string }> = {
   pending: { label: "Wartend", className: "text-muted-foreground" },
@@ -47,7 +40,6 @@ export function InvoicesTab() {
     },
   });
 
-  // Paginated query with count
   const { data: invoiceData, isLoading } = useQuery({
     queryKey: ["invoices", filterBuilding, filterStatus, page],
     queryFn: async () => {
@@ -55,20 +47,22 @@ export function InvoicesTab() {
         .from("invoices")
         .select("*, buildings(name, building_code)", { count: "exact" })
         .order("created_at", { ascending: false })
-        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1) as any;
 
       if (filterBuilding === "unassigned") {
         query = query.is("building_id", null);
       } else if (filterBuilding !== "all") {
         query = query.eq("building_id", filterBuilding);
       }
-      if (filterStatus !== "all") query = query.eq("status", filterStatus);
+      if (filterStatus === "paid") query = query.eq("status", "paid");
+      else if (filterStatus === "unpaid") query = query.eq("status", "open");
+      else if (filterStatus === "verified") query = query.eq("review_status", "verified");
+      else if (filterStatus === "unverified") query = query.eq("review_status", "open");
 
       const { data, error, count } = await query;
       if (error) throw error;
       return { invoices: data || [], totalCount: count || 0 };
     },
-    // Refetch every 10s to pick up OCR status changes
     refetchInterval: 10000,
   });
 
@@ -76,31 +70,14 @@ export function InvoicesTab() {
   const totalCount = invoiceData?.totalCount || 0;
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
 
-  const updateStatus = async (id: string, newStatus: string) => {
-    const updates: any = { status: newStatus };
-    if (newStatus === "paid") updates.paid_at = new Date().toISOString();
-    const { error } = await supabase.from("invoices").update(updates).eq("id", id);
-    if (error) { toast.error("Fehler beim Aktualisieren"); return; }
-    toast.success(`Status auf "${STATUS_CONFIG[newStatus]?.label}" geändert`);
-    queryClient.invalidateQueries({ queryKey: ["invoices"] });
-  };
-
-  const getNextStatus = (current: string): string | null => {
-    const flow = ["open", "verified", "paid", "booked"];
-    const idx = flow.indexOf(current);
-    return idx < flow.length - 1 ? flow[idx + 1] : null;
-  };
-
   const formatCurrency = (amount: number | null) =>
     amount != null ? new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(amount) : "–";
 
-  // Reset page on filter change
   const handleFilterBuilding = (v: string) => { setFilterBuilding(v); setPage(0); };
   const handleFilterStatus = (v: string) => { setFilterStatus(v); setPage(0); };
 
   return (
     <div className="space-y-4">
-      {/* Upload Zone */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-lg">Rechnungen hochladen</CardTitle>
@@ -110,7 +87,6 @@ export function InvoicesTab() {
         </CardContent>
       </Card>
 
-      {/* Invoice List */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-2">
@@ -131,12 +107,15 @@ export function InvoicesTab() {
               </SelectContent>
             </Select>
             <Select value={filterStatus} onValueChange={handleFilterStatus}>
-              <SelectTrigger className="w-36 h-9 text-sm">
+              <SelectTrigger className="w-40 h-9 text-sm">
                 <SelectValue placeholder="Alle Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Alle Status</SelectItem>
-                {Object.entries(STATUS_CONFIG).map(([k, v]) => <SelectItem key={k} value={k}>{v.label}</SelectItem>)}
+                <SelectItem value="all">Alle</SelectItem>
+                <SelectItem value="unpaid">💳 Unbezahlt</SelectItem>
+                <SelectItem value="paid">✅ Bezahlt</SelectItem>
+                <SelectItem value="unverified">🔍 Ungeprüft</SelectItem>
+                <SelectItem value="verified">✓ Geprüft</SelectItem>
               </SelectContent>
             </Select>
             <Button size="sm" onClick={() => setIsCreateOpen(true)}>
@@ -165,16 +144,16 @@ export function InvoicesTab() {
                     <TableHead>Liegenschaft</TableHead>
                     <TableHead>Datum</TableHead>
                     <TableHead className="text-right">Brutto</TableHead>
-                    <TableHead>Status</TableHead>
+                    <TableHead>Bezahlung</TableHead>
+                    <TableHead>Prüfung</TableHead>
                     <TableHead>OCR</TableHead>
-                    <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {invoices.map((inv: any) => {
-                    const status = STATUS_CONFIG[inv.status] || STATUS_CONFIG.open;
                     const ocrStatus = OCR_STATUS[inv.ocr_status] || OCR_STATUS.pending;
-                    const nextStatus = getNextStatus(inv.status);
+                    const isPaid = inv.status === "paid";
+                    const isVerified = (inv.review_status || "open") === "verified";
                     return (
                       <TableRow
                         key={inv.id}
@@ -195,7 +174,20 @@ export function InvoicesTab() {
                         </TableCell>
                         <TableCell className="text-right font-medium text-sm">{formatCurrency(inv.gross_amount)}</TableCell>
                         <TableCell>
-                          <Badge variant={status.variant} className="text-xs">{status.label}</Badge>
+                          <Badge
+                            variant={isPaid ? "default" : "destructive"}
+                            className={isPaid ? "bg-green-600 text-white text-xs" : "text-xs"}
+                          >
+                            {isPaid ? "Bezahlt" : "Offen"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={isVerified ? "default" : "outline"}
+                            className={isVerified ? "bg-blue-600 text-white text-xs" : "text-xs"}
+                          >
+                            {isVerified ? "Geprüft" : "Offen"}
+                          </Badge>
                         </TableCell>
                         <TableCell>
                           <span className={`text-xs flex items-center gap-1 ${ocrStatus.className}`}>
@@ -204,41 +196,22 @@ export function InvoicesTab() {
                             {ocrStatus.label}
                           </span>
                         </TableCell>
-                        <TableCell onClick={e => e.stopPropagation()}>
-                          {nextStatus && inv.status !== "paid" && (
-                            <Button size="sm" variant="outline" className="h-7 text-xs"
-                              onClick={() => updateStatus(inv.id, nextStatus)}>
-                              → {STATUS_CONFIG[nextStatus]?.label}
-                            </Button>
-                          )}
-                        </TableCell>
                       </TableRow>
                     );
                   })}
                 </TableBody>
               </Table>
 
-              {/* Pagination */}
               {totalPages > 1 && (
                 <div className="flex items-center justify-between mt-4 px-2">
                   <p className="text-sm text-muted-foreground">
                     Seite {page + 1} von {totalPages} ({totalCount} Rechnungen)
                   </p>
                   <div className="flex items-center gap-1">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={page === 0}
-                      onClick={() => setPage(p => p - 1)}
-                    >
+                    <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={page >= totalPages - 1}
-                      onClick={() => setPage(p => p + 1)}
-                    >
+                    <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>
                       <ChevronRight className="h-4 w-4" />
                     </Button>
                   </div>
