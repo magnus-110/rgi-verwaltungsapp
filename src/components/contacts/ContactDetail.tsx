@@ -31,6 +31,7 @@ interface Props {
   contact: Contact;
   onBack?: () => void;
   onUpdate: () => void;
+  onDeleted?: () => void;
 }
 
 export function ContactDetail({ contact, onBack, onUpdate }: Props) {
