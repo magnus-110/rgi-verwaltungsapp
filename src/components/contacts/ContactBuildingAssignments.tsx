@@ -177,6 +177,20 @@ export function ContactBuildingAssignments({ contactId }: Props) {
     load();
   };
 
+  // Costs
+  const addCost = async (assignmentId: string) => {
+    await supabase.from("contact_building_costs").insert({ assignment_id: assignmentId, cost_type: "Hausgeld", amount: 0, interval: "monatlich" });
+    load();
+  };
+  const updateCost = async (id: string, field: string, value: any) => {
+    await supabase.from("contact_building_costs").update({ [field]: value }).eq("id", id);
+    load();
+  };
+  const deleteCost = async (id: string) => {
+    await supabase.from("contact_building_costs").delete().eq("id", id);
+    load();
+  };
+
   const assignedBuildingIds = assignments.map(a => a.building_id);
   const availableBuildings = buildings.filter(b => !assignedBuildingIds.includes(b.id));
 
