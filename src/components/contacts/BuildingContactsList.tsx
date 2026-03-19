@@ -261,6 +261,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0 flex-wrap">
                     {managementMode === 'weg' && isBeirat(a) && <Badge variant="secondary" className="text-xs">Beirat</Badge>}
+                    {hausgeld !== null && <Badge variant="outline" className="text-xs">{hausgeld.toFixed(2)} €</Badge>}
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
