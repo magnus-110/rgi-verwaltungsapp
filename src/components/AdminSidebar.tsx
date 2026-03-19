@@ -3,7 +3,6 @@ import {
   BarChart3,
   ClipboardList, 
   Castle, 
-  Newspaper, 
   Sparkles,
   MessageCircle,
   Settings,
@@ -12,7 +11,6 @@ import {
   ToggleRight,
   CheckSquare,
   CalendarDays,
-  FolderOpen,
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
