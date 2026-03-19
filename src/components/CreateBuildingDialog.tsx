@@ -130,9 +130,8 @@ export const CreateBuildingDialog = ({ onBuildingCreated }: CreateBuildingDialog
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Gebäude hinzufügen
+        <Button size="icon" variant="outline" className="h-8 w-8" title="Gebäude hinzufügen">
+          <Plus className="h-4 w-4" />
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-lg max-h-[85vh]">

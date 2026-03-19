@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { UploadProvider } from "@/contexts/UploadContext";
 import { ScrollToTop } from "@/components/ScrollToTop";
@@ -62,7 +62,7 @@ const App = () => (
               <Route path="/reports" element={<AdminLayout><Reports /></AdminLayout>} />
               <Route path="/buildings" element={<AdminLayout><Buildings /></AdminLayout>} />
               <Route path="/buildings/:id" element={<AdminLayout><Buildings /></AdminLayout>} />
-              <Route path="/forum" element={<AdminLayout><Forum /></AdminLayout>} />
+              <Route path="/forum" element={<Navigate to="/buildings" replace />} />
               <Route path="/documents" element={<AdminLayout><Documents /></AdminLayout>} />
               <Route path="/documents/settings" element={<AdminLayout><DocumentSettings /></AdminLayout>} />
               <Route path="/chatbot" element={<AdminLayout><ChatbotSettings /></AdminLayout>} />
@@ -70,14 +70,14 @@ const App = () => (
               <Route path="/settings" element={<AdminLayout><Settings /></AdminLayout>} />
               <Route path="/todos" element={<AdminLayout><Todos /></AdminLayout>} />
               <Route path="/calendar" element={<AdminLayout><Calendar /></AdminLayout>} />
-              <Route path="/files" element={<AdminLayout><Files /></AdminLayout>} />
+              <Route path="/files" element={<Navigate to="/buildings" replace />} />
               
               {/* Legacy admin routes for compatibility */}
               <Route path="/admin" element={<AdminLayout><Dashboard /></AdminLayout>} />
               <Route path="/admin/dashboard" element={<AdminLayout><Dashboard /></AdminLayout>} />
               <Route path="/admin/reports" element={<AdminLayout><Reports /></AdminLayout>} />
               <Route path="/admin/buildings" element={<AdminLayout><Buildings /></AdminLayout>} />
-              <Route path="/admin/forum" element={<AdminLayout><Forum /></AdminLayout>} />
+              <Route path="/admin/forum" element={<Navigate to="/buildings" replace />} />
               <Route path="/admin/chatbot-settings" element={<AdminLayout><ChatbotSettings /></AdminLayout>} />
               <Route path="/admin/settings" element={<AdminLayout><Settings /></AdminLayout>} />
               

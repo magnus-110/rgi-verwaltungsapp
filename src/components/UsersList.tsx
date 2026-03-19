@@ -37,7 +37,7 @@ interface UsersListProps {
 }
 
 export const UsersList = ({ buildingId, userType, count, defaultExpanded = false }: UsersListProps) => {
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const [isExpanded] = useState(true); // Always expanded
   const [page, setPage] = useState(0);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -92,12 +92,7 @@ export const UsersList = ({ buildingId, userType, count, defaultExpanded = false
   const title = userType === 'tenants' ? 'Mieter' : 'WEG-Eigentümer';
   const Icon = Users;
 
-  const handleToggle = () => {
-    setIsExpanded(!isExpanded);
-    if (!isExpanded) {
-      setPage(0); // Reset to first page when expanding
-    }
-  };
+  // Users are always visible, no toggle needed
 
   const hasMore = users.length === pageSize;
   const canLoadPrevious = page > 0;
@@ -198,25 +193,15 @@ export const UsersList = ({ buildingId, userType, count, defaultExpanded = false
 
   return (
     <div className="space-y-2">
-      <Button
-        variant="ghost"
-        className="w-full justify-start p-2 h-auto"
-        onClick={handleToggle}
-      >
-        {isExpanded ? (
-          <ChevronDown className="h-4 w-4 mr-2" />
-        ) : (
-          <ChevronRight className="h-4 w-4 mr-2" />
-        )}
-        <Icon className="h-4 w-4 mr-2" />
+      <div className="flex items-center gap-2 p-2">
+        <Icon className="h-4 w-4 text-muted-foreground" />
         <span className="font-medium">{title}</span>
-        <Badge variant="secondary" className="ml-2">
+        <Badge variant="secondary" className="ml-1">
           {count}
         </Badge>
-      </Button>
+      </div>
 
-      {isExpanded && (
-        <Card className="p-4 ml-6">
+      <Card className="p-4">
           {isLoading ? (
             <div className="text-center py-4 text-sm text-muted-foreground">
               Lädt...
@@ -298,7 +283,6 @@ export const UsersList = ({ buildingId, userType, count, defaultExpanded = false
             </div>
           )}
         </Card>
-      )}
       
       <EditUserDialog
         user={editingUser}
