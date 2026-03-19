@@ -93,12 +93,12 @@ export function InvoiceDropZone({ buildings }: Props) {
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3 flex-wrap">
-        <Select value={selectedBuilding} onValueChange={setSelectedBuilding}>
+        <Select value={selectedBuilding || "auto"} onValueChange={v => setSelectedBuilding(v === "auto" ? "" : v)}>
           <SelectTrigger className="w-64 h-9 text-sm">
             <SelectValue placeholder="Liegenschaft (optional – wird automatisch erkannt)" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Automatisch erkennen</SelectItem>
+            <SelectItem value="auto">Automatisch erkennen</SelectItem>
             {buildings.map(b => (
               <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
             ))}
