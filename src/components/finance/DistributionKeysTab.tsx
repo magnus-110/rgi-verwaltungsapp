@@ -35,7 +35,7 @@ export function DistributionKeysTab() {
   const { data: accounts = [] } = useQuery({
     queryKey: ["chart-of-accounts"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("chart_of_accounts").select("*").order("sort_order");
+      const { data, error } = await supabase.from("chart_of_accounts").select("*").is("building_id", null).order("sort_order");
       if (error) throw error;
       return data;
     },
