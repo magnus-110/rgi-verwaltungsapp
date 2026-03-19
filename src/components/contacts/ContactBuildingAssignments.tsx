@@ -252,6 +252,11 @@ export function ContactBuildingAssignments({ contactId }: Props) {
                         MEA: {assignmentShares.find(s => s.share_type === 'mea')?.share_value}
                       </Badge>
                     )}
+                    {assignmentCosts.find(c => c.cost_type === 'Hausgeld') && (
+                      <Badge variant="outline" className="text-xs">
+                        HG: {assignmentCosts.find(c => c.cost_type === 'Hausgeld')?.amount.toFixed(2)} €
+                      </Badge>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
