@@ -66,17 +66,13 @@ export function BookingsTab() {
         <CardTitle className="text-lg">Buchungen</CardTitle>
         <div className="flex items-center gap-2 flex-wrap">
           <Select value={filterYear} onValueChange={setFilterYear}>
-            <SelectTrigger className="w-28 h-9 text-sm">
-              <SelectValue />
-            </SelectTrigger>
+            <SelectTrigger className="w-28 h-9 text-sm"><SelectValue /></SelectTrigger>
             <SelectContent>
               {years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={filterBuilding} onValueChange={setFilterBuilding}>
-            <SelectTrigger className="w-48 h-9 text-sm">
-              <SelectValue placeholder="Alle Liegenschaften" />
-            </SelectTrigger>
+            <SelectTrigger className="w-48 h-9 text-sm"><SelectValue placeholder="Alle Liegenschaften" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Alle Liegenschaften</SelectItem>
               {buildings.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
@@ -96,55 +92,76 @@ export function BookingsTab() {
             <p className="text-sm">Noch keine Buchungen vorhanden</p>
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Datum</TableHead>
-                <TableHead>Konto</TableHead>
-                <TableHead>Beschreibung</TableHead>
-                <TableHead>Liegenschaft</TableHead>
-                <TableHead className="text-right">Betrag</TableHead>
-                <TableHead>Quelle</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {bookings.map((b: any) => (
-                <TableRow key={b.id} className={b.status === "pending" ? "bg-amber-50/50 dark:bg-amber-950/10" : ""}>
-                  <TableCell className="text-sm">
-                    {format(new Date(b.booking_date), "dd.MM.yyyy", { locale: de })}
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-xs">
-                      <span className="font-mono">{b.chart_of_accounts?.account_number}</span>
-                      <span className="text-muted-foreground ml-1">{b.chart_of_accounts?.account_name}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-sm max-w-[200px] truncate">{b.description || "–"}</TableCell>
-                  <TableCell className="text-sm">{b.buildings?.name || "–"}</TableCell>
-                  <TableCell className="text-right font-medium text-sm">{formatCurrency(b.amount)}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="text-xs">
-                      {b.source === "manual" ? "Manuell" : b.source === "ocr" ? "OCR" : b.source}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={b.status === "confirmed" ? "default" : "secondary"} className="text-xs">
-                      {b.status === "confirmed" ? "Bestätigt" : "Offen"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {b.status === "pending" && (
-                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => confirmBooking(b.id)}>
-                        <CheckCircle className="h-3 w-3 mr-1" /> Bestätigen
-                      </Button>
-                    )}
-                  </TableCell>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Datum</TableHead>
+                  <TableHead>Kürzel</TableHead>
+                  <TableHead>Konto</TableHead>
+                  <TableHead>Buchungstext</TableHead>
+                  <TableHead>Beleg-Nr.</TableHead>
+                  <TableHead>Liegenschaft</TableHead>
+                  <TableHead className="text-right">Betrag</TableHead>
+                  <TableHead className="text-right">MwSt</TableHead>
+                  <TableHead>Optionen</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead></TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {bookings.map((b: any) => (
+                  <TableRow key={b.id} className={b.status === "pending" ? "bg-amber-50/50 dark:bg-amber-950/10" : ""}>
+                    <TableCell className="text-sm whitespace-nowrap">
+                      {format(new Date(b.booking_date), "dd.MM.yyyy", { locale: de })}
+                    </TableCell>
+                    <TableCell className="text-xs font-mono text-muted-foreground">
+                      {b.booking_reference || "–"}
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-xs">
+                        <span className="font-mono">{b.chart_of_accounts?.account_number}</span>
+                        <span className="text-muted-foreground ml-1">{b.chart_of_accounts?.account_name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-sm max-w-[200px] truncate">{b.description || "–"}</TableCell>
+                    <TableCell className="text-xs font-mono">{b.receipt_number || "–"}</TableCell>
+                    <TableCell className="text-sm">{b.buildings?.name || "–"}</TableCell>
+                    <TableCell className="text-right font-medium text-sm">
+                      <span className={b.booking_type === "income" ? "text-green-600" : ""}>
+                        {b.booking_type === "income" ? "+" : ""}{formatCurrency(b.amount)}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right text-xs text-muted-foreground">
+                      {b.vat_rate > 0 ? `${b.vat_rate}%` : "–"}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        {b.is_35a_relevant && (
+                          <Badge className="text-[10px] bg-amber-100 text-amber-800 hover:bg-amber-100">§35a</Badge>
+                        )}
+                        <Badge variant="outline" className="text-[10px]">
+                          {b.source === "manual" ? "Manuell" : b.source === "ocr" ? "OCR" : b.source}
+                        </Badge>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={b.status === "confirmed" ? "default" : "secondary"} className="text-xs">
+                        {b.status === "confirmed" ? "Bestätigt" : "Offen"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {b.status === "pending" && (
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => confirmBooking(b.id)}>
+                          <CheckCircle className="h-3 w-3 mr-1" /> Bestätigen
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </CardContent>
       <CreateBookingDialog open={isCreateOpen} onOpenChange={setIsCreateOpen} buildings={buildings} />
