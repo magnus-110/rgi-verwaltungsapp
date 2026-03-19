@@ -56,13 +56,19 @@ export function ChartOfAccountsTab() {
     });
   };
 
-  const startEdit = (id: string, name: string) => {
-    setEditingId(id);
-    setEditName(name);
+  const startEdit = (account: any) => {
+    setEditingId(account.id);
+    setEditName(account.account_name);
+    setEditDistKey(account.default_distribution_key || "mea");
+    setEdit35a(account.is_35a_relevant || false);
   };
 
   const saveEdit = async (id: string) => {
-    const { error } = await supabase.from("chart_of_accounts").update({ account_name: editName }).eq("id", id);
+    const { error } = await supabase.from("chart_of_accounts").update({
+      account_name: editName,
+      default_distribution_key: editDistKey,
+      is_35a_relevant: edit35a,
+    }).eq("id", id);
     if (error) { toast.error("Fehler beim Speichern"); return; }
     toast.success("Konto aktualisiert");
     setEditingId(null);
