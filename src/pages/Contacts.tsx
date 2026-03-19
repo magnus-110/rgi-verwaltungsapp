@@ -97,6 +97,7 @@ export function Contacts() {
             <ContactDetail
               contact={selectedContact}
               onUpdate={fetchContacts}
+              onDeleted={handleDeleted}
             />
           ) : (
             <div className="h-full flex items-center justify-center text-muted-foreground">
