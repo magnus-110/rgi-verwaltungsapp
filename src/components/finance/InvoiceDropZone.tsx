@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
-import { Upload, FileText, Loader2 } from "lucide-react";
+import { Upload, Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -22,17 +22,13 @@ export function InvoiceDropZone({ buildings }: Props) {
       return;
     }
 
-    if (!selectedBuilding) {
-      toast.error("Bitte zuerst eine Liegenschaft auswählen");
-      return;
-    }
-
     const fileName = file.name;
     setUploading(prev => [...prev, fileName]);
 
     try {
-      // Upload to storage
-      const filePath = `${selectedBuilding}/${Date.now()}_${fileName}`;
+      // Use building folder or "unassigned" if none selected
+      const folderPrefix = selectedBuilding || "unassigned";
+      const filePath = `${folderPrefix}/${Date.now()}_${fileName}`;
       const { error: uploadError } = await supabase.storage
         .from("invoices")
         .upload(filePath, file);
@@ -42,11 +38,11 @@ export function InvoiceDropZone({ buildings }: Props) {
       // Get current user
       const { data: { user } } = await supabase.auth.getUser();
 
-      // Create invoice record
+      // Create invoice record (building_id is null if not selected)
       const { data: invoice, error: insertError } = await supabase
         .from("invoices")
         .insert({
-          building_id: selectedBuilding,
+          building_id: selectedBuilding || null,
           file_path: filePath,
           file_name: fileName,
           status: "open",
@@ -58,9 +54,9 @@ export function InvoiceDropZone({ buildings }: Props) {
 
       if (insertError) throw insertError;
 
-      toast.success(`"${fileName}" hochgeladen – OCR wird gestartet...`);
+      toast.success(`"${fileName}" hochgeladen – OCR & Liegenschaftserkennung wird gestartet...`);
 
-      // Trigger OCR extraction (fire-and-forget, poll via query)
+      // Trigger OCR extraction (fire-and-forget)
       const { data: { session } } = await supabase.auth.getSession();
       supabase.functions.invoke("extract-invoice", {
         body: { invoiceId: invoice.id },
@@ -96,12 +92,13 @@ export function InvoiceDropZone({ buildings }: Props) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <Select value={selectedBuilding} onValueChange={setSelectedBuilding}>
           <SelectTrigger className="w-64 h-9 text-sm">
-            <SelectValue placeholder="Liegenschaft für Upload wählen..." />
+            <SelectValue placeholder="Liegenschaft (optional – wird automatisch erkannt)" />
           </SelectTrigger>
           <SelectContent>
+            <SelectItem value="">Automatisch erkennen</SelectItem>
             {buildings.map(b => (
               <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
             ))}
@@ -120,12 +117,11 @@ export function InvoiceDropZone({ buildings }: Props) {
           "flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-6 cursor-pointer transition-colors",
           isDragging
             ? "border-primary bg-primary/5"
-            : "border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/50",
-          !selectedBuilding && "opacity-50 cursor-not-allowed"
+            : "border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/50"
         )}
-        onDragOver={(e) => { e.preventDefault(); if (selectedBuilding) setIsDragging(true); }}
+        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
         onDragLeave={() => setIsDragging(false)}
-        onDrop={selectedBuilding ? handleDrop : (e) => e.preventDefault()}
+        onDrop={handleDrop}
       >
         <input
           type="file"
@@ -133,7 +129,6 @@ export function InvoiceDropZone({ buildings }: Props) {
           multiple
           className="hidden"
           onChange={handleFileInput}
-          disabled={!selectedBuilding}
         />
         <div className="flex items-center gap-3">
           {uploading.length > 0 ? (
@@ -145,8 +140,9 @@ export function InvoiceDropZone({ buildings }: Props) {
             <p className="text-sm font-medium">
               PDF-Rechnungen hierher ziehen oder klicken
             </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Mehrere Dateien gleichzeitig möglich • OCR-Extraktion automatisch
+            <p className="text-xs text-muted-foreground mt-1 flex items-center justify-center gap-1">
+              <Sparkles className="h-3 w-3" />
+              Mehrere Dateien gleichzeitig möglich • Liegenschaft wird automatisch erkannt
             </p>
           </div>
         </div>

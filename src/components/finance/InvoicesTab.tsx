@@ -57,7 +57,11 @@ export function InvoicesTab() {
         .order("created_at", { ascending: false })
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
-      if (filterBuilding !== "all") query = query.eq("building_id", filterBuilding);
+      if (filterBuilding === "unassigned") {
+        query = query.is("building_id", null);
+      } else if (filterBuilding !== "all") {
+        query = query.eq("building_id", filterBuilding);
+      }
       if (filterStatus !== "all") query = query.eq("status", filterStatus);
 
       const { data, error, count } = await query;
@@ -122,6 +126,7 @@ export function InvoicesTab() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Alle Liegenschaften</SelectItem>
+                <SelectItem value="unassigned">⚠ Nicht zugeordnet</SelectItem>
                 {buildings.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
               </SelectContent>
             </Select>
@@ -178,7 +183,13 @@ export function InvoicesTab() {
                       >
                         <TableCell className="font-mono text-xs">{inv.invoice_number || "–"}</TableCell>
                         <TableCell className="text-sm">{inv.vendor_name || "–"}</TableCell>
-                        <TableCell className="text-sm">{inv.buildings?.name || "–"}</TableCell>
+                        <TableCell className="text-sm">
+                          {inv.buildings?.name || (
+                            <Badge variant="outline" className="text-xs text-amber-600 border-amber-300">
+                              Zuweisen
+                            </Badge>
+                          )}
+                        </TableCell>
                         <TableCell className="text-sm">
                           {inv.invoice_date ? format(new Date(inv.invoice_date), "dd.MM.yyyy", { locale: de }) : "–"}
                         </TableCell>
