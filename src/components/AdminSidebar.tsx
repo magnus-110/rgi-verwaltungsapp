@@ -11,6 +11,7 @@ import {
   ToggleRight,
   CheckSquare,
   CalendarDays,
+  BookUser,
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
