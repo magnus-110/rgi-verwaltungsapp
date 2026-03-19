@@ -126,6 +126,7 @@ export function InvoicesTab() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Alle Liegenschaften</SelectItem>
+                <SelectItem value="unassigned">⚠ Nicht zugeordnet</SelectItem>
                 {buildings.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
               </SelectContent>
             </Select>
