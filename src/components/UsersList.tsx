@@ -193,25 +193,15 @@ export const UsersList = ({ buildingId, userType, count, defaultExpanded = false
 
   return (
     <div className="space-y-2">
-      <Button
-        variant="ghost"
-        className="w-full justify-start p-2 h-auto"
-        onClick={handleToggle}
-      >
-        {isExpanded ? (
-          <ChevronDown className="h-4 w-4 mr-2" />
-        ) : (
-          <ChevronRight className="h-4 w-4 mr-2" />
-        )}
-        <Icon className="h-4 w-4 mr-2" />
+      <div className="flex items-center gap-2 p-2">
+        <Icon className="h-4 w-4 text-muted-foreground" />
         <span className="font-medium">{title}</span>
-        <Badge variant="secondary" className="ml-2">
+        <Badge variant="secondary" className="ml-1">
           {count}
         </Badge>
-      </Button>
+      </div>
 
-      {isExpanded && (
-        <Card className="p-4 ml-6">
+      <Card className="p-4">
           {isLoading ? (
             <div className="text-center py-4 text-sm text-muted-foreground">
               Lädt...
