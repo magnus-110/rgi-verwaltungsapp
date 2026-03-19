@@ -232,6 +232,7 @@ export function ContactBuildingAssignments({ contactId }: Props) {
       {assignments.map((a) => {
         const isExpanded = expanded === a.id;
         const assignmentShares = shares[a.id] || [];
+        const assignmentCosts = costs[a.id] || [];
         return (
           <Card key={a.id}>
             <CardContent className="pt-4">
