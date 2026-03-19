@@ -227,7 +227,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl">Neue Buchung</DialogTitle>
           <p className="text-sm text-muted-foreground">
@@ -237,13 +237,17 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
 
         <div className="space-y-6 py-2">
           {/* Row 1: Buchung – Konto, Typ, Betrag */}
-          <div className="rounded-xl border p-5 space-y-4">
-            <p className="text-sm font-semibold text-foreground">Buchung</p>
+          <div className="rounded-xl border p-6 space-y-5">
+            <p className="text-base font-semibold text-foreground">Buchung</p>
 
             <div>
               <Label className="text-sm mb-1.5 block">Konto (Soll) *</Label>
               <AccountPicker
-                value={form.account_id} onChange={v => set("account_id", v)}
+                value={form.account_id} onChange={v => {
+                  set("account_id", v);
+                  const acc = accounts.find(a => a.id === v);
+                  if (acc?.is_35a_relevant) set("is_35a_relevant", true);
+                }}
                 search={accountSearch} onSearchChange={setAccountSearch}
                 isOpen={accountOpen} onOpenChange={setAccountOpen}
                 placeholder="Konto suchen (Nummer oder Name)..."
@@ -297,8 +301,8 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
           </div>
 
           {/* Row 2: Beleg */}
-          <div className="rounded-xl border p-5 space-y-4">
-            <p className="text-sm font-semibold text-foreground">Beleg</p>
+          <div className="rounded-xl border p-6 space-y-5">
+            <p className="text-base font-semibold text-foreground">Beleg</p>
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <Label className="text-sm mb-1.5 block">Buchungskürzel</Label>
@@ -324,8 +328,8 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
           </div>
 
           {/* Row 3: Steuer & Optionen */}
-          <div className="rounded-xl border p-5 space-y-4">
-            <p className="text-sm font-semibold text-foreground">Steuer & Optionen</p>
+          <div className="rounded-xl border p-6 space-y-5">
+            <p className="text-base font-semibold text-foreground">Steuer & Optionen</p>
             <div className="flex items-end gap-6 flex-wrap">
               <div className="flex-1 min-w-[200px]">
                 <Label className="text-sm mb-2 block">MwSt-Satz</Label>
