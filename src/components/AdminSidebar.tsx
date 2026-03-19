@@ -3,7 +3,6 @@ import {
   BarChart3,
   ClipboardList, 
   Castle, 
-  Newspaper, 
   Sparkles,
   MessageCircle,
   Settings,
@@ -12,7 +11,6 @@ import {
   ToggleRight,
   CheckSquare,
   CalendarDays,
-  FolderOpen,
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -37,8 +35,6 @@ const menuItems = [
   { title: "Kalender", url: "/calendar", icon: CalendarDays },
   { title: "Meldungen", url: "/reports", icon: ClipboardList },
   { title: "Gebäude", url: "/buildings", icon: Castle },
-  { title: "Dokumente", url: "/files", icon: FolderOpen },
-  { title: "Schwarzes Brett", url: "/forum", icon: Newspaper },
   { title: "Chatbot", url: "/chatbot", icon: MessageCircle },
   { title: "Einstellungen", url: "/settings", icon: Settings, adminOnly: true },
 ];
