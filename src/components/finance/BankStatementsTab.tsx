@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Upload, FileText, Loader2, ChevronDown, ChevronUp, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Upload, FileText, Loader2, ChevronDown, ChevronUp, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff, Trash2, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -25,6 +26,7 @@ export function BankStatementsTab() {
   const [uploading, setUploading] = useState(false);
   const [selectedBuilding, setSelectedBuilding] = useState<string>("all");
   const [expandedStatement, setExpandedStatement] = useState<string | null>(null);
+  const [assigningBuilding, setAssigningBuilding] = useState<string | null>(null);
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
@@ -70,7 +72,7 @@ export function BankStatementsTab() {
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.name.toLowerCase().endsWith(".xml")) {
-      toast.error("Bitte eine CAMT.053 XML-Datei hochladen");
+      toast.error("Bitte eine CAMT XML-Datei hochladen");
       return;
     }
 
@@ -101,6 +103,54 @@ export function BankStatementsTab() {
     }
   };
 
+  const deleteStatement = async (stmtId: string) => {
+    try {
+      // Delete transactions first, then statement
+      const { error: txError } = await supabase
+        .from("bank_transactions")
+        .delete()
+        .eq("statement_id", stmtId);
+      if (txError) throw txError;
+
+      const { error: stmtError } = await supabase
+        .from("bank_statements")
+        .delete()
+        .eq("id", stmtId);
+      if (stmtError) throw stmtError;
+
+      if (expandedStatement === stmtId) setExpandedStatement(null);
+      toast.success("Kontoauszug gelöscht");
+      queryClient.invalidateQueries({ queryKey: ["bank-statements"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
+    } catch (err: any) {
+      toast.error("Fehler beim Löschen: " + (err.message || "Unbekannter Fehler"));
+    }
+  };
+
+  const assignBuildingToStatement = async (stmtId: string, buildingId: string | null) => {
+    try {
+      const { error: stmtError } = await supabase
+        .from("bank_statements")
+        .update({ building_id: buildingId })
+        .eq("id", stmtId);
+      if (stmtError) throw stmtError;
+
+      // Also update all transactions
+      const { error: txError } = await supabase
+        .from("bank_transactions")
+        .update({ building_id: buildingId })
+        .eq("statement_id", stmtId);
+      if (txError) throw txError;
+
+      toast.success("Liegenschaft zugeordnet");
+      setAssigningBuilding(null);
+      queryClient.invalidateQueries({ queryKey: ["bank-statements"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
+    } catch (err: any) {
+      toast.error("Fehler: " + (err.message || "Unbekannter Fehler"));
+    }
+  };
+
   const updateMatchStatus = async (txnId: string, status: string) => {
     const { error } = await supabase
       .from("bank_transactions")
@@ -117,6 +167,12 @@ export function BankStatementsTab() {
     if (expandedStatement !== stmtId) return null;
     const matched = transactions.filter((t) => t.match_status !== "unmatched" && t.match_status !== "ignored").length;
     return { total: transactions.length, matched, unmatched: transactions.length - matched };
+  };
+
+  const getBuildingName = (buildingId: string | null) => {
+    if (!buildingId) return null;
+    const b = buildings.find((b) => b.id === buildingId);
+    return b ? b.name : null;
   };
 
   return (
@@ -148,7 +204,7 @@ export function BankStatementsTab() {
               />
               <Button onClick={() => fileInputRef.current?.click()} disabled={uploading}>
                 {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
-                CAMT.053 importieren
+                CAMT importieren
               </Button>
             </div>
           </div>
@@ -162,22 +218,23 @@ export function BankStatementsTab() {
             <div className="text-center py-12 text-muted-foreground">
               <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p>Noch keine Kontoauszüge importiert</p>
-              <p className="text-sm mt-1">Laden Sie eine CAMT.053 XML-Datei hoch</p>
+              <p className="text-sm mt-1">Laden Sie eine CAMT XML-Datei hoch</p>
             </div>
           ) : (
             <div className="space-y-2">
               {statements.map((stmt: any) => {
                 const isExpanded = expandedStatement === stmt.id;
                 const counts = getMatchCounts(stmt.id);
+                const buildingName = getBuildingName(stmt.building_id);
                 return (
                   <div key={stmt.id} className="border rounded-lg">
-                    <button
-                      className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition-colors text-left"
-                      onClick={() => setExpandedStatement(isExpanded ? null : stmt.id)}
-                    >
-                      <div className="flex items-center gap-3">
-                        <FileText className="h-5 w-5 text-muted-foreground" />
-                        <div>
+                    <div className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
+                      <button
+                        className="flex-1 flex items-center gap-3 text-left"
+                        onClick={() => setExpandedStatement(isExpanded ? null : stmt.id)}
+                      >
+                        <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
+                        <div className="min-w-0">
                           <p className="font-medium text-sm">
                             {stmt.account_iban || "Kontoauszug"}{" "}
                             {stmt.statement_date_from && (
@@ -187,12 +244,18 @@ export function BankStatementsTab() {
                               </span>
                             )}
                           </p>
-                          <p className="text-xs text-muted-foreground">
-                            Importiert am {format(new Date(stmt.import_date), "dd.MM.yyyy HH:mm", { locale: de })}
-                          </p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span>Importiert am {format(new Date(stmt.import_date), "dd.MM.yyyy HH:mm", { locale: de })}</span>
+                            {buildingName && (
+                              <Badge variant="outline" className="text-xs">
+                                <Building2 className="h-3 w-3 mr-1" />
+                                {buildingName}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-2">
+                      </button>
+                      <div className="flex items-center gap-2 shrink-0">
                         {counts && (
                           <div className="flex gap-1">
                             <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-950">
@@ -205,9 +268,65 @@ export function BankStatementsTab() {
                             )}
                           </div>
                         )}
-                        {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        
+                        {/* Assign building */}
+                        {assigningBuilding === stmt.id ? (
+                          <Select
+                            value={stmt.building_id || "none"}
+                            onValueChange={(val) => assignBuildingToStatement(stmt.id, val === "none" ? null : val)}
+                          >
+                            <SelectTrigger className="w-[160px] h-8 text-xs">
+                              <SelectValue placeholder="Liegenschaft" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Keine Zuordnung</SelectItem>
+                              {buildings.map((b) => (
+                                <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs"
+                            onClick={() => setAssigningBuilding(stmt.id)}
+                          >
+                            <Building2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+
+                        {/* Delete */}
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Kontoauszug löschen?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Der Kontoauszug und alle zugehörigen Transaktionen werden unwiderruflich gelöscht.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => deleteStatement(stmt.id)}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Löschen
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+
+                        <button onClick={() => setExpandedStatement(isExpanded ? null : stmt.id)}>
+                          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </button>
                       </div>
-                    </button>
+                    </div>
 
                     {isExpanded && (
                       <div className="border-t px-4 pb-4">

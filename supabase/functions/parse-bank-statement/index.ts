@@ -95,7 +95,7 @@ async function matchTransactions(supabase: any, statementId: string) {
 
   const { data: paidInvoices } = await supabase
     .from("invoices")
-    .select("id, vendor_iban, gross_amount")
+    .select("id, vendor_iban, gross_amount, invoice_number")
     .eq("status", "paid");
 
   const { data: templates } = await supabase
@@ -108,16 +108,47 @@ async function matchTransactions(supabase: any, statementId: string) {
     const txnAbs = Math.abs(txn.amount);
     const txnIban = txn.amount < 0 ? txn.creditor_iban : txn.debtor_iban;
 
-    // Step 1: Match against paid invoices
-    if (paidInvoices && txnIban) {
-      const invoiceMatch = paidInvoices.find(
-        (inv: any) =>
-          inv.vendor_iban &&
-          inv.vendor_iban.replace(/\s/g, "").toUpperCase() ===
-            txnIban.replace(/\s/g, "").toUpperCase() &&
-          inv.gross_amount &&
-          Math.abs(inv.gross_amount - txnAbs) <= 0.01
-      );
+    // Step 1: Match against paid invoices (IBAN + amount + optional invoice number)
+    if (paidInvoices) {
+      // First try: IBAN + amount + invoice number in purpose (strongest match)
+      let invoiceMatch = null;
+      
+      if (txnIban && txn.purpose) {
+        invoiceMatch = paidInvoices.find(
+          (inv: any) =>
+            inv.vendor_iban &&
+            inv.vendor_iban.replace(/\s/g, "").toUpperCase() ===
+              txnIban.replace(/\s/g, "").toUpperCase() &&
+            inv.gross_amount &&
+            Math.abs(inv.gross_amount - txnAbs) <= 0.01 &&
+            inv.invoice_number &&
+            txn.purpose.includes(inv.invoice_number)
+        );
+      }
+
+      // Second try: IBAN + amount (without invoice number check)
+      if (!invoiceMatch && txnIban) {
+        invoiceMatch = paidInvoices.find(
+          (inv: any) =>
+            inv.vendor_iban &&
+            inv.vendor_iban.replace(/\s/g, "").toUpperCase() ===
+              txnIban.replace(/\s/g, "").toUpperCase() &&
+            inv.gross_amount &&
+            Math.abs(inv.gross_amount - txnAbs) <= 0.01
+        );
+      }
+
+      // Third try: invoice number in purpose + amount match (no IBAN needed)
+      if (!invoiceMatch && txn.purpose) {
+        invoiceMatch = paidInvoices.find(
+          (inv: any) =>
+            inv.invoice_number &&
+            inv.invoice_number.length >= 3 &&
+            txn.purpose.includes(inv.invoice_number) &&
+            inv.gross_amount &&
+            Math.abs(inv.gross_amount - txnAbs) <= 0.01
+        );
+      }
 
       if (invoiceMatch) {
         await supabase
