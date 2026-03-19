@@ -37,8 +37,6 @@ const menuItems = [
   { title: "Kalender", url: "/calendar", icon: CalendarDays },
   { title: "Meldungen", url: "/reports", icon: ClipboardList },
   { title: "Gebäude", url: "/buildings", icon: Castle },
-  { title: "Dokumente", url: "/files", icon: FolderOpen },
-  { title: "Schwarzes Brett", url: "/forum", icon: Newspaper },
   { title: "Chatbot", url: "/chatbot", icon: MessageCircle },
   { title: "Einstellungen", url: "/settings", icon: Settings, adminOnly: true },
 ];
