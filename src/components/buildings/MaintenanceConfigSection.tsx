@@ -177,20 +177,7 @@ export const MaintenanceConfigSection = ({ configs, onChange }: MaintenanceConfi
   };
 
   return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-      <CollapsibleTrigger asChild>
-        <Button type="button" variant="outline" className="w-full justify-between">
-          <div className="flex items-center gap-2">
-            <Wrench className="h-4 w-4" />
-            <span>Wartungskonfiguration</span>
-            <span className="text-xs text-muted-foreground">
-              ({configs.filter(c => c.is_active).length} aktiv)
-            </span>
-          </div>
-          {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-        </Button>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="mt-3 space-y-4">
+    <div className="space-y-4">
         {/* Kategorie A */}
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
           <div className="flex items-center gap-2 mb-3">
