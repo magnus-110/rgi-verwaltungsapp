@@ -227,7 +227,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl">Neue Buchung</DialogTitle>
           <p className="text-sm text-muted-foreground">
