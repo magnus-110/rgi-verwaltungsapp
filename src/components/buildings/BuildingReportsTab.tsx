@@ -143,10 +143,10 @@ export const BuildingReportsTab = ({ buildingId, managementMode }: BuildingRepor
       {editingReport && (
         <EditReportDialog
           report={editingReport}
-          isOpen={!!editingReport}
+          open={!!editingReport}
+          tableName={managementMode === 'weg' ? 'weg_reports' : 'miete_reports'}
           onClose={() => setEditingReport(null)}
-          onUpdate={() => { setEditingReport(null); refetch(); }}
-          managementMode={managementMode}
+          onSaved={() => { setEditingReport(null); refetch(); }}
         />
       )}
     </div>
