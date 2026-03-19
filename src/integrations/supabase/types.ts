@@ -14,6 +14,215 @@ export type Database = {
   }
   public: {
     Tables: {
+      bank_statements: {
+        Row: {
+          account_iban: string | null
+          building_id: string | null
+          created_at: string
+          created_by: string | null
+          file_name: string
+          file_path: string | null
+          id: string
+          import_date: string
+          statement_date_from: string | null
+          statement_date_to: string | null
+        }
+        Insert: {
+          account_iban?: string | null
+          building_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          file_name: string
+          file_path?: string | null
+          id?: string
+          import_date?: string
+          statement_date_from?: string | null
+          statement_date_to?: string | null
+        }
+        Update: {
+          account_iban?: string | null
+          building_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          file_name?: string
+          file_path?: string | null
+          id?: string
+          import_date?: string
+          statement_date_from?: string | null
+          statement_date_to?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_statements_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bank_transactions: {
+        Row: {
+          amount: number
+          booking_date: string
+          booking_id: string | null
+          building_id: string | null
+          created_at: string
+          creditor_iban: string | null
+          creditor_name: string | null
+          currency: string
+          debtor_iban: string | null
+          debtor_name: string | null
+          end_to_end_ref: string | null
+          id: string
+          match_status: string
+          matched_invoice_id: string | null
+          matched_template_id: string | null
+          purpose: string | null
+          statement_id: string
+          value_date: string | null
+        }
+        Insert: {
+          amount: number
+          booking_date: string
+          booking_id?: string | null
+          building_id?: string | null
+          created_at?: string
+          creditor_iban?: string | null
+          creditor_name?: string | null
+          currency?: string
+          debtor_iban?: string | null
+          debtor_name?: string | null
+          end_to_end_ref?: string | null
+          id?: string
+          match_status?: string
+          matched_invoice_id?: string | null
+          matched_template_id?: string | null
+          purpose?: string | null
+          statement_id: string
+          value_date?: string | null
+        }
+        Update: {
+          amount?: number
+          booking_date?: string
+          booking_id?: string | null
+          building_id?: string | null
+          created_at?: string
+          creditor_iban?: string | null
+          creditor_name?: string | null
+          currency?: string
+          debtor_iban?: string | null
+          debtor_name?: string | null
+          end_to_end_ref?: string | null
+          id?: string
+          match_status?: string
+          matched_invoice_id?: string | null
+          matched_template_id?: string | null
+          purpose?: string | null
+          statement_id?: string
+          value_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_transactions_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_transactions_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_transactions_matched_invoice_id_fkey"
+            columns: ["matched_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_transactions_matched_template_id_fkey"
+            columns: ["matched_template_id"]
+            isOneToOne: false
+            referencedRelation: "booking_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_transactions_statement_id_fkey"
+            columns: ["statement_id"]
+            isOneToOne: false
+            referencedRelation: "bank_statements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      booking_templates: {
+        Row: {
+          account_id: string | null
+          building_id: string | null
+          category: string | null
+          created_at: string
+          description: string | null
+          expected_amount: number | null
+          id: string
+          interval: string | null
+          is_35a_relevant: boolean | null
+          name: string
+          updated_at: string
+          vendor_iban: string | null
+          vendor_name: string | null
+        }
+        Insert: {
+          account_id?: string | null
+          building_id?: string | null
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          expected_amount?: number | null
+          id?: string
+          interval?: string | null
+          is_35a_relevant?: boolean | null
+          name: string
+          updated_at?: string
+          vendor_iban?: string | null
+          vendor_name?: string | null
+        }
+        Update: {
+          account_id?: string | null
+          building_id?: string | null
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          expected_amount?: number | null
+          id?: string
+          interval?: string | null
+          is_35a_relevant?: boolean | null
+          name?: string
+          updated_at?: string
+          vendor_iban?: string | null
+          vendor_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_templates_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_templates_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bookings: {
         Row: {
           account_id: string | null
