@@ -61,12 +61,29 @@ interface Share {
   share_value: number;
 }
 
+interface Cost {
+  id: string;
+  assignment_id: string;
+  cost_type: string;
+  amount: number;
+  interval: string;
+  valid_from: string | null;
+  valid_to: string | null;
+}
+
 interface BankAccount {
   id: string;
   account_holder: string | null;
   iban: string | null;
   sepa_mandate_ref: string | null;
 }
+
+const COST_TYPES = ["Hausgeld", "Rücklage", "Sonderumlage", "Heizkosten", "Nebenkosten", "Miete", "Stellplatz", "Garage"];
+const INTERVALS = [
+  { value: "monatlich", label: "Monatlich" },
+  { value: "quartal", label: "Quartalsweise" },
+  { value: "jaehrlich", label: "Jährlich" },
+];
 
 interface Props {
   contactId: string;
