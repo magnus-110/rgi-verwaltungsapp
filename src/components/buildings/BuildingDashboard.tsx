@@ -11,6 +11,7 @@ import { ManagerAssignmentDialog } from "@/components/ManagerAssignmentDialog";
 import { CreateUserDialog } from "@/components/CreateUserDialog";
 import { BulkUpload } from "@/components/BulkUpload";
 import { UsersList } from "@/components/UsersList";
+import { BuildingContactsList } from "@/components/contacts/BuildingContactsList";
 import { BuildingReportsTab } from "./BuildingReportsTab";
 import { BuildingFilesTab } from "./BuildingFilesTab";
 import { BuildingForumTab } from "./BuildingForumTab";
@@ -243,30 +244,35 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
           </TabsContent>
 
           {/* People Tab */}
-          <TabsContent value="people" className="p-4 md:p-6 mt-0 space-y-4">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <h3 className="font-semibold text-lg">Zugewiesene Nutzer</h3>
-              <div className="flex items-center gap-2">
-                <BulkUpload buildingId={buildingId} managementMode={building.management_mode} onUploadComplete={handleRefresh} />
-                {building.management_mode === "rent" && (
-                  <Button size="sm" variant="outline" onClick={() => handleCreateUser("tenant")}>+ Mieter</Button>
-                )}
-                {building.management_mode === "weg" && (
-                  <Button size="sm" variant="outline" onClick={() => handleCreateUser("weg_owner")}>+ WEG-Eigentümer</Button>
-                )}
+          <TabsContent value="people" className="p-4 md:p-6 mt-0 space-y-6">
+            {/* Contacts from new system */}
+            <BuildingContactsList buildingId={buildingId} />
+
+            {/* Legacy users section */}
+            {totalUsers > 0 && (
+              <div className="border-t border-border pt-4">
+                <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+                  <h3 className="font-semibold text-sm text-muted-foreground">Legacy-Nutzer (System-Accounts)</h3>
+                  <div className="flex items-center gap-2">
+                    <BulkUpload buildingId={buildingId} managementMode={building.management_mode} onUploadComplete={handleRefresh} />
+                    {building.management_mode === "rent" && (
+                      <Button size="sm" variant="outline" onClick={() => handleCreateUser("tenant")}>+ Mieter</Button>
+                    )}
+                    {building.management_mode === "weg" && (
+                      <Button size="sm" variant="outline" onClick={() => handleCreateUser("weg_owner")}>+ WEG-Eigentümer</Button>
+                    )}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {(userCounts?.tenants || 0) > 0 && (
+                    <UsersList buildingId={buildingId} userType="tenants" count={userCounts!.tenants} defaultExpanded />
+                  )}
+                  {(userCounts?.wegOwners || 0) > 0 && (
+                    <UsersList buildingId={buildingId} userType="weg_owners" count={userCounts!.wegOwners} defaultExpanded />
+                  )}
+                </div>
               </div>
-            </div>
-            <div className="space-y-2">
-              {(userCounts?.tenants || 0) > 0 && (
-                <UsersList buildingId={buildingId} userType="tenants" count={userCounts!.tenants} defaultExpanded />
-              )}
-              {(userCounts?.wegOwners || 0) > 0 && (
-                <UsersList buildingId={buildingId} userType="weg_owners" count={userCounts!.wegOwners} defaultExpanded />
-              )}
-              {totalUsers === 0 && (
-                <div className="text-center py-8 text-sm text-muted-foreground">Keine Nutzer zugewiesen</div>
-              )}
-            </div>
+            )}
           </TabsContent>
 
           {/* Reports Tab */}

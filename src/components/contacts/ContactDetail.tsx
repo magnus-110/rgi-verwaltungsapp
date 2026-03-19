@@ -6,7 +6,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Plus, Save, Trash2, Phone, Mail, Landmark } from "lucide-react";
+import { ArrowLeft, Plus, Save, Trash2, Phone, Mail, Landmark, Building2 } from "lucide-react";
+import { ContactBuildingAssignments } from "./ContactBuildingAssignments";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import type { Contact } from "@/pages/Contacts";
@@ -130,10 +131,11 @@ export function ContactDetail({ contact, onBack, onUpdate }: Props) {
 
       <div className="p-6">
         <Tabs defaultValue="stammdaten">
-          <TabsList className="w-full grid grid-cols-3">
+          <TabsList className="w-full grid grid-cols-4">
             <TabsTrigger value="stammdaten">Stammdaten</TabsTrigger>
             <TabsTrigger value="kommunikation">Kommunikation</TabsTrigger>
-            <TabsTrigger value="bank">Bankverbindungen</TabsTrigger>
+            <TabsTrigger value="bank">Bank</TabsTrigger>
+            <TabsTrigger value="gebaeude">Gebäude</TabsTrigger>
           </TabsList>
 
           {/* Stammdaten Tab */}
@@ -315,6 +317,11 @@ export function ContactDetail({ contact, onBack, onUpdate }: Props) {
                 </CardContent>
               </Card>
             ))}
+          </TabsContent>
+
+          {/* Gebäude Tab */}
+          <TabsContent value="gebaeude" className="mt-4">
+            <ContactBuildingAssignments contactId={contact.id} />
           </TabsContent>
         </Tabs>
       </div>
