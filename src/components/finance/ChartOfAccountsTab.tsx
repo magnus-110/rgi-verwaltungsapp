@@ -27,6 +27,8 @@ export function ChartOfAccountsTab() {
   const queryClient = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [editDistKey, setEditDistKey] = useState("");
+  const [edit35a, setEdit35a] = useState(false);
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newAccount, setNewAccount] = useState({ account_number: "", account_name: "", category: "", default_distribution_key: "mea", is_35a_relevant: false });
