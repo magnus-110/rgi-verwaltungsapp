@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useManagementMode } from "@/hooks/useManagementMode";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { FileList } from "@/components/files/FileList";
 import { FileDropCard } from "@/components/files/FileDropCard";
 import { FileCategoryManager } from "@/components/files/FileCategoryManager";
-import { Plus, FolderCog, RefreshCw, X, ChevronDown, ChevronUp, FileText } from "lucide-react";
+import { Plus, FolderCog, RefreshCw, X, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 
 interface Category {
@@ -24,11 +23,10 @@ interface Category {
 }
 
 interface PersonProfile {
-  user_id: string;
+  contact_id: string;
   first_name: string | null;
   last_name: string | null;
-  email: string;
-  building_id: string | null;
+  email: string | null;
 }
 
 interface BuildingFilesTabProps {
@@ -83,29 +81,46 @@ export const BuildingFilesTab = ({ buildingId, managementMode }: BuildingFilesTa
   };
 
   const fetchPersons = async () => {
-    if (managementMode === "rent") {
-      const { data } = await supabase
-        .from("profiles")
-        .select("user_id, first_name, last_name, email, building_id")
-        .eq("role", "tenant")
-        .eq("building_id", buildingId);
-      if (data) setPersons(data);
-    } else {
-      const { data: wobData } = await supabase
-        .from("weg_owner_buildings")
-        .select("user_id")
-        .eq("building_id", buildingId);
-      if (wobData && wobData.length > 0) {
-        const userIds = wobData.map((w) => w.user_id);
-        const { data: profileData } = await supabase
-          .from("profiles")
-          .select("user_id, first_name, last_name, email, building_id")
-          .in("user_id", userIds);
-        if (profileData) setPersons(profileData);
-      } else {
-        setPersons([]);
-      }
+    // Query from the new contact system
+    const { data: assignments } = await supabase
+      .from("contact_building_assignments")
+      .select("contact_id, contacts(id, first_name, last_name, short_name, company_name)")
+      .eq("building_id", buildingId)
+      .eq("is_active", true);
+
+    if (!assignments || assignments.length === 0) {
+      setPersons([]);
+      return;
     }
+
+    // Get emails for these contacts
+    const contactIds = assignments.map(a => (a.contacts as any)?.id).filter(Boolean);
+    const { data: emailData } = await supabase
+      .from("contact_emails")
+      .select("contact_id, email, is_primary")
+      .in("contact_id", contactIds)
+      .order("is_primary", { ascending: false });
+
+    const emailMap = new Map<string, string>();
+    (emailData || []).forEach(e => {
+      if (!emailMap.has(e.contact_id)) emailMap.set(e.contact_id, e.email);
+    });
+
+    // Deduplicate by contact_id
+    const seen = new Set<string>();
+    const result: PersonProfile[] = [];
+    for (const a of assignments) {
+      const c = a.contacts as any;
+      if (!c || seen.has(c.id)) continue;
+      seen.add(c.id);
+      result.push({
+        contact_id: c.id,
+        first_name: c.first_name,
+        last_name: c.last_name,
+        email: emailMap.get(c.id) || null,
+      });
+    }
+    setPersons(result);
   };
 
   const handleDelete = async (fileId: string, filePath: string) => {
@@ -165,7 +180,11 @@ export const BuildingFilesTab = ({ buildingId, managementMode }: BuildingFilesTa
   };
 
   const buildingFiles = files.filter((f) => !f.assigned_user_id);
-  const getPersonFiles = (userId: string) => files.filter((f) => f.assigned_user_id === userId);
+  const getPersonFiles = (contactId: string) => files.filter((f) => f.assigned_user_id === contactId);
+
+  const getPersonName = (p: PersonProfile) => {
+    return [p.first_name, p.last_name].filter(Boolean).join(" ") || p.email || "Unbenannt";
+  };
 
   if (loading) {
     return <div className="text-center py-8 text-muted-foreground">Laden...</div>;
@@ -269,17 +288,17 @@ export const BuildingFilesTab = ({ buildingId, managementMode }: BuildingFilesTa
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {persons.map((person) => (
               <FileDropCard
-                key={person.user_id}
-                title={[person.first_name, person.last_name].filter(Boolean).join(" ") || person.email}
-                subtitle={person.email}
+                key={person.contact_id}
+                title={getPersonName(person)}
+                subtitle={person.email || "Keine E-Mail"}
                 icon="user"
                 buildingId={buildingId}
-                assignedUserId={person.user_id}
+                assignedUserId={person.contact_id}
                 categoryId={selectedCategory === "__none__" ? null : selectedCategory || null}
                 visibleToUsers={visibleToUsers}
                 description={description}
                 managementMode={managementMode}
-                files={getPersonFiles(person.user_id)}
+                files={getPersonFiles(person.contact_id)}
                 categories={categories}
                 onFileUploaded={fetchFiles}
                 onDelete={handleDelete}
@@ -291,7 +310,7 @@ export const BuildingFilesTab = ({ buildingId, managementMode }: BuildingFilesTa
 
         {persons.length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-4">
-            Keine {managementMode === "rent" ? "Mieter" : "Eigentümer"} für dieses Gebäude
+            Keine Kontakte für dieses Gebäude zugeordnet
           </p>
         )}
       </div>
