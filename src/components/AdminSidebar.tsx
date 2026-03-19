@@ -11,6 +11,7 @@ import {
   ToggleRight,
   CheckSquare,
   CalendarDays,
+  BookUser,
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -35,6 +36,7 @@ const menuItems = [
   { title: "Kalender", url: "/calendar", icon: CalendarDays },
   { title: "Meldungen", url: "/reports", icon: ClipboardList },
   { title: "Gebäude", url: "/buildings", icon: Castle },
+  { title: "Adressen", url: "/contacts", icon: BookUser },
   { title: "Chatbot", url: "/chatbot", icon: MessageCircle },
   { title: "Einstellungen", url: "/settings", icon: Settings, adminOnly: true },
 ];

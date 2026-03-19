@@ -22,6 +22,7 @@ import { WebhookSettings } from "./pages/WebhookSettings";
 import { Todos } from "./pages/Todos";
 import { Calendar } from "./pages/Calendar";
 import { Files } from "./pages/Files";
+import { Contacts } from "./pages/Contacts";
 import { AdminLayout } from "./components/AdminLayout";
 import { WegOwnerLayout } from "./components/WegOwnerLayout";
 import { WegOwnerDashboard } from "./pages/weg-owner/Dashboard";
@@ -71,6 +72,7 @@ const App = () => (
               <Route path="/todos" element={<AdminLayout><Todos /></AdminLayout>} />
               <Route path="/calendar" element={<AdminLayout><Calendar /></AdminLayout>} />
               <Route path="/files" element={<Navigate to="/buildings" replace />} />
+              <Route path="/contacts" element={<AdminLayout><Contacts /></AdminLayout>} />
               
               {/* Legacy admin routes for compatibility */}
               <Route path="/admin" element={<AdminLayout><Dashboard /></AdminLayout>} />

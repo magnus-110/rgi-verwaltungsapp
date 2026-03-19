@@ -595,6 +595,329 @@ export type Database = {
         }
         Relationships: []
       }
+      contact_bank_accounts: {
+        Row: {
+          account_holder: string | null
+          bank_name: string | null
+          bic: string | null
+          contact_id: string
+          created_at: string
+          iban: string | null
+          id: string
+          is_default: boolean | null
+          sepa_mandate_date: string | null
+          sepa_mandate_ref: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_holder?: string | null
+          bank_name?: string | null
+          bic?: string | null
+          contact_id: string
+          created_at?: string
+          iban?: string | null
+          id?: string
+          is_default?: boolean | null
+          sepa_mandate_date?: string | null
+          sepa_mandate_ref?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_holder?: string | null
+          bank_name?: string | null
+          bic?: string | null
+          contact_id?: string
+          created_at?: string
+          iban?: string | null
+          id?: string
+          is_default?: boolean | null
+          sepa_mandate_date?: string | null
+          sepa_mandate_ref?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_bank_accounts_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contact_building_assignments: {
+        Row: {
+          bank_account_id: string | null
+          building_id: string
+          contact_id: string
+          created_at: string
+          floor_location: string | null
+          id: string
+          is_active: boolean | null
+          notes: string | null
+          role_in_building:
+            | Database["public"]["Enums"]["contact_building_role"]
+            | null
+          unit_number: string | null
+          updated_at: string
+          usage_since: string | null
+          usage_type: Database["public"]["Enums"]["contact_usage_type"] | null
+          valid_from: string | null
+          valid_to: string | null
+        }
+        Insert: {
+          bank_account_id?: string | null
+          building_id: string
+          contact_id: string
+          created_at?: string
+          floor_location?: string | null
+          id?: string
+          is_active?: boolean | null
+          notes?: string | null
+          role_in_building?:
+            | Database["public"]["Enums"]["contact_building_role"]
+            | null
+          unit_number?: string | null
+          updated_at?: string
+          usage_since?: string | null
+          usage_type?: Database["public"]["Enums"]["contact_usage_type"] | null
+          valid_from?: string | null
+          valid_to?: string | null
+        }
+        Update: {
+          bank_account_id?: string | null
+          building_id?: string
+          contact_id?: string
+          created_at?: string
+          floor_location?: string | null
+          id?: string
+          is_active?: boolean | null
+          notes?: string | null
+          role_in_building?:
+            | Database["public"]["Enums"]["contact_building_role"]
+            | null
+          unit_number?: string | null
+          updated_at?: string
+          usage_since?: string | null
+          usage_type?: Database["public"]["Enums"]["contact_usage_type"] | null
+          valid_from?: string | null
+          valid_to?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_building_assignments_bank_account_id_fkey"
+            columns: ["bank_account_id"]
+            isOneToOne: false
+            referencedRelation: "contact_bank_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_building_assignments_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_building_assignments_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contact_building_costs: {
+        Row: {
+          amount: number
+          assignment_id: string
+          cost_type: string
+          created_at: string
+          id: string
+          interval: Database["public"]["Enums"]["cost_interval"] | null
+          updated_at: string
+          valid_from: string | null
+          valid_to: string | null
+        }
+        Insert: {
+          amount?: number
+          assignment_id: string
+          cost_type: string
+          created_at?: string
+          id?: string
+          interval?: Database["public"]["Enums"]["cost_interval"] | null
+          updated_at?: string
+          valid_from?: string | null
+          valid_to?: string | null
+        }
+        Update: {
+          amount?: number
+          assignment_id?: string
+          cost_type?: string
+          created_at?: string
+          id?: string
+          interval?: Database["public"]["Enums"]["cost_interval"] | null
+          updated_at?: string
+          valid_from?: string | null
+          valid_to?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_building_costs_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "contact_building_assignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contact_building_shares: {
+        Row: {
+          assignment_id: string
+          created_at: string
+          id: string
+          share_type: Database["public"]["Enums"]["share_type"]
+          share_value: number
+          updated_at: string
+        }
+        Insert: {
+          assignment_id: string
+          created_at?: string
+          id?: string
+          share_type: Database["public"]["Enums"]["share_type"]
+          share_value?: number
+          updated_at?: string
+        }
+        Update: {
+          assignment_id?: string
+          created_at?: string
+          id?: string
+          share_type?: Database["public"]["Enums"]["share_type"]
+          share_value?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_building_shares_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "contact_building_assignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contact_emails: {
+        Row: {
+          contact_id: string
+          created_at: string
+          email: string
+          id: string
+          is_primary: boolean | null
+          label: string | null
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          email: string
+          id?: string
+          is_primary?: boolean | null
+          label?: string | null
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          email?: string
+          id?: string
+          is_primary?: boolean | null
+          label?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_emails_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contact_phones: {
+        Row: {
+          contact_id: string
+          created_at: string
+          id: string
+          label: string | null
+          phone_number: string
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          id?: string
+          label?: string | null
+          phone_number: string
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          id?: string
+          label?: string | null
+          phone_number?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_phones_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contacts: {
+        Row: {
+          address_city: string | null
+          address_street: string | null
+          address_zip: string | null
+          company_name: string | null
+          created_at: string
+          first_name: string | null
+          id: string
+          last_name: string | null
+          notes: string | null
+          salutation: string | null
+          short_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          address_city?: string | null
+          address_street?: string | null
+          address_zip?: string | null
+          company_name?: string | null
+          created_at?: string
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          notes?: string | null
+          salutation?: string | null
+          short_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address_city?: string | null
+          address_street?: string | null
+          address_zip?: string | null
+          company_name?: string | null
+          created_at?: string
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          notes?: string | null
+          salutation?: string | null
+          short_name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       document_chat_messages: {
         Row: {
           content: string
@@ -1714,7 +2037,25 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "weg_owner" | "tenant" | "employee"
+      contact_building_role: "eigentuemer" | "mieter" | "verwalter" | "beirat"
+      contact_usage_type:
+        | "selbstbewohnt"
+        | "zweitwohnsitz"
+        | "vermietet"
+        | "fewo"
+        | "leerstand"
+      cost_interval: "monatlich" | "quartal" | "jaehrlich"
       management_mode: "weg" | "rent"
+      share_type:
+        | "mea"
+        | "einheit"
+        | "qm"
+        | "personen"
+        | "garagen"
+        | "stellplaetze"
+        | "wasser"
+        | "warmwasser"
+        | "heizkosten"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1843,7 +2184,27 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "weg_owner", "tenant", "employee"],
+      contact_building_role: ["eigentuemer", "mieter", "verwalter", "beirat"],
+      contact_usage_type: [
+        "selbstbewohnt",
+        "zweitwohnsitz",
+        "vermietet",
+        "fewo",
+        "leerstand",
+      ],
+      cost_interval: ["monatlich", "quartal", "jaehrlich"],
       management_mode: ["weg", "rent"],
+      share_type: [
+        "mea",
+        "einheit",
+        "qm",
+        "personen",
+        "garagen",
+        "stellplaetze",
+        "wasser",
+        "warmwasser",
+        "heizkosten",
+      ],
     },
   },
 } as const
