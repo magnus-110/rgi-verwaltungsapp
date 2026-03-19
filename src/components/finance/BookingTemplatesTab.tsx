@@ -259,25 +259,59 @@ export function BookingTemplatesTab() {
             </div>
             <div>
               <Label>Liegenschaft *</Label>
-              <Select value={form.building_id} onValueChange={(v) => setForm({ ...form, building_id: v })}>
-                <SelectTrigger><SelectValue placeholder="Liegenschaft wählen" /></SelectTrigger>
-                <SelectContent>
-                  {buildings.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={buildingOpen} onOpenChange={setBuildingOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" role="combobox" aria-expanded={buildingOpen} className="w-full justify-between font-normal">
+                    {form.building_id ? buildings.find(b => b.id === form.building_id)?.name || "Liegenschaft wählen" : "Liegenschaft wählen"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Liegenschaft suchen..." value={buildingSearch} onValueChange={setBuildingSearch} />
+                    <CommandList>
+                      <CommandEmpty>Keine Liegenschaft gefunden.</CommandEmpty>
+                      <CommandGroup>
+                        {buildings.map((b) => (
+                          <CommandItem key={b.id} value={b.name} onSelect={() => { setForm({ ...form, building_id: b.id }); setBuildingOpen(false); }}>
+                            <Check className={cn("mr-2 h-4 w-4", form.building_id === b.id ? "opacity-100" : "opacity-0")} />
+                            {b.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div>
               <Label>Buchungskonto</Label>
-              <Select value={form.account_id} onValueChange={(v) => setForm({ ...form, account_id: v })}>
-                <SelectTrigger><SelectValue placeholder="Konto wählen" /></SelectTrigger>
-                <SelectContent>
-                  {accounts.map((a: any) => (
-                    <SelectItem key={a.id} value={a.id}>{a.account_number} – {a.account_name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={accountOpen} onOpenChange={setAccountOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" role="combobox" aria-expanded={accountOpen} className="w-full justify-between font-normal">
+                    {form.account_id
+                      ? (() => { const a = accounts.find((a: any) => a.id === form.account_id); return a ? `${a.account_number} – ${a.account_name}` : "Konto wählen"; })()
+                      : "Konto wählen"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Konto suchen (Nr. oder Name)..." value={accountSearch} onValueChange={setAccountSearch} />
+                    <CommandList>
+                      <CommandEmpty>Kein Konto gefunden.</CommandEmpty>
+                      <CommandGroup>
+                        {accounts.map((a: any) => (
+                          <CommandItem key={a.id} value={`${a.account_number} ${a.account_name}`} onSelect={() => { setForm({ ...form, account_id: a.id }); setAccountOpen(false); }}>
+                            <Check className={cn("mr-2 h-4 w-4", form.account_id === a.id ? "opacity-100" : "opacity-0")} />
+                            {a.account_number} – {a.account_name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="flex items-center gap-2">
               <Switch checked={form.is_35a_relevant} onCheckedChange={(c) => setForm({ ...form, is_35a_relevant: c })} />
