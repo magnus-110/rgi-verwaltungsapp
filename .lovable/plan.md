@@ -1,55 +1,112 @@
 
 
-## Plan: Drei Anpassungen (Nova Text, Erklaerungsvideo, DSGVO-Pruefung)
+## Gebaude-Hub: Master-Detail Umstrukturierung
 
-### 1. "KI Assistentin" statt "KI Assistent"
+### Ueberblick
 
-Textaenderung in drei Dateien:
-- `src/components/chat/WelcomeScreen.tsx` (Zeile 40): "Nova - RGI KI Assistentin"
-- `src/pages/tenant/Dashboard.tsx` (Zeile 228): "RGI KI Assistentin"
-- `src/pages/weg-owner/Dashboard.tsx` (Zeile 186): "RGI KI Assistentin"
+Die Gebaeude-Seite wird zum zentralen Hub mit Master-Detail-Layout. Meldungen bleiben zusaetzlich als eigenstaendiger Menue-Punkt erhalten (globale Uebersicht), werden aber auch im Gebaeude-Dashboard angezeigt.
 
-### 2. Erklaerungsvideo als zweiter Schritt im Onboarding-Dialog
+### Neue Struktur
 
-Nach dem Akzeptieren der AGB und Datenschutzerklaerung wird ein zweiter Schritt angezeigt, der das Erklaerungsvideo vorschlaegt.
+```text
+Sidebar                    Hauptbereich
++-------------------+     +------------------+----------------------------------+
+| Dashboard         |     | Gebaeude-Liste   | Gebaeude-Dashboard               |
+| NOVA              |     | [Suche...]       |                                  |
+| Aufgaben          |     | + Neu            | [Header: Name, Adresse, Code]    |
+| Kalender          |     |                  |                                  |
+| Meldungen         |     | > Musterweg 1 *  | Tabs:                            |
+| Gebaude      <--  |     |   Hauptstr. 5    | Uebersicht | Personen | Meldungen|
+| Chatbot           |     |   Parkstr. 12    | Dokumente | Schw.Brett | Wartung  |
+| Einstellungen     |     |                  |                                  |
++-------------------+     +------------------+----------------------------------+
+```
 
-**Ablauf:**
-1. Schritt 1 (bestehend): AGB und Datenschutz akzeptieren - Button "Akzeptieren und fortfahren"
-2. Schritt 2 (neu): Erklaerungsvideo-Vorschlag mit Thumbnail und Link
-   - Das hochgeladene Bild wird als Thumbnail angezeigt (klickbar)
-   - YouTube-Link: https://youtube.com/shorts/Ccw9pb_Y6XY?si=ehjPVhZ5bVTikQul
-   - Button "Video ansehen" (oeffnet YouTube) und "Ueberspringen" (schliesst Dialog)
+### Sidebar-Aenderungen (`AdminSidebar.tsx`)
 
-**Technische Umsetzung in `src/components/TermsAcceptanceDialog.tsx`:**
-- Neuer State `step` (1 oder 2)
-- Nach erfolgreichem Speichern der Terms-Akzeptanz wechselt der Dialog zu Schritt 2
-- Schritt 2 zeigt das Thumbnail-Bild und zwei Buttons
-- Das hochgeladene Bild wird nach `public/images/` kopiert
+- **Entfernen**: "Schwarzes Brett" und "Dokumente" (FolderOpen/Files) als eigenstaendige Punkte
+- **Behalten**: "Meldungen" bleibt als globaler Punkt
+- **Gebaeude** rueckt in der Reihenfolge nach oben (nach Meldungen)
 
-### 3. DSGVO-Pruefung: Nova Dokumentenzugriff
+Neue Reihenfolge:
+1. Dashboard
+2. NOVA
+3. Aufgaben
+4. Kalender
+5. Meldungen
+6. Gebaeude
+7. Chatbot
+8. Einstellungen
 
-**Ergebnis der Pruefung:**
+### Neue Dateien
 
-Die Dokumentenzugriffe in der `chat-with-ai` Edge Function sind korrekt geschuetzt:
+**`src/pages/Buildings.tsx`** (Refactor)
+- Split-Layout mit ResizablePanel: linke Spalte (Gebaeude-Liste, ~300px), rechte Spalte (Dashboard)
+- Gebaeude-Liste mit Suche, Filter, "Neues Gebaeude" Button
+- URL-Routing: `/buildings` zeigt Liste, `/buildings/:id` selektiert ein Gebaeude
+- Mobile: Liste als eigene Ansicht, Klick oeffnet Dashboard fullscreen
 
-- **Persoenliche Dateien**: Gefiltert nach `assigned_user_id = userId` -- nur eigene Dateien
-- **Gebaeude-Dateien**: Gefiltert nach `building_id` des Nutzers UND `assigned_user_id IS NULL` -- nur allgemeine Gebaeudedateien des eigenen Gebaeudes
-- **Gebaeudedokumente (RAG)**: Gefiltert nach den Gebaeude-IDs des Nutzers (bei Mietern: `profile.building_id`, bei WEG-Eigentuemern: `weg_owner_buildings`)
-- **RLS-Policies**: Zusaetzlich auf Datenbankebene abgesichert
+**`src/components/buildings/BuildingList.tsx`**
+- Scrollbare Liste aller Gebaeude (gefiltert nach management_mode)
+- Suchfeld, aktives Gebaeude hervorgehoben
+- "Neues Gebaeude" Button oben
 
-**Ein kleiner Verbesserungsvorschlag:** Die Wissensdokumente (`chatbot_knowledge_documents`) werden aktuell nicht nach `management_mode` gefiltert. Das bedeutet, ein Mieter koennte theoretisch auch WEG-spezifische Wissensdokumente als Kontext erhalten (und umgekehrt). Dies ist kein direktes DSGVO-Problem (da es sich um allgemeine, nicht personenbezogene Wissensinhalte handelt), aber fuer saubere Datentrennung sollte ein Filter ergaenzt werden.
+**`src/components/buildings/BuildingDashboard.tsx`**
+- Header mit Gebaeude-Info (Name, Adresse, Code, Badges) und Quick-Actions (Bearbeiten, Loeschen, Verwalter zuweisen)
+- Tab-System mit 6 Tabs:
 
-**Aenderung in `supabase/functions/chat-with-ai/index.ts`** (Zeile 457-461):
-- Filter `.eq('management_mode', managementMode)` zur Wissensdokumente-Abfrage hinzufuegen
+**Tab 1: Uebersicht**
+- Statistik-Karten: Anzahl Eigentuemer/Mieter, offene Meldungen, naechste Wartung, Anzahl Dokumente
+- Schnellzugriff-Buttons
 
-### Zusammenfassung der Dateiaenderungen
+**Tab 2: Personen**
+- Bestehende UsersList-Komponente, vorgefiltert auf dieses Gebaeude
+- Nutzer hinzufuegen (CreateUserDialog), Bulk Upload
 
-| Datei | Aenderung |
-|-------|-----------|
-| `src/components/chat/WelcomeScreen.tsx` | "Assistentin" |
-| `src/pages/tenant/Dashboard.tsx` | "Assistentin" |
-| `src/pages/weg-owner/Dashboard.tsx` | "Assistentin" |
-| `src/components/TermsAcceptanceDialog.tsx` | Zweistufiger Dialog mit Video-Vorschlag |
-| `supabase/functions/chat-with-ai/index.ts` | management_mode Filter fuer Wissensdokumente |
-| Bild kopieren nach `public/images/` | Thumbnail fuer Video |
+**Tab 3: Meldungen** (`src/components/buildings/BuildingReportsTab.tsx`)
+- Wiederverwendbare Komponente aus Reports.tsx Logik extrahiert
+- Vorgefiltert auf `building_id` des aktuellen Gebaeudes
+- Zeigt weg_reports oder miete_reports je nach management_mode
+
+**Tab 4: Dokumente** (`src/components/buildings/BuildingFilesTab.tsx`)
+- Wiederverwendbare Komponente aus Files.tsx Logik extrahiert
+- Vorgefiltert auf `building_id`, Upload-Funktion direkt integriert
+
+**Tab 5: Schwarzes Brett** (`src/components/buildings/BuildingForumTab.tsx`)
+- Wiederverwendbare Komponente aus Forum.tsx Logik extrahiert
+- Vorgefiltert auf `building_id`, Post erstellen direkt moeglich
+
+**Tab 6: Wartung** (`src/components/buildings/BuildingMaintenanceTab.tsx`)
+- Bestehende MaintenanceConfigSection integriert
+- Wartungskonfiguration laden/speichern fuer dieses Gebaeude
+
+### Routing-Aenderungen (`App.tsx`)
+
+```text
+/buildings        -> Buildings (Master-Detail, kein Gebaeude selektiert)
+/buildings/:id    -> Buildings (Master-Detail, Gebaeude selektiert)
+/reports          -> Reports (bleibt, globale Uebersicht)
+/forum            -> Redirect zu /buildings (oder entfernen)
+/files            -> Redirect zu /buildings (oder entfernen)
+```
+
+### Bestehende Seiten
+
+- `Reports.tsx` bleibt unveraendert als globale Meldungs-Uebersicht
+- `Forum.tsx` und `Files.tsx` bleiben vorerst erhalten (Legacy-Routen), Kernlogik wird aber in wiederverwendbare Tab-Komponenten extrahiert
+
+### Umsetzungsreihenfolge (4 Iterationen)
+
+1. **Iteration 1**: Master-Detail-Layout + BuildingList + BuildingDashboard mit Uebersicht-Tab und Personen-Tab
+2. **Iteration 2**: Meldungen-Tab und Dokumente-Tab integrieren
+3. **Iteration 3**: Schwarzes-Brett-Tab und Wartungs-Tab
+4. **Iteration 4**: Sidebar bereinigen, alte Routen redirecten, Mobile-Optimierung
+
+### Technische Details
+
+- ResizablePanelGroup fuer Desktop-Split-Layout (wie Nova-Chat)
+- Tabs via shadcn/ui Tabs-Komponente
+- Bestehende DB-Tabellen und RLS-Policies bleiben unveraendert -- keine Migrationen noetig
+- Daten werden per `building_id` Filter aus bestehenden Tabellen geladen
+- React Query fuer Caching und Invalidierung
 
