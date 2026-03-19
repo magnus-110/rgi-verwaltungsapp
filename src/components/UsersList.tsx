@@ -283,7 +283,6 @@ export const UsersList = ({ buildingId, userType, count, defaultExpanded = false
             </div>
           )}
         </Card>
-      )}
       
       <EditUserDialog
         user={editingUser}

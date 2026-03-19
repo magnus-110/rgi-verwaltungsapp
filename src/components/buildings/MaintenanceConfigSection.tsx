@@ -205,7 +205,6 @@ export const MaintenanceConfigSection = ({ configs, onChange }: MaintenanceConfi
             {categoryB.map(renderTypeRow)}
           </div>
         </div>
-      </CollapsibleContent>
-    </Collapsible>
+    </div>
   );
 };
