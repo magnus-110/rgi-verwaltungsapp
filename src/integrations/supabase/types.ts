@@ -64,6 +64,7 @@ export type Database = {
       bank_transactions: {
         Row: {
           amount: number
+          booked_at: string | null
           booking_date: string
           booking_id: string | null
           building_id: string | null
@@ -80,10 +81,12 @@ export type Database = {
           matched_template_id: string | null
           purpose: string | null
           statement_id: string
+          transaction_hash: string | null
           value_date: string | null
         }
         Insert: {
           amount: number
+          booked_at?: string | null
           booking_date: string
           booking_id?: string | null
           building_id?: string | null
@@ -100,10 +103,12 @@ export type Database = {
           matched_template_id?: string | null
           purpose?: string | null
           statement_id: string
+          transaction_hash?: string | null
           value_date?: string | null
         }
         Update: {
           amount?: number
+          booked_at?: string | null
           booking_date?: string
           booking_id?: string | null
           building_id?: string | null
@@ -120,6 +125,7 @@ export type Database = {
           matched_template_id?: string | null
           purpose?: string | null
           statement_id?: string
+          transaction_hash?: string | null
           value_date?: string | null
         }
         Relationships: [
