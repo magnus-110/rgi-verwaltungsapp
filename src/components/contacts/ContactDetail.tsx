@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { ArrowLeft, Plus, Save, Trash2, Phone, Mail, Landmark, Building2 } from "lucide-react";
 import { ContactBuildingAssignments } from "./ContactBuildingAssignments";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,15 +31,17 @@ interface Props {
   contact: Contact;
   onBack?: () => void;
   onUpdate: () => void;
+  onDeleted?: () => void;
 }
 
-export function ContactDetail({ contact, onBack, onUpdate }: Props) {
+export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
   const { toast } = useToast();
   const [form, setForm] = useState({ ...contact });
   const [phones, setPhones] = useState<ContactPhone[]>([]);
   const [emails, setEmails] = useState<ContactEmail[]>([]);
   const [bankAccounts, setBankAccounts] = useState<ContactBankAccount[]>([]);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     setForm({ ...contact });
@@ -111,6 +114,18 @@ export function ContactDetail({ contact, onBack, onUpdate }: Props) {
     loadRelated();
   };
 
+  const deleteContact = async () => {
+    setDeleting(true);
+    const { error } = await supabase.from("contacts").delete().eq("id", contact.id);
+    setDeleting(false);
+    if (error) {
+      toast({ title: "Fehler beim Löschen", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Kontakt gelöscht" });
+      onDeleted?.();
+    }
+  };
+
   const displayName = form.company_name || [form.salutation, form.first_name, form.last_name].filter(Boolean).join(" ") || "Unbenannt";
 
   return (
@@ -124,9 +139,32 @@ export function ContactDetail({ contact, onBack, onUpdate }: Props) {
           )}
           <h2 className="text-xl font-semibold truncate">{displayName}</h2>
         </div>
-        <Button onClick={saveContact} disabled={saving} size="sm">
-          <Save className="h-4 w-4 mr-2" />{saving ? "..." : "Speichern"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Kontakt löschen?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  <strong>{displayName}</strong> wird unwiderruflich gelöscht, einschließlich aller Telefonnummern, E-Mails, Bankverbindungen und Gebäude-Zuordnungen.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                <AlertDialogAction onClick={deleteContact} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  {deleting ? "Löscht..." : "Endgültig löschen"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <Button onClick={saveContact} disabled={saving} size="sm">
+            <Save className="h-4 w-4 mr-2" />{saving ? "..." : "Speichern"}
+          </Button>
+        </div>
       </div>
 
       <div className="p-6">

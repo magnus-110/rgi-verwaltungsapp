@@ -46,6 +46,11 @@ export function Contacts() {
     fetchContacts();
   }, []);
 
+  const handleDeleted = () => {
+    setSelectedContactId(null);
+    fetchContacts();
+  };
+
   const selectedContact = contacts.find((c) => c.id === selectedContactId) || null;
 
   if (isMobile) {
@@ -56,6 +61,7 @@ export function Contacts() {
             contact={selectedContact}
             onBack={() => setSelectedContactId(null)}
             onUpdate={fetchContacts}
+            onDeleted={handleDeleted}
           />
         </div>
       );
@@ -91,6 +97,7 @@ export function Contacts() {
             <ContactDetail
               contact={selectedContact}
               onUpdate={fetchContacts}
+              onDeleted={handleDeleted}
             />
           ) : (
             <div className="h-full flex items-center justify-center text-muted-foreground">
