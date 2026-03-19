@@ -237,6 +237,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
 
       {assignments.map((a) => {
         const isExpanded = expanded === a.id;
+        const hausgeld = getHausgeld(a);
 
         return (
           <Card key={a.id} className="overflow-hidden">
