@@ -301,7 +301,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
           </div>
 
           {/* Row 2: Beleg */}
-          <div className="rounded-xl border p-5 space-y-4">
+          <div className="rounded-xl border p-6 space-y-5">
             <p className="text-base font-semibold text-foreground">Beleg</p>
             <div className="grid grid-cols-3 gap-4">
               <div>
