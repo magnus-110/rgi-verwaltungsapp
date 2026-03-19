@@ -329,7 +329,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
 
           {/* Row 3: Steuer & Optionen */}
           <div className="rounded-xl border p-5 space-y-4">
-            <p className="text-sm font-semibold text-foreground">Steuer & Optionen</p>
+            <p className="text-base font-semibold text-foreground">Steuer & Optionen</p>
             <div className="flex items-end gap-6 flex-wrap">
               <div className="flex-1 min-w-[200px]">
                 <Label className="text-sm mb-2 block">MwSt-Satz</Label>
