@@ -69,8 +69,8 @@ interface ContactAssignment {
     address_city: string | null;
   };
   shares: { id: string; share_type: string; share_value: number }[];
-  phones: { phone_number: string; label: string }[];
-  emails: { email: string; label: string }[];
+  phones: { id: string; phone_number: string; label: string; contact_id: string }[];
+  emails: { id: string; email: string; label: string; contact_id: string }[];
   costs: { id: string; cost_type: string; amount: number; interval: string }[];
   bankAccounts: { id: string; iban: string | null; bic: string | null; bank_name: string | null; account_holder: string | null; sepa_mandate_ref: string | null }[];
 }
