@@ -93,6 +93,7 @@ export function ContactBuildingAssignments({ contactId }: Props) {
   const { toast } = useToast();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [shares, setShares] = useState<Record<string, Share[]>>({});
+  const [costs, setCosts] = useState<Record<string, Cost[]>>({});
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [buildings, setBuildings] = useState<{ id: string; name: string; address: string }[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
