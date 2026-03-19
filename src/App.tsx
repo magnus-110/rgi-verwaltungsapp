@@ -23,6 +23,7 @@ import { Todos } from "./pages/Todos";
 import { Calendar } from "./pages/Calendar";
 import { Files } from "./pages/Files";
 import { Contacts } from "./pages/Contacts";
+import { Finance } from "./pages/Finance";
 import { AdminLayout } from "./components/AdminLayout";
 import { WegOwnerLayout } from "./components/WegOwnerLayout";
 import { WegOwnerDashboard } from "./pages/weg-owner/Dashboard";
