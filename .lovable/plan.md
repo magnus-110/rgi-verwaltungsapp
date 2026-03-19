@@ -1,55 +1,19 @@
 
 
-## Plan: Drei Anpassungen (Nova Text, Erklaerungsvideo, DSGVO-Pruefung)
+## Gebaude-Hub: Master-Detail Umstrukturierung
 
-### 1. "KI Assistentin" statt "KI Assistent"
+### Status: Iteration 1 abgeschlossen ✅
 
-Textaenderung in drei Dateien:
-- `src/components/chat/WelcomeScreen.tsx` (Zeile 40): "Nova - RGI KI Assistentin"
-- `src/pages/tenant/Dashboard.tsx` (Zeile 228): "RGI KI Assistentin"
-- `src/pages/weg-owner/Dashboard.tsx` (Zeile 186): "RGI KI Assistentin"
+**Umgesetzte Aenderungen:**
 
-### 2. Erklaerungsvideo als zweiter Schritt im Onboarding-Dialog
+1. **`src/components/buildings/BuildingList.tsx`** (NEU) - Scrollbare Gebaeude-Liste mit Suche, management_mode Filter, aktives Gebaeude hervorgehoben
+2. **`src/components/buildings/BuildingDashboard.tsx`** (NEU) - Gebaeude-Dashboard mit Header, Statistik-Karten und Tab-System (Uebersicht + Personen voll funktional, restliche Tabs als Platzhalter)
+3. **`src/pages/Buildings.tsx`** (REFACTORED) - Master-Detail Layout mit ResizablePanel, Mobile-Unterstuetzung, URL-Routing mit :id
+4. **`src/components/AdminSidebar.tsx`** - "Schwarzes Brett" und "Dokumente" entfernt, Gebaeude bleibt nach Meldungen
+5. **`src/App.tsx`** - Route `/buildings/:id` hinzugefuegt
 
-Nach dem Akzeptieren der AGB und Datenschutzerklaerung wird ein zweiter Schritt angezeigt, der das Erklaerungsvideo vorschlaegt.
+### Naechste Iterationen
 
-**Ablauf:**
-1. Schritt 1 (bestehend): AGB und Datenschutz akzeptieren - Button "Akzeptieren und fortfahren"
-2. Schritt 2 (neu): Erklaerungsvideo-Vorschlag mit Thumbnail und Link
-   - Das hochgeladene Bild wird als Thumbnail angezeigt (klickbar)
-   - YouTube-Link: https://youtube.com/shorts/Ccw9pb_Y6XY?si=ehjPVhZ5bVTikQul
-   - Button "Video ansehen" (oeffnet YouTube) und "Ueberspringen" (schliesst Dialog)
-
-**Technische Umsetzung in `src/components/TermsAcceptanceDialog.tsx`:**
-- Neuer State `step` (1 oder 2)
-- Nach erfolgreichem Speichern der Terms-Akzeptanz wechselt der Dialog zu Schritt 2
-- Schritt 2 zeigt das Thumbnail-Bild und zwei Buttons
-- Das hochgeladene Bild wird nach `public/images/` kopiert
-
-### 3. DSGVO-Pruefung: Nova Dokumentenzugriff
-
-**Ergebnis der Pruefung:**
-
-Die Dokumentenzugriffe in der `chat-with-ai` Edge Function sind korrekt geschuetzt:
-
-- **Persoenliche Dateien**: Gefiltert nach `assigned_user_id = userId` -- nur eigene Dateien
-- **Gebaeude-Dateien**: Gefiltert nach `building_id` des Nutzers UND `assigned_user_id IS NULL` -- nur allgemeine Gebaeudedateien des eigenen Gebaeudes
-- **Gebaeudedokumente (RAG)**: Gefiltert nach den Gebaeude-IDs des Nutzers (bei Mietern: `profile.building_id`, bei WEG-Eigentuemern: `weg_owner_buildings`)
-- **RLS-Policies**: Zusaetzlich auf Datenbankebene abgesichert
-
-**Ein kleiner Verbesserungsvorschlag:** Die Wissensdokumente (`chatbot_knowledge_documents`) werden aktuell nicht nach `management_mode` gefiltert. Das bedeutet, ein Mieter koennte theoretisch auch WEG-spezifische Wissensdokumente als Kontext erhalten (und umgekehrt). Dies ist kein direktes DSGVO-Problem (da es sich um allgemeine, nicht personenbezogene Wissensinhalte handelt), aber fuer saubere Datentrennung sollte ein Filter ergaenzt werden.
-
-**Aenderung in `supabase/functions/chat-with-ai/index.ts`** (Zeile 457-461):
-- Filter `.eq('management_mode', managementMode)` zur Wissensdokumente-Abfrage hinzufuegen
-
-### Zusammenfassung der Dateiaenderungen
-
-| Datei | Aenderung |
-|-------|-----------|
-| `src/components/chat/WelcomeScreen.tsx` | "Assistentin" |
-| `src/pages/tenant/Dashboard.tsx` | "Assistentin" |
-| `src/pages/weg-owner/Dashboard.tsx` | "Assistentin" |
-| `src/components/TermsAcceptanceDialog.tsx` | Zweistufiger Dialog mit Video-Vorschlag |
-| `supabase/functions/chat-with-ai/index.ts` | management_mode Filter fuer Wissensdokumente |
-| Bild kopieren nach `public/images/` | Thumbnail fuer Video |
-
+**Iteration 2**: Meldungen-Tab und Dokumente-Tab im Dashboard mit echter Funktionalitaet
+**Iteration 3**: Schwarzes-Brett-Tab und Wartungs-Tab mit echter Funktionalitaet
+**Iteration 4**: Legacy-Routen (/forum, /files) redirecten, finale Mobile-Optimierung
