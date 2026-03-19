@@ -10,15 +10,16 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { format } from "date-fns";
-import { de } from "date-fns/locale";
-import { Loader2, FileText, ExternalLink, CheckCircle, CreditCard, BookOpen, Sparkles } from "lucide-react";
+import { Loader2, FileText, ExternalLink, CheckCircle, CreditCard, Sparkles } from "lucide-react";
 
-const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
+const PAYMENT_STATUS: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   open: { label: "Offen", variant: "destructive" },
-  verified: { label: "Geprüft", variant: "outline" },
-  paid: { label: "Bezahlt", variant: "secondary" },
-  booked: { label: "Gebucht", variant: "default" },
+  paid: { label: "Bezahlt", variant: "default" },
+};
+
+const REVIEW_STATUS: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
+  open: { label: "Offen", variant: "outline" },
+  verified: { label: "Geprüft", variant: "default" },
 };
 
 interface Props {
@@ -48,21 +49,8 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
     enabled: !!invoiceId,
   });
 
-  const { data: accounts = [] } = useQuery({
-    queryKey: ["accounts-for-invoice"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("chart_of_accounts")
-        .select("id, account_number, account_name")
-        .order("account_number");
-      if (error) throw error;
-      return data;
-    },
-  });
-
   const [form, setForm] = useState<Record<string, any>>({});
 
-  // Sync form when invoice loads
   const inv = invoice as any;
   if (inv && !form._initialized) {
     setForm({
@@ -77,11 +65,9 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
       gross_amount: inv.gross_amount ?? "",
       description: inv.description || "",
       building_id: inv.building_id || "",
-      suggested_account_id: inv.suggested_account_id || "",
     });
   }
 
-  // Reset form when sheet closes
   const handleClose = () => {
     setForm({});
     setPdfUrl(null);
@@ -120,7 +106,6 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
       gross_amount: form.gross_amount !== "" ? parseFloat(form.gross_amount) : null,
       description: form.description || null,
       building_id: form.building_id || null,
-      suggested_account_id: form.suggested_account_id || null,
     }).eq("id", invoiceId);
     setSaving(false);
     if (error) { toast.error("Fehler: " + error.message); return; }
@@ -129,50 +114,36 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
     queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] });
   };
 
-  const updateStatus = async (newStatus: string) => {
-    if (!invoiceId) return;
-    const updates: any = { status: newStatus };
-    if (newStatus === "paid") updates.paid_at = new Date().toISOString();
-    const { error } = await supabase.from("invoices").update(updates).eq("id", invoiceId);
-    if (error) { toast.error("Fehler beim Aktualisieren"); return; }
-    toast.success(`Status auf "${STATUS_CONFIG[newStatus]?.label}" geändert`);
+  const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ["invoices"] });
     queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] });
   };
 
-  const handleBook = async () => {
+  const togglePaymentStatus = async () => {
     if (!invoiceId || !inv) return;
-    // Create booking from invoice
-    const { data: { user } } = await supabase.auth.getUser();
-    const bookingDate = inv.invoice_date || new Date().toISOString().split("T")[0];
-    const fiscalYear = new Date(bookingDate).getFullYear();
-    
-    const { error } = await supabase.from("bookings").insert({
-      building_id: inv.building_id,
-      account_id: form.suggested_account_id || inv.suggested_account_id || null,
-      amount: inv.gross_amount || 0,
-      booking_date: bookingDate,
-      fiscal_year: fiscalYear,
-      description: `${inv.vendor_name || "Rechnung"} - ${inv.invoice_number || ""}`.trim(),
-      invoice_id: invoiceId,
-      source: "invoice",
-      status: "confirmed",
-      booking_type: "expense",
-      vat_rate: inv.vat_amount && inv.net_amount ? Math.round((inv.vat_amount / inv.net_amount) * 100) : null,
-      vat_amount: inv.vat_amount,
-      created_by: user?.id,
-      receipt_number: inv.invoice_number,
-    });
-
-    if (error) { toast.error("Buchung fehlgeschlagen: " + error.message); return; }
-    
-    await updateStatus("booked");
-    toast.success("Rechnung gebucht");
+    const newStatus = inv.status === "paid" ? "open" : "paid";
+    const updates: any = { status: newStatus };
+    if (newStatus === "paid") updates.paid_at = new Date().toISOString();
+    else updates.paid_at = null;
+    const { error } = await supabase.from("invoices").update(updates).eq("id", invoiceId);
+    if (error) { toast.error("Fehler beim Aktualisieren"); return; }
+    toast.success(`Bezahlung: ${PAYMENT_STATUS[newStatus].label}`);
+    invalidateAll();
   };
 
-  const statusConfig = inv ? STATUS_CONFIG[inv.status] : null;
+  const toggleReviewStatus = async () => {
+    if (!invoiceId || !inv) return;
+    const currentReview = inv.review_status || "open";
+    const newReview = currentReview === "verified" ? "open" : "verified";
+    const { error } = await supabase.from("invoices").update({ review_status: newReview } as any).eq("id", invoiceId);
+    if (error) { toast.error("Fehler beim Aktualisieren"); return; }
+    toast.success(`Prüfung: ${REVIEW_STATUS[newReview].label}`);
+    invalidateAll();
+  };
+
+  const paymentConfig = inv ? PAYMENT_STATUS[inv.status] || PAYMENT_STATUS.open : null;
+  const reviewConfig = inv ? REVIEW_STATUS[inv.review_status || "open"] || REVIEW_STATUS.open : null;
   const lineItems = inv?.line_items as any[] || [];
-  const suggestedAccount = accounts.find(a => a.id === (form.suggested_account_id || inv?.suggested_account_id));
 
   return (
     <Sheet open={!!invoiceId} onOpenChange={(open) => { if (!open) handleClose(); }}>
@@ -181,9 +152,6 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
           <SheetTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
             {inv?.file_name || "Rechnungsdetails"}
-            {statusConfig && (
-              <Badge variant={statusConfig.variant} className="ml-2">{statusConfig.label}</Badge>
-            )}
           </SheetTitle>
         </SheetHeader>
 
@@ -193,6 +161,36 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
           </div>
         ) : inv ? (
           <div className="space-y-6 mt-4">
+            {/* Dual Status Badges */}
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={togglePaymentStatus}
+                className="flex items-center gap-2 rounded-lg border p-3 transition-colors hover:bg-muted/50 cursor-pointer"
+              >
+                <CreditCard className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Bezahlung:</span>
+                <Badge
+                  variant={paymentConfig?.variant}
+                  className={inv.status === "paid" ? "bg-green-600 text-white hover:bg-green-700" : ""}
+                >
+                  {paymentConfig?.label}
+                </Badge>
+              </button>
+              <button
+                onClick={toggleReviewStatus}
+                className="flex items-center gap-2 rounded-lg border p-3 transition-colors hover:bg-muted/50 cursor-pointer"
+              >
+                <CheckCircle className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Prüfung:</span>
+                <Badge
+                  variant={reviewConfig?.variant}
+                  className={(inv.review_status || "open") === "verified" ? "bg-blue-600 text-white hover:bg-blue-700" : ""}
+                >
+                  {reviewConfig?.label}
+                </Badge>
+              </button>
+            </div>
+
             {/* OCR Status */}
             {inv.ocr_status === "processing" && (
               <div className="flex items-center gap-2 p-3 rounded-lg bg-muted text-sm">
@@ -291,30 +289,6 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
                 <Label>Beschreibung</Label>
                 <Textarea value={form.description} onChange={e => set("description", e.target.value)} rows={2} />
               </div>
-
-              {/* KI-Kontovorschlag */}
-              <div>
-                <Label className="flex items-center gap-1">
-                  <Sparkles className="h-3 w-3 text-primary" /> Kontovorschlag (KI)
-                </Label>
-                <Select value={form.suggested_account_id} onValueChange={v => set("suggested_account_id", v)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Konto auswählen..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {accounts.map(a => (
-                      <SelectItem key={a.id} value={a.id}>
-                        {a.account_number} – {a.account_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {suggestedAccount && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    KI-Vorschlag: {suggestedAccount.account_number} – {suggestedAccount.account_name}
-                  </p>
-                )}
-              </div>
             </div>
 
             {/* Line Items */}
@@ -323,7 +297,8 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
                 <Separator />
                 <div>
                   <Label className="text-sm font-medium">Positionen ({lineItems.length})</Label>
-                  <div className="mt-2 space-y-1">
+                  <p className="text-xs text-muted-foreground mb-2">Automatisch aus dem PDF extrahierte Rechnungspositionen</p>
+                  <div className="space-y-1">
                     {lineItems.map((item: any, i: number) => (
                       <div key={i} className="flex justify-between text-sm p-2 rounded bg-muted">
                         <span className="truncate mr-2">{item.description}</span>
@@ -339,28 +314,12 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
 
             <Separator />
 
-            {/* Actions */}
+            {/* Save */}
             <div className="flex flex-wrap gap-2">
               <Button onClick={handleSave} disabled={saving}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
                 Speichern
               </Button>
-
-              {inv.status === "open" && (
-                <Button variant="outline" onClick={() => updateStatus("verified")}>
-                  <CheckCircle className="h-4 w-4 mr-1" /> Als geprüft markieren
-                </Button>
-              )}
-              {inv.status === "verified" && (
-                <Button variant="outline" onClick={() => updateStatus("paid")}>
-                  <CreditCard className="h-4 w-4 mr-1" /> Als bezahlt markieren
-                </Button>
-              )}
-              {inv.status === "paid" && (
-                <Button onClick={handleBook}>
-                  <BookOpen className="h-4 w-4 mr-1" /> Buchen
-                </Button>
-              )}
             </div>
           </div>
         ) : null}
