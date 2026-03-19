@@ -71,6 +71,7 @@ interface ContactAssignment {
   phones: { phone_number: string; label: string }[];
   emails: { email: string; label: string }[];
   costs: { id: string; cost_type: string; amount: number; interval: string }[];
+  bankAccounts: { id: string; iban: string | null; bic: string | null; bank_name: string | null; account_holder: string | null; sepa_mandate_ref: string | null }[];
 }
 
 interface Props {
