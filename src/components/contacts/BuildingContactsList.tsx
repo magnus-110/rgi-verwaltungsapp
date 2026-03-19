@@ -79,6 +79,26 @@ interface Props {
   managementMode?: string;
 }
 
+function CopyableField({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <div className="min-w-0">
+        <span className="text-xs text-muted-foreground">{label}: </span>
+        <span className="text-sm font-mono select-all">{value}</span>
+      </div>
+      <Button size="icon" variant="ghost" className="h-6 w-6 flex-shrink-0" onClick={handleCopy}>
+        {copied ? <span className="text-xs text-primary">✓</span> : <Copy className="h-3 w-3 text-muted-foreground" />}
+      </Button>
+    </div>
+  );
+}
+
 export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showAssign, setShowAssign] = useState(false);
