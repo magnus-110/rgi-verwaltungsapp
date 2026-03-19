@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, User, ChevronDown, ChevronUp, Phone, Mail, MapPin, Trash2 } from "lucide-react";
+import { Plus, User, ChevronDown, ChevronUp, Phone, Mail, MapPin, Trash2, Copy, CreditCard } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AssignContactDialog } from "./AssignContactDialog";
@@ -71,11 +71,32 @@ interface ContactAssignment {
   phones: { phone_number: string; label: string }[];
   emails: { email: string; label: string }[];
   costs: { id: string; cost_type: string; amount: number; interval: string }[];
+  bankAccounts: { id: string; iban: string | null; bic: string | null; bank_name: string | null; account_holder: string | null; sepa_mandate_ref: string | null }[];
 }
 
 interface Props {
   buildingId: string;
   managementMode?: string;
+}
+
+function CopyableField({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <div className="min-w-0">
+        <span className="text-xs text-muted-foreground">{label}: </span>
+        <span className="text-sm font-mono select-all">{value}</span>
+      </div>
+      <Button size="icon" variant="ghost" className="h-6 w-6 flex-shrink-0" onClick={handleCopy}>
+        {copied ? <span className="text-xs text-primary">✓</span> : <Copy className="h-3 w-3 text-muted-foreground" />}
+      </Button>
+    </div>
+  );
 }
 
 export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Props) {
@@ -100,7 +121,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
       const assignmentIds = assignData.map(a => a.id);
       const contactIds = assignData.map(a => a.contact_id);
 
-      const [sharesRes, phonesRes, emailsRes, costsRes] = await Promise.all([
+      const [sharesRes, phonesRes, emailsRes, costsRes, bankRes] = await Promise.all([
         assignmentIds.length > 0 
           ? supabase.from("contact_building_shares").select("*").in("assignment_id", assignmentIds)
           : { data: [] },
@@ -113,6 +134,9 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
         assignmentIds.length > 0
           ? supabase.from("contact_building_costs").select("*").in("assignment_id", assignmentIds)
           : { data: [] },
+        contactIds.length > 0
+          ? supabase.from("contact_bank_accounts").select("id, iban, bic, bank_name, account_holder, sepa_mandate_ref").in("contact_id", contactIds)
+          : { data: [] },
       ]);
 
       return assignData.map(a => ({
@@ -121,7 +145,8 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
         phones: (phonesRes.data || []).filter((p: any) => p.contact_id === a.contact_id),
         emails: (emailsRes.data || []).filter((e: any) => e.contact_id === a.contact_id),
         costs: (costsRes.data || []).filter((c: any) => c.assignment_id === a.id),
-      })) as ContactAssignment[];
+        bankAccounts: (bankRes.data || []).filter((b: any) => b.contact_id === a.contact_id),
+      })) as unknown as ContactAssignment[];
     },
   });
 
@@ -212,8 +237,6 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
 
       {assignments.map((a) => {
         const isExpanded = expanded === a.id;
-        const mea = getMea(a);
-        const hausgeld = getHausgeld(a);
 
         return (
           <Card key={a.id} className="overflow-hidden">
@@ -236,8 +259,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                     )}
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0 flex-wrap">
-                    {managementMode === 'weg' && isBeirat(a) && <Badge className="text-xs bg-amber-100 text-amber-700 hover:bg-amber-100">Beirat</Badge>}
-                    {hausgeld !== null && <Badge className="text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-100">{hausgeld.toFixed(2)} €</Badge>}
+                    {managementMode === 'weg' && isBeirat(a) && <Badge variant="secondary" className="text-xs">Beirat</Badge>}
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
@@ -287,6 +309,35 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                       <p className="text-xs text-muted-foreground italic">Keine Kontaktdaten hinterlegt</p>
                     )}
                   </div>
+
+                  {/* Bank accounts */}
+                  {a.bankAccounts.length > 0 && (
+                    <div className="bg-muted/40 rounded-lg p-3 space-y-2">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                        <CreditCard className="h-3.5 w-3.5" /> Bankverbindung
+                      </p>
+                      {a.bankAccounts.map((bank, i) => (
+                        <div key={bank.id || i} className="space-y-1.5">
+                          {bank.iban && (
+                            <CopyableField label="IBAN" value={bank.iban} />
+                          )}
+                          {bank.bic && (
+                            <CopyableField label="BIC" value={bank.bic} />
+                          )}
+                          {bank.bank_name && (
+                            <CopyableField label="Bank" value={bank.bank_name} />
+                          )}
+                          {bank.account_holder && (
+                            <CopyableField label="Kontoinhaber" value={bank.account_holder} />
+                          )}
+                          {bank.sepa_mandate_ref && (
+                            <CopyableField label="SEPA-Ref." value={bank.sepa_mandate_ref} />
+                          )}
+                          {i < a.bankAccounts.length - 1 && <div className="border-t border-border my-2" />}
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Assignment fields */}
                   <div className="space-y-3">
