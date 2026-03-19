@@ -259,7 +259,7 @@ export const BuildingForumTab = ({ buildingId, managementMode }: BuildingForumTa
               <Textarea rows={6} value={editingPost.content} onChange={(e) => setEditingPost({ ...editingPost, content: e.target.value })} />
               <FileUpload
                 bucketName="forum-attachments"
-                onUploadComplete={(fileData) => setEditAttachments([...editAttachments, fileData])}
+                onFilesChange={(files) => setEditAttachments(files)}
               />
               {editAttachments.length > 0 && (
                 <div className="space-y-1">
