@@ -223,6 +223,34 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
     refetch();
   };
 
+  // Phones
+  const addPhone = async (contactId: string) => {
+    await supabase.from("contact_phones").insert({ contact_id: contactId, phone_number: "", label: "Mobil" });
+    refetch();
+  };
+  const updatePhone = async (id: string, field: string, value: string) => {
+    await supabase.from("contact_phones").update({ [field]: value }).eq("id", id);
+    refetch();
+  };
+  const deletePhone = async (id: string) => {
+    await supabase.from("contact_phones").delete().eq("id", id);
+    refetch();
+  };
+
+  // Emails
+  const addEmail = async (contactId: string) => {
+    await supabase.from("contact_emails").insert({ contact_id: contactId, email: "", label: "Privat" });
+    refetch();
+  };
+  const updateEmail = async (id: string, field: string, value: string) => {
+    await supabase.from("contact_emails").update({ [field]: value }).eq("id", id);
+    refetch();
+  };
+  const deleteEmail = async (id: string) => {
+    await supabase.from("contact_emails").delete().eq("id", id);
+    refetch();
+  };
+
   const roleLabel = managementMode === 'weg' ? 'Eigentümer' : 'Mieter';
 
   return (
