@@ -238,7 +238,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
         <div className="space-y-6 py-2">
           {/* Row 1: Buchung – Konto, Typ, Betrag */}
           <div className="rounded-xl border p-5 space-y-4">
-            <p className="text-sm font-semibold text-foreground">Buchung</p>
+            <p className="text-base font-semibold text-foreground">Buchung</p>
 
             <div>
               <Label className="text-sm mb-1.5 block">Konto (Soll) *</Label>
