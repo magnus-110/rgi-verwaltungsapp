@@ -46,6 +46,11 @@ export function Contacts() {
     fetchContacts();
   }, []);
 
+  const handleDeleted = () => {
+    setSelectedContactId(null);
+    fetchContacts();
+  };
+
   const selectedContact = contacts.find((c) => c.id === selectedContactId) || null;
 
   if (isMobile) {
