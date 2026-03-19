@@ -5,8 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, User, ChevronDown, ChevronUp, Phone, Mail, Trash2 } from "lucide-react";
+import { Plus, User, ChevronDown, ChevronUp, Phone, Mail, MapPin, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AssignContactDialog } from "./AssignContactDialog";
@@ -22,13 +23,6 @@ const USAGE_TYPES = [
   { value: "vermietet", label: "Vermietet" },
   { value: "fewo", label: "Ferienwohnung" },
   { value: "leerstand", label: "Leerstand" },
-];
-
-const ROLES = [
-  { value: "eigentuemer", label: "Eigentümer" },
-  { value: "mieter", label: "Mieter" },
-  { value: "verwalter", label: "Verwalter" },
-  { value: "beirat", label: "Beirat" },
 ];
 
 const SHARE_TYPES = [
@@ -81,9 +75,10 @@ interface ContactAssignment {
 
 interface Props {
   buildingId: string;
+  managementMode?: string;
 }
 
-export function BuildingContactsList({ buildingId }: Props) {
+export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showAssign, setShowAssign] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ContactAssignment | null>(null);
@@ -146,8 +141,16 @@ export function BuildingContactsList({ buildingId }: Props) {
     return hg ? hg.amount : null;
   };
 
+  const isBeirat = (a: ContactAssignment) => a.role_in_building === 'beirat';
+
   const updateAssignment = async (id: string, field: string, value: any) => {
     await supabase.from("contact_building_assignments").update({ [field]: value || null }).eq("id", id);
+    refetch();
+  };
+
+  const toggleBeirat = async (a: ContactAssignment) => {
+    const newRole = a.role_in_building === 'beirat' ? 'eigentuemer' : 'beirat';
+    await supabase.from("contact_building_assignments").update({ role_in_building: newRole }).eq("id", a.id);
     refetch();
   };
 
@@ -192,6 +195,8 @@ export function BuildingContactsList({ buildingId }: Props) {
     refetch();
   };
 
+  const roleLabel = managementMode === 'weg' ? 'Eigentümer' : 'Mieter';
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -226,8 +231,9 @@ export function BuildingContactsList({ buildingId }: Props) {
                     <p className="text-sm font-medium truncate">{getDisplayName(a)}</p>
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0 flex-wrap">
+                    <Badge variant="outline" className="text-xs">{roleLabel}</Badge>
                     {a.unit_number && <Badge variant="secondary" className="text-xs">Einheit {a.unit_number}</Badge>}
-                    {a.role_in_building && <Badge variant="outline" className="text-xs">{ROLES.find(r => r.value === a.role_in_building)?.label || a.role_in_building}</Badge>}
+                    {managementMode === 'weg' && isBeirat(a) && <Badge className="text-xs bg-amber-100 text-amber-700 hover:bg-amber-100">Beirat</Badge>}
                     {mea !== null && <Badge variant="secondary" className="text-xs">MEA: {mea}</Badge>}
                     {hausgeld !== null && <Badge className="text-xs bg-emerald-100 text-emerald-700 hover:bg-emerald-100">{hausgeld.toFixed(2)} €</Badge>}
                   </div>
@@ -247,81 +253,96 @@ export function BuildingContactsList({ buildingId }: Props) {
 
               {/* Expanded details */}
               {isExpanded && (
-                <div className="px-4 pb-4 pt-1 border-t border-border space-y-4">
+                <div className="px-4 pb-4 pt-3 border-t border-border space-y-5">
                   {/* Contact info (read-only) */}
-                  <div className="flex flex-wrap gap-3 text-sm">
-                    {a.phones.map((p, i) => (
-                      <span key={i} className="flex items-center gap-1 text-muted-foreground">
-                        <Phone className="h-3 w-3" /> {p.phone_number}
-                      </span>
-                    ))}
-                    {a.emails.map((e, i) => (
-                      <span key={i} className="flex items-center gap-1 text-muted-foreground">
-                        <Mail className="h-3 w-3" /> {e.email}
-                      </span>
-                    ))}
+                  <div className="bg-muted/40 rounded-lg p-3 space-y-2">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Kontaktdaten</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {a.phones.map((p, i) => (
+                        <div key={i} className="flex items-center gap-2 text-sm">
+                          <Phone className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                          <span>{p.phone_number}</span>
+                          {p.label && <span className="text-xs text-muted-foreground">({p.label})</span>}
+                        </div>
+                      ))}
+                      {a.emails.map((e, i) => (
+                        <div key={i} className="flex items-center gap-2 text-sm">
+                          <Mail className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                          <span>{e.email}</span>
+                          {e.label && <span className="text-xs text-muted-foreground">({e.label})</span>}
+                        </div>
+                      ))}
+                      {(a.contact.address_street || a.contact.address_zip || a.contact.address_city) && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <MapPin className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                          <span>
+                            {[a.contact.address_street, [a.contact.address_zip, a.contact.address_city].filter(Boolean).join(" ")].filter(Boolean).join(", ")}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    {a.phones.length === 0 && a.emails.length === 0 && !a.contact.address_street && (
+                      <p className="text-xs text-muted-foreground italic">Keine Kontaktdaten hinterlegt</p>
+                    )}
                   </div>
 
-                  {/* Address */}
-                  {(a.contact.address_street || a.contact.address_zip || a.contact.address_city) && (
-                    <div className="text-sm text-muted-foreground">
-                      {a.contact.address_street && <span>{a.contact.address_street}, </span>}
-                      {a.contact.address_zip && <span>{a.contact.address_zip} </span>}
-                      {a.contact.address_city && <span>{a.contact.address_city}</span>}
-                    </div>
-                  )}
-
                   {/* Assignment fields */}
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    <div>
-                      <Label className="text-xs">Einheit Nr.</Label>
-                      <Input
-                        value={a.unit_number || ""}
-                        onChange={(e) => updateAssignment(a.id, "unit_number", e.target.value)}
-                        className="h-8 text-sm"
-                      />
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Einheitsdaten</p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div>
+                        <Label className="text-xs">Einheit Nr.</Label>
+                        <Input
+                          value={a.unit_number || ""}
+                          onChange={(e) => updateAssignment(a.id, "unit_number", e.target.value)}
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Etage / Lage</Label>
+                        <Input
+                          value={a.floor_location || ""}
+                          onChange={(e) => updateAssignment(a.id, "floor_location", e.target.value)}
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Nutzungsart</Label>
+                        <Select value={a.usage_type || ""} onValueChange={(v) => updateAssignment(a.id, "usage_type", v)}>
+                          <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Wählen" /></SelectTrigger>
+                          <SelectContent>
+                            {USAGE_TYPES.map(u => <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Nutzung seit</Label>
+                        <Input
+                          type="date"
+                          value={a.usage_since || ""}
+                          onChange={(e) => updateAssignment(a.id, "usage_since", e.target.value)}
+                          className="h-8 text-sm"
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <Label className="text-xs">Etage / Lage</Label>
-                      <Input
-                        value={a.floor_location || ""}
-                        onChange={(e) => updateAssignment(a.id, "floor_location", e.target.value)}
-                        className="h-8 text-sm"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Rolle</Label>
-                      <Select value={a.role_in_building || ""} onValueChange={(v) => updateAssignment(a.id, "role_in_building", v)}>
-                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Wählen" /></SelectTrigger>
-                        <SelectContent>
-                          {ROLES.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label className="text-xs">Nutzungsart</Label>
-                      <Select value={a.usage_type || ""} onValueChange={(v) => updateAssignment(a.id, "usage_type", v)}>
-                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Wählen" /></SelectTrigger>
-                        <SelectContent>
-                          {USAGE_TYPES.map(u => <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label className="text-xs">Nutzung seit</Label>
-                      <Input
-                        type="date"
-                        value={a.usage_since || ""}
-                        onChange={(e) => updateAssignment(a.id, "usage_since", e.target.value)}
-                        className="h-8 text-sm"
-                      />
-                    </div>
+
+                    {/* Beirat checkbox for WEG */}
+                    {managementMode === 'weg' && (
+                      <div className="flex items-center gap-2 pt-1">
+                        <Checkbox
+                          id={`beirat-${a.id}`}
+                          checked={isBeirat(a)}
+                          onCheckedChange={() => toggleBeirat(a)}
+                        />
+                        <Label htmlFor={`beirat-${a.id}`} className="text-sm cursor-pointer">Mitglied des Verwaltungsbeirats</Label>
+                      </div>
+                    )}
                   </div>
 
                   {/* Shares / Anteile */}
                   <div className="border-t border-border pt-3">
                     <div className="flex items-center justify-between mb-2">
-                      <Label className="text-xs font-semibold">Anteile / Verteilerschlüssel</Label>
+                      <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Anteile / Verteilerschlüssel</Label>
                       <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => addShare(a.id)}>
                         <Plus className="h-3 w-3 mr-1" /> Anteil
                       </Button>
@@ -336,10 +357,20 @@ export function BuildingContactsList({ buildingId }: Props) {
                           </SelectContent>
                         </Select>
                         <Input
-                          type="number"
-                          step="0.01"
-                          value={s.share_value}
-                          onChange={(e) => updateShare(s.id, "share_value", parseFloat(e.target.value) || 0)}
+                          type="text"
+                          inputMode="decimal"
+                          value={s.share_value === 0 ? "" : s.share_value}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === "" || val === "0") {
+                              updateShare(s.id, "share_value", 0);
+                            } else {
+                              const num = parseFloat(val);
+                              if (!isNaN(num)) updateShare(s.id, "share_value", num);
+                            }
+                          }}
+                          onFocus={(e) => { if (s.share_value === 0) e.target.value = ""; }}
+                          placeholder="0"
                           className="w-28 h-8 text-sm"
                         />
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => deleteShare(s.id)}>
@@ -352,7 +383,7 @@ export function BuildingContactsList({ buildingId }: Props) {
                   {/* Kosten */}
                   <div className="border-t border-border pt-3">
                     <div className="flex items-center justify-between mb-2">
-                      <Label className="text-xs font-semibold">Kosten</Label>
+                      <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Kosten</Label>
                       <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => addCost(a.id)}>
                         <Plus className="h-3 w-3 mr-1" /> Kosten
                       </Button>
@@ -367,12 +398,21 @@ export function BuildingContactsList({ buildingId }: Props) {
                           </SelectContent>
                         </Select>
                         <Input
-                          type="number"
-                          step="0.01"
-                          value={c.amount}
-                          onChange={(e) => updateCost(c.id, "amount", parseFloat(e.target.value) || 0)}
+                          type="text"
+                          inputMode="decimal"
+                          value={c.amount === 0 ? "" : c.amount}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === "" || val === "0") {
+                              updateCost(c.id, "amount", 0);
+                            } else {
+                              const num = parseFloat(val);
+                              if (!isNaN(num)) updateCost(c.id, "amount", num);
+                            }
+                          }}
+                          onFocus={(e) => { if (c.amount === 0) e.target.value = ""; }}
+                          placeholder="0,00"
                           className="w-24 h-8 text-sm"
-                          placeholder="Betrag"
                         />
                         <span className="text-xs text-muted-foreground">€</span>
                         <Select value={c.interval} onValueChange={(v) => updateCost(c.id, "interval", v)}>

@@ -246,7 +246,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
           {/* People Tab */}
           <TabsContent value="people" className="p-4 md:p-6 mt-0 space-y-6">
             {/* Contacts from new system */}
-            <BuildingContactsList buildingId={buildingId} />
+            <BuildingContactsList buildingId={buildingId} managementMode={building?.management_mode || 'weg'} />
 
             {/* Legacy users section */}
             {totalUsers > 0 && (
