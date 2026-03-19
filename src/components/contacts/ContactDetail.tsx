@@ -318,6 +318,11 @@ export function ContactDetail({ contact, onBack, onUpdate }: Props) {
               </Card>
             ))}
           </TabsContent>
+
+          {/* Gebäude Tab */}
+          <TabsContent value="gebaeude" className="mt-4">
+            <ContactBuildingAssignments contactId={contact.id} />
+          </TabsContent>
         </Tabs>
       </div>
     </div>
