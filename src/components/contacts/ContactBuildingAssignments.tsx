@@ -346,6 +346,45 @@ export function ContactBuildingAssignments({ contactId }: Props) {
                     ))}
                   </div>
 
+                  {/* Kosten */}
+                  <div className="border-t border-border pt-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <Label className="text-sm font-semibold">Kosten</Label>
+                      <Button size="sm" variant="outline" onClick={() => addCost(a.id)}>
+                        <Plus className="h-3 w-3 mr-1" /> Kosten
+                      </Button>
+                    </div>
+                    {assignmentCosts.length === 0 && <p className="text-xs text-muted-foreground">Keine Kosten definiert</p>}
+                    {assignmentCosts.map(c => (
+                      <div key={c.id} className="flex items-center gap-2 mt-2">
+                        <Select value={c.cost_type} onValueChange={(v) => updateCost(c.id, "cost_type", v)}>
+                          <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {COST_TYPES.map(ct => <SelectItem key={ct} value={ct}>{ct}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={c.amount}
+                          onChange={(e) => updateCost(c.id, "amount", parseFloat(e.target.value) || 0)}
+                          className="w-28"
+                          placeholder="Betrag"
+                        />
+                        <span className="text-sm text-muted-foreground">€</span>
+                        <Select value={c.interval} onValueChange={(v) => updateCost(c.id, "interval", v)}>
+                          <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {INTERVALS.map(i => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <Button size="icon" variant="ghost" onClick={() => deleteCost(c.id)}>
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+
                   <div>
                     <Label>Notizen</Label>
                     <Textarea value={a.notes || ""} onChange={(e) => updateAssignment(a.id, "notes", e.target.value)} rows={2} />
