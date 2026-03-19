@@ -114,6 +114,18 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
     loadRelated();
   };
 
+  const deleteContact = async () => {
+    setDeleting(true);
+    const { error } = await supabase.from("contacts").delete().eq("id", contact.id);
+    setDeleting(false);
+    if (error) {
+      toast({ title: "Fehler beim Löschen", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Kontakt gelöscht" });
+      onDeleted?.();
+    }
+  };
+
   const displayName = form.company_name || [form.salutation, form.first_name, form.last_name].filter(Boolean).join(" ") || "Unbenannt";
 
   return (
@@ -127,9 +139,32 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
           )}
           <h2 className="text-xl font-semibold truncate">{displayName}</h2>
         </div>
-        <Button onClick={saveContact} disabled={saving} size="sm">
-          <Save className="h-4 w-4 mr-2" />{saving ? "..." : "Speichern"}
-        </Button>
+        <div className="flex items-center gap-2">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive">
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Kontakt löschen?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  <strong>{displayName}</strong> wird unwiderruflich gelöscht, einschließlich aller Telefonnummern, E-Mails, Bankverbindungen und Gebäude-Zuordnungen.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                <AlertDialogAction onClick={deleteContact} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                  {deleting ? "Löscht..." : "Endgültig löschen"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <Button onClick={saveContact} disabled={saving} size="sm">
+            <Save className="h-4 w-4 mr-2" />{saving ? "..." : "Speichern"}
+          </Button>
+        </div>
       </div>
 
       <div className="p-6">
