@@ -57,7 +57,11 @@ export function InvoicesTab() {
         .order("created_at", { ascending: false })
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
-      if (filterBuilding !== "all") query = query.eq("building_id", filterBuilding);
+      if (filterBuilding === "unassigned") {
+        query = query.is("building_id", null);
+      } else if (filterBuilding !== "all") {
+        query = query.eq("building_id", filterBuilding);
+      }
       if (filterStatus !== "all") query = query.eq("status", filterStatus);
 
       const { data, error, count } = await query;
