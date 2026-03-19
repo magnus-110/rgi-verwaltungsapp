@@ -113,20 +113,29 @@ export function ContactBuildingAssignments({ contactId }: Props) {
     setBuildings(buildingsRes.data || []);
     setBankAccounts((banksRes.data || []) as BankAccount[]);
 
-    // Load shares for all assignments
+    // Load shares and costs for all assignments
     if (assignData.length > 0) {
-      const { data: sharesData } = await supabase
-        .from("contact_building_shares")
-        .select("*")
-        .in("assignment_id", assignData.map(a => a.id));
-      const grouped: Record<string, Share[]> = {};
-      (sharesData || []).forEach((s: any) => {
-        if (!grouped[s.assignment_id]) grouped[s.assignment_id] = [];
-        grouped[s.assignment_id].push(s as Share);
+      const ids = assignData.map(a => a.id);
+      const [sharesRes, costsRes] = await Promise.all([
+        supabase.from("contact_building_shares").select("*").in("assignment_id", ids),
+        supabase.from("contact_building_costs").select("*").in("assignment_id", ids),
+      ]);
+      const groupedShares: Record<string, Share[]> = {};
+      (sharesRes.data || []).forEach((s: any) => {
+        if (!groupedShares[s.assignment_id]) groupedShares[s.assignment_id] = [];
+        groupedShares[s.assignment_id].push(s as Share);
       });
-      setShares(grouped);
+      setShares(groupedShares);
+
+      const groupedCosts: Record<string, Cost[]> = {};
+      (costsRes.data || []).forEach((c: any) => {
+        if (!groupedCosts[c.assignment_id]) groupedCosts[c.assignment_id] = [];
+        groupedCosts[c.assignment_id].push(c as Cost);
+      });
+      setCosts(groupedCosts);
     } else {
       setShares({});
+      setCosts({});
     }
   };
 
