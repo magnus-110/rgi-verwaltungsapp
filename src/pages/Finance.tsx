@@ -11,33 +11,33 @@ export const Finance = () => {
       <div>
         <h1 className="text-2xl font-bold">Finanzen</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Kontenrahmen, Rechnungen, Kontoauszüge und Buchungen verwalten
+          Rechnungen, Vorlagen, Kontoauszüge und Buchungen verwalten
         </p>
       </div>
 
-      <Tabs defaultValue="accounts" className="space-y-4">
+      <Tabs defaultValue="invoices" className="space-y-4">
         <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="accounts">Kontenrahmen</TabsTrigger>
           <TabsTrigger value="invoices">Rechnungen</TabsTrigger>
-          <TabsTrigger value="statements">Kontoauszüge</TabsTrigger>
           <TabsTrigger value="templates">Vorlagen</TabsTrigger>
+          <TabsTrigger value="statements">Kontoauszüge</TabsTrigger>
           <TabsTrigger value="bookings">Buchungen</TabsTrigger>
+          <TabsTrigger value="accounts">Kontenrahmen</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="accounts">
-          <ChartOfAccountsTab />
-        </TabsContent>
         <TabsContent value="invoices">
           <InvoicesTab />
-        </TabsContent>
-        <TabsContent value="statements">
-          <BankStatementsTab />
         </TabsContent>
         <TabsContent value="templates">
           <BookingTemplatesTab />
         </TabsContent>
+        <TabsContent value="statements">
+          <BankStatementsTab />
+        </TabsContent>
         <TabsContent value="bookings">
           <BookingsTab />
+        </TabsContent>
+        <TabsContent value="accounts">
+          <ChartOfAccountsTab />
         </TabsContent>
       </Tabs>
     </div>

@@ -6,11 +6,8 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Strip XML namespace prefixes so simple regex parsing works
 function stripNamespaces(xml: string): string {
-  // Remove namespace declarations: xmlns:xxx="..."
   let cleaned = xml.replace(/\sxmlns(:[a-zA-Z0-9]+)?="[^"]*"/g, "");
-  // Remove namespace prefixes from tags: <ns:Tag> -> <Tag>, </ns:Tag> -> </Tag>
   cleaned = cleaned.replace(/<\/?[a-zA-Z0-9]+:/g, (match) => {
     return match.startsWith("</") ? "</" : "<";
   });
@@ -28,37 +25,38 @@ function getAllTags(xml: string, tag: string): string[] {
   return xml.match(re) || [];
 }
 
+async function computeHash(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 function parseEntries(stmt: string, buildingId: string | null, statementId: string) {
   const entries = getAllTags(stmt, "Ntry");
   const transactions: any[] = [];
 
   for (const entry of entries) {
-    // Get amount from Amt tag - handle attribute-based format
     const amtMatch = entry.match(/<Amt[^>]*>([\d.,]+)<\/Amt>/i);
     const amount = amtMatch ? parseFloat(amtMatch[1].replace(",", ".")) : 0;
     const currency = entry.match(/<Amt[^>]*Ccy="([^"]+)"/i)?.[1] || "EUR";
 
-    // Credit/Debit indicator
     const cdtDbtInd = getTag(entry, "CdtDbtInd");
     const signedAmount = cdtDbtInd === "DBIT" ? -Math.abs(amount) : Math.abs(amount);
 
     const bookingDate = getTag(getTag(entry, "BookgDt"), "Dt");
     const valueDate = getTag(getTag(entry, "ValDt"), "Dt");
 
-    // Transaction details - may be nested in NtryDtls/TxDtls or directly in NtryDtls
     const ntryDtls = getTag(entry, "NtryDtls");
     const txDtls = getTag(ntryDtls, "TxDtls") || ntryDtls;
-    
-    // Purpose: try Ustrd first, then Strd
+
     const rmtInf = getTag(txDtls, "RmtInf") || getTag(entry, "RmtInf");
     const purpose = getTag(rmtInf, "Ustrd") || getTag(entry, "AddtlNtryInf") || "";
 
-    // End-to-end reference
     const refs = getTag(txDtls, "Refs");
     const e2eMatch = refs.match(/<EndToEndId>([^<]*)<\/EndToEndId>/i);
     const e2e = e2eMatch ? e2eMatch[1] : null;
 
-    // Related parties
     const rltdPties = getTag(txDtls, "RltdPties");
     const dbtr = getTag(rltdPties, "Dbtr");
     const cdtr = getTag(rltdPties, "Cdtr");
@@ -85,6 +83,36 @@ function parseEntries(stmt: string, buildingId: string | null, statementId: stri
   return transactions;
 }
 
+async function addHashes(transactions: any[]): Promise<any[]> {
+  for (const txn of transactions) {
+    const raw = `${txn.booking_date}|${txn.amount}|${txn.creditor_iban || ""}|${txn.debtor_iban || ""}|${txn.purpose || ""}|${txn.end_to_end_ref || ""}`;
+    txn.transaction_hash = await computeHash(raw);
+  }
+  return transactions;
+}
+
+async function deduplicateTransactions(supabase: any, transactions: any[]): Promise<{ unique: any[]; duplicateCount: number }> {
+  if (transactions.length === 0) return { unique: [], duplicateCount: 0 };
+
+  const hashes = transactions.map((t) => t.transaction_hash);
+  
+  // Check in batches of 100
+  const existingHashes = new Set<string>();
+  for (let i = 0; i < hashes.length; i += 100) {
+    const batch = hashes.slice(i, i + 100);
+    const { data } = await supabase
+      .from("bank_transactions")
+      .select("transaction_hash")
+      .in("transaction_hash", batch);
+    if (data) {
+      data.forEach((r: any) => existingHashes.add(r.transaction_hash));
+    }
+  }
+
+  const unique = transactions.filter((t) => !existingHashes.has(t.transaction_hash));
+  return { unique, duplicateCount: transactions.length - unique.length };
+}
+
 async function matchTransactions(supabase: any, statementId: string) {
   const { data: savedTxns } = await supabase
     .from("bank_transactions")
@@ -108,11 +136,10 @@ async function matchTransactions(supabase: any, statementId: string) {
     const txnAbs = Math.abs(txn.amount);
     const txnIban = txn.amount < 0 ? txn.creditor_iban : txn.debtor_iban;
 
-    // Step 1: Match against paid invoices (IBAN + amount + optional invoice number)
     if (paidInvoices) {
-      // First try: IBAN + amount + invoice number in purpose (strongest match)
       let invoiceMatch = null;
-      
+
+      // Tier 1: IBAN + amount + invoice number
       if (txnIban && txn.purpose) {
         invoiceMatch = paidInvoices.find(
           (inv: any) =>
@@ -126,7 +153,7 @@ async function matchTransactions(supabase: any, statementId: string) {
         );
       }
 
-      // Second try: IBAN + amount (without invoice number check)
+      // Tier 2: IBAN + amount
       if (!invoiceMatch && txnIban) {
         invoiceMatch = paidInvoices.find(
           (inv: any) =>
@@ -138,7 +165,7 @@ async function matchTransactions(supabase: any, statementId: string) {
         );
       }
 
-      // Third try: invoice number in purpose + amount match (no IBAN needed)
+      // Tier 3: Invoice number + amount
       if (!invoiceMatch && txn.purpose) {
         invoiceMatch = paidInvoices.find(
           (inv: any) =>
@@ -160,7 +187,6 @@ async function matchTransactions(supabase: any, statementId: string) {
       }
     }
 
-    // Step 2: Match against booking templates
     if (templates) {
       const templateMatch = templates.find((t: any) => {
         if (t.vendor_iban && txnIban) {
@@ -219,30 +245,20 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Strip namespaces for easier parsing
     const cleanXml = stripNamespaces(xmlContent);
 
-    // Support both CAMT.053 (Stmt) and CAMT.052 (Rpt)
     let stmt = getTag(cleanXml, "Stmt");
-    if (!stmt) {
-      stmt = getTag(cleanXml, "Rpt");
-    }
-    
-    if (!stmt) {
-      console.error("No Stmt or Rpt element found in XML");
-      // Try to find entries directly in the document
-      stmt = cleanXml;
-    }
+    if (!stmt) stmt = getTag(cleanXml, "Rpt");
+    if (!stmt) stmt = cleanXml;
 
     console.log("XML length:", cleanXml.length, "Stmt/Rpt length:", stmt.length);
 
     const accountIban = getTag(getTag(getTag(stmt, "Acct"), "Id"), "IBAN");
 
-    // Extract statement period
     const frToDt = getTag(stmt, "FrToDt");
-    const frDt = getTag(getTag(frToDt, "FrDtTm"), "").substring(0, 10) || 
+    const frDt = getTag(getTag(frToDt, "FrDtTm"), "").substring(0, 10) ||
                  getTag(frToDt, "FrDt") || null;
-    const toDt = getTag(getTag(frToDt, "ToDtTm"), "").substring(0, 10) || 
+    const toDt = getTag(getTag(frToDt, "ToDtTm"), "").substring(0, 10) ||
                  getTag(frToDt, "ToDt") || null;
 
     // Create bank statement record
@@ -261,20 +277,42 @@ Deno.serve(async (req) => {
 
     if (stmtError) throw stmtError;
 
-    // Parse entries
-    const transactions = parseEntries(stmt, buildingId, statement.id);
+    // Parse entries and compute hashes
+    let transactions = parseEntries(stmt, buildingId, statement.id);
+    transactions = await addHashes(transactions);
     console.log("Parsed", transactions.length, "transactions from XML");
 
-    // Insert all transactions
-    if (transactions.length > 0) {
+    // Deduplicate
+    const { unique, duplicateCount } = await deduplicateTransactions(supabase, transactions);
+    console.log("Unique:", unique.length, "Duplicates skipped:", duplicateCount);
+
+    // Insert unique transactions
+    if (unique.length > 0) {
       const { error: txError } = await supabase
         .from("bank_transactions")
-        .insert(transactions);
+        .insert(unique);
       if (txError) throw txError;
     }
 
+    // If no unique transactions were imported, delete the empty statement
+    if (unique.length === 0 && duplicateCount > 0) {
+      await supabase.from("bank_statements").delete().eq("id", statement.id);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          statementId: null,
+          totalTransactions: 0,
+          duplicatesSkipped: duplicateCount,
+          matchedCount: 0,
+          unmatchedCount: 0,
+          message: `Alle ${duplicateCount} Transaktionen waren bereits importiert.`,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Matching phase
-    const matchResult = transactions.length > 0 
+    const matchResult = unique.length > 0
       ? await matchTransactions(supabase, statement.id)
       : { matched: 0, total: 0 };
 
@@ -282,9 +320,10 @@ Deno.serve(async (req) => {
       JSON.stringify({
         success: true,
         statementId: statement.id,
-        totalTransactions: transactions.length,
+        totalTransactions: unique.length,
+        duplicatesSkipped: duplicateCount,
         matchedCount: matchResult.matched,
-        unmatchedCount: transactions.length - matchResult.matched,
+        unmatchedCount: unique.length - matchResult.matched,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

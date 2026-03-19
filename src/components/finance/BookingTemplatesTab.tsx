@@ -105,6 +105,10 @@ export function BookingTemplatesTab() {
       toast.error("Name ist erforderlich");
       return;
     }
+    if (!form.building_id) {
+      toast.error("Liegenschaft ist erforderlich");
+      return;
+    }
 
     const payload = {
       name: form.name.trim(),
@@ -168,6 +172,7 @@ export function BookingTemplatesTab() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
+                  <TableHead>Liegenschaft</TableHead>
                   <TableHead>Kreditor</TableHead>
                   <TableHead>IBAN</TableHead>
                   <TableHead className="text-right">Betrag</TableHead>
@@ -180,6 +185,7 @@ export function BookingTemplatesTab() {
                 {templates.map((t: any) => (
                   <TableRow key={t.id}>
                     <TableCell className="font-medium text-sm">{t.name}</TableCell>
+                    <TableCell className="text-sm">{t.buildings?.name || "–"}</TableCell>
                     <TableCell className="text-sm">{t.vendor_name || "–"}</TableCell>
                     <TableCell className="text-sm font-mono text-xs">{t.vendor_iban || "–"}</TableCell>
                     <TableCell className="text-sm text-right font-mono">
@@ -245,9 +251,9 @@ export function BookingTemplatesTab() {
               </div>
             </div>
             <div>
-              <Label>Liegenschaft</Label>
+              <Label>Liegenschaft *</Label>
               <Select value={form.building_id} onValueChange={(v) => setForm({ ...form, building_id: v })}>
-                <SelectTrigger><SelectValue placeholder="Optional" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Liegenschaft wählen" /></SelectTrigger>
                 <SelectContent>
                   {buildings.map((b) => (
                     <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
