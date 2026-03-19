@@ -13,6 +13,8 @@ import { BulkUpload } from "@/components/BulkUpload";
 import { UsersList } from "@/components/UsersList";
 import { BuildingReportsTab } from "./BuildingReportsTab";
 import { BuildingFilesTab } from "./BuildingFilesTab";
+import { BuildingForumTab } from "./BuildingForumTab";
+import { BuildingMaintenanceTab } from "./BuildingMaintenanceTab";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -277,13 +279,14 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
             <BuildingFilesTab buildingId={buildingId} managementMode={building.management_mode} />
           </TabsContent>
 
-          {/* Placeholder tabs for Iteration 3 */}
+          {/* Forum Tab */}
           <TabsContent value="forum" className="p-4 md:p-6 mt-0">
-            <PlaceholderTab icon={Newspaper} title="Schwarzes Brett" description="Das Schwarze Brett wird in Iteration 3 integriert." count={forumCount} />
+            <BuildingForumTab buildingId={buildingId} managementMode={building.management_mode} />
           </TabsContent>
 
+          {/* Maintenance Tab */}
           <TabsContent value="maintenance" className="p-4 md:p-6 mt-0">
-            <PlaceholderTab icon={Wrench} title="Wartung" description="Wartungskonfiguration wird in Iteration 3 integriert." />
+            <BuildingMaintenanceTab buildingId={buildingId} />
           </TabsContent>
         </ScrollArea>
       </Tabs>
