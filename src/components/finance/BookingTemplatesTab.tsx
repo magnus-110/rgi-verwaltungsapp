@@ -172,6 +172,7 @@ export function BookingTemplatesTab() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
+                  <TableHead>Liegenschaft</TableHead>
                   <TableHead>Kreditor</TableHead>
                   <TableHead>IBAN</TableHead>
                   <TableHead className="text-right">Betrag</TableHead>
