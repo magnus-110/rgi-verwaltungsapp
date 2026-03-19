@@ -131,10 +131,11 @@ export function ContactDetail({ contact, onBack, onUpdate }: Props) {
 
       <div className="p-6">
         <Tabs defaultValue="stammdaten">
-          <TabsList className="w-full grid grid-cols-3">
+          <TabsList className="w-full grid grid-cols-4">
             <TabsTrigger value="stammdaten">Stammdaten</TabsTrigger>
             <TabsTrigger value="kommunikation">Kommunikation</TabsTrigger>
-            <TabsTrigger value="bank">Bankverbindungen</TabsTrigger>
+            <TabsTrigger value="bank">Bank</TabsTrigger>
+            <TabsTrigger value="gebaeude">Gebäude</TabsTrigger>
           </TabsList>
 
           {/* Stammdaten Tab */}
