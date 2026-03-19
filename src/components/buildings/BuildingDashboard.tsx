@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Building2, MapPin, Hash, Edit, Trash2, Users, FileText, AlertCircle, Newspaper, Wrench, ChevronLeft } from "lucide-react";
+import { Building2, MapPin, Edit, Trash2, Users, FileText, AlertCircle, Newspaper, Wrench, ChevronLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -11,6 +11,8 @@ import { ManagerAssignmentDialog } from "@/components/ManagerAssignmentDialog";
 import { CreateUserDialog } from "@/components/CreateUserDialog";
 import { BulkUpload } from "@/components/BulkUpload";
 import { UsersList } from "@/components/UsersList";
+import { BuildingReportsTab } from "./BuildingReportsTab";
+import { BuildingFilesTab } from "./BuildingFilesTab";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -49,10 +51,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
         supabase.from('tenants').select('user_id', { count: 'exact', head: true }).eq('building_id', buildingId),
         supabase.from('weg_owner_buildings').select('user_id', { count: 'exact', head: true }).eq('building_id', buildingId),
       ]);
-      return {
-        tenants: tenantsResult.count || 0,
-        wegOwners: wegOwnersResult.count || 0,
-      };
+      return { tenants: tenantsResult.count || 0, wegOwners: wegOwnersResult.count || 0 };
     },
   });
 
@@ -61,12 +60,8 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
     queryFn: async () => {
       if (!building) return 0;
       const table = building.management_mode === 'weg' ? 'weg_reports' : 'miete_reports';
-      const { count, error } = await supabase
-        .from(table)
-        .select('*', { count: 'exact', head: true })
-        .eq('building_id', buildingId)
-        .eq('status', 'open');
-      if (error) return 0;
+      const { count } = await supabase.from(table).select('*', { count: 'exact', head: true })
+        .eq('building_id', buildingId).eq('status', 'open');
       return count || 0;
     },
     enabled: !!building,
@@ -75,11 +70,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
   const { data: fileCount = 0 } = useQuery({
     queryKey: ['building-file-count', buildingId],
     queryFn: async () => {
-      const { count, error } = await supabase
-        .from('building_files')
-        .select('*', { count: 'exact', head: true })
-        .eq('building_id', buildingId);
-      if (error) return 0;
+      const { count } = await supabase.from('building_files').select('*', { count: 'exact', head: true }).eq('building_id', buildingId);
       return count || 0;
     },
   });
@@ -87,11 +78,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
   const { data: forumCount = 0 } = useQuery({
     queryKey: ['building-forum-count', buildingId],
     queryFn: async () => {
-      const { count, error } = await supabase
-        .from('forum_posts')
-        .select('*', { count: 'exact', head: true })
-        .eq('building_id', buildingId);
-      if (error) return 0;
+      const { count } = await supabase.from('forum_posts').select('*', { count: 'exact', head: true }).eq('building_id', buildingId);
       return count || 0;
     },
   });
@@ -146,15 +133,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
             </div>
             <div className="min-w-0">
               <h1 className="text-xl md:text-2xl font-bold truncate">{building.name}</h1>
-              <div className="flex items-center text-sm text-muted-foreground mt-0.5">
-                <MapPin className="h-3.5 w-3.5 mr-1 flex-shrink-0" />
-                <span className="truncate">{building.address}</span>
-              </div>
-              <div className="flex items-center gap-2 mt-2 flex-wrap">
-                <Badge variant="outline" className="text-xs">
-                  <Hash className="h-3 w-3 mr-1" />
-                  {building.building_code}
-                </Badge>
+              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                 <Badge variant="secondary" className="text-xs">
                   {building.management_mode === 'weg' ? 'WEG' : 'Miete'}
                 </Badge>
@@ -187,26 +166,21 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
 
       {/* Tabs */}
       <Tabs defaultValue="overview" className="flex-1 flex flex-col min-h-0">
-        <div className="border-b border-border px-4 md:px-6 bg-card">
+        <div className="border-b border-border px-4 md:px-6 bg-card overflow-x-auto">
           <TabsList className="h-auto p-0 bg-transparent gap-0">
-            <TabsTrigger value="overview" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-3 text-sm">
-              Übersicht
-            </TabsTrigger>
-            <TabsTrigger value="people" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-3 text-sm">
-              Personen
-            </TabsTrigger>
-            <TabsTrigger value="reports" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-3 text-sm">
-              Meldungen
-            </TabsTrigger>
-            <TabsTrigger value="documents" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-3 text-sm">
-              Dokumente
-            </TabsTrigger>
-            <TabsTrigger value="forum" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-3 text-sm">
-              Schwarzes Brett
-            </TabsTrigger>
-            <TabsTrigger value="maintenance" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-3 text-sm">
-              Wartung
-            </TabsTrigger>
+            {[
+              { value: "overview", label: "Übersicht" },
+              { value: "people", label: "Personen" },
+              { value: "reports", label: "Meldungen" },
+              { value: "documents", label: "Dokumente" },
+              { value: "forum", label: "Schwarzes Brett" },
+              { value: "maintenance", label: "Wartung" },
+            ].map(tab => (
+              <TabsTrigger key={tab.value} value={tab.value}
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-3 text-sm whitespace-nowrap">
+                {tab.label}
+              </TabsTrigger>
+            ))}
           </TabsList>
         </div>
 
@@ -214,13 +188,12 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
           {/* Overview Tab */}
           <TabsContent value="overview" className="p-4 md:p-6 mt-0 space-y-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatCard icon={Users} label="Personen" value={totalUsers} color="text-blue-600" />
-              <StatCard icon={AlertCircle} label="Offene Meldungen" value={reportCount} color="text-orange-600" />
-              <StatCard icon={FileText} label="Dokumente" value={fileCount} color="text-emerald-600" />
-              <StatCard icon={Newspaper} label="Beiträge" value={forumCount} color="text-purple-600" />
+              <StatCard icon={Users} label="Personen" value={totalUsers} />
+              <StatCard icon={AlertCircle} label="Offene Meldungen" value={reportCount} />
+              <StatCard icon={FileText} label="Dokumente" value={fileCount} />
+              <StatCard icon={Newspaper} label="Beiträge" value={forumCount} />
             </div>
 
-            {/* Quick info sections */}
             <div className="grid md:grid-cols-2 gap-4">
               <Card>
                 <CardHeader className="pb-3">
@@ -251,16 +224,16 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
                 </CardHeader>
                 <CardContent className="space-y-2">
                   <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Adresse</span>
+                    <span className="font-medium text-right">{building.address}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Verwaltungsart</span>
-                    <span className="font-medium">{building.management_mode === 'weg' ? 'WEG-Verwaltung' : 'Mietverwaltung'}</span>
+                    <span className="font-medium">{building.management_mode === 'weg' ? 'WEG' : 'Miete'}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Einheiten</span>
                     <span className="font-medium">{building.unit_count}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Erstellt am</span>
-                    <span className="font-medium">{new Date(building.created_at!).toLocaleDateString('de-DE')}</span>
                   </div>
                 </CardContent>
               </Card>
@@ -272,47 +245,39 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h3 className="font-semibold text-lg">Zugewiesene Nutzer</h3>
               <div className="flex items-center gap-2">
-                <BulkUpload
-                  buildingId={buildingId}
-                  managementMode={building.management_mode}
-                  onUploadComplete={handleRefresh}
-                />
+                <BulkUpload buildingId={buildingId} managementMode={building.management_mode} onUploadComplete={handleRefresh} />
                 {building.management_mode === "rent" && (
-                  <Button size="sm" variant="outline" onClick={() => handleCreateUser("tenant")}>
-                    + Mieter
-                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => handleCreateUser("tenant")}>+ Mieter</Button>
                 )}
                 {building.management_mode === "weg" && (
-                  <Button size="sm" variant="outline" onClick={() => handleCreateUser("weg_owner")}>
-                    + WEG-Eigentümer
-                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => handleCreateUser("weg_owner")}>+ WEG-Eigentümer</Button>
                 )}
               </div>
             </div>
             <div className="space-y-2">
               {(userCounts?.tenants || 0) > 0 && (
-                <UsersList buildingId={buildingId} userType="tenants" count={userCounts!.tenants} />
+                <UsersList buildingId={buildingId} userType="tenants" count={userCounts!.tenants} defaultExpanded />
               )}
               {(userCounts?.wegOwners || 0) > 0 && (
-                <UsersList buildingId={buildingId} userType="weg_owners" count={userCounts!.wegOwners} />
+                <UsersList buildingId={buildingId} userType="weg_owners" count={userCounts!.wegOwners} defaultExpanded />
               )}
               {totalUsers === 0 && (
-                <div className="text-center py-8 text-sm text-muted-foreground">
-                  Keine Nutzer zugewiesen
-                </div>
+                <div className="text-center py-8 text-sm text-muted-foreground">Keine Nutzer zugewiesen</div>
               )}
             </div>
           </TabsContent>
 
-          {/* Placeholder tabs for Iteration 2+ */}
+          {/* Reports Tab */}
           <TabsContent value="reports" className="p-4 md:p-6 mt-0">
-            <PlaceholderTab icon={AlertCircle} title="Meldungen" description="Meldungen für dieses Gebäude werden in Iteration 2 integriert." count={reportCount} />
+            <BuildingReportsTab buildingId={buildingId} managementMode={building.management_mode} />
           </TabsContent>
 
+          {/* Documents Tab */}
           <TabsContent value="documents" className="p-4 md:p-6 mt-0">
-            <PlaceholderTab icon={FileText} title="Dokumente" description="Dokumentenverwaltung wird in Iteration 2 integriert." count={fileCount} />
+            <BuildingFilesTab buildingId={buildingId} managementMode={building.management_mode} />
           </TabsContent>
 
+          {/* Placeholder tabs for Iteration 3 */}
           <TabsContent value="forum" className="p-4 md:p-6 mt-0">
             <PlaceholderTab icon={Newspaper} title="Schwarzes Brett" description="Das Schwarze Brett wird in Iteration 3 integriert." count={forumCount} />
           </TabsContent>
@@ -334,11 +299,11 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
   );
 };
 
-function StatCard({ icon: Icon, label, value, color }: { icon: any; label: string; value: number; color: string }) {
+function StatCard({ icon: Icon, label, value }: { icon: any; label: string; value: number }) {
   return (
     <Card>
       <CardContent className="p-4 flex items-center gap-3">
-        <div className={`p-2 rounded-lg bg-muted ${color}`}>
+        <div className="p-2 rounded-lg bg-primary/10 text-primary">
           <Icon className="h-5 w-5" />
         </div>
         <div>

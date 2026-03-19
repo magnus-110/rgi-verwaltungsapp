@@ -33,10 +33,11 @@ interface UsersListProps {
   buildingId: string;
   userType: 'tenants' | 'weg_owners';
   count: number;
+  defaultExpanded?: boolean;
 }
 
-export const UsersList = ({ buildingId, userType, count }: UsersListProps) => {
-  const [isExpanded, setIsExpanded] = useState(false);
+export const UsersList = ({ buildingId, userType, count, defaultExpanded = false }: UsersListProps) => {
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [page, setPage] = useState(0);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
