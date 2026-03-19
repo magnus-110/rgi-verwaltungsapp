@@ -33,6 +33,7 @@ interface UsersListProps {
   buildingId: string;
   userType: 'tenants' | 'weg_owners';
   count: number;
+  defaultExpanded?: boolean;
 }
 
 export const UsersList = ({ buildingId, userType, count }: UsersListProps) => {
