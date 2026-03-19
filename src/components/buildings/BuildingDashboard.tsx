@@ -17,6 +17,7 @@ import { BuildingFilesTab } from "./BuildingFilesTab";
 import { BuildingForumTab } from "./BuildingForumTab";
 import { BuildingMaintenanceTab } from "./BuildingMaintenanceTab";
 import { BuildingFinanceSummary } from "@/components/finance/BuildingFinanceSummary";
+import { BuildingDistributionKeysTab } from "@/components/finance/BuildingDistributionKeysTab";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -179,6 +180,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
               { value: "documents", label: "Dokumente" },
               { value: "forum", label: "Schwarzes Brett" },
               { value: "maintenance", label: "Wartung" },
+              { value: "distribution", label: "Verteilerschlüssel" },
               { value: "finance", label: "Finanzen" },
             ].map(tab => (
               <TabsTrigger key={tab.value} value={tab.value}
@@ -295,6 +297,11 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
           {/* Maintenance Tab */}
           <TabsContent value="maintenance" className="p-4 md:p-6 mt-0">
             <BuildingMaintenanceTab buildingId={buildingId} />
+          </TabsContent>
+
+          {/* Distribution Keys Tab */}
+          <TabsContent value="distribution" className="p-4 md:p-6 mt-0">
+            <BuildingDistributionKeysTab buildingId={buildingId} />
           </TabsContent>
 
           {/* Finance Tab */}
