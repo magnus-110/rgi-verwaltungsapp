@@ -19,58 +19,79 @@ export type Database = {
           account_id: string | null
           amount: number
           booking_date: string
+          booking_reference: string | null
+          booking_type: string | null
           building_id: string | null
           confirmed_at: string | null
           confirmed_by: string | null
+          counter_account_id: string | null
           created_at: string
           created_by: string | null
           description: string | null
           fiscal_year: number
           id: string
           invoice_id: string | null
+          is_35a_relevant: boolean | null
           performance_period_from: string | null
           performance_period_to: string | null
+          receipt_number: string | null
           source: string
           status: string
           updated_at: string
+          vat_amount: number | null
+          vat_rate: number | null
         }
         Insert: {
           account_id?: string | null
           amount: number
           booking_date: string
+          booking_reference?: string | null
+          booking_type?: string | null
           building_id?: string | null
           confirmed_at?: string | null
           confirmed_by?: string | null
+          counter_account_id?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
           fiscal_year: number
           id?: string
           invoice_id?: string | null
+          is_35a_relevant?: boolean | null
           performance_period_from?: string | null
           performance_period_to?: string | null
+          receipt_number?: string | null
           source?: string
           status?: string
           updated_at?: string
+          vat_amount?: number | null
+          vat_rate?: number | null
         }
         Update: {
           account_id?: string | null
           amount?: number
           booking_date?: string
+          booking_reference?: string | null
+          booking_type?: string | null
           building_id?: string | null
           confirmed_at?: string | null
           confirmed_by?: string | null
+          counter_account_id?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
           fiscal_year?: number
           id?: string
           invoice_id?: string | null
+          is_35a_relevant?: boolean | null
           performance_period_from?: string | null
           performance_period_to?: string | null
+          receipt_number?: string | null
           source?: string
           status?: string
           updated_at?: string
+          vat_amount?: number | null
+          vat_rate?: number | null
         }
         Relationships: [
           {
@@ -85,6 +106,13 @@ export type Database = {
             columns: ["building_id"]
             isOneToOne: false
             referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_counter_account_id_fkey"
+            columns: ["counter_account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
             referencedColumns: ["id"]
           },
           {
