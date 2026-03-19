@@ -1,0 +1,1 @@
+ALTER TABLE public.chart_of_accounts ADD COLUMN building_id uuid REFERENCES public.buildings(id) ON DELETE CASCADE DEFAULT NULL;

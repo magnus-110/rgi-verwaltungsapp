@@ -37,6 +37,7 @@ export function ChartOfAccountsTab() {
       const { data, error } = await supabase
         .from("chart_of_accounts")
         .select("*")
+        .is("building_id", null)
         .order("sort_order", { ascending: true });
       if (error) throw error;
       return data;
