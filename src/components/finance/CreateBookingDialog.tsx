@@ -328,7 +328,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
           </div>
 
           {/* Row 3: Steuer & Optionen */}
-          <div className="rounded-xl border p-5 space-y-4">
+          <div className="rounded-xl border p-6 space-y-5">
             <p className="text-base font-semibold text-foreground">Steuer & Optionen</p>
             <div className="flex items-end gap-6 flex-wrap">
               <div className="flex-1 min-w-[200px]">
