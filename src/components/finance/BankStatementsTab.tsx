@@ -7,10 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Upload, FileText, Loader2, ChevronDown, ChevronUp, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff, Trash2, Building2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Upload, FileText, Loader2, ChevronDown, ChevronUp, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff, Trash2, Building2, BookOpen, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
+import { TransactionDetailSheet } from "./TransactionDetailSheet";
 
 const MATCH_STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   matched_invoice: { label: "Rechnung", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200", icon: CheckCircle2 },
@@ -24,9 +27,14 @@ export function BankStatementsTab() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [booking, setBooking] = useState(false);
   const [selectedBuilding, setSelectedBuilding] = useState<string>("all");
   const [expandedStatement, setExpandedStatement] = useState<string | null>(null);
   const [assigningBuilding, setAssigningBuilding] = useState<string | null>(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<string | null>(null);
+  const [manualAssignTxn, setManualAssignTxn] = useState<any | null>(null);
+  const [manualAssignType, setManualAssignType] = useState<"invoice" | "template">("invoice");
+  const [manualAssignId, setManualAssignId] = useState<string>("");
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
@@ -68,6 +76,33 @@ export function BankStatementsTab() {
     enabled: !!expandedStatement,
   });
 
+  // For manual assignment dialog
+  const { data: invoicesList = [] } = useQuery({
+    queryKey: ["invoices-for-assign"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("invoices")
+        .select("id, invoice_number, vendor_name, gross_amount")
+        .eq("status", "paid")
+        .order("invoice_date", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: templatesList = [] } = useQuery({
+    queryKey: ["templates-for-assign"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("booking_templates")
+        .select("id, name, vendor_name")
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -89,9 +124,16 @@ export function BankStatementsTab() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      toast.success(
-        `${data.totalTransactions} Transaktionen importiert, davon ${data.matchedCount} automatisch zugeordnet`
-      );
+      const parts = [];
+      if (data.totalTransactions > 0) parts.push(`${data.totalTransactions} importiert`);
+      if (data.matchedCount > 0) parts.push(`${data.matchedCount} zugeordnet`);
+      if (data.duplicatesSkipped > 0) parts.push(`${data.duplicatesSkipped} Duplikate übersprungen`);
+      if (data.message) {
+        toast.info(data.message);
+      } else {
+        toast.success(parts.join(", "));
+      }
+
       queryClient.invalidateQueries({ queryKey: ["bank-statements"] });
       if (data.statementId) setExpandedStatement(data.statementId);
     } catch (err: any) {
@@ -105,19 +147,10 @@ export function BankStatementsTab() {
 
   const deleteStatement = async (stmtId: string) => {
     try {
-      // Delete transactions first, then statement
-      const { error: txError } = await supabase
-        .from("bank_transactions")
-        .delete()
-        .eq("statement_id", stmtId);
+      const { error: txError } = await supabase.from("bank_transactions").delete().eq("statement_id", stmtId);
       if (txError) throw txError;
-
-      const { error: stmtError } = await supabase
-        .from("bank_statements")
-        .delete()
-        .eq("id", stmtId);
+      const { error: stmtError } = await supabase.from("bank_statements").delete().eq("id", stmtId);
       if (stmtError) throw stmtError;
-
       if (expandedStatement === stmtId) setExpandedStatement(null);
       toast.success("Kontoauszug gelöscht");
       queryClient.invalidateQueries({ queryKey: ["bank-statements"] });
@@ -129,19 +162,10 @@ export function BankStatementsTab() {
 
   const assignBuildingToStatement = async (stmtId: string, buildingId: string | null) => {
     try {
-      const { error: stmtError } = await supabase
-        .from("bank_statements")
-        .update({ building_id: buildingId })
-        .eq("id", stmtId);
+      const { error: stmtError } = await supabase.from("bank_statements").update({ building_id: buildingId }).eq("id", stmtId);
       if (stmtError) throw stmtError;
-
-      // Also update all transactions
-      const { error: txError } = await supabase
-        .from("bank_transactions")
-        .update({ building_id: buildingId })
-        .eq("statement_id", stmtId);
+      const { error: txError } = await supabase.from("bank_transactions").update({ building_id: buildingId }).eq("statement_id", stmtId);
       if (txError) throw txError;
-
       toast.success("Liegenschaft zugeordnet");
       setAssigningBuilding(null);
       queryClient.invalidateQueries({ queryKey: ["bank-statements"] });
@@ -152,10 +176,7 @@ export function BankStatementsTab() {
   };
 
   const updateMatchStatus = async (txnId: string, status: string) => {
-    const { error } = await supabase
-      .from("bank_transactions")
-      .update({ match_status: status })
-      .eq("id", txnId);
+    const { error } = await supabase.from("bank_transactions").update({ match_status: status }).eq("id", txnId);
     if (error) {
       toast.error("Fehler beim Aktualisieren");
     } else {
@@ -163,16 +184,115 @@ export function BankStatementsTab() {
     }
   };
 
+  const handleManualAssign = async () => {
+    if (!manualAssignTxn || !manualAssignId) return;
+
+    const updateData: any = { match_status: "manually_matched" };
+    if (manualAssignType === "invoice") {
+      updateData.matched_invoice_id = manualAssignId;
+    } else {
+      updateData.matched_template_id = manualAssignId;
+    }
+
+    const { error } = await supabase.from("bank_transactions").update(updateData).eq("id", manualAssignTxn.id);
+    if (error) {
+      toast.error("Fehler beim Zuordnen");
+    } else {
+      toast.success("Transaktion manuell zugeordnet");
+      setManualAssignTxn(null);
+      setManualAssignId("");
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
+    }
+  };
+
+  const handleBookStatement = async (stmtId: string) => {
+    setBooking(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-booking-data", {
+        body: { statementId: stmtId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success(data.message || "Buchungen gesendet");
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
+    } catch (err: any) {
+      toast.error("Fehler beim Buchen: " + (err.message || "Unbekannter Fehler"));
+    } finally {
+      setBooking(false);
+    }
+  };
+
   const getMatchCounts = (stmtId: string) => {
     if (expandedStatement !== stmtId) return null;
-    const matched = transactions.filter((t) => t.match_status !== "unmatched" && t.match_status !== "ignored").length;
-    return { total: transactions.length, matched, unmatched: transactions.length - matched };
+    const matched = transactions.filter((t) => ["matched_invoice", "matched_template", "manually_matched"].includes(t.match_status)).length;
+    const booked = transactions.filter((t) => t.booked_at).length;
+    const unmatched = transactions.filter((t) => t.match_status === "unmatched").length;
+    const ignored = transactions.filter((t) => t.match_status === "ignored").length;
+    const bookable = transactions.filter((t) => ["matched_invoice", "matched_template", "manually_matched"].includes(t.match_status) && !t.booked_at).length;
+    return { total: transactions.length, matched, booked, unmatched, ignored, bookable };
   };
 
   const getBuildingName = (buildingId: string | null) => {
     if (!buildingId) return null;
     const b = buildings.find((b) => b.id === buildingId);
     return b ? b.name : null;
+  };
+
+  // Split transactions
+  const matchedTransactions = transactions.filter((t) => ["matched_invoice", "matched_template", "manually_matched"].includes(t.match_status));
+  const unmatchedTransactions = transactions.filter((t) => t.match_status === "unmatched");
+  const ignoredTransactions = transactions.filter((t) => t.match_status === "ignored");
+
+  const renderTransactionRow = (txn: any) => {
+    const config = MATCH_STATUS_CONFIG[txn.match_status] || MATCH_STATUS_CONFIG.unmatched;
+    const Icon = config.icon;
+    const name = txn.amount < 0 ? txn.creditor_name : txn.debtor_name;
+    return (
+      <TableRow
+        key={txn.id}
+        className="cursor-pointer hover:bg-accent/50"
+        onClick={() => setSelectedTransaction(txn.id)}
+      >
+        <TableCell className="text-sm whitespace-nowrap">
+          {format(new Date(txn.booking_date), "dd.MM.yyyy")}
+        </TableCell>
+        <TableCell className="text-sm max-w-[150px] truncate">{name || "–"}</TableCell>
+        <TableCell className="text-sm max-w-[200px] truncate">{txn.purpose || "–"}</TableCell>
+        <TableCell className={`text-sm text-right font-mono whitespace-nowrap ${txn.amount < 0 ? "text-destructive" : "text-green-600"}`}>
+          {txn.amount < 0 ? "" : "+"}{Number(txn.amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
+        </TableCell>
+        <TableCell>
+          <div className="flex items-center gap-1">
+            <Badge className={`text-xs gap-1 ${config.color}`} variant="outline">
+              <Icon className="h-3 w-3" />
+              {config.label}
+            </Badge>
+            {txn.booked_at && (
+              <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-950">✓</Badge>
+            )}
+          </div>
+        </TableCell>
+        <TableCell onClick={(e) => e.stopPropagation()}>
+          {txn.match_status === "unmatched" && (
+            <div className="flex gap-1">
+              <Button variant="ghost" size="sm" className="text-xs" onClick={() => { setManualAssignTxn(txn); setManualAssignType("invoice"); setManualAssignId(""); }}>
+                <Link2 className="h-3 w-3 mr-1" />
+                Zuordnen
+              </Button>
+              <Button variant="ghost" size="sm" className="text-xs" onClick={() => updateMatchStatus(txn.id, "ignored")}>
+                <EyeOff className="h-3 w-3 mr-1" />
+                Ignorieren
+              </Button>
+            </div>
+          )}
+          {txn.match_status === "ignored" && (
+            <Button variant="ghost" size="sm" className="text-xs" onClick={() => updateMatchStatus(txn.id, "unmatched")}>
+              Wiederherstellen
+            </Button>
+          )}
+        </TableCell>
+      </TableRow>
+    );
   };
 
   return (
@@ -189,19 +309,11 @@ export function BankStatementsTab() {
                 <SelectContent>
                   <SelectItem value="all">Alle Liegenschaften</SelectItem>
                   {buildings.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>
-                      {b.name}
-                    </SelectItem>
+                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xml"
-                className="hidden"
-                onChange={handleFileUpload}
-              />
+              <input ref={fileInputRef} type="file" accept=".xml" className="hidden" onChange={handleFileUpload} />
               <Button onClick={() => fileInputRef.current?.click()} disabled={uploading}>
                 {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
                 CAMT importieren
@@ -258,9 +370,16 @@ export function BankStatementsTab() {
                       <div className="flex items-center gap-2 shrink-0">
                         {counts && (
                           <div className="flex gap-1">
-                            <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-950">
-                              {counts.matched} zugeordnet
-                            </Badge>
+                            {counts.booked > 0 && (
+                              <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-950">
+                                {counts.booked}/{counts.total} gebucht
+                              </Badge>
+                            )}
+                            {counts.booked === 0 && counts.matched > 0 && (
+                              <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-950">
+                                {counts.matched} zugeordnet
+                              </Badge>
+                            )}
                             {counts.unmatched > 0 && (
                               <Badge variant="outline" className="text-xs bg-yellow-50 dark:bg-yellow-950">
                                 {counts.unmatched} offen
@@ -268,8 +387,20 @@ export function BankStatementsTab() {
                             )}
                           </div>
                         )}
-                        
-                        {/* Assign building */}
+
+                        {/* Book button */}
+                        {counts && counts.bookable > 0 && (
+                          <Button
+                            size="sm"
+                            className="text-xs"
+                            disabled={booking}
+                            onClick={() => handleBookStatement(stmt.id)}
+                          >
+                            {booking ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <BookOpen className="h-3.5 w-3.5 mr-1" />}
+                            Buchen ({counts.bookable})
+                          </Button>
+                        )}
+
                         {assigningBuilding === stmt.id ? (
                           <Select
                             value={stmt.building_id || "none"}
@@ -286,17 +417,11 @@ export function BankStatementsTab() {
                             </SelectContent>
                           </Select>
                         ) : (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-xs"
-                            onClick={() => setAssigningBuilding(stmt.id)}
-                          >
+                          <Button variant="ghost" size="sm" className="text-xs" onClick={() => setAssigningBuilding(stmt.id)}>
                             <Building2 className="h-3.5 w-3.5" />
                           </Button>
                         )}
 
-                        {/* Delete */}
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
@@ -312,10 +437,7 @@ export function BankStatementsTab() {
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => deleteStatement(stmt.id)}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              >
+                              <AlertDialogAction onClick={() => deleteStatement(stmt.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                                 Löschen
                               </AlertDialogAction>
                             </AlertDialogFooter>
@@ -329,79 +451,88 @@ export function BankStatementsTab() {
                     </div>
 
                     {isExpanded && (
-                      <div className="border-t px-4 pb-4">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Datum</TableHead>
-                              <TableHead>Name</TableHead>
-                              <TableHead>Verwendungszweck</TableHead>
-                              <TableHead className="text-right">Betrag</TableHead>
-                              <TableHead>Status</TableHead>
-                              <TableHead>Aktionen</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {transactions.length === 0 ? (
-                              <TableRow>
-                                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
-                                  Keine Transaktionen
-                                </TableCell>
-                              </TableRow>
-                            ) : (
-                              transactions.map((txn: any) => {
-                                const config = MATCH_STATUS_CONFIG[txn.match_status] || MATCH_STATUS_CONFIG.unmatched;
-                                const Icon = config.icon;
-                                const name = txn.amount < 0 ? txn.creditor_name : txn.debtor_name;
-                                return (
-                                  <TableRow key={txn.id}>
-                                    <TableCell className="text-sm whitespace-nowrap">
-                                      {format(new Date(txn.booking_date), "dd.MM.yyyy")}
-                                    </TableCell>
-                                    <TableCell className="text-sm max-w-[150px] truncate">
-                                      {name || "–"}
-                                    </TableCell>
-                                    <TableCell className="text-sm max-w-[200px] truncate">
-                                      {txn.purpose || "–"}
-                                    </TableCell>
-                                    <TableCell className={`text-sm text-right font-mono whitespace-nowrap ${txn.amount < 0 ? "text-destructive" : "text-green-600"}`}>
-                                      {txn.amount < 0 ? "" : "+"}{Number(txn.amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
-                                    </TableCell>
-                                    <TableCell>
-                                      <Badge className={`text-xs gap-1 ${config.color}`} variant="outline">
-                                        <Icon className="h-3 w-3" />
-                                        {config.label}
-                                      </Badge>
-                                    </TableCell>
-                                    <TableCell>
-                                      {txn.match_status === "unmatched" && (
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          className="text-xs"
-                                          onClick={() => updateMatchStatus(txn.id, "ignored")}
-                                        >
-                                          <EyeOff className="h-3 w-3 mr-1" />
-                                          Ignorieren
-                                        </Button>
-                                      )}
-                                      {txn.match_status === "ignored" && (
-                                        <Button
-                                          variant="ghost"
-                                          size="sm"
-                                          className="text-xs"
-                                          onClick={() => updateMatchStatus(txn.id, "unmatched")}
-                                        >
-                                          Wiederherstellen
-                                        </Button>
-                                      )}
-                                    </TableCell>
-                                  </TableRow>
-                                );
-                              })
-                            )}
-                          </TableBody>
-                        </Table>
+                      <div className="border-t px-4 pb-4 space-y-4">
+                        {/* Matched transactions */}
+                        {matchedTransactions.length > 0 && (
+                          <div>
+                            <h4 className="text-sm font-semibold text-foreground mt-4 mb-2 flex items-center gap-2">
+                              <CheckCircle2 className="h-4 w-4 text-green-600" />
+                              Zugeordnete Transaktionen ({matchedTransactions.length})
+                            </h4>
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Datum</TableHead>
+                                  <TableHead>Name</TableHead>
+                                  <TableHead>Verwendungszweck</TableHead>
+                                  <TableHead className="text-right">Betrag</TableHead>
+                                  <TableHead>Status</TableHead>
+                                  <TableHead></TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {matchedTransactions.map(renderTransactionRow)}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        )}
+
+                        {/* Unmatched transactions */}
+                        {unmatchedTransactions.length > 0 && (
+                          <div>
+                            <h4 className="text-sm font-semibold text-foreground mt-4 mb-2 flex items-center gap-2">
+                              <FileQuestion className="h-4 w-4 text-yellow-600" />
+                              Unbekannte Transaktionen ({unmatchedTransactions.length})
+                            </h4>
+                            <p className="text-xs text-muted-foreground mb-2">
+                              Diese Transaktionen konnten keiner Rechnung oder Vorlage zugeordnet werden. Ordnen Sie sie manuell zu oder ignorieren Sie sie.
+                            </p>
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Datum</TableHead>
+                                  <TableHead>Name</TableHead>
+                                  <TableHead>Verwendungszweck</TableHead>
+                                  <TableHead className="text-right">Betrag</TableHead>
+                                  <TableHead>Status</TableHead>
+                                  <TableHead>Aktionen</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {unmatchedTransactions.map(renderTransactionRow)}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        )}
+
+                        {/* Ignored transactions */}
+                        {ignoredTransactions.length > 0 && (
+                          <div>
+                            <h4 className="text-sm font-semibold text-muted-foreground mt-4 mb-2 flex items-center gap-2">
+                              <EyeOff className="h-4 w-4" />
+                              Ignorierte Transaktionen ({ignoredTransactions.length})
+                            </h4>
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Datum</TableHead>
+                                  <TableHead>Name</TableHead>
+                                  <TableHead>Verwendungszweck</TableHead>
+                                  <TableHead className="text-right">Betrag</TableHead>
+                                  <TableHead>Status</TableHead>
+                                  <TableHead></TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {ignoredTransactions.map(renderTransactionRow)}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        )}
+
+                        {transactions.length === 0 && (
+                          <p className="text-center text-muted-foreground py-8">Keine Transaktionen</p>
+                        )}
                       </div>
                     )}
                   </div>
@@ -411,6 +542,68 @@ export function BankStatementsTab() {
           )}
         </CardContent>
       </Card>
+
+      {/* Transaction Detail Sheet */}
+      <TransactionDetailSheet
+        transactionId={selectedTransaction}
+        onClose={() => setSelectedTransaction(null)}
+      />
+
+      {/* Manual Assignment Dialog */}
+      <Dialog open={!!manualAssignTxn} onOpenChange={() => setManualAssignTxn(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Transaktion manuell zuordnen</DialogTitle>
+          </DialogHeader>
+          {manualAssignTxn && (
+            <div className="space-y-4">
+              <div className="bg-muted p-3 rounded-md text-sm">
+                <p className="font-medium">
+                  {manualAssignTxn.amount < 0 ? "" : "+"}{Number(manualAssignTxn.amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
+                </p>
+                <p className="text-muted-foreground text-xs mt-1">{manualAssignTxn.purpose || "Kein Verwendungszweck"}</p>
+              </div>
+
+              <div>
+                <Label>Zuordnungstyp</Label>
+                <Select value={manualAssignType} onValueChange={(v: "invoice" | "template") => { setManualAssignType(v); setManualAssignId(""); }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="invoice">Rechnung</SelectItem>
+                    <SelectItem value="template">Vorlage</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>{manualAssignType === "invoice" ? "Rechnung" : "Vorlage"}</Label>
+                <Select value={manualAssignId} onValueChange={setManualAssignId}>
+                  <SelectTrigger><SelectValue placeholder="Auswählen..." /></SelectTrigger>
+                  <SelectContent>
+                    {manualAssignType === "invoice" ? (
+                      invoicesList.map((inv: any) => (
+                        <SelectItem key={inv.id} value={inv.id}>
+                          {inv.invoice_number || "–"} | {inv.vendor_name || "–"} | {inv.gross_amount ? `${Number(inv.gross_amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €` : "–"}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      templatesList.map((t: any) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name} {t.vendor_name ? `(${t.vendor_name})` : ""}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setManualAssignTxn(null)}>Abbrechen</Button>
+            <Button onClick={handleManualAssign} disabled={!manualAssignId}>Zuordnen</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -251,9 +251,9 @@ export function BookingTemplatesTab() {
               </div>
             </div>
             <div>
-              <Label>Liegenschaft</Label>
+              <Label>Liegenschaft *</Label>
               <Select value={form.building_id} onValueChange={(v) => setForm({ ...form, building_id: v })}>
-                <SelectTrigger><SelectValue placeholder="Optional" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Liegenschaft wählen" /></SelectTrigger>
                 <SelectContent>
                   {buildings.map((b) => (
                     <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
