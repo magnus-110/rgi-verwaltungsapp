@@ -1,34 +1,86 @@
 
 
-# Plan: Buchungsmaske verbessern (ohne Webhook)
+# Plan: Rechnungseingang mit OCR-Extraktion
 
-## Kontext
-Der Webhook fuer Make.com wird NICHT bei manuellen Buchungen ausgeloest. Er kommt erst in Stufe 2 (OCR-Integration), wenn Rechnungen automatisch ausgelesen, bezahlt und zum Buchen freigegeben werden.
+## Uebersicht
 
-## Aenderungen
+PDF-Rechnungen per Drag-Drop hochladen, automatisch via Mistral OCR auslesen und strukturierte Daten (Lieferant, Betrag, Datum, IBAN, Positionen) extrahieren. Ergebnis wird als Rechnungs-Entwurf angezeigt, den der Nutzer pruefen und freigeben kann.
 
-### 1. §35a Auto-Select bei Kontoauswahl
-**Datei**: `src/components/finance/CreateBookingDialog.tsx`
+**Performance-Fokus**: Pagination, serverseitiges Filtern, kein vollstaendiges Laden aller Rechnungen.
 
-Wenn im Soll-Konto ein Konto ausgewaehlt wird, das `is_35a_relevant === true` hat, wird die §35a-Checkbox automatisch aktiviert.
+## 1. Datenbank-Erweiterungen
 
-- Im `onChange`-Handler des ersten AccountPickers: Account-Objekt aus `accounts`-Array nachschlagen, dann `set("is_35a_relevant", account.is_35a_relevant)` aufrufen.
+Neue Spalten auf `invoices` Tabelle:
+- `file_name` (text) - Original-Dateiname
+- `vendor_iban` (text) - extrahierte IBAN
+- `line_items` (jsonb) - extrahierte Positionen
+- `suggested_account_id` (uuid, FK chart_of_accounts) - KI-Kontovorschlag
+- `ocr_status` (text, default 'pending') - Status: pending/processing/done/error
+- `ocr_error` (text) - Fehlermeldung
 
-### 2. Dialog breiter und uebersichtlicher
-**Datei**: `src/components/finance/CreateBookingDialog.tsx`
+Index auf `(building_id, status)` und `(created_at DESC)` fuer performante Abfragen bei 10.000+ Datensaetzen.
 
-- `max-w-2xl` auf `max-w-4xl` aendern
-- Beleg-Zeile: 3-Spalten-Grid beibehalten, aber Buchungstext als volle Breite darunter
-- Steuer-Bereich: Mehr horizontaler Platz, groessere Radio-Buttons
-- Section-Titles etwas groesser (`text-base` statt `text-sm`)
-- Allgemein mehr Padding und Spacing
+## 2. Edge Function: `extract-invoice`
 
-### Kein Webhook
-Es wird keine Edge Function erstellt. Der `MAKE_BOOKING_WEBHOOK_URL` Secret wird erst bei der OCR-Stufe benoetigt.
+Neue Edge Function die:
+1. PDF aus `invoices` Storage-Bucket liest (signierte URL)
+2. Mistral OCR aufruft (wie `analyze-document` bereits tut)
+3. Mistral Tool-Calling nutzt um strukturierte Daten zu extrahieren:
 
-## Dateien
+```text
+Tool: extract_invoice_data
+Parameters:
+  - vendor_name (string)
+  - vendor_iban (string)
+  - invoice_number (string)
+  - invoice_date (string, ISO)
+  - due_date (string, ISO)
+  - net_amount (number)
+  - vat_amount (number)
+  - gross_amount (number)
+  - line_items (array of {description, amount, vat_rate})
+  - suggested_account_number (string) - basierend auf Rechnungsinhalt
+```
 
-| Datei | Aenderung |
+4. `invoices`-Zeile mit extrahierten Daten aktualisiert
+5. `ocr_status` auf 'done' setzt
+
+## 3. Frontend: InvoicesTab Redesign
+
+**Upload-Bereich**: Drag-Drop-Zone oben auf der Rechnungsseite. Mehrere PDFs gleichzeitig moeglich. Upload in `invoices` Storage-Bucket, dann sofort `extract-invoice` Edge Function aufrufen.
+
+**Rechnungsliste mit Pagination**:
+- Server-seitige Pagination (25 pro Seite) via `.range(from, to)`
+- Filter: Liegenschaft, Status, Zeitraum
+- Count-Query fuer Gesamtanzahl
+- Virtualisierung nicht noetig bei 25 pro Seite
+
+**Rechnungsdetail-Ansicht**: 
+- Inline-Expandable Row oder Sheet/Dialog
+- Zeigt OCR-extrahierte Daten editierbar an
+- PDF-Vorschau (signierte URL)
+- Kontovorschlag aus KI anzeigen, aenderbar
+- Status-Flow: Offen -> Geprueft -> Bezahlt -> Gebucht
+
+**"Buchen"-Aktion**: Bei Status "Bezahlt" erscheint Button "Buchen". Erstellt automatisch eine Buchung in `bookings` mit allen Daten aus der Rechnung und setzt Status auf "Gebucht". Erst hier wird spaeter der Make.com Webhook ausgeloest.
+
+## 4. Dateien
+
+| Datei | Aktion |
 |---|---|
-| `CreateBookingDialog.tsx` | Breiter, 35a-auto-select, besseres Spacing |
+| Migration SQL | Neue Spalten + Indizes auf `invoices` |
+| `supabase/functions/extract-invoice/index.ts` | Neue Edge Function (OCR + Strukturextraktion) |
+| `supabase/config.toml` | Neuer Function-Eintrag |
+| `src/components/finance/InvoicesTab.tsx` | Redesign mit Upload, Pagination, Detail |
+| `src/components/finance/InvoiceDropZone.tsx` | Neue Drag-Drop Upload Komponente |
+| `src/components/finance/InvoiceDetailSheet.tsx` | Neue Detail/Edit Ansicht |
+| `src/components/finance/CreateInvoiceDialog.tsx` | Anpassung (optional, bleibt fuer manuelle Eingabe) |
+
+## 5. Performance-Massnahmen
+
+- **Pagination**: `.range(offset, offset+limit)` + Count-Header
+- **Indizes**: `(building_id, status)`, `(created_at DESC)` fuer schnelle Filterung
+- **Lazy Loading**: PDF-Preview nur bei Klick laden (signierte URL on-demand)
+- **Optimistic Updates**: Status-Aenderungen sofort im UI, Rollback bei Fehler
+- **Query-Keys**: Granular (`["invoices", buildingId, status, page]`) damit nur betroffene Seiten invalidiert werden
 
