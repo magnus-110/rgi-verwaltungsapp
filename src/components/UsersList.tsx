@@ -92,12 +92,7 @@ export const UsersList = ({ buildingId, userType, count, defaultExpanded = false
   const title = userType === 'tenants' ? 'Mieter' : 'WEG-Eigentümer';
   const Icon = Users;
 
-  const handleToggle = () => {
-    setIsExpanded(!isExpanded);
-    if (!isExpanded) {
-      setPage(0); // Reset to first page when expanding
-    }
-  };
+  // Users are always visible, no toggle needed
 
   const hasMore = users.length === pageSize;
   const canLoadPrevious = page > 0;
