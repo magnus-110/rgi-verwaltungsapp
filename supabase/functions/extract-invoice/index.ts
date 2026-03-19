@@ -7,6 +7,56 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+function normalizeForMatch(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9äöüß]/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function findBestBuildingMatch(
+  recipientAddress: string,
+  buildings: { id: string; name: string; address: string }[]
+): string | null {
+  if (!recipientAddress) return null;
+  const normalized = normalizeForMatch(recipientAddress);
+  
+  let bestMatch: string | null = null;
+  let bestLength = 0;
+
+  for (const b of buildings) {
+    // Check if building address or name appears in the recipient address
+    const addressNorm = normalizeForMatch(b.address);
+    const nameNorm = normalizeForMatch(b.name);
+    
+    // Try address match (more specific, preferred)
+    if (addressNorm.length > 3 && normalized.includes(addressNorm)) {
+      if (addressNorm.length > bestLength) {
+        bestLength = addressNorm.length;
+        bestMatch = b.id;
+      }
+    }
+    
+    // Try name match
+    if (nameNorm.length > 3 && normalized.includes(nameNorm)) {
+      if (nameNorm.length > bestLength) {
+        bestLength = nameNorm.length;
+        bestMatch = b.id;
+      }
+    }
+    
+    // Also check if recipient address parts appear in building address (reverse match)
+    // Split recipient into meaningful parts (street + number patterns)
+    const streetPattern = normalized.match(/([a-zäöüß]+(?:str|straße|weg|platz|allee|gasse|ring|damm)[a-zäöüß]*\s*\d+)/);
+    if (streetPattern && addressNorm.includes(streetPattern[1])) {
+      const matchLen = streetPattern[1].length + 10; // bonus for street match
+      if (matchLen > bestLength) {
+        bestLength = matchLen;
+        bestMatch = b.id;
+      }
+    }
+  }
+
+  return bestMatch;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -63,7 +113,7 @@ serve(async (req) => {
     // Get invoice record
     const { data: invoice, error: invError } = await supabase
       .from("invoices")
-      .select("id, file_path, file_name")
+      .select("id, file_path, file_name, building_id")
       .eq("id", invoiceId)
       .single();
 
@@ -151,7 +201,7 @@ serve(async (req) => {
       });
     }
 
-    // Step 2: Mistral tool-calling to extract structured data
+    // Step 2: Mistral tool-calling to extract structured data (including recipient_address)
     const extractionResponse = await fetch("https://api.mistral.ai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -163,7 +213,7 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: "Du bist ein Experte für die Extraktion von Rechnungsdaten aus OCR-Text. Extrahiere alle relevanten Felder und rufe die Funktion extract_invoice_data auf. Wenn ein Feld nicht erkennbar ist, setze null. Betraege immer als Dezimalzahl (z.B. 1234.56). Datumsangaben im Format YYYY-MM-DD. Fuer suggested_account_number: Schlage eine passende Kontonummer aus dem deutschen SKR-Kontenrahmen vor (z.B. 4200 fuer Reparaturen, 4100 fuer Versicherungen, 4500 fuer Verwaltungskosten)."
+            content: "Du bist ein Experte für die Extraktion von Rechnungsdaten aus OCR-Text. Extrahiere alle relevanten Felder und rufe die Funktion extract_invoice_data auf. Wenn ein Feld nicht erkennbar ist, setze null. Betraege immer als Dezimalzahl (z.B. 1234.56). Datumsangaben im Format YYYY-MM-DD. Fuer suggested_account_number: Schlage eine passende Kontonummer aus dem deutschen SKR-Kontenrahmen vor (z.B. 4200 fuer Reparaturen, 4100 fuer Versicherungen, 4500 fuer Verwaltungskosten). WICHTIG: Extrahiere auch die vollständige Empfängeradresse (an wen die Rechnung adressiert ist, NICHT der Absender/Lieferant). Das ist typischerweise die Hausverwaltung oder der Eigentümer mit Straße und Ort."
           },
           {
             role: "user",
@@ -179,7 +229,7 @@ serve(async (req) => {
               parameters: {
                 type: "object",
                 properties: {
-                  vendor_name: { type: "string", description: "Name des Lieferanten/Dienstleisters" },
+                  vendor_name: { type: "string", description: "Name des Lieferanten/Dienstleisters (Absender der Rechnung)" },
                   vendor_iban: { type: "string", description: "IBAN des Lieferanten" },
                   invoice_number: { type: "string", description: "Rechnungsnummer" },
                   invoice_date: { type: "string", description: "Rechnungsdatum (YYYY-MM-DD)" },
@@ -188,6 +238,7 @@ serve(async (req) => {
                   vat_amount: { type: "number", description: "MwSt-Betrag" },
                   gross_amount: { type: "number", description: "Bruttobetrag" },
                   description: { type: "string", description: "Kurzbeschreibung der Rechnung" },
+                  recipient_address: { type: "string", description: "Vollständige Empfängeradresse inkl. Name, Straße, PLZ, Ort (an wen die Rechnung adressiert ist)" },
                   line_items: {
                     type: "array",
                     items: {
@@ -217,7 +268,6 @@ serve(async (req) => {
     if (!extractionResponse.ok) {
       const errorText = await extractionResponse.text();
       console.error("Extraction error:", extractionResponse.status, errorText);
-      // Still save OCR raw data even if extraction fails
       await supabase.from("invoices").update({ 
         ocr_status: "error", 
         ocr_error: "Datenextraktion fehlgeschlagen",
@@ -276,6 +326,23 @@ serve(async (req) => {
       if (account) suggestedAccountId = account.id;
     }
 
+    // Auto-match building from recipient_address if no building_id is set yet
+    let matchedBuildingId: string | null = invoice.building_id || null;
+    if (!matchedBuildingId && extracted.recipient_address) {
+      const { data: allBuildings } = await supabase
+        .from("buildings")
+        .select("id, name, address");
+      
+      if (allBuildings && allBuildings.length > 0) {
+        matchedBuildingId = findBestBuildingMatch(extracted.recipient_address, allBuildings);
+        if (matchedBuildingId) {
+          console.log(`Auto-matched building: ${matchedBuildingId} from recipient: ${extracted.recipient_address}`);
+        } else {
+          console.log(`No building match for recipient: ${extracted.recipient_address}`);
+        }
+      }
+    }
+
     // Update invoice with extracted data
     const updateData: Record<string, any> = {
       ocr_status: "done",
@@ -286,6 +353,11 @@ serve(async (req) => {
       vendor_iban: extracted.vendor_iban || null,
       suggested_account_id: suggestedAccountId,
     };
+
+    // Set building_id if auto-matched
+    if (matchedBuildingId && !invoice.building_id) {
+      updateData.building_id = matchedBuildingId;
+    }
 
     // Only overwrite fields that are currently empty
     if (extracted.vendor_name) updateData.vendor_name = extracted.vendor_name;
@@ -313,7 +385,7 @@ serve(async (req) => {
     console.log(`Invoice ${invoiceId} OCR completed successfully`);
 
     return new Response(
-      JSON.stringify({ success: true, extracted }),
+      JSON.stringify({ success: true, extracted, matchedBuildingId }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {

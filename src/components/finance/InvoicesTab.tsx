@@ -183,7 +183,13 @@ export function InvoicesTab() {
                       >
                         <TableCell className="font-mono text-xs">{inv.invoice_number || "–"}</TableCell>
                         <TableCell className="text-sm">{inv.vendor_name || "–"}</TableCell>
-                        <TableCell className="text-sm">{inv.buildings?.name || "–"}</TableCell>
+                        <TableCell className="text-sm">
+                          {inv.buildings?.name || (
+                            <Badge variant="outline" className="text-xs text-amber-600 border-amber-300">
+                              Zuweisen
+                            </Badge>
+                          )}
+                        </TableCell>
                         <TableCell className="text-sm">
                           {inv.invoice_date ? format(new Date(inv.invoice_date), "dd.MM.yyyy", { locale: de }) : "–"}
                         </TableCell>
