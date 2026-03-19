@@ -118,7 +118,7 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
     const { error } = await supabase.from("contact_building_assignments").insert({
       contact_id: selectedId,
       building_id: buildingId,
-      role_in_building: role || null,
+      role_in_building: (role || null) as any,
       unit_number: unitNumber || null,
       floor_location: floorLocation || null,
     });
