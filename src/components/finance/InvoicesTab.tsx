@@ -47,7 +47,7 @@ export function InvoicesTab() {
         .from("invoices")
         .select("*, buildings(name, building_code)", { count: "exact" })
         .order("created_at", { ascending: false })
-        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1) as any;
 
       if (filterBuilding === "unassigned") {
         query = query.is("building_id", null);
@@ -56,8 +56,8 @@ export function InvoicesTab() {
       }
       if (filterStatus === "paid") query = query.eq("status", "paid");
       else if (filterStatus === "unpaid") query = query.eq("status", "open");
-      else if (filterStatus === "verified") query = query.eq("review_status" as any, "verified");
-      else if (filterStatus === "unverified") query = query.eq("review_status" as any, "open");
+      else if (filterStatus === "verified") query = query.eq("review_status", "verified");
+      else if (filterStatus === "unverified") query = query.eq("review_status", "open");
 
       const { data, error, count } = await query;
       if (error) throw error;
