@@ -136,9 +136,11 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
           ? supabase.from("contact_building_costs").select("*").in("assignment_id", assignmentIds)
           : { data: [] },
         contactIds.length > 0
-          ? supabase.from("contact_bank_accounts").select("id, iban, bic, bank_name, account_holder, sepa_mandate_ref").in("contact_id", contactIds)
+          ? supabase.from("contact_bank_accounts").select("*").in("contact_id", contactIds)
           : { data: [] },
       ]);
+
+      
 
       return assignData.map(a => ({
         ...a,
