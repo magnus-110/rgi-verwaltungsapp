@@ -8,12 +8,21 @@
 **Iteration 2** ✅: Gebaeude-Zuordnung (Einheit, Etage, Nutzung, Rolle, Bank-Override, Anteile)
 **Iteration 3** ✅: Kosten-Zuordnung komplett (Hausgeld, Ruecklage, Sonderumlage, etc.)
 **Iteration 4** ✅: Migration bestehender weg_owners Daten in contacts-System
-**Iteration 5** ✅: Nutzer-Einladung bei Gebäude-Zuordnung + System-Bereinigung:
-- `contacts.user_id` Spalte (Brücke Kontakt ↔ Auth-System)
-- `invite-contact-user` Edge Function (Auth-User + Profil + Make.com Webhook)
-- AssignContactDialog: Checkbox "Einladung mit Zugangsdaten senden"
-- BuildingFilesTab: Query auf `contact_building_assignments` umgestellt (statt Legacy-Tabellen)
+**Iteration 5** ✅: Nutzer-Einladung bei Gebäude-Zuordnung + System-Bereinigung
 
-### Naechste Schritte (optional)
+## Finanzmodul
 
-**Danach**: Abrechnungs-Engine, Wirtschaftsplan-Generator, E-Mail-Integration
+### Status: Stufe 1 abgeschlossen ✅
+
+**Stufe 1** ✅: Kontenrahmen + Finanzseite (Grundlage)
+- 4 DB-Tabellen: `chart_of_accounts`, `building_account_overrides`, `invoices`, `bookings`
+- ~90 Konten aus RGI-Kontenrahmen als Seed-Daten eingefügt
+- Finanzseite `/finanzen` mit 4 Tabs (Kontenrahmen, Verteilerschlüssel, Rechnungen, Buchungen)
+- Sidebar-Integration + BuildingDashboard Finanz-Tab
+- Storage-Bucket `invoices` für PDF-Ablage
+
+### Nächste Schritte
+- **Stufe 2**: OCR-Integration (Mistral) für Rechnungsextraktion
+- **Stufe 3**: Make.com Webhook für automatische Kontenzuordnung
+- **Stufe 4**: Kontoauszugs-Abgleich (CAMT.053 Parser)
+- **Stufe 5**: Abrechnungs-Engine (Gesamt-, Einzelabrechnung, Wirtschaftsplan)
