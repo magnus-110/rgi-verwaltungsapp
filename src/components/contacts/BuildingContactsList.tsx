@@ -292,6 +292,35 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                     )}
                   </div>
 
+                  {/* Bank accounts */}
+                  {a.bankAccounts.length > 0 && (
+                    <div className="bg-muted/40 rounded-lg p-3 space-y-2">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                        <CreditCard className="h-3.5 w-3.5" /> Bankverbindung
+                      </p>
+                      {a.bankAccounts.map((bank, i) => (
+                        <div key={bank.id || i} className="space-y-1.5">
+                          {bank.iban && (
+                            <CopyableField label="IBAN" value={bank.iban} />
+                          )}
+                          {bank.bic && (
+                            <CopyableField label="BIC" value={bank.bic} />
+                          )}
+                          {bank.bank_name && (
+                            <CopyableField label="Bank" value={bank.bank_name} />
+                          )}
+                          {bank.account_holder && (
+                            <CopyableField label="Kontoinhaber" value={bank.account_holder} />
+                          )}
+                          {bank.sepa_mandate_ref && (
+                            <CopyableField label="SEPA-Ref." value={bank.sepa_mandate_ref} />
+                          )}
+                          {i < a.bankAccounts.length - 1 && <div className="border-t border-border my-2" />}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   {/* Assignment fields */}
                   <div className="space-y-3">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Einheitsdaten</p>
