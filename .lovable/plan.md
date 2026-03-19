@@ -1,28 +1,34 @@
 
 
-## Adressen-System & Abrechnungsgrundlage
+# Plan: Buchungsmaske verbessern (ohne Webhook)
 
-### Status: Iteration 5 abgeschlossen ✅
+## Kontext
+Der Webhook fuer Make.com wird NICHT bei manuellen Buchungen ausgeloest. Er kommt erst in Stufe 2 (OCR-Integration), wenn Rechnungen automatisch ausgelesen, bezahlt und zum Buchen freigegeben werden.
 
-**Iteration 1** ✅: DB-Migration (7 Tabellen, RLS, SEPA-Generator) + Kontakte-Seite mit CRUD
-**Iteration 2** ✅: Gebaeude-Zuordnung (Einheit, Etage, Nutzung, Rolle, Bank-Override, Anteile)
-**Iteration 3** ✅: Kosten-Zuordnung komplett (Hausgeld, Ruecklage, Sonderumlage, etc.)
-**Iteration 4** ✅: Migration bestehender weg_owners Daten in contacts-System
-**Iteration 5** ✅: Nutzer-Einladung bei Gebäude-Zuordnung + System-Bereinigung
+## Aenderungen
 
-## Finanzmodul
+### 1. §35a Auto-Select bei Kontoauswahl
+**Datei**: `src/components/finance/CreateBookingDialog.tsx`
 
-### Status: Stufe 1 abgeschlossen ✅
+Wenn im Soll-Konto ein Konto ausgewaehlt wird, das `is_35a_relevant === true` hat, wird die §35a-Checkbox automatisch aktiviert.
 
-**Stufe 1** ✅: Kontenrahmen + Finanzseite (Grundlage)
-- 4 DB-Tabellen: `chart_of_accounts`, `building_account_overrides`, `invoices`, `bookings`
-- ~90 Konten aus RGI-Kontenrahmen als Seed-Daten eingefügt
-- Finanzseite `/finanzen` mit 4 Tabs (Kontenrahmen, Verteilerschlüssel, Rechnungen, Buchungen)
-- Sidebar-Integration + BuildingDashboard Finanz-Tab
-- Storage-Bucket `invoices` für PDF-Ablage
+- Im `onChange`-Handler des ersten AccountPickers: Account-Objekt aus `accounts`-Array nachschlagen, dann `set("is_35a_relevant", account.is_35a_relevant)` aufrufen.
 
-### Nächste Schritte
-- **Stufe 2**: OCR-Integration (Mistral) für Rechnungsextraktion
-- **Stufe 3**: Make.com Webhook für automatische Kontenzuordnung
-- **Stufe 4**: Kontoauszugs-Abgleich (CAMT.053 Parser)
-- **Stufe 5**: Abrechnungs-Engine (Gesamt-, Einzelabrechnung, Wirtschaftsplan)
+### 2. Dialog breiter und uebersichtlicher
+**Datei**: `src/components/finance/CreateBookingDialog.tsx`
+
+- `max-w-2xl` auf `max-w-4xl` aendern
+- Beleg-Zeile: 3-Spalten-Grid beibehalten, aber Buchungstext als volle Breite darunter
+- Steuer-Bereich: Mehr horizontaler Platz, groessere Radio-Buttons
+- Section-Titles etwas groesser (`text-base` statt `text-sm`)
+- Allgemein mehr Padding und Spacing
+
+### Kein Webhook
+Es wird keine Edge Function erstellt. Der `MAKE_BOOKING_WEBHOOK_URL` Secret wird erst bei der OCR-Stufe benoetigt.
+
+## Dateien
+
+| Datei | Aenderung |
+|---|---|
+| `CreateBookingDialog.tsx` | Breiter, 35a-auto-select, besseres Spacing |
+
