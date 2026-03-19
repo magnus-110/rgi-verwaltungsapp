@@ -140,7 +140,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
           : { data: [] },
       ]);
 
-      console.log('Bank accounts query result:', { contactIds, bankData: bankRes.data, bankError: (bankRes as any).error });
+      
 
       return assignData.map(a => ({
         ...a,
