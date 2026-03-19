@@ -562,6 +562,7 @@ export type Database = {
         Row: {
           account_name: string
           account_number: string
+          building_id: string | null
           category: string
           created_at: string
           default_distribution_key: string | null
@@ -574,6 +575,7 @@ export type Database = {
         Insert: {
           account_name: string
           account_number: string
+          building_id?: string | null
           category: string
           created_at?: string
           default_distribution_key?: string | null
@@ -586,6 +588,7 @@ export type Database = {
         Update: {
           account_name?: string
           account_number?: string
+          building_id?: string | null
           category?: string
           created_at?: string
           default_distribution_key?: string | null
@@ -595,7 +598,15 @@ export type Database = {
           sort_order?: number | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "chart_of_accounts_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       chatbot_knowledge_documents: {
         Row: {
