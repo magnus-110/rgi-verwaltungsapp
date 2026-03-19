@@ -1364,18 +1364,24 @@ export type Database = {
           created_by: string | null
           description: string | null
           due_date: string | null
+          file_name: string | null
           file_path: string | null
           gross_amount: number | null
           id: string
           invoice_date: string | null
           invoice_number: string | null
+          line_items: Json | null
           net_amount: number | null
+          ocr_error: string | null
           ocr_extracted_data: Json | null
           ocr_raw_data: Json | null
+          ocr_status: string
           paid_at: string | null
           status: string
+          suggested_account_id: string | null
           updated_at: string
           vat_amount: number | null
+          vendor_iban: string | null
           vendor_name: string | null
         }
         Insert: {
@@ -1384,18 +1390,24 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           due_date?: string | null
+          file_name?: string | null
           file_path?: string | null
           gross_amount?: number | null
           id?: string
           invoice_date?: string | null
           invoice_number?: string | null
+          line_items?: Json | null
           net_amount?: number | null
+          ocr_error?: string | null
           ocr_extracted_data?: Json | null
           ocr_raw_data?: Json | null
+          ocr_status?: string
           paid_at?: string | null
           status?: string
+          suggested_account_id?: string | null
           updated_at?: string
           vat_amount?: number | null
+          vendor_iban?: string | null
           vendor_name?: string | null
         }
         Update: {
@@ -1404,18 +1416,24 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           due_date?: string | null
+          file_name?: string | null
           file_path?: string | null
           gross_amount?: number | null
           id?: string
           invoice_date?: string | null
           invoice_number?: string | null
+          line_items?: Json | null
           net_amount?: number | null
+          ocr_error?: string | null
           ocr_extracted_data?: Json | null
           ocr_raw_data?: Json | null
+          ocr_status?: string
           paid_at?: string | null
           status?: string
+          suggested_account_id?: string | null
           updated_at?: string
           vat_amount?: number | null
+          vendor_iban?: string | null
           vendor_name?: string | null
         }
         Relationships: [
@@ -1424,6 +1442,13 @@ export type Database = {
             columns: ["building_id"]
             isOneToOne: false
             referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_suggested_account_id_fkey"
+            columns: ["suggested_account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
             referencedColumns: ["id"]
           },
         ]
