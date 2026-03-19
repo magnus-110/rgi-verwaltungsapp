@@ -27,6 +27,8 @@ export function ChartOfAccountsTab() {
   const queryClient = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [editDistKey, setEditDistKey] = useState("");
+  const [edit35a, setEdit35a] = useState(false);
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [newAccount, setNewAccount] = useState({ account_number: "", account_name: "", category: "", default_distribution_key: "mea", is_35a_relevant: false });
@@ -54,13 +56,19 @@ export function ChartOfAccountsTab() {
     });
   };
 
-  const startEdit = (id: string, name: string) => {
-    setEditingId(id);
-    setEditName(name);
+  const startEdit = (account: any) => {
+    setEditingId(account.id);
+    setEditName(account.account_name);
+    setEditDistKey(account.default_distribution_key || "mea");
+    setEdit35a(account.is_35a_relevant || false);
   };
 
   const saveEdit = async (id: string) => {
-    const { error } = await supabase.from("chart_of_accounts").update({ account_name: editName }).eq("id", id);
+    const { error } = await supabase.from("chart_of_accounts").update({
+      account_name: editName,
+      default_distribution_key: editDistKey,
+      is_35a_relevant: edit35a,
+    }).eq("id", id);
     if (error) { toast.error("Fehler beim Speichern"); return; }
     toast.success("Konto aktualisiert");
     setEditingId(null);
@@ -136,9 +144,36 @@ export function ChartOfAccountsTab() {
                           <TableCell className="font-mono text-xs">{account.account_number}</TableCell>
                           <TableCell>
                             {editingId === account.id ? (
+                              <Input value={editName} onChange={e => setEditName(e.target.value)} className="h-7 text-sm" autoFocus
+                                onKeyDown={e => e.key === "Enter" && saveEdit(account.id)} />
+                            ) : (
+                              <span className="text-sm">{account.account_name}</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingId === account.id ? (
+                              <Select value={editDistKey} onValueChange={setEditDistKey}>
+                                <SelectTrigger className="h-7 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {DISTRIBUTION_KEYS.map(k => <SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <Badge variant="outline" className="text-xs">{getKeyLabel(account.default_distribution_key)}</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {editingId === account.id ? (
+                              <Checkbox checked={edit35a} onCheckedChange={c => setEdit35a(!!c)} />
+                            ) : (
+                              account.is_35a_relevant && <Badge className="text-xs bg-amber-100 text-amber-800 hover:bg-amber-100">§35a</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {editingId === account.id ? (
                               <div className="flex items-center gap-1">
-                                <Input value={editName} onChange={e => setEditName(e.target.value)} className="h-7 text-sm" autoFocus
-                                  onKeyDown={e => e.key === "Enter" && saveEdit(account.id)} />
                                 <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => saveEdit(account.id)}>
                                   <Check className="h-3 w-3" />
                                 </Button>
@@ -147,27 +182,18 @@ export function ChartOfAccountsTab() {
                                 </Button>
                               </div>
                             ) : (
-                              <span className="text-sm">{account.account_name}</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className="text-xs">{getKeyLabel(account.default_distribution_key)}</Badge>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {account.is_35a_relevant && <Badge className="text-xs bg-amber-100 text-amber-800 hover:bg-amber-100">§35a</Badge>}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-1">
-                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(account.id, account.account_name)}>
-                                <Pencil className="h-3 w-3" />
-                              </Button>
-                              {!account.is_system_account && (
-                                <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive"
-                                  onClick={() => deleteAccount(account.id)}>
-                                  <Trash2 className="h-3 w-3" />
+                              <div className="flex items-center gap-1">
+                                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(account)}>
+                                  <Pencil className="h-3 w-3" />
                                 </Button>
-                              )}
-                            </div>
+                                {!account.is_system_account && (
+                                  <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive"
+                                    onClick={() => deleteAccount(account.id)}>
+                                    <Trash2 className="h-3 w-3" />
+                                  </Button>
+                                )}
+                              </div>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}
