@@ -13,6 +13,8 @@ import { BulkUpload } from "@/components/BulkUpload";
 import { UsersList } from "@/components/UsersList";
 import { BuildingReportsTab } from "./BuildingReportsTab";
 import { BuildingFilesTab } from "./BuildingFilesTab";
+import { BuildingForumTab } from "./BuildingForumTab";
+import { BuildingMaintenanceTab } from "./BuildingMaintenanceTab";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
