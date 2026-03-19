@@ -27,7 +27,7 @@ interface MaintenanceConfigSectionProps {
 }
 
 export const MaintenanceConfigSection = ({ configs, onChange }: MaintenanceConfigSectionProps) => {
-  const [isOpen, setIsOpen] = useState(false);
+  // Always open, no collapsible state needed
   const [editingType, setEditingType] = useState<string | null>(null);
 
   const getConfig = (key: string): MaintenanceConfig => {
