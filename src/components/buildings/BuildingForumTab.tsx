@@ -164,7 +164,7 @@ export const BuildingForumTab = ({ buildingId, managementMode }: BuildingForumTa
             <Textarea placeholder="Inhalt" rows={6} value={newPost.content} onChange={(e) => setNewPost({ ...newPost, content: e.target.value })} />
             <FileUpload
               bucketName="forum-attachments"
-              onUploadComplete={(fileData) => setAttachments([...attachments, fileData])}
+              onFilesChange={(files) => setAttachments(files)}
             />
             {attachments.length > 0 && (
               <div className="space-y-1">
