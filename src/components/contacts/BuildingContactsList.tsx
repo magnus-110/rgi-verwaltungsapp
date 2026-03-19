@@ -321,37 +321,85 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
 
                     {/* Tab: Übersicht */}
                     <TabsContent value="overview" className="space-y-4 mt-0">
-                      {/* Contact info (read-only) */}
-                      <div className="bg-muted/40 rounded-lg p-3 space-y-2">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Kontaktdaten</p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                          {a.phones.map((p, i) => (
-                            <div key={i} className="flex items-center gap-2 text-sm">
-                              <Phone className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                              <span>{p.phone_number}</span>
-                              {p.label && <span className="text-xs text-muted-foreground">({p.label})</span>}
-                            </div>
-                          ))}
-                          {a.emails.map((e, i) => (
-                            <div key={i} className="flex items-center gap-2 text-sm">
-                              <Mail className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                              <span>{e.email}</span>
-                              {e.label && <span className="text-xs text-muted-foreground">({e.label})</span>}
-                            </div>
-                          ))}
-                          {(a.contact.address_street || a.contact.address_zip || a.contact.address_city) && (
-                            <div className="flex items-center gap-2 text-sm">
-                              <MapPin className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                              <span>
-                                {[a.contact.address_street, [a.contact.address_zip, a.contact.address_city].filter(Boolean).join(" ")].filter(Boolean).join(", ")}
-                              </span>
-                            </div>
-                          )}
+                      {/* Telefon */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Telefon</p>
+                          <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => addPhone(a.contact_id)}>
+                            <Plus className="h-3 w-3 mr-1" /> Telefon
+                          </Button>
                         </div>
-                        {a.phones.length === 0 && a.emails.length === 0 && !a.contact.address_street && (
-                          <p className="text-xs text-muted-foreground italic">Keine Kontaktdaten hinterlegt</p>
-                        )}
+                        {a.phones.length === 0 && <p className="text-xs text-muted-foreground italic">Keine Telefonnummer</p>}
+                        {a.phones.map((p) => (
+                          <div key={p.id} className="flex items-center gap-2">
+                            <Phone className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                            <Input
+                              value={p.phone_number}
+                              onChange={(e) => updatePhone(p.id, "phone_number", e.target.value)}
+                              placeholder="Nummer"
+                              className="h-7 text-sm flex-1"
+                            />
+                            <Select value={p.label || "Mobil"} onValueChange={(v) => updatePhone(p.id, "label", v)}>
+                              <SelectTrigger className="w-24 h-7 text-xs"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Mobil">Mobil</SelectItem>
+                                <SelectItem value="Privat">Privat</SelectItem>
+                                <SelectItem value="Geschäftlich">Geschäftl.</SelectItem>
+                                <SelectItem value="Festnetz">Festnetz</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => deletePhone(p.id)}>
+                              <Trash2 className="h-3 w-3 text-destructive" />
+                            </Button>
+                          </div>
+                        ))}
                       </div>
+
+                      {/* E-Mail */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">E-Mail</p>
+                          <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => addEmail(a.contact_id)}>
+                            <Plus className="h-3 w-3 mr-1" /> E-Mail
+                          </Button>
+                        </div>
+                        {a.emails.length === 0 && <p className="text-xs text-muted-foreground italic">Keine E-Mail-Adresse</p>}
+                        {a.emails.map((e) => (
+                          <div key={e.id} className="flex items-center gap-2">
+                            <Mail className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                            <Input
+                              value={e.email}
+                              onChange={(ev) => updateEmail(e.id, "email", ev.target.value)}
+                              placeholder="E-Mail"
+                              className="h-7 text-sm flex-1"
+                            />
+                            <Select value={e.label || "Privat"} onValueChange={(v) => updateEmail(e.id, "label", v)}>
+                              <SelectTrigger className="w-24 h-7 text-xs"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Privat">Privat</SelectItem>
+                                <SelectItem value="Geschäftlich">Geschäftl.</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => deleteEmail(e.id)}>
+                              <Trash2 className="h-3 w-3 text-destructive" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Adresse (read-only) */}
+                      {(a.contact.address_street || a.contact.address_zip || a.contact.address_city) && (
+                        <div className="bg-muted/40 rounded-lg p-3 space-y-1">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Adresse</p>
+                          <div className="flex items-center gap-2 text-sm">
+                            <MapPin className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                            <span>
+                              {[a.contact.address_street, [a.contact.address_zip, a.contact.address_city].filter(Boolean).join(" ")].filter(Boolean).join(", ")}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">Adresse wird über die Kontaktseite verwaltet</p>
+                        </div>
+                      )}
 
                       {/* Assignment fields */}
                       <div className="space-y-3">
