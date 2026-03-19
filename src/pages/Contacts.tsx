@@ -61,6 +61,7 @@ export function Contacts() {
             contact={selectedContact}
             onBack={() => setSelectedContactId(null)}
             onUpdate={fetchContacts}
+            onDeleted={handleDeleted}
           />
         </div>
       );
