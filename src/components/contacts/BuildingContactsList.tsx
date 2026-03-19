@@ -125,7 +125,8 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
         phones: (phonesRes.data || []).filter((p: any) => p.contact_id === a.contact_id),
         emails: (emailsRes.data || []).filter((e: any) => e.contact_id === a.contact_id),
         costs: (costsRes.data || []).filter((c: any) => c.assignment_id === a.id),
-      })) as ContactAssignment[];
+        bankAccounts: (bankRes.data || []).filter((b: any) => b.contact_id === a.contact_id),
+      })) as unknown as ContactAssignment[];
     },
   });
 
