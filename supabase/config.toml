@@ -60,3 +60,6 @@ verify_jwt = true
 [functions.invite-contact-user]
 verify_jwt = false
 
+[functions.extract-invoice]
+verify_jwt = false
+
