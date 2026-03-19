@@ -471,6 +471,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
         buildingId={buildingId}
         onAssigned={refetch}
         existingContactIds={assignments.map(a => a.contact_id)}
+        managementMode={managementMode}
       />
     </div>
   );
