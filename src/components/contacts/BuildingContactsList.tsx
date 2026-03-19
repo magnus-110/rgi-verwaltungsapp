@@ -101,7 +101,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
       const assignmentIds = assignData.map(a => a.id);
       const contactIds = assignData.map(a => a.contact_id);
 
-      const [sharesRes, phonesRes, emailsRes, costsRes] = await Promise.all([
+      const [sharesRes, phonesRes, emailsRes, costsRes, bankRes] = await Promise.all([
         assignmentIds.length > 0 
           ? supabase.from("contact_building_shares").select("*").in("assignment_id", assignmentIds)
           : { data: [] },
@@ -113,6 +113,9 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
           : { data: [] },
         assignmentIds.length > 0
           ? supabase.from("contact_building_costs").select("*").in("assignment_id", assignmentIds)
+          : { data: [] },
+        contactIds.length > 0
+          ? supabase.from("contact_bank_accounts").select("id, iban, bic, bank_name, account_holder, sepa_mandate_ref").in("contact_id", contactIds)
           : { data: [] },
       ]);
 
