@@ -36,7 +36,7 @@ export function BookingsTab() {
     queryKey: ["bookings", filterBuilding, filterYear],
     queryFn: async () => {
       const { data, error } = await supabase.from("bookings")
-        .select("*, buildings(name, building_code), chart_of_accounts(account_number, account_name)")
+        .select("*, buildings(name, building_code), chart_of_accounts!bookings_account_id_fkey(account_number, account_name)")
         .eq("fiscal_year", parseInt(filterYear))
         .eq("building_id", filterBuilding)
         .order("booking_date", { ascending: false });
