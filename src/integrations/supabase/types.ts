@@ -232,6 +232,7 @@ export type Database = {
       bookings: {
         Row: {
           account_id: string | null
+          ai_warning: string | null
           amount: number
           booking_date: string
           booking_reference: string | null
@@ -258,6 +259,7 @@ export type Database = {
         }
         Insert: {
           account_id?: string | null
+          ai_warning?: string | null
           amount: number
           booking_date: string
           booking_reference?: string | null
@@ -284,6 +286,7 @@ export type Database = {
         }
         Update: {
           account_id?: string | null
+          ai_warning?: string | null
           amount?: number
           booking_date?: string
           booking_reference?: string | null
