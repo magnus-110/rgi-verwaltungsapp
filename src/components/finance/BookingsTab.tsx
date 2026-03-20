@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,9 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, CheckCircle, BookOpen, AlertCircle, AlertTriangle } from "lucide-react";
+import { Plus, BookOpen, AlertCircle, AlertTriangle, FileText } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { CreateBookingDialog } from "./CreateBookingDialog";
+import { EditBookingDialog } from "./EditBookingDialog";
+import { PdfViewerModal } from "@/components/documents/PdfViewerModal";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -20,6 +22,9 @@ export function BookingsTab() {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [filterBuilding, setFilterBuilding] = useState<string>("");
   const [filterYear, setFilterYear] = useState<string>(String(new Date().getFullYear()));
+  const [editBooking, setEditBooking] = useState<any>(null);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfFileName, setPdfFileName] = useState<string>("");
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
@@ -36,7 +41,13 @@ export function BookingsTab() {
     queryKey: ["bookings", filterBuilding, filterYear],
     queryFn: async () => {
       const { data, error } = await supabase.from("bookings")
-        .select("*, buildings(name, building_code), chart_of_accounts!bookings_account_id_fkey(account_number, account_name)")
+        .select(`
+          *,
+          buildings(name, building_code),
+          chart_of_accounts!bookings_account_id_fkey(account_number, account_name),
+          counter_account:chart_of_accounts!bookings_counter_account_id_fkey(account_number, account_name),
+          invoices(id, file_path, file_name, vendor_name)
+        `)
         .eq("fiscal_year", parseInt(filterYear))
         .eq("building_id", filterBuilding)
         .order("booking_date", { ascending: false });
@@ -46,17 +57,6 @@ export function BookingsTab() {
     enabled: canQuery,
   });
 
-  const confirmBooking = async (id: string) => {
-    const { error } = await supabase.from("bookings").update({
-      status: "confirmed",
-      confirmed_by: user?.id,
-      confirmed_at: new Date().toISOString(),
-    }).eq("id", id);
-    if (error) { toast.error("Fehler beim Bestätigen"); return; }
-    toast.success("Buchung bestätigt");
-    queryClient.invalidateQueries({ queryKey: ["bookings"] });
-  };
-
   const handleOpenCreate = () => {
     if (!filterBuilding) {
       toast.error("Bitte zuerst eine Liegenschaft auswählen");
@@ -65,12 +65,51 @@ export function BookingsTab() {
     setIsCreateOpen(true);
   };
 
+  const handleRowClick = (booking: any) => {
+    setEditBooking(booking);
+  };
+
+  const handleRowKeyDown = (e: React.KeyboardEvent, booking: any) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      setEditBooking(booking);
+    }
+  };
+
+  const handleInvoiceClick = useCallback(async (invoiceId: string) => {
+    try {
+      // Find the invoice in the booking data
+      const booking = bookings.find((b: any) => b.invoice_id === invoiceId);
+      const filePath = booking?.invoices?.file_path;
+      const fileName = booking?.invoices?.file_name || "Rechnung.pdf";
+      
+      if (!filePath) {
+        toast.error("Keine Datei für diese Rechnung hinterlegt");
+        return;
+      }
+
+      const { data, error } = await supabase.storage
+        .from("invoices")
+        .createSignedUrl(filePath, 3600);
+
+      if (error || !data?.signedUrl) {
+        toast.error("Fehler beim Laden der Rechnung");
+        return;
+      }
+
+      setPdfUrl(data.signedUrl);
+      setPdfFileName(fileName);
+    } catch {
+      toast.error("Fehler beim Laden der Rechnung");
+    }
+  }, [bookings]);
+
   const formatCurrency = (amount: number | null) =>
     amount != null ? new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(amount) : "–";
 
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => String(currentYear - i));
-  const selectedBuildingName = buildings.find(b => b.id === filterBuilding)?.name;
+  const selectedBuildingName = buildings.find(b => b.id === filterBuilding)?.name || "";
 
   return (
     <Card>
@@ -82,7 +121,6 @@ export function BookingsTab() {
           </Button>
         </div>
 
-        {/* Mandatory filters */}
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex flex-col gap-1">
             <span className="text-xs font-medium text-muted-foreground">Liegenschaft *</span>
@@ -129,19 +167,25 @@ export function BookingsTab() {
                 <TableRow>
                   <TableHead>Datum</TableHead>
                   <TableHead>Kürzel</TableHead>
-                  <TableHead>Konto</TableHead>
+                  <TableHead>Soll-Konto</TableHead>
+                  <TableHead>Gegen-Konto</TableHead>
                   <TableHead>Buchungstext</TableHead>
                   <TableHead>Beleg-Nr.</TableHead>
                   <TableHead className="text-right">Betrag</TableHead>
                   <TableHead className="text-right">MwSt</TableHead>
                   <TableHead>Optionen</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {bookings.map((b: any) => (
-                  <TableRow key={b.id} className={b.status === "pending" ? "bg-amber-50/50 dark:bg-amber-950/10" : ""}>
+                  <TableRow
+                    key={b.id}
+                    tabIndex={0}
+                    className={`cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/30 ${b.status === "pending" ? "bg-amber-50/50 dark:bg-amber-950/10" : ""}`}
+                    onClick={() => handleRowClick(b)}
+                    onKeyDown={(e) => handleRowKeyDown(e, b)}
+                  >
                     <TableCell className="text-sm whitespace-nowrap">
                       {format(new Date(b.booking_date), "dd.MM.yyyy", { locale: de })}
                     </TableCell>
@@ -150,8 +194,26 @@ export function BookingsTab() {
                     </TableCell>
                     <TableCell>
                       <div className="text-xs">
-                        <span className="font-mono">{b.chart_of_accounts?.account_number}</span>
-                        <span className="text-muted-foreground ml-1">{b.chart_of_accounts?.account_name}</span>
+                        {b.chart_of_accounts ? (
+                          <>
+                            <span className="font-mono font-medium">{b.chart_of_accounts.account_number}</span>
+                            <span className="text-muted-foreground ml-1">{b.chart_of_accounts.account_name}</span>
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground italic">Nicht zugeordnet</span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="text-xs">
+                        {b.counter_account ? (
+                          <>
+                            <span className="font-mono font-medium">{b.counter_account.account_number}</span>
+                            <span className="text-muted-foreground ml-1">{b.counter_account.account_name}</span>
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground">–</span>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="text-sm max-w-[200px] truncate">{b.description || "–"}</TableCell>
@@ -165,7 +227,7 @@ export function BookingsTab() {
                       {b.vat_rate > 0 ? `${b.vat_rate}%` : "–"}
                     </TableCell>
                     <TableCell>
-                      <div className="flex gap-1 items-center">
+                      <div className="flex gap-1 items-center" onClick={e => e.stopPropagation()}>
                         {b.ai_warning && (
                           <TooltipProvider>
                             <Tooltip>
@@ -181,6 +243,12 @@ export function BookingsTab() {
                         {b.is_35a_relevant && (
                           <Badge className="text-[10px] bg-amber-100 text-amber-800 hover:bg-amber-100">§35a</Badge>
                         )}
+                        {b.invoice_id && (
+                          <Button size="sm" variant="ghost" className="h-6 w-6 p-0"
+                            onClick={(e) => { e.stopPropagation(); handleInvoiceClick(b.invoice_id); }}>
+                            <FileText className="h-3.5 w-3.5 text-blue-500" />
+                          </Button>
+                        )}
                         <Badge variant="outline" className="text-[10px]">
                           {b.source === "manual" ? "Manuell" : b.source === "ocr" ? "OCR" : b.source === "bank_import" ? "Bank" : b.source}
                         </Badge>
@@ -191,13 +259,6 @@ export function BookingsTab() {
                         {b.status === "confirmed" ? "Bestätigt" : "Offen"}
                       </Badge>
                     </TableCell>
-                    <TableCell>
-                      {b.status === "pending" && (
-                        <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => confirmBooking(b.id)}>
-                          <CheckCircle className="h-3.5 w-3.5 mr-1" /> Bestätigen
-                        </Button>
-                      )}
-                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -205,6 +266,7 @@ export function BookingsTab() {
           </div>
         )}
       </CardContent>
+
       <CreateBookingDialog
         open={isCreateOpen}
         onOpenChange={setIsCreateOpen}
@@ -212,6 +274,23 @@ export function BookingsTab() {
         preselectedBuildingId={filterBuilding}
         preselectedYear={filterYear}
       />
+
+      <EditBookingDialog
+        open={!!editBooking}
+        onOpenChange={(open) => { if (!open) setEditBooking(null); }}
+        booking={editBooking}
+        buildingName={selectedBuildingName}
+        onInvoiceClick={handleInvoiceClick}
+      />
+
+      {pdfUrl && (
+        <PdfViewerModal
+          isOpen={!!pdfUrl}
+          onClose={() => { setPdfUrl(null); setPdfFileName(""); }}
+          pdfUrl={pdfUrl}
+          fileName={pdfFileName}
+        />
+      )}
     </Card>
   );
 }
