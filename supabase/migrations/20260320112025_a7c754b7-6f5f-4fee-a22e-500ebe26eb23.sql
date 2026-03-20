@@ -1,0 +1,1 @@
+ALTER TABLE public.bookings ADD COLUMN ai_warning text DEFAULT NULL;
