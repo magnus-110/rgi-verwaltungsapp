@@ -283,14 +283,12 @@ export function BookingsTab() {
         onInvoiceClick={handleInvoiceClick}
       />
 
-      {pdfUrl && (
-        <PdfViewerModal
-          isOpen={!!pdfUrl}
-          onClose={() => { setPdfUrl(null); setPdfFileName(""); }}
-          pdfUrl={pdfUrl}
-          fileName={pdfFileName}
-        />
-      )}
+      <PdfViewerModal
+        isOpen={!!pdfUrl}
+        onClose={() => { setPdfUrl(null); setPdfFileName(""); }}
+        documentUrl={pdfUrl}
+        documentName={pdfFileName}
+      />
     </Card>
   );
 }
