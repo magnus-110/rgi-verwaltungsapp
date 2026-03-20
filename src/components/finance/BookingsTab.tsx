@@ -165,12 +165,24 @@ export function BookingsTab() {
                       {b.vat_rate > 0 ? `${b.vat_rate}%` : "–"}
                     </TableCell>
                     <TableCell>
-                      <div className="flex gap-1">
+                      <div className="flex gap-1 items-center">
+                        {b.ai_warning && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger>
+                                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs">
+                                <p className="text-xs">{b.ai_warning}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
                         {b.is_35a_relevant && (
                           <Badge className="text-[10px] bg-amber-100 text-amber-800 hover:bg-amber-100">§35a</Badge>
                         )}
                         <Badge variant="outline" className="text-[10px]">
-                          {b.source === "manual" ? "Manuell" : b.source === "ocr" ? "OCR" : b.source}
+                          {b.source === "manual" ? "Manuell" : b.source === "ocr" ? "OCR" : b.source === "bank_import" ? "Bank" : b.source}
                         </Badge>
                       </div>
                     </TableCell>
