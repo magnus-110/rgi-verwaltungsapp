@@ -1,0 +1,1 @@
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS matched_template_id uuid REFERENCES public.booking_templates(id);
