@@ -248,6 +248,7 @@ export type Database = {
           id: string
           invoice_id: string | null
           is_35a_relevant: boolean | null
+          matched_template_id: string | null
           performance_period_from: string | null
           performance_period_to: string | null
           receipt_number: string | null
@@ -275,6 +276,7 @@ export type Database = {
           id?: string
           invoice_id?: string | null
           is_35a_relevant?: boolean | null
+          matched_template_id?: string | null
           performance_period_from?: string | null
           performance_period_to?: string | null
           receipt_number?: string | null
@@ -302,6 +304,7 @@ export type Database = {
           id?: string
           invoice_id?: string | null
           is_35a_relevant?: boolean | null
+          matched_template_id?: string | null
           performance_period_from?: string | null
           performance_period_to?: string | null
           receipt_number?: string | null
@@ -338,6 +341,13 @@ export type Database = {
             columns: ["invoice_id"]
             isOneToOne: false
             referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_matched_template_id_fkey"
+            columns: ["matched_template_id"]
+            isOneToOne: false
+            referencedRelation: "booking_templates"
             referencedColumns: ["id"]
           },
         ]
