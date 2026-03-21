@@ -281,15 +281,6 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   const updateCost = async (id: string, field: string, value: any) => {
     await supabase.from("contact_building_costs").update({ [field]: value }).eq("id", id);
     refetch();
-
-    // If amount or cost_type changed, ensure account/template
-    if (field === "amount" || field === "cost_type") {
-      // Re-fetch the cost to get current values
-      const { data: cost } = await supabase.from("contact_building_costs").select("*").eq("id", id).single();
-      if (cost) {
-        await ensureAccountAndTemplate(cost.assignment_id, cost.cost_type, cost.amount);
-      }
-    }
   };
   const deleteCost = async (id: string) => {
     await supabase.from("contact_building_costs").delete().eq("id", id);
