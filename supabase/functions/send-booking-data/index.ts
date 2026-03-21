@@ -94,6 +94,19 @@ Deno.serve(async (req) => {
       const invoice = txn.matched_invoice_id ? invoiceMap.get(txn.matched_invoice_id) : null;
       const template = txn.matched_template_id ? templateMap.get(txn.matched_template_id) : null;
 
+      // Calculate vat_rate from invoice if available
+      let vat_rate: number | null = null;
+      let vat_amount: number | null = invoice?.vat_amount ?? null;
+      const net_amount: number | null = invoice?.net_amount ?? null;
+      const gross_amount: number | null = invoice?.gross_amount ?? txn.amount ? Math.abs(txn.amount) : null;
+
+      if (vat_amount != null && net_amount != null && net_amount !== 0) {
+        vat_rate = Math.round((vat_amount / net_amount) * 100 * 100) / 100; // e.g. 19.00
+      } else if (gross_amount != null && net_amount != null && net_amount !== 0) {
+        vat_amount = gross_amount - net_amount;
+        vat_rate = Math.round((vat_amount / net_amount) * 100 * 100) / 100;
+      }
+
       return {
         transaction_id: txn.id,
         booking_date: txn.booking_date,
@@ -114,9 +127,10 @@ Deno.serve(async (req) => {
         invoice_number: invoice?.invoice_number || null,
         invoice_date: invoice?.invoice_date || null,
         vendor_name: invoice?.vendor_name || txn.creditor_name || txn.debtor_name,
-        net_amount: invoice?.net_amount || null,
-        gross_amount: invoice?.gross_amount || null,
-        vat_amount: invoice?.vat_amount || null,
+        net_amount: net_amount,
+        gross_amount: gross_amount,
+        vat_amount: vat_amount,
+        vat_rate: vat_rate,
         account_number: invoice?.chart_of_accounts?.account_number || template?.chart_of_accounts?.account_number || null,
         account_name: invoice?.chart_of_accounts?.account_name || template?.chart_of_accounts?.account_name || null,
         // Template data
