@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Upload, FileText, Loader2, ChevronDown, ChevronUp, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff, Trash2, Building2, BookOpen, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -28,6 +29,7 @@ export function BankStatementsTab() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [booking, setBooking] = useState(false);
+  const [bookingAll, setBookingAll] = useState(false);
   const [selectedBuilding, setSelectedBuilding] = useState<string>("all");
   const [expandedStatement, setExpandedStatement] = useState<string | null>(null);
   const [assigningBuilding, setAssigningBuilding] = useState<string | null>(null);
@@ -35,6 +37,7 @@ export function BankStatementsTab() {
   const [manualAssignTxn, setManualAssignTxn] = useState<any | null>(null);
   const [manualAssignType, setManualAssignType] = useState<"invoice" | "template">("invoice");
   const [manualAssignId, setManualAssignId] = useState<string>("");
+  const [showCompleted, setShowCompleted] = useState(false);
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
@@ -61,6 +64,19 @@ export function BankStatementsTab() {
     },
   });
 
+  // Fetch ALL transactions for ALL statements to determine completion status and global bookable count
+  const { data: allTransactions = [] } = useQuery({
+    queryKey: ["bank-transactions-all"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bank_transactions")
+        .select("id, statement_id, match_status, booked_at")
+        .order("booking_date", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const { data: transactions = [] } = useQuery({
     queryKey: ["bank-transactions", expandedStatement],
     queryFn: async () => {
@@ -76,7 +92,6 @@ export function BankStatementsTab() {
     enabled: !!expandedStatement,
   });
 
-  // For manual assignment dialog
   const { data: invoicesList = [] } = useQuery({
     queryKey: ["invoices-for-assign"],
     queryFn: async () => {
@@ -103,6 +118,34 @@ export function BankStatementsTab() {
     },
   });
 
+  // Compute completion status per statement
+  const statementCompletion = useMemo(() => {
+    const map: Record<string, { total: number; completed: number; isComplete: boolean }> = {};
+    allTransactions.forEach((t: any) => {
+      if (!map[t.statement_id]) map[t.statement_id] = { total: 0, completed: 0, isComplete: false };
+      map[t.statement_id].total++;
+      if (t.booked_at || t.match_status === "ignored") map[t.statement_id].completed++;
+    });
+    Object.values(map).forEach(v => { v.isComplete = v.total > 0 && v.completed === v.total; });
+    return map;
+  }, [allTransactions]);
+
+  // Global bookable count
+  const globalBookableCount = useMemo(() => {
+    return allTransactions.filter((t: any) =>
+      ["matched_invoice", "matched_template", "manually_matched"].includes(t.match_status) && !t.booked_at
+    ).length;
+  }, [allTransactions]);
+
+  // Filter statements
+  const visibleStatements = useMemo(() => {
+    if (showCompleted) return statements;
+    return statements.filter((s: any) => {
+      const comp = statementCompletion[s.id];
+      return !comp || !comp.isComplete;
+    });
+  }, [statements, statementCompletion, showCompleted]);
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -110,34 +153,23 @@ export function BankStatementsTab() {
       toast.error("Bitte eine CAMT XML-Datei hochladen");
       return;
     }
-
     setUploading(true);
     try {
       const xmlContent = await file.text();
       const { data, error } = await supabase.functions.invoke("parse-bank-statement", {
-        body: {
-          xmlContent,
-          buildingId: selectedBuilding !== "all" ? selectedBuilding : null,
-        },
+        body: { xmlContent, buildingId: selectedBuilding !== "all" ? selectedBuilding : null },
       });
-
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-
       const parts = [];
       if (data.totalTransactions > 0) parts.push(`${data.totalTransactions} importiert`);
       if (data.matchedCount > 0) parts.push(`${data.matchedCount} zugeordnet`);
       if (data.duplicatesSkipped > 0) parts.push(`${data.duplicatesSkipped} Duplikate übersprungen`);
-      if (data.message) {
-        toast.info(data.message);
-      } else {
-        toast.success(parts.join(", "));
-      }
-
+      if (data.message) { toast.info(data.message); } else { toast.success(parts.join(", ")); }
       queryClient.invalidateQueries({ queryKey: ["bank-statements"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
       if (data.statementId) setExpandedStatement(data.statementId);
     } catch (err: any) {
-      console.error(err);
       toast.error("Fehler beim Import: " + (err.message || "Unbekannter Fehler"));
     } finally {
       setUploading(false);
@@ -155,6 +187,7 @@ export function BankStatementsTab() {
       toast.success("Kontoauszug gelöscht");
       queryClient.invalidateQueries({ queryKey: ["bank-statements"] });
       queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
     } catch (err: any) {
       toast.error("Fehler beim Löschen: " + (err.message || "Unbekannter Fehler"));
     }
@@ -177,31 +210,26 @@ export function BankStatementsTab() {
 
   const updateMatchStatus = async (txnId: string, status: string) => {
     const { error } = await supabase.from("bank_transactions").update({ match_status: status }).eq("id", txnId);
-    if (error) {
-      toast.error("Fehler beim Aktualisieren");
-    } else {
+    if (error) { toast.error("Fehler beim Aktualisieren"); }
+    else {
       queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
     }
   };
 
   const handleManualAssign = async () => {
     if (!manualAssignTxn || !manualAssignId) return;
-
     const updateData: any = { match_status: "manually_matched" };
-    if (manualAssignType === "invoice") {
-      updateData.matched_invoice_id = manualAssignId;
-    } else {
-      updateData.matched_template_id = manualAssignId;
-    }
-
+    if (manualAssignType === "invoice") { updateData.matched_invoice_id = manualAssignId; }
+    else { updateData.matched_template_id = manualAssignId; }
     const { error } = await supabase.from("bank_transactions").update(updateData).eq("id", manualAssignTxn.id);
-    if (error) {
-      toast.error("Fehler beim Zuordnen");
-    } else {
+    if (error) { toast.error("Fehler beim Zuordnen"); }
+    else {
       toast.success("Transaktion manuell zugeordnet");
       setManualAssignTxn(null);
       setManualAssignId("");
       queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
     }
   };
 
@@ -215,10 +243,31 @@ export function BankStatementsTab() {
       if (data?.error) throw new Error(data.error);
       toast.success(data.message || "Buchungen gesendet");
       queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+      queryClient.invalidateQueries({ queryKey: ["bookings-pending"] });
     } catch (err: any) {
       toast.error("Fehler beim Buchen: " + (err.message || "Unbekannter Fehler"));
     } finally {
       setBooking(false);
+    }
+  };
+
+  const handleBookAll = async () => {
+    setBookingAll(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-booking-data", {
+        body: { bookAll: true },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success(data.message || "Alle Buchungen gesendet");
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+      queryClient.invalidateQueries({ queryKey: ["bookings-pending"] });
+    } catch (err: any) {
+      toast.error("Fehler beim Buchen: " + (err.message || "Unbekannter Fehler"));
+    } finally {
+      setBookingAll(false);
     }
   };
 
@@ -234,28 +283,22 @@ export function BankStatementsTab() {
 
   const getBuildingName = (buildingId: string | null) => {
     if (!buildingId) return null;
-    const b = buildings.find((b) => b.id === buildingId);
-    return b ? b.name : null;
+    return buildings.find((b) => b.id === buildingId)?.name || null;
   };
 
-  // Split transactions
   const matchedTransactions = transactions.filter((t) => ["matched_invoice", "matched_template", "manually_matched"].includes(t.match_status));
   const unmatchedTransactions = transactions.filter((t) => t.match_status === "unmatched");
   const ignoredTransactions = transactions.filter((t) => t.match_status === "ignored");
+
+  const completedCount = statements.filter((s: any) => statementCompletion[s.id]?.isComplete).length;
 
   const renderTransactionRow = (txn: any) => {
     const config = MATCH_STATUS_CONFIG[txn.match_status] || MATCH_STATUS_CONFIG.unmatched;
     const Icon = config.icon;
     const name = txn.amount < 0 ? txn.creditor_name : txn.debtor_name;
     return (
-      <TableRow
-        key={txn.id}
-        className="cursor-pointer hover:bg-accent/50"
-        onClick={() => setSelectedTransaction(txn.id)}
-      >
-        <TableCell className="text-sm whitespace-nowrap">
-          {format(new Date(txn.booking_date), "dd.MM.yyyy")}
-        </TableCell>
+      <TableRow key={txn.id} className="cursor-pointer hover:bg-accent/50" onClick={() => setSelectedTransaction(txn.id)}>
+        <TableCell className="text-sm whitespace-nowrap">{format(new Date(txn.booking_date), "dd.MM.yyyy")}</TableCell>
         <TableCell className="text-sm max-w-[150px] truncate">{name || "–"}</TableCell>
         <TableCell className="text-sm max-w-[200px] truncate">{txn.purpose || "–"}</TableCell>
         <TableCell className={`text-sm text-right font-mono whitespace-nowrap ${txn.amount < 0 ? "text-destructive" : "text-green-600"}`}>
@@ -264,24 +307,19 @@ export function BankStatementsTab() {
         <TableCell>
           <div className="flex items-center gap-1">
             <Badge className={`text-xs gap-1 ${config.color}`} variant="outline">
-              <Icon className="h-3 w-3" />
-              {config.label}
+              <Icon className="h-3 w-3" />{config.label}
             </Badge>
-            {txn.booked_at && (
-              <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-950">✓</Badge>
-            )}
+            {txn.booked_at && <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-950">✓</Badge>}
           </div>
         </TableCell>
         <TableCell onClick={(e) => e.stopPropagation()}>
           {txn.match_status === "unmatched" && (
             <div className="flex gap-1">
               <Button variant="ghost" size="sm" className="text-xs" onClick={() => { setManualAssignTxn(txn); setManualAssignType("invoice"); setManualAssignId(""); }}>
-                <Link2 className="h-3 w-3 mr-1" />
-                Zuordnen
+                <Link2 className="h-3 w-3 mr-1" />Zuordnen
               </Button>
               <Button variant="ghost" size="sm" className="text-xs" onClick={() => updateMatchStatus(txn.id, "ignored")}>
-                <EyeOff className="h-3 w-3 mr-1" />
-                Ignorieren
+                <EyeOff className="h-3 w-3 mr-1" />Ignorieren
               </Button>
             </div>
           )}
@@ -301,7 +339,19 @@ export function BankStatementsTab() {
         <CardHeader>
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <CardTitle className="text-lg">Kontoauszüge</CardTitle>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Global book button */}
+              {globalBookableCount > 0 && (
+                <Button
+                  variant="default"
+                  disabled={bookingAll}
+                  onClick={handleBookAll}
+                >
+                  {bookingAll ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <BookOpen className="h-4 w-4 mr-2" />}
+                  Alle buchen ({globalBookableCount})
+                </Button>
+              )}
+
               <Select value={selectedBuilding} onValueChange={setSelectedBuilding}>
                 <SelectTrigger className="w-[200px]">
                   <SelectValue placeholder="Alle Liegenschaften" />
@@ -320,26 +370,37 @@ export function BankStatementsTab() {
               </Button>
             </div>
           </div>
+
+          {/* Show completed toggle */}
+          {completedCount > 0 && (
+            <div className="flex items-center gap-2 mt-2">
+              <Switch checked={showCompleted} onCheckedChange={setShowCompleted} id="show-completed" />
+              <Label htmlFor="show-completed" className="text-sm text-muted-foreground cursor-pointer">
+                Abgeschlossene anzeigen ({completedCount})
+              </Label>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
-          ) : statements.length === 0 ? (
+          ) : visibleStatements.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Noch keine Kontoauszüge importiert</p>
-              <p className="text-sm mt-1">Laden Sie eine CAMT XML-Datei hoch</p>
+              <p>{statements.length > 0 ? "Alle Kontoauszüge abgeschlossen" : "Noch keine Kontoauszüge importiert"}</p>
+              {statements.length === 0 && <p className="text-sm mt-1">Laden Sie eine CAMT XML-Datei hoch</p>}
             </div>
           ) : (
             <div className="space-y-2">
-              {statements.map((stmt: any) => {
+              {visibleStatements.map((stmt: any) => {
                 const isExpanded = expandedStatement === stmt.id;
                 const counts = getMatchCounts(stmt.id);
                 const buildingName = getBuildingName(stmt.building_id);
+                const comp = statementCompletion[stmt.id];
                 return (
-                  <div key={stmt.id} className="border rounded-lg">
+                  <div key={stmt.id} className={`border rounded-lg ${comp?.isComplete ? "opacity-60" : ""}`}>
                     <div className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
                       <button
                         className="flex-1 flex items-center gap-3 text-left"
@@ -360,8 +421,12 @@ export function BankStatementsTab() {
                             <span>Importiert am {format(new Date(stmt.import_date), "dd.MM.yyyy HH:mm", { locale: de })}</span>
                             {buildingName && (
                               <Badge variant="outline" className="text-xs">
-                                <Building2 className="h-3 w-3 mr-1" />
-                                {buildingName}
+                                <Building2 className="h-3 w-3 mr-1" />{buildingName}
+                              </Badge>
+                            )}
+                            {comp?.isComplete && (
+                              <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-950">
+                                <CheckCircle2 className="h-3 w-3 mr-1" />Abgeschlossen
                               </Badge>
                             )}
                           </div>
@@ -370,50 +435,25 @@ export function BankStatementsTab() {
                       <div className="flex items-center gap-2 shrink-0">
                         {counts && (
                           <div className="flex gap-1">
-                            {counts.booked > 0 && (
-                              <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-950">
-                                {counts.booked}/{counts.total} gebucht
-                              </Badge>
-                            )}
-                            {counts.booked === 0 && counts.matched > 0 && (
-                              <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-950">
-                                {counts.matched} zugeordnet
-                              </Badge>
-                            )}
-                            {counts.unmatched > 0 && (
-                              <Badge variant="outline" className="text-xs bg-yellow-50 dark:bg-yellow-950">
-                                {counts.unmatched} offen
-                              </Badge>
-                            )}
+                            {counts.booked > 0 && <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-950">{counts.booked}/{counts.total} gebucht</Badge>}
+                            {counts.booked === 0 && counts.matched > 0 && <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-950">{counts.matched} zugeordnet</Badge>}
+                            {counts.unmatched > 0 && <Badge variant="outline" className="text-xs bg-yellow-50 dark:bg-yellow-950">{counts.unmatched} offen</Badge>}
                           </div>
                         )}
 
-                        {/* Book button */}
                         {counts && counts.bookable > 0 && (
-                          <Button
-                            size="sm"
-                            className="text-xs"
-                            disabled={booking}
-                            onClick={() => handleBookStatement(stmt.id)}
-                          >
+                          <Button size="sm" className="text-xs" disabled={booking} onClick={() => handleBookStatement(stmt.id)}>
                             {booking ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <BookOpen className="h-3.5 w-3.5 mr-1" />}
                             Buchen ({counts.bookable})
                           </Button>
                         )}
 
                         {assigningBuilding === stmt.id ? (
-                          <Select
-                            value={stmt.building_id || "none"}
-                            onValueChange={(val) => assignBuildingToStatement(stmt.id, val === "none" ? null : val)}
-                          >
-                            <SelectTrigger className="w-[160px] h-8 text-xs">
-                              <SelectValue placeholder="Liegenschaft" />
-                            </SelectTrigger>
+                          <Select value={stmt.building_id || "none"} onValueChange={(val) => assignBuildingToStatement(stmt.id, val === "none" ? null : val)}>
+                            <SelectTrigger className="w-[160px] h-8 text-xs"><SelectValue placeholder="Liegenschaft" /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">Keine Zuordnung</SelectItem>
-                              {buildings.map((b) => (
-                                <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                              ))}
+                              {buildings.map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
                             </SelectContent>
                           </Select>
                         ) : (
@@ -431,15 +471,11 @@ export function BankStatementsTab() {
                           <AlertDialogContent>
                             <AlertDialogHeader>
                               <AlertDialogTitle>Kontoauszug löschen?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Der Kontoauszug und alle zugehörigen Transaktionen werden unwiderruflich gelöscht.
-                              </AlertDialogDescription>
+                              <AlertDialogDescription>Der Kontoauszug und alle zugehörigen Transaktionen werden unwiderruflich gelöscht.</AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => deleteStatement(stmt.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                                Löschen
-                              </AlertDialogAction>
+                              <AlertDialogAction onClick={() => deleteStatement(stmt.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Löschen</AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
                         </AlertDialog>
@@ -452,87 +488,41 @@ export function BankStatementsTab() {
 
                     {isExpanded && (
                       <div className="border-t px-4 pb-4 space-y-4">
-                        {/* Matched transactions */}
                         {matchedTransactions.length > 0 && (
                           <div>
                             <h4 className="text-sm font-semibold text-foreground mt-4 mb-2 flex items-center gap-2">
-                              <CheckCircle2 className="h-4 w-4 text-green-600" />
-                              Zugeordnete Transaktionen ({matchedTransactions.length})
+                              <CheckCircle2 className="h-4 w-4 text-green-600" />Zugeordnete Transaktionen ({matchedTransactions.length})
                             </h4>
                             <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>Datum</TableHead>
-                                  <TableHead>Name</TableHead>
-                                  <TableHead>Verwendungszweck</TableHead>
-                                  <TableHead className="text-right">Betrag</TableHead>
-                                  <TableHead>Status</TableHead>
-                                  <TableHead></TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {matchedTransactions.map(renderTransactionRow)}
-                              </TableBody>
+                              <TableHeader><TableRow><TableHead>Datum</TableHead><TableHead>Name</TableHead><TableHead>Verwendungszweck</TableHead><TableHead className="text-right">Betrag</TableHead><TableHead>Status</TableHead><TableHead></TableHead></TableRow></TableHeader>
+                              <TableBody>{matchedTransactions.map(renderTransactionRow)}</TableBody>
                             </Table>
                           </div>
                         )}
-
-                        {/* Unmatched transactions */}
                         {unmatchedTransactions.length > 0 && (
                           <div>
                             <h4 className="text-sm font-semibold text-foreground mt-4 mb-2 flex items-center gap-2">
-                              <FileQuestion className="h-4 w-4 text-yellow-600" />
-                              Unbekannte Transaktionen ({unmatchedTransactions.length})
+                              <FileQuestion className="h-4 w-4 text-yellow-600" />Unbekannte Transaktionen ({unmatchedTransactions.length})
                             </h4>
-                            <p className="text-xs text-muted-foreground mb-2">
-                              Diese Transaktionen konnten keiner Rechnung oder Vorlage zugeordnet werden. Ordnen Sie sie manuell zu oder ignorieren Sie sie.
-                            </p>
+                            <p className="text-xs text-muted-foreground mb-2">Diese Transaktionen konnten keiner Rechnung oder Vorlage zugeordnet werden.</p>
                             <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>Datum</TableHead>
-                                  <TableHead>Name</TableHead>
-                                  <TableHead>Verwendungszweck</TableHead>
-                                  <TableHead className="text-right">Betrag</TableHead>
-                                  <TableHead>Status</TableHead>
-                                  <TableHead>Aktionen</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {unmatchedTransactions.map(renderTransactionRow)}
-                              </TableBody>
+                              <TableHeader><TableRow><TableHead>Datum</TableHead><TableHead>Name</TableHead><TableHead>Verwendungszweck</TableHead><TableHead className="text-right">Betrag</TableHead><TableHead>Status</TableHead><TableHead>Aktionen</TableHead></TableRow></TableHeader>
+                              <TableBody>{unmatchedTransactions.map(renderTransactionRow)}</TableBody>
                             </Table>
                           </div>
                         )}
-
-                        {/* Ignored transactions */}
                         {ignoredTransactions.length > 0 && (
                           <div>
                             <h4 className="text-sm font-semibold text-muted-foreground mt-4 mb-2 flex items-center gap-2">
-                              <EyeOff className="h-4 w-4" />
-                              Ignorierte Transaktionen ({ignoredTransactions.length})
+                              <EyeOff className="h-4 w-4" />Ignorierte Transaktionen ({ignoredTransactions.length})
                             </h4>
                             <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>Datum</TableHead>
-                                  <TableHead>Name</TableHead>
-                                  <TableHead>Verwendungszweck</TableHead>
-                                  <TableHead className="text-right">Betrag</TableHead>
-                                  <TableHead>Status</TableHead>
-                                  <TableHead></TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {ignoredTransactions.map(renderTransactionRow)}
-                              </TableBody>
+                              <TableHeader><TableRow><TableHead>Datum</TableHead><TableHead>Name</TableHead><TableHead>Verwendungszweck</TableHead><TableHead className="text-right">Betrag</TableHead><TableHead>Status</TableHead><TableHead></TableHead></TableRow></TableHeader>
+                              <TableBody>{ignoredTransactions.map(renderTransactionRow)}</TableBody>
                             </Table>
                           </div>
                         )}
-
-                        {transactions.length === 0 && (
-                          <p className="text-center text-muted-foreground py-8">Keine Transaktionen</p>
-                        )}
+                        {transactions.length === 0 && <p className="text-center text-muted-foreground py-8">Keine Transaktionen</p>}
                       </div>
                     )}
                   </div>
@@ -543,27 +533,17 @@ export function BankStatementsTab() {
         </CardContent>
       </Card>
 
-      {/* Transaction Detail Sheet */}
-      <TransactionDetailSheet
-        transactionId={selectedTransaction}
-        onClose={() => setSelectedTransaction(null)}
-      />
+      <TransactionDetailSheet transactionId={selectedTransaction} onClose={() => setSelectedTransaction(null)} />
 
-      {/* Manual Assignment Dialog */}
       <Dialog open={!!manualAssignTxn} onOpenChange={() => setManualAssignTxn(null)}>
         <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Transaktion manuell zuordnen</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Transaktion manuell zuordnen</DialogTitle></DialogHeader>
           {manualAssignTxn && (
             <div className="space-y-4">
               <div className="bg-muted p-3 rounded-md text-sm">
-                <p className="font-medium">
-                  {manualAssignTxn.amount < 0 ? "" : "+"}{Number(manualAssignTxn.amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
-                </p>
+                <p className="font-medium">{manualAssignTxn.amount < 0 ? "" : "+"}{Number(manualAssignTxn.amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €</p>
                 <p className="text-muted-foreground text-xs mt-1">{manualAssignTxn.purpose || "Kein Verwendungszweck"}</p>
               </div>
-
               <div>
                 <Label>Zuordnungstyp</Label>
                 <Select value={manualAssignType} onValueChange={(v: "invoice" | "template") => { setManualAssignType(v); setManualAssignId(""); }}>
@@ -574,7 +554,6 @@ export function BankStatementsTab() {
                   </SelectContent>
                 </Select>
               </div>
-
               <div>
                 <Label>{manualAssignType === "invoice" ? "Rechnung" : "Vorlage"}</Label>
                 <Select value={manualAssignId} onValueChange={setManualAssignId}>
