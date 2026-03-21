@@ -248,6 +248,11 @@ export function BookingsTab() {
               <FileText className="h-3.5 w-3.5 text-blue-500" />
             </Button>
           )}
+          {b.matched_template_id && b.booking_templates && (
+            <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+              {b.booking_templates.name}
+            </Badge>
+          )}
           <Badge variant="outline" className="text-[10px]">
             {b.source === "manual" ? "Manuell" : b.source === "ocr" ? "OCR" : b.source === "bank_import" ? "Bank" : b.source}
           </Badge>
