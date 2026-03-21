@@ -245,7 +245,7 @@ export function BookingsTab() {
           {b.invoice_id && (
             <Button size="sm" variant="ghost" className="h-6 w-6 p-0"
               onClick={(e) => { e.stopPropagation(); handleInvoiceClick(b.invoice_id); }}>
-              <FileText className="h-3.5 w-3.5 text-blue-500" />
+              <FileText className="h-3.5 w-3.5 text-primary" />
             </Button>
           )}
           {b.matched_template_id && b.booking_templates && (
