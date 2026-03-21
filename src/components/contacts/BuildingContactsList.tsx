@@ -239,7 +239,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
         .from("chart_of_accounts")
         .insert({
           account_number: unitNumber,
-          account_name: `Hausgeld ${lastName}`,
+          account_name: `${costType} ${lastName}`,
           building_id: buildingId,
           category: "Einnahmen",
         })
