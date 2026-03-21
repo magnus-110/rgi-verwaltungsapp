@@ -40,6 +40,7 @@ const emptyForm: TemplateForm = {
   interval: "monatlich",
   category: "",
   description: "",
+  vat_rate: "",
 };
 
 export function BookingTemplatesTab() {
