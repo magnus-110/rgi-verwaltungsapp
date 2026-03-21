@@ -212,7 +212,10 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
 
   // Helper: ensure account + template exist for Hausgeld
   const ensureAccountAndTemplate = async (assignmentId: string, costType: string, amount: number) => {
-    if (costType !== "Hausgeld" || amount <= 0) return;
+    if (amount <= 0) {
+      toast({ title: "Hinweis", description: "Bitte zuerst einen Betrag eingeben.", variant: "destructive" });
+      return;
+    }
     
     // Find the assignment with contact data
     const assignment = assignments.find(a => a.id === assignmentId);
