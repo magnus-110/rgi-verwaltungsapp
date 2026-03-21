@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
     // Fetch related data
     const [invoicesRes, templatesRes, buildingsRes] = await Promise.all([
       invoiceIds.length > 0
-        ? supabase.from("invoices").select("id, invoice_number, invoice_date, vendor_name, net_amount, gross_amount, vat_amount, suggested_account_id, chart_of_accounts:suggested_account_id(account_number, account_name)").in("id", invoiceIds)
+        ? supabase.from("invoices").select("id, invoice_number, invoice_date, vendor_name, net_amount, gross_amount, vat_amount, description, line_items, suggested_account_id, chart_of_accounts:suggested_account_id(account_number, account_name)").in("id", invoiceIds)
         : { data: [] },
       templateIds.length > 0
         ? supabase.from("booking_templates").select("id, name, account_id, is_35a_relevant, category, chart_of_accounts:account_id(account_number, account_name)").in("id", templateIds)
@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
         creditor_iban: txn.creditor_iban,
         debtor_name: txn.debtor_name,
         debtor_iban: txn.debtor_iban,
-        purpose: txn.purpose,
+        purpose: invoice?.description || txn.purpose,
         end_to_end_ref: txn.end_to_end_ref,
         match_type: txn.match_status,
         building_id: txn.building_id,
@@ -129,6 +129,8 @@ Deno.serve(async (req) => {
         building_code: building?.building_code || null,
         invoice_number: invoice?.invoice_number || null,
         invoice_date: invoice?.invoice_date || null,
+        invoice_description: invoice?.description || null,
+        line_items: invoice?.line_items || [],
         vendor_name: invoice?.vendor_name || txn.creditor_name || txn.debtor_name,
         net_amount: net_amount,
         gross_amount: gross_amount,
