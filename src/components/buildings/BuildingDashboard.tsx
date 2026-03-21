@@ -8,9 +8,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { EditBuildingDialog } from "@/components/EditBuildingDialog";
 import { DeleteBuildingDialog } from "@/components/DeleteBuildingDialog";
 import { ManagerAssignmentDialog } from "@/components/ManagerAssignmentDialog";
-import { CreateUserDialog } from "@/components/CreateUserDialog";
-import { BulkUpload } from "@/components/BulkUpload";
-import { UsersList } from "@/components/UsersList";
 import { BuildingContactsList } from "@/components/contacts/BuildingContactsList";
 import { BuildingReportsTab } from "./BuildingReportsTab";
 import { BuildingFilesTab } from "./BuildingFilesTab";
@@ -31,8 +28,6 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isManagerOpen, setIsManagerOpen] = useState(false);
-  const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
-  const [selectedUserType, setSelectedUserType] = useState<"tenant" | "weg_owner">("tenant");
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -49,14 +44,12 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
     },
   });
 
-  const { data: userCounts } = useQuery({
-    queryKey: ['building-user-counts', buildingId],
+  const { data: contactCount = 0 } = useQuery({
+    queryKey: ['building-contact-count', buildingId],
     queryFn: async () => {
-      const [tenantsResult, wegOwnersResult] = await Promise.all([
-        supabase.from('tenants').select('user_id', { count: 'exact', head: true }).eq('building_id', buildingId),
-        supabase.from('weg_owner_buildings').select('user_id', { count: 'exact', head: true }).eq('building_id', buildingId),
-      ]);
-      return { tenants: tenantsResult.count || 0, wegOwners: wegOwnersResult.count || 0 };
+      const { count } = await supabase.from('contact_building_assignments').select('*', { count: 'exact', head: true })
+        .eq('building_id', buildingId).eq('is_active', true);
+      return count || 0;
     },
   });
 
@@ -99,20 +92,13 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ['building-detail', buildingId] });
-    queryClient.invalidateQueries({ queryKey: ['building-user-counts', buildingId] });
+    queryClient.invalidateQueries({ queryKey: ['building-contact-count', buildingId] });
     queryClient.invalidateQueries({ queryKey: ['building-report-count', buildingId] });
     queryClient.invalidateQueries({ queryKey: ['building-file-count', buildingId] });
     queryClient.invalidateQueries({ queryKey: ['building-forum-count', buildingId] });
     queryClient.invalidateQueries({ queryKey: ['building-managers-names', buildingId] });
     queryClient.invalidateQueries({ queryKey: ['buildings-list'] });
   };
-
-  const handleCreateUser = (type: "tenant" | "weg_owner") => {
-    setSelectedUserType(type);
-    setIsCreateUserOpen(true);
-  };
-
-  const totalUsers = (userCounts?.tenants || 0) + (userCounts?.wegOwners || 0);
 
   if (isLoading || !building) {
     return (
@@ -195,7 +181,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
           {/* Overview Tab */}
           <TabsContent value="overview" className="p-4 md:p-6 mt-0 space-y-6">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <StatCard icon={Users} label="Personen" value={totalUsers} />
+              <StatCard icon={Users} label="Kontakte" value={contactCount} />
               <StatCard icon={AlertCircle} label="Offene Meldungen" value={reportCount} />
               <StatCard icon={FileText} label="Dokumente" value={fileCount} />
               <StatCard icon={Newspaper} label="Beiträge" value={forumCount} />
@@ -207,17 +193,10 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
                   <CardTitle className="text-base">Personen</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  {building.management_mode === 'weg' ? (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">WEG-Eigentümer</span>
-                      <span className="font-medium">{userCounts?.wegOwners || 0}</span>
-                    </div>
-                  ) : (
-                    <div className="flex justify-between text-sm">
-                      <span className="text-muted-foreground">Mieter</span>
-                      <span className="font-medium">{userCounts?.tenants || 0}</span>
-                    </div>
-                  )}
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Kontakte</span>
+                    <span className="font-medium">{contactCount}</span>
+                  </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Verwalter</span>
                     <span className="font-medium">{managerNames.length}</span>
@@ -249,34 +228,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
 
           {/* People Tab */}
           <TabsContent value="people" className="p-4 md:p-6 mt-0 space-y-6">
-            {/* Contacts from new system */}
             <BuildingContactsList buildingId={buildingId} managementMode={building?.management_mode || 'weg'} />
-
-            {/* Legacy users section */}
-            {totalUsers > 0 && (
-              <div className="border-t border-border pt-4">
-                <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
-                  <h3 className="font-semibold text-sm text-muted-foreground">Legacy-Nutzer (System-Accounts)</h3>
-                  <div className="flex items-center gap-2">
-                    <BulkUpload buildingId={buildingId} managementMode={building.management_mode} onUploadComplete={handleRefresh} />
-                    {building.management_mode === "rent" && (
-                      <Button size="sm" variant="outline" onClick={() => handleCreateUser("tenant")}>+ Mieter</Button>
-                    )}
-                    {building.management_mode === "weg" && (
-                      <Button size="sm" variant="outline" onClick={() => handleCreateUser("weg_owner")}>+ WEG-Eigentümer</Button>
-                    )}
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  {(userCounts?.tenants || 0) > 0 && (
-                    <UsersList buildingId={buildingId} userType="tenants" count={userCounts!.tenants} defaultExpanded />
-                  )}
-                  {(userCounts?.wegOwners || 0) > 0 && (
-                    <UsersList buildingId={buildingId} userType="weg_owners" count={userCounts!.wegOwners} defaultExpanded />
-                  )}
-                </div>
-              </div>
-            )}
           </TabsContent>
 
           {/* Reports Tab */}
@@ -316,8 +268,6 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
       <DeleteBuildingDialog isOpen={isDeleteOpen} onClose={() => setIsDeleteOpen(false)} buildingId={buildingId}
         buildingName={building.name} buildingCode={building.building_code} onDelete={() => { handleRefresh(); navigate('/buildings'); }} />
       <ManagerAssignmentDialog isOpen={isManagerOpen} onClose={() => setIsManagerOpen(false)} buildingId={buildingId} buildingName={building.name} />
-      <CreateUserDialog isOpen={isCreateUserOpen} onClose={() => setIsCreateUserOpen(false)} buildingId={buildingId}
-        userType={selectedUserType} onUserCreated={handleRefresh} />
     </div>
   );
 };
@@ -333,21 +283,6 @@ function StatCard({ icon: Icon, label, value }: { icon: any; label: string; valu
           <p className="text-2xl font-bold">{value}</p>
           <p className="text-xs text-muted-foreground">{label}</p>
         </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function PlaceholderTab({ icon: Icon, title, description, count }: { icon: any; title: string; description: string; count?: number }) {
-  return (
-    <Card className="border-dashed">
-      <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-        <div className="p-3 bg-muted rounded-xl mb-4">
-          <Icon className="h-8 w-8 text-muted-foreground" />
-        </div>
-        <h3 className="font-semibold text-lg mb-1">{title}</h3>
-        {count !== undefined && <p className="text-sm text-muted-foreground mb-2">{count} Einträge vorhanden</p>}
-        <p className="text-sm text-muted-foreground max-w-md">{description}</p>
       </CardContent>
     </Card>
   );
