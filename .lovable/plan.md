@@ -1,50 +1,32 @@
 
 
-# Plan: Auto-Konto/Vorlage bei Hausgeld + Legacy-System entfernen
+# Plan: Konto/Vorlage-Checkbox pro Kostenkategorie
 
-## Teil 1: Automatisches Konto & Buchungsvorlage bei Hausgeld-Zuweisung
+## Aenderung
 
-### Trigger-Punkt
-Wenn in `BuildingContactsList.tsx` ein Hausgeld-Eintrag in `contact_building_costs` erstellt oder aktualisiert wird (Funktionen `addCost`, `updateCost`), soll automatisch geprueft werden, ob ein passendes Konto und eine Buchungsvorlage existieren. Falls nicht, werden sie angelegt.
+Aktuell wird `ensureAccountAndTemplate` nur fuer "Hausgeld" automatisch aufgerufen. Stattdessen soll bei **jeder** Kostenkategorie eine Checkbox erscheinen, mit der der Nutzer entscheiden kann, ob Konto + Vorlage angelegt werden sollen.
 
-### Neue Hilfsfunktion (in `BuildingContactsList.tsx`)
-`ensureAccountAndTemplate(buildingId, assignment, costType, amount)`:
-1. Liest `contact.last_name`, `unit_number`, `floor_location` aus dem Assignment
-2. **Konto**: Sucht in `chart_of_accounts` nach `account_number = unitNumber` + building_id. Falls nicht vorhanden, erstellt neues Konto:
-   - `account_number`: z.B. `"0001"`
-   - `account_name`: z.B. `"Hausgeld Goettinger"`
-   - `building_id`: die Liegenschaft
-   - `category`: `"Einnahmen"`
-3. **Vorlage**: Sucht in `booking_templates` nach `name ILIKE '%Hausgeld%' AND name ILIKE '%unitNumber%'` + building_id. Falls nicht vorhanden, erstellt:
-   - `name`: z.B. `"mtl. Hausgeld 0001 EG rechts"`
-   - `building_id`: die Liegenschaft
-   - `expected_amount`: der Hausgeld-Betrag
-   - `interval`: `"monatlich"`
-   - `account_id`: das gerade erstellte/gefundene Konto
+## UI-Aenderung in `BuildingContactsList.tsx`
 
-### Ausloesung
-- Bei `addCost`: nach dem Insert, wenn `cost_type === "Hausgeld"` und `amount > 0`
-- Bei `updateCost`: wenn `field === "amount"` oder `field === "cost_type"`, Konto/Vorlage aktualisieren
+In der Kosten-Zeile (Zeilen 586-620) wird **rechts neben dem Intervall-Dropdown** eine Checkbox mit Tooltip hinzugefuegt:
+- Checkbox-Label: kleines Icon (z.B. Konto-Symbol) oder kurzer Text "Konto + Vorlage"
+- Beim Aktivieren der Checkbox wird `ensureAccountAndTemplate` aufgerufen (mit dem aktuellen `cost_type` statt nur "Hausgeld")
+- Die Checkbox ist rein als Trigger gedacht (kein persistenter State noetig, da sie einmalig Konto/Vorlage erstellt)
 
-## Teil 2: Legacy-Nutzer-System entfernen
+## Logik-Aenderung in `ensureAccountAndTemplate`
 
-### Dateien loeschen
-- `src/components/UsersList.tsx`
-- `src/components/CreateUserDialog.tsx`
-- `src/components/EditUserDialog.tsx`
-- `src/components/BulkUpload.tsx`
+- Die Pruefung `if (costType !== "Hausgeld" || amount <= 0) return;` wird entfernt
+- Nur noch `if (amount <= 0) return;` bleibt
+- Kontoname wird dynamisch: `"{costType} {lastName}"` (z.B. "Miete Mueller", "Stellplatz Schmidt")
+- Vorlagenname wird: `"mtl. {costType} {unitNumber} {floorLocation}"` (z.B. "mtl. Miete 0001 EG rechts")
 
-### Dateien bereinigen
+## Auto-Trigger entfernen
+
+Der automatische Aufruf in `updateCost` (Zeilen 279-286) wird entfernt. Stattdessen wird Konto/Vorlage **nur** ueber die Checkbox erstellt - bewusste Entscheidung des Nutzers.
+
+## Dateien
 
 | Datei | Aenderung |
 |---|---|
-| `src/components/buildings/BuildingDashboard.tsx` | Imports fuer UsersList, CreateUserDialog, BulkUpload entfernen. Legacy-Nutzer-Sektion (Zeilen 255-279) komplett entfernen. States `isCreateUserOpen`, `selectedUserType`, `handleCreateUser`, `totalUsers`, `userCounts`-Query entfernen. CreateUserDialog aus Dialogs entfernen. Personen-Card im Overview-Tab vereinfachen (nur Kontakte-Anzahl zeigen). |
-| `src/components/BuildingRow.tsx` | Imports/Referenzen auf UsersList, CreateUserDialog, BulkUpload entfernen. Legacy-User-Sektion entfernen. |
-| `src/components/contacts/BuildingContactsList.tsx` | `ensureAccountAndTemplate`-Logik in `addCost` und `updateCost` integrieren |
-
-### Edge Functions bleiben
-`admin-create-user` und `admin-delete-user` bleiben bestehen (werden fuer Admin/Employee-Erstellung und ggf. Kontakt-Einladungen weiterhin genutzt).
-
-### Tenant-Seiten bleiben
-Die Tenant/WEG-Owner Portal-Seiten (`/tenant/*`, `/weg-owner/*`) bleiben, da sie fuer eingeladene Kontakt-Nutzer weiterhin relevant sind.
+| `src/components/contacts/BuildingContactsList.tsx` | Checkbox pro Kostenzeile, `ensureAccountAndTemplate` generisch machen, Auto-Trigger entfernen |
 
