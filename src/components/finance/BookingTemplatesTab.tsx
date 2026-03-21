@@ -26,6 +26,7 @@ interface TemplateForm {
   interval: string;
   category: string;
   description: string;
+  vat_rate: string;
 }
 
 const emptyForm: TemplateForm = {
