@@ -168,19 +168,35 @@ export function BookingsTab() {
     if (e.key === "Enter") { e.preventDefault(); setEditBooking(booking); }
   };
 
-  const handleInvoiceClick = useCallback(async (invoiceId: string) => {
+  const handleInvoiceClick = useCallback(async (booking: any) => {
     try {
-      const allBookings = [...pendingBookings, ...confirmedBookings, ...manualBookings];
-      const booking = allBookings.find((b: any) => b.invoice_id === invoiceId);
       const filePath = booking?.invoices?.file_path;
       const fileName = booking?.invoices?.file_name || "Rechnung.pdf";
       if (!filePath) { toast.error("Keine Datei hinterlegt"); return; }
+      
+      // Try direct signed URL first
       const { data, error } = await supabase.storage.from("invoices").createSignedUrl(filePath, 3600);
-      if (error || !data?.signedUrl) { toast.error("Fehler beim Laden"); return; }
+      if (error || !data?.signedUrl) {
+        // Fallback: try without leading slash or bucket prefix
+        const cleanPath = filePath.replace(/^\/?(invoices\/)?/, "");
+        const { data: d2, error: e2 } = await supabase.storage.from("invoices").createSignedUrl(cleanPath, 3600);
+        if (e2 || !d2?.signedUrl) { toast.error("PDF konnte nicht geladen werden"); return; }
+        setPdfUrl(d2.signedUrl);
+        setPdfFileName(fileName);
+        return;
+      }
       setPdfUrl(data.signedUrl);
       setPdfFileName(fileName);
     } catch { toast.error("Fehler beim Laden der Rechnung"); }
-  }, [pendingBookings, confirmedBookings, manualBookings]);
+  }, []);
+
+  const [templateDetail, setTemplateDetail] = useState<any>(null);
+
+  const handleTemplateClick = useCallback((booking: any) => {
+    if (booking?.booking_templates) {
+      setTemplateDetail(booking.booking_templates);
+    }
+  }, []);
 
   const formatCurrency = (amount: number | null) =>
     amount != null ? new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(amount) : "–";
