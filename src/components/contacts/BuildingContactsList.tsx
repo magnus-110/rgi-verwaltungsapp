@@ -249,12 +249,12 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
     }
 
     // 2. Find or create booking template
-    const templateName = `mtl. Hausgeld ${unitNumber} ${floorLocation}`.trim();
+    const templateName = `mtl. ${costType} ${unitNumber} ${floorLocation}`.trim();
     const { data: existingTemplate } = await supabase
       .from("booking_templates")
       .select("id")
       .eq("building_id", buildingId)
-      .ilike("name", `%Hausgeld%${unitNumber}%`)
+      .ilike("name", `%${costType}%${unitNumber}%`)
       .maybeSingle();
 
     if (existingTemplate) {
