@@ -176,20 +176,23 @@ export function BookingsTab() {
       const fileName = booking?.invoices?.file_name || "Rechnung.pdf";
       if (!filePath) { toast.error("Keine Datei hinterlegt"); return; }
       
-      // Try direct signed URL first
-      const { data, error } = await supabase.storage.from("invoices").createSignedUrl(filePath, 3600);
+      // Normalize: remove leading slashes and any bucket prefix variations
+      const cleanPath = filePath
+        .replace(/^\/+/, "")
+        .replace(/^invoices\//, "");
+      
+      const { data, error } = await supabase.storage.from("invoices").createSignedUrl(cleanPath, 3600);
       if (error || !data?.signedUrl) {
-        // Fallback: try without leading slash or bucket prefix
-        const cleanPath = filePath.replace(/^\/?(invoices\/)?/, "");
-        const { data: d2, error: e2 } = await supabase.storage.from("invoices").createSignedUrl(cleanPath, 3600);
-        if (e2 || !d2?.signedUrl) { toast.error("PDF konnte nicht geladen werden"); return; }
-        setPdfUrl(d2.signedUrl);
-        setPdfFileName(fileName);
+        console.error("Signed URL error:", error, "path tried:", cleanPath, "original:", filePath);
+        toast.error("PDF konnte nicht geladen werden");
         return;
       }
       setPdfUrl(data.signedUrl);
       setPdfFileName(fileName);
-    } catch { toast.error("Fehler beim Laden der Rechnung"); }
+    } catch (err) {
+      console.error("Invoice PDF error:", err);
+      toast.error("Fehler beim Laden der Rechnung");
+    }
   }, []);
 
 

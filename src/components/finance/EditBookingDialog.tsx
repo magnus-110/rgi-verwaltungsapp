@@ -153,7 +153,10 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
     if (error) { toast.error("Fehler: " + error.message); return; }
     toast.success("Buchung gespeichert");
     onOpenChange(false);
-    queryClient.invalidateQueries({ queryKey: ["bookings"] });
+    queryClient.invalidateQueries({ predicate: (query) => {
+      const key = query.queryKey[0] as string;
+      return key.startsWith("bookings");
+    }});
   };
 
   const handleConfirm = async () => {
@@ -184,7 +187,10 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
     if (error) { toast.error("Fehler: " + error.message); return; }
     toast.success("Buchung bestätigt");
     onOpenChange(false);
-    queryClient.invalidateQueries({ queryKey: ["bookings"] });
+    queryClient.invalidateQueries({ predicate: (query) => {
+      const key = query.queryKey[0] as string;
+      return key.startsWith("bookings");
+    }});
   };
 
   const set = (key: string, value: string | boolean) => setForm(p => ({ ...p, [key]: value }));
