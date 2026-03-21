@@ -188,6 +188,10 @@ export function BookingTemplatesTab() {
                   <TableHead>IBAN</TableHead>
                   <TableHead className="text-right">Betrag</TableHead>
                   <TableHead>Konto</TableHead>
+                  <TableHead>MwSt</TableHead>
+                  <TableHead>Intervall</TableHead>
+                  <TableHead></TableHead>
+                  <TableHead>Konto</TableHead>
                   <TableHead>Intervall</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
