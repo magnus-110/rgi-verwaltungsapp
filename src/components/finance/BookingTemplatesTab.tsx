@@ -26,6 +26,7 @@ interface TemplateForm {
   interval: string;
   category: string;
   description: string;
+  vat_rate: string;
 }
 
 const emptyForm: TemplateForm = {
@@ -39,6 +40,7 @@ const emptyForm: TemplateForm = {
   interval: "monatlich",
   category: "",
   description: "",
+  vat_rate: "",
 };
 
 export function BookingTemplatesTab() {
@@ -103,6 +105,7 @@ export function BookingTemplatesTab() {
       interval: t.interval || "monatlich",
       category: t.category || "",
       description: t.description || "",
+      vat_rate: t.vat_rate?.toString() || "",
     });
     setIsDialogOpen(true);
   };
@@ -128,6 +131,7 @@ export function BookingTemplatesTab() {
       interval: form.interval,
       category: form.category || null,
       description: form.description || null,
+      vat_rate: form.vat_rate ? parseFloat(form.vat_rate) : null,
     };
 
     if (editingId) {
@@ -184,6 +188,10 @@ export function BookingTemplatesTab() {
                   <TableHead>IBAN</TableHead>
                   <TableHead className="text-right">Betrag</TableHead>
                   <TableHead>Konto</TableHead>
+                  <TableHead>MwSt</TableHead>
+                  <TableHead>Intervall</TableHead>
+                  <TableHead></TableHead>
+                  <TableHead>Konto</TableHead>
                   <TableHead>Intervall</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
@@ -201,6 +209,7 @@ export function BookingTemplatesTab() {
                     <TableCell className="text-sm">
                       {t.chart_of_accounts ? `${t.chart_of_accounts.account_number} ${t.chart_of_accounts.account_name}` : "–"}
                     </TableCell>
+                    <TableCell className="text-sm">{t.vat_rate != null ? `${t.vat_rate}%` : "–"}</TableCell>
                     <TableCell className="text-sm capitalize">{t.interval || "–"}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
@@ -316,6 +325,17 @@ export function BookingTemplatesTab() {
             <div className="flex items-center gap-2">
               <Switch checked={form.is_35a_relevant} onCheckedChange={(c) => setForm({ ...form, is_35a_relevant: c })} />
               <Label>§35a relevant</Label>
+            </div>
+            <div>
+              <Label>MwSt-Satz (%)</Label>
+              <Select value={form.vat_rate} onValueChange={(v) => setForm({ ...form, vat_rate: v })}>
+                <SelectTrigger><SelectValue placeholder="MwSt wählen" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">0%</SelectItem>
+                  <SelectItem value="7">7%</SelectItem>
+                  <SelectItem value="19">19%</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>

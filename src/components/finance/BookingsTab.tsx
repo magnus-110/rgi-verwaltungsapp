@@ -53,7 +53,8 @@ export function BookingsTab() {
           buildings(id, name, building_code),
           chart_of_accounts!bookings_account_id_fkey(account_number, account_name),
           counter_account:chart_of_accounts!bookings_counter_account_id_fkey(account_number, account_name),
-          invoices(id, file_path, file_name, vendor_name)
+          invoices(id, file_path, file_name, vendor_name),
+          booking_templates!bookings_matched_template_id_fkey(id, name)
         `)
         .eq("fiscal_year", parseInt(filterYear))
         .eq("status", "pending")
@@ -73,7 +74,8 @@ export function BookingsTab() {
           buildings(id, name, building_code),
           chart_of_accounts!bookings_account_id_fkey(account_number, account_name),
           counter_account:chart_of_accounts!bookings_counter_account_id_fkey(account_number, account_name),
-          invoices(id, file_path, file_name, vendor_name)
+          invoices(id, file_path, file_name, vendor_name),
+          booking_templates!bookings_matched_template_id_fkey(id, name)
         `)
         .eq("fiscal_year", parseInt(filterYear))
         .eq("status", "confirmed")
@@ -94,7 +96,8 @@ export function BookingsTab() {
           buildings(id, name, building_code),
           chart_of_accounts!bookings_account_id_fkey(account_number, account_name),
           counter_account:chart_of_accounts!bookings_counter_account_id_fkey(account_number, account_name),
-          invoices(id, file_path, file_name, vendor_name)
+          invoices(id, file_path, file_name, vendor_name),
+          booking_templates!bookings_matched_template_id_fkey(id, name)
         `)
         .eq("fiscal_year", parseInt(filterYear))
         .eq("source", "manual")
@@ -244,6 +247,11 @@ export function BookingsTab() {
               onClick={(e) => { e.stopPropagation(); handleInvoiceClick(b.invoice_id); }}>
               <FileText className="h-3.5 w-3.5 text-blue-500" />
             </Button>
+          )}
+          {b.matched_template_id && b.booking_templates && (
+            <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+              {b.booking_templates.name}
+            </Badge>
           )}
           <Badge variant="outline" className="text-[10px]">
             {b.source === "manual" ? "Manuell" : b.source === "ocr" ? "OCR" : b.source === "bank_import" ? "Bank" : b.source}
