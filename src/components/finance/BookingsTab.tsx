@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -33,6 +34,7 @@ export function BookingsTab() {
   const [currentPage, setCurrentPage] = useState(0);
   const [confirmedOpen, setConfirmedOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
+  const [templateDetail, setTemplateDetail] = useState<any>(null);
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
@@ -54,7 +56,7 @@ export function BookingsTab() {
           chart_of_accounts!bookings_account_id_fkey(account_number, account_name),
           counter_account:chart_of_accounts!bookings_counter_account_id_fkey(account_number, account_name),
           invoices(id, file_path, file_name, vendor_name),
-          booking_templates!bookings_matched_template_id_fkey(id, name)
+          booking_templates!bookings_matched_template_id_fkey(id, name, vendor_name, expected_amount, vat_rate, interval, category)
         `)
         .eq("fiscal_year", parseInt(filterYear))
         .eq("status", "pending")
@@ -75,7 +77,7 @@ export function BookingsTab() {
           chart_of_accounts!bookings_account_id_fkey(account_number, account_name),
           counter_account:chart_of_accounts!bookings_counter_account_id_fkey(account_number, account_name),
           invoices(id, file_path, file_name, vendor_name),
-          booking_templates!bookings_matched_template_id_fkey(id, name)
+          booking_templates!bookings_matched_template_id_fkey(id, name, vendor_name, expected_amount, vat_rate, interval, category)
         `)
         .eq("fiscal_year", parseInt(filterYear))
         .eq("status", "confirmed")
@@ -97,7 +99,7 @@ export function BookingsTab() {
           chart_of_accounts!bookings_account_id_fkey(account_number, account_name),
           counter_account:chart_of_accounts!bookings_counter_account_id_fkey(account_number, account_name),
           invoices(id, file_path, file_name, vendor_name),
-          booking_templates!bookings_matched_template_id_fkey(id, name)
+          booking_templates!bookings_matched_template_id_fkey(id, name, vendor_name, expected_amount, vat_rate, interval, category)
         `)
         .eq("fiscal_year", parseInt(filterYear))
         .eq("source", "manual")
@@ -168,19 +170,34 @@ export function BookingsTab() {
     if (e.key === "Enter") { e.preventDefault(); setEditBooking(booking); }
   };
 
-  const handleInvoiceClick = useCallback(async (invoiceId: string) => {
+  const handleInvoiceClick = useCallback(async (booking: any) => {
     try {
-      const allBookings = [...pendingBookings, ...confirmedBookings, ...manualBookings];
-      const booking = allBookings.find((b: any) => b.invoice_id === invoiceId);
       const filePath = booking?.invoices?.file_path;
       const fileName = booking?.invoices?.file_name || "Rechnung.pdf";
       if (!filePath) { toast.error("Keine Datei hinterlegt"); return; }
+      
+      // Try direct signed URL first
       const { data, error } = await supabase.storage.from("invoices").createSignedUrl(filePath, 3600);
-      if (error || !data?.signedUrl) { toast.error("Fehler beim Laden"); return; }
+      if (error || !data?.signedUrl) {
+        // Fallback: try without leading slash or bucket prefix
+        const cleanPath = filePath.replace(/^\/?(invoices\/)?/, "");
+        const { data: d2, error: e2 } = await supabase.storage.from("invoices").createSignedUrl(cleanPath, 3600);
+        if (e2 || !d2?.signedUrl) { toast.error("PDF konnte nicht geladen werden"); return; }
+        setPdfUrl(d2.signedUrl);
+        setPdfFileName(fileName);
+        return;
+      }
       setPdfUrl(data.signedUrl);
       setPdfFileName(fileName);
     } catch { toast.error("Fehler beim Laden der Rechnung"); }
-  }, [pendingBookings, confirmedBookings, manualBookings]);
+  }, []);
+
+
+  const handleTemplateClick = useCallback((booking: any) => {
+    if (booking?.booking_templates) {
+      setTemplateDetail(booking.booking_templates);
+    }
+  }, []);
 
   const formatCurrency = (amount: number | null) =>
     amount != null ? new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(amount) : "–";
@@ -244,12 +261,15 @@ export function BookingsTab() {
           )}
           {b.invoice_id && (
             <Button size="sm" variant="ghost" className="h-6 w-6 p-0"
-              onClick={(e) => { e.stopPropagation(); handleInvoiceClick(b.invoice_id); }}>
+              onClick={(e) => { e.stopPropagation(); handleInvoiceClick(b); }}>
               <FileText className="h-3.5 w-3.5 text-primary" />
             </Button>
           )}
           {b.matched_template_id && b.booking_templates && (
-            <LayoutTemplate className="h-4 w-4 text-primary" />
+            <Button size="sm" variant="ghost" className="h-6 w-6 p-0"
+              onClick={(e) => { e.stopPropagation(); handleTemplateClick(b); }}>
+              <LayoutTemplate className="h-4 w-4 text-primary" />
+            </Button>
           )}
           {b.booking_reference && (
             <span className="text-xs text-muted-foreground font-mono">{b.booking_reference}</span>
@@ -477,6 +497,52 @@ export function BookingsTab() {
         documentUrl={pdfUrl}
         documentName={pdfFileName}
       />
+
+      <Dialog open={!!templateDetail} onOpenChange={(open) => { if (!open) setTemplateDetail(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Buchungsvorlage</DialogTitle>
+          </DialogHeader>
+          {templateDetail && (
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Name</span>
+                <span className="font-medium">{templateDetail.name}</span>
+              </div>
+              {templateDetail.vendor_name && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Lieferant</span>
+                  <span>{templateDetail.vendor_name}</span>
+                </div>
+              )}
+              {templateDetail.expected_amount != null && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Erwarteter Betrag</span>
+                  <span>{new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(templateDetail.expected_amount)}</span>
+                </div>
+              )}
+              {templateDetail.vat_rate != null && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">MwSt-Satz</span>
+                  <span>{templateDetail.vat_rate} %</span>
+                </div>
+              )}
+              {templateDetail.interval && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Intervall</span>
+                  <span>{templateDetail.interval}</span>
+                </div>
+              )}
+              {templateDetail.category && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Kategorie</span>
+                  <span>{templateDetail.category}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

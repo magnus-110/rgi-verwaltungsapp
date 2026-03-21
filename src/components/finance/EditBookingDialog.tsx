@@ -45,7 +45,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   booking: Booking | null;
   buildingName: string;
-  onInvoiceClick?: (invoiceId: string) => void;
+  onInvoiceClick?: (booking: any) => void;
 }
 
 const VAT_RATES = [
@@ -282,7 +282,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
               <span className="font-medium">Zugeordnete Rechnung:</span>{" "}
               <span className="text-muted-foreground">{booking.invoices.vendor_name || booking.invoices.file_name || "–"}</span>
             </div>
-            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => onInvoiceClick?.(booking.invoice_id!)}>
+            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => onInvoiceClick?.(booking)}>
               <FileText className="h-3.5 w-3.5 mr-1" /> Anzeigen
             </Button>
           </div>
