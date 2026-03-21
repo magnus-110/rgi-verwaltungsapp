@@ -209,6 +209,64 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
     refetch();
   };
 
+  // Helper: ensure account + template exist for Hausgeld
+  const ensureAccountAndTemplate = async (assignmentId: string, costType: string, amount: number) => {
+    if (costType !== "Hausgeld" || amount <= 0) return;
+    
+    // Find the assignment with contact data
+    const assignment = assignments.find(a => a.id === assignmentId);
+    if (!assignment) return;
+    
+    const unitNumber = assignment.unit_number || "0000";
+    const floorLocation = assignment.floor_location || "";
+    const lastName = assignment.contact.last_name || "Unbenannt";
+
+    // 1. Find or create account
+    const { data: existingAccount } = await supabase
+      .from("chart_of_accounts")
+      .select("id")
+      .eq("building_id", buildingId)
+      .eq("account_number", unitNumber)
+      .maybeSingle();
+
+    let accountId = existingAccount?.id;
+    if (!accountId) {
+      const { data: newAccount } = await supabase
+        .from("chart_of_accounts")
+        .insert({
+          account_number: unitNumber,
+          account_name: `Hausgeld ${lastName}`,
+          building_id: buildingId,
+          category: "Einnahmen",
+        })
+        .select("id")
+        .single();
+      accountId = newAccount?.id;
+    }
+
+    // 2. Find or create booking template
+    const templateName = `mtl. Hausgeld ${unitNumber} ${floorLocation}`.trim();
+    const { data: existingTemplate } = await supabase
+      .from("booking_templates")
+      .select("id")
+      .eq("building_id", buildingId)
+      .ilike("name", `%Hausgeld%${unitNumber}%`)
+      .maybeSingle();
+
+    if (existingTemplate) {
+      // Update amount
+      await supabase.from("booking_templates").update({ expected_amount: amount }).eq("id", existingTemplate.id);
+    } else {
+      await supabase.from("booking_templates").insert({
+        name: templateName,
+        building_id: buildingId,
+        expected_amount: amount,
+        interval: "monatlich",
+        account_id: accountId || null,
+      });
+    }
+  };
+
   // Costs
   const addCost = async (assignmentId: string) => {
     await supabase.from("contact_building_costs").insert({ assignment_id: assignmentId, cost_type: "Hausgeld", amount: 0, interval: "monatlich" });
@@ -217,6 +275,15 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   const updateCost = async (id: string, field: string, value: any) => {
     await supabase.from("contact_building_costs").update({ [field]: value }).eq("id", id);
     refetch();
+
+    // If amount or cost_type changed, ensure account/template
+    if (field === "amount" || field === "cost_type") {
+      // Re-fetch the cost to get current values
+      const { data: cost } = await supabase.from("contact_building_costs").select("*").eq("id", id).single();
+      if (cost) {
+        await ensureAccountAndTemplate(cost.assignment_id, cost.cost_type, cost.amount);
+      }
+    }
   };
   const deleteCost = async (id: string) => {
     await supabase.from("contact_building_costs").delete().eq("id", id);
