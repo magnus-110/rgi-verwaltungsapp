@@ -611,6 +611,21 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                               {INTERVALS.map(i => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}
                             </SelectContent>
                           </Select>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7"
+                                  onClick={() => ensureAccountAndTemplate(a.id, c.cost_type, c.amount)}
+                                >
+                                  <BookOpen className="h-3.5 w-3.5 text-orange-500" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Konto + Vorlage anlegen</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => deleteCost(c.id)}>
                             <Trash2 className="h-3.5 w-3.5 text-destructive" />
                           </Button>
