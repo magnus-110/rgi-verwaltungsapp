@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Plus, User, ChevronDown, ChevronUp, Phone, Mail, MapPin, Trash2, Copy, CreditCard } from "lucide-react";
+import { Plus, User, ChevronDown, ChevronUp, Phone, Mail, MapPin, Trash2, Copy, CreditCard, BookOpen } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AssignContactDialog } from "./AssignContactDialog";
@@ -211,7 +212,10 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
 
   // Helper: ensure account + template exist for Hausgeld
   const ensureAccountAndTemplate = async (assignmentId: string, costType: string, amount: number) => {
-    if (costType !== "Hausgeld" || amount <= 0) return;
+    if (amount <= 0) {
+      toast({ title: "Hinweis", description: "Bitte zuerst einen Betrag eingeben.", variant: "destructive" });
+      return;
+    }
     
     // Find the assignment with contact data
     const assignment = assignments.find(a => a.id === assignmentId);
@@ -235,7 +239,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
         .from("chart_of_accounts")
         .insert({
           account_number: unitNumber,
-          account_name: `Hausgeld ${lastName}`,
+          account_name: `${costType} ${lastName}`,
           building_id: buildingId,
           category: "Einnahmen",
         })
@@ -245,12 +249,12 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
     }
 
     // 2. Find or create booking template
-    const templateName = `mtl. Hausgeld ${unitNumber} ${floorLocation}`.trim();
+    const templateName = `mtl. ${costType} ${unitNumber} ${floorLocation}`.trim();
     const { data: existingTemplate } = await supabase
       .from("booking_templates")
       .select("id")
       .eq("building_id", buildingId)
-      .ilike("name", `%Hausgeld%${unitNumber}%`)
+      .ilike("name", `%${costType}%${unitNumber}%`)
       .maybeSingle();
 
     if (existingTemplate) {
@@ -265,6 +269,8 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
         account_id: accountId || null,
       });
     }
+
+    toast({ title: "Konto & Vorlage erstellt", description: `${costType}-Konto und Buchungsvorlage wurden angelegt/aktualisiert.` });
   };
 
   // Costs
@@ -275,15 +281,6 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   const updateCost = async (id: string, field: string, value: any) => {
     await supabase.from("contact_building_costs").update({ [field]: value }).eq("id", id);
     refetch();
-
-    // If amount or cost_type changed, ensure account/template
-    if (field === "amount" || field === "cost_type") {
-      // Re-fetch the cost to get current values
-      const { data: cost } = await supabase.from("contact_building_costs").select("*").eq("id", id).single();
-      if (cost) {
-        await ensureAccountAndTemplate(cost.assignment_id, cost.cost_type, cost.amount);
-      }
-    }
   };
   const deleteCost = async (id: string) => {
     await supabase.from("contact_building_costs").delete().eq("id", id);
@@ -614,6 +611,21 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                               {INTERVALS.map(i => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}
                             </SelectContent>
                           </Select>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7"
+                                  onClick={() => ensureAccountAndTemplate(a.id, c.cost_type, c.amount)}
+                                >
+                                  <BookOpen className="h-3.5 w-3.5 text-orange-500" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Konto + Vorlage anlegen</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => deleteCost(c.id)}>
                             <Trash2 className="h-3.5 w-3.5 text-destructive" />
                           </Button>
