@@ -326,6 +326,17 @@ export function BookingTemplatesTab() {
               <Switch checked={form.is_35a_relevant} onCheckedChange={(c) => setForm({ ...form, is_35a_relevant: c })} />
               <Label>§35a relevant</Label>
             </div>
+            <div>
+              <Label>MwSt-Satz (%)</Label>
+              <Select value={form.vat_rate} onValueChange={(v) => setForm({ ...form, vat_rate: v })}>
+                <SelectTrigger><SelectValue placeholder="MwSt wählen" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">0%</SelectItem>
+                  <SelectItem value="7">7%</SelectItem>
+                  <SelectItem value="19">19%</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Abbrechen</Button>
