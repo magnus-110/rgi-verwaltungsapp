@@ -131,6 +131,7 @@ export function BookingTemplatesTab() {
       interval: form.interval,
       category: form.category || null,
       description: form.description || null,
+      vat_rate: form.vat_rate ? parseFloat(form.vat_rate) : null,
     };
 
     if (editingId) {
