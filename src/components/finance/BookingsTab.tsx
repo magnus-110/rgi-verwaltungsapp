@@ -249,9 +249,7 @@ export function BookingsTab() {
             </Button>
           )}
           {b.matched_template_id && b.booking_templates && (
-            <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-              {b.booking_templates.name}
-            </Badge>
+            <LayoutTemplate className="h-4 w-4 text-primary" />
           )}
           <Badge variant="outline" className="text-[10px]">
             {b.source === "manual" ? "Manuell" : b.source === "ocr" ? "OCR" : b.source === "bank_import" ? "Bank" : b.source}
