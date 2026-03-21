@@ -105,6 +105,7 @@ export function BookingTemplatesTab() {
       interval: t.interval || "monatlich",
       category: t.category || "",
       description: t.description || "",
+      vat_rate: t.vat_rate?.toString() || "",
     });
     setIsDialogOpen(true);
   };
