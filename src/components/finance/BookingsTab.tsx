@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Plus, BookOpen, AlertTriangle, FileText, ChevronDown, ChevronRight, Search, Building2 } from "lucide-react";
+import { Plus, BookOpen, AlertTriangle, FileText, ChevronDown, ChevronRight, Search, Building2, LayoutTemplate } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { CreateBookingDialog } from "./CreateBookingDialog";
@@ -249,9 +249,7 @@ export function BookingsTab() {
             </Button>
           )}
           {b.matched_template_id && b.booking_templates && (
-            <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-              {b.booking_templates.name}
-            </Badge>
+            <LayoutTemplate className="h-4 w-4 text-primary" />
           )}
           <Badge variant="outline" className="text-[10px]">
             {b.source === "manual" ? "Manuell" : b.source === "ocr" ? "OCR" : b.source === "bank_import" ? "Bank" : b.source}
