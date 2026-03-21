@@ -1,43 +1,41 @@
 
 
-# Plan: Buchungen-Tab und Kontoauszuege ueberarbeiten
+# Plan: MwSt-Felder fuer Vorlagen + Auto-Zuordnung von Rechnungen/Vorlagen
 
-## Buchungen-Tab (BookingsTab.tsx) - Komplett umstrukturieren
+## Problem
+1. `booking_templates` hat keine MwSt-Felder → Buchungen aus Vorlagen haben immer MwSt = 0
+2. Make.com erstellt Buchungen mit `receipt_number` und `description`, aber ohne `invoice_id` oder `matched_template_id` → keine Zuordnung zu Rechnungen/Vorlagen
 
-### Neue Logik
-- **Standard-Ansicht**: Alle offenen (pending) Buchungen ueber ALLE Liegenschaften laden, gruppiert nach Liegenschaft mit Unterueberschriften
-- **Filter**: Suchfeld fuer Liegenschaften (Text-Suche), Wirtschaftsjahr-Auswahl (bleibt)
-- **Kuerzel-Spalte entfernen** aus der Tabelle
-- **Pagination**: 25 Buchungen pro Seite mit Seitenwechsel-Buttons
-- **Separate Bereiche**: Zwei aufklappbare Sektionen am Ende:
-  - "Bestaetigte Buchungen" (status=confirmed) - aufklappbar, eigene Tabelle mit Liegenschafts- und Jahresfilter
-  - "Manuell erstellte Buchungen" (source=manual) - aufklappbar, eigene Tabelle
+## Loesung
 
-### Query-Aenderung
-- Hauptquery: `status = 'pending'`, kein Building-Filter noetig (alle laden), nach fiscal_year filtern
-- Gruppierung im Frontend nach `building_id` mit Unterueberschriften
-- Bestaetigte/Manuelle Buchungen als separate Queries in Collapsibles
+### 1. Migration: MwSt-Felder zu booking_templates + Auto-Match-Trigger
 
-### Spalten (Haupttabelle)
-Datum | Soll-Konto | Gegen-Konto | Buchungstext | Beleg-Nr. | Betrag | MwSt | Optionen | Status
+**Neue Spalten in `booking_templates`:**
+- `vat_rate` (numeric, default null) - z.B. 19, 7
+- `default_vat_rate` wuerde auch passen, aber `vat_rate` ist konsistenter
 
-## Kontoauszuege-Tab (BankStatementsTab.tsx)
+**Neuer DB-Trigger `auto_match_booking`** auf `bookings` INSERT:
+- Wenn `invoice_id` null UND `receipt_number` vorhanden: Suche in `invoices` nach `invoice_number = receipt_number` (im selben building) → setze `invoice_id`, kopiere MwSt-Daten
+- Wenn `matched_template_id` null UND kein Invoice gefunden: Suche in `booking_templates` nach `vendor_name` ILIKE match oder `expected_amount` = `amount` (im selben building) → setze `matched_template_id`, kopiere MwSt
+- Wenn Invoice gefunden: uebernehme `vat_amount`, `vat_rate` aus Rechnung (falls Buchung 0 hat)
+- Wenn Template gefunden: uebernehme `vat_rate` aus Vorlage, berechne `vat_amount`
 
-### Vollstaendig gematchte Auszuege ausblenden
-- Im Frontend pruefen: Wenn alle Transaktionen eines Statements `booked_at` haben oder `match_status = 'ignored'` → Statement nicht in der Liste anzeigen
-- Dazu: Alle Transaktionen pro Statement zaehlen (separater Query oder Count)
-- Toggle-Button "Abgeschlossene anzeigen" um sie optional einzublenden
+### 2. BookingTemplatesTab: MwSt-Feld im Dialog
 
-### Uebergreifender Buchen-Button
-- Statt pro Statement einen "Buchen"-Button: Ein globaler Button oben in der Card-Header
-- Zaehlt alle gematchten+nicht-gebuchten Transaktionen ueber alle Statements
-- Edge Function `send-booking-data` anpassen: Neuen Modus `bookAll: true` statt `statementId`, der alle ungebuchten gematchten Transaktionen verarbeitet
+- Neues Feld `vat_rate` im Formular (Dropdown: 0%, 7%, 19%, oder freie Eingabe)
+- In der Tabelle anzeigen
+
+### 3. BookingsTab: Template-Info anzeigen
+
+- Query um `booking_templates!bookings_matched_template_id_fkey(name)` erweitern
+- Badge mit Vorlagenname anzeigen wenn `matched_template_id` gesetzt
 
 ## Dateien
 
 | Datei | Aenderung |
 |---|---|
-| `src/components/finance/BookingsTab.tsx` | Komplett umschreiben: Offene Buchungen aller Liegenschaften, Gruppierung, Pagination, Suche, separate Collapsibles fuer bestaetigte/manuelle |
-| `src/components/finance/BankStatementsTab.tsx` | Vollstaendig gematchte Statements ausblenden, globaler Buchen-Button, Toggle fuer abgeschlossene |
-| `supabase/functions/send-booking-data/index.ts` | bookAll-Modus hinzufuegen |
+| Migration | `vat_rate` zu `booking_templates`, Trigger-Funktion `auto_match_booking` |
+| `src/components/finance/BookingTemplatesTab.tsx` | MwSt-Feld im Formular + Tabelle |
+| `src/components/finance/BookingsTab.tsx` | Template-Join + Badge |
+| `src/integrations/supabase/types.ts` | Auto-Update |
 
