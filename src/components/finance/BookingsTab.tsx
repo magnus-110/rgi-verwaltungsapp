@@ -191,7 +191,6 @@ export function BookingsTab() {
     } catch { toast.error("Fehler beim Laden der Rechnung"); }
   }, []);
 
-  const [templateDetail, setTemplateDetail] = useState<any>(null);
 
   const handleTemplateClick = useCallback((booking: any) => {
     if (booking?.booking_templates) {
