@@ -497,6 +497,52 @@ export function BookingsTab() {
         documentUrl={pdfUrl}
         documentName={pdfFileName}
       />
+
+      <Dialog open={!!templateDetail} onOpenChange={(open) => { if (!open) setTemplateDetail(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Buchungsvorlage</DialogTitle>
+          </DialogHeader>
+          {templateDetail && (
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Name</span>
+                <span className="font-medium">{templateDetail.name}</span>
+              </div>
+              {templateDetail.vendor_name && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Lieferant</span>
+                  <span>{templateDetail.vendor_name}</span>
+                </div>
+              )}
+              {templateDetail.expected_amount != null && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Erwarteter Betrag</span>
+                  <span>{new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(templateDetail.expected_amount)}</span>
+                </div>
+              )}
+              {templateDetail.vat_rate != null && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">MwSt-Satz</span>
+                  <span>{templateDetail.vat_rate} %</span>
+                </div>
+              )}
+              {templateDetail.interval && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Intervall</span>
+                  <span>{templateDetail.interval}</span>
+                </div>
+              )}
+              {templateDetail.category && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Kategorie</span>
+                  <span>{templateDetail.category}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
