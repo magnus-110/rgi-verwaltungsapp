@@ -224,6 +224,12 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
     const unitNumber = assignment.unit_number || "0000";
     const floorLocation = assignment.floor_location || "";
     const lastName = assignment.contact.last_name || "Unbenannt";
+    const contactName = [assignment.contact.first_name, assignment.contact.last_name].filter(Boolean).join(" ") || "Unbenannt";
+    
+    // Get bank account data (default or first)
+    const defaultBank = assignment.bankAccounts?.find((b: any) => b.is_default) || assignment.bankAccounts?.[0];
+    const vendorIban = defaultBank?.iban || null;
+    const vendorName = contactName;
 
     // 1. Find or create account
     const { data: existingAccount } = await supabase
@@ -258,8 +264,12 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
       .maybeSingle();
 
     if (existingTemplate) {
-      // Update amount
-      await supabase.from("booking_templates").update({ expected_amount: amount }).eq("id", existingTemplate.id);
+      await supabase.from("booking_templates").update({ 
+        expected_amount: amount,
+        vendor_name: vendorName,
+        vendor_iban: vendorIban,
+        vat_rate: 19,
+      }).eq("id", existingTemplate.id);
     } else {
       await supabase.from("booking_templates").insert({
         name: templateName,
@@ -267,6 +277,9 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
         expected_amount: amount,
         interval: "monatlich",
         account_id: accountId || null,
+        vendor_name: vendorName,
+        vendor_iban: vendorIban,
+        vat_rate: 19,
       });
     }
 
