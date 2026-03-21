@@ -103,6 +103,7 @@ export function BookingsTab() {
         `)
         .eq("fiscal_year", parseInt(filterYear))
         .eq("source", "manual")
+        .neq("booking_reference", "KI")
         .order("booking_date", { ascending: false });
       if (error) throw error;
       return data;
