@@ -42,21 +42,26 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { statementId } = await req.json();
-    if (!statementId) {
-      return new Response(JSON.stringify({ error: "statementId required" }), {
+    const { statementId, bookAll } = await req.json();
+    if (!statementId && !bookAll) {
+      return new Response(JSON.stringify({ error: "statementId or bookAll required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Get bookable transactions: matched or manually_matched, not yet booked
-    const { data: transactions, error: txError } = await supabase
+    // Get bookable transactions
+    let txQuery = supabase
       .from("bank_transactions")
       .select("*")
-      .eq("statement_id", statementId)
       .is("booked_at", null)
       .in("match_status", ["matched_invoice", "matched_template", "manually_matched"]);
+
+    if (!bookAll && statementId) {
+      txQuery = txQuery.eq("statement_id", statementId);
+    }
+
+    const { data: transactions, error: txError } = await txQuery;
 
     if (txError) throw txError;
     if (!transactions || transactions.length === 0) {
@@ -94,14 +99,13 @@ Deno.serve(async (req) => {
       const invoice = txn.matched_invoice_id ? invoiceMap.get(txn.matched_invoice_id) : null;
       const template = txn.matched_template_id ? templateMap.get(txn.matched_template_id) : null;
 
-      // Calculate vat_rate from invoice if available
       let vat_rate: number | null = null;
       let vat_amount: number | null = invoice?.vat_amount ?? null;
       const net_amount: number | null = invoice?.net_amount ?? null;
-      const gross_amount: number | null = invoice?.gross_amount ?? txn.amount ? Math.abs(txn.amount) : null;
+      const gross_amount: number | null = invoice?.gross_amount ?? (txn.amount ? Math.abs(txn.amount) : null);
 
       if (vat_amount != null && net_amount != null && net_amount !== 0) {
-        vat_rate = Math.round((vat_amount / net_amount) * 100 * 100) / 100; // e.g. 19.00
+        vat_rate = Math.round((vat_amount / net_amount) * 100 * 100) / 100;
       } else if (gross_amount != null && net_amount != null && net_amount !== 0) {
         vat_amount = gross_amount - net_amount;
         vat_rate = Math.round((vat_amount / net_amount) * 100 * 100) / 100;
@@ -123,7 +127,6 @@ Deno.serve(async (req) => {
         building_id: txn.building_id,
         building_name: building?.name || null,
         building_code: building?.building_code || null,
-        // Invoice data
         invoice_number: invoice?.invoice_number || null,
         invoice_date: invoice?.invoice_date || null,
         vendor_name: invoice?.vendor_name || txn.creditor_name || txn.debtor_name,
@@ -133,7 +136,6 @@ Deno.serve(async (req) => {
         vat_rate: vat_rate,
         account_number: invoice?.chart_of_accounts?.account_number || template?.chart_of_accounts?.account_number || null,
         account_name: invoice?.chart_of_accounts?.account_name || template?.chart_of_accounts?.account_name || null,
-        // Template data
         template_name: template?.name || null,
         is_35a_relevant: template?.is_35a_relevant || false,
         category: template?.category || null,
@@ -144,7 +146,7 @@ Deno.serve(async (req) => {
     let bookedCount = 0;
     for (let i = 0; i < payloads.length; i += BATCH_SIZE) {
       const batch = payloads.slice(i, i + BATCH_SIZE);
-      
+
       const response = await fetch(webhookUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -156,7 +158,6 @@ Deno.serve(async (req) => {
         break;
       }
 
-      // Mark as booked
       const batchIds = batch.map((p: any) => p.transaction_id);
       const { error: updateError } = await supabase
         .from("bank_transactions")
