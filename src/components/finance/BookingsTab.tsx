@@ -77,7 +77,7 @@ export function BookingsTab() {
           chart_of_accounts!bookings_account_id_fkey(account_number, account_name),
           counter_account:chart_of_accounts!bookings_counter_account_id_fkey(account_number, account_name),
           invoices(id, file_path, file_name, vendor_name),
-          booking_templates!bookings_matched_template_id_fkey(id, name)
+          booking_templates!bookings_matched_template_id_fkey(id, name, vendor_name, expected_amount, vat_rate, interval, category)
         `)
         .eq("fiscal_year", parseInt(filterYear))
         .eq("status", "confirmed")
