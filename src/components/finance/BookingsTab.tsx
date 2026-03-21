@@ -33,6 +33,7 @@ export function BookingsTab() {
   const [currentPage, setCurrentPage] = useState(0);
   const [confirmedOpen, setConfirmedOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
+  const [templateDetail, setTemplateDetail] = useState<any>(null);
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
