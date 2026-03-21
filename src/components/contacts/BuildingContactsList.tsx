@@ -269,6 +269,8 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
         account_id: accountId || null,
       });
     }
+
+    toast({ title: "Konto & Vorlage erstellt", description: `${costType}-Konto und Buchungsvorlage wurden angelegt/aktualisiert.` });
   };
 
   // Costs
