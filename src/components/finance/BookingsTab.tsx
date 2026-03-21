@@ -274,7 +274,7 @@ export function BookingsTab() {
         <TableHead>Beleg-Nr.</TableHead>
         <TableHead className="text-right">Betrag</TableHead>
         <TableHead className="text-right">MwSt</TableHead>
-        <TableHead>Optionen</TableHead>
+        <TableHead>Kürzel</TableHead>
         <TableHead>Status</TableHead>
       </TableRow>
     </TableHeader>
