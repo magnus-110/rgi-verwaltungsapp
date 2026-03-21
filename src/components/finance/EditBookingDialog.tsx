@@ -45,7 +45,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   booking: Booking | null;
   buildingName: string;
-  onInvoiceClick?: (invoiceId: string) => void;
+  onInvoiceClick?: (booking: any) => void;
 }
 
 const VAT_RATES = [
