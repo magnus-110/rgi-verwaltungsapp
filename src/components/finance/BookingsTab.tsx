@@ -260,12 +260,15 @@ export function BookingsTab() {
           )}
           {b.invoice_id && (
             <Button size="sm" variant="ghost" className="h-6 w-6 p-0"
-              onClick={(e) => { e.stopPropagation(); handleInvoiceClick(b.invoice_id); }}>
+              onClick={(e) => { e.stopPropagation(); handleInvoiceClick(b); }}>
               <FileText className="h-3.5 w-3.5 text-primary" />
             </Button>
           )}
           {b.matched_template_id && b.booking_templates && (
-            <LayoutTemplate className="h-4 w-4 text-primary" />
+            <Button size="sm" variant="ghost" className="h-6 w-6 p-0"
+              onClick={(e) => { e.stopPropagation(); handleTemplateClick(b); }}>
+              <LayoutTemplate className="h-4 w-4 text-primary" />
+            </Button>
           )}
           {b.booking_reference && (
             <span className="text-xs text-muted-foreground font-mono">{b.booking_reference}</span>
