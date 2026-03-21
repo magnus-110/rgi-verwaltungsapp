@@ -209,6 +209,7 @@ export function BookingTemplatesTab() {
                     <TableCell className="text-sm">
                       {t.chart_of_accounts ? `${t.chart_of_accounts.account_number} ${t.chart_of_accounts.account_name}` : "–"}
                     </TableCell>
+                    <TableCell className="text-sm">{t.vat_rate != null ? `${t.vat_rate}%` : "–"}</TableCell>
                     <TableCell className="text-sm capitalize">{t.interval || "–"}</TableCell>
                     <TableCell>
                       <div className="flex gap-1">
