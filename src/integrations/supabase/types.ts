@@ -256,6 +256,9 @@ export type Database = {
           performance_period_to: string | null
           receipt_number: string | null
           source: string
+          source_line_index: number | null
+          split_part: number | null
+          split_parts_total: number | null
           status: string
           updated_at: string
           vat_amount: number | null
@@ -284,6 +287,9 @@ export type Database = {
           performance_period_to?: string | null
           receipt_number?: string | null
           source?: string
+          source_line_index?: number | null
+          split_part?: number | null
+          split_parts_total?: number | null
           status?: string
           updated_at?: string
           vat_amount?: number | null
@@ -312,6 +318,9 @@ export type Database = {
           performance_period_to?: string | null
           receipt_number?: string | null
           source?: string
+          source_line_index?: number | null
+          split_part?: number | null
+          split_parts_total?: number | null
           status?: string
           updated_at?: string
           vat_amount?: number | null
