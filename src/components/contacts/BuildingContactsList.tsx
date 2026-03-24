@@ -255,7 +255,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
             account_number: unitNumber,
             account_name: `${costType} ${lastName}`,
             building_id: buildingId,
-            category: "Einnahmen",
+            category: "0. Personenkonten",
             sort_order: numericSort,
           })
           .select("id")
