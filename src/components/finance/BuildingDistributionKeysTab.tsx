@@ -57,6 +57,14 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
   });
 
   const overrideMap = new Map(overrides.map(o => [o.account_id, o]));
+  
+  // Collect custom distribution keys from overrides that aren't in DISTRIBUTION_KEYS
+  const customDistKeys = [...new Set(
+    overrides
+      .map(o => o.distribution_key)
+      .filter(k => k && !DISTRIBUTION_KEYS.some(dk => dk.value === k))
+  )];
+  const allDistKeys = [...DISTRIBUTION_KEYS, ...customDistKeys.map(k => ({ value: k, label: k }))];
   const categories = [...new Set(accounts.map(a => a.category))];
   const overrideCount = overrides.length;
   const buildingAccountCount = accounts.filter(a => (a as any).building_id === buildingId).length;
