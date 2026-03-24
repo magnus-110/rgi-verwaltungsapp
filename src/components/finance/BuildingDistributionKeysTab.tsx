@@ -57,6 +57,14 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
   });
 
   const overrideMap = new Map(overrides.map(o => [o.account_id, o]));
+  
+  // Collect custom distribution keys from overrides that aren't in DISTRIBUTION_KEYS
+  const customDistKeys = [...new Set(
+    overrides
+      .map(o => o.distribution_key)
+      .filter(k => k && !DISTRIBUTION_KEYS.some(dk => dk.value === k))
+  )];
+  const allDistKeys = [...DISTRIBUTION_KEYS, ...customDistKeys.map(k => ({ value: k, label: k }))];
   const categories = [...new Set(accounts.map(a => a.category))];
   const overrideCount = overrides.length;
   const buildingAccountCount = accounts.filter(a => (a as any).building_id === buildingId).length;
@@ -115,7 +123,7 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
   const [customKeyInput, setCustomKeyInput] = useState<string | null>(null);
   const [customKeyAccountId, setCustomKeyAccountId] = useState<string | null>(null);
 
-  const getKeyLabel = (key: string | null) => DISTRIBUTION_KEYS.find(k => k.value === key)?.label || key || "–";
+  const getKeyLabel = (key: string | null) => allDistKeys.find(k => k.value === key)?.label || key || "–";
 
   if (isLoading) return <div className="text-muted-foreground text-sm">Laden...</div>;
 
@@ -249,7 +257,7 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {DISTRIBUTION_KEYS.map(k => (
+                                    {allDistKeys.map(k => (
                                       <SelectItem key={k.value} value={k.value}>
                                         {k.label} {k.value === account.default_distribution_key ? "(Standard)" : ""}
                                       </SelectItem>
@@ -311,7 +319,7 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
                 <Select value={newAccount.default_distribution_key} onValueChange={v => setNewAccount(p => ({ ...p, default_distribution_key: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {DISTRIBUTION_KEYS.map(k => <SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>)}
+                    {allDistKeys.map(k => <SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
