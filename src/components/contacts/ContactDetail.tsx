@@ -75,14 +75,16 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
   }, [contact.id]);
 
   const loadRelated = async () => {
-    const [phonesRes, emailsRes, banksRes] = await Promise.all([
+    const [phonesRes, emailsRes, banksRes, personsRes] = await Promise.all([
       supabase.from("contact_phones").select("*").eq("contact_id", contact.id).order("created_at"),
       supabase.from("contact_emails").select("*").eq("contact_id", contact.id).order("created_at"),
       supabase.from("contact_bank_accounts").select("*").eq("contact_id", contact.id).order("created_at"),
+      supabase.from("contact_persons").select("*").eq("contact_id", contact.id).order("sort_order"),
     ]);
     setPhones((phonesRes.data || []).map((p: any) => ({ ...p, _localId: p.id })));
     setEmails((emailsRes.data || []).map((e: any) => ({ ...e, _localId: e.id })));
     setBankAccounts((banksRes.data || []).map((b: any) => ({ ...b, _localId: b.id })));
+    setPersons((personsRes.data || []).map((p: any) => ({ ...p, _localId: p.id })));
   };
 
   const markDirty = useCallback(() => setIsDirty(true), []);
