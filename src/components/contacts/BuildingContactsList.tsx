@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Plus, User, ChevronDown, ChevronUp, Phone, Mail, MapPin, Trash2, Copy, CreditCard, BookOpen, X } from "lucide-react";
+import { Plus, User, ChevronDown, ChevronUp, Phone, Mail, MapPin, Trash2, Copy, CreditCard, BookOpen, X, Pencil, Check } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -106,6 +106,8 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showAssign, setShowAssign] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ContactAssignment | null>(null);
+  // For inline editing/adding custom types - { id: record id, field: 'share_type'|'cost_type', value: string, mode: 'add'|'edit' }
+  const [editingType, setEditingType] = useState<{ id: string; field: string; value: string; mode: 'add' | 'edit'; oldValue?: string } | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -236,7 +238,45 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
     refetch();
   };
 
-  // Helper: ensure account + template exist for Hausgeld
+  const saveEditingType = async () => {
+    if (!editingType || !editingType.value.trim()) {
+      setEditingType(null);
+      return;
+    }
+    const val = editingType.value.trim();
+    if (editingType.field === "share_type") {
+      if (editingType.mode === "edit" && editingType.oldValue) {
+        // Rename: update all records with old value to new value
+        await supabase.from("contact_building_shares").update({ share_type: val } as any).eq("share_type", editingType.oldValue as any);
+      } else {
+        await supabase.from("contact_building_shares").update({ share_type: val } as any).eq("id", editingType.id);
+      }
+      queryClient.invalidateQueries({ queryKey: ["custom-share-types"] });
+    } else {
+      if (editingType.mode === "edit" && editingType.oldValue) {
+        await supabase.from("contact_building_costs").update({ cost_type: val }).eq("cost_type", editingType.oldValue);
+      } else {
+        await supabase.from("contact_building_costs").update({ cost_type: val }).eq("id", editingType.id);
+      }
+      queryClient.invalidateQueries({ queryKey: ["custom-cost-types"] });
+    }
+    setEditingType(null);
+    refetch();
+  };
+
+  const deleteCustomType = async (field: string, typeValue: string) => {
+    if (field === "share_type") {
+      await supabase.from("contact_building_shares").update({ share_type: "mea" } as any).eq("share_type", typeValue as any);
+      queryClient.invalidateQueries({ queryKey: ["custom-share-types"] });
+    } else {
+      await supabase.from("contact_building_costs").update({ cost_type: "Hausgeld" }).eq("cost_type", typeValue);
+      queryClient.invalidateQueries({ queryKey: ["custom-cost-types"] });
+    }
+    toast({ title: `„${typeValue}" entfernt` });
+    refetch();
+  };
+
+
   const ensureAccountAndTemplate = async (assignmentId: string, costType: string, amount: number) => {
     if (amount <= 0) {
       toast({ title: "Hinweis", description: "Bitte zuerst einen Betrag eingeben.", variant: "destructive" });
@@ -614,56 +654,54 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                       {a.shares.length === 0 && <p className="text-xs text-muted-foreground">Keine Anteile definiert</p>}
                       {a.shares.map(s => (
                         <div key={s.id} className="flex items-center gap-2 mt-2">
-                           {allShareTypes.some(st => st.value === s.share_type) ? (
-                            <Select value={s.share_type} onValueChange={async (v) => {
-                              if (v === "__add__") {
-                                updateShare(s.id, "share_type", "");
-                              } else if (v.startsWith("__del__")) {
-                                const typeToDelete = v.replace("__del__", "");
-                                await supabase
-                                  .from("contact_building_shares")
-                                  .update({ share_type: "mea" } as any)
-                                  .eq("share_type", typeToDelete as any);
-                                toast({ title: `„${typeToDelete}" entfernt` });
-                                queryClient.invalidateQueries({ queryKey: ["custom-share-types"] });
-                                refetch();
-                              } else if (v.startsWith("__edit__")) {
-                                const typeToEdit = v.replace("__edit__", "");
-                                // Switch to inline edit mode with current value
-                                updateShare(s.id, "share_type", typeToEdit);
-                                // Force re-render into edit mode by briefly setting empty then the value
-                                setTimeout(() => updateShare(s.id, "share_type", typeToEdit), 0);
-                              } else {
-                                updateShare(s.id, "share_type", v);
-                              }
-                            }}>
-                              <SelectTrigger className="w-36 h-8 text-sm"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                {SHARE_TYPES.map(st => <SelectItem key={st.value} value={st.value}>{st.label}</SelectItem>)}
-                                {customShareTypes.length > 0 && (
-                                  <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Eigene</div>
-                                )}
-                                {customShareTypes.map(ct => (
-                                  <SelectItem key={ct} value={ct}>{ct}</SelectItem>
-                                ))}
-                                {customShareTypes.map(ct => (
-                                  <SelectItem key={`del-${ct}`} value={`__del__${ct}`} className="text-destructive text-xs pl-6">✕ {ct} entfernen</SelectItem>
-                                ))}
-                                <SelectItem value="__add__" className="text-primary font-medium">+ Hinzufügen</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          ) : (
+                          {editingType?.id === s.id && editingType.field === "share_type" ? (
                             <div className="flex items-center gap-1">
                               <Input
                                 autoFocus
                                 placeholder="Kategorie eingeben"
-                                value={s.share_type}
-                                onChange={(e) => updateShare(s.id, "share_type", e.target.value)}
+                                value={editingType.value}
+                                onChange={(e) => setEditingType({ ...editingType, value: e.target.value })}
+                                onKeyDown={(e) => { if (e.key === "Enter") saveEditingType(); if (e.key === "Escape") setEditingType(null); }}
                                 className="w-36 h-8 text-sm"
                               />
-                              <Button size="icon" variant="ghost" className="h-7 w-7 flex-shrink-0" onClick={() => updateShare(s.id, "share_type", "mea")}>
+                              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={saveEditingType}>
+                                <Check className="h-3 w-3 text-primary" />
+                              </Button>
+                              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditingType(null)}>
                                 <X className="h-3 w-3" />
                               </Button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <Select value={s.share_type} onValueChange={(v) => {
+                                if (v === "__add__") {
+                                  setEditingType({ id: s.id, field: "share_type", value: "", mode: "add" });
+                                } else {
+                                  updateShare(s.id, "share_type", v);
+                                }
+                              }}>
+                                <SelectTrigger className="w-36 h-8 text-sm"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {SHARE_TYPES.map(st => <SelectItem key={st.value} value={st.value}>{st.label}</SelectItem>)}
+                                  {customShareTypes.length > 0 && (
+                                    <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Eigene</div>
+                                  )}
+                                  {customShareTypes.map(ct => (
+                                    <SelectItem key={ct} value={ct}>{ct}</SelectItem>
+                                  ))}
+                                  <SelectItem value="__add__" className="text-primary font-medium">+ Hinzufügen</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              {!SHARE_TYPES.some(st => st.value === s.share_type) && s.share_type && (
+                                <>
+                                  <Button size="icon" variant="ghost" className="h-6 w-6 flex-shrink-0" onClick={() => setEditingType({ id: s.id, field: "share_type", value: s.share_type, mode: "edit", oldValue: s.share_type })}>
+                                    <Pencil className="h-3 w-3 text-muted-foreground" />
+                                  </Button>
+                                  <Button size="icon" variant="ghost" className="h-6 w-6 flex-shrink-0" onClick={() => deleteCustomType("share_type", s.share_type)}>
+                                    <X className="h-3 w-3 text-destructive" />
+                                  </Button>
+                                </>
+                              )}
                             </div>
                           )}
                           <Input
@@ -701,50 +739,54 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                       {a.costs.length === 0 && <p className="text-xs text-muted-foreground">Keine Kosten definiert</p>}
                       {a.costs.map(c => (
                         <div key={c.id} className="flex items-center gap-2 mt-2">
-                           {allCostTypes.includes(c.cost_type) ? (
-                            <Select value={c.cost_type} onValueChange={async (v) => {
-                              if (v === "__add__") {
-                                updateCost(c.id, "cost_type", "");
-                              } else if (v.startsWith("__del__")) {
-                                const typeToDelete = v.replace("__del__", "");
-                                await supabase
-                                  .from("contact_building_costs")
-                                  .update({ cost_type: "Hausgeld" })
-                                  .eq("cost_type", typeToDelete);
-                                toast({ title: `„${typeToDelete}" entfernt` });
-                                queryClient.invalidateQueries({ queryKey: ["custom-cost-types"] });
-                                refetch();
-                              } else {
-                                updateCost(c.id, "cost_type", v);
-                              }
-                            }}>
-                              <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                {COST_TYPES.map(ct => <SelectItem key={ct} value={ct}>{ct}</SelectItem>)}
-                                {customCostTypes.length > 0 && (
-                                  <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Eigene</div>
-                                )}
-                                {customCostTypes.map(ct => (
-                                  <SelectItem key={ct} value={ct}>{ct}</SelectItem>
-                                ))}
-                                {customCostTypes.map(ct => (
-                                  <SelectItem key={`del-${ct}`} value={`__del__${ct}`} className="text-destructive text-xs pl-6">✕ {ct} entfernen</SelectItem>
-                                ))}
-                                <SelectItem value="__add__" className="text-primary font-medium">+ Hinzufügen</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          ) : (
+                          {editingType?.id === c.id && editingType.field === "cost_type" ? (
                             <div className="flex items-center gap-1">
                               <Input
                                 autoFocus
                                 placeholder="Kategorie eingeben"
-                                value={c.cost_type}
-                                onChange={(e) => updateCost(c.id, "cost_type", e.target.value)}
+                                value={editingType.value}
+                                onChange={(e) => setEditingType({ ...editingType, value: e.target.value })}
+                                onKeyDown={(e) => { if (e.key === "Enter") saveEditingType(); if (e.key === "Escape") setEditingType(null); }}
                                 className="w-32 h-8 text-sm"
                               />
-                              <Button size="icon" variant="ghost" className="h-7 w-7 flex-shrink-0" onClick={() => updateCost(c.id, "cost_type", "Hausgeld")}>
+                              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={saveEditingType}>
+                                <Check className="h-3 w-3 text-primary" />
+                              </Button>
+                              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditingType(null)}>
                                 <X className="h-3 w-3" />
                               </Button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <Select value={c.cost_type} onValueChange={(v) => {
+                                if (v === "__add__") {
+                                  setEditingType({ id: c.id, field: "cost_type", value: "", mode: "add" });
+                                } else {
+                                  updateCost(c.id, "cost_type", v);
+                                }
+                              }}>
+                                <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {COST_TYPES.map(ct => <SelectItem key={ct} value={ct}>{ct}</SelectItem>)}
+                                  {customCostTypes.length > 0 && (
+                                    <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Eigene</div>
+                                  )}
+                                  {customCostTypes.map(ct => (
+                                    <SelectItem key={ct} value={ct}>{ct}</SelectItem>
+                                  ))}
+                                  <SelectItem value="__add__" className="text-primary font-medium">+ Hinzufügen</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              {!COST_TYPES.includes(c.cost_type) && c.cost_type && (
+                                <>
+                                  <Button size="icon" variant="ghost" className="h-6 w-6 flex-shrink-0" onClick={() => setEditingType({ id: c.id, field: "cost_type", value: c.cost_type, mode: "edit", oldValue: c.cost_type })}>
+                                    <Pencil className="h-3 w-3 text-muted-foreground" />
+                                  </Button>
+                                  <Button size="icon" variant="ghost" className="h-6 w-6 flex-shrink-0" onClick={() => deleteCustomType("cost_type", c.cost_type)}>
+                                    <X className="h-3 w-3 text-destructive" />
+                                  </Button>
+                                </>
+                              )}
                             </div>
                           )}
                           <Input
