@@ -656,6 +656,8 @@ export const Inbox = () => {
         onOpenChange={setArchiveDialogOpen}
         emailId={archiveEmailId}
         onArchive={handleArchiveWithAssignment}
+        prefilledContactId={archiveEmailId ? (emails.find(e => e.id === archiveEmailId)?.contact_id || null) : null}
+        prefilledBuildingId={archiveEmailId ? (emails.find(e => e.id === archiveEmailId)?.building_id || null) : null}
       />
     </div>
   );
