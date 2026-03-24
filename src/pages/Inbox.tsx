@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Mail, Search, Flag, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip, ChevronDown, ChevronUp, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Mail, Search, Flag, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip, ChevronDown, ChevronUp, PanelLeftClose, PanelLeftOpen, UserPlus, UserCheck } from "lucide-react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -405,6 +405,16 @@ export const Inbox = () => {
                 )}
               >
                 Alle ({emails.length})
+              </button>
+              <button
+                onClick={() => setFilterCategory(filterCategory === "followup" ? "all" : "followup")}
+                className={cn(
+                  "px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0 flex items-center gap-1",
+                  filterCategory === "followup" ? "bg-orange-500 text-white" : "hover:bg-muted text-muted-foreground"
+                )}
+              >
+                <Flag className="h-3 w-3" />
+                Nachverfolgung ({followUpCount})
               </button>
               {ALL_CATEGORIES.map(cat => (
                 <button
