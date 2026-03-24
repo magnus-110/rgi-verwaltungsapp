@@ -109,6 +109,30 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Load custom cost types and share types from DB
+  const { data: customCostTypes = [] } = useQuery({
+    queryKey: ['custom-cost-types'],
+    queryFn: async () => {
+      const { data } = await supabase.from("contact_building_costs").select("cost_type");
+      if (!data) return [];
+      const unique = [...new Set(data.map(d => d.cost_type))];
+      return unique.filter(t => !COST_TYPES.includes(t) && t && t !== "__add__");
+    },
+  });
+
+  const { data: customShareTypes = [] } = useQuery({
+    queryKey: ['custom-share-types'],
+    queryFn: async () => {
+      const { data } = await supabase.from("contact_building_shares").select("share_type");
+      if (!data) return [];
+      const unique = [...new Set(data.map(d => d.share_type))];
+      return unique.filter(t => !SHARE_TYPES.some(s => s.value === t) && t && t !== String("__add__"));
+    },
+  });
+
+  const allCostTypes = [...COST_TYPES, ...customCostTypes];
+  const allShareTypes = [...SHARE_TYPES, ...customShareTypes.map(t => ({ value: t, label: t }))];
+
   const { data: assignments = [], refetch } = useQuery({
     queryKey: ['building-contact-assignments', buildingId],
     queryFn: async () => {
@@ -205,6 +229,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   const updateShare = async (id: string, field: string, value: any) => {
     await supabase.from("contact_building_shares").update({ [field]: value }).eq("id", id);
     refetch();
+    if (field === "share_type") queryClient.invalidateQueries({ queryKey: ["custom-share-types"] });
   };
   const deleteShare = async (id: string) => {
     await supabase.from("contact_building_shares").delete().eq("id", id);
@@ -329,6 +354,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   const updateCost = async (id: string, field: string, value: any) => {
     await supabase.from("contact_building_costs").update({ [field]: value }).eq("id", id);
     refetch();
+    if (field === "cost_type") queryClient.invalidateQueries({ queryKey: ["custom-cost-types"] });
   };
   const deleteCost = async (id: string) => {
     await supabase.from("contact_building_costs").delete().eq("id", id);
@@ -588,7 +614,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                       {a.shares.length === 0 && <p className="text-xs text-muted-foreground">Keine Anteile definiert</p>}
                       {a.shares.map(s => (
                         <div key={s.id} className="flex items-center gap-2 mt-2">
-                          {SHARE_TYPES.some(st => st.value === s.share_type) ? (
+                           {allShareTypes.some(st => st.value === s.share_type) ? (
                             <Select value={s.share_type} onValueChange={(v) => {
                               if (v === "__add__") {
                                 updateShare(s.id, "share_type", "");
@@ -598,7 +624,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                             }}>
                               <SelectTrigger className="w-36 h-8 text-sm"><SelectValue /></SelectTrigger>
                               <SelectContent>
-                                {SHARE_TYPES.map(st => <SelectItem key={st.value} value={st.value}>{st.label}</SelectItem>)}
+                                {allShareTypes.map(st => <SelectItem key={st.value} value={st.value}>{st.label}</SelectItem>)}
                                 <SelectItem value="__add__" className="text-primary font-medium">+ Hinzufügen</SelectItem>
                               </SelectContent>
                             </Select>
@@ -653,7 +679,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                       {a.costs.length === 0 && <p className="text-xs text-muted-foreground">Keine Kosten definiert</p>}
                       {a.costs.map(c => (
                         <div key={c.id} className="flex items-center gap-2 mt-2">
-                          {COST_TYPES.includes(c.cost_type) ? (
+                           {allCostTypes.includes(c.cost_type) ? (
                             <Select value={c.cost_type} onValueChange={(v) => {
                               if (v === "__add__") {
                                 updateCost(c.id, "cost_type", "");
@@ -663,7 +689,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                             }}>
                               <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
                               <SelectContent>
-                                {COST_TYPES.map(ct => <SelectItem key={ct} value={ct}>{ct}</SelectItem>)}
+                                {allCostTypes.map(ct => <SelectItem key={ct} value={ct}>{ct}</SelectItem>)}
                                 <SelectItem value="__add__" className="text-primary font-medium">+ Hinzufügen</SelectItem>
                               </SelectContent>
                             </Select>

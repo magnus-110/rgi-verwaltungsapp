@@ -112,6 +112,9 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
     queryClient.invalidateQueries({ queryKey: ["chart-of-accounts-building", buildingId] });
   };
 
+  const [customKeyInput, setCustomKeyInput] = useState<string | null>(null);
+  const [customKeyAccountId, setCustomKeyAccountId] = useState<string | null>(null);
+
   const getKeyLabel = (key: string | null) => DISTRIBUTION_KEYS.find(k => k.value === key)?.label || key || "–";
 
   if (isLoading) return <div className="text-muted-foreground text-sm">Laden...</div>;
@@ -205,7 +208,43 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
                                 <span className="text-xs text-muted-foreground">{getKeyLabel(account.default_distribution_key)}</span>
                               </TableCell>
                               <TableCell>
-                                <Select value={currentKey || ""} onValueChange={v => handleOverride(account.id, v, account.default_distribution_key)}>
+                                {customKeyAccountId === account.id ? (
+                                  <div className="flex items-center gap-1">
+                                    <Input
+                                      autoFocus
+                                      placeholder="Schlüssel eingeben"
+                                      value={customKeyInput || ""}
+                                      onChange={e => setCustomKeyInput(e.target.value)}
+                                      onKeyDown={e => {
+                                        if (e.key === "Enter" && customKeyInput) {
+                                          handleOverride(account.id, customKeyInput, account.default_distribution_key);
+                                          setCustomKeyAccountId(null);
+                                          setCustomKeyInput(null);
+                                        }
+                                      }}
+                                      className="h-8 text-xs w-32"
+                                    />
+                                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => {
+                                      if (customKeyInput) {
+                                        handleOverride(account.id, customKeyInput, account.default_distribution_key);
+                                      }
+                                      setCustomKeyAccountId(null);
+                                      setCustomKeyInput(null);
+                                    }}>✓</Button>
+                                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => {
+                                      setCustomKeyAccountId(null);
+                                      setCustomKeyInput(null);
+                                    }}>✕</Button>
+                                  </div>
+                                ) : (
+                                <Select value={currentKey || ""} onValueChange={v => {
+                                  if (v === "__add__") {
+                                    setCustomKeyAccountId(account.id);
+                                    setCustomKeyInput("");
+                                  } else {
+                                    handleOverride(account.id, v, account.default_distribution_key);
+                                  }
+                                }}>
                                   <SelectTrigger className={`h-8 text-xs ${isOverridden ? "border-primary" : ""}`}>
                                     <SelectValue />
                                   </SelectTrigger>
@@ -215,8 +254,10 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
                                         {k.label} {k.value === account.default_distribution_key ? "(Standard)" : ""}
                                       </SelectItem>
                                     ))}
+                                    <SelectItem value="__add__" className="text-primary font-medium">+ Hinzufügen</SelectItem>
                                   </SelectContent>
                                 </Select>
+                                )}
                               </TableCell>
                               <TableCell>
                                 {isBuildingAccount && (
