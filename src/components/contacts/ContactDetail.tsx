@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Plus, Save, Trash2, Phone, Mail, Landmark } from "lucide-react";
+import { ArrowLeft, Plus, Save, Trash2, Phone, Mail, Landmark, Users } from "lucide-react";
 import { ContactBuildingAssignments } from "./ContactBuildingAssignments";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -25,6 +25,11 @@ interface LocalBankAccount {
   _localId: string; id?: string; account_holder: string | null; bank_name: string | null;
   iban: string | null; bic: string | null; sepa_mandate_ref: string | null;
   sepa_mandate_date: string | null; is_default: boolean; _deleted?: boolean;
+}
+interface LocalPerson {
+  _localId: string; id?: string; salutation: string | null; first_name: string | null;
+  last_name: string | null; position: string | null; email: string | null;
+  phone: string | null; notes: string | null; is_primary: boolean; _deleted?: boolean;
 }
 
 // IBAN validation: basic structure check (2 letter country + 2 check digits + up to 30 alphanumeric)
@@ -56,6 +61,7 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
   const [phones, setPhones] = useState<LocalPhone[]>([]);
   const [emails, setEmails] = useState<LocalEmail[]>([]);
   const [bankAccounts, setBankAccounts] = useState<LocalBankAccount[]>([]);
+  const [persons, setPersons] = useState<LocalPerson[]>([]);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [ibanErrors, setIbanErrors] = useState<Record<string, string>>({});
@@ -69,14 +75,16 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
   }, [contact.id]);
 
   const loadRelated = async () => {
-    const [phonesRes, emailsRes, banksRes] = await Promise.all([
+    const [phonesRes, emailsRes, banksRes, personsRes] = await Promise.all([
       supabase.from("contact_phones").select("*").eq("contact_id", contact.id).order("created_at"),
       supabase.from("contact_emails").select("*").eq("contact_id", contact.id).order("created_at"),
       supabase.from("contact_bank_accounts").select("*").eq("contact_id", contact.id).order("created_at"),
+      supabase.from("contact_persons").select("*").eq("contact_id", contact.id).order("sort_order"),
     ]);
     setPhones((phonesRes.data || []).map((p: any) => ({ ...p, _localId: p.id })));
     setEmails((emailsRes.data || []).map((e: any) => ({ ...e, _localId: e.id })));
     setBankAccounts((banksRes.data || []).map((b: any) => ({ ...b, _localId: b.id })));
+    setPersons((personsRes.data || []).map((p: any) => ({ ...p, _localId: p.id })));
   };
 
   const markDirty = useCallback(() => setIsDirty(true), []);
@@ -134,7 +142,24 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
     markDirty();
   };
 
-  // --- Batch Save ---
+  // --- Person handlers ---
+  const addPerson = () => {
+    setPersons(prev => [...prev, {
+      _localId: nextLocalId(), salutation: null, first_name: null, last_name: null,
+      position: null, email: null, phone: null, notes: null, is_primary: false,
+    }]);
+    markDirty();
+  };
+  const updatePersonLocal = (localId: string, field: string, value: string | boolean) => {
+    setPersons(prev => prev.map(p => p._localId === localId ? { ...p, [field]: value } : p));
+    markDirty();
+  };
+  const removePerson = (localId: string) => {
+    setPersons(prev => prev.map(p => p._localId === localId ? { ...p, _deleted: true } : p));
+    markDirty();
+  };
+
+
   const saveAll = async () => {
     // Validate IBANs before saving
     const activeAccounts = bankAccounts.filter(b => !b._deleted);
@@ -216,6 +241,30 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
         }).eq("id", b.id!);
       }
 
+      // 5. Save persons
+      const deletedPersons = persons.filter(p => p._deleted && p.id);
+      const newPersons = persons.filter(p => !p._deleted && !p.id);
+      const existingPersons = persons.filter(p => !p._deleted && p.id);
+
+      if (deletedPersons.length > 0) {
+        await supabase.from("contact_persons").delete().in("id", deletedPersons.map(p => p.id!));
+      }
+      for (const p of newPersons) {
+        if ((p.first_name || p.last_name || p.position)) {
+          await supabase.from("contact_persons").insert({
+            contact_id: contact.id, salutation: p.salutation, first_name: p.first_name,
+            last_name: p.last_name, position: p.position, email: p.email,
+            phone: p.phone, notes: p.notes, is_primary: p.is_primary,
+          });
+        }
+      }
+      for (const p of existingPersons) {
+        await supabase.from("contact_persons").update({
+          salutation: p.salutation, first_name: p.first_name, last_name: p.last_name,
+          position: p.position, email: p.email, phone: p.phone, notes: p.notes, is_primary: p.is_primary,
+        }).eq("id", p.id!);
+      }
+
       toast({ title: "Gespeichert" });
       setIsDirty(false);
       onUpdate();
@@ -244,6 +293,7 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
   const visiblePhones = phones.filter(p => !p._deleted);
   const visibleEmails = emails.filter(e => !e._deleted);
   const visibleBanks = bankAccounts.filter(b => !b._deleted);
+  const visiblePersons = persons.filter(p => !p._deleted);
   const hasIbanErrors = Object.keys(ibanErrors).length > 0;
 
   return (
@@ -288,8 +338,12 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
 
       <div className="p-6">
         <Tabs defaultValue="stammdaten">
-          <TabsList className="w-full grid grid-cols-4">
+          <TabsList className="w-full grid grid-cols-5">
             <TabsTrigger value="stammdaten">Stammdaten</TabsTrigger>
+            <TabsTrigger value="personen" className="gap-1">
+              <Users className="h-3.5 w-3.5" />
+              Personen {visiblePersons.length > 0 && `(${visiblePersons.length})`}
+            </TabsTrigger>
             <TabsTrigger value="kommunikation">Kommunikation</TabsTrigger>
             <TabsTrigger value="bank">Bank</TabsTrigger>
             <TabsTrigger value="gebaeude">Gebäude</TabsTrigger>
@@ -349,6 +403,82 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
               <Label>Notizen</Label>
               <Textarea value={form.notes || ""} onChange={(e) => { setForm({ ...form, notes: e.target.value }); markDirty(); }} rows={4} />
             </div>
+          </TabsContent>
+
+          {/* Personen / Ansprechpartner Tab */}
+          <TabsContent value="personen" className="space-y-4 mt-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <h3 className="text-sm font-semibold flex items-center gap-2"><Users className="h-4 w-4" /> Ansprechpartner</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">Mehrere Personen zu diesem Kontakt (z.B. Ansprechpartner einer Firma oder Miteigentümer)</p>
+              </div>
+              <Button size="sm" variant="outline" onClick={addPerson}><Plus className="h-3 w-3 mr-1" />Person hinzufügen</Button>
+            </div>
+            {visiblePersons.length === 0 && <p className="text-sm text-muted-foreground py-4">Keine weiteren Personen hinterlegt.</p>}
+            {visiblePersons.map((p, idx) => (
+              <Card key={p._localId}>
+                <CardContent className="pt-4 space-y-3">
+                  <div className="flex justify-between items-start">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {p.is_primary ? "Hauptansprechpartner" : `Person ${idx + 1}`}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant={p.is_primary ? "default" : "ghost"}
+                        className="h-6 text-[10px] px-2"
+                        onClick={() => {
+                          setPersons(prev => prev.map(pp => ({ ...pp, is_primary: pp._localId === p._localId })));
+                          markDirty();
+                        }}
+                      >
+                        {p.is_primary ? "Hauptkontakt ✓" : "Als Hauptkontakt"}
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => removePerson(p._localId)}>
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <Label className="text-xs">Anrede</Label>
+                      <Select value={p.salutation || ""} onValueChange={(v) => updatePersonLocal(p._localId, "salutation", v)}>
+                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Anrede" /></SelectTrigger>
+                        <SelectContent>
+                          {SALUTATIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Vorname</Label>
+                      <Input className="h-8 text-sm" value={p.first_name || ""} onChange={e => updatePersonLocal(p._localId, "first_name", e.target.value)} />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Nachname</Label>
+                      <Input className="h-8 text-sm" value={p.last_name || ""} onChange={e => updatePersonLocal(p._localId, "last_name", e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <Label className="text-xs">Position / Rolle</Label>
+                      <Input className="h-8 text-sm" value={p.position || ""} onChange={e => updatePersonLocal(p._localId, "position", e.target.value)} placeholder="z.B. Geschäftsführer" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">E-Mail</Label>
+                      <Input className="h-8 text-sm" type="email" value={p.email || ""} onChange={e => updatePersonLocal(p._localId, "email", e.target.value)} />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Telefon</Label>
+                      <Input className="h-8 text-sm" value={p.phone || ""} onChange={e => updatePersonLocal(p._localId, "phone", e.target.value)} />
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Notizen</Label>
+                    <Input className="h-8 text-sm" value={p.notes || ""} onChange={e => updatePersonLocal(p._localId, "notes", e.target.value)} placeholder="Optionale Notizen" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </TabsContent>
 
           {/* Kommunikation Tab */}

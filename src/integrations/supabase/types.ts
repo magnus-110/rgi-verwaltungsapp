@@ -1283,6 +1283,62 @@ export type Database = {
           },
         ]
       }
+      contact_persons: {
+        Row: {
+          contact_id: string
+          created_at: string | null
+          email: string | null
+          first_name: string | null
+          id: string
+          is_primary: boolean | null
+          last_name: string | null
+          notes: string | null
+          phone: string | null
+          position: string | null
+          salutation: string | null
+          sort_order: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string | null
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          is_primary?: boolean | null
+          last_name?: string | null
+          notes?: string | null
+          phone?: string | null
+          position?: string | null
+          salutation?: string | null
+          sort_order?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string | null
+          email?: string | null
+          first_name?: string | null
+          id?: string
+          is_primary?: boolean | null
+          last_name?: string | null
+          notes?: string | null
+          phone?: string | null
+          position?: string | null
+          salutation?: string | null
+          sort_order?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_persons_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contact_phones: {
         Row: {
           contact_id: string
