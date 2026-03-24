@@ -1768,6 +1768,7 @@ export type Database = {
           is_draft: boolean
           is_read: boolean
           is_starred: boolean
+          message_id: string | null
           message_id_header: string | null
           process_id: string | null
           subject: string | null
@@ -1800,6 +1801,7 @@ export type Database = {
           is_draft?: boolean
           is_read?: boolean
           is_starred?: boolean
+          message_id?: string | null
           message_id_header?: string | null
           process_id?: string | null
           subject?: string | null
@@ -1832,6 +1834,7 @@ export type Database = {
           is_draft?: boolean
           is_read?: boolean
           is_starred?: boolean
+          message_id?: string | null
           message_id_header?: string | null
           process_id?: string | null
           subject?: string | null
