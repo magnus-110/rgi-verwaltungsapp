@@ -44,6 +44,7 @@ const INTERVALS = [
   { value: "monatlich", label: "Monatlich" },
   { value: "quartal", label: "Quartalsweise" },
   { value: "jaehrlich", label: "Jährlich" },
+  { value: "einmalig", label: "Einmalig" },
 ];
 
 interface ContactAssignment {
