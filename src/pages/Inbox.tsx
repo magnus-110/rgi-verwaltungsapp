@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Mail, Search, Star, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip } from "lucide-react";
+import { Mail, Search, Star, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip, ChevronDown, ChevronUp } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +35,7 @@ export const Inbox = () => {
   const [composeForward, setComposeForward] = useState<any>(null);
   const [filterAccountId, setFilterAccountId] = useState<string>("all");
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [showEmailDetails, setShowEmailDetails] = useState(false);
   const [archiveEmailId, setArchiveEmailId] = useState<string | null>(null);
   const [filterBuildingId, setFilterBuildingId] = useState<string>("all");
   const [filterContactId, setFilterContactId] = useState<string>("all");
@@ -442,101 +443,130 @@ export const Inbox = () => {
       <div className="flex-1 flex flex-col min-w-0">
         {selectedEmail ? (
           <>
-            <div className="p-4 border-b space-y-2">
-              <div className="flex items-start justify-between gap-4">
-                <h2 className="text-lg font-semibold truncate">{selectedEmail.subject || "(Kein Betreff)"}</h2>
-                <div className="flex items-center gap-1 shrink-0">
-                  <Button
-                    variant="ghost" size="icon" className="h-8 w-8"
-                    onClick={() => toggleRead(selectedEmail.id, selectedEmail.is_read)}
-                    title={selectedEmail.is_read ? "Als ungelesen markieren" : "Als gelesen markieren"}
-                  >
-                    <MailOpen className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost" size="icon" className="h-8 w-8"
-                    onClick={() => toggleStar(selectedEmail.id, selectedEmail.is_starred)}
-                  >
-                    <Star className={cn("h-4 w-4", selectedEmail.is_starred && "text-yellow-500 fill-yellow-500")} />
-                  </Button>
-                  {!selectedEmail.is_archived && (
+            <ScrollArea className="flex-1">
+              <div className="p-4 space-y-2">
+                {/* Subject + Actions */}
+                <div className="flex items-start justify-between gap-4">
+                  <h2 className="text-lg font-semibold truncate">{selectedEmail.subject || "(Kein Betreff)"}</h2>
+                  <div className="flex items-center gap-1 shrink-0">
                     <Button
                       variant="ghost" size="icon" className="h-8 w-8"
-                      onClick={() => openArchiveDialog(selectedEmail.id)}
+                      onClick={() => toggleRead(selectedEmail.id, selectedEmail.is_read)}
+                      title={selectedEmail.is_read ? "Als ungelesen markieren" : "Als gelesen markieren"}
                     >
-                      <Archive className="h-4 w-4" />
+                      <MailOpen className="h-4 w-4" />
                     </Button>
-                  )}
-                  <Button
-                    variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive"
-                    onClick={() => deleteEmail(selectedEmail.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                    <Button
+                      variant="ghost" size="icon" className="h-8 w-8"
+                      onClick={() => toggleStar(selectedEmail.id, selectedEmail.is_starred)}
+                    >
+                      <Star className={cn("h-4 w-4", selectedEmail.is_starred && "text-yellow-500 fill-yellow-500")} />
+                    </Button>
+                    {!selectedEmail.is_archived && (
+                      <Button
+                        variant="ghost" size="icon" className="h-8 w-8"
+                        onClick={() => openArchiveDialog(selectedEmail.id)}
+                      >
+                        <Archive className="h-4 w-4" />
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive"
+                      onClick={() => deleteEmail(selectedEmail.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <span className="font-medium text-foreground">{selectedEmail.from_name || selectedEmail.from_address}</span>
-                {selectedEmail.from_name && (
-                  <span className="text-xs">&lt;{selectedEmail.from_address}&gt;</span>
+
+                {/* Sender name + expandable details */}
+                <div>
+                  <button
+                    className="flex items-center gap-1.5 text-sm hover:underline cursor-pointer"
+                    onClick={() => setShowEmailDetails(prev => !prev)}
+                  >
+                    <span className="font-medium text-foreground">{selectedEmail.from_name || selectedEmail.from_address}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {selectedEmail.date && new Date(selectedEmail.date).toLocaleString("de-DE")}
+                    </span>
+                    {showEmailDetails ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
+                  </button>
+                  {showEmailDetails && (
+                    <div className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
+                      {selectedEmail.from_name && (
+                        <div>Von: {selectedEmail.from_name} &lt;{selectedEmail.from_address}&gt;</div>
+                      )}
+                      {selectedEmail.to_addresses && (
+                        <div>
+                          An: {Array.isArray(selectedEmail.to_addresses) 
+                            ? (selectedEmail.to_addresses as string[]).join(", ") 
+                            : String(selectedEmail.to_addresses)}
+                        </div>
+                      )}
+                      {selectedEmail.cc_addresses && (
+                        <div>
+                          CC: {Array.isArray(selectedEmail.cc_addresses) 
+                            ? (selectedEmail.cc_addresses as string[]).join(", ") 
+                            : String(selectedEmail.cc_addresses)}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Badges */}
+                {(selectedEmail.building_id || selectedEmail.contact_id) && (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedEmail.building_id && (
+                      <Badge variant="outline" className="gap-1">
+                        <Building2 className="h-3 w-3" />
+                        {buildings.find(b => b.id === selectedEmail.building_id)?.name || "Liegenschaft"}
+                      </Badge>
+                    )}
+                    {selectedEmail.contact_id && (
+                      <Badge variant="outline" className="gap-1">
+                        <User className="h-3 w-3" />
+                        {(() => { const c = contacts.find(c => c.id === selectedEmail.contact_id); return c ? getContactName(c) : "Kontakt"; })()}
+                      </Badge>
+                    )}
+                  </div>
+                )}
+                {(selectedEmail.ai_category || selectedEmail.ai_priority) && (
+                  <div className="flex flex-wrap gap-2">
+                    {selectedEmail.ai_category && (
+                      <Badge variant="outline">{selectedEmail.ai_category}</Badge>
+                    )}
+                    {selectedEmail.ai_priority && (
+                      <Badge variant={selectedEmail.ai_priority === "hoch" ? "destructive" : "secondary"}>
+                        Priorität: {selectedEmail.ai_priority}
+                      </Badge>
+                    )}
+                  </div>
+                )}
+                {selectedEmail.ai_summary && (
+                  <p className="text-sm bg-muted/50 rounded-md p-2 italic">
+                    KI: {selectedEmail.ai_summary}
+                  </p>
                 )}
               </div>
-              {selectedEmail.to_addresses && (
-                <div className="text-xs text-muted-foreground">
-                  An: {Array.isArray(selectedEmail.to_addresses) 
-                    ? (selectedEmail.to_addresses as string[]).join(", ") 
-                    : String(selectedEmail.to_addresses)}
+
+              {/* Attachments */}
+              {selectedEmail.has_attachments && (
+                <div className="px-4 pb-2">
+                  <EmailAttachments emailId={selectedEmail.id} />
                 </div>
               )}
-              <div className="text-xs text-muted-foreground">
-                {selectedEmail.date && new Date(selectedEmail.date).toLocaleString("de-DE")}
+
+              <Separator />
+
+              {/* Email Body */}
+              <div className="p-4">
+                {selectedEmail.body_html ? (
+                  <EmailHtmlBody html={selectedEmail.body_html} emailId={selectedEmail.id} />
+                ) : (
+                  <pre className="text-sm whitespace-pre-wrap font-sans">{selectedEmail.body_text || "Kein Inhalt"}</pre>
+                )}
               </div>
-              {/* Show assignment badges in detail */}
-              {(selectedEmail.building_id || selectedEmail.contact_id) && (
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {selectedEmail.building_id && (
-                    <Badge variant="outline" className="gap-1">
-                      <Building2 className="h-3 w-3" />
-                      {buildings.find(b => b.id === selectedEmail.building_id)?.name || "Liegenschaft"}
-                    </Badge>
-                  )}
-                  {selectedEmail.contact_id && (
-                    <Badge variant="outline" className="gap-1">
-                      <User className="h-3 w-3" />
-                      {(() => { const c = contacts.find(c => c.id === selectedEmail.contact_id); return c ? getContactName(c) : "Kontakt"; })()}
-                    </Badge>
-                  )}
-                </div>
-              )}
-              {(selectedEmail.ai_category || selectedEmail.ai_summary) && (
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {selectedEmail.ai_category && (
-                    <Badge variant="outline">{selectedEmail.ai_category}</Badge>
-                  )}
-                  {selectedEmail.ai_priority && (
-                    <Badge variant={selectedEmail.ai_priority === "hoch" ? "destructive" : "secondary"}>
-                      Priorität: {selectedEmail.ai_priority}
-                    </Badge>
-                  )}
-                </div>
-              )}
-              {selectedEmail.ai_summary && (
-                <p className="text-sm bg-muted/50 rounded-md p-2 italic">
-                  KI: {selectedEmail.ai_summary}
-                </p>
-              )}
-            </div>
-            {selectedEmail.has_attachments && (
-              <div className="px-4 pt-3">
-                <EmailAttachments emailId={selectedEmail.id} />
-              </div>
-            )}
-            <ScrollArea className="flex-1 p-4">
-              {selectedEmail.body_html ? (
-                <EmailHtmlBody html={selectedEmail.body_html} emailId={selectedEmail.id} />
-              ) : (
-                <pre className="text-sm whitespace-pre-wrap font-sans">{selectedEmail.body_text || "Kein Inhalt"}</pre>
-              )}
             </ScrollArea>
             <div className="p-3 border-t flex gap-2">
               <Button size="sm" className="gap-1.5" onClick={() => {
