@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
-import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { useState, useEffect, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Mail, Search, Star, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Filter, Paperclip } from "lucide-react";
+import { Mail, Search, Star, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { ComposeEmailDialog } from "@/components/email/ComposeEmailDialog";
 import { EmailAttachments } from "@/components/email/EmailAttachments";
+import { ArchiveEmailDialog } from "@/components/email/ArchiveEmailDialog";
 import { useNavigate } from "react-router-dom";
 
 const folderIcons: Record<string, any> = {
@@ -32,6 +33,10 @@ export const Inbox = () => {
   const [composeReplyTo, setComposeReplyTo] = useState<any>(null);
   const [composeForward, setComposeForward] = useState<any>(null);
   const [filterAccountId, setFilterAccountId] = useState<string>("all");
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [archiveEmailId, setArchiveEmailId] = useState<string | null>(null);
+  const [filterBuildingId, setFilterBuildingId] = useState<string>("all");
+  const [filterContactId, setFilterContactId] = useState<string>("all");
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -61,6 +66,39 @@ export const Inbox = () => {
     },
   });
 
+  // Buildings for archive filter
+  const { data: buildings = [] } = useQuery({
+    queryKey: ["buildings-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("buildings")
+        .select("id, name")
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Contacts for archive filter
+  const { data: contacts = [] } = useQuery({
+    queryKey: ["contacts-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("contacts")
+        .select("id, first_name, last_name, company_name")
+        .order("last_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Determine if archive folder is selected
+  const isArchiveFolder = useMemo(() => {
+    if (!selectedFolderId || folders.length === 0) return false;
+    const folder = folders.find(f => f.id === selectedFolderId);
+    return folder?.name === "Archiv";
+  }, [selectedFolderId, folders]);
+
   // Unread counts per folder
   const { data: folderCounts = {} } = useQuery({
     queryKey: ["email-folder-counts"],
@@ -83,17 +121,31 @@ export const Inbox = () => {
 
   // Fetch emails for selected folder
   const { data: emails = [], isLoading: emailsLoading } = useQuery({
-    queryKey: ["emails", selectedFolderId, searchTerm, filterAccountId],
+    queryKey: ["emails", selectedFolderId, searchTerm, filterAccountId, isArchiveFolder, filterBuildingId, filterContactId],
     queryFn: async () => {
       let query = supabase
         .from("emails")
         .select("*")
-        .eq("is_archived", false)
         .order("date", { ascending: false })
         .limit(200);
 
-      if (selectedFolderId) {
-        query = query.eq("folder_id", selectedFolderId);
+      if (isArchiveFolder) {
+        // Archive: show archived emails
+        query = query.eq("is_archived", true);
+        
+        if (filterBuildingId !== "all") {
+          query = query.eq("building_id", filterBuildingId);
+        }
+        if (filterContactId !== "all") {
+          query = query.eq("contact_id", filterContactId);
+        }
+      } else {
+        // Normal folders: exclude archived
+        query = query.eq("is_archived", false);
+        
+        if (selectedFolderId) {
+          query = query.eq("folder_id", selectedFolderId);
+        }
       }
 
       if (filterAccountId !== "all") {
@@ -155,8 +207,17 @@ export const Inbox = () => {
     queryClient.invalidateQueries({ queryKey: ["emails"] });
   };
 
-  const archiveEmail = async (emailId: string) => {
-    await supabase.from("emails").update({ is_archived: true }).eq("id", emailId);
+  const openArchiveDialog = (emailId: string) => {
+    setArchiveEmailId(emailId);
+    setArchiveDialogOpen(true);
+  };
+
+  const handleArchiveWithAssignment = async (emailId: string, buildingId: string | null, contactId: string | null) => {
+    await supabase.from("emails").update({
+      is_archived: true,
+      building_id: buildingId,
+      contact_id: contactId,
+    }).eq("id", emailId);
     if (selectedEmailId === emailId) setSelectedEmailId(null);
     queryClient.invalidateQueries({ queryKey: ["emails"] });
     queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
@@ -180,6 +241,11 @@ export const Inbox = () => {
     await supabase.from("emails").update({ is_read: !currentRead }).eq("id", emailId);
     queryClient.invalidateQueries({ queryKey: ["emails"] });
     queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+  };
+
+  const getContactName = (c: any) => {
+    const parts = [c.first_name, c.last_name].filter(Boolean).join(" ");
+    return parts || c.company_name || "Unbenannt";
   };
 
   return (
@@ -268,6 +334,35 @@ export const Inbox = () => {
               className="pl-9 h-9"
             />
           </div>
+          {/* Archive filters */}
+          {isArchiveFolder && (
+            <div className="flex gap-2">
+              <Select value={filterBuildingId} onValueChange={setFilterBuildingId}>
+                <SelectTrigger className="h-8 text-xs flex-1">
+                  <Building2 className="h-3 w-3 mr-1 shrink-0" />
+                  <SelectValue placeholder="Liegenschaft" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle Liegenschaften</SelectItem>
+                  {buildings.map(b => (
+                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={filterContactId} onValueChange={setFilterContactId}>
+                <SelectTrigger className="h-8 text-xs flex-1">
+                  <User className="h-3 w-3 mr-1 shrink-0" />
+                  <SelectValue placeholder="Kontakt" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle Kontakte</SelectItem>
+                  {contacts.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{getContactName(c)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
 
         <ScrollArea className="flex-1">
@@ -312,6 +407,19 @@ export const Inbox = () => {
                   {email.has_attachments && (
                     <Paperclip className="h-3 w-3 text-muted-foreground" />
                   )}
+                  {/* Show building/contact badges in archive */}
+                  {isArchiveFolder && email.building_id && (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
+                      <Building2 className="h-2.5 w-2.5" />
+                      {buildings.find(b => b.id === email.building_id)?.name || ""}
+                    </Badge>
+                  )}
+                  {isArchiveFolder && email.contact_id && (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
+                      <User className="h-2.5 w-2.5" />
+                      {(() => { const c = contacts.find(c => c.id === email.contact_id); return c ? getContactName(c) : ""; })()}
+                    </Badge>
+                  )}
                   {email.ai_category && (
                     <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                       {email.ai_category}
@@ -350,12 +458,14 @@ export const Inbox = () => {
                   >
                     <Star className={cn("h-4 w-4", selectedEmail.is_starred && "text-yellow-500 fill-yellow-500")} />
                   </Button>
-                  <Button
-                    variant="ghost" size="icon" className="h-8 w-8"
-                    onClick={() => archiveEmail(selectedEmail.id)}
-                  >
-                    <Archive className="h-4 w-4" />
-                  </Button>
+                  {!selectedEmail.is_archived && (
+                    <Button
+                      variant="ghost" size="icon" className="h-8 w-8"
+                      onClick={() => openArchiveDialog(selectedEmail.id)}
+                    >
+                      <Archive className="h-4 w-4" />
+                    </Button>
+                  )}
                   <Button
                     variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive"
                     onClick={() => deleteEmail(selectedEmail.id)}
@@ -380,6 +490,23 @@ export const Inbox = () => {
               <div className="text-xs text-muted-foreground">
                 {selectedEmail.date && new Date(selectedEmail.date).toLocaleString("de-DE")}
               </div>
+              {/* Show assignment badges in detail */}
+              {(selectedEmail.building_id || selectedEmail.contact_id) && (
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {selectedEmail.building_id && (
+                    <Badge variant="outline" className="gap-1">
+                      <Building2 className="h-3 w-3" />
+                      {buildings.find(b => b.id === selectedEmail.building_id)?.name || "Liegenschaft"}
+                    </Badge>
+                  )}
+                  {selectedEmail.contact_id && (
+                    <Badge variant="outline" className="gap-1">
+                      <User className="h-3 w-3" />
+                      {(() => { const c = contacts.find(c => c.id === selectedEmail.contact_id); return c ? getContactName(c) : "Kontakt"; })()}
+                    </Badge>
+                  )}
+                </div>
+              )}
               {(selectedEmail.ai_category || selectedEmail.ai_summary) && (
                 <div className="flex flex-wrap gap-2 pt-1">
                   {selectedEmail.ai_category && (
@@ -451,11 +578,18 @@ export const Inbox = () => {
           </div>
         )}
       </div>
+
       <ComposeEmailDialog
         open={composeOpen}
         onOpenChange={setComposeOpen}
         replyTo={composeReplyTo}
         forward={composeForward}
+      />
+      <ArchiveEmailDialog
+        open={archiveDialogOpen}
+        onOpenChange={setArchiveDialogOpen}
+        emailId={archiveEmailId}
+        onArchive={handleArchiveWithAssignment}
       />
     </div>
   );
