@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Mail, Search, Flag, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip, ChevronDown, ChevronUp, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Mail, Search, Flag, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip, ChevronDown, ChevronUp, PanelLeftClose, PanelLeftOpen, UserPlus, UserCheck } from "lucide-react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
@@ -40,6 +43,8 @@ export const Inbox = () => {
   const [filterContactId, setFilterContactId] = useState<string>("all");
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [newContactDialogOpen, setNewContactDialogOpen] = useState(false);
+  const [newContactData, setNewContactData] = useState({ first_name: "", last_name: "", company_name: "", email: "" });
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -168,6 +173,8 @@ export const Inbox = () => {
   // All known categories (always shown)
   const ALL_CATEGORIES = ["Rechnung", "Anfrage", "Versicherung", "Wartung", "Vertrag", "Mahnung", "Sonstiges", "Werbung", "Unkategorisiert"];
 
+  const followUpCount = useMemo(() => emails.filter(e => e.is_starred).length, [emails]);
+
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const cat of ALL_CATEGORIES) counts[cat] = 0;
@@ -179,6 +186,7 @@ export const Inbox = () => {
   }, [emails]);
 
   const filteredEmails = useMemo(() => {
+    if (filterCategory === "followup") return emails.filter(e => e.is_starred);
     if (filterCategory === "all") return emails;
     if (filterCategory === "Unkategorisiert") return emails.filter(e => !e.ai_category);
     return emails.filter(e => e.ai_category === filterCategory);
@@ -268,9 +276,82 @@ export const Inbox = () => {
   const getContactName = (c: any) => {
     const parts = [c.first_name, c.last_name].filter(Boolean).join(" ");
     const name = parts || c.company_name || "Unbenannt";
-    // Append company name if person has both name and company
     if (parts && c.company_name) return `${name} (${c.company_name})`;
     return name;
+  };
+
+  const senderHasContact = useMemo(() => {
+    if (!selectedEmail?.from_address) return false;
+    return selectedEmail.contact_id != null;
+  }, [selectedEmail]);
+
+  const openNewContactFromEmail = () => {
+    if (!selectedEmail) return;
+    const fromName = selectedEmail.from_name || "";
+    const parts = fromName.split(" ");
+    setNewContactData({
+      first_name: parts.length > 1 ? parts.slice(0, -1).join(" ") : fromName,
+      last_name: parts.length > 1 ? parts[parts.length - 1] : "",
+      company_name: "",
+      email: selectedEmail.from_address || "",
+    });
+    setNewContactDialogOpen(true);
+  };
+
+  const handleCreateContact = async () => {
+    try {
+      const { data: contact, error } = await supabase.from("contacts").insert({
+        first_name: newContactData.first_name || null,
+        last_name: newContactData.last_name || null,
+        company_name: newContactData.company_name || null,
+      }).select("id").single();
+      if (error) throw error;
+
+      if (newContactData.email) {
+        await supabase.from("contact_emails").insert({
+          contact_id: contact.id,
+          email: newContactData.email,
+          is_primary: true,
+        });
+      }
+
+      // Link email to new contact
+      if (selectedEmail) {
+        await supabase.from("emails").update({ contact_id: contact.id }).eq("id", selectedEmail.id);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["contacts-list"] });
+      queryClient.invalidateQueries({ queryKey: ["emails"] });
+      setNewContactDialogOpen(false);
+      toast.success("Kontakt erstellt und verknüpft");
+    } catch (err: any) {
+      toast.error("Fehler: " + err.message);
+    }
+  };
+
+  const addEmailToExistingContact = async (contactId: string) => {
+    if (!selectedEmail?.from_address) return;
+    try {
+      // Check if email already exists for this contact
+      const { data: existing } = await supabase.from("contact_emails")
+        .select("id").eq("contact_id", contactId).eq("email", selectedEmail.from_address);
+      
+      if (!existing || existing.length === 0) {
+        await supabase.from("contact_emails").insert({
+          contact_id: contactId,
+          email: selectedEmail.from_address,
+          is_primary: false,
+        });
+      }
+
+      // Link email to contact
+      await supabase.from("emails").update({ contact_id: contactId }).eq("id", selectedEmail.id);
+      queryClient.invalidateQueries({ queryKey: ["emails"] });
+      queryClient.invalidateQueries({ queryKey: ["contacts-list"] });
+      toast.success("E-Mail-Adresse zum Kontakt hinzugefügt");
+    } catch (err: any) {
+      toast.error("Fehler: " + err.message);
+    }
   };
 
   return (
@@ -402,6 +483,16 @@ export const Inbox = () => {
                 )}
               >
                 Alle ({emails.length})
+              </button>
+              <button
+                onClick={() => setFilterCategory(filterCategory === "followup" ? "all" : "followup")}
+                className={cn(
+                  "px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0 flex items-center gap-1",
+                  filterCategory === "followup" ? "bg-orange-500 text-white" : "hover:bg-muted text-muted-foreground"
+                )}
+              >
+                <Flag className="h-3 w-3" />
+                Nachverfolgung ({followUpCount})
               </button>
               {ALL_CATEGORIES.map(cat => (
                 <button
@@ -560,24 +651,60 @@ export const Inbox = () => {
                       </div>
                     </div>
 
-                    <div>
-                      <button className="flex items-center gap-1.5 text-sm hover:underline cursor-pointer" onClick={() => setShowEmailDetails(prev => !prev)}>
-                        <span className="font-medium text-foreground">{selectedEmail.from_name || selectedEmail.from_address}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {selectedEmail.date && new Date(selectedEmail.date).toLocaleString("de-DE")}
-                        </span>
-                        {showEmailDetails ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
-                      </button>
-                      {showEmailDetails && (
-                        <div className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
-                          {selectedEmail.from_name && <div>Von: {selectedEmail.from_name} &lt;{selectedEmail.from_address}&gt;</div>}
-                          {selectedEmail.to_addresses && (
-                            <div>An: {Array.isArray(selectedEmail.to_addresses) ? (selectedEmail.to_addresses as string[]).join(", ") : String(selectedEmail.to_addresses)}</div>
-                          )}
-                          {selectedEmail.cc_addresses && (
-                            <div>CC: {Array.isArray(selectedEmail.cc_addresses) ? (selectedEmail.cc_addresses as string[]).join(", ") : String(selectedEmail.cc_addresses)}</div>
-                          )}
-                        </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 min-w-0">
+                        <button className="flex items-center gap-1.5 text-sm hover:underline cursor-pointer" onClick={() => setShowEmailDetails(prev => !prev)}>
+                          <span className="font-medium text-foreground">{selectedEmail.from_name || selectedEmail.from_address}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {selectedEmail.date && new Date(selectedEmail.date).toLocaleString("de-DE")}
+                          </span>
+                          {showEmailDetails ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
+                        </button>
+                        {showEmailDetails && (
+                          <div className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
+                            {selectedEmail.from_name && <div>Von: {selectedEmail.from_name} &lt;{selectedEmail.from_address}&gt;</div>}
+                            {selectedEmail.to_addresses && (
+                              <div>An: {Array.isArray(selectedEmail.to_addresses) ? (selectedEmail.to_addresses as string[]).join(", ") : String(selectedEmail.to_addresses)}</div>
+                            )}
+                            {selectedEmail.cc_addresses && (
+                              <div>CC: {Array.isArray(selectedEmail.cc_addresses) ? (selectedEmail.cc_addresses as string[]).join(", ") : String(selectedEmail.cc_addresses)}</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      {!senderHasContact && selectedEmail.from_address && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm" className="h-7 gap-1 text-xs shrink-0">
+                              <UserPlus className="h-3.5 w-3.5" />
+                              Kontakt speichern
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-64">
+                            <DropdownMenuItem onClick={openNewContactFromEmail}>
+                              <UserPlus className="h-4 w-4 mr-2" />
+                              Neuen Kontakt anlegen
+                            </DropdownMenuItem>
+                            {contacts.length > 0 && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuSub>
+                                  <DropdownMenuSubTrigger>
+                                    <UserCheck className="h-4 w-4 mr-2" />
+                                    Zu bestehendem Kontakt hinzufügen
+                                  </DropdownMenuSubTrigger>
+                                  <DropdownMenuSubContent className="max-h-60 overflow-y-auto">
+                                    {contacts.map(c => (
+                                      <DropdownMenuItem key={c.id} onClick={() => addEmailToExistingContact(c.id)}>
+                                        {getContactName(c)}
+                                      </DropdownMenuItem>
+                                    ))}
+                                  </DropdownMenuSubContent>
+                                </DropdownMenuSub>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       )}
                     </div>
 
@@ -659,6 +786,38 @@ export const Inbox = () => {
         prefilledContactId={archiveEmailId ? (emails.find(e => e.id === archiveEmailId)?.contact_id || null) : null}
         prefilledBuildingId={archiveEmailId ? (emails.find(e => e.id === archiveEmailId)?.building_id || null) : null}
       />
+
+      <Dialog open={newContactDialogOpen} onOpenChange={setNewContactDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Neuen Kontakt anlegen</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Vorname</Label>
+                <Input value={newContactData.first_name} onChange={e => setNewContactData(prev => ({ ...prev, first_name: e.target.value }))} />
+              </div>
+              <div>
+                <Label className="text-xs">Nachname</Label>
+                <Input value={newContactData.last_name} onChange={e => setNewContactData(prev => ({ ...prev, last_name: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Firma</Label>
+              <Input value={newContactData.company_name} onChange={e => setNewContactData(prev => ({ ...prev, company_name: e.target.value }))} />
+            </div>
+            <div>
+              <Label className="text-xs">E-Mail</Label>
+              <Input value={newContactData.email} disabled className="bg-muted" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewContactDialogOpen(false)}>Abbrechen</Button>
+            <Button onClick={handleCreateContact}>Kontakt erstellen</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
