@@ -35,6 +35,7 @@ export const Inbox = () => {
   const [composeForward, setComposeForward] = useState<any>(null);
   const [filterAccountId, setFilterAccountId] = useState<string>("all");
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [showEmailDetails, setShowEmailDetails] = useState(false);
   const [archiveEmailId, setArchiveEmailId] = useState<string | null>(null);
   const [filterBuildingId, setFilterBuildingId] = useState<string>("all");
   const [filterContactId, setFilterContactId] = useState<string>("all");
