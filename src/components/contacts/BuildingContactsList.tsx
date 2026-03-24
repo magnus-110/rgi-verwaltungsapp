@@ -618,18 +618,17 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                             <Select value={s.share_type} onValueChange={async (v) => {
                               if (v === "__add__") {
                                 updateShare(s.id, "share_type", "");
-                              } else if (v.startsWith("__del__")) {
-                                const typeToDelete = v.replace("__del__", "");
-                                // Reset all shares with this custom type to "mea"
-                                const { error } = await supabase
-                                  .from("contact_building_shares")
-                                  .update({ share_type: "mea" })
-                                  .eq("share_type", typeToDelete);
-                                if (!error) {
-                                  toast({ title: "Kategorie entfernt", description: `"${typeToDelete}" wurde zurückgesetzt.` });
-                                  queryClient.invalidateQueries({ queryKey: ["custom-share-types"] });
-                                  refetch();
+                              } else if (v === "__remove_custom__") {
+                                // Reset all custom share types to "mea"
+                                for (const ct of customShareTypes) {
+                                  await supabase
+                                    .from("contact_building_shares")
+                                    .update({ share_type: "mea" } as any)
+                                    .eq("share_type", ct as any);
                                 }
+                                toast({ title: "Eigene Kategorien entfernt" });
+                                queryClient.invalidateQueries({ queryKey: ["custom-share-types"] });
+                                refetch();
                               } else {
                                 updateShare(s.id, "share_type", v);
                               }
@@ -643,7 +642,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                                     {customShareTypes.map(ct => (
                                       <SelectItem key={ct} value={ct}>{ct}</SelectItem>
                                     ))}
-                                    <SelectItem value="__remove_custom__" className="text-destructive font-medium">🗑 Eigene entfernen...</SelectItem>
+                                    <SelectItem value="__remove_custom__" className="text-destructive font-medium">🗑 Eigene entfernen</SelectItem>
                                   </>
                                 )}
                                 <SelectItem value="__add__" className="text-primary font-medium">+ Hinzufügen</SelectItem>
