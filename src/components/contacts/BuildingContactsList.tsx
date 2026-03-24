@@ -624,7 +624,14 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                             }}>
                               <SelectTrigger className="w-36 h-8 text-sm"><SelectValue /></SelectTrigger>
                               <SelectContent>
-                                {allShareTypes.map(st => <SelectItem key={st.value} value={st.value}>{st.label}</SelectItem>)}
+                                {allShareTypes.map(st => {
+                                  const isCustom = !SHARE_TYPES.some(ds => ds.value === st.value);
+                                  return (
+                                    <SelectItem key={st.value} value={st.value}>
+                                      {st.label}
+                                    </SelectItem>
+                                  );
+                                })}
                                 <SelectItem value="__add__" className="text-primary font-medium">+ Hinzufügen</SelectItem>
                               </SelectContent>
                             </Select>
