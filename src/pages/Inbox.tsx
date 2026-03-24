@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Mail, Search, Star, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip, ChevronDown, ChevronUp } from "lucide-react";
+import { Mail, Search, Star, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip, ChevronDown, ChevronUp, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +39,8 @@ export const Inbox = () => {
   const [archiveEmailId, setArchiveEmailId] = useState<string | null>(null);
   const [filterBuildingId, setFilterBuildingId] = useState<string>("all");
   const [filterContactId, setFilterContactId] = useState<string>("all");
+  const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -164,7 +166,27 @@ export const Inbox = () => {
     },
   });
 
-  const selectedEmail = emails.find(e => e.id === selectedEmailId);
+  // Category counts from current emails
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const e of emails) {
+      const cat = e.ai_category || "Unkategorisiert";
+      counts[cat] = (counts[cat] || 0) + 1;
+    }
+    return counts;
+  }, [emails]);
+
+  const categoryList = useMemo(() => {
+    return Object.entries(categoryCounts).sort((a, b) => b[1] - a[1]);
+  }, [categoryCounts]);
+
+  const filteredEmails = useMemo(() => {
+    if (filterCategory === "all") return emails;
+    if (filterCategory === "Unkategorisiert") return emails.filter(e => !e.ai_category);
+    return emails.filter(e => e.ai_category === filterCategory);
+  }, [emails, filterCategory]);
+
+  const selectedEmail = filteredEmails.find(e => e.id === selectedEmailId) || emails.find(e => e.id === selectedEmailId);
 
   // Auto-select inbox folder
   useEffect(() => {
@@ -255,77 +277,118 @@ export const Inbox = () => {
 
   return (
     <div className="h-[calc(100vh-8rem)] flex rounded-lg border bg-background overflow-hidden">
-      {/* Left: Folders & Accounts */}
-      <div className="w-56 border-r flex flex-col shrink-0">
-        <div className="p-3 border-b flex gap-2">
-          <Button size="sm" className="flex-1 gap-2" onClick={() => { setComposeReplyTo(null); setComposeForward(null); setComposeOpen(true); }}>
-            <Plus className="h-4 w-4" />
-            Neue E-Mail
+      {/* Left: Folders & Accounts - collapsible */}
+      {sidebarCollapsed ? (
+        <div className="w-10 border-r flex flex-col items-center py-2 shrink-0">
+          <Button variant="ghost" size="icon" className="h-8 w-8 mb-2" onClick={() => setSidebarCollapsed(false)} title="Navigation einblenden">
+            <PanelLeftOpen className="h-4 w-4" />
           </Button>
-          <Button size="sm" variant="outline" onClick={handleSync} disabled={isSyncing}>
+          <Button size="icon" className="h-8 w-8 mb-1" onClick={() => { setComposeReplyTo(null); setComposeForward(null); setComposeOpen(true); }} title="Neue E-Mail">
+            <Plus className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleSync} disabled={isSyncing} title="Synchronisieren">
             {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           </Button>
+          <Separator className="my-2 w-6" />
+          {folders.map(folder => {
+            const Icon = folderIcons[folder.icon || 'inbox'] || Mail;
+            const isActive = selectedFolderId === folder.id;
+            const count = folderCounts[folder.id] || 0;
+            return (
+              <button
+                key={folder.id}
+                onClick={() => { setSelectedFolderId(folder.id); setSelectedEmailId(null); }}
+                className={cn(
+                  "relative h-8 w-8 flex items-center justify-center rounded-md transition-colors mb-0.5",
+                  isActive ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
+                )}
+                title={folder.name}
+              >
+                <Icon className="h-4 w-4" />
+                {count > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 h-3.5 min-w-[14px] rounded-full bg-destructive text-destructive-foreground text-[9px] flex items-center justify-center px-0.5">
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
-
-        <ScrollArea className="flex-1">
-          <div className="p-2">
-            <p className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Ordner</p>
-            {folders.map(folder => {
-              const Icon = folderIcons[folder.icon || 'inbox'] || Mail;
-              const isActive = selectedFolderId === folder.id;
-              const count = folderCounts[folder.id] || 0;
-              return (
-                <button
-                  key={folder.id}
-                  onClick={() => { setSelectedFolderId(folder.id); setSelectedEmailId(null); }}
-                  className={cn(
-                    "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors",
-                    isActive ? "bg-primary text-primary-foreground" : "hover:bg-muted text-foreground"
-                  )}
-                >
-                  <Icon className="h-4 w-4 shrink-0" />
-                  <span className="truncate flex-1 text-left">{folder.name}</span>
-                  {count > 0 && (
-                    <Badge variant={isActive ? "secondary" : "default"} className="text-[10px] px-1.5 py-0 h-5 min-w-[20px] justify-center">
-                      {count}
-                    </Badge>
-                  )}
-                </button>
-              );
-            })}
+      ) : (
+        <div className="w-56 border-r flex flex-col shrink-0">
+          <div className="p-3 border-b flex gap-2">
+            <Button size="sm" className="flex-1 gap-2" onClick={() => { setComposeReplyTo(null); setComposeForward(null); setComposeOpen(true); }}>
+              <Plus className="h-4 w-4" />
+              Neue E-Mail
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleSync} disabled={isSyncing}>
+              {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setSidebarCollapsed(true)} title="Navigation einklappen">
+              <PanelLeftClose className="h-4 w-4" />
+            </Button>
           </div>
 
-          <Separator className="my-2" />
-
-          <div className="p-2">
-            <div className="flex items-center justify-between px-2 py-1">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Konten</p>
-              <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => navigate("/settings")}>
-                <Settings className="h-3 w-3 text-muted-foreground" />
-              </Button>
+          <ScrollArea className="flex-1">
+            <div className="p-2">
+              <p className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Ordner</p>
+              {folders.map(folder => {
+                const Icon = folderIcons[folder.icon || 'inbox'] || Mail;
+                const isActive = selectedFolderId === folder.id;
+                const count = folderCounts[folder.id] || 0;
+                return (
+                  <button
+                    key={folder.id}
+                    onClick={() => { setSelectedFolderId(folder.id); setSelectedEmailId(null); }}
+                    className={cn(
+                      "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors",
+                      isActive ? "bg-primary text-primary-foreground" : "hover:bg-muted text-foreground"
+                    )}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span className="truncate flex-1 text-left">{folder.name}</span>
+                    {count > 0 && (
+                      <Badge variant={isActive ? "secondary" : "default"} className="text-[10px] px-1.5 py-0 h-5 min-w-[20px] justify-center">
+                        {count}
+                      </Badge>
+                    )}
+                  </button>
+                );
+              })}
             </div>
-            {accounts.length === 0 ? (
-              <p className="px-2 py-2 text-xs text-muted-foreground">
-                Noch keine E-Mail-Konten.
-              </p>
-            ) : (
-              accounts.map(acc => (
-                <button
-                  key={acc.id}
-                  onClick={() => setFilterAccountId(filterAccountId === acc.id ? "all" : acc.id)}
-                  className={cn(
-                    "w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md transition-colors",
-                    filterAccountId === acc.id ? "bg-accent text-accent-foreground" : "hover:bg-muted/50 text-muted-foreground"
-                  )}
-                >
-                  <div className={cn("h-2 w-2 rounded-full shrink-0", acc.is_active ? "bg-green-500" : "bg-muted-foreground")} />
-                  <span className="truncate text-left flex-1">{acc.display_name}</span>
-                </button>
-              ))
-            )}
-          </div>
-        </ScrollArea>
-      </div>
+
+            <Separator className="my-2" />
+
+            <div className="p-2">
+              <div className="flex items-center justify-between px-2 py-1">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Konten</p>
+                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => navigate("/settings")}>
+                  <Settings className="h-3 w-3 text-muted-foreground" />
+                </Button>
+              </div>
+              {accounts.length === 0 ? (
+                <p className="px-2 py-2 text-xs text-muted-foreground">
+                  Noch keine E-Mail-Konten.
+                </p>
+              ) : (
+                accounts.map(acc => (
+                  <button
+                    key={acc.id}
+                    onClick={() => setFilterAccountId(filterAccountId === acc.id ? "all" : acc.id)}
+                    className={cn(
+                      "w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md transition-colors",
+                      filterAccountId === acc.id ? "bg-accent text-accent-foreground" : "hover:bg-muted/50 text-muted-foreground"
+                    )}
+                  >
+                    <div className={cn("h-2 w-2 rounded-full shrink-0", acc.is_active ? "bg-green-500" : "bg-muted-foreground")} />
+                    <span className="truncate text-left flex-1">{acc.display_name}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          </ScrollArea>
+        </div>
+      )}
 
       {/* Middle: Email List */}
       <div className="w-80 border-r flex flex-col shrink-0">
@@ -370,16 +433,47 @@ export const Inbox = () => {
           )}
         </div>
 
+        {/* Category tabs */}
+        {categoryList.length > 0 && (
+          <div className="border-b">
+            <ScrollArea className="w-full">
+              <div className="flex px-1 py-1 gap-0.5">
+                <button
+                  onClick={() => setFilterCategory("all")}
+                  className={cn(
+                    "px-2 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0",
+                    filterCategory === "all" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
+                  )}
+                >
+                  Alle ({emails.length})
+                </button>
+                {categoryList.map(([cat, count]) => (
+                  <button
+                    key={cat}
+                    onClick={() => setFilterCategory(filterCategory === cat ? "all" : cat)}
+                    className={cn(
+                      "px-2 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0",
+                      filterCategory === cat ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
+                    )}
+                  >
+                    {cat} ({count})
+                  </button>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
+        )}
+
         <ScrollArea className="flex-1">
           {emailsLoading ? (
             <div className="p-4 text-center text-sm text-muted-foreground">Laden...</div>
-          ) : emails.length === 0 ? (
+          ) : filteredEmails.length === 0 ? (
             <div className="p-8 text-center">
               <Mail className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
               <p className="text-sm text-muted-foreground">Keine E-Mails vorhanden</p>
             </div>
           ) : (
-            emails.map(email => (
+            filteredEmails.map(email => (
               <button
                 key={email.id}
                 onClick={() => setSelectedEmailId(email.id)}
