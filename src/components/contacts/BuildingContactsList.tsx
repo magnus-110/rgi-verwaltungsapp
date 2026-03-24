@@ -247,6 +247,8 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
 
       let accountId = existingAccount?.id;
       if (!accountId) {
+        // Calculate sort_order from account_number for chronological ordering
+        const numericSort = parseInt(unitNumber.replace(/\D/g, ''), 10) || 0;
         const { data: newAccount, error: insertError } = await supabase
           .from("chart_of_accounts")
           .insert({
@@ -254,6 +256,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
             account_name: `${costType} ${lastName}`,
             building_id: buildingId,
             category: "Einnahmen",
+            sort_order: numericSort,
           })
           .select("id")
           .single();
