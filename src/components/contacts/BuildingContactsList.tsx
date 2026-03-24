@@ -637,11 +637,9 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                                 onChange={(e) => updateShare(s.id, "share_type", e.target.value)}
                                 className="w-36 h-8 text-sm"
                               />
-                              {s.share_type === "" && (
-                                <Button size="icon" variant="ghost" className="h-7 w-7 flex-shrink-0" onClick={() => updateShare(s.id, "share_type", "mea")}>
-                                  <X className="h-3 w-3" />
-                                </Button>
-                              )}
+                              <Button size="icon" variant="ghost" className="h-7 w-7 flex-shrink-0" onClick={() => updateShare(s.id, "share_type", "mea")}>
+                                <X className="h-3 w-3" />
+                              </Button>
                             </div>
                           )}
                           <Input
@@ -702,11 +700,9 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                                 onChange={(e) => updateCost(c.id, "cost_type", e.target.value)}
                                 className="w-32 h-8 text-sm"
                               />
-                              {c.cost_type === "" && (
-                                <Button size="icon" variant="ghost" className="h-7 w-7 flex-shrink-0" onClick={() => updateCost(c.id, "cost_type", "Hausgeld")}>
-                                  <X className="h-3 w-3" />
-                                </Button>
-                              )}
+                              <Button size="icon" variant="ghost" className="h-7 w-7 flex-shrink-0" onClick={() => updateCost(c.id, "cost_type", "Hausgeld")}>
+                                <X className="h-3 w-3" />
+                              </Button>
                             </div>
                           )}
                           <Input
