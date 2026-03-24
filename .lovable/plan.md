@@ -1,32 +1,40 @@
 
 
-# Plan: Konto/Vorlage-Checkbox pro Kostenkategorie
+# Plan: Kontenanzeige-Logik + Suchfunktion
 
-## Aenderung
+## Zusammenfassung
 
-Aktuell wird `ensureAccountAndTemplate` nur fuer "Hausgeld" automatisch aufgerufen. Stattdessen soll bei **jeder** Kostenkategorie eine Checkbox erscheinen, mit der der Nutzer entscheiden kann, ob Konto + Vorlage angelegt werden sollen.
+Drei Aenderungen:
+1. **Gebaude-Verteilerschluessel-Tab** (`BuildingDistributionKeysTab`): Suchfeld hinzufuegen
+2. **Finanzseite Kontenrahmen** (`ChartOfAccountsTab`): Gebaude-Auswahl + Suchfeld hinzufuegen, Query dynamisch machen
+3. **Finanzseite Verteilerschluessel** (`DistributionKeysTab`): Query um building-spezifische Konten erweitern bei Gebaeudeauswahl + Suchfeld
 
-## UI-Aenderung in `BuildingContactsList.tsx`
+## Aenderungen
 
-In der Kosten-Zeile (Zeilen 586-620) wird **rechts neben dem Intervall-Dropdown** eine Checkbox mit Tooltip hinzugefuegt:
-- Checkbox-Label: kleines Icon (z.B. Konto-Symbol) oder kurzer Text "Konto + Vorlage"
-- Beim Aktivieren der Checkbox wird `ensureAccountAndTemplate` aufgerufen (mit dem aktuellen `cost_type` statt nur "Hausgeld")
-- Die Checkbox ist rein als Trigger gedacht (kein persistenter State noetig, da sie einmalig Konto/Vorlage erstellt)
+### 1. `BuildingDistributionKeysTab.tsx`
+- Neuer State `searchTerm`
+- `Input` mit Search-Icon unterhalb des Headers ("Konto suchen...")
+- Filter: `accounts.filter(a => a.account_number.toLowerCase().includes(term) || a.account_name.toLowerCase().includes(term))`
+- Kategorien ohne Treffer ausblenden
 
-## Logik-Aenderung in `ensureAccountAndTemplate`
+### 2. `ChartOfAccountsTab.tsx`
+- Neuer State `selectedBuilding` + `searchTerm`
+- Gebaude-Dropdown (wie in `DistributionKeysTab`) oberhalb der Tabelle, mit Option "Alle (global)" als Default
+- **Query aendern**: `queryKey` inkl. `selectedBuilding`. Wenn kein Gebaeude: `.is("building_id", null)` (wie bisher). Wenn Gebaeude ausgewaehlt: `.eq("building_id", selectedBuilding)` (nur building-spezifische Konten)
+- Suchfeld wie oben
+- Buildings-Query hinzufuegen (gleich wie in DistributionKeysTab)
 
-- Die Pruefung `if (costType !== "Hausgeld" || amount <= 0) return;` wird entfernt
-- Nur noch `if (amount <= 0) return;` bleibt
-- Kontoname wird dynamisch: `"{costType} {lastName}"` (z.B. "Miete Mueller", "Stellplatz Schmidt")
-- Vorlagenname wird: `"mtl. {costType} {unitNumber} {floorLocation}"` (z.B. "mtl. Miete 0001 EG rechts")
-
-## Auto-Trigger entfernen
-
-Der automatische Aufruf in `updateCost` (Zeilen 279-286) wird entfernt. Stattdessen wird Konto/Vorlage **nur** ueber die Checkbox erstellt - bewusste Entscheidung des Nutzers.
+### 3. `DistributionKeysTab.tsx`
+- Neuer State `searchTerm`
+- Suchfeld hinzufuegen
+- **Query aendern**: Wenn Gebaeude ausgewaehlt, `.or(building_id.is.null,building_id.eq.${selectedBuilding})` statt nur `.is("building_id", null)`. QueryKey um selectedBuilding erweitern.
+- Kategorien ohne Suchtreffer ausblenden
 
 ## Dateien
 
 | Datei | Aenderung |
 |---|---|
-| `src/components/contacts/BuildingContactsList.tsx` | Checkbox pro Kostenzeile, `ensureAccountAndTemplate` generisch machen, Auto-Trigger entfernen |
+| `src/components/finance/BuildingDistributionKeysTab.tsx` | Suchfeld |
+| `src/components/finance/ChartOfAccountsTab.tsx` | Gebaude-Dropdown, dynamische Query, Suchfeld |
+| `src/components/finance/DistributionKeysTab.tsx` | Query mit building-spezifischen Konten, Suchfeld |
 
