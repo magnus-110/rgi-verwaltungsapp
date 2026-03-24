@@ -153,20 +153,21 @@ async function fetchAccountEmails(
       `Mailbox opened: ${mailbox.exists} messages, uidNext: ${mailbox.uidNext}`
     );
 
-    // Determine which messages to fetch
-    let searchCriteria: any;
+    // Determine which messages to fetch - ImapFlow expects a STRING range
+    let range: string;
     if (account.last_uid) {
-      // Fetch messages newer than last known UID
-      searchCriteria = { uid: `${parseInt(account.last_uid) + 1}:*` };
+      range = `${parseInt(account.last_uid) + 1}:*`;
     } else {
-      // First sync: fetch last 100 messages
-      searchCriteria = { seq: `${Math.max(1, mailbox.exists - 99)}:*` };
+      // First sync: fetch all by UID
+      range = "1:*";
     }
+
+    console.log(`Fetching range: ${range}, last_uid: ${account.last_uid}`);
 
     // Fetch messages
     let maxUid = account.last_uid ? parseInt(account.last_uid) : 0;
 
-    for await (const msg of client.fetch(searchCriteria, {
+    for await (const msg of client.fetch(range, {
       uid: true,
       flags: true,
       envelope: true,
