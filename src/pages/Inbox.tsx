@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Mail, Search, Star, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings } from "lucide-react";
@@ -77,10 +77,12 @@ export const Inbox = () => {
   const selectedEmail = emails.find(e => e.id === selectedEmailId);
 
   // Auto-select inbox folder
-  const inboxFolder = folders.find(f => f.name === "Eingang");
-  if (inboxFolder && !selectedFolderId) {
-    setSelectedFolderId(inboxFolder.id);
-  }
+  useEffect(() => {
+    const inboxFolder = folders.find(f => f.name === "Eingang");
+    if (inboxFolder && !selectedFolderId) {
+      setSelectedFolderId(inboxFolder.id);
+    }
+  }, [folders, selectedFolderId]);
 
   const unreadCount = emails.filter(e => !e.is_read).length;
 
