@@ -247,7 +247,10 @@ export const Inbox = () => {
 
   const getContactName = (c: any) => {
     const parts = [c.first_name, c.last_name].filter(Boolean).join(" ");
-    return parts || c.company_name || "Unbenannt";
+    const name = parts || c.company_name || "Unbenannt";
+    // Append company name if person has both name and company
+    if (parts && c.company_name) return `${name} (${c.company_name})`;
+    return name;
   };
 
   return (
