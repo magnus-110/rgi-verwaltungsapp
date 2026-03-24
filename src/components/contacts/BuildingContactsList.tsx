@@ -641,11 +641,9 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                                   <>
                                     <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Eigene</div>
                                     {customShareTypes.map(ct => (
-                                      <div key={ct} className="flex items-center">
-                                        <SelectItem value={ct} className="flex-1">{ct}</SelectItem>
-                                        <SelectItem value={`__del__${ct}`} className="w-8 flex-shrink-0 text-destructive px-1 justify-center">✕</SelectItem>
-                                      </div>
+                                      <SelectItem key={ct} value={ct}>{ct}</SelectItem>
                                     ))}
+                                    <SelectItem value="__remove_custom__" className="text-destructive font-medium">🗑 Eigene entfernen...</SelectItem>
                                   </>
                                 )}
                                 <SelectItem value="__add__" className="text-primary font-medium">+ Hinzufügen</SelectItem>
