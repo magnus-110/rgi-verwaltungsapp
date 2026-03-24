@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Pencil, Trash2, Check, X, ChevronDown, ChevronRight } from "lucide-react";
+import { Plus, Pencil, Trash2, Check, X, ChevronDown, ChevronRight, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -31,22 +31,41 @@ export function ChartOfAccountsTab() {
   const [edit35a, setEdit35a] = useState(false);
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [selectedBuilding, setSelectedBuilding] = useState<string>("");
+  const [searchTerm, setSearchTerm] = useState("");
   const [newAccount, setNewAccount] = useState({ account_number: "", account_name: "", category: "", default_distribution_key: "mea", is_35a_relevant: false });
 
-  const { data: accounts = [], isLoading } = useQuery({
-    queryKey: ["chart-of-accounts"],
+  const { data: buildings = [] } = useQuery({
+    queryKey: ["buildings-list-finance-coa"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("chart_of_accounts")
-        .select("*")
-        .is("building_id", null)
-        .order("sort_order", { ascending: true });
+      const { data, error } = await supabase.from("buildings").select("id, name, building_code").order("name");
       if (error) throw error;
       return data;
     },
   });
 
-  const categories = [...new Set(accounts.map(a => a.category))];
+  const { data: accounts = [], isLoading } = useQuery({
+    queryKey: ["chart-of-accounts", selectedBuilding],
+    queryFn: async () => {
+      let query = supabase.from("chart_of_accounts").select("*");
+      if (selectedBuilding) {
+        query = query.eq("building_id", selectedBuilding);
+      } else {
+        query = query.is("building_id", null);
+      }
+      const { data, error } = await query.order("sort_order", { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const filteredAccounts = accounts.filter(a => {
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    return a.account_number.toLowerCase().includes(term) || a.account_name.toLowerCase().includes(term);
+  });
+
+  const categories = [...new Set(filteredAccounts.map(a => a.category))];
 
   const toggleCategory = (cat: string) => {
     setCollapsedCategories(prev => {
