@@ -1,9 +1,18 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Plus, Search, User } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Search, User, Building2, Users, Wrench } from "lucide-react";
 import { CreateContactDialog } from "./CreateContactDialog";
+import { supabase } from "@/integrations/supabase/client";
 import type { Contact } from "@/pages/Contacts";
+
+const TYPE_CONFIG: Record<string, { label: string; icon: any; variant: "default" | "secondary" | "outline" | "destructive" }> = {
+  person: { label: "Person", icon: User, variant: "secondary" },
+  company: { label: "Firma", icon: Building2, variant: "default" },
+  owner_group: { label: "Eigentümer", icon: Users, variant: "outline" },
+  service_provider: { label: "Dienstleister", icon: Wrench, variant: "secondary" },
+};
 
 interface ContactListProps {
   contacts: Contact[];
@@ -16,6 +25,25 @@ interface ContactListProps {
 export function ContactList({ contacts, selectedId, onSelect, onCreated, loading }: ContactListProps) {
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
+  const [primaryPersons, setPrimaryPersons] = useState<Record<string, string>>({});
+
+  // Load primary person names for all contacts
+  useEffect(() => {
+    const loadPrimaryPersons = async () => {
+      const { data } = await supabase
+        .from("contact_persons")
+        .select("contact_id, first_name, last_name")
+        .eq("is_primary", true);
+      if (data) {
+        const map: Record<string, string> = {};
+        data.forEach(p => {
+          map[p.contact_id] = [p.first_name, p.last_name].filter(Boolean).join(" ");
+        });
+        setPrimaryPersons(map);
+      }
+    };
+    loadPrimaryPersons();
+  }, [contacts]);
 
   const filtered = contacts.filter((c) => {
     const term = search.toLowerCase();
@@ -23,12 +51,14 @@ export function ContactList({ contacts, selectedId, onSelect, onCreated, loading
       (c.first_name || "").toLowerCase().includes(term) ||
       (c.last_name || "").toLowerCase().includes(term) ||
       (c.company_name || "").toLowerCase().includes(term) ||
-      (c.short_name || "").toLowerCase().includes(term)
+      (c.short_name || "").toLowerCase().includes(term) ||
+      (primaryPersons[c.id] || "").toLowerCase().includes(term)
     );
   });
 
   const getDisplayName = (c: Contact) => {
     if (c.company_name) return c.company_name;
+    if (c.short_name) return c.short_name;
     return [c.last_name, c.first_name].filter(Boolean).join(", ") || "Unbenannt";
   };
 
@@ -60,27 +90,41 @@ export function ContactList({ contacts, selectedId, onSelect, onCreated, loading
             {search ? "Keine Ergebnisse" : "Noch keine Kontakte"}
           </div>
         ) : (
-          filtered.map((c) => (
-            <div
-              key={c.id}
-              onClick={() => onSelect(c.id)}
-              className={`flex items-center gap-3 px-4 py-3 cursor-pointer border-b border-border transition-colors ${
-                selectedId === c.id
-                  ? "bg-primary/10 border-l-2 border-l-primary"
-                  : "hover:bg-muted"
-              }`}
-            >
-              <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                <User className="h-4 w-4 text-muted-foreground" />
+          filtered.map((c) => {
+            const typeConfig = TYPE_CONFIG[c.contact_type || "person"];
+            const primaryName = primaryPersons[c.id];
+            return (
+              <div
+                key={c.id}
+                onClick={() => onSelect(c.id)}
+                className={`flex items-center gap-3 px-4 py-3 cursor-pointer border-b border-border transition-colors ${
+                  selectedId === c.id
+                    ? "bg-primary/10 border-l-2 border-l-primary"
+                    : "hover:bg-muted"
+                }`}
+              >
+                <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                  {typeConfig ? <typeConfig.icon className="h-4 w-4 text-muted-foreground" /> : <User className="h-4 w-4 text-muted-foreground" />}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-medium truncate">{getDisplayName(c)}</p>
+                    {typeConfig && c.contact_type && c.contact_type !== "person" && (
+                      <Badge variant={typeConfig.variant} className="text-[9px] px-1 py-0 shrink-0">
+                        {typeConfig.label}
+                      </Badge>
+                    )}
+                  </div>
+                  {primaryName && (c.contact_type === "company" || c.contact_type === "service_provider" || c.contact_type === "owner_group") && (
+                    <p className="text-xs text-muted-foreground truncate">{primaryName}</p>
+                  )}
+                  {c.short_name && c.company_name && (
+                    <p className="text-xs text-muted-foreground truncate">{c.short_name}</p>
+                  )}
+                </div>
               </div>
-              <div className="min-w-0">
-                <p className="text-sm font-medium truncate">{getDisplayName(c)}</p>
-                {c.short_name && (
-                  <p className="text-xs text-muted-foreground truncate">{c.short_name}</p>
-                )}
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 

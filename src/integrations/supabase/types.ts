@@ -1047,6 +1047,7 @@ export type Database = {
           iban: string | null
           id: string
           is_default: boolean | null
+          person_id: string | null
           sepa_mandate_date: string | null
           sepa_mandate_ref: string | null
           updated_at: string
@@ -1060,6 +1061,7 @@ export type Database = {
           iban?: string | null
           id?: string
           is_default?: boolean | null
+          person_id?: string | null
           sepa_mandate_date?: string | null
           sepa_mandate_ref?: string | null
           updated_at?: string
@@ -1073,6 +1075,7 @@ export type Database = {
           iban?: string | null
           id?: string
           is_default?: boolean | null
+          person_id?: string | null
           sepa_mandate_date?: string | null
           sepa_mandate_ref?: string | null
           updated_at?: string
@@ -1083,6 +1086,13 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_bank_accounts_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "contact_persons"
             referencedColumns: ["id"]
           },
         ]
@@ -1256,6 +1266,7 @@ export type Database = {
           id: string
           is_primary: boolean | null
           label: string | null
+          person_id: string | null
         }
         Insert: {
           contact_id: string
@@ -1264,6 +1275,7 @@ export type Database = {
           id?: string
           is_primary?: boolean | null
           label?: string | null
+          person_id?: string | null
         }
         Update: {
           contact_id?: string
@@ -1272,6 +1284,7 @@ export type Database = {
           id?: string
           is_primary?: boolean | null
           label?: string | null
+          person_id?: string | null
         }
         Relationships: [
           {
@@ -1279,6 +1292,13 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_emails_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "contact_persons"
             referencedColumns: ["id"]
           },
         ]
@@ -1345,6 +1365,7 @@ export type Database = {
           created_at: string
           id: string
           label: string | null
+          person_id: string | null
           phone_number: string
         }
         Insert: {
@@ -1352,6 +1373,7 @@ export type Database = {
           created_at?: string
           id?: string
           label?: string | null
+          person_id?: string | null
           phone_number: string
         }
         Update: {
@@ -1359,6 +1381,7 @@ export type Database = {
           created_at?: string
           id?: string
           label?: string | null
+          person_id?: string | null
           phone_number?: string
         }
         Relationships: [
@@ -1369,6 +1392,13 @@ export type Database = {
             referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "contact_phones_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "contact_persons"
+            referencedColumns: ["id"]
+          },
         ]
       }
       contacts: {
@@ -1377,6 +1407,7 @@ export type Database = {
           address_street: string | null
           address_zip: string | null
           company_name: string | null
+          contact_type: Database["public"]["Enums"]["contact_type"] | null
           created_at: string
           first_name: string | null
           id: string
@@ -1392,6 +1423,7 @@ export type Database = {
           address_street?: string | null
           address_zip?: string | null
           company_name?: string | null
+          contact_type?: Database["public"]["Enums"]["contact_type"] | null
           created_at?: string
           first_name?: string | null
           id?: string
@@ -1407,6 +1439,7 @@ export type Database = {
           address_street?: string | null
           address_zip?: string | null
           company_name?: string | null
+          contact_type?: Database["public"]["Enums"]["contact_type"] | null
           created_at?: string
           first_name?: string | null
           id?: string
@@ -3046,6 +3079,7 @@ export type Database = {
     Enums: {
       app_role: "admin" | "weg_owner" | "tenant" | "employee"
       contact_building_role: "eigentuemer" | "mieter" | "verwalter" | "beirat"
+      contact_type: "person" | "company" | "owner_group" | "service_provider"
       contact_usage_type:
         | "selbstbewohnt"
         | "zweitwohnsitz"
@@ -3193,6 +3227,7 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "weg_owner", "tenant", "employee"],
       contact_building_role: ["eigentuemer", "mieter", "verwalter", "beirat"],
+      contact_type: ["person", "company", "owner_group", "service_provider"],
       contact_usage_type: [
         "selbstbewohnt",
         "zweitwohnsitz",

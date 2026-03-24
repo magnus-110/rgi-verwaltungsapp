@@ -301,16 +301,27 @@ export const Inbox = () => {
 
   const handleCreateContact = async () => {
     try {
+      const contactType = newContactData.company_name ? "company" : "person";
       const { data: contact, error } = await supabase.from("contacts").insert({
         first_name: newContactData.first_name || null,
         last_name: newContactData.last_name || null,
         company_name: newContactData.company_name || null,
+        contact_type: contactType as any,
       }).select("id").single();
       if (error) throw error;
+
+      // Create a contact_person
+      const { data: person } = await supabase.from("contact_persons").insert({
+        contact_id: contact.id,
+        first_name: newContactData.first_name || null,
+        last_name: newContactData.last_name || null,
+        is_primary: true,
+      }).select("id").single();
 
       if (newContactData.email) {
         await supabase.from("contact_emails").insert({
           contact_id: contact.id,
+          person_id: person?.id || null,
           email: newContactData.email,
           is_primary: true,
         });
@@ -338,8 +349,13 @@ export const Inbox = () => {
         .select("id").eq("contact_id", contactId).eq("email", selectedEmail.from_address);
       
       if (!existing || existing.length === 0) {
+        // Get primary person for this contact
+        const { data: primaryPerson } = await supabase.from("contact_persons")
+          .select("id").eq("contact_id", contactId).eq("is_primary", true).limit(1).maybeSingle();
+        
         await supabase.from("contact_emails").insert({
           contact_id: contactId,
+          person_id: primaryPerson?.id || null,
           email: selectedEmail.from_address,
           is_primary: false,
         });
