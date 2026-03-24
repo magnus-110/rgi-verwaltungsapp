@@ -86,13 +86,18 @@ Deno.serve(async (req) => {
       .eq("name", "Gesendet")
       .single();
 
+    // Port 465 = direct SSL (secure:true), Port 587 = STARTTLS (secure:false)
+    const isSecure = account.smtp_port === 465;
     const transporter = nodemailer.createTransport({
       host: account.smtp_host,
       port: account.smtp_port,
-      secure: account.use_ssl,
+      secure: isSecure,
       auth: {
         user: account.smtp_user,
         pass: account.smtp_password,
+      },
+      tls: {
+        rejectUnauthorized: false,
       },
     });
 
