@@ -31,7 +31,7 @@ export function ChartOfAccountsTab() {
   const [edit35a, setEdit35a] = useState(false);
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [selectedBuilding, setSelectedBuilding] = useState<string>("");
+  const [selectedBuilding, setSelectedBuilding] = useState<string>("global");
   const [searchTerm, setSearchTerm] = useState("");
   const [newAccount, setNewAccount] = useState({ account_number: "", account_name: "", category: "", default_distribution_key: "mea", is_35a_relevant: false });
 
