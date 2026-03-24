@@ -142,7 +142,24 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
     markDirty();
   };
 
-  // --- Batch Save ---
+  // --- Person handlers ---
+  const addPerson = () => {
+    setPersons(prev => [...prev, {
+      _localId: nextLocalId(), salutation: null, first_name: null, last_name: null,
+      position: null, email: null, phone: null, notes: null, is_primary: false,
+    }]);
+    markDirty();
+  };
+  const updatePersonLocal = (localId: string, field: string, value: string | boolean) => {
+    setPersons(prev => prev.map(p => p._localId === localId ? { ...p, [field]: value } : p));
+    markDirty();
+  };
+  const removePerson = (localId: string) => {
+    setPersons(prev => prev.map(p => p._localId === localId ? { ...p, _deleted: true } : p));
+    markDirty();
+  };
+
+
   const saveAll = async () => {
     // Validate IBANs before saving
     const activeAccounts = bankAccounts.filter(b => !b._deleted);
