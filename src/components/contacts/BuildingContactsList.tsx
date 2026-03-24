@@ -109,6 +109,30 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Load custom cost types and share types from DB
+  const { data: customCostTypes = [] } = useQuery({
+    queryKey: ['custom-cost-types'],
+    queryFn: async () => {
+      const { data } = await supabase.from("contact_building_costs").select("cost_type");
+      if (!data) return [];
+      const unique = [...new Set(data.map(d => d.cost_type))];
+      return unique.filter(t => !COST_TYPES.includes(t) && t && t !== "__add__");
+    },
+  });
+
+  const { data: customShareTypes = [] } = useQuery({
+    queryKey: ['custom-share-types'],
+    queryFn: async () => {
+      const { data } = await supabase.from("contact_building_shares").select("share_type");
+      if (!data) return [];
+      const unique = [...new Set(data.map(d => d.share_type))];
+      return unique.filter(t => !SHARE_TYPES.some(s => s.value === t) && t && t !== "__add__");
+    },
+  });
+
+  const allCostTypes = [...COST_TYPES, ...customCostTypes];
+  const allShareTypes = [...SHARE_TYPES, ...customShareTypes.map(t => ({ value: t, label: t }))];
+
   const { data: assignments = [], refetch } = useQuery({
     queryKey: ['building-contact-assignments', buildingId],
     queryFn: async () => {
