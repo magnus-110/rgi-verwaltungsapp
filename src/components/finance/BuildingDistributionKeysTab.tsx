@@ -156,6 +156,7 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
                 return a.account_number.toLowerCase().includes(term) || a.account_name.toLowerCase().includes(term);
               });
               const collapsed = collapsedCategories.has(cat);
+              if (catAccounts.length === 0) return null;
               const catOverrides = catAccounts.filter(a => overrideMap.has(a.id)).length;
               const catBuildingAccounts = catAccounts.filter(a => (a as any).building_id === buildingId).length;
               return (
