@@ -123,7 +123,7 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
   const [customKeyInput, setCustomKeyInput] = useState<string | null>(null);
   const [customKeyAccountId, setCustomKeyAccountId] = useState<string | null>(null);
 
-  const getKeyLabel = (key: string | null) => DISTRIBUTION_KEYS.find(k => k.value === key)?.label || key || "–";
+  const getKeyLabel = (key: string | null) => allDistKeys.find(k => k.value === key)?.label || key || "–";
 
   if (isLoading) return <div className="text-muted-foreground text-sm">Laden...</div>;
 
@@ -257,7 +257,7 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {DISTRIBUTION_KEYS.map(k => (
+                                    {allDistKeys.map(k => (
                                       <SelectItem key={k.value} value={k.value}>
                                         {k.label} {k.value === account.default_distribution_key ? "(Standard)" : ""}
                                       </SelectItem>
