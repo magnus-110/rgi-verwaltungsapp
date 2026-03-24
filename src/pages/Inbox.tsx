@@ -43,6 +43,8 @@ export const Inbox = () => {
   const [filterContactId, setFilterContactId] = useState<string>("all");
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [newContactDialogOpen, setNewContactDialogOpen] = useState(false);
+  const [newContactData, setNewContactData] = useState({ first_name: "", last_name: "", company_name: "", email: "" });
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
