@@ -1,62 +1,88 @@
 
 
-# Plan: E-Mail Body-Parsing Fix, Anhang-Download & Anhang-Versand
+# Plan: Adresssystem mit Personen als Kernelement umbauen
 
-## Probleme
+## Konzept
 
-1. **"Kein Inhalt"**: Der MIME-Parser in `fetch-emails` scheitert bei verschachtelten multipart-Nachrichten (z.B. `multipart/mixed` mit `multipart/alternative` darin). Er findet nur die erste Boundary, nicht die inneren. Daher bleiben `body_text` und `body_html` leer.
+Eine **Adresse** (contact) wird zum Container, der mehrere **Personen** mit jeweils eigenen Kontaktdaten (Telefon, E-Mail, Bankverbindung) enthaelt. Unterscheidung nach Typ: Firma, Eigentuemer, Dienstleister, etc.
 
-2. **Anhaenge nicht angezeigt**: `has_attachments` wird zwar gespeichert, aber Anhaenge werden weder heruntergeladen noch in der UI angezeigt.
-
-3. **Kein Anhang beim Senden**: ComposeEmailDialog hat kein File-Upload-Feld, send-email nutzt kein `attachments` in nodemailer.
-
-## Umsetzung
-
-### 1. MIME-Parser rekursiv machen (`fetch-emails/index.ts`)
-
-- `parseEmailBody` durch rekursiven Parser ersetzen, der verschachtelte Boundaries erkennt (multipart/mixed > multipart/alternative > text/plain + text/html).
-- Anhaenge (disposition: attachment oder nicht-text Parts) extrahieren und in Supabase Storage (`email-attachments`) speichern.
-- Neue Tabelle `email_attachments` fuer Anhang-Metadaten (email_id, filename, content_type, storage_path, size).
-
-### 2. DB-Migration: `email_attachments` Tabelle
-
-```sql
-CREATE TABLE public.email_attachments (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  email_id UUID NOT NULL REFERENCES public.emails(id) ON DELETE CASCADE,
-  filename TEXT NOT NULL,
-  content_type TEXT,
-  size INTEGER,
-  storage_path TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-ALTER TABLE public.email_attachments ENABLE ROW LEVEL SECURITY;
--- RLS: authenticated users can read
+```text
+┌─────────────────────────────────────┐
+│ Adresse (contacts)                  │
+│ - Typ: Firma / Eigentuemer / ...    │
+│ - Kurzname, Firmenname              │
+│ - Postadresse                       │
+│ - Notizen                           │
+│                                     │
+│  ┌───────────────────────────┐      │
+│  │ Person 1 (Hauptkontakt)  │      │
+│  │ - Anrede, Vor-/Nachname  │      │
+│  │ - Position / Rolle       │      │
+│  │ - Telefone (1..n)        │      │
+│  │ - E-Mails (1..n)         │      │
+│  │ - Bankverbindungen (0..n)│      │
+│  └───────────────────────────┘      │
+│  ┌───────────────────────────┐      │
+│  │ Person 2                  │      │
+│  │ - (gleiche Felder)        │      │
+│  └───────────────────────────┘      │
+└─────────────────────────────────────┘
 ```
 
-### 3. Anhaenge in der Detail-Ansicht anzeigen (`Inbox.tsx`)
+## Datenbank-Aenderungen
 
-- Query `email_attachments` wenn eine E-Mail ausgewaehlt wird.
-- Anhaenge als klickbare Liste unterhalb des E-Mail-Bodys anzeigen (Icon + Dateiname + Groesse).
-- Download ueber signedUrl aus `email-attachments` Bucket.
-- Bueroklammer-Icon in der E-Mail-Liste wenn `has_attachments` true.
+### 1. Neuer Enum `contact_type`
+Werte: `person`, `company`, `owner_group`, `service_provider`
 
-### 4. Anhang-Upload beim Senden (`ComposeEmailDialog.tsx` + `send-email/index.ts`)
+### 2. Tabelle `contacts` erweitern
+- Neues Feld `contact_type` (default `person`)
+- Felder `first_name`, `last_name`, `salutation` bleiben vorerst bestehen (Abwaertskompatibilitaet), werden aber in der UI nicht mehr direkt bearbeitet
 
-- **ComposeEmailDialog**: File-Input hinzufuegen (multiple, max 10MB pro Datei). Dateien als base64 im Request-Body mitsenden.
-- **send-email**: `attachments` Array aus Request lesen und an nodemailer als `attachments: [{ filename, content (base64), encoding: 'base64' }]` uebergeben.
+### 3. Tabellen `contact_phones`, `contact_emails`, `contact_bank_accounts` erweitern
+- Neues optionales Feld `person_id UUID REFERENCES contact_persons(id) ON DELETE CASCADE`
+- Daten koennen so einer bestimmten Person zugeordnet werden (oder weiterhin nur dem Kontakt global, falls `person_id IS NULL`)
 
-### 5. Edge Functions deployen
+### 4. Datenmigration
+- Fuer bestehende Kontakte mit `first_name`/`last_name` aber ohne `contact_persons`-Eintraege: Automatisch eine `contact_person` erstellen und bestehende Phones/Emails/Banks dieser Person zuordnen
+- `contact_type` anhand `company_name` setzen (`company` wenn vorhanden, sonst `person`)
 
-Beide Functions (`fetch-emails`, `send-email`) nach Aenderung deployen.
+## UI-Aenderungen
+
+### ContactDetail.tsx - Kompletter Umbau
+- **Tab "Stammdaten"**: Zeigt nur noch Adress-Typ (Dropdown), Kurzname, Firmenname (nur bei Firma/Dienstleister), Postadresse, Notizen
+- **Tab "Personen"** wird zum Haupt-Tab: Jede Person hat aufklappbare Bereiche fuer:
+  - Name/Anrede/Position
+  - Telefonnummern (dynamische Liste wie bisher, aber pro Person)
+  - E-Mails (pro Person)
+  - Bankverbindungen (pro Person)
+- Tabs "Kommunikation" und "Bank" entfallen (sind jetzt pro Person)
+- Tab "Gebaeude" bleibt
+
+### ContactList.tsx
+- Anzeige des Adress-Typs als kleines Badge (Firma, Eigentuemer, etc.)
+- Anzeige des Hauptkontakt-Namens unter dem Adressnamen
+
+### CreateContactDialog.tsx
+- Typ-Auswahl ganz oben
+- Mindestens eine Person muss angelegt werden
+- Phones/Emails/Banks werden der ersten Person zugeordnet
+
+### Email-System (Inbox.tsx)
+- Beim Matching/Erstellen von Kontakten: Person wird zugeordnet, nicht nur der Kontakt
+- Badge zeigt Firmenname + Personenname
+
+### Gebaeude-System
+- `contact_building_assignments` bleibt unveraendert (referenziert weiterhin `contact_id`)
+- Anzeigelogik passt sich an: Zeigt Hauptkontakt-Person des zugeordneten Kontakts
 
 ## Dateien
 
 | Datei | Aenderung |
 |---|---|
-| `supabase/migrations/...` | `email_attachments` Tabelle + RLS |
-| `supabase/functions/fetch-emails/index.ts` | Rekursiver MIME-Parser, Anhang-Extraktion + Storage-Upload |
-| `supabase/functions/send-email/index.ts` | Attachments aus Request an nodemailer weiterleiten |
-| `src/components/email/ComposeEmailDialog.tsx` | File-Upload UI + base64-Konvertierung |
-| `src/pages/Inbox.tsx` | Anhaenge-Query + Anzeige + Download, Bueroklammer-Icon in Liste |
+| Migration SQL | Enum, Spalten, Datenmigration |
+| `src/components/contacts/ContactDetail.tsx` | Personen-zentriertes Layout mit Phones/Emails/Banks pro Person |
+| `src/components/contacts/ContactList.tsx` | Typ-Badge, Hauptkontakt-Anzeige |
+| `src/components/contacts/CreateContactDialog.tsx` | Typ-Auswahl, Personen-basierte Erfassung |
+| `src/pages/Contacts.tsx` | Contact-Interface um `contact_type` erweitern |
+| `src/pages/Inbox.tsx` | Kontakt-Matching an neues Schema anpassen |
 
