@@ -121,9 +121,6 @@ Deno.serve(async (req) => {
     if (bcc && bcc.length > 0) {
       mailOptions.bcc = Array.isArray(bcc) ? bcc.join(", ") : bcc;
     }
-    if (body_html) {
-      mailOptions.html = body_html;
-    }
     if (in_reply_to) {
       mailOptions.inReplyTo = in_reply_to;
     }
