@@ -31,6 +31,7 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
   const queryClient = useQueryClient();
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
   const [newAccount, setNewAccount] = useState({ account_number: "", account_name: "", category: "", default_distribution_key: "mea", is_35a_relevant: false });
 
   const { data: accounts = [], isLoading } = useQuery({
