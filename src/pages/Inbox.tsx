@@ -654,6 +654,7 @@ export const Inbox = () => {
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>
+      </div>
 
       <ComposeEmailDialog
         open={composeOpen}
