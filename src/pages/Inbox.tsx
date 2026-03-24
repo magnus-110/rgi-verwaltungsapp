@@ -786,6 +786,38 @@ export const Inbox = () => {
         prefilledContactId={archiveEmailId ? (emails.find(e => e.id === archiveEmailId)?.contact_id || null) : null}
         prefilledBuildingId={archiveEmailId ? (emails.find(e => e.id === archiveEmailId)?.building_id || null) : null}
       />
+
+      <Dialog open={newContactDialogOpen} onOpenChange={setNewContactDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Neuen Kontakt anlegen</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Vorname</Label>
+                <Input value={newContactData.first_name} onChange={e => setNewContactData(prev => ({ ...prev, first_name: e.target.value }))} />
+              </div>
+              <div>
+                <Label className="text-xs">Nachname</Label>
+                <Input value={newContactData.last_name} onChange={e => setNewContactData(prev => ({ ...prev, last_name: e.target.value }))} />
+              </div>
+            </div>
+            <div>
+              <Label className="text-xs">Firma</Label>
+              <Input value={newContactData.company_name} onChange={e => setNewContactData(prev => ({ ...prev, company_name: e.target.value }))} />
+            </div>
+            <div>
+              <Label className="text-xs">E-Mail</Label>
+              <Input value={newContactData.email} disabled className="bg-muted" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewContactDialogOpen(false)}>Abbrechen</Button>
+            <Button onClick={handleCreateContact}>Kontakt erstellen</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
