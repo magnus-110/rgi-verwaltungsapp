@@ -6,6 +6,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { UploadProvider } from "@/contexts/UploadContext";
+import { ComposeEmailProvider } from "@/contexts/ComposeEmailContext";
+import { FloatingComposeWindow } from "@/components/email/FloatingComposeWindow";
 import { ScrollToTop } from "@/components/ScrollToTop";
 import Index from "./pages/Index";
 import { Login } from "./pages/Login";
@@ -51,9 +53,11 @@ const App = () => (
       <BrowserRouter>
         <ScrollToTop />
         <AuthProvider>
-          <UploadProvider>
-            <Toaster />
-            <Sonner />
+          <ComposeEmailProvider>
+            <UploadProvider>
+              <Toaster />
+              <Sonner />
+              <FloatingComposeWindow />
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />
@@ -108,7 +112,8 @@ const App = () => (
               <Route path="/offline" element={<Offline />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
-          </UploadProvider>
+            </UploadProvider>
+          </ComposeEmailProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
