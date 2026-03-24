@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Mail, Search, Star, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip, ChevronDown, ChevronUp, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Mail, Search, Flag, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip, ChevronDown, ChevronUp, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -224,7 +224,7 @@ export const Inbox = () => {
     }
   };
 
-  const toggleStar = async (emailId: string, currentStarred: boolean) => {
+  const toggleFollowUp = async (emailId: string, currentStarred: boolean) => {
     await supabase.from("emails").update({ is_starred: !currentStarred }).eq("id", emailId);
     queryClient.invalidateQueries({ queryKey: ["emails"] });
   };
@@ -491,7 +491,7 @@ export const Inbox = () => {
                       </span>
                       <div className="flex items-center gap-1 shrink-0">
                         {email.has_attachments && <Paperclip className="h-3 w-3 text-muted-foreground" />}
-                        {email.is_starred && <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />}
+                        {email.is_starred && <Flag className="h-3 w-3 text-orange-500 fill-orange-500" />}
                         <span className="text-[11px] text-muted-foreground">
                           {email.date ? new Date(email.date).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) : ""}
                         </span>
@@ -546,8 +546,8 @@ export const Inbox = () => {
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleRead(selectedEmail.id, selectedEmail.is_read)} title={selectedEmail.is_read ? "Als ungelesen markieren" : "Als gelesen markieren"}>
                           <MailOpen className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleStar(selectedEmail.id, selectedEmail.is_starred)}>
-                          <Star className={cn("h-4 w-4", selectedEmail.is_starred && "text-yellow-500 fill-yellow-500")} />
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleFollowUp(selectedEmail.id, selectedEmail.is_starred)} title={selectedEmail.is_starred ? "Nachverfolgung entfernen" : "Zur Nachverfolgung markieren"}>
+                          <Flag className={cn("h-4 w-4", selectedEmail.is_starred && "text-orange-500 fill-orange-500")} />
                         </Button>
                         {!selectedEmail.is_archived && (
                           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openArchiveDialog(selectedEmail.id)}>
