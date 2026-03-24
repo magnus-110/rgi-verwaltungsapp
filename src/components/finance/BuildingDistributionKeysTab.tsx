@@ -289,6 +289,7 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
                                 )}
                                 </div>
                                 )}
+                              </TableCell>
                               <TableCell>
                                 {isBuildingAccount && (
                                   <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive"
