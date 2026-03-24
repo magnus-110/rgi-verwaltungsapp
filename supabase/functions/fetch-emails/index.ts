@@ -310,7 +310,12 @@ async function fetchAccountEmails(
     try {
       await client.logout();
     } catch (_e) {
-      // Strato closes TLS without close_notify - this is expected
+      // ignore
+    }
+    try {
+      client.close();
+    } catch (_e) {
+      // ignore
     }
   }
 
