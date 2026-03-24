@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Mail, Search, Star, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip, ChevronDown, ChevronUp, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -390,307 +391,270 @@ export const Inbox = () => {
         </div>
       )}
 
-      {/* Middle: Email List */}
-      <div className="w-80 border-r flex flex-col shrink-0">
-        <div className="p-2 border-b space-y-2">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="E-Mails durchsuchen..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="pl-9 h-9"
-            />
-          </div>
-          {/* Archive filters */}
-          {isArchiveFolder && (
-            <div className="flex gap-2">
-              <Select value={filterBuildingId} onValueChange={setFilterBuildingId}>
-                <SelectTrigger className="h-8 text-xs flex-1">
-                  <Building2 className="h-3 w-3 mr-1 shrink-0" />
-                  <SelectValue placeholder="Liegenschaft" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Alle Liegenschaften</SelectItem>
-                  {buildings.map(b => (
-                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={filterContactId} onValueChange={setFilterContactId}>
-                <SelectTrigger className="h-8 text-xs flex-1">
-                  <User className="h-3 w-3 mr-1 shrink-0" />
-                  <SelectValue placeholder="Kontakt" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Alle Kontakte</SelectItem>
-                  {contacts.map(c => (
-                    <SelectItem key={c.id} value={c.id}>{getContactName(c)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-        </div>
+      {/* Main content: resizable email list + detail */}
+      <ResizablePanelGroup direction="horizontal" className="flex-1">
+        {/* Middle: Email List */}
+        <ResizablePanel defaultSize={35} minSize={20} maxSize={60}>
+          <div className="flex flex-col h-full">
+            {/* Category tabs ABOVE search */}
+            {categoryList.length > 0 && (
+              <div className="border-b">
+                <ScrollArea className="w-full">
+                  <div className="flex px-1 py-1 gap-0.5">
+                    <button
+                      onClick={() => setFilterCategory("all")}
+                      className={cn(
+                        "px-2 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0",
+                        filterCategory === "all" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
+                      )}
+                    >
+                      Alle ({emails.length})
+                    </button>
+                    {categoryList.map(([cat, count]) => (
+                      <button
+                        key={cat}
+                        onClick={() => setFilterCategory(filterCategory === cat ? "all" : cat)}
+                        className={cn(
+                          "px-2 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0",
+                          filterCategory === cat ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
+                        )}
+                      >
+                        {cat} ({count})
+                      </button>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+            )}
 
-        {/* Category tabs */}
-        {categoryList.length > 0 && (
-          <div className="border-b">
-            <ScrollArea className="w-full">
-              <div className="flex px-1 py-1 gap-0.5">
-                <button
-                  onClick={() => setFilterCategory("all")}
-                  className={cn(
-                    "px-2 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0",
-                    filterCategory === "all" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
-                  )}
-                >
-                  Alle ({emails.length})
-                </button>
-                {categoryList.map(([cat, count]) => (
+            {/* Search - filters within selected category */}
+            <div className="p-2 border-b space-y-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder={filterCategory !== "all" ? `In "${filterCategory}" suchen...` : "E-Mails durchsuchen..."}
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  className="pl-9 h-9"
+                />
+              </div>
+              {/* Archive filters */}
+              {isArchiveFolder && (
+                <div className="flex gap-2">
+                  <Select value={filterBuildingId} onValueChange={setFilterBuildingId}>
+                    <SelectTrigger className="h-8 text-xs flex-1">
+                      <Building2 className="h-3 w-3 mr-1 shrink-0" />
+                      <SelectValue placeholder="Liegenschaft" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Alle Liegenschaften</SelectItem>
+                      {buildings.map(b => (
+                        <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={filterContactId} onValueChange={setFilterContactId}>
+                    <SelectTrigger className="h-8 text-xs flex-1">
+                      <User className="h-3 w-3 mr-1 shrink-0" />
+                      <SelectValue placeholder="Kontakt" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Alle Kontakte</SelectItem>
+                      {contacts.map(c => (
+                        <SelectItem key={c.id} value={c.id}>{getContactName(c)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+
+            <ScrollArea className="flex-1">
+              {emailsLoading ? (
+                <div className="p-4 text-center text-sm text-muted-foreground">Laden...</div>
+              ) : filteredEmails.length === 0 ? (
+                <div className="p-8 text-center">
+                  <Mail className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
+                  <p className="text-sm text-muted-foreground">Keine E-Mails vorhanden</p>
+                </div>
+              ) : (
+                filteredEmails.map(email => (
                   <button
-                    key={cat}
-                    onClick={() => setFilterCategory(filterCategory === cat ? "all" : cat)}
+                    key={email.id}
+                    onClick={() => setSelectedEmailId(email.id)}
                     className={cn(
-                      "px-2 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0",
-                      filterCategory === cat ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
+                      "w-full text-left px-3 py-2 border-b transition-colors",
+                      selectedEmailId === email.id ? "bg-accent" : "hover:bg-muted/50",
+                      !email.is_read && "bg-primary/5"
                     )}
                   >
-                    {cat} ({count})
+                    <div className="flex items-center justify-between gap-1">
+                      <span className={cn("text-sm truncate", !email.is_read && "font-semibold")}>
+                        {email.from_name || email.from_address || "Unbekannt"}
+                      </span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {email.has_attachments && <Paperclip className="h-3 w-3 text-muted-foreground" />}
+                        {email.is_starred && <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />}
+                        <span className="text-[11px] text-muted-foreground">
+                          {email.date ? new Date(email.date).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) : ""}
+                        </span>
+                      </div>
+                    </div>
+                    <p className={cn("text-xs truncate", !email.is_read ? "text-foreground" : "text-muted-foreground")}>
+                      {email.subject || "(Kein Betreff)"}
+                    </p>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      {isArchiveFolder && email.building_id && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
+                          <Building2 className="h-2.5 w-2.5" />
+                          {buildings.find(b => b.id === email.building_id)?.name || ""}
+                        </Badge>
+                      )}
+                      {isArchiveFolder && email.contact_id && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
+                          <User className="h-2.5 w-2.5" />
+                          {(() => { const c = contacts.find(c => c.id === email.contact_id); return c ? getContactName(c) : ""; })()}
+                        </Badge>
+                      )}
+                      {email.ai_category && (
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                          {email.ai_category}
+                        </Badge>
+                      )}
+                      {email.ai_priority === "hoch" && (
+                        <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+                          Wichtig
+                        </Badge>
+                      )}
+                    </div>
                   </button>
-                ))}
-              </div>
+                ))
+              )}
             </ScrollArea>
           </div>
-        )}
+        </ResizablePanel>
 
-        <ScrollArea className="flex-1">
-          {emailsLoading ? (
-            <div className="p-4 text-center text-sm text-muted-foreground">Laden...</div>
-          ) : filteredEmails.length === 0 ? (
-            <div className="p-8 text-center">
-              <Mail className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
-              <p className="text-sm text-muted-foreground">Keine E-Mails vorhanden</p>
-            </div>
-          ) : (
-            filteredEmails.map(email => (
-              <button
-                key={email.id}
-                onClick={() => setSelectedEmailId(email.id)}
-                className={cn(
-                  "w-full text-left px-3 py-2 border-b transition-colors",
-                  selectedEmailId === email.id ? "bg-accent" : "hover:bg-muted/50",
-                  !email.is_read && "bg-primary/5"
-                )}
-              >
-                <div className="flex items-center justify-between gap-1">
-                  <span className={cn("text-sm truncate", !email.is_read && "font-semibold")}>
-                    {email.from_name || email.from_address || "Unbekannt"}
-                  </span>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {email.has_attachments && <Paperclip className="h-3 w-3 text-muted-foreground" />}
-                    {email.is_starred && <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />}
-                    <span className="text-[11px] text-muted-foreground">
-                      {email.date ? new Date(email.date).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) : ""}
-                    </span>
-                  </div>
-                </div>
-                <p className={cn("text-xs truncate", !email.is_read ? "text-foreground" : "text-muted-foreground")}>
-                  {email.subject || "(Kein Betreff)"}
-                </p>
-                <div className="flex items-center gap-1 mt-0.5">
-                  {isArchiveFolder && email.building_id && (
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
-                      <Building2 className="h-2.5 w-2.5" />
-                      {buildings.find(b => b.id === email.building_id)?.name || ""}
-                    </Badge>
-                  )}
-                  {isArchiveFolder && email.contact_id && (
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
-                      <User className="h-2.5 w-2.5" />
-                      {(() => { const c = contacts.find(c => c.id === email.contact_id); return c ? getContactName(c) : ""; })()}
-                    </Badge>
-                  )}
-                  {email.ai_category && (
-                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                      {email.ai_category}
-                    </Badge>
-                  )}
-                  {email.ai_priority === "hoch" && (
-                    <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
-                      Wichtig
-                    </Badge>
-                  )}
-                </div>
-              </button>
-            ))
-          )}
-        </ScrollArea>
-      </div>
+        <ResizableHandle withHandle />
 
-      {/* Right: Email Detail */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {selectedEmail ? (
-          <>
-            <ScrollArea className="flex-1">
-              <div className="p-4 space-y-2">
-                {/* Subject + Actions */}
-                <div className="flex items-start justify-between gap-4">
-                  <h2 className="text-lg font-semibold truncate">{selectedEmail.subject || "(Kein Betreff)"}</h2>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button
-                      variant="ghost" size="icon" className="h-8 w-8"
-                      onClick={() => toggleRead(selectedEmail.id, selectedEmail.is_read)}
-                      title={selectedEmail.is_read ? "Als ungelesen markieren" : "Als gelesen markieren"}
-                    >
-                      <MailOpen className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost" size="icon" className="h-8 w-8"
-                      onClick={() => toggleStar(selectedEmail.id, selectedEmail.is_starred)}
-                    >
-                      <Star className={cn("h-4 w-4", selectedEmail.is_starred && "text-yellow-500 fill-yellow-500")} />
-                    </Button>
-                    {!selectedEmail.is_archived && (
-                      <Button
-                        variant="ghost" size="icon" className="h-8 w-8"
-                        onClick={() => openArchiveDialog(selectedEmail.id)}
-                      >
-                        <Archive className="h-4 w-4" />
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive"
-                      onClick={() => deleteEmail(selectedEmail.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
+        {/* Right: Email Detail */}
+        <ResizablePanel defaultSize={65}>
+          <div className="flex flex-col h-full min-w-0">
+            {selectedEmail ? (
+              <>
+                <ScrollArea className="flex-1">
+                  <div className="p-4 space-y-2">
+                    <div className="flex items-start justify-between gap-4">
+                      <h2 className="text-lg font-semibold truncate">{selectedEmail.subject || "(Kein Betreff)"}</h2>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleRead(selectedEmail.id, selectedEmail.is_read)} title={selectedEmail.is_read ? "Als ungelesen markieren" : "Als gelesen markieren"}>
+                          <MailOpen className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleStar(selectedEmail.id, selectedEmail.is_starred)}>
+                          <Star className={cn("h-4 w-4", selectedEmail.is_starred && "text-yellow-500 fill-yellow-500")} />
+                        </Button>
+                        {!selectedEmail.is_archived && (
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openArchiveDialog(selectedEmail.id)}>
+                            <Archive className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => deleteEmail(selectedEmail.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
 
-                {/* Sender name + expandable details */}
-                <div>
-                  <button
-                    className="flex items-center gap-1.5 text-sm hover:underline cursor-pointer"
-                    onClick={() => setShowEmailDetails(prev => !prev)}
-                  >
-                    <span className="font-medium text-foreground">{selectedEmail.from_name || selectedEmail.from_address}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {selectedEmail.date && new Date(selectedEmail.date).toLocaleString("de-DE")}
-                    </span>
-                    {showEmailDetails ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
-                  </button>
-                  {showEmailDetails && (
-                    <div className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
-                      {selectedEmail.from_name && (
-                        <div>Von: {selectedEmail.from_name} &lt;{selectedEmail.from_address}&gt;</div>
-                      )}
-                      {selectedEmail.to_addresses && (
-                        <div>
-                          An: {Array.isArray(selectedEmail.to_addresses) 
-                            ? (selectedEmail.to_addresses as string[]).join(", ") 
-                            : String(selectedEmail.to_addresses)}
-                        </div>
-                      )}
-                      {selectedEmail.cc_addresses && (
-                        <div>
-                          CC: {Array.isArray(selectedEmail.cc_addresses) 
-                            ? (selectedEmail.cc_addresses as string[]).join(", ") 
-                            : String(selectedEmail.cc_addresses)}
+                    <div>
+                      <button className="flex items-center gap-1.5 text-sm hover:underline cursor-pointer" onClick={() => setShowEmailDetails(prev => !prev)}>
+                        <span className="font-medium text-foreground">{selectedEmail.from_name || selectedEmail.from_address}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {selectedEmail.date && new Date(selectedEmail.date).toLocaleString("de-DE")}
+                        </span>
+                        {showEmailDetails ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
+                      </button>
+                      {showEmailDetails && (
+                        <div className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
+                          {selectedEmail.from_name && <div>Von: {selectedEmail.from_name} &lt;{selectedEmail.from_address}&gt;</div>}
+                          {selectedEmail.to_addresses && (
+                            <div>An: {Array.isArray(selectedEmail.to_addresses) ? (selectedEmail.to_addresses as string[]).join(", ") : String(selectedEmail.to_addresses)}</div>
+                          )}
+                          {selectedEmail.cc_addresses && (
+                            <div>CC: {Array.isArray(selectedEmail.cc_addresses) ? (selectedEmail.cc_addresses as string[]).join(", ") : String(selectedEmail.cc_addresses)}</div>
+                          )}
                         </div>
                       )}
                     </div>
-                  )}
-                </div>
 
-                {/* Badges - all in one line */}
-                <div className="flex flex-wrap gap-1.5">
-                  {selectedEmail.building_id && (
-                    <Badge variant="outline" className="gap-1">
-                      <Building2 className="h-3 w-3" />
-                      {buildings.find(b => b.id === selectedEmail.building_id)?.name || "Liegenschaft"}
-                    </Badge>
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedEmail.building_id && (
+                        <Badge variant="outline" className="gap-1">
+                          <Building2 className="h-3 w-3" />
+                          {buildings.find(b => b.id === selectedEmail.building_id)?.name || "Liegenschaft"}
+                        </Badge>
+                      )}
+                      {selectedEmail.contact_id && (
+                        <Badge variant="outline" className="gap-1">
+                          <User className="h-3 w-3" />
+                          {(() => { const c = contacts.find(c => c.id === selectedEmail.contact_id); return c ? getContactName(c) : "Kontakt"; })()}
+                        </Badge>
+                      )}
+                      {selectedEmail.ai_category && <Badge variant="outline">{selectedEmail.ai_category}</Badge>}
+                      {selectedEmail.ai_priority && (
+                        <Badge variant={selectedEmail.ai_priority === "hoch" ? "destructive" : "secondary"}>
+                          Priorität: {selectedEmail.ai_priority}
+                        </Badge>
+                      )}
+                    </div>
+                    {selectedEmail.ai_summary && (
+                      <p className="text-sm bg-muted/50 rounded-md p-2 italic">KI: {selectedEmail.ai_summary}</p>
+                    )}
+                  </div>
+
+                  {selectedEmail.has_attachments && (
+                    <div className="px-4 pb-2">
+                      <EmailAttachments emailId={selectedEmail.id} />
+                    </div>
                   )}
-                  {selectedEmail.contact_id && (
-                    <Badge variant="outline" className="gap-1">
-                      <User className="h-3 w-3" />
-                      {(() => { const c = contacts.find(c => c.id === selectedEmail.contact_id); return c ? getContactName(c) : "Kontakt"; })()}
-                    </Badge>
-                  )}
-                  {selectedEmail.ai_category && (
-                    <Badge variant="outline">{selectedEmail.ai_category}</Badge>
-                  )}
-                  {selectedEmail.ai_priority && (
-                    <Badge variant={selectedEmail.ai_priority === "hoch" ? "destructive" : "secondary"}>
-                      Priorität: {selectedEmail.ai_priority}
-                    </Badge>
-                  )}
+
+                  <Separator />
+
+                  <div className="p-4">
+                    {selectedEmail.body_html ? (
+                      <EmailHtmlBody html={selectedEmail.body_html} emailId={selectedEmail.id} />
+                    ) : (
+                      <pre className="text-sm whitespace-pre-wrap font-sans">{selectedEmail.body_text || "Kein Inhalt"}</pre>
+                    )}
+                  </div>
+                </ScrollArea>
+                <div className="p-3 border-t flex gap-2">
+                  <Button size="sm" className="gap-1.5" onClick={() => {
+                    setComposeReplyTo({ subject: selectedEmail.subject, from_address: selectedEmail.from_address, from_name: selectedEmail.from_name, body_text: selectedEmail.body_text, date: selectedEmail.date, account_id: selectedEmail.account_id });
+                    setComposeForward(null);
+                    setComposeOpen(true);
+                  }}>
+                    <Reply className="h-3.5 w-3.5" />
+                    Antworten
+                  </Button>
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => {
+                    setComposeForward({ subject: selectedEmail.subject, body_text: selectedEmail.body_text, body_html: selectedEmail.body_html, account_id: selectedEmail.account_id });
+                    setComposeReplyTo(null);
+                    setComposeOpen(true);
+                  }}>
+                    <Forward className="h-3.5 w-3.5" />
+                    Weiterleiten
+                  </Button>
                 </div>
-                {selectedEmail.ai_summary && (
-                  <p className="text-sm bg-muted/50 rounded-md p-2 italic">
-                    KI: {selectedEmail.ai_summary}
-                  </p>
-                )}
+              </>
+            ) : (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center">
+                  <Mail className="h-16 w-16 mx-auto text-muted-foreground/20 mb-4" />
+                  <p className="text-muted-foreground">Wählen Sie eine E-Mail aus</p>
+                </div>
               </div>
-
-              {/* Attachments */}
-              {selectedEmail.has_attachments && (
-                <div className="px-4 pb-2">
-                  <EmailAttachments emailId={selectedEmail.id} />
-                </div>
-              )}
-
-              <Separator />
-
-              {/* Email Body */}
-              <div className="p-4">
-                {selectedEmail.body_html ? (
-                  <EmailHtmlBody html={selectedEmail.body_html} emailId={selectedEmail.id} />
-                ) : (
-                  <pre className="text-sm whitespace-pre-wrap font-sans">{selectedEmail.body_text || "Kein Inhalt"}</pre>
-                )}
-              </div>
-            </ScrollArea>
-            <div className="p-3 border-t flex gap-2">
-              <Button size="sm" className="gap-1.5" onClick={() => {
-                setComposeReplyTo({
-                  subject: selectedEmail.subject,
-                  from_address: selectedEmail.from_address,
-                  from_name: selectedEmail.from_name,
-                  body_text: selectedEmail.body_text,
-                  date: selectedEmail.date,
-                  account_id: selectedEmail.account_id,
-                });
-                setComposeForward(null);
-                setComposeOpen(true);
-              }}>
-                <Reply className="h-3.5 w-3.5" />
-                Antworten
-              </Button>
-              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => {
-                setComposeForward({
-                  subject: selectedEmail.subject,
-                  body_text: selectedEmail.body_text,
-                  body_html: selectedEmail.body_html,
-                  account_id: selectedEmail.account_id,
-                });
-                setComposeReplyTo(null);
-                setComposeOpen(true);
-              }}>
-                <Forward className="h-3.5 w-3.5" />
-                Weiterleiten
-              </Button>
-            </div>
-          </>
-        ) : (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <Mail className="h-16 w-16 mx-auto text-muted-foreground/20 mb-4" />
-              <p className="text-muted-foreground">Wählen Sie eine E-Mail aus</p>
-            </div>
+            )}
           </div>
-        )}
-      </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
 
       <ComposeEmailDialog
         open={composeOpen}
