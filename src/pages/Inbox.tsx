@@ -525,17 +525,16 @@ export const Inbox = () => {
                 </p>
               )}
             </div>
+            {selectedEmail.has_attachments && (
+              <div className="px-4 pt-3">
+                <EmailAttachments emailId={selectedEmail.id} />
+              </div>
+            )}
             <ScrollArea className="flex-1 p-4">
               {selectedEmail.body_html ? (
-                <div
-                  className="prose prose-sm max-w-none dark:prose-invert"
-                  dangerouslySetInnerHTML={{ __html: selectedEmail.body_html }}
-                />
+                <EmailHtmlBody html={selectedEmail.body_html} emailId={selectedEmail.id} />
               ) : (
                 <pre className="text-sm whitespace-pre-wrap font-sans">{selectedEmail.body_text || "Kein Inhalt"}</pre>
-              )}
-              {selectedEmail.has_attachments && (
-                <EmailAttachments emailId={selectedEmail.id} />
               )}
             </ScrollArea>
             <div className="p-3 border-t flex gap-2">
