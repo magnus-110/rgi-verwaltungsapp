@@ -1774,6 +1774,7 @@ export type Database = {
           subject: string | null
           thread_id: string | null
           to_addresses: Json | null
+          to_names: string[] | null
           updated_at: string
         }
         Insert: {
@@ -1807,6 +1808,7 @@ export type Database = {
           subject?: string | null
           thread_id?: string | null
           to_addresses?: Json | null
+          to_names?: string[] | null
           updated_at?: string
         }
         Update: {
@@ -1840,6 +1842,7 @@ export type Database = {
           subject?: string | null
           thread_id?: string | null
           to_addresses?: Json | null
+          to_names?: string[] | null
           updated_at?: string
         }
         Relationships: [
