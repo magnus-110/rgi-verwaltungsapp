@@ -245,10 +245,20 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
                                     }}>✕</Button>
                                   </div>
                                 ) : (
-                                <Select value={currentKey || ""} onValueChange={v => {
+                                <Select value={currentKey || ""} onValueChange={async v => {
                                   if (v === "__add__") {
                                     setCustomKeyAccountId(account.id);
                                     setCustomKeyInput("");
+                                  } else if (v.startsWith("__delkey__")) {
+                                    const keyToDelete = v.replace("__delkey__", "");
+                                    // Remove all overrides with this custom key for this building
+                                    await supabase
+                                      .from("building_account_overrides")
+                                      .delete()
+                                      .eq("building_id", buildingId)
+                                      .eq("distribution_key", keyToDelete);
+                                    toast.success(`"${keyToDelete}" entfernt`);
+                                    queryClient.invalidateQueries({ queryKey: ["building-account-overrides", buildingId] });
                                   } else {
                                     handleOverride(account.id, v, account.default_distribution_key);
                                   }
@@ -257,11 +267,22 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {allDistKeys.map(k => (
+                                    {DISTRIBUTION_KEYS.map(k => (
                                       <SelectItem key={k.value} value={k.value}>
                                         {k.label} {k.value === account.default_distribution_key ? "(Standard)" : ""}
                                       </SelectItem>
                                     ))}
+                                    {customDistKeys.length > 0 && (
+                                      <>
+                                        <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Eigene</div>
+                                        {customDistKeys.map(k => (
+                                          <SelectItem key={k} value={k}>{k}</SelectItem>
+                                        ))}
+                                        {customDistKeys.map(k => (
+                                          <SelectItem key={`del-${k}`} value={`__delkey__${k}`} className="text-destructive text-xs">🗑 „{k}" entfernen</SelectItem>
+                                        ))}
+                                      </>
+                                    )}
                                     <SelectItem value="__add__" className="text-primary font-medium">+ Hinzufügen</SelectItem>
                                   </SelectContent>
                                 </Select>
