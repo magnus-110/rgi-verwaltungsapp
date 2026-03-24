@@ -1,40 +1,81 @@
 
+## Tiefenanalyse (Ist-Zustand, verifiziert)
 
-# Plan: Kontenanzeige-Logik + Suchfunktion
+1. **Hauptursache gefunden**: In der DB ist `chart_of_accounts.account_number` **global eindeutig** (`UNIQUE`).
+   - Der Auto-Flow erstellt Konten mit `account_number = unit_number` (z. B. `0001`).
+   - Für ein zweites Gebäude mit gleicher Einheit `0001` schlägt das Insert fehl (Unique-Konflikt).
 
-## Zusammenfassung
+2. **Warum trotzdem Erfolgs-Toast kommt**:
+   - In `BuildingContactsList.tsx` (`ensureAccountAndTemplate`) werden Insert/Select-Fehler beim Konto **nicht geprüft**.
+   - Die Funktion zeigt am Ende immer „Konto & Vorlage erstellt“.
 
-Drei Aenderungen:
-1. **Gebaude-Verteilerschluessel-Tab** (`BuildingDistributionKeysTab`): Suchfeld hinzufuegen
-2. **Finanzseite Kontenrahmen** (`ChartOfAccountsTab`): Gebaude-Auswahl + Suchfeld hinzufuegen, Query dynamisch machen
-3. **Finanzseite Verteilerschluessel** (`DistributionKeysTab`): Query um building-spezifische Konten erweitern bei Gebaeudeauswahl + Suchfeld
+3. **Nebeneffekt bestätigt**:
+   - Die Vorlage wird trotzdem erstellt/aktualisiert.
+   - Dabei bleibt `booking_templates.account_id` oft **null** (aktuell beim Beispielgebäude so vorhanden).
 
-## Aenderungen
+## Umsetzungsplan
 
-### 1. `BuildingDistributionKeysTab.tsx`
-- Neuer State `searchTerm`
-- `Input` mit Search-Icon unterhalb des Headers ("Konto suchen...")
-- Filter: `accounts.filter(a => a.account_number.toLowerCase().includes(term) || a.account_name.toLowerCase().includes(term))`
-- Kategorien ohne Treffer ausblenden
+### 1) DB-Korrektur für Kontonummern pro Gebäude
+**Datei:** neue Migration in `supabase/migrations/*`
 
-### 2. `ChartOfAccountsTab.tsx`
-- Neuer State `selectedBuilding` + `searchTerm`
-- Gebaude-Dropdown (wie in `DistributionKeysTab`) oberhalb der Tabelle, mit Option "Alle (global)" als Default
-- **Query aendern**: `queryKey` inkl. `selectedBuilding`. Wenn kein Gebaeude: `.is("building_id", null)` (wie bisher). Wenn Gebaeude ausgewaehlt: `.eq("building_id", selectedBuilding)` (nur building-spezifische Konten)
-- Suchfeld wie oben
-- Buildings-Query hinzufuegen (gleich wie in DistributionKeysTab)
+- Globales `UNIQUE(account_number)` entfernen.
+- Ersetzen durch:
+  - **Unique für globale Konten**: `UNIQUE(account_number) WHERE building_id IS NULL`
+  - **Unique je Gebäude**: `UNIQUE(building_id, account_number) WHERE building_id IS NOT NULL`
+- Ergebnis: `0001` darf in mehreren Gebäuden existieren, aber nicht doppelt im selben Gebäude.
 
-### 3. `DistributionKeysTab.tsx`
-- Neuer State `searchTerm`
-- Suchfeld hinzufuegen
-- **Query aendern**: Wenn Gebaeude ausgewaehlt, `.or(building_id.is.null,building_id.eq.${selectedBuilding})` statt nur `.is("building_id", null)`. QueryKey um selectedBuilding erweitern.
-- Kategorien ohne Suchtreffer ausblenden
+### 2) Auto-Erstellung robust machen (kein falscher Erfolg mehr)
+**Datei:** `src/components/contacts/BuildingContactsList.tsx`
 
-## Dateien
+- `ensureAccountAndTemplate` in `try/catch` + konsequente Fehlerprüfung für **jede** Supabase-Operation.
+- Bei Kontofehler:
+  - sofort abbrechen,
+  - klaren Fehler-Toast zeigen (inkl. DB-Message sinnvoll gekürzt),
+  - **kein** Erfolg-Toast.
+- Erfolg-Toast nur, wenn Konto- und Vorlagenlogik wirklich erfolgreich war.
+- Nach Erfolg relevante Queries invalidieren/refetchen (`chart-of-accounts-*`, `booking-templates`), damit UI sofort konsistent ist.
 
-| Datei | Aenderung |
-|---|---|
-| `src/components/finance/BuildingDistributionKeysTab.tsx` | Suchfeld |
-| `src/components/finance/ChartOfAccountsTab.tsx` | Gebaude-Dropdown, dynamische Query, Suchfeld |
-| `src/components/finance/DistributionKeysTab.tsx` | Query mit building-spezifischen Konten, Suchfeld |
+### 3) Vorlagen immer mit Konto verknüpfen
+**Datei:** `src/components/contacts/BuildingContactsList.tsx`
 
+- Wenn Vorlage bereits existiert, beim Update zusätzlich `account_id` setzen.
+- Dadurch werden bestehende „halbfertige“ Vorlagen (mit `account_id = null`) beim nächsten Klick korrekt repariert.
+
+### 4) Folgekonflikt in OCR-Accountlookup verhindern
+**Datei:** `supabase/functions/extract-invoice/index.ts`
+
+- Dort wird `account_number` aktuell per `maybeSingle()` gesucht.
+- Nach Lockerung der Eindeutigkeit kann das mehrdeutig werden.
+- Deshalb Lookup auf **globale Konten** einschränken (`building_id IS NULL`), damit OCR-Mapping stabil bleibt.
+
+### 5) Kleine Konsistenzkorrektur im Finanz-Kontenrahmen
+**Datei:** `src/components/finance/ChartOfAccountsTab.tsx`
+
+- Beim manuellen „Konto hinzufügen“ auf der Finanzseite `building_id` aus Auswahl übernehmen (bei „global“ = `null`).
+- Verhindert falsche Zuordnung bei manuell angelegten Konten.
+
+---
+
+## Technische Details (kurz)
+
+```text
+Aktuell:
+  UNIQUE(account_number)  -> blockiert 0001 in Gebäude B, wenn 0001 schon in Gebäude A existiert.
+
+Ziel:
+  UNIQUE(account_number) WHERE building_id IS NULL
+  UNIQUE(building_id, account_number) WHERE building_id IS NOT NULL
+```
+
+```text
+Fehlerbild:
+  Konto-Insert failt -> Fehler ignoriert -> Template wird erstellt (account_id null) -> Erfolgsmeldung trotzdem sichtbar.
+```
+
+## Akzeptanzkriterien nach Umsetzung
+
+1. Für zwei verschiedene Gebäude kann jeweils ein Konto `0001` angelegt werden.
+2. Beim Klick auf das orange Buch-Icon wird bei Erfolg **immer** ein Konto sichtbar erstellt.
+3. Die zugehörige Buchungsvorlage hat danach ein gesetztes `account_id`.
+4. Bei DB-Fehlern erscheint ein Fehler-Toast statt Erfolg.
+5. OCR-Extraktion bleibt stabil und bricht nicht durch mehrdeutige `account_number`-Treffer.
