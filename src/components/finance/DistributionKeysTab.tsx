@@ -116,9 +116,19 @@ export function DistributionKeysTab() {
             Bitte wählen Sie eine Liegenschaft aus, um die Verteilerschlüssel zu konfigurieren.
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Konto suchen..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9" />
+            </div>
+            <div className="space-y-2">
             {categories.map(cat => {
-              const catAccounts = accounts.filter(a => a.category === cat);
+              const catAccounts = accounts.filter(a => a.category === cat).filter(a => {
+                if (!searchTerm) return true;
+                const term = searchTerm.toLowerCase();
+                return a.account_number.toLowerCase().includes(term) || a.account_name.toLowerCase().includes(term);
+              });
+              if (catAccounts.length === 0) return null;
               const collapsed = collapsedCategories.has(cat);
               const overrideCount = catAccounts.filter(a => overrideMap.has(a.id)).length;
               return (
