@@ -349,8 +349,13 @@ export const Inbox = () => {
         .select("id").eq("contact_id", contactId).eq("email", selectedEmail.from_address);
       
       if (!existing || existing.length === 0) {
+        // Get primary person for this contact
+        const { data: primaryPerson } = await supabase.from("contact_persons")
+          .select("id").eq("contact_id", contactId).eq("is_primary", true).limit(1).maybeSingle();
+        
         await supabase.from("contact_emails").insert({
           contact_id: contactId,
+          person_id: primaryPerson?.id || null,
           email: selectedEmail.from_address,
           is_primary: false,
         });
