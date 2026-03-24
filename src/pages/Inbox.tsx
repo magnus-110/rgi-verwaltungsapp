@@ -433,6 +433,37 @@ export const Inbox = () => {
           )}
         </div>
 
+        {/* Category tabs */}
+        {categoryList.length > 0 && (
+          <div className="border-b">
+            <ScrollArea className="w-full">
+              <div className="flex px-1 py-1 gap-0.5">
+                <button
+                  onClick={() => setFilterCategory("all")}
+                  className={cn(
+                    "px-2 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0",
+                    filterCategory === "all" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
+                  )}
+                >
+                  Alle ({emails.length})
+                </button>
+                {categoryList.map(([cat, count]) => (
+                  <button
+                    key={cat}
+                    onClick={() => setFilterCategory(filterCategory === cat ? "all" : cat)}
+                    className={cn(
+                      "px-2 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0",
+                      filterCategory === cat ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
+                    )}
+                  >
+                    {cat} ({count})
+                  </button>
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
+        )}
+
         <ScrollArea className="flex-1">
           {emailsLoading ? (
             <div className="p-4 text-center text-sm text-muted-foreground">Laden...</div>
