@@ -618,17 +618,21 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                             <Select value={s.share_type} onValueChange={async (v) => {
                               if (v === "__add__") {
                                 updateShare(s.id, "share_type", "");
-                              } else if (v === "__remove_custom__") {
-                                // Reset all custom share types to "mea"
-                                for (const ct of customShareTypes) {
-                                  await supabase
-                                    .from("contact_building_shares")
-                                    .update({ share_type: "mea" } as any)
-                                    .eq("share_type", ct as any);
-                                }
-                                toast({ title: "Eigene Kategorien entfernt" });
+                              } else if (v.startsWith("__del__")) {
+                                const typeToDelete = v.replace("__del__", "");
+                                await supabase
+                                  .from("contact_building_shares")
+                                  .update({ share_type: "mea" } as any)
+                                  .eq("share_type", typeToDelete as any);
+                                toast({ title: `„${typeToDelete}" entfernt` });
                                 queryClient.invalidateQueries({ queryKey: ["custom-share-types"] });
                                 refetch();
+                              } else if (v.startsWith("__edit__")) {
+                                const typeToEdit = v.replace("__edit__", "");
+                                // Switch to inline edit mode with current value
+                                updateShare(s.id, "share_type", typeToEdit);
+                                // Force re-render into edit mode by briefly setting empty then the value
+                                setTimeout(() => updateShare(s.id, "share_type", typeToEdit), 0);
                               } else {
                                 updateShare(s.id, "share_type", v);
                               }
@@ -637,14 +641,14 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                               <SelectContent>
                                 {SHARE_TYPES.map(st => <SelectItem key={st.value} value={st.value}>{st.label}</SelectItem>)}
                                 {customShareTypes.length > 0 && (
-                                  <>
-                                    <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Eigene</div>
-                                    {customShareTypes.map(ct => (
-                                      <SelectItem key={ct} value={ct}>{ct}</SelectItem>
-                                    ))}
-                                    <SelectItem value="__remove_custom__" className="text-destructive font-medium">🗑 Eigene entfernen</SelectItem>
-                                  </>
+                                  <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Eigene</div>
                                 )}
+                                {customShareTypes.map(ct => (
+                                  <SelectItem key={ct} value={ct}>{ct}</SelectItem>
+                                ))}
+                                {customShareTypes.map(ct => (
+                                  <SelectItem key={`del-${ct}`} value={`__del__${ct}`} className="text-destructive text-xs pl-6">✕ {ct} entfernen</SelectItem>
+                                ))}
                                 <SelectItem value="__add__" className="text-primary font-medium">+ Hinzufügen</SelectItem>
                               </SelectContent>
                             </Select>
