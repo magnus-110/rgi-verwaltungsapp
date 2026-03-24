@@ -405,6 +405,82 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
             </div>
           </TabsContent>
 
+          {/* Personen / Ansprechpartner Tab */}
+          <TabsContent value="personen" className="space-y-4 mt-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <h3 className="text-sm font-semibold flex items-center gap-2"><Users className="h-4 w-4" /> Ansprechpartner</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">Mehrere Personen zu diesem Kontakt (z.B. Ansprechpartner einer Firma oder Miteigentümer)</p>
+              </div>
+              <Button size="sm" variant="outline" onClick={addPerson}><Plus className="h-3 w-3 mr-1" />Person hinzufügen</Button>
+            </div>
+            {visiblePersons.length === 0 && <p className="text-sm text-muted-foreground py-4">Keine weiteren Personen hinterlegt.</p>}
+            {visiblePersons.map((p, idx) => (
+              <Card key={p._localId}>
+                <CardContent className="pt-4 space-y-3">
+                  <div className="flex justify-between items-start">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {p.is_primary ? "Hauptansprechpartner" : `Person ${idx + 1}`}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant={p.is_primary ? "default" : "ghost"}
+                        className="h-6 text-[10px] px-2"
+                        onClick={() => {
+                          setPersons(prev => prev.map(pp => ({ ...pp, is_primary: pp._localId === p._localId })));
+                          markDirty();
+                        }}
+                      >
+                        {p.is_primary ? "Hauptkontakt ✓" : "Als Hauptkontakt"}
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => removePerson(p._localId)}>
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <Label className="text-xs">Anrede</Label>
+                      <Select value={p.salutation || ""} onValueChange={(v) => updatePersonLocal(p._localId, "salutation", v)}>
+                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Anrede" /></SelectTrigger>
+                        <SelectContent>
+                          {SALUTATIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Vorname</Label>
+                      <Input className="h-8 text-sm" value={p.first_name || ""} onChange={e => updatePersonLocal(p._localId, "first_name", e.target.value)} />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Nachname</Label>
+                      <Input className="h-8 text-sm" value={p.last_name || ""} onChange={e => updatePersonLocal(p._localId, "last_name", e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <Label className="text-xs">Position / Rolle</Label>
+                      <Input className="h-8 text-sm" value={p.position || ""} onChange={e => updatePersonLocal(p._localId, "position", e.target.value)} placeholder="z.B. Geschäftsführer" />
+                    </div>
+                    <div>
+                      <Label className="text-xs">E-Mail</Label>
+                      <Input className="h-8 text-sm" type="email" value={p.email || ""} onChange={e => updatePersonLocal(p._localId, "email", e.target.value)} />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Telefon</Label>
+                      <Input className="h-8 text-sm" value={p.phone || ""} onChange={e => updatePersonLocal(p._localId, "phone", e.target.value)} />
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Notizen</Label>
+                    <Input className="h-8 text-sm" value={p.notes || ""} onChange={e => updatePersonLocal(p._localId, "notes", e.target.value)} placeholder="Optionale Notizen" />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </TabsContent>
+
           {/* Kommunikation Tab */}
           <TabsContent value="kommunikation" className="space-y-6 mt-4">
             <Card>
