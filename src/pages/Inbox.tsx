@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { ComposeEmailDialog } from "@/components/email/ComposeEmailDialog";
 import { EmailAttachments } from "@/components/email/EmailAttachments";
 import { ArchiveEmailDialog } from "@/components/email/ArchiveEmailDialog";
+import { EmailHtmlBody } from "@/components/email/EmailHtmlBody";
 import { useNavigate } from "react-router-dom";
 
 const folderIcons: Record<string, any> = {
