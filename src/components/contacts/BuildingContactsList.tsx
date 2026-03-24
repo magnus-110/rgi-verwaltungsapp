@@ -588,24 +588,35 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                       {a.shares.length === 0 && <p className="text-xs text-muted-foreground">Keine Anteile definiert</p>}
                       {a.shares.map(s => (
                         <div key={s.id} className="flex items-center gap-2 mt-2">
-                          <Select value={SHARE_TYPES.some(st => st.value === s.share_type) ? s.share_type : "__custom__"} onValueChange={(v) => {
-                            if (v !== "__custom__") updateShare(s.id, "share_type", v);
-                          }}>
-                            <SelectTrigger className="w-36 h-8 text-sm">
-                              <SelectValue>{SHARE_TYPES.find(st => st.value === s.share_type)?.label || s.share_type || "Wählen..."}</SelectValue>
-                            </SelectTrigger>
-                            <SelectContent>
-                              {SHARE_TYPES.map(st => <SelectItem key={st.value} value={st.value}>{st.label}</SelectItem>)}
-                              <SelectItem value="__custom__">Eigener...</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          {(!SHARE_TYPES.some(st => st.value === s.share_type) || s.share_type === "__custom__") && (
-                            <Input
-                              placeholder="Eigener Typ"
-                              value={s.share_type === "__custom__" ? "" : s.share_type}
-                              onChange={(e) => updateShare(s.id, "share_type", e.target.value)}
-                              className="w-28 h-8 text-sm"
-                            />
+                          {SHARE_TYPES.some(st => st.value === s.share_type) ? (
+                            <Select value={s.share_type} onValueChange={(v) => {
+                              if (v === "__add__") {
+                                updateShare(s.id, "share_type", "");
+                              } else {
+                                updateShare(s.id, "share_type", v);
+                              }
+                            }}>
+                              <SelectTrigger className="w-36 h-8 text-sm"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {SHARE_TYPES.map(st => <SelectItem key={st.value} value={st.value}>{st.label}</SelectItem>)}
+                                <SelectItem value="__add__" className="text-primary font-medium">+ Hinzufügen</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <Input
+                                autoFocus
+                                placeholder="Kategorie eingeben"
+                                value={s.share_type}
+                                onChange={(e) => updateShare(s.id, "share_type", e.target.value)}
+                                className="w-36 h-8 text-sm"
+                              />
+                              {s.share_type === "" && (
+                                <Button size="icon" variant="ghost" className="h-7 w-7 flex-shrink-0" onClick={() => updateShare(s.id, "share_type", "mea")}>
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
                           )}
                           <Input
                             type="text"
@@ -642,24 +653,35 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                       {a.costs.length === 0 && <p className="text-xs text-muted-foreground">Keine Kosten definiert</p>}
                       {a.costs.map(c => (
                         <div key={c.id} className="flex items-center gap-2 mt-2">
-                          <Select value={COST_TYPES.includes(c.cost_type) ? c.cost_type : "__custom__"} onValueChange={(v) => {
-                            if (v !== "__custom__") updateCost(c.id, "cost_type", v);
-                          }}>
-                            <SelectTrigger className="w-32 h-8 text-sm">
-                              <SelectValue>{COST_TYPES.includes(c.cost_type) ? c.cost_type : (c.cost_type || "Wählen...")}</SelectValue>
-                            </SelectTrigger>
-                            <SelectContent>
-                              {COST_TYPES.map(ct => <SelectItem key={ct} value={ct}>{ct}</SelectItem>)}
-                              <SelectItem value="__custom__">Eigener...</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          {(!COST_TYPES.includes(c.cost_type) || c.cost_type === "__custom__") && (
-                            <Input
-                              placeholder="Eigener Typ"
-                              value={c.cost_type === "__custom__" ? "" : c.cost_type}
-                              onChange={(e) => updateCost(c.id, "cost_type", e.target.value)}
-                              className="w-24 h-8 text-sm"
-                            />
+                          {COST_TYPES.includes(c.cost_type) ? (
+                            <Select value={c.cost_type} onValueChange={(v) => {
+                              if (v === "__add__") {
+                                updateCost(c.id, "cost_type", "");
+                              } else {
+                                updateCost(c.id, "cost_type", v);
+                              }
+                            }}>
+                              <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {COST_TYPES.map(ct => <SelectItem key={ct} value={ct}>{ct}</SelectItem>)}
+                                <SelectItem value="__add__" className="text-primary font-medium">+ Hinzufügen</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <Input
+                                autoFocus
+                                placeholder="Kategorie eingeben"
+                                value={c.cost_type}
+                                onChange={(e) => updateCost(c.id, "cost_type", e.target.value)}
+                                className="w-32 h-8 text-sm"
+                              />
+                              {c.cost_type === "" && (
+                                <Button size="icon" variant="ghost" className="h-7 w-7 flex-shrink-0" onClick={() => updateCost(c.id, "cost_type", "Hausgeld")}>
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
                           )}
                           <Input
                             type="text"
