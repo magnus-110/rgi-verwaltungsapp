@@ -273,16 +273,14 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
                                       </SelectItem>
                                     ))}
                                     {customDistKeys.length > 0 && (
-                                      <>
-                                        <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Eigene</div>
-                                        {customDistKeys.map(k => (
-                                          <SelectItem key={k} value={k}>{k}</SelectItem>
-                                        ))}
-                                        {customDistKeys.map(k => (
-                                          <SelectItem key={`del-${k}`} value={`__delkey__${k}`} className="text-destructive text-xs">🗑 „{k}" entfernen</SelectItem>
-                                        ))}
-                                      </>
+                                      <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Eigene</div>
                                     )}
+                                    {customDistKeys.map(k => (
+                                      <SelectItem key={k} value={k}>{k}</SelectItem>
+                                    ))}
+                                    {customDistKeys.map(k => (
+                                      <SelectItem key={`del-${k}`} value={`__delkey__${k}`} className="text-destructive text-xs pl-6">✕ {k} entfernen</SelectItem>
+                                    ))}
                                     <SelectItem value="__add__" className="text-primary font-medium">+ Hinzufügen</SelectItem>
                                   </SelectContent>
                                 </Select>

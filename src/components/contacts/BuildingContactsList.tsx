@@ -705,14 +705,13 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                             <Select value={c.cost_type} onValueChange={async (v) => {
                               if (v === "__add__") {
                                 updateCost(c.id, "cost_type", "");
-                              } else if (v === "__remove_custom__") {
-                                for (const ct of customCostTypes) {
-                                  await supabase
-                                    .from("contact_building_costs")
-                                    .update({ cost_type: "Hausgeld" })
-                                    .eq("cost_type", ct);
-                                }
-                                toast({ title: "Eigene Kostenarten entfernt" });
+                              } else if (v.startsWith("__del__")) {
+                                const typeToDelete = v.replace("__del__", "");
+                                await supabase
+                                  .from("contact_building_costs")
+                                  .update({ cost_type: "Hausgeld" })
+                                  .eq("cost_type", typeToDelete);
+                                toast({ title: `„${typeToDelete}" entfernt` });
                                 queryClient.invalidateQueries({ queryKey: ["custom-cost-types"] });
                                 refetch();
                               } else {
@@ -723,14 +722,14 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                               <SelectContent>
                                 {COST_TYPES.map(ct => <SelectItem key={ct} value={ct}>{ct}</SelectItem>)}
                                 {customCostTypes.length > 0 && (
-                                  <>
-                                    <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Eigene</div>
-                                    {customCostTypes.map(ct => (
-                                      <SelectItem key={ct} value={ct}>{ct}</SelectItem>
-                                    ))}
-                                    <SelectItem value="__remove_custom__" className="text-destructive font-medium">🗑 Eigene entfernen</SelectItem>
-                                  </>
+                                  <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Eigene</div>
                                 )}
+                                {customCostTypes.map(ct => (
+                                  <SelectItem key={ct} value={ct}>{ct}</SelectItem>
+                                ))}
+                                {customCostTypes.map(ct => (
+                                  <SelectItem key={`del-${ct}`} value={`__del__${ct}`} className="text-destructive text-xs pl-6">✕ {ct} entfernen</SelectItem>
+                                ))}
                                 <SelectItem value="__add__" className="text-primary font-medium">+ Hinzufügen</SelectItem>
                               </SelectContent>
                             </Select>
