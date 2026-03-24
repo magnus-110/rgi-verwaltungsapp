@@ -281,7 +281,7 @@ export const Inbox = () => {
           <Button variant="ghost" size="icon" className="h-8 w-8 mb-2" onClick={() => setSidebarCollapsed(false)} title="Navigation einblenden">
             <PanelLeftOpen className="h-4 w-4" />
           </Button>
-          <Button size="icon" className="h-8 w-8 mb-1" onClick={() => { setComposeReplyTo(null); setComposeForward(null); setComposeOpen(true); }} title="Neue E-Mail">
+          <Button size="icon" className="h-8 w-8 mb-1" onClick={() => openCompose()} title="Neue E-Mail">
             <Plus className="h-4 w-4" />
           </Button>
           <Button variant="outline" size="icon" className="h-8 w-8" onClick={handleSync} disabled={isSyncing} title="Synchronisieren">
@@ -315,7 +315,7 @@ export const Inbox = () => {
       ) : (
         <div className="w-56 border-r flex flex-col shrink-0">
           <div className="p-3 border-b flex gap-2">
-            <Button size="sm" className="flex-1 gap-2" onClick={() => { setComposeReplyTo(null); setComposeForward(null); setComposeOpen(true); }}>
+            <Button size="sm" className="flex-1 gap-2" onClick={() => openCompose()}>
               <Plus className="h-4 w-4" />
               Neue E-Mail
             </Button>
@@ -624,17 +624,13 @@ export const Inbox = () => {
                 </ScrollArea>
                 <div className="p-3 border-t flex gap-2">
                   <Button size="sm" className="gap-1.5" onClick={() => {
-                    setComposeReplyTo({ subject: selectedEmail.subject, from_address: selectedEmail.from_address, from_name: selectedEmail.from_name, body_text: selectedEmail.body_text, date: selectedEmail.date, account_id: selectedEmail.account_id });
-                    setComposeForward(null);
-                    setComposeOpen(true);
+                    openCompose({ replyTo: { subject: selectedEmail.subject, from_address: selectedEmail.from_address, from_name: selectedEmail.from_name, body_text: selectedEmail.body_text, date: selectedEmail.date, account_id: selectedEmail.account_id } });
                   }}>
                     <Reply className="h-3.5 w-3.5" />
                     Antworten
                   </Button>
                   <Button variant="outline" size="sm" className="gap-1.5" onClick={() => {
-                    setComposeForward({ subject: selectedEmail.subject, body_text: selectedEmail.body_text, body_html: selectedEmail.body_html, account_id: selectedEmail.account_id });
-                    setComposeReplyTo(null);
-                    setComposeOpen(true);
+                    openCompose({ forward: { subject: selectedEmail.subject, body_text: selectedEmail.body_text, body_html: selectedEmail.body_html, account_id: selectedEmail.account_id } });
                   }}>
                     <Forward className="h-3.5 w-3.5" />
                     Weiterleiten
@@ -654,12 +650,7 @@ export const Inbox = () => {
       </ResizablePanelGroup>
       </div>
 
-      <ComposeEmailDialog
-        open={composeOpen}
-        onOpenChange={setComposeOpen}
-        replyTo={composeReplyTo}
-        forward={composeForward}
-      />
+
       <ArchiveEmailDialog
         open={archiveDialogOpen}
         onOpenChange={setArchiveDialogOpen}
