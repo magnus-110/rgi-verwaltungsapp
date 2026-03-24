@@ -615,23 +615,39 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                       {a.shares.map(s => (
                         <div key={s.id} className="flex items-center gap-2 mt-2">
                            {allShareTypes.some(st => st.value === s.share_type) ? (
-                            <Select value={s.share_type} onValueChange={(v) => {
+                            <Select value={s.share_type} onValueChange={async (v) => {
                               if (v === "__add__") {
                                 updateShare(s.id, "share_type", "");
+                              } else if (v.startsWith("__del__")) {
+                                const typeToDelete = v.replace("__del__", "");
+                                // Reset all shares with this custom type to "mea"
+                                const { error } = await supabase
+                                  .from("contact_building_shares")
+                                  .update({ share_type: "mea" })
+                                  .eq("share_type", typeToDelete);
+                                if (!error) {
+                                  toast({ title: "Kategorie entfernt", description: `"${typeToDelete}" wurde zurückgesetzt.` });
+                                  queryClient.invalidateQueries({ queryKey: ["custom-share-types"] });
+                                  refetch();
+                                }
                               } else {
                                 updateShare(s.id, "share_type", v);
                               }
                             }}>
                               <SelectTrigger className="w-36 h-8 text-sm"><SelectValue /></SelectTrigger>
                               <SelectContent>
-                                {allShareTypes.map(st => {
-                                  const isCustom = !SHARE_TYPES.some(ds => ds.value === st.value);
-                                  return (
-                                    <SelectItem key={st.value} value={st.value}>
-                                      {st.label}
-                                    </SelectItem>
-                                  );
-                                })}
+                                {SHARE_TYPES.map(st => <SelectItem key={st.value} value={st.value}>{st.label}</SelectItem>)}
+                                {customShareTypes.length > 0 && (
+                                  <>
+                                    <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Eigene</div>
+                                    {customShareTypes.map(ct => (
+                                      <div key={ct} className="flex items-center">
+                                        <SelectItem value={ct} className="flex-1">{ct}</SelectItem>
+                                        <SelectItem value={`__del__${ct}`} className="w-8 flex-shrink-0 text-destructive px-1 justify-center">✕</SelectItem>
+                                      </div>
+                                    ))}
+                                  </>
+                                )}
                                 <SelectItem value="__add__" className="text-primary font-medium">+ Hinzufügen</SelectItem>
                               </SelectContent>
                             </Select>
