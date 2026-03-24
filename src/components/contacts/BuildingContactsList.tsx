@@ -698,16 +698,35 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                       {a.costs.map(c => (
                         <div key={c.id} className="flex items-center gap-2 mt-2">
                            {allCostTypes.includes(c.cost_type) ? (
-                            <Select value={c.cost_type} onValueChange={(v) => {
+                            <Select value={c.cost_type} onValueChange={async (v) => {
                               if (v === "__add__") {
                                 updateCost(c.id, "cost_type", "");
+                              } else if (v === "__remove_custom__") {
+                                for (const ct of customCostTypes) {
+                                  await supabase
+                                    .from("contact_building_costs")
+                                    .update({ cost_type: "Hausgeld" })
+                                    .eq("cost_type", ct);
+                                }
+                                toast({ title: "Eigene Kostenarten entfernt" });
+                                queryClient.invalidateQueries({ queryKey: ["custom-cost-types"] });
+                                refetch();
                               } else {
                                 updateCost(c.id, "cost_type", v);
                               }
                             }}>
                               <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
                               <SelectContent>
-                                {allCostTypes.map(ct => <SelectItem key={ct} value={ct}>{ct}</SelectItem>)}
+                                {COST_TYPES.map(ct => <SelectItem key={ct} value={ct}>{ct}</SelectItem>)}
+                                {customCostTypes.length > 0 && (
+                                  <>
+                                    <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Eigene</div>
+                                    {customCostTypes.map(ct => (
+                                      <SelectItem key={ct} value={ct}>{ct}</SelectItem>
+                                    ))}
+                                    <SelectItem value="__remove_custom__" className="text-destructive font-medium">🗑 Eigene entfernen</SelectItem>
+                                  </>
+                                )}
                                 <SelectItem value="__add__" className="text-primary font-medium">+ Hinzufügen</SelectItem>
                               </SelectContent>
                             </Select>
