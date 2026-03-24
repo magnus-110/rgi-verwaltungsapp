@@ -268,25 +268,26 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
                                       <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Eigene</div>
                                     )}
                                     {customDistKeys.map(k => (
-                                      <SelectItem key={k} value={k}>{k}</SelectItem>
+                                      <div key={k} className="flex items-center justify-between px-2 py-1 hover:bg-accent rounded-sm group">
+                                        <SelectItem value={k} className="flex-1 p-0">{k}</SelectItem>
+                                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 ml-1">
+                                          <button type="button" className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted" onClick={(e) => { e.stopPropagation(); setEditingDistKey({ oldValue: k, newValue: k }); }}>
+                                            <Pencil className="h-3 w-3 text-muted-foreground" />
+                                          </button>
+                                          <button type="button" className="h-5 w-5 flex items-center justify-center rounded hover:bg-destructive/10" onClick={async (e) => {
+                                            e.stopPropagation();
+                                            await supabase.from("building_account_overrides").delete().eq("building_id", buildingId).eq("distribution_key", k);
+                                            toast.success(`"${k}" entfernt`);
+                                            queryClient.invalidateQueries({ queryKey: ["building-account-overrides", buildingId] });
+                                          }}>
+                                            <X className="h-3 w-3 text-destructive" />
+                                          </button>
+                                        </div>
+                                      </div>
                                     ))}
                                     <SelectItem value="__add__" className="text-primary font-medium">+ Hinzufügen</SelectItem>
                                   </SelectContent>
                                 </Select>
-                                {currentKey && !DISTRIBUTION_KEYS.some(k => k.value === currentKey) && (
-                                  <>
-                                    <Button size="icon" variant="ghost" className="h-6 w-6 flex-shrink-0" onClick={() => setEditingDistKey({ oldValue: currentKey, newValue: currentKey })}>
-                                      <Pencil className="h-3 w-3 text-muted-foreground" />
-                                    </Button>
-                                    <Button size="icon" variant="ghost" className="h-6 w-6 flex-shrink-0" onClick={async () => {
-                                      await supabase.from("building_account_overrides").delete().eq("building_id", buildingId).eq("distribution_key", currentKey);
-                                      toast.success(`"${currentKey}" entfernt`);
-                                      queryClient.invalidateQueries({ queryKey: ["building-account-overrides", buildingId] });
-                                    }}>
-                                      <X className="h-3 w-3 text-destructive" />
-                                    </Button>
-                                  </>
-                                )}
                                 </div>
                                 )}
                               </TableCell>

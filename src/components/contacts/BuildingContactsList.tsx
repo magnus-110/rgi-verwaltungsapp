@@ -687,21 +687,21 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                                     <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Eigene</div>
                                   )}
                                   {customShareTypes.map(ct => (
-                                    <SelectItem key={ct} value={ct}>{ct}</SelectItem>
+                                    <div key={ct} className="flex items-center justify-between px-2 py-1 hover:bg-accent rounded-sm group">
+                                      <SelectItem value={ct} className="flex-1 p-0">{ct}</SelectItem>
+                                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 ml-1">
+                                        <button type="button" className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted" onClick={(e) => { e.stopPropagation(); setEditingType({ id: s.id, field: "share_type", value: ct, mode: "edit", oldValue: ct }); }}>
+                                          <Pencil className="h-3 w-3 text-muted-foreground" />
+                                        </button>
+                                        <button type="button" className="h-5 w-5 flex items-center justify-center rounded hover:bg-destructive/10" onClick={(e) => { e.stopPropagation(); deleteCustomType("share_type", ct); }}>
+                                          <X className="h-3 w-3 text-destructive" />
+                                        </button>
+                                      </div>
+                                    </div>
                                   ))}
                                   <SelectItem value="__add__" className="text-primary font-medium">+ Hinzufügen</SelectItem>
                                 </SelectContent>
                               </Select>
-                              {!SHARE_TYPES.some(st => st.value === s.share_type) && s.share_type && (
-                                <>
-                                  <Button size="icon" variant="ghost" className="h-6 w-6 flex-shrink-0" onClick={() => setEditingType({ id: s.id, field: "share_type", value: s.share_type, mode: "edit", oldValue: s.share_type })}>
-                                    <Pencil className="h-3 w-3 text-muted-foreground" />
-                                  </Button>
-                                  <Button size="icon" variant="ghost" className="h-6 w-6 flex-shrink-0" onClick={() => deleteCustomType("share_type", s.share_type)}>
-                                    <X className="h-3 w-3 text-destructive" />
-                                  </Button>
-                                </>
-                              )}
                             </div>
                           )}
                           <Input
@@ -772,21 +772,21 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                                     <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Eigene</div>
                                   )}
                                   {customCostTypes.map(ct => (
-                                    <SelectItem key={ct} value={ct}>{ct}</SelectItem>
+                                    <div key={ct} className="flex items-center justify-between px-2 py-1 hover:bg-accent rounded-sm group">
+                                      <SelectItem value={ct} className="flex-1 p-0">{ct}</SelectItem>
+                                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 ml-1">
+                                        <button type="button" className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted" onClick={(e) => { e.stopPropagation(); setEditingType({ id: c.id, field: "cost_type", value: ct, mode: "edit", oldValue: ct }); }}>
+                                          <Pencil className="h-3 w-3 text-muted-foreground" />
+                                        </button>
+                                        <button type="button" className="h-5 w-5 flex items-center justify-center rounded hover:bg-destructive/10" onClick={(e) => { e.stopPropagation(); deleteCustomType("cost_type", ct); }}>
+                                          <X className="h-3 w-3 text-destructive" />
+                                        </button>
+                                      </div>
+                                    </div>
                                   ))}
                                   <SelectItem value="__add__" className="text-primary font-medium">+ Hinzufügen</SelectItem>
                                 </SelectContent>
                               </Select>
-                              {!COST_TYPES.includes(c.cost_type) && c.cost_type && (
-                                <>
-                                  <Button size="icon" variant="ghost" className="h-6 w-6 flex-shrink-0" onClick={() => setEditingType({ id: c.id, field: "cost_type", value: c.cost_type, mode: "edit", oldValue: c.cost_type })}>
-                                    <Pencil className="h-3 w-3 text-muted-foreground" />
-                                  </Button>
-                                  <Button size="icon" variant="ghost" className="h-6 w-6 flex-shrink-0" onClick={() => deleteCustomType("cost_type", c.cost_type)}>
-                                    <X className="h-3 w-3 text-destructive" />
-                                  </Button>
-                                </>
-                              )}
                             </div>
                           )}
                           <Input
