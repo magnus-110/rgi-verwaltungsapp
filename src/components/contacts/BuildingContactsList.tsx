@@ -126,7 +126,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
       const { data } = await supabase.from("contact_building_shares").select("share_type");
       if (!data) return [];
       const unique = [...new Set(data.map(d => d.share_type))];
-      return unique.filter(t => !SHARE_TYPES.some(s => s.value === t) && t && t !== "__add__");
+      return unique.filter(t => !SHARE_TYPES.some(s => s.value === t) && t && t !== String("__add__"));
     },
   });
 
