@@ -467,13 +467,13 @@ export const Inbox = () => {
         <ScrollArea className="flex-1">
           {emailsLoading ? (
             <div className="p-4 text-center text-sm text-muted-foreground">Laden...</div>
-          ) : emails.length === 0 ? (
+          ) : filteredEmails.length === 0 ? (
             <div className="p-8 text-center">
               <Mail className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
               <p className="text-sm text-muted-foreground">Keine E-Mails vorhanden</p>
             </div>
           ) : (
-            emails.map(email => (
+            filteredEmails.map(email => (
               <button
                 key={email.id}
                 onClick={() => setSelectedEmailId(email.id)}
