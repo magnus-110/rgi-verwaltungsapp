@@ -293,6 +293,7 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
   const visiblePhones = phones.filter(p => !p._deleted);
   const visibleEmails = emails.filter(e => !e._deleted);
   const visibleBanks = bankAccounts.filter(b => !b._deleted);
+  const visiblePersons = persons.filter(p => !p._deleted);
   const hasIbanErrors = Object.keys(ibanErrors).length > 0;
 
   return (
