@@ -241,6 +241,30 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
         }).eq("id", b.id!);
       }
 
+      // 5. Save persons
+      const deletedPersons = persons.filter(p => p._deleted && p.id);
+      const newPersons = persons.filter(p => !p._deleted && !p.id);
+      const existingPersons = persons.filter(p => !p._deleted && p.id);
+
+      if (deletedPersons.length > 0) {
+        await supabase.from("contact_persons").delete().in("id", deletedPersons.map(p => p.id!));
+      }
+      for (const p of newPersons) {
+        if ((p.first_name || p.last_name || p.position)) {
+          await supabase.from("contact_persons").insert({
+            contact_id: contact.id, salutation: p.salutation, first_name: p.first_name,
+            last_name: p.last_name, position: p.position, email: p.email,
+            phone: p.phone, notes: p.notes, is_primary: p.is_primary,
+          });
+        }
+      }
+      for (const p of existingPersons) {
+        await supabase.from("contact_persons").update({
+          salutation: p.salutation, first_name: p.first_name, last_name: p.last_name,
+          position: p.position, email: p.email, phone: p.phone, notes: p.notes, is_primary: p.is_primary,
+        }).eq("id", p.id!);
+      }
+
       toast({ title: "Gespeichert" });
       setIsDirty(false);
       onUpdate();
