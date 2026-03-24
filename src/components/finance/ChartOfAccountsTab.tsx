@@ -132,9 +132,28 @@ export function ChartOfAccountsTab() {
         </Button>
       </CardHeader>
       <CardContent>
+        <div className="flex flex-col md:flex-row gap-3 mb-4">
+          <Select value={selectedBuilding} onValueChange={setSelectedBuilding}>
+            <SelectTrigger className="w-full md:w-80">
+              <SelectValue placeholder="Alle (global)" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="global">Alle (global)</SelectItem>
+              {buildings.map(b => (
+                <SelectItem key={b.id} value={b.id}>
+                  {b.name} ({b.building_code})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Konto suchen..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9" />
+          </div>
+        </div>
         <div className="space-y-2">
           {categories.map(cat => {
-            const catAccounts = accounts.filter(a => a.category === cat);
+            const catAccounts = filteredAccounts.filter(a => a.category === cat);
             const collapsed = collapsedCategories.has(cat);
             return (
               <div key={cat} className="border rounded-lg overflow-hidden">
