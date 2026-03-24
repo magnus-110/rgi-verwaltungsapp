@@ -739,50 +739,54 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                       {a.costs.length === 0 && <p className="text-xs text-muted-foreground">Keine Kosten definiert</p>}
                       {a.costs.map(c => (
                         <div key={c.id} className="flex items-center gap-2 mt-2">
-                           {allCostTypes.includes(c.cost_type) ? (
-                            <Select value={c.cost_type} onValueChange={async (v) => {
-                              if (v === "__add__") {
-                                updateCost(c.id, "cost_type", "");
-                              } else if (v.startsWith("__del__")) {
-                                const typeToDelete = v.replace("__del__", "");
-                                await supabase
-                                  .from("contact_building_costs")
-                                  .update({ cost_type: "Hausgeld" })
-                                  .eq("cost_type", typeToDelete);
-                                toast({ title: `„${typeToDelete}" entfernt` });
-                                queryClient.invalidateQueries({ queryKey: ["custom-cost-types"] });
-                                refetch();
-                              } else {
-                                updateCost(c.id, "cost_type", v);
-                              }
-                            }}>
-                              <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                {COST_TYPES.map(ct => <SelectItem key={ct} value={ct}>{ct}</SelectItem>)}
-                                {customCostTypes.length > 0 && (
-                                  <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Eigene</div>
-                                )}
-                                {customCostTypes.map(ct => (
-                                  <SelectItem key={ct} value={ct}>{ct}</SelectItem>
-                                ))}
-                                {customCostTypes.map(ct => (
-                                  <SelectItem key={`del-${ct}`} value={`__del__${ct}`} className="text-destructive text-xs pl-6">✕ {ct} entfernen</SelectItem>
-                                ))}
-                                <SelectItem value="__add__" className="text-primary font-medium">+ Hinzufügen</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          ) : (
+                          {editingType?.id === c.id && editingType.field === "cost_type" ? (
                             <div className="flex items-center gap-1">
                               <Input
                                 autoFocus
                                 placeholder="Kategorie eingeben"
-                                value={c.cost_type}
-                                onChange={(e) => updateCost(c.id, "cost_type", e.target.value)}
+                                value={editingType.value}
+                                onChange={(e) => setEditingType({ ...editingType, value: e.target.value })}
+                                onKeyDown={(e) => { if (e.key === "Enter") saveEditingType(); if (e.key === "Escape") setEditingType(null); }}
                                 className="w-32 h-8 text-sm"
                               />
-                              <Button size="icon" variant="ghost" className="h-7 w-7 flex-shrink-0" onClick={() => updateCost(c.id, "cost_type", "Hausgeld")}>
+                              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={saveEditingType}>
+                                <Check className="h-3 w-3 text-primary" />
+                              </Button>
+                              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditingType(null)}>
                                 <X className="h-3 w-3" />
                               </Button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <Select value={c.cost_type} onValueChange={(v) => {
+                                if (v === "__add__") {
+                                  setEditingType({ id: c.id, field: "cost_type", value: "", mode: "add" });
+                                } else {
+                                  updateCost(c.id, "cost_type", v);
+                                }
+                              }}>
+                                <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {COST_TYPES.map(ct => <SelectItem key={ct} value={ct}>{ct}</SelectItem>)}
+                                  {customCostTypes.length > 0 && (
+                                    <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Eigene</div>
+                                  )}
+                                  {customCostTypes.map(ct => (
+                                    <SelectItem key={ct} value={ct}>{ct}</SelectItem>
+                                  ))}
+                                  <SelectItem value="__add__" className="text-primary font-medium">+ Hinzufügen</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              {!COST_TYPES.includes(c.cost_type) && c.cost_type && (
+                                <>
+                                  <Button size="icon" variant="ghost" className="h-6 w-6 flex-shrink-0" onClick={() => setEditingType({ id: c.id, field: "cost_type", value: c.cost_type, mode: "edit", oldValue: c.cost_type })}>
+                                    <Pencil className="h-3 w-3 text-muted-foreground" />
+                                  </Button>
+                                  <Button size="icon" variant="ghost" className="h-6 w-6 flex-shrink-0" onClick={() => deleteCustomType("cost_type", c.cost_type)}>
+                                    <X className="h-3 w-3 text-destructive" />
+                                  </Button>
+                                </>
+                              )}
                             </div>
                           )}
                           <Input
