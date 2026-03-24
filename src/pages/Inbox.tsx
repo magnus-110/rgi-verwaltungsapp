@@ -276,9 +276,82 @@ export const Inbox = () => {
   const getContactName = (c: any) => {
     const parts = [c.first_name, c.last_name].filter(Boolean).join(" ");
     const name = parts || c.company_name || "Unbenannt";
-    // Append company name if person has both name and company
     if (parts && c.company_name) return `${name} (${c.company_name})`;
     return name;
+  };
+
+  const senderHasContact = useMemo(() => {
+    if (!selectedEmail?.from_address) return false;
+    return selectedEmail.contact_id != null;
+  }, [selectedEmail]);
+
+  const openNewContactFromEmail = () => {
+    if (!selectedEmail) return;
+    const fromName = selectedEmail.from_name || "";
+    const parts = fromName.split(" ");
+    setNewContactData({
+      first_name: parts.length > 1 ? parts.slice(0, -1).join(" ") : fromName,
+      last_name: parts.length > 1 ? parts[parts.length - 1] : "",
+      company_name: "",
+      email: selectedEmail.from_address || "",
+    });
+    setNewContactDialogOpen(true);
+  };
+
+  const handleCreateContact = async () => {
+    try {
+      const { data: contact, error } = await supabase.from("contacts").insert({
+        first_name: newContactData.first_name || null,
+        last_name: newContactData.last_name || null,
+        company_name: newContactData.company_name || null,
+      }).select("id").single();
+      if (error) throw error;
+
+      if (newContactData.email) {
+        await supabase.from("contact_emails").insert({
+          contact_id: contact.id,
+          email: newContactData.email,
+          is_primary: true,
+        });
+      }
+
+      // Link email to new contact
+      if (selectedEmail) {
+        await supabase.from("emails").update({ contact_id: contact.id }).eq("id", selectedEmail.id);
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["contacts-list"] });
+      queryClient.invalidateQueries({ queryKey: ["emails"] });
+      setNewContactDialogOpen(false);
+      toast.success("Kontakt erstellt und verknüpft");
+    } catch (err: any) {
+      toast.error("Fehler: " + err.message);
+    }
+  };
+
+  const addEmailToExistingContact = async (contactId: string) => {
+    if (!selectedEmail?.from_address) return;
+    try {
+      // Check if email already exists for this contact
+      const { data: existing } = await supabase.from("contact_emails")
+        .select("id").eq("contact_id", contactId).eq("email", selectedEmail.from_address);
+      
+      if (!existing || existing.length === 0) {
+        await supabase.from("contact_emails").insert({
+          contact_id: contactId,
+          email: selectedEmail.from_address,
+          is_primary: false,
+        });
+      }
+
+      // Link email to contact
+      await supabase.from("emails").update({ contact_id: contactId }).eq("id", selectedEmail.id);
+      queryClient.invalidateQueries({ queryKey: ["emails"] });
+      queryClient.invalidateQueries({ queryKey: ["contacts-list"] });
+      toast.success("E-Mail-Adresse zum Kontakt hinzugefügt");
+    } catch (err: any) {
+      toast.error("Fehler: " + err.message);
+    }
   };
 
   return (
