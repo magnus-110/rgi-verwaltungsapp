@@ -13,7 +13,6 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Validate auth
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -34,9 +33,8 @@ Deno.serve(async (req) => {
     );
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsErr } =
-      await supabaseUser.auth.getClaims(token);
-    if (claimsErr || !claimsData?.claims) {
+    const { data: userData, error: userErr } = await supabaseUser.auth.getUser(token);
+    if (userErr || !userData?.user) {
       return new Response(JSON.stringify({ error: "Invalid token" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -53,6 +51,7 @@ Deno.serve(async (req) => {
       body_html,
       in_reply_to,
       reply_to_email_id,
+      attachments,
     } = await req.json();
 
     if (!account_id || !to || to.length === 0) {
@@ -65,7 +64,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get account credentials
     const { data: account, error: accErr } = await supabaseAdmin
       .from("email_accounts")
       .select("*")
@@ -82,14 +80,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get sent folder
     const { data: sentFolder } = await supabaseAdmin
       .from("email_folders")
       .select("id")
       .eq("name", "Gesendet")
       .single();
 
-    // Send via SMTP using nodemailer
     const transporter = nodemailer.createTransport({
       host: account.smtp_host,
       port: account.smtp_port,
@@ -120,10 +116,22 @@ Deno.serve(async (req) => {
       mailOptions.inReplyTo = in_reply_to;
     }
 
+    // Handle attachments (base64 encoded from client)
+    if (attachments && Array.isArray(attachments) && attachments.length > 0) {
+      mailOptions.attachments = attachments.map((att: any) => ({
+        filename: att.filename,
+        content: att.content, // base64 string
+        encoding: "base64",
+        contentType: att.contentType,
+      }));
+    }
+
     await transporter.sendMail(mailOptions);
 
     // Save sent email in DB
     const toAddresses = Array.isArray(to) ? to : [to];
+    const hasAttachments = attachments && attachments.length > 0;
+    
     const { error: insertErr } = await supabaseAdmin.from("emails").insert({
       account_id: account.id,
       folder_id: sentFolder?.id,
@@ -136,6 +144,7 @@ Deno.serve(async (req) => {
       body_html: body_html || null,
       date: new Date().toISOString(),
       is_read: true,
+      has_attachments: hasAttachments || false,
       message_id: `sent-${Date.now()}-${Math.random().toString(36).slice(2)}`,
     });
 

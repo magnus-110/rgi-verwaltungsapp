@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Mail, Search, Star, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Filter } from "lucide-react";
+import { Mail, Search, Star, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Filter, Paperclip } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { ComposeEmailDialog } from "@/components/email/ComposeEmailDialog";
+import { EmailAttachments } from "@/components/email/EmailAttachments";
 import { useNavigate } from "react-router-dom";
 
 const folderIcons: Record<string, any> = {
@@ -308,6 +309,9 @@ export const Inbox = () => {
                   </p>
                 )}
                 <div className="flex items-center gap-1.5 mt-1">
+                  {email.has_attachments && (
+                    <Paperclip className="h-3 w-3 text-muted-foreground" />
+                  )}
                   {email.ai_category && (
                     <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                       {email.ai_category}
@@ -402,6 +406,9 @@ export const Inbox = () => {
                 />
               ) : (
                 <pre className="text-sm whitespace-pre-wrap font-sans">{selectedEmail.body_text || "Kein Inhalt"}</pre>
+              )}
+              {selectedEmail.has_attachments && (
+                <EmailAttachments emailId={selectedEmail.id} />
               )}
             </ScrollArea>
             <div className="p-3 border-t flex gap-2">

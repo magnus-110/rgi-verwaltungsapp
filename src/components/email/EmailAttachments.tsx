@@ -1,0 +1,88 @@
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Paperclip, Download, FileText, Image, FileSpreadsheet, File } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+
+interface EmailAttachmentsProps {
+  emailId: string;
+}
+
+const getFileIcon = (mimeType: string | null) => {
+  if (!mimeType) return File;
+  if (mimeType.startsWith("image/")) return Image;
+  if (mimeType.includes("pdf")) return FileText;
+  if (mimeType.includes("spreadsheet") || mimeType.includes("excel") || mimeType.includes("csv")) return FileSpreadsheet;
+  return File;
+};
+
+const formatSize = (bytes: number | null) => {
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
+  const { data: attachments = [] } = useQuery({
+    queryKey: ["email-attachments", emailId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("email_attachments")
+        .select("*")
+        .eq("email_id", emailId)
+        .eq("is_inline", false)
+        .order("file_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  if (attachments.length === 0) return null;
+
+  const handleDownload = async (filePath: string, fileName: string) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from("email-attachments")
+        .createSignedUrl(filePath, 60);
+
+      if (error) throw error;
+      
+      window.open(data.signedUrl, "_blank");
+    } catch (err: any) {
+      toast.error("Download fehlgeschlagen: " + err.message);
+    }
+  };
+
+  return (
+    <div className="border-t pt-3 mt-3">
+      <div className="flex items-center gap-1.5 mb-2 text-sm font-medium text-muted-foreground">
+        <Paperclip className="h-4 w-4" />
+        {attachments.length} Anhang{attachments.length > 1 ? "e" : ""}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {attachments.map((att) => {
+          const Icon = getFileIcon(att.mime_type);
+          return (
+            <Button
+              key={att.id}
+              variant="outline"
+              size="sm"
+              className="gap-1.5 h-auto py-1.5 px-2.5"
+              onClick={() => att.file_path && handleDownload(att.file_path, att.file_name)}
+            >
+              <Icon className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate max-w-[150px]">{att.file_name}</span>
+              {att.file_size && (
+                <span className="text-xs text-muted-foreground">
+                  ({formatSize(Number(att.file_size))})
+                </span>
+              )}
+              <Download className="h-3 w-3 shrink-0" />
+            </Button>
+          );
+        })}
+      </div>
+    </div>
+  );
+};

@@ -20,6 +20,14 @@ interface EmailAccount {
   is_active: boolean;
 }
 
+interface ParsedAttachment {
+  filename: string;
+  contentType: string;
+  content: Uint8Array;
+  isInline: boolean;
+  contentId: string | null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -31,7 +39,6 @@ Deno.serve(async (req) => {
   );
 
   try {
-    // Get all active email accounts
     const { data: accounts, error: accError } = await supabaseAdmin
       .from("email_accounts")
       .select("*")
@@ -45,7 +52,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get inbox folder ID
     const { data: inboxFolder } = await supabaseAdmin
       .from("email_folders")
       .select("id")
@@ -71,7 +77,6 @@ Deno.serve(async (req) => {
         );
         results[account.email_address] = result;
 
-        // Update last sync time
         await supabaseAdmin
           .from("email_accounts")
           .update({
@@ -80,10 +85,7 @@ Deno.serve(async (req) => {
           })
           .eq("id", account.id);
       } catch (err: any) {
-        console.error(
-          `Error fetching ${account.email_address}:`,
-          err.message
-        );
+        console.error(`Error fetching ${account.email_address}:`, err.message);
         results[account.email_address] = { error: err.message };
 
         await supabaseAdmin
@@ -93,7 +95,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Trigger classification for newly fetched emails
+    // Trigger classification
     try {
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -147,35 +149,24 @@ async function fetchAccountEmails(
   const uidsToDelete: number[] = [];
 
   try {
-    // Open INBOX
     const mailbox = await client.mailboxOpen("INBOX");
-    console.log(
-      `Mailbox opened: ${mailbox.exists} messages, uidNext: ${mailbox.uidNext}`
-    );
+    console.log(`Mailbox opened: ${mailbox.exists} messages, uidNext: ${mailbox.uidNext}`);
 
     if (mailbox.exists === 0) {
-      console.log("No messages in mailbox");
       return { fetched: 0, deleted: 0 };
     }
 
-    // Search for message UIDs
     let uids: number[];
     if (account.last_uid) {
       const lastUid = parseInt(account.last_uid);
-      // Search for UIDs greater than last known
       uids = await client.search({ uid: `${lastUid + 1}:*` }, { uid: true });
-      // Filter out the last_uid itself (IMAP returns it if range matches)
       uids = uids.filter((u: number) => u > lastUid);
     } else {
-      // First sync: get all UIDs
       uids = await client.search({ all: true }, { uid: true });
     }
 
     console.log(`Found ${uids.length} UIDs to fetch`);
-
-    // Limit to 50 per run
     const uidsToFetch = uids.slice(0, 50);
-
     let maxUid = account.last_uid ? parseInt(account.last_uid) : 0;
 
     for (const uid of uidsToFetch) {
@@ -188,38 +179,21 @@ async function fetchAccountEmails(
           bodyStructure: true,
         }, { uid: true });
 
-        if (!msg) {
-          console.log(`No message found for UID ${uid}`);
-          continue;
-        }
+        if (!msg) continue;
 
         const envelope = msg.envelope;
         const source = msg.source?.toString() || "";
 
-        // Parse body from source
-        const { bodyText, bodyHtml } = parseEmailBody(source);
+        // Recursive MIME parsing
+        const { bodyText, bodyHtml, attachments } = parseEmailComplete(source);
+        const hasAttachments = attachments.length > 0 || checkHasAttachments(msg.bodyStructure);
 
-        // Check for attachments
-        const hasAttachments = checkHasAttachments(msg.bodyStructure);
-
-        // Determine from address and name
         const fromAddr = envelope.from?.[0]?.address || "";
         const fromName = envelope.from?.[0]?.name || "";
+        const toAddresses = (envelope.to || []).map((a: any) => a.address).filter(Boolean);
+        const toNames = (envelope.to || []).map((a: any) => a.name || a.address).filter(Boolean);
+        const ccAddresses = (envelope.cc || []).map((a: any) => a.address).filter(Boolean);
 
-        // To addresses
-        const toAddresses = (envelope.to || [])
-          .map((a: any) => a.address)
-          .filter(Boolean);
-        const toNames = (envelope.to || [])
-          .map((a: any) => a.name || a.address)
-          .filter(Boolean);
-
-        // CC addresses
-        const ccAddresses = (envelope.cc || [])
-          .map((a: any) => a.address)
-          .filter(Boolean);
-
-        // Check if already imported (by message_id)
         const messageId = envelope.messageId || `uid-${account.id}-${uid}`;
         const { data: existing } = await supabase
           .from("emails")
@@ -232,8 +206,7 @@ async function fetchAccountEmails(
           continue;
         }
 
-        // Insert email
-        const { error: insertError } = await supabase
+        const { data: insertedEmail, error: insertError } = await supabase
           .from("emails")
           .insert({
             account_id: account.id,
@@ -247,27 +220,58 @@ async function fetchAccountEmails(
             cc_addresses: ccAddresses.length > 0 ? ccAddresses : null,
             body_text: bodyText || null,
             body_html: bodyHtml || null,
-            date: envelope.date
-              ? new Date(envelope.date).toISOString()
-              : new Date().toISOString(),
+            date: envelope.date ? new Date(envelope.date).toISOString() : new Date().toISOString(),
             is_read: msg.flags?.has("\\Seen") || false,
             is_starred: msg.flags?.has("\\Flagged") || false,
             has_attachments: hasAttachments,
-          });
+          })
+          .select("id")
+          .single();
 
         if (insertError) {
           console.error("Insert error:", insertError.message);
           continue;
         }
 
-        // Track UID for deletion
+        // Store attachments in Supabase Storage
+        if (insertedEmail && attachments.length > 0) {
+          for (const att of attachments) {
+            try {
+              const storagePath = `${insertedEmail.id}/${att.filename}`;
+              const { error: uploadError } = await supabase.storage
+                .from("email-attachments")
+                .upload(storagePath, att.content, {
+                  contentType: att.contentType,
+                  upsert: true,
+                });
+
+              if (uploadError) {
+                console.error(`Upload attachment error: ${uploadError.message}`);
+                continue;
+              }
+
+              await supabase.from("email_attachments").insert({
+                email_id: insertedEmail.id,
+                file_name: att.filename,
+                mime_type: att.contentType,
+                file_size: att.content.byteLength,
+                file_path: storagePath,
+                is_inline: att.isInline,
+                content_id: att.contentId,
+              });
+            } catch (attErr: any) {
+              console.error(`Attachment save error: ${attErr.message}`);
+            }
+          }
+        }
+
         if (account.delete_after_import) {
           uidsToDelete.push(uid);
         }
 
         if (uid > maxUid) maxUid = uid;
         fetched++;
-        console.log(`Fetched email UID ${uid}: ${envelope.subject}`);
+        console.log(`Fetched email UID ${uid}: ${envelope.subject} (${attachments.length} attachments)`);
       } catch (msgErr: any) {
         console.error(`Error processing message UID ${uid}:`, msgErr.message);
       }
@@ -275,7 +279,6 @@ async function fetchAccountEmails(
 
     console.log(`Fetch loop complete: ${fetched} emails fetched, maxUid: ${maxUid}`);
 
-    // Update last_uid
     if (maxUid > 0) {
       await supabase
         .from("email_accounts")
@@ -283,13 +286,10 @@ async function fetchAccountEmails(
         .eq("id", account.id);
     }
 
-    // Delete imported messages from server if configured
     if (account.delete_after_import && uidsToDelete.length > 0) {
       try {
         await client.messageDelete(uidsToDelete, { uid: true });
-        console.log(
-          `Deleted ${uidsToDelete.length} messages from server for ${account.email_address}`
-        );
+        console.log(`Deleted ${uidsToDelete.length} messages from server`);
       } catch (delErr: any) {
         console.error("Delete from server failed:", delErr.message);
       }
@@ -301,83 +301,181 @@ async function fetchAccountEmails(
   return { fetched, deleted: uidsToDelete.length };
 }
 
-function parseEmailBody(source: string): {
+// ============ Recursive MIME Parser ============
+
+interface ParseResult {
   bodyText: string;
   bodyHtml: string;
-} {
-  let bodyText = "";
-  let bodyHtml = "";
+  attachments: ParsedAttachment[];
+}
+
+function parseEmailComplete(source: string): ParseResult {
+  const result: ParseResult = { bodyText: "", bodyHtml: "", attachments: [] };
 
   try {
-    // Simple MIME parsing - find text/plain and text/html parts
-    const boundary = extractBoundary(source);
-
-    if (boundary) {
-      const parts = source.split(`--${boundary}`);
-      for (const part of parts) {
-        const headerEnd = part.indexOf("\r\n\r\n");
-        if (headerEnd === -1) continue;
-
-        const headers = part.substring(0, headerEnd).toLowerCase();
-        let content = part.substring(headerEnd + 4);
-
-        // Remove trailing boundary markers
-        const nextBoundary = content.indexOf(`--${boundary}`);
-        if (nextBoundary !== -1) {
-          content = content.substring(0, nextBoundary);
-        }
-
-        // Handle transfer encoding
-        if (headers.includes("content-transfer-encoding: base64")) {
-          try {
-            content = atob(content.replace(/\s/g, ""));
-          } catch { /* ignore decode errors */ }
-        } else if (
-          headers.includes("content-transfer-encoding: quoted-printable")
-        ) {
-          content = decodeQuotedPrintable(content);
-        }
-
-        if (headers.includes("text/plain") && !bodyText) {
-          bodyText = content.trim();
-        } else if (headers.includes("text/html") && !bodyHtml) {
-          bodyHtml = content.trim();
-        }
-      }
+    // Split headers from body
+    const headerSplit = source.indexOf("\r\n\r\n");
+    if (headerSplit === -1) {
+      // Try with just \n\n
+      const headerSplit2 = source.indexOf("\n\n");
+      if (headerSplit2 === -1) return result;
+      const headers = source.substring(0, headerSplit2);
+      const body = source.substring(headerSplit2 + 2);
+      parseMimePart(headers, body, result);
     } else {
-      // Non-multipart message
-      const headerEnd = source.indexOf("\r\n\r\n");
-      if (headerEnd !== -1) {
-        const headers = source.substring(0, headerEnd).toLowerCase();
-        let content = source.substring(headerEnd + 4);
-
-        if (headers.includes("content-transfer-encoding: base64")) {
-          try {
-            content = atob(content.replace(/\s/g, ""));
-          } catch { /* ignore */ }
-        } else if (
-          headers.includes("content-transfer-encoding: quoted-printable")
-        ) {
-          content = decodeQuotedPrintable(content);
-        }
-
-        if (headers.includes("text/html")) {
-          bodyHtml = content.trim();
-        } else {
-          bodyText = content.trim();
-        }
-      }
+      const headers = source.substring(0, headerSplit);
+      const body = source.substring(headerSplit + 4);
+      parseMimePart(headers, body, result);
     }
   } catch (e) {
     console.error("Body parse error:", e);
   }
 
-  return { bodyText, bodyHtml };
+  return result;
 }
 
-function extractBoundary(source: string): string | null {
-  const match = source.match(/boundary="?([^";\r\n]+)"?/i);
+function parseMimePart(headers: string, body: string, result: ParseResult): void {
+  const contentType = getHeader(headers, "content-type") || "text/plain";
+  const boundary = extractBoundaryFromHeader(contentType);
+
+  if (boundary) {
+    // Multipart - split by boundary and recurse
+    const parts = splitByBoundary(body, boundary);
+    for (const part of parts) {
+      const partHeaderEnd = findHeaderEnd(part);
+      if (partHeaderEnd === -1) continue;
+
+      const partHeaders = part.substring(0, partHeaderEnd);
+      const partBody = part.substring(partHeaderEnd + (part.substring(partHeaderEnd).startsWith("\r\n\r\n") ? 4 : 2));
+      parseMimePart(partHeaders, partBody, result);
+    }
+  } else {
+    // Leaf part - extract content
+    const disposition = getHeader(headers, "content-disposition") || "";
+    const transferEncoding = getHeader(headers, "content-transfer-encoding") || "";
+    const contentId = extractContentId(getHeader(headers, "content-id") || "");
+    const ct = contentType.toLowerCase();
+
+    // Check if this is an attachment
+    const isAttachment = disposition.toLowerCase().includes("attachment") ||
+      (disposition.toLowerCase().includes("inline") && !ct.startsWith("text/")) ||
+      (!ct.startsWith("text/") && !ct.startsWith("multipart/"));
+
+    if (isAttachment) {
+      const filename = extractFilename(disposition, contentType) || `attachment_${Date.now()}`;
+      const mimeType = ct.split(";")[0].trim();
+      const decoded = decodeContent(body, transferEncoding);
+      const isInline = disposition.toLowerCase().includes("inline");
+      result.attachments.push({
+        filename,
+        contentType: mimeType,
+        content: decoded,
+        isInline,
+        contentId,
+      });
+    } else if (ct.includes("text/plain") && !result.bodyText) {
+      let decoded = decodeTextContent(body, transferEncoding);
+      // Handle charset
+      decoded = decodeCharset(decoded, contentType);
+      result.bodyText = decoded.trim();
+    } else if (ct.includes("text/html") && !result.bodyHtml) {
+      let decoded = decodeTextContent(body, transferEncoding);
+      decoded = decodeCharset(decoded, contentType);
+      result.bodyHtml = decoded.trim();
+    }
+  }
+}
+
+function findHeaderEnd(part: string): number {
+  const crlfIdx = part.indexOf("\r\n\r\n");
+  const lfIdx = part.indexOf("\n\n");
+  if (crlfIdx !== -1 && lfIdx !== -1) return Math.min(crlfIdx, lfIdx);
+  if (crlfIdx !== -1) return crlfIdx;
+  return lfIdx;
+}
+
+function splitByBoundary(body: string, boundary: string): string[] {
+  const parts: string[] = [];
+  const delim = `--${boundary}`;
+  const segments = body.split(delim);
+
+  for (let i = 1; i < segments.length; i++) {
+    const seg = segments[i];
+    // Skip closing boundary
+    if (seg.trimStart().startsWith("--")) continue;
+    // Remove leading newline
+    const cleaned = seg.replace(/^\r?\n/, "");
+    if (cleaned.trim()) parts.push(cleaned);
+  }
+
+  return parts;
+}
+
+function getHeader(headers: string, name: string): string | null {
+  // Unfold headers first (continuation lines)
+  const unfolded = headers.replace(/\r?\n[ \t]+/g, " ");
+  const lines = unfolded.split(/\r?\n/);
+  const prefix = name.toLowerCase() + ":";
+  for (const line of lines) {
+    if (line.toLowerCase().startsWith(prefix)) {
+      return line.substring(prefix.length).trim();
+    }
+  }
+  return null;
+}
+
+function extractBoundaryFromHeader(contentType: string): string | null {
+  const match = contentType.match(/boundary="?([^";\r\n]+)"?/i);
   return match ? match[1].trim() : null;
+}
+
+function extractFilename(disposition: string, contentType: string): string | null {
+  // Try disposition filename first
+  let match = disposition.match(/filename="?([^";\r\n]+)"?/i);
+  if (match) return decodeRfc2047(match[1].trim());
+
+  // Try content-type name
+  match = contentType.match(/name="?([^";\r\n]+)"?/i);
+  if (match) return decodeRfc2047(match[1].trim());
+
+  return null;
+}
+
+function extractContentId(value: string): string | null {
+  if (!value) return null;
+  return value.replace(/^</, "").replace(/>$/, "") || null;
+}
+
+function decodeContent(body: string, encoding: string): Uint8Array {
+  const enc = encoding.toLowerCase().trim();
+  if (enc === "base64") {
+    try {
+      const cleaned = body.replace(/\s/g, "");
+      const binary = atob(cleaned);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return bytes;
+    } catch {
+      return new TextEncoder().encode(body);
+    }
+  }
+  return new TextEncoder().encode(body);
+}
+
+function decodeTextContent(body: string, encoding: string): string {
+  const enc = encoding.toLowerCase().trim();
+  if (enc === "base64") {
+    try {
+      return atob(body.replace(/\s/g, ""));
+    } catch {
+      return body;
+    }
+  } else if (enc === "quoted-printable") {
+    return decodeQuotedPrintable(body);
+  }
+  return body;
 }
 
 function decodeQuotedPrintable(str: string): string {
@@ -388,16 +486,34 @@ function decodeQuotedPrintable(str: string): string {
     );
 }
 
+function decodeCharset(text: string, contentType: string): string {
+  // Basic charset handling - most modern emails are UTF-8
+  // For iso-8859-1, the charCodeAt approach from QP decoding already works
+  return text;
+}
+
+function decodeRfc2047(str: string): string {
+  // Decode RFC 2047 encoded words (e.g. =?UTF-8?B?...?=)
+  return str.replace(/=\?([^?]+)\?([BbQq])\?([^?]+)\?=/g, (_, charset, encoding, text) => {
+    try {
+      if (encoding.toUpperCase() === "B") {
+        return atob(text);
+      } else {
+        return decodeQuotedPrintable(text.replace(/_/g, " "));
+      }
+    } catch {
+      return text;
+    }
+  });
+}
+
 function checkHasAttachments(bodyStructure: any): boolean {
   if (!bodyStructure) return false;
-
   if (bodyStructure.disposition === "attachment") return true;
-
   if (bodyStructure.childNodes) {
     for (const child of bodyStructure.childNodes) {
       if (checkHasAttachments(child)) return true;
     }
   }
-
   return false;
 }
