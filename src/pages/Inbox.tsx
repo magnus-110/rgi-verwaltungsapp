@@ -167,19 +167,18 @@ export const Inbox = () => {
     },
   });
 
-  // Category counts from current emails
+  // All known categories (always shown)
+  const ALL_CATEGORIES = ["Rechnung", "Anfrage", "Versicherung", "Wartung", "Vertrag", "Mahnung", "Sonstiges", "Werbung", "Unkategorisiert"];
+
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
+    for (const cat of ALL_CATEGORIES) counts[cat] = 0;
     for (const e of emails) {
       const cat = e.ai_category || "Unkategorisiert";
       counts[cat] = (counts[cat] || 0) + 1;
     }
     return counts;
   }, [emails]);
-
-  const categoryList = useMemo(() => {
-    return Object.entries(categoryCounts).sort((a, b) => b[1] - a[1]);
-  }, [categoryCounts]);
 
   const filteredEmails = useMemo(() => {
     if (filterCategory === "all") return emails;
@@ -391,41 +390,41 @@ export const Inbox = () => {
         </div>
       )}
 
-      {/* Main content: resizable email list + detail */}
-      <ResizablePanelGroup direction="horizontal" className="flex-1">
+      {/* Main content area with tabs spanning full width */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Category tabs - full width above both panels */}
+        <div className="border-b">
+          <ScrollArea className="w-full">
+            <div className="flex px-2 py-1 gap-0.5">
+              <button
+                onClick={() => setFilterCategory("all")}
+                className={cn(
+                  "px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0",
+                  filterCategory === "all" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
+                )}
+              >
+                Alle ({emails.length})
+              </button>
+              {ALL_CATEGORIES.map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setFilterCategory(filterCategory === cat ? "all" : cat)}
+                  className={cn(
+                    "px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0",
+                    filterCategory === cat ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
+                  )}
+                >
+                  {cat} ({categoryCounts[cat] || 0})
+                </button>
+              ))}
+            </div>
+          </ScrollArea>
+        </div>
+
+        <ResizablePanelGroup direction="horizontal" className="flex-1">
         {/* Middle: Email List */}
         <ResizablePanel defaultSize={35} minSize={20} maxSize={60}>
           <div className="flex flex-col h-full">
-            {/* Category tabs ABOVE search */}
-            {categoryList.length > 0 && (
-              <div className="border-b">
-                <ScrollArea className="w-full">
-                  <div className="flex px-1 py-1 gap-0.5">
-                    <button
-                      onClick={() => setFilterCategory("all")}
-                      className={cn(
-                        "px-2 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0",
-                        filterCategory === "all" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
-                      )}
-                    >
-                      Alle ({emails.length})
-                    </button>
-                    {categoryList.map(([cat, count]) => (
-                      <button
-                        key={cat}
-                        onClick={() => setFilterCategory(filterCategory === cat ? "all" : cat)}
-                        className={cn(
-                          "px-2 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0",
-                          filterCategory === cat ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
-                        )}
-                      >
-                        {cat} ({count})
-                      </button>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </div>
-            )}
 
             {/* Search - filters within selected category */}
             <div className="p-2 border-b space-y-2">
@@ -655,6 +654,7 @@ export const Inbox = () => {
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>
+      </div>
 
       <ComposeEmailDialog
         open={composeOpen}
