@@ -261,7 +261,7 @@ async function fetchAccountEmails(
     }
 
     console.log(`Fetch loop complete: ${fetched} emails fetched, maxUid: ${maxUid}`);
-    if (maxUid > 0) {
+    // Update last_uid
       await supabase
         .from("email_accounts")
         .update({ last_uid: maxUid.toString() })
