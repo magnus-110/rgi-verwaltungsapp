@@ -57,10 +57,23 @@ Deno.serve(async (req) => {
       .from("contact_emails")
       .select("contact_id, email");
 
+    // Get building assignments for auto-mapping
+    const { data: contactBuildingAssignments } = await supabaseAdmin
+      .from("contact_building_assignments")
+      .select("contact_id, building_id")
+      .eq("is_active", true);
+
     // Build contact email lookup
     const emailToContactId: Record<string, string> = {};
     for (const ce of contactEmails || []) {
       emailToContactId[ce.email.toLowerCase()] = ce.contact_id;
+    }
+
+    // Build contact -> buildings lookup
+    const contactBuildings: Record<string, string[]> = {};
+    for (const cba of contactBuildingAssignments || []) {
+      if (!contactBuildings[cba.contact_id]) contactBuildings[cba.contact_id] = [];
+      contactBuildings[cba.contact_id].push(cba.building_id);
     }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -204,14 +217,16 @@ ${contactList || "Keine Kontakte vorhanden"}`,
         };
 
         // Use direct contact match first, then AI suggestion
-        if (directContactId) {
-          updateData.contact_id = directContactId;
-        } else if (classification.contact_id) {
-          updateData.contact_id = classification.contact_id;
+        const matchedContactId = directContactId || classification.contact_id || null;
+        if (matchedContactId) {
+          updateData.contact_id = matchedContactId;
         }
 
+        // Auto-map building: if matched contact has exactly 1 building, use it
         if (classification.building_id) {
           updateData.building_id = classification.building_id;
+        } else if (matchedContactId && contactBuildings[matchedContactId]?.length === 1) {
+          updateData.building_id = contactBuildings[matchedContactId][0];
         }
 
         const { error: updateErr } = await supabaseAdmin

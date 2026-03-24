@@ -105,8 +105,15 @@ Deno.serve(async (req) => {
       from: `${account.display_name} <${account.email_address}>`,
       to: Array.isArray(to) ? to.join(", ") : to,
       subject: subject || "(Kein Betreff)",
-      text: body_text || "",
     };
+
+    // For forwarded emails with HTML, send as HTML; otherwise plain text
+    if (body_html) {
+      mailOptions.html = body_html;
+      mailOptions.text = body_text || "";
+    } else {
+      mailOptions.text = body_text || "";
+    }
 
     if (cc && cc.length > 0) {
       mailOptions.cc = Array.isArray(cc) ? cc.join(", ") : cc;
