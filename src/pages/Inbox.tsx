@@ -537,168 +537,124 @@ export const Inbox = () => {
         <ResizableHandle withHandle />
 
         {/* Right: Email Detail */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {selectedEmail ? (
-          <>
-            <ScrollArea className="flex-1">
-              <div className="p-4 space-y-2">
-                {/* Subject + Actions */}
-                <div className="flex items-start justify-between gap-4">
-                  <h2 className="text-lg font-semibold truncate">{selectedEmail.subject || "(Kein Betreff)"}</h2>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Button
-                      variant="ghost" size="icon" className="h-8 w-8"
-                      onClick={() => toggleRead(selectedEmail.id, selectedEmail.is_read)}
-                      title={selectedEmail.is_read ? "Als ungelesen markieren" : "Als gelesen markieren"}
-                    >
-                      <MailOpen className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="ghost" size="icon" className="h-8 w-8"
-                      onClick={() => toggleStar(selectedEmail.id, selectedEmail.is_starred)}
-                    >
-                      <Star className={cn("h-4 w-4", selectedEmail.is_starred && "text-yellow-500 fill-yellow-500")} />
-                    </Button>
-                    {!selectedEmail.is_archived && (
-                      <Button
-                        variant="ghost" size="icon" className="h-8 w-8"
-                        onClick={() => openArchiveDialog(selectedEmail.id)}
-                      >
-                        <Archive className="h-4 w-4" />
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive"
-                      onClick={() => deleteEmail(selectedEmail.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
+        <ResizablePanel defaultSize={65}>
+          <div className="flex flex-col h-full min-w-0">
+            {selectedEmail ? (
+              <>
+                <ScrollArea className="flex-1">
+                  <div className="p-4 space-y-2">
+                    <div className="flex items-start justify-between gap-4">
+                      <h2 className="text-lg font-semibold truncate">{selectedEmail.subject || "(Kein Betreff)"}</h2>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleRead(selectedEmail.id, selectedEmail.is_read)} title={selectedEmail.is_read ? "Als ungelesen markieren" : "Als gelesen markieren"}>
+                          <MailOpen className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleStar(selectedEmail.id, selectedEmail.is_starred)}>
+                          <Star className={cn("h-4 w-4", selectedEmail.is_starred && "text-yellow-500 fill-yellow-500")} />
+                        </Button>
+                        {!selectedEmail.is_archived && (
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openArchiveDialog(selectedEmail.id)}>
+                            <Archive className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => deleteEmail(selectedEmail.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
 
-                {/* Sender name + expandable details */}
-                <div>
-                  <button
-                    className="flex items-center gap-1.5 text-sm hover:underline cursor-pointer"
-                    onClick={() => setShowEmailDetails(prev => !prev)}
-                  >
-                    <span className="font-medium text-foreground">{selectedEmail.from_name || selectedEmail.from_address}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {selectedEmail.date && new Date(selectedEmail.date).toLocaleString("de-DE")}
-                    </span>
-                    {showEmailDetails ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
-                  </button>
-                  {showEmailDetails && (
-                    <div className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
-                      {selectedEmail.from_name && (
-                        <div>Von: {selectedEmail.from_name} &lt;{selectedEmail.from_address}&gt;</div>
-                      )}
-                      {selectedEmail.to_addresses && (
-                        <div>
-                          An: {Array.isArray(selectedEmail.to_addresses) 
-                            ? (selectedEmail.to_addresses as string[]).join(", ") 
-                            : String(selectedEmail.to_addresses)}
-                        </div>
-                      )}
-                      {selectedEmail.cc_addresses && (
-                        <div>
-                          CC: {Array.isArray(selectedEmail.cc_addresses) 
-                            ? (selectedEmail.cc_addresses as string[]).join(", ") 
-                            : String(selectedEmail.cc_addresses)}
+                    <div>
+                      <button className="flex items-center gap-1.5 text-sm hover:underline cursor-pointer" onClick={() => setShowEmailDetails(prev => !prev)}>
+                        <span className="font-medium text-foreground">{selectedEmail.from_name || selectedEmail.from_address}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {selectedEmail.date && new Date(selectedEmail.date).toLocaleString("de-DE")}
+                        </span>
+                        {showEmailDetails ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
+                      </button>
+                      {showEmailDetails && (
+                        <div className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
+                          {selectedEmail.from_name && <div>Von: {selectedEmail.from_name} &lt;{selectedEmail.from_address}&gt;</div>}
+                          {selectedEmail.to_addresses && (
+                            <div>An: {Array.isArray(selectedEmail.to_addresses) ? (selectedEmail.to_addresses as string[]).join(", ") : String(selectedEmail.to_addresses)}</div>
+                          )}
+                          {selectedEmail.cc_addresses && (
+                            <div>CC: {Array.isArray(selectedEmail.cc_addresses) ? (selectedEmail.cc_addresses as string[]).join(", ") : String(selectedEmail.cc_addresses)}</div>
+                          )}
                         </div>
                       )}
                     </div>
-                  )}
-                </div>
 
-                {/* Badges - all in one line */}
-                <div className="flex flex-wrap gap-1.5">
-                  {selectedEmail.building_id && (
-                    <Badge variant="outline" className="gap-1">
-                      <Building2 className="h-3 w-3" />
-                      {buildings.find(b => b.id === selectedEmail.building_id)?.name || "Liegenschaft"}
-                    </Badge>
+                    <div className="flex flex-wrap gap-1.5">
+                      {selectedEmail.building_id && (
+                        <Badge variant="outline" className="gap-1">
+                          <Building2 className="h-3 w-3" />
+                          {buildings.find(b => b.id === selectedEmail.building_id)?.name || "Liegenschaft"}
+                        </Badge>
+                      )}
+                      {selectedEmail.contact_id && (
+                        <Badge variant="outline" className="gap-1">
+                          <User className="h-3 w-3" />
+                          {(() => { const c = contacts.find(c => c.id === selectedEmail.contact_id); return c ? getContactName(c) : "Kontakt"; })()}
+                        </Badge>
+                      )}
+                      {selectedEmail.ai_category && <Badge variant="outline">{selectedEmail.ai_category}</Badge>}
+                      {selectedEmail.ai_priority && (
+                        <Badge variant={selectedEmail.ai_priority === "hoch" ? "destructive" : "secondary"}>
+                          Priorität: {selectedEmail.ai_priority}
+                        </Badge>
+                      )}
+                    </div>
+                    {selectedEmail.ai_summary && (
+                      <p className="text-sm bg-muted/50 rounded-md p-2 italic">KI: {selectedEmail.ai_summary}</p>
+                    )}
+                  </div>
+
+                  {selectedEmail.has_attachments && (
+                    <div className="px-4 pb-2">
+                      <EmailAttachments emailId={selectedEmail.id} />
+                    </div>
                   )}
-                  {selectedEmail.contact_id && (
-                    <Badge variant="outline" className="gap-1">
-                      <User className="h-3 w-3" />
-                      {(() => { const c = contacts.find(c => c.id === selectedEmail.contact_id); return c ? getContactName(c) : "Kontakt"; })()}
-                    </Badge>
-                  )}
-                  {selectedEmail.ai_category && (
-                    <Badge variant="outline">{selectedEmail.ai_category}</Badge>
-                  )}
-                  {selectedEmail.ai_priority && (
-                    <Badge variant={selectedEmail.ai_priority === "hoch" ? "destructive" : "secondary"}>
-                      Priorität: {selectedEmail.ai_priority}
-                    </Badge>
-                  )}
+
+                  <Separator />
+
+                  <div className="p-4">
+                    {selectedEmail.body_html ? (
+                      <EmailHtmlBody html={selectedEmail.body_html} emailId={selectedEmail.id} />
+                    ) : (
+                      <pre className="text-sm whitespace-pre-wrap font-sans">{selectedEmail.body_text || "Kein Inhalt"}</pre>
+                    )}
+                  </div>
+                </ScrollArea>
+                <div className="p-3 border-t flex gap-2">
+                  <Button size="sm" className="gap-1.5" onClick={() => {
+                    setComposeReplyTo({ subject: selectedEmail.subject, from_address: selectedEmail.from_address, from_name: selectedEmail.from_name, body_text: selectedEmail.body_text, date: selectedEmail.date, account_id: selectedEmail.account_id });
+                    setComposeForward(null);
+                    setComposeOpen(true);
+                  }}>
+                    <Reply className="h-3.5 w-3.5" />
+                    Antworten
+                  </Button>
+                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => {
+                    setComposeForward({ subject: selectedEmail.subject, body_text: selectedEmail.body_text, body_html: selectedEmail.body_html, account_id: selectedEmail.account_id });
+                    setComposeReplyTo(null);
+                    setComposeOpen(true);
+                  }}>
+                    <Forward className="h-3.5 w-3.5" />
+                    Weiterleiten
+                  </Button>
                 </div>
-                {selectedEmail.ai_summary && (
-                  <p className="text-sm bg-muted/50 rounded-md p-2 italic">
-                    KI: {selectedEmail.ai_summary}
-                  </p>
-                )}
+              </>
+            ) : (
+              <div className="flex-1 flex items-center justify-center">
+                <div className="text-center">
+                  <Mail className="h-16 w-16 mx-auto text-muted-foreground/20 mb-4" />
+                  <p className="text-muted-foreground">Wählen Sie eine E-Mail aus</p>
+                </div>
               </div>
-
-              {/* Attachments */}
-              {selectedEmail.has_attachments && (
-                <div className="px-4 pb-2">
-                  <EmailAttachments emailId={selectedEmail.id} />
-                </div>
-              )}
-
-              <Separator />
-
-              {/* Email Body */}
-              <div className="p-4">
-                {selectedEmail.body_html ? (
-                  <EmailHtmlBody html={selectedEmail.body_html} emailId={selectedEmail.id} />
-                ) : (
-                  <pre className="text-sm whitespace-pre-wrap font-sans">{selectedEmail.body_text || "Kein Inhalt"}</pre>
-                )}
-              </div>
-            </ScrollArea>
-            <div className="p-3 border-t flex gap-2">
-              <Button size="sm" className="gap-1.5" onClick={() => {
-                setComposeReplyTo({
-                  subject: selectedEmail.subject,
-                  from_address: selectedEmail.from_address,
-                  from_name: selectedEmail.from_name,
-                  body_text: selectedEmail.body_text,
-                  date: selectedEmail.date,
-                  account_id: selectedEmail.account_id,
-                });
-                setComposeForward(null);
-                setComposeOpen(true);
-              }}>
-                <Reply className="h-3.5 w-3.5" />
-                Antworten
-              </Button>
-              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => {
-                setComposeForward({
-                  subject: selectedEmail.subject,
-                  body_text: selectedEmail.body_text,
-                  body_html: selectedEmail.body_html,
-                  account_id: selectedEmail.account_id,
-                });
-                setComposeReplyTo(null);
-                setComposeOpen(true);
-              }}>
-                <Forward className="h-3.5 w-3.5" />
-                Weiterleiten
-              </Button>
-            </div>
-          </>
-        ) : (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <Mail className="h-16 w-16 mx-auto text-muted-foreground/20 mb-4" />
-              <p className="text-muted-foreground">Wählen Sie eine E-Mail aus</p>
-            </div>
+            )}
           </div>
-        )}
-      </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
 
       <ComposeEmailDialog
         open={composeOpen}
