@@ -612,7 +612,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                       {a.shares.length === 0 && <p className="text-xs text-muted-foreground">Keine Anteile definiert</p>}
                       {a.shares.map(s => (
                         <div key={s.id} className="flex items-center gap-2 mt-2">
-                          {SHARE_TYPES.some(st => st.value === s.share_type) ? (
+                           {allShareTypes.some(st => st.value === s.share_type) ? (
                             <Select value={s.share_type} onValueChange={(v) => {
                               if (v === "__add__") {
                                 updateShare(s.id, "share_type", "");
@@ -622,7 +622,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                             }}>
                               <SelectTrigger className="w-36 h-8 text-sm"><SelectValue /></SelectTrigger>
                               <SelectContent>
-                                {SHARE_TYPES.map(st => <SelectItem key={st.value} value={st.value}>{st.label}</SelectItem>)}
+                                {allShareTypes.map(st => <SelectItem key={st.value} value={st.value}>{st.label}</SelectItem>)}
                                 <SelectItem value="__add__" className="text-primary font-medium">+ Hinzufügen</SelectItem>
                               </SelectContent>
                             </Select>
@@ -677,7 +677,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                       {a.costs.length === 0 && <p className="text-xs text-muted-foreground">Keine Kosten definiert</p>}
                       {a.costs.map(c => (
                         <div key={c.id} className="flex items-center gap-2 mt-2">
-                          {COST_TYPES.includes(c.cost_type) ? (
+                           {allCostTypes.includes(c.cost_type) ? (
                             <Select value={c.cost_type} onValueChange={(v) => {
                               if (v === "__add__") {
                                 updateCost(c.id, "cost_type", "");
@@ -687,7 +687,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                             }}>
                               <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
                               <SelectContent>
-                                {COST_TYPES.map(ct => <SelectItem key={ct} value={ct}>{ct}</SelectItem>)}
+                                {allCostTypes.map(ct => <SelectItem key={ct} value={ct}>{ct}</SelectItem>)}
                                 <SelectItem value="__add__" className="text-primary font-medium">+ Hinzufügen</SelectItem>
                               </SelectContent>
                             </Select>
