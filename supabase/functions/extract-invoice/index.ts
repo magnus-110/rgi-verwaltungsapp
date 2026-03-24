@@ -322,6 +322,7 @@ serve(async (req) => {
         .from("chart_of_accounts")
         .select("id")
         .eq("account_number", extracted.suggested_account_number)
+        .is("building_id", null)
         .maybeSingle();
       if (account) suggestedAccountId = account.id;
     }

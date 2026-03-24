@@ -231,59 +231,90 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
     const vendorIban = defaultBank?.iban || null;
     const vendorName = contactName;
 
-    // 1. Find or create account
-    const { data: existingAccount } = await supabase
-      .from("chart_of_accounts")
-      .select("id")
-      .eq("building_id", buildingId)
-      .eq("account_number", unitNumber)
-      .maybeSingle();
-
-    let accountId = existingAccount?.id;
-    if (!accountId) {
-      const { data: newAccount } = await supabase
+    try {
+      // 1. Find or create account
+      const { data: existingAccount, error: findError } = await supabase
         .from("chart_of_accounts")
-        .insert({
-          account_number: unitNumber,
-          account_name: `${costType} ${lastName}`,
-          building_id: buildingId,
-          category: "Einnahmen",
-        })
         .select("id")
-        .single();
-      accountId = newAccount?.id;
+        .eq("building_id", buildingId)
+        .eq("account_number", unitNumber)
+        .maybeSingle();
+
+      if (findError) {
+        toast({ title: "Fehler", description: `Kontosuche fehlgeschlagen: ${findError.message}`, variant: "destructive" });
+        return;
+      }
+
+      let accountId = existingAccount?.id;
+      if (!accountId) {
+        const { data: newAccount, error: insertError } = await supabase
+          .from("chart_of_accounts")
+          .insert({
+            account_number: unitNumber,
+            account_name: `${costType} ${lastName}`,
+            building_id: buildingId,
+            category: "Einnahmen",
+          })
+          .select("id")
+          .single();
+        if (insertError) {
+          toast({ title: "Fehler beim Konto erstellen", description: insertError.message, variant: "destructive" });
+          return;
+        }
+        accountId = newAccount?.id;
+      }
+
+      if (!accountId) {
+        toast({ title: "Fehler", description: "Konto konnte nicht erstellt werden.", variant: "destructive" });
+        return;
+      }
+
+      // 2. Find or create booking template
+      const templateName = `mtl. ${costType} ${unitNumber} ${floorLocation}`.trim();
+      const { data: existingTemplate } = await supabase
+        .from("booking_templates")
+        .select("id")
+        .eq("building_id", buildingId)
+        .ilike("name", `%${costType}%${unitNumber}%`)
+        .maybeSingle();
+
+      if (existingTemplate) {
+        const { error: updateErr } = await supabase.from("booking_templates").update({ 
+          expected_amount: amount,
+          vendor_name: vendorName,
+          vendor_iban: vendorIban,
+          vat_rate: 19,
+          account_id: accountId,
+        }).eq("id", existingTemplate.id);
+        if (updateErr) {
+          toast({ title: "Fehler beim Vorlage aktualisieren", description: updateErr.message, variant: "destructive" });
+          return;
+        }
+      } else {
+        const { error: insertErr } = await supabase.from("booking_templates").insert({
+          name: templateName,
+          building_id: buildingId,
+          expected_amount: amount,
+          interval: "monatlich",
+          account_id: accountId,
+          vendor_name: vendorName,
+          vendor_iban: vendorIban,
+          vat_rate: 19,
+        });
+        if (insertErr) {
+          toast({ title: "Fehler beim Vorlage erstellen", description: insertErr.message, variant: "destructive" });
+          return;
+        }
+      }
+
+      // Invalidate queries so UI refreshes
+      queryClient.invalidateQueries({ queryKey: ["chart-of-accounts"] });
+      queryClient.invalidateQueries({ queryKey: ["booking-templates"] });
+
+      toast({ title: "Konto & Vorlage erstellt", description: `${costType}-Konto und Buchungsvorlage wurden angelegt/aktualisiert.` });
+    } catch (err: any) {
+      toast({ title: "Unerwarteter Fehler", description: err?.message || "Bitte erneut versuchen.", variant: "destructive" });
     }
-
-    // 2. Find or create booking template
-    const templateName = `mtl. ${costType} ${unitNumber} ${floorLocation}`.trim();
-    const { data: existingTemplate } = await supabase
-      .from("booking_templates")
-      .select("id")
-      .eq("building_id", buildingId)
-      .ilike("name", `%${costType}%${unitNumber}%`)
-      .maybeSingle();
-
-    if (existingTemplate) {
-      await supabase.from("booking_templates").update({ 
-        expected_amount: amount,
-        vendor_name: vendorName,
-        vendor_iban: vendorIban,
-        vat_rate: 19,
-      }).eq("id", existingTemplate.id);
-    } else {
-      await supabase.from("booking_templates").insert({
-        name: templateName,
-        building_id: buildingId,
-        expected_amount: amount,
-        interval: "monatlich",
-        account_id: accountId || null,
-        vendor_name: vendorName,
-        vendor_iban: vendorIban,
-        vat_rate: 19,
-      });
-    }
-
-    toast({ title: "Konto & Vorlage erstellt", description: `${costType}-Konto und Buchungsvorlage wurden angelegt/aktualisiert.` });
   };
 
   // Costs

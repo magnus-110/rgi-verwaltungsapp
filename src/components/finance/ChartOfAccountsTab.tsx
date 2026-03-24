@@ -107,8 +107,10 @@ export function ChartOfAccountsTab() {
       return;
     }
     const maxSort = Math.max(0, ...accounts.map(a => a.sort_order ?? 0));
+    const buildingId = selectedBuilding && selectedBuilding !== "global" ? selectedBuilding : null;
     const { error } = await supabase.from("chart_of_accounts").insert({
       ...newAccount,
+      building_id: buildingId,
       sort_order: maxSort + 1,
       is_system_account: false,
     });
