@@ -26,6 +26,11 @@ interface LocalBankAccount {
   iban: string | null; bic: string | null; sepa_mandate_ref: string | null;
   sepa_mandate_date: string | null; is_default: boolean; _deleted?: boolean;
 }
+interface LocalPerson {
+  _localId: string; id?: string; salutation: string | null; first_name: string | null;
+  last_name: string | null; position: string | null; email: string | null;
+  phone: string | null; notes: string | null; is_primary: boolean; _deleted?: boolean;
+}
 
 // IBAN validation: basic structure check (2 letter country + 2 check digits + up to 30 alphanumeric)
 function isValidIban(iban: string): boolean {
