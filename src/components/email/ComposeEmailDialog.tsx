@@ -140,6 +140,7 @@ export const ComposeEmailDialog = ({
           cc: ccAddresses.length > 0 ? ccAddresses : undefined,
           subject,
           body_text: bodyText,
+          body_html: forward?.body_html || undefined,
           attachments: attachmentData.length > 0 ? attachmentData : undefined,
         },
       });
