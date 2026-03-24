@@ -13,6 +13,7 @@ import {
   CalendarDays,
   BookUser,
   Landmark,
+  Mail,
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -32,6 +33,7 @@ import { Button } from "@/components/ui/button";
 
 const menuItems = [
   { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
+  { title: "Postfach", url: "/postfach", icon: Mail },
   { title: "NOVA", url: "/documents", icon: Sparkles },
   { title: "Aufgaben", url: "/todos", icon: CheckSquare },
   { title: "Kalender", url: "/calendar", icon: CalendarDays },
