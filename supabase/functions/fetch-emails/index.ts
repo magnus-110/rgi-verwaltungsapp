@@ -300,7 +300,11 @@ async function fetchAccountEmails(
       }
     }
   } finally {
-    await client.logout();
+    try {
+      await client.logout();
+    } catch (_e) {
+      // Strato closes TLS without close_notify - this is expected
+    }
   }
 
   return { fetched, deleted: uidsToDelete.length };
