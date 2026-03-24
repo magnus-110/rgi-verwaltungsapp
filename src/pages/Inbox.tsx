@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Mail, Search, Star, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings } from "lucide-react";
+import { Mail, Search, Star, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 const folderIcons: Record<string, any> = {
   'inbox': InboxIcon,
@@ -22,6 +23,8 @@ export const Inbox = () => {
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null);
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [isSyncing, setIsSyncing] = useState(false);
+  const queryClient = useQueryClient();
 
   // Fetch folders
   const { data: folders = [] } = useQuery({
@@ -86,14 +89,32 @@ export const Inbox = () => {
 
   const unreadCount = emails.filter(e => !e.is_read).length;
 
+  const handleSync = async () => {
+    setIsSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("fetch-emails");
+      if (error) throw error;
+      toast.success("E-Mails synchronisiert");
+      queryClient.invalidateQueries({ queryKey: ["emails"] });
+      queryClient.invalidateQueries({ queryKey: ["email-accounts"] });
+    } catch (err: any) {
+      toast.error("Sync fehlgeschlagen: " + (err.message || "Unbekannter Fehler"));
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   return (
     <div className="h-[calc(100vh-8rem)] flex rounded-lg border bg-background overflow-hidden">
       {/* Left: Folders & Accounts */}
       <div className="w-56 border-r flex flex-col shrink-0">
-        <div className="p-3 border-b">
-          <Button size="sm" className="w-full gap-2">
+        <div className="p-3 border-b flex gap-2">
+          <Button size="sm" className="flex-1 gap-2">
             <Plus className="h-4 w-4" />
             Neue E-Mail
+          </Button>
+          <Button size="sm" variant="outline" onClick={handleSync} disabled={isSyncing}>
+            {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           </Button>
         </div>
 

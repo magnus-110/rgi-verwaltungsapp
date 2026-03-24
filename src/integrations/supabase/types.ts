@@ -1768,11 +1768,13 @@ export type Database = {
           is_draft: boolean
           is_read: boolean
           is_starred: boolean
+          message_id: string | null
           message_id_header: string | null
           process_id: string | null
           subject: string | null
           thread_id: string | null
           to_addresses: Json | null
+          to_names: string[] | null
           updated_at: string
         }
         Insert: {
@@ -1800,11 +1802,13 @@ export type Database = {
           is_draft?: boolean
           is_read?: boolean
           is_starred?: boolean
+          message_id?: string | null
           message_id_header?: string | null
           process_id?: string | null
           subject?: string | null
           thread_id?: string | null
           to_addresses?: Json | null
+          to_names?: string[] | null
           updated_at?: string
         }
         Update: {
@@ -1832,11 +1836,13 @@ export type Database = {
           is_draft?: boolean
           is_read?: boolean
           is_starred?: boolean
+          message_id?: string | null
           message_id_header?: string | null
           process_id?: string | null
           subject?: string | null
           thread_id?: string | null
           to_addresses?: Json | null
+          to_names?: string[] | null
           updated_at?: string
         }
         Relationships: [
