@@ -132,15 +132,20 @@ async function fetchAccountEmails(
   inboxFolderId: string | undefined,
   sentFolderId: string | undefined
 ) {
+  // Port 993 = direct SSL, Port 143 = STARTTLS
+  const isSecure = account.imap_port === 993;
   const client = new ImapFlow({
     host: account.imap_host,
     port: account.imap_port,
-    secure: account.use_ssl,
+    secure: isSecure,
     auth: {
       user: account.imap_user,
       pass: account.imap_password,
     },
     logger: false,
+    tls: {
+      rejectUnauthorized: false,
+    },
   });
 
   await client.connect();
