@@ -319,7 +319,7 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
                 <Select value={newAccount.default_distribution_key} onValueChange={v => setNewAccount(p => ({ ...p, default_distribution_key: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {DISTRIBUTION_KEYS.map(k => <SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>)}
+                    {allDistKeys.map(k => <SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
