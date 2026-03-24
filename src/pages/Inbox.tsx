@@ -45,6 +45,7 @@ export const Inbox = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [newContactDialogOpen, setNewContactDialogOpen] = useState(false);
   const [newContactData, setNewContactData] = useState({ first_name: "", last_name: "", company_name: "", email: "" });
+  const [contactSearchTerm, setContactSearchTerm] = useState("");
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
