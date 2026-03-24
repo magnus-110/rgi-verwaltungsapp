@@ -353,6 +353,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   const updateCost = async (id: string, field: string, value: any) => {
     await supabase.from("contact_building_costs").update({ [field]: value }).eq("id", id);
     refetch();
+    if (field === "cost_type") queryClient.invalidateQueries({ queryKey: ["custom-cost-types"] });
   };
   const deleteCost = async (id: string) => {
     await supabase.from("contact_building_costs").delete().eq("id", id);
