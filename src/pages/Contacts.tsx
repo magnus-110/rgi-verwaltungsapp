@@ -17,6 +17,7 @@ export interface Contact {
   address_zip: string | null;
   address_city: string | null;
   notes: string | null;
+  contact_type: string | null;
   created_at: string;
   updated_at: string;
 }

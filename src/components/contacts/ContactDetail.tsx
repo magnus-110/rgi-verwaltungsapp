@@ -5,9 +5,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Plus, Save, Trash2, Phone, Mail, Landmark, Users } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ArrowLeft, Plus, Save, Trash2, Phone, Mail, Landmark, Users, ChevronDown, ChevronRight } from "lucide-react";
 import { ContactBuildingAssignments } from "./ContactBuildingAssignments";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -19,29 +20,41 @@ const SALUTATIONS = [
   "Herr Prof. Dr.", "Frau Prof. Dr.", "Herr/Frau"
 ];
 
-interface LocalPhone { _localId: string; id?: string; phone_number: string; label: string; _deleted?: boolean; }
-interface LocalEmail { _localId: string; id?: string; email: string; label: string; is_primary: boolean; _deleted?: boolean; }
+const CONTACT_TYPES = [
+  { value: "person", label: "Person" },
+  { value: "company", label: "Firma" },
+  { value: "owner_group", label: "Eigentümergemeinschaft" },
+  { value: "service_provider", label: "Dienstleister" },
+];
+
+const PHONE_LABELS = ["Mobil", "Festnetz", "Büro", "Fax"];
+const EMAIL_LABELS = ["Privat", "Geschäftlich", "Sonstige"];
+
+interface LocalPhone { _localId: string; id?: string; phone_number: string; label: string; person_id?: string | null; _deleted?: boolean; }
+interface LocalEmail { _localId: string; id?: string; email: string; label: string; is_primary: boolean; person_id?: string | null; _deleted?: boolean; }
 interface LocalBankAccount {
   _localId: string; id?: string; account_holder: string | null; bank_name: string | null;
   iban: string | null; bic: string | null; sepa_mandate_ref: string | null;
-  sepa_mandate_date: string | null; is_default: boolean; _deleted?: boolean;
+  sepa_mandate_date: string | null; is_default: boolean; person_id?: string | null; _deleted?: boolean;
 }
 interface LocalPerson {
   _localId: string; id?: string; salutation: string | null; first_name: string | null;
-  last_name: string | null; position: string | null; email: string | null;
-  phone: string | null; notes: string | null; is_primary: boolean; _deleted?: boolean;
+  last_name: string | null; position: string | null; notes: string | null;
+  is_primary: boolean; _deleted?: boolean;
+  // Local sub-collections
+  phones: LocalPhone[];
+  emails: LocalEmail[];
+  banks: LocalBankAccount[];
 }
 
-// IBAN validation: basic structure check (2 letter country + 2 check digits + up to 30 alphanumeric)
 function isValidIban(iban: string): boolean {
-  if (!iban || iban.trim() === "") return true; // empty is allowed
+  if (!iban || iban.trim() === "") return true;
   const cleaned = iban.replace(/\s/g, "").toUpperCase();
   return /^[A-Z]{2}\d{2}[A-Z0-9]{4,30}$/.test(cleaned);
 }
 
 function formatIban(value: string): string {
   const cleaned = value.replace(/\s/g, "").toUpperCase();
-  // Group in blocks of 4
   return cleaned.replace(/(.{4})/g, "$1 ").trim();
 }
 
@@ -58,14 +71,12 @@ interface Props {
 export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
   const { toast } = useToast();
   const [form, setForm] = useState({ ...contact });
-  const [phones, setPhones] = useState<LocalPhone[]>([]);
-  const [emails, setEmails] = useState<LocalEmail[]>([]);
-  const [bankAccounts, setBankAccounts] = useState<LocalBankAccount[]>([]);
   const [persons, setPersons] = useState<LocalPerson[]>([]);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [ibanErrors, setIbanErrors] = useState<Record<string, string>>({});
   const [isDirty, setIsDirty] = useState(false);
+  const [openPersons, setOpenPersons] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setForm({ ...contact });
@@ -75,98 +86,123 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
   }, [contact.id]);
 
   const loadRelated = async () => {
-    const [phonesRes, emailsRes, banksRes, personsRes] = await Promise.all([
+    const [personsRes, phonesRes, emailsRes, banksRes] = await Promise.all([
+      supabase.from("contact_persons").select("*").eq("contact_id", contact.id).order("sort_order"),
       supabase.from("contact_phones").select("*").eq("contact_id", contact.id).order("created_at"),
       supabase.from("contact_emails").select("*").eq("contact_id", contact.id).order("created_at"),
       supabase.from("contact_bank_accounts").select("*").eq("contact_id", contact.id).order("created_at"),
-      supabase.from("contact_persons").select("*").eq("contact_id", contact.id).order("sort_order"),
     ]);
-    setPhones((phonesRes.data || []).map((p: any) => ({ ...p, _localId: p.id })));
-    setEmails((emailsRes.data || []).map((e: any) => ({ ...e, _localId: e.id })));
-    setBankAccounts((banksRes.data || []).map((b: any) => ({ ...b, _localId: b.id })));
-    setPersons((personsRes.data || []).map((p: any) => ({ ...p, _localId: p.id })));
+
+    const personsData = (personsRes.data || []).map((p: any) => ({
+      ...p,
+      _localId: p.id,
+      phones: (phonesRes.data || []).filter((ph: any) => ph.person_id === p.id).map((ph: any) => ({ ...ph, _localId: ph.id })),
+      emails: (emailsRes.data || []).filter((em: any) => em.person_id === p.id).map((em: any) => ({ ...em, _localId: em.id })),
+      banks: (banksRes.data || []).filter((bk: any) => bk.person_id === p.id).map((bk: any) => ({ ...bk, _localId: bk.id })),
+    }));
+
+    setPersons(personsData);
+
+    // Auto-open first person
+    if (personsData.length > 0) {
+      setOpenPersons({ [personsData[0]._localId]: true });
+    }
   };
 
   const markDirty = useCallback(() => setIsDirty(true), []);
 
-  // --- Local state mutations (no DB calls) ---
-  const addPhone = () => {
-    setPhones(prev => [...prev, { _localId: nextLocalId(), phone_number: "", label: "Mobil" }]);
-    markDirty();
-  };
-  const updatePhoneLocal = (localId: string, field: string, value: string) => {
-    setPhones(prev => prev.map(p => p._localId === localId ? { ...p, [field]: value } : p));
-    markDirty();
-  };
-  const removePhone = (localId: string) => {
-    setPhones(prev => prev.map(p => p._localId === localId ? { ...p, _deleted: true } : p));
-    markDirty();
-  };
-
-  const addEmail = () => {
-    setEmails(prev => [...prev, { _localId: nextLocalId(), email: "", label: "Privat", is_primary: false }]);
-    markDirty();
-  };
-  const updateEmailLocal = (localId: string, field: string, value: string | boolean) => {
-    setEmails(prev => prev.map(e => e._localId === localId ? { ...e, [field]: value } : e));
-    markDirty();
-  };
-  const removeEmail = (localId: string) => {
-    setEmails(prev => prev.map(e => e._localId === localId ? { ...e, _deleted: true } : e));
-    markDirty();
-  };
-
-  const addBank = () => {
-    setBankAccounts(prev => [...prev, {
-      _localId: nextLocalId(), account_holder: null, bank_name: null,
-      iban: null, bic: null, sepa_mandate_ref: null, sepa_mandate_date: null, is_default: false,
-    }]);
-    markDirty();
-  };
-  const updateBankLocal = (localId: string, field: string, value: string | boolean) => {
-    setBankAccounts(prev => prev.map(b => b._localId === localId ? { ...b, [field]: value } : b));
-    // Validate IBAN on change
-    if (field === "iban") {
-      const ibanValue = value as string;
-      if (ibanValue && !isValidIban(ibanValue)) {
-        setIbanErrors(prev => ({ ...prev, [localId]: "Ungültiges IBAN-Format (z.B. DE89 3704 0044 0532 0130 00)" }));
-      } else {
-        setIbanErrors(prev => { const next = { ...prev }; delete next[localId]; return next; });
-      }
-    }
-    markDirty();
-  };
-  const removeBank = (localId: string) => {
-    setBankAccounts(prev => prev.map(b => b._localId === localId ? { ...b, _deleted: true } : b));
-    setIbanErrors(prev => { const next = { ...prev }; delete next[localId]; return next; });
-    markDirty();
-  };
-
-  // --- Person handlers ---
+  // Person-level mutations
   const addPerson = () => {
-    setPersons(prev => [...prev, {
+    const newPerson: LocalPerson = {
       _localId: nextLocalId(), salutation: null, first_name: null, last_name: null,
-      position: null, email: null, phone: null, notes: null, is_primary: false,
-    }]);
+      position: null, notes: null, is_primary: persons.filter(p => !p._deleted).length === 0,
+      phones: [{ _localId: nextLocalId(), phone_number: "", label: "Mobil" }],
+      emails: [{ _localId: nextLocalId(), email: "", label: "Privat", is_primary: true }],
+      banks: [],
+    };
+    setPersons(prev => [...prev, newPerson]);
+    setOpenPersons(prev => ({ ...prev, [newPerson._localId]: true }));
     markDirty();
   };
-  const updatePersonLocal = (localId: string, field: string, value: string | boolean) => {
+
+  const updatePerson = (localId: string, field: string, value: any) => {
     setPersons(prev => prev.map(p => p._localId === localId ? { ...p, [field]: value } : p));
     markDirty();
   };
+
   const removePerson = (localId: string) => {
     setPersons(prev => prev.map(p => p._localId === localId ? { ...p, _deleted: true } : p));
     markDirty();
   };
 
+  const setPrimaryPerson = (localId: string) => {
+    setPersons(prev => prev.map(p => ({ ...p, is_primary: p._localId === localId })));
+    markDirty();
+  };
+
+  // Sub-collection mutations for a person
+  const addPhoneToPerson = (personLocalId: string) => {
+    setPersons(prev => prev.map(p => p._localId === personLocalId ? { ...p, phones: [...p.phones, { _localId: nextLocalId(), phone_number: "", label: "Mobil" }] } : p));
+    markDirty();
+  };
+
+  const updatePhoneInPerson = (personLocalId: string, phoneLocalId: string, field: string, value: string) => {
+    setPersons(prev => prev.map(p => p._localId === personLocalId ? { ...p, phones: p.phones.map(ph => ph._localId === phoneLocalId ? { ...ph, [field]: value } : ph) } : p));
+    markDirty();
+  };
+
+  const removePhoneFromPerson = (personLocalId: string, phoneLocalId: string) => {
+    setPersons(prev => prev.map(p => p._localId === personLocalId ? { ...p, phones: p.phones.map(ph => ph._localId === phoneLocalId ? { ...ph, _deleted: true } : ph) } : p));
+    markDirty();
+  };
+
+  const addEmailToPerson = (personLocalId: string) => {
+    setPersons(prev => prev.map(p => p._localId === personLocalId ? { ...p, emails: [...p.emails, { _localId: nextLocalId(), email: "", label: "Privat", is_primary: false }] } : p));
+    markDirty();
+  };
+
+  const updateEmailInPerson = (personLocalId: string, emailLocalId: string, field: string, value: any) => {
+    setPersons(prev => prev.map(p => p._localId === personLocalId ? { ...p, emails: p.emails.map(em => em._localId === emailLocalId ? { ...em, [field]: value } : em) } : p));
+    markDirty();
+  };
+
+  const removeEmailFromPerson = (personLocalId: string, emailLocalId: string) => {
+    setPersons(prev => prev.map(p => p._localId === personLocalId ? { ...p, emails: p.emails.map(em => em._localId === emailLocalId ? { ...em, _deleted: true } : em) } : p));
+    markDirty();
+  };
+
+  const addBankToPerson = (personLocalId: string) => {
+    setPersons(prev => prev.map(p => p._localId === personLocalId ? { ...p, banks: [...p.banks, { _localId: nextLocalId(), account_holder: null, bank_name: null, iban: null, bic: null, sepa_mandate_ref: null, sepa_mandate_date: null, is_default: false }] } : p));
+    markDirty();
+  };
+
+  const updateBankInPerson = (personLocalId: string, bankLocalId: string, field: string, value: any) => {
+    setPersons(prev => prev.map(p => p._localId === personLocalId ? { ...p, banks: p.banks.map(bk => bk._localId === bankLocalId ? { ...bk, [field]: value } : bk) } : p));
+    if (field === "iban") {
+      const ibanValue = value as string;
+      const key = `${personLocalId}_${bankLocalId}`;
+      if (ibanValue && !isValidIban(ibanValue)) {
+        setIbanErrors(prev => ({ ...prev, [key]: "Ungültiges IBAN-Format" }));
+      } else {
+        setIbanErrors(prev => { const next = { ...prev }; delete next[key]; return next; });
+      }
+    }
+    markDirty();
+  };
+
+  const removeBankFromPerson = (personLocalId: string, bankLocalId: string) => {
+    setPersons(prev => prev.map(p => p._localId === personLocalId ? { ...p, banks: p.banks.map(bk => bk._localId === bankLocalId ? { ...bk, _deleted: true } : bk) } : p));
+    markDirty();
+  };
 
   const saveAll = async () => {
-    // Validate IBANs before saving
-    const activeAccounts = bankAccounts.filter(b => !b._deleted);
+    // Validate IBANs
     const newErrors: Record<string, string> = {};
-    for (const b of activeAccounts) {
-      if (b.iban && !isValidIban(b.iban)) {
-        newErrors[b._localId] = "Ungültiges IBAN-Format (z.B. DE89 3704 0044 0532 0130 00)";
+    for (const p of persons.filter(p => !p._deleted)) {
+      for (const b of p.banks.filter(b => !b._deleted)) {
+        if (b.iban && !isValidIban(b.iban)) {
+          newErrors[`${p._localId}_${b._localId}`] = "Ungültiges IBAN-Format";
+        }
       }
     }
     if (Object.keys(newErrors).length > 0) {
@@ -179,96 +215,84 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
     try {
       // 1. Save contact base data
       const { error: contactError } = await supabase.from("contacts").update({
-        short_name: form.short_name, salutation: form.salutation,
-        first_name: form.first_name, last_name: form.last_name,
-        company_name: form.company_name, address_street: form.address_street,
-        address_zip: form.address_zip, address_city: form.address_city, notes: form.notes,
+        short_name: form.short_name, company_name: form.company_name,
+        address_street: form.address_street, address_zip: form.address_zip,
+        address_city: form.address_city, notes: form.notes,
+        contact_type: form.contact_type as any,
       }).eq("id", contact.id);
       if (contactError) throw contactError;
 
-      // 2. Save phones
-      const deletedPhones = phones.filter(p => p._deleted && p.id);
-      const newPhones = phones.filter(p => !p._deleted && !p.id);
-      const existingPhones = phones.filter(p => !p._deleted && p.id);
-
-      if (deletedPhones.length > 0) {
-        await supabase.from("contact_phones").delete().in("id", deletedPhones.map(p => p.id!));
-      }
-      for (const p of newPhones) {
-        if (p.phone_number.trim()) {
-          await supabase.from("contact_phones").insert({ contact_id: contact.id, phone_number: p.phone_number, label: p.label });
+      // 2. Save persons and their sub-collections
+      for (const p of persons) {
+        if (p._deleted && p.id) {
+          // Delete person (cascade deletes phones/emails/banks with person_id)
+          await supabase.from("contact_persons").delete().eq("id", p.id);
+          continue;
         }
-      }
-      for (const p of existingPhones) {
-        await supabase.from("contact_phones").update({ phone_number: p.phone_number, label: p.label }).eq("id", p.id!);
-      }
+        if (p._deleted) continue;
 
-      // 3. Save emails
-      const deletedEmails = emails.filter(e => e._deleted && e.id);
-      const newEmails = emails.filter(e => !e._deleted && !e.id);
-      const existingEmails = emails.filter(e => !e._deleted && e.id);
-
-      if (deletedEmails.length > 0) {
-        await supabase.from("contact_emails").delete().in("id", deletedEmails.map(e => e.id!));
-      }
-      for (const e of newEmails) {
-        if (e.email.trim()) {
-          await supabase.from("contact_emails").insert({ contact_id: contact.id, email: e.email, label: e.label, is_primary: e.is_primary });
-        }
-      }
-      for (const e of existingEmails) {
-        await supabase.from("contact_emails").update({ email: e.email, label: e.label, is_primary: e.is_primary }).eq("id", e.id!);
-      }
-
-      // 4. Save bank accounts
-      const deletedBanks = bankAccounts.filter(b => b._deleted && b.id);
-      const newBanks = bankAccounts.filter(b => !b._deleted && !b.id);
-      const existingBanks = bankAccounts.filter(b => !b._deleted && b.id);
-
-      if (deletedBanks.length > 0) {
-        await supabase.from("contact_bank_accounts").delete().in("id", deletedBanks.map(b => b.id!));
-      }
-      for (const b of newBanks) {
-        await supabase.from("contact_bank_accounts").insert({
-          contact_id: contact.id, account_holder: b.account_holder, bank_name: b.bank_name,
-          iban: b.iban ? b.iban.replace(/\s/g, "").toUpperCase() : null, bic: b.bic, is_default: b.is_default,
-        });
-      }
-      for (const b of existingBanks) {
-        await supabase.from("contact_bank_accounts").update({
-          account_holder: b.account_holder, bank_name: b.bank_name,
-          iban: b.iban ? b.iban.replace(/\s/g, "").toUpperCase() : null, bic: b.bic, is_default: b.is_default,
-        }).eq("id", b.id!);
-      }
-
-      // 5. Save persons
-      const deletedPersons = persons.filter(p => p._deleted && p.id);
-      const newPersons = persons.filter(p => !p._deleted && !p.id);
-      const existingPersons = persons.filter(p => !p._deleted && p.id);
-
-      if (deletedPersons.length > 0) {
-        await supabase.from("contact_persons").delete().in("id", deletedPersons.map(p => p.id!));
-      }
-      for (const p of newPersons) {
-        if ((p.first_name || p.last_name || p.position)) {
-          await supabase.from("contact_persons").insert({
+        let personId = p.id;
+        if (!personId) {
+          // Create new person
+          const { data, error } = await supabase.from("contact_persons").insert({
             contact_id: contact.id, salutation: p.salutation, first_name: p.first_name,
-            last_name: p.last_name, position: p.position, email: p.email,
-            phone: p.phone, notes: p.notes, is_primary: p.is_primary,
-          });
+            last_name: p.last_name, position: p.position, notes: p.notes, is_primary: p.is_primary,
+          }).select("id").single();
+          if (error) throw error;
+          personId = data.id;
+        } else {
+          // Update existing person
+          await supabase.from("contact_persons").update({
+            salutation: p.salutation, first_name: p.first_name, last_name: p.last_name,
+            position: p.position, notes: p.notes, is_primary: p.is_primary,
+          }).eq("id", personId);
         }
-      }
-      for (const p of existingPersons) {
-        await supabase.from("contact_persons").update({
-          salutation: p.salutation, first_name: p.first_name, last_name: p.last_name,
-          position: p.position, email: p.email, phone: p.phone, notes: p.notes, is_primary: p.is_primary,
-        }).eq("id", p.id!);
+
+        // Save phones for this person
+        for (const ph of p.phones) {
+          if (ph._deleted && ph.id) {
+            await supabase.from("contact_phones").delete().eq("id", ph.id);
+          } else if (!ph._deleted && !ph.id && ph.phone_number.trim()) {
+            await supabase.from("contact_phones").insert({ contact_id: contact.id, person_id: personId, phone_number: ph.phone_number, label: ph.label });
+          } else if (!ph._deleted && ph.id) {
+            await supabase.from("contact_phones").update({ phone_number: ph.phone_number, label: ph.label, person_id: personId }).eq("id", ph.id);
+          }
+        }
+
+        // Save emails for this person
+        for (const em of p.emails) {
+          if (em._deleted && em.id) {
+            await supabase.from("contact_emails").delete().eq("id", em.id);
+          } else if (!em._deleted && !em.id && em.email.trim()) {
+            await supabase.from("contact_emails").insert({ contact_id: contact.id, person_id: personId, email: em.email, label: em.label, is_primary: em.is_primary });
+          } else if (!em._deleted && em.id) {
+            await supabase.from("contact_emails").update({ email: em.email, label: em.label, is_primary: em.is_primary, person_id: personId }).eq("id", em.id);
+          }
+        }
+
+        // Save banks for this person
+        for (const bk of p.banks) {
+          if (bk._deleted && bk.id) {
+            await supabase.from("contact_bank_accounts").delete().eq("id", bk.id);
+          } else if (!bk._deleted && !bk.id) {
+            await supabase.from("contact_bank_accounts").insert({
+              contact_id: contact.id, person_id: personId, account_holder: bk.account_holder,
+              bank_name: bk.bank_name, iban: bk.iban ? bk.iban.replace(/\s/g, "").toUpperCase() : null,
+              bic: bk.bic, is_default: bk.is_default,
+            });
+          } else if (!bk._deleted && bk.id) {
+            await supabase.from("contact_bank_accounts").update({
+              account_holder: bk.account_holder, bank_name: bk.bank_name,
+              iban: bk.iban ? bk.iban.replace(/\s/g, "").toUpperCase() : null,
+              bic: bk.bic, is_default: bk.is_default, person_id: personId,
+            }).eq("id", bk.id);
+          }
+        }
       }
 
       toast({ title: "Gespeichert" });
       setIsDirty(false);
       onUpdate();
-      // Reload to get server-generated values (e.g. SEPA mandate refs)
       await loadRelated();
     } catch (err: any) {
       toast({ title: "Fehler beim Speichern", description: err.message, variant: "destructive" });
@@ -289,12 +313,14 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
     }
   };
 
-  const displayName = form.company_name || [form.salutation, form.first_name, form.last_name].filter(Boolean).join(" ") || "Unbenannt";
-  const visiblePhones = phones.filter(p => !p._deleted);
-  const visibleEmails = emails.filter(e => !e._deleted);
-  const visibleBanks = bankAccounts.filter(b => !b._deleted);
+  const displayName = form.company_name || form.short_name || [form.first_name, form.last_name].filter(Boolean).join(" ") || "Unbenannt";
   const visiblePersons = persons.filter(p => !p._deleted);
   const hasIbanErrors = Object.keys(ibanErrors).length > 0;
+  const isCompanyType = form.contact_type === "company" || form.contact_type === "service_provider";
+
+  const togglePersonOpen = (localId: string) => {
+    setOpenPersons(prev => ({ ...prev, [localId]: !prev[localId] }));
+  };
 
   return (
     <div className="h-full overflow-y-auto bg-background">
@@ -319,7 +345,7 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
               <AlertDialogHeader>
                 <AlertDialogTitle>Kontakt löschen?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  <strong>{displayName}</strong> wird unwiderruflich gelöscht, einschließlich aller Telefonnummern, E-Mails, Bankverbindungen und Gebäude-Zuordnungen.
+                  <strong>{displayName}</strong> wird unwiderruflich gelöscht.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -337,15 +363,13 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
       </div>
 
       <div className="p-6">
-        <Tabs defaultValue="stammdaten">
-          <TabsList className="w-full grid grid-cols-5">
+        <Tabs defaultValue="personen">
+          <TabsList className="w-full grid grid-cols-3">
             <TabsTrigger value="stammdaten">Stammdaten</TabsTrigger>
             <TabsTrigger value="personen" className="gap-1">
               <Users className="h-3.5 w-3.5" />
               Personen {visiblePersons.length > 0 && `(${visiblePersons.length})`}
             </TabsTrigger>
-            <TabsTrigger value="kommunikation">Kommunikation</TabsTrigger>
-            <TabsTrigger value="bank">Bank</TabsTrigger>
             <TabsTrigger value="gebaeude">Gebäude</TabsTrigger>
           </TabsList>
 
@@ -353,30 +377,24 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
           <TabsContent value="stammdaten" className="space-y-4 mt-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label>Kurzname</Label>
-                <Input value={form.short_name || ""} onChange={(e) => { setForm({ ...form, short_name: e.target.value }); markDirty(); }} />
-              </div>
-              <div>
-                <Label>Anrede</Label>
-                <Select value={form.salutation || ""} onValueChange={(v) => { setForm({ ...form, salutation: v }); markDirty(); }}>
-                  <SelectTrigger><SelectValue placeholder="Bitte wählen" /></SelectTrigger>
+                <Label>Adress-Typ</Label>
+                <Select value={form.contact_type || "person"} onValueChange={(v) => { setForm({ ...form, contact_type: v }); markDirty(); }}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {SALUTATIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    {CONTACT_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Vorname</Label>
-                <Input value={form.first_name || ""} onChange={(e) => { setForm({ ...form, first_name: e.target.value }); markDirty(); }} />
+                <Label>Kurzname</Label>
+                <Input value={form.short_name || ""} onChange={(e) => { setForm({ ...form, short_name: e.target.value }); markDirty(); }} />
               </div>
-              <div>
-                <Label>Nachname</Label>
-                <Input value={form.last_name || ""} onChange={(e) => { setForm({ ...form, last_name: e.target.value }); markDirty(); }} />
-              </div>
-              <div className="md:col-span-2">
-                <Label>Firma</Label>
-                <Input value={form.company_name || ""} onChange={(e) => { setForm({ ...form, company_name: e.target.value }); markDirty(); }} />
-              </div>
+              {isCompanyType && (
+                <div className="md:col-span-2">
+                  <Label>Firmenname</Label>
+                  <Input value={form.company_name || ""} onChange={(e) => { setForm({ ...form, company_name: e.target.value }); markDirty(); }} />
+                </div>
+              )}
             </div>
 
             <div className="border-t border-border pt-4 mt-4">
@@ -405,207 +423,183 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
             </div>
           </TabsContent>
 
-          {/* Personen / Ansprechpartner Tab */}
+          {/* Personen Tab */}
           <TabsContent value="personen" className="space-y-4 mt-4">
             <div className="flex justify-between items-center">
               <div>
-                <h3 className="text-sm font-semibold flex items-center gap-2"><Users className="h-4 w-4" /> Ansprechpartner</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">Mehrere Personen zu diesem Kontakt (z.B. Ansprechpartner einer Firma oder Miteigentümer)</p>
+                <h3 className="text-sm font-semibold flex items-center gap-2"><Users className="h-4 w-4" /> Personen</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">Jede Person hat eigene Kontaktdaten und Bankverbindungen</p>
               </div>
               <Button size="sm" variant="outline" onClick={addPerson}><Plus className="h-3 w-3 mr-1" />Person hinzufügen</Button>
             </div>
-            {visiblePersons.length === 0 && <p className="text-sm text-muted-foreground py-4">Keine weiteren Personen hinterlegt.</p>}
-            {visiblePersons.map((p, idx) => (
-              <Card key={p._localId}>
-                <CardContent className="pt-4 space-y-3">
-                  <div className="flex justify-between items-start">
-                    <span className="text-xs font-medium text-muted-foreground">
-                      {p.is_primary ? "Hauptansprechpartner" : `Person ${idx + 1}`}
-                    </span>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        size="sm"
-                        variant={p.is_primary ? "default" : "ghost"}
-                        className="h-6 text-[10px] px-2"
-                        onClick={() => {
-                          setPersons(prev => prev.map(pp => ({ ...pp, is_primary: pp._localId === p._localId })));
-                          markDirty();
-                        }}
-                      >
-                        {p.is_primary ? "Hauptkontakt ✓" : "Als Hauptkontakt"}
-                      </Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => removePerson(p._localId)}>
-                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div>
-                      <Label className="text-xs">Anrede</Label>
-                      <Select value={p.salutation || ""} onValueChange={(v) => updatePersonLocal(p._localId, "salutation", v)}>
-                        <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Anrede" /></SelectTrigger>
-                        <SelectContent>
-                          {SALUTATIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label className="text-xs">Vorname</Label>
-                      <Input className="h-8 text-sm" value={p.first_name || ""} onChange={e => updatePersonLocal(p._localId, "first_name", e.target.value)} />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Nachname</Label>
-                      <Input className="h-8 text-sm" value={p.last_name || ""} onChange={e => updatePersonLocal(p._localId, "last_name", e.target.value)} />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div>
-                      <Label className="text-xs">Position / Rolle</Label>
-                      <Input className="h-8 text-sm" value={p.position || ""} onChange={e => updatePersonLocal(p._localId, "position", e.target.value)} placeholder="z.B. Geschäftsführer" />
-                    </div>
-                    <div>
-                      <Label className="text-xs">E-Mail</Label>
-                      <Input className="h-8 text-sm" type="email" value={p.email || ""} onChange={e => updatePersonLocal(p._localId, "email", e.target.value)} />
-                    </div>
-                    <div>
-                      <Label className="text-xs">Telefon</Label>
-                      <Input className="h-8 text-sm" value={p.phone || ""} onChange={e => updatePersonLocal(p._localId, "phone", e.target.value)} />
-                    </div>
-                  </div>
-                  <div>
-                    <Label className="text-xs">Notizen</Label>
-                    <Input className="h-8 text-sm" value={p.notes || ""} onChange={e => updatePersonLocal(p._localId, "notes", e.target.value)} placeholder="Optionale Notizen" />
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </TabsContent>
+            {visiblePersons.length === 0 && <p className="text-sm text-muted-foreground py-4">Keine Personen hinterlegt. Fügen Sie mindestens eine Person hinzu.</p>}
+            {visiblePersons.map((p) => {
+              const personName = [p.first_name, p.last_name].filter(Boolean).join(" ") || "Neue Person";
+              const isOpen = openPersons[p._localId] ?? false;
+              const visiblePhones = p.phones.filter(ph => !ph._deleted);
+              const visibleEmails = p.emails.filter(em => !em._deleted);
+              const visibleBanks = p.banks.filter(bk => !bk._deleted);
 
-          {/* Kommunikation Tab */}
-          <TabsContent value="kommunikation" className="space-y-6 mt-4">
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm flex items-center gap-2"><Phone className="h-4 w-4" /> Telefonnummern</CardTitle>
-                  <Button size="sm" variant="outline" onClick={addPhone}><Plus className="h-3 w-3 mr-1" />Hinzufügen</Button>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {visiblePhones.length === 0 && <p className="text-sm text-muted-foreground">Keine Telefonnummern</p>}
-                {visiblePhones.map((p) => (
-                  <div key={p._localId} className="flex items-center gap-2">
-                    <Select value={p.label || "Mobil"} onValueChange={(v) => updatePhoneLocal(p._localId, "label", v)}>
-                      <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {["Mobil", "Festnetz", "Büro", "Fax"].map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <Input
-                      value={p.phone_number}
-                      onChange={(e) => updatePhoneLocal(p._localId, "phone_number", e.target.value)}
-                      placeholder="Nummer eingeben"
-                      className="flex-1"
-                    />
-                    <Button size="icon" variant="ghost" onClick={() => removePhone(p._localId)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+              return (
+                <Card key={p._localId} className={p.is_primary ? "border-primary/50" : ""}>
+                  <Collapsible open={isOpen} onOpenChange={() => togglePersonOpen(p._localId)}>
+                    <CollapsibleTrigger asChild>
+                      <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/50 rounded-t-lg">
+                        <div className="flex items-center gap-2">
+                          {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                          <span className="text-sm font-medium">{personName}</span>
+                          {p.position && <span className="text-xs text-muted-foreground">({p.position})</span>}
+                          {p.is_primary && <span className="text-[10px] bg-primary text-primary-foreground px-1.5 py-0.5 rounded">Hauptkontakt</span>}
+                        </div>
+                        <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+                          {!p.is_primary && (
+                            <Button size="sm" variant="ghost" className="h-6 text-[10px] px-2" onClick={() => setPrimaryPerson(p._localId)}>
+                              Als Hauptkontakt
+                            </Button>
+                          )}
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => removePerson(p._localId)}>
+                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <CardContent className="pt-0 pb-4 space-y-4">
+                        {/* Person base data */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                          <div>
+                            <Label className="text-xs">Anrede</Label>
+                            <Select value={p.salutation || ""} onValueChange={(v) => updatePerson(p._localId, "salutation", v)}>
+                              <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Anrede" /></SelectTrigger>
+                              <SelectContent>
+                                {SALUTATIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label className="text-xs">Vorname</Label>
+                            <Input className="h-8 text-sm" value={p.first_name || ""} onChange={e => updatePerson(p._localId, "first_name", e.target.value)} />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Nachname</Label>
+                            <Input className="h-8 text-sm" value={p.last_name || ""} onChange={e => updatePerson(p._localId, "last_name", e.target.value)} />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-xs">Position / Rolle</Label>
+                            <Input className="h-8 text-sm" value={p.position || ""} onChange={e => updatePerson(p._localId, "position", e.target.value)} placeholder="z.B. Geschäftsführer" />
+                          </div>
+                          <div>
+                            <Label className="text-xs">Notizen</Label>
+                            <Input className="h-8 text-sm" value={p.notes || ""} onChange={e => updatePerson(p._localId, "notes", e.target.value)} />
+                          </div>
+                        </div>
 
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm flex items-center gap-2"><Mail className="h-4 w-4" /> E-Mail-Adressen</CardTitle>
-                  <Button size="sm" variant="outline" onClick={addEmail}><Plus className="h-3 w-3 mr-1" />Hinzufügen</Button>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {visibleEmails.length === 0 && <p className="text-sm text-muted-foreground">Keine E-Mail-Adressen</p>}
-                {visibleEmails.map((e) => (
-                  <div key={e._localId} className="flex items-center gap-2">
-                    <Select value={e.label || "Privat"} onValueChange={(v) => updateEmailLocal(e._localId, "label", v)}>
-                      <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {["Privat", "Geschäftlich", "Sonstige"].map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <Input
-                      value={e.email}
-                      onChange={(ev) => updateEmailLocal(e._localId, "email", ev.target.value)}
-                      placeholder="E-Mail eingeben"
-                      className="flex-1"
-                      type="email"
-                    />
-                    <Button size="icon" variant="ghost" onClick={() => removeEmail(e._localId)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          </TabsContent>
+                        {/* Phones section */}
+                        <div className="border-t pt-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1"><Phone className="h-3 w-3" /> Telefon</span>
+                            <Button type="button" size="sm" variant="ghost" className="h-6 text-xs" onClick={() => addPhoneToPerson(p._localId)}>
+                              <Plus className="h-3 w-3 mr-1" />Hinzufügen
+                            </Button>
+                          </div>
+                          {visiblePhones.length === 0 && <p className="text-xs text-muted-foreground">Keine Telefonnummern</p>}
+                          {visiblePhones.map(ph => (
+                            <div key={ph._localId} className="flex items-center gap-2 mb-1.5">
+                              <Select value={ph.label || "Mobil"} onValueChange={v => updatePhoneInPerson(p._localId, ph._localId, "label", v)}>
+                                <SelectTrigger className="w-24 h-7 text-xs"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {PHONE_LABELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                              <Input className="h-7 text-xs flex-1" value={ph.phone_number} onChange={e => updatePhoneInPerson(p._localId, ph._localId, "phone_number", e.target.value)} placeholder="Nummer" />
+                              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => removePhoneFromPerson(p._localId, ph._localId)}>
+                                <Trash2 className="h-3 w-3 text-destructive" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
 
-          {/* Bank Tab */}
-          <TabsContent value="bank" className="space-y-4 mt-4">
-            <div className="flex justify-between items-center">
-              <h3 className="text-sm font-semibold flex items-center gap-2"><Landmark className="h-4 w-4" /> Bankverbindungen</h3>
-              <Button size="sm" variant="outline" onClick={addBank}><Plus className="h-3 w-3 mr-1" />Hinzufügen</Button>
-            </div>
-            {visibleBanks.length === 0 && <p className="text-sm text-muted-foreground">Keine Bankverbindungen</p>}
-            {visibleBanks.map((b) => (
-              <Card key={b._localId}>
-                <CardContent className="pt-4 space-y-3">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div>
-                        <Label>Kontoinhaber</Label>
-                        <Input
-                          value={b.account_holder || ""}
-                          onChange={(e) => updateBankLocal(b._localId, "account_holder", e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <Label>Kreditinstitut</Label>
-                        <Input
-                          value={b.bank_name || ""}
-                          onChange={(e) => updateBankLocal(b._localId, "bank_name", e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <Label>IBAN</Label>
-                        <Input
-                          value={b.iban ? formatIban(b.iban) : ""}
-                          onChange={(e) => updateBankLocal(b._localId, "iban", e.target.value)}
-                          placeholder="DE89 3704 0044 0532 0130 00"
-                          className={ibanErrors[b._localId] ? "border-destructive" : ""}
-                        />
-                        {ibanErrors[b._localId] && (
-                          <p className="text-xs text-destructive mt-1">{ibanErrors[b._localId]}</p>
-                        )}
-                      </div>
-                      <div>
-                        <Label>BIC</Label>
-                        <Input
-                          value={b.bic || ""}
-                          onChange={(e) => updateBankLocal(b._localId, "bic", e.target.value)}
-                        />
-                      </div>
-                    </div>
-                    <Button size="icon" variant="ghost" onClick={() => removeBank(b._localId)} className="ml-2">
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </div>
-                  {b.sepa_mandate_ref && (
-                    <div className="bg-muted rounded-md px-3 py-2 text-xs text-muted-foreground">
-                      SEPA-Mandatsreferenz: <span className="font-mono font-medium text-foreground">{b.sepa_mandate_ref}</span>
-                      {b.sepa_mandate_date && <span className="ml-3">vom {new Date(b.sepa_mandate_date).toLocaleDateString("de-DE")}</span>}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
+                        {/* Emails section */}
+                        <div className="border-t pt-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1"><Mail className="h-3 w-3" /> E-Mail</span>
+                            <Button type="button" size="sm" variant="ghost" className="h-6 text-xs" onClick={() => addEmailToPerson(p._localId)}>
+                              <Plus className="h-3 w-3 mr-1" />Hinzufügen
+                            </Button>
+                          </div>
+                          {visibleEmails.length === 0 && <p className="text-xs text-muted-foreground">Keine E-Mail-Adressen</p>}
+                          {visibleEmails.map(em => (
+                            <div key={em._localId} className="flex items-center gap-2 mb-1.5">
+                              <Select value={em.label || "Privat"} onValueChange={v => updateEmailInPerson(p._localId, em._localId, "label", v)}>
+                                <SelectTrigger className="w-24 h-7 text-xs"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {EMAIL_LABELS.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                              <Input className="h-7 text-xs flex-1" type="email" value={em.email} onChange={e => updateEmailInPerson(p._localId, em._localId, "email", e.target.value)} placeholder="E-Mail" />
+                              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => removeEmailFromPerson(p._localId, em._localId)}>
+                                <Trash2 className="h-3 w-3 text-destructive" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Bank section */}
+                        <div className="border-t pt-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1"><Landmark className="h-3 w-3" /> Bankverbindungen</span>
+                            <Button type="button" size="sm" variant="ghost" className="h-6 text-xs" onClick={() => addBankToPerson(p._localId)}>
+                              <Plus className="h-3 w-3 mr-1" />Hinzufügen
+                            </Button>
+                          </div>
+                          {visibleBanks.length === 0 && <p className="text-xs text-muted-foreground">Keine Bankverbindungen</p>}
+                          {visibleBanks.map(bk => {
+                            const ibanKey = `${p._localId}_${bk._localId}`;
+                            return (
+                              <div key={bk._localId} className="bg-muted/30 rounded-md p-3 mb-2 space-y-2">
+                                <div className="flex justify-between">
+                                  <span className="text-xs text-muted-foreground">Konto</span>
+                                  <Button size="icon" variant="ghost" className="h-5 w-5" onClick={() => removeBankFromPerson(p._localId, bk._localId)}>
+                                    <Trash2 className="h-3 w-3 text-destructive" />
+                                  </Button>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  <div>
+                                    <Label className="text-xs">IBAN</Label>
+                                    <Input className="h-7 text-xs font-mono" value={bk.iban ? formatIban(bk.iban) : ""} onChange={e => updateBankInPerson(p._localId, bk._localId, "iban", e.target.value)} placeholder="DE89 3704 ..." className2={ibanErrors[ibanKey] ? "border-destructive" : ""} />
+                                    {ibanErrors[ibanKey] && <p className="text-[10px] text-destructive mt-0.5">{ibanErrors[ibanKey]}</p>}
+                                  </div>
+                                  <div>
+                                    <Label className="text-xs">BIC</Label>
+                                    <Input className="h-7 text-xs font-mono" value={bk.bic || ""} onChange={e => updateBankInPerson(p._localId, bk._localId, "bic", e.target.value)} />
+                                  </div>
+                                  <div>
+                                    <Label className="text-xs">Bank</Label>
+                                    <Input className="h-7 text-xs" value={bk.bank_name || ""} onChange={e => updateBankInPerson(p._localId, bk._localId, "bank_name", e.target.value)} />
+                                  </div>
+                                  <div>
+                                    <Label className="text-xs">Kontoinhaber</Label>
+                                    <Input className="h-7 text-xs" value={bk.account_holder || ""} onChange={e => updateBankInPerson(p._localId, bk._localId, "account_holder", e.target.value)} />
+                                  </div>
+                                </div>
+                                {bk.sepa_mandate_ref && (
+                                  <p className="text-[10px] text-muted-foreground">
+                                    SEPA: <span className="font-mono font-medium text-foreground">{bk.sepa_mandate_ref}</span>
+                                    {bk.sepa_mandate_date && <span className="ml-2">vom {new Date(bk.sepa_mandate_date).toLocaleDateString("de-DE")}</span>}
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </CardContent>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </Card>
+              );
+            })}
           </TabsContent>
 
           {/* Gebäude Tab */}
