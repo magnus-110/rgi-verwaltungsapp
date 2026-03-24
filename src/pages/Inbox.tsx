@@ -384,35 +384,27 @@ export const Inbox = () => {
                 key={email.id}
                 onClick={() => setSelectedEmailId(email.id)}
                 className={cn(
-                  "w-full text-left p-3 border-b transition-colors",
+                  "w-full text-left px-3 py-2 border-b transition-colors",
                   selectedEmailId === email.id ? "bg-accent" : "hover:bg-muted/50",
                   !email.is_read && "bg-primary/5"
                 )}
               >
-                <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center justify-between gap-1">
                   <span className={cn("text-sm truncate", !email.is_read && "font-semibold")}>
                     {email.from_name || email.from_address || "Unbekannt"}
                   </span>
                   <div className="flex items-center gap-1 shrink-0">
+                    {email.has_attachments && <Paperclip className="h-3 w-3 text-muted-foreground" />}
                     {email.is_starred && <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />}
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-[11px] text-muted-foreground">
                       {email.date ? new Date(email.date).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) : ""}
                     </span>
                   </div>
                 </div>
-                <p className={cn("text-sm truncate mt-0.5", !email.is_read ? "text-foreground" : "text-muted-foreground")}>
+                <p className={cn("text-xs truncate", !email.is_read ? "text-foreground" : "text-muted-foreground")}>
                   {email.subject || "(Kein Betreff)"}
                 </p>
-                {email.ai_summary && (
-                  <p className="text-xs text-muted-foreground truncate mt-0.5 italic">
-                    {email.ai_summary}
-                  </p>
-                )}
-                <div className="flex items-center gap-1.5 mt-1">
-                  {email.has_attachments && (
-                    <Paperclip className="h-3 w-3 text-muted-foreground" />
-                  )}
-                  {/* Show building/contact badges in archive */}
+                <div className="flex items-center gap-1 mt-0.5">
                   {isArchiveFolder && email.building_id && (
                     <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
                       <Building2 className="h-2.5 w-2.5" />
