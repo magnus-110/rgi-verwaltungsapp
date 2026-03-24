@@ -509,35 +509,29 @@ export const Inbox = () => {
                   )}
                 </div>
 
-                {/* Badges */}
-                {(selectedEmail.building_id || selectedEmail.contact_id) && (
-                  <div className="flex flex-wrap gap-2">
-                    {selectedEmail.building_id && (
-                      <Badge variant="outline" className="gap-1">
-                        <Building2 className="h-3 w-3" />
-                        {buildings.find(b => b.id === selectedEmail.building_id)?.name || "Liegenschaft"}
-                      </Badge>
-                    )}
-                    {selectedEmail.contact_id && (
-                      <Badge variant="outline" className="gap-1">
-                        <User className="h-3 w-3" />
-                        {(() => { const c = contacts.find(c => c.id === selectedEmail.contact_id); return c ? getContactName(c) : "Kontakt"; })()}
-                      </Badge>
-                    )}
-                  </div>
-                )}
-                {(selectedEmail.ai_category || selectedEmail.ai_priority) && (
-                  <div className="flex flex-wrap gap-2">
-                    {selectedEmail.ai_category && (
-                      <Badge variant="outline">{selectedEmail.ai_category}</Badge>
-                    )}
-                    {selectedEmail.ai_priority && (
-                      <Badge variant={selectedEmail.ai_priority === "hoch" ? "destructive" : "secondary"}>
-                        Priorität: {selectedEmail.ai_priority}
-                      </Badge>
-                    )}
-                  </div>
-                )}
+                {/* Badges - all in one line */}
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedEmail.building_id && (
+                    <Badge variant="outline" className="gap-1">
+                      <Building2 className="h-3 w-3" />
+                      {buildings.find(b => b.id === selectedEmail.building_id)?.name || "Liegenschaft"}
+                    </Badge>
+                  )}
+                  {selectedEmail.contact_id && (
+                    <Badge variant="outline" className="gap-1">
+                      <User className="h-3 w-3" />
+                      {(() => { const c = contacts.find(c => c.id === selectedEmail.contact_id); return c ? getContactName(c) : "Kontakt"; })()}
+                    </Badge>
+                  )}
+                  {selectedEmail.ai_category && (
+                    <Badge variant="outline">{selectedEmail.ai_category}</Badge>
+                  )}
+                  {selectedEmail.ai_priority && (
+                    <Badge variant={selectedEmail.ai_priority === "hoch" ? "destructive" : "secondary"}>
+                      Priorität: {selectedEmail.ai_priority}
+                    </Badge>
+                  )}
+                </div>
                 {selectedEmail.ai_summary && (
                   <p className="text-sm bg-muted/50 rounded-md p-2 italic">
                     KI: {selectedEmail.ai_summary}

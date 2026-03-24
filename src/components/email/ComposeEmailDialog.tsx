@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -7,8 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Send, Loader2, Paperclip, X } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Send, Loader2, Paperclip, X, Users, Search } from "lucide-react";
 import { toast } from "sonner";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface ComposeEmailDialogProps {
   open: boolean;
@@ -57,6 +60,8 @@ export const ComposeEmailDialog = ({
   const [isSending, setIsSending] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [contactPickerOpen, setContactPickerOpen] = useState(false);
+  const [contactSearch, setContactSearch] = useState("");
 
   const { data: accounts = [] } = useQuery({
     queryKey: ["email-accounts-compose"],
@@ -71,14 +76,52 @@ export const ComposeEmailDialog = ({
     },
   });
 
+  const { data: contactsWithEmails = [] } = useQuery({
+    queryKey: ["contacts-with-emails-compose"],
+    queryFn: async () => {
+      const { data: contacts, error } = await supabase
+        .from("contacts")
+        .select("id, first_name, last_name, company_name")
+        .order("last_name");
+      if (error) throw error;
+
+      const { data: emails, error: emailErr } = await supabase
+        .from("contact_emails")
+        .select("contact_id, email, label");
+      if (emailErr) throw emailErr;
+
+      return (contacts || []).map(c => ({
+        ...c,
+        emails: (emails || []).filter(e => e.contact_id === c.id),
+        displayName: [c.first_name, c.last_name].filter(Boolean).join(" ") || c.company_name || "Unbenannt",
+      })).filter(c => c.emails.length > 0);
+    },
+  });
+
+  const filteredContacts = useMemo(() => {
+    if (!contactSearch) return contactsWithEmails;
+    const s = contactSearch.toLowerCase();
+    return contactsWithEmails.filter(c =>
+      c.displayName.toLowerCase().includes(s) ||
+      c.company_name?.toLowerCase().includes(s) ||
+      c.emails.some(e => e.email.toLowerCase().includes(s))
+    );
+  }, [contactsWithEmails, contactSearch]);
+
   if (!accountId && accounts.length > 0) {
     setAccountId(accounts[0].id);
   }
 
+  const addEmailToField = (email: string) => {
+    const current = to.split(",").map(e => e.trim()).filter(Boolean);
+    if (!current.includes(email)) {
+      setTo(current.length > 0 ? `${to}, ${email}` : email);
+    }
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    const maxSize = 10 * 1024 * 1024; // 10MB
-    
+    const maxSize = 10 * 1024 * 1024;
     for (const file of files) {
       if (file.size > maxSize) {
         toast.error(`${file.name} ist zu groß (max. 10MB)`);
@@ -86,7 +129,6 @@ export const ComposeEmailDialog = ({
       }
       setAttachments(prev => [...prev, { file, name: file.name, size: file.size }]);
     }
-    
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -99,7 +141,6 @@ export const ComposeEmailDialog = ({
       const reader = new FileReader();
       reader.onload = () => {
         const result = reader.result as string;
-        // Remove data:...;base64, prefix
         resolve(result.split(",")[1]);
       };
       reader.onerror = reject;
@@ -124,7 +165,6 @@ export const ComposeEmailDialog = ({
       const toAddresses = to.split(",").map((e) => e.trim()).filter(Boolean);
       const ccAddresses = cc ? cc.split(",").map((e) => e.trim()).filter(Boolean) : [];
 
-      // Convert attachments to base64
       const attachmentData = await Promise.all(
         attachments.map(async (att) => ({
           filename: att.name,
@@ -189,12 +229,69 @@ export const ComposeEmailDialog = ({
 
           <div className="space-y-1.5">
             <Label className="text-xs">An</Label>
-            <Input
-              value={to}
-              onChange={(e) => setTo(e.target.value)}
-              placeholder="empfaenger@email.de"
-              className="h-9"
-            />
+            <div className="flex gap-1.5">
+              <Input
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                placeholder="empfaenger@email.de"
+                className="h-9 flex-1"
+              />
+              <Popover open={contactPickerOpen} onOpenChange={setContactPickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" title="Aus Kontakten wählen">
+                    <Users className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-80 p-0" align="end">
+                  <div className="p-2 border-b">
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        placeholder="Kontakt suchen..."
+                        value={contactSearch}
+                        onChange={e => setContactSearch(e.target.value)}
+                        className="h-8 pl-8 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <ScrollArea className="max-h-60">
+                    {filteredContacts.length === 0 ? (
+                      <p className="p-3 text-sm text-muted-foreground text-center">Keine Kontakte gefunden</p>
+                    ) : (
+                      filteredContacts.map(contact => (
+                        <div key={contact.id} className="border-b last:border-0">
+                          <div className="px-3 pt-2 pb-1">
+                            <span className="text-sm font-medium">{contact.displayName}</span>
+                            {contact.company_name && contact.first_name && (
+                              <span className="text-xs text-muted-foreground ml-1.5">({contact.company_name})</span>
+                            )}
+                          </div>
+                          {contact.emails.map(ce => (
+                            <button
+                              key={ce.email}
+                              className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-muted/50 transition-colors"
+                              onClick={() => {
+                                addEmailToField(ce.email);
+                                if (contact.emails.length === 1) setContactPickerOpen(false);
+                              }}
+                            >
+                              <Checkbox
+                                checked={to.split(",").map(e => e.trim()).includes(ce.email)}
+                                className="h-3.5 w-3.5"
+                              />
+                              <span className="text-sm text-muted-foreground truncate">{ce.email}</span>
+                              {ce.label && (
+                                <span className="text-[10px] text-muted-foreground shrink-0">({ce.label})</span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      ))
+                    )}
+                  </ScrollArea>
+                </PopoverContent>
+              </Popover>
+            </div>
           </div>
 
           <div className="space-y-1.5">
