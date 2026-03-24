@@ -28,6 +28,13 @@ interface ParsedAttachment {
   contentId: string | null;
 }
 
+// Suppress Strato TLS close_notify errors at the event loop level
+globalThis.addEventListener("unhandledrejection", (e) => {
+  if (e.reason?.message?.includes("close_notify") || e.reason?.code === "UnexpectedEof") {
+    e.preventDefault();
+  }
+});
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -303,7 +310,12 @@ async function fetchAccountEmails(
     try {
       await client.logout();
     } catch (_e) {
-      // Strato closes TLS without close_notify - this is expected
+      // ignore
+    }
+    try {
+      client.close();
+    } catch (_e) {
+      // ignore
     }
   }
 
