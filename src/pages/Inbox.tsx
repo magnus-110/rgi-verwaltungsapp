@@ -108,10 +108,13 @@ export const Inbox = () => {
     <div className="h-[calc(100vh-8rem)] flex rounded-lg border bg-background overflow-hidden">
       {/* Left: Folders & Accounts */}
       <div className="w-56 border-r flex flex-col shrink-0">
-        <div className="p-3 border-b">
-          <Button size="sm" className="w-full gap-2">
+        <div className="p-3 border-b flex gap-2">
+          <Button size="sm" className="flex-1 gap-2">
             <Plus className="h-4 w-4" />
             Neue E-Mail
+          </Button>
+          <Button size="sm" variant="outline" onClick={handleSync} disabled={isSyncing}>
+            {isSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           </Button>
         </div>
 
