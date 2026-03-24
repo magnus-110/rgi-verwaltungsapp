@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.52.1";
-import { SMTPClient } from "npm:emailjs@4.0.4";
+import nodemailer from "npm:nodemailer@6.9.16";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -89,42 +89,38 @@ Deno.serve(async (req) => {
       .eq("name", "Gesendet")
       .single();
 
-    // Send via SMTP
-    const client = new SMTPClient({
-      user: account.smtp_user,
-      password: account.smtp_password,
+    // Send via SMTP using nodemailer
+    const transporter = nodemailer.createTransport({
       host: account.smtp_host,
       port: account.smtp_port,
-      ssl: account.use_ssl,
+      secure: account.use_ssl,
+      auth: {
+        user: account.smtp_user,
+        pass: account.smtp_password,
+      },
     });
 
-    const messageConfig: any = {
+    const mailOptions: any = {
       from: `${account.display_name} <${account.email_address}>`,
       to: Array.isArray(to) ? to.join(", ") : to,
       subject: subject || "(Kein Betreff)",
+      text: body_text || "",
     };
 
     if (cc && cc.length > 0) {
-      messageConfig.cc = Array.isArray(cc) ? cc.join(", ") : cc;
+      mailOptions.cc = Array.isArray(cc) ? cc.join(", ") : cc;
     }
     if (bcc && bcc.length > 0) {
-      messageConfig.bcc = Array.isArray(bcc) ? bcc.join(", ") : bcc;
+      mailOptions.bcc = Array.isArray(bcc) ? bcc.join(", ") : bcc;
     }
-
     if (body_html) {
-      messageConfig.attachment = [
-        { data: body_html, alternative: true },
-      ];
-      messageConfig.text = body_text || "";
-    } else {
-      messageConfig.text = body_text || "";
+      mailOptions.html = body_html;
     }
-
     if (in_reply_to) {
-      messageConfig["message-id"] = in_reply_to;
+      mailOptions.inReplyTo = in_reply_to;
     }
 
-    await client.sendAsync(messageConfig);
+    await transporter.sendMail(mailOptions);
 
     // Save sent email in DB
     const toAddresses = Array.isArray(to) ? to : [to];
