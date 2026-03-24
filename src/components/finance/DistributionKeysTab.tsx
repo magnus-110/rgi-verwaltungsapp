@@ -35,9 +35,15 @@ export function DistributionKeysTab() {
   });
 
   const { data: accounts = [] } = useQuery({
-    queryKey: ["chart-of-accounts"],
+    queryKey: ["chart-of-accounts-dist", selectedBuilding],
     queryFn: async () => {
-      const { data, error } = await supabase.from("chart_of_accounts").select("*").is("building_id", null).order("sort_order");
+      let query = supabase.from("chart_of_accounts").select("*");
+      if (selectedBuilding) {
+        query = query.or(`building_id.is.null,building_id.eq.${selectedBuilding}`);
+      } else {
+        query = query.is("building_id", null);
+      }
+      const { data, error } = await query.order("sort_order");
       if (error) throw error;
       return data;
     },
