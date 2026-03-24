@@ -61,6 +61,7 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
   const [phones, setPhones] = useState<LocalPhone[]>([]);
   const [emails, setEmails] = useState<LocalEmail[]>([]);
   const [bankAccounts, setBankAccounts] = useState<LocalBankAccount[]>([]);
+  const [persons, setPersons] = useState<LocalPerson[]>([]);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [ibanErrors, setIbanErrors] = useState<Record<string, string>>({});
