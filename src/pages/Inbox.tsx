@@ -45,6 +45,7 @@ export const Inbox = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [newContactDialogOpen, setNewContactDialogOpen] = useState(false);
   const [newContactData, setNewContactData] = useState({ first_name: "", last_name: "", company_name: "", email: "" });
+  const [contactSearchTerm, setContactSearchTerm] = useState("");
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -688,19 +689,34 @@ export const Inbox = () => {
                             {contacts.length > 0 && (
                               <>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuSub>
-                                  <DropdownMenuSubTrigger>
-                                    <UserCheck className="h-4 w-4 mr-2" />
-                                    Zu bestehendem Kontakt hinzufügen
-                                  </DropdownMenuSubTrigger>
-                                  <DropdownMenuSubContent className="max-h-60 overflow-y-auto">
-                                    {contacts.map(c => (
-                                      <DropdownMenuItem key={c.id} onClick={() => addEmailToExistingContact(c.id)}>
+                                <div className="px-2 py-1.5">
+                                  <Input
+                                    placeholder="Kontakt suchen..."
+                                    value={contactSearchTerm}
+                                    onChange={e => setContactSearchTerm(e.target.value)}
+                                    className="h-7 text-xs"
+                                    onClick={e => e.stopPropagation()}
+                                    onKeyDown={e => e.stopPropagation()}
+                                  />
+                                </div>
+                                <div className="max-h-48 overflow-y-auto">
+                                  {contacts
+                                    .filter(c => {
+                                      if (!contactSearchTerm.trim()) return false;
+                                      const name = getContactName(c).toLowerCase();
+                                      return name.includes(contactSearchTerm.toLowerCase());
+                                    })
+                                    .map(c => (
+                                      <DropdownMenuItem key={c.id} onClick={() => { addEmailToExistingContact(c.id); setContactSearchTerm(""); }}>
+                                        <UserCheck className="h-3.5 w-3.5 mr-2 shrink-0" />
                                         {getContactName(c)}
                                       </DropdownMenuItem>
-                                    ))}
-                                  </DropdownMenuSubContent>
-                                </DropdownMenuSub>
+                                    ))
+                                  }
+                                  {contactSearchTerm.trim() && contacts.filter(c => getContactName(c).toLowerCase().includes(contactSearchTerm.toLowerCase())).length === 0 && (
+                                    <p className="px-2 py-1.5 text-xs text-muted-foreground">Kein Kontakt gefunden</p>
+                                  )}
+                                </div>
                               </>
                             )}
                           </DropdownMenuContent>
