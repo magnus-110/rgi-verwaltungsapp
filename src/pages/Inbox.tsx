@@ -324,6 +324,12 @@ export const Inbox = () => {
           </div>
         )}
       </div>
+      <ComposeEmailDialog
+        open={composeOpen}
+        onOpenChange={setComposeOpen}
+        replyTo={composeReplyTo}
+        forward={composeForward}
+      />
     </div>
   );
 };
