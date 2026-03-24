@@ -39,6 +39,8 @@ export const Inbox = () => {
   const [archiveEmailId, setArchiveEmailId] = useState<string | null>(null);
   const [filterBuildingId, setFilterBuildingId] = useState<string>("all");
   const [filterContactId, setFilterContactId] = useState<string>("all");
+  const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
