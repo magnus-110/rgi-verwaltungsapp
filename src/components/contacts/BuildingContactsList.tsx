@@ -238,7 +238,45 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
     refetch();
   };
 
-  // Helper: ensure account + template exist for Hausgeld
+  const saveEditingType = async () => {
+    if (!editingType || !editingType.value.trim()) {
+      setEditingType(null);
+      return;
+    }
+    const val = editingType.value.trim();
+    if (editingType.field === "share_type") {
+      if (editingType.mode === "edit" && editingType.oldValue) {
+        // Rename: update all records with old value to new value
+        await supabase.from("contact_building_shares").update({ share_type: val } as any).eq("share_type", editingType.oldValue as any);
+      } else {
+        await supabase.from("contact_building_shares").update({ share_type: val } as any).eq("id", editingType.id);
+      }
+      queryClient.invalidateQueries({ queryKey: ["custom-share-types"] });
+    } else {
+      if (editingType.mode === "edit" && editingType.oldValue) {
+        await supabase.from("contact_building_costs").update({ cost_type: val }).eq("cost_type", editingType.oldValue);
+      } else {
+        await supabase.from("contact_building_costs").update({ cost_type: val }).eq("id", editingType.id);
+      }
+      queryClient.invalidateQueries({ queryKey: ["custom-cost-types"] });
+    }
+    setEditingType(null);
+    refetch();
+  };
+
+  const deleteCustomType = async (field: string, typeValue: string) => {
+    if (field === "share_type") {
+      await supabase.from("contact_building_shares").update({ share_type: "mea" } as any).eq("share_type", typeValue as any);
+      queryClient.invalidateQueries({ queryKey: ["custom-share-types"] });
+    } else {
+      await supabase.from("contact_building_costs").update({ cost_type: "Hausgeld" }).eq("cost_type", typeValue);
+      queryClient.invalidateQueries({ queryKey: ["custom-cost-types"] });
+    }
+    toast({ title: `„${typeValue}" entfernt` });
+    refetch();
+  };
+
+
   const ensureAccountAndTemplate = async (assignmentId: string, costType: string, amount: number) => {
     if (amount <= 0) {
       toast({ title: "Hinweis", description: "Bitte zuerst einen Betrag eingeben.", variant: "destructive" });
