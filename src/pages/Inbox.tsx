@@ -9,6 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { ComposeEmailDialog } from "@/components/email/ComposeEmailDialog";
 
 const folderIcons: Record<string, any> = {
   'inbox': InboxIcon,
@@ -24,6 +25,9 @@ export const Inbox = () => {
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [isSyncing, setIsSyncing] = useState(false);
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composeReplyTo, setComposeReplyTo] = useState<any>(null);
+  const [composeForward, setComposeForward] = useState<any>(null);
   const queryClient = useQueryClient();
 
   // Fetch folders
@@ -109,7 +113,7 @@ export const Inbox = () => {
       {/* Left: Folders & Accounts */}
       <div className="w-56 border-r flex flex-col shrink-0">
         <div className="p-3 border-b flex gap-2">
-          <Button size="sm" className="flex-1 gap-2">
+          <Button size="sm" className="flex-1 gap-2" onClick={() => { setComposeReplyTo(null); setComposeForward(null); setComposeOpen(true); }}>
             <Plus className="h-4 w-4" />
             Neue E-Mail
           </Button>
@@ -284,11 +288,31 @@ export const Inbox = () => {
               )}
             </ScrollArea>
             <div className="p-3 border-t flex gap-2">
-              <Button size="sm" className="gap-1.5">
+              <Button size="sm" className="gap-1.5" onClick={() => {
+                setComposeReplyTo({
+                  subject: selectedEmail.subject,
+                  from_address: selectedEmail.from_address,
+                  from_name: selectedEmail.from_name,
+                  body_text: selectedEmail.body_text,
+                  date: selectedEmail.date,
+                  account_id: selectedEmail.account_id,
+                });
+                setComposeForward(null);
+                setComposeOpen(true);
+              }}>
                 <Send className="h-3.5 w-3.5" />
                 Antworten
               </Button>
-              <Button variant="outline" size="sm">Weiterleiten</Button>
+              <Button variant="outline" size="sm" onClick={() => {
+                setComposeForward({
+                  subject: selectedEmail.subject,
+                  body_text: selectedEmail.body_text,
+                  body_html: selectedEmail.body_html,
+                  account_id: selectedEmail.account_id,
+                });
+                setComposeReplyTo(null);
+                setComposeOpen(true);
+              }}>Weiterleiten</Button>
             </div>
           </>
         ) : (
@@ -300,6 +324,12 @@ export const Inbox = () => {
           </div>
         )}
       </div>
+      <ComposeEmailDialog
+        open={composeOpen}
+        onOpenChange={setComposeOpen}
+        replyTo={composeReplyTo}
+        forward={composeForward}
+      />
     </div>
   );
 };

@@ -75,3 +75,6 @@ verify_jwt = false
 [functions.classify-email]
 verify_jwt = false
 
+[functions.send-email]
+verify_jwt = false
+
