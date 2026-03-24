@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { ChevronDown, ChevronRight, Plus, Search, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Search, Trash2, Pencil, X } from "lucide-react";
 
 const DISTRIBUTION_KEYS = [
   { value: "mea", label: "MEA" },
@@ -122,6 +122,7 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
 
   const [customKeyInput, setCustomKeyInput] = useState<string | null>(null);
   const [customKeyAccountId, setCustomKeyAccountId] = useState<string | null>(null);
+  const [editingDistKey, setEditingDistKey] = useState<{ oldValue: string; newValue: string } | null>(null);
 
   const getKeyLabel = (key: string | null) => allDistKeys.find(k => k.value === key)?.label || key || "–";
 
