@@ -1526,6 +1526,357 @@ export type Database = {
           },
         ]
       }
+      email_accounts: {
+        Row: {
+          created_at: string
+          delete_after_import: boolean
+          display_name: string
+          email_address: string
+          id: string
+          imap_host: string
+          imap_password: string
+          imap_port: number
+          imap_user: string
+          is_active: boolean
+          last_sync_at: string | null
+          last_sync_error: string | null
+          last_uid: string | null
+          smtp_host: string
+          smtp_password: string
+          smtp_port: number
+          smtp_user: string
+          sync_interval_minutes: number
+          updated_at: string
+          use_ssl: boolean
+        }
+        Insert: {
+          created_at?: string
+          delete_after_import?: boolean
+          display_name: string
+          email_address: string
+          id?: string
+          imap_host: string
+          imap_password: string
+          imap_port?: number
+          imap_user: string
+          is_active?: boolean
+          last_sync_at?: string | null
+          last_sync_error?: string | null
+          last_uid?: string | null
+          smtp_host: string
+          smtp_password: string
+          smtp_port?: number
+          smtp_user: string
+          sync_interval_minutes?: number
+          updated_at?: string
+          use_ssl?: boolean
+        }
+        Update: {
+          created_at?: string
+          delete_after_import?: boolean
+          display_name?: string
+          email_address?: string
+          id?: string
+          imap_host?: string
+          imap_password?: string
+          imap_port?: number
+          imap_user?: string
+          is_active?: boolean
+          last_sync_at?: string | null
+          last_sync_error?: string | null
+          last_uid?: string | null
+          smtp_host?: string
+          smtp_password?: string
+          smtp_port?: number
+          smtp_user?: string
+          sync_interval_minutes?: number
+          updated_at?: string
+          use_ssl?: boolean
+        }
+        Relationships: []
+      }
+      email_attachments: {
+        Row: {
+          content_id: string | null
+          created_at: string
+          email_id: string
+          file_name: string
+          file_path: string | null
+          file_size: number | null
+          id: string
+          is_inline: boolean
+          mime_type: string | null
+        }
+        Insert: {
+          content_id?: string | null
+          created_at?: string
+          email_id: string
+          file_name: string
+          file_path?: string | null
+          file_size?: number | null
+          id?: string
+          is_inline?: boolean
+          mime_type?: string | null
+        }
+        Update: {
+          content_id?: string | null
+          created_at?: string
+          email_id?: string
+          file_name?: string
+          file_path?: string | null
+          file_size?: number | null
+          id?: string
+          is_inline?: boolean
+          mime_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_attachments_email_id_fkey"
+            columns: ["email_id"]
+            isOneToOne: false
+            referencedRelation: "emails"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_folders: {
+        Row: {
+          color: string | null
+          created_at: string
+          icon: string | null
+          id: string
+          is_system: boolean
+          name: string
+          sort_order: number | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          icon?: string | null
+          id?: string
+          is_system?: boolean
+          name: string
+          sort_order?: number | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          icon?: string | null
+          id?: string
+          is_system?: boolean
+          name?: string
+          sort_order?: number | null
+        }
+        Relationships: []
+      }
+      email_rules: {
+        Row: {
+          action_type: string
+          action_value: string | null
+          building_id: string | null
+          condition_field: string
+          condition_operator: string
+          condition_value: string
+          contact_id: string | null
+          created_at: string
+          folder_id: string | null
+          id: string
+          is_active: boolean
+          name: string
+          sort_order: number | null
+          updated_at: string
+        }
+        Insert: {
+          action_type?: string
+          action_value?: string | null
+          building_id?: string | null
+          condition_field: string
+          condition_operator?: string
+          condition_value: string
+          contact_id?: string | null
+          created_at?: string
+          folder_id?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Update: {
+          action_type?: string
+          action_value?: string | null
+          building_id?: string | null
+          condition_field?: string
+          condition_operator?: string
+          condition_value?: string
+          contact_id?: string | null
+          created_at?: string
+          folder_id?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_rules_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_rules_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_rules_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "email_folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      emails: {
+        Row: {
+          account_id: string
+          ai_category: string | null
+          ai_classified_at: string | null
+          ai_priority: string | null
+          ai_summary: string | null
+          bcc_addresses: Json | null
+          body_html: string | null
+          body_text: string | null
+          building_id: string | null
+          cc_addresses: Json | null
+          contact_id: string | null
+          created_at: string
+          date: string | null
+          folder_id: string | null
+          from_address: string | null
+          from_name: string | null
+          has_attachments: boolean
+          id: string
+          imap_uid: string | null
+          in_reply_to: string | null
+          is_archived: boolean
+          is_draft: boolean
+          is_read: boolean
+          is_starred: boolean
+          message_id_header: string | null
+          process_id: string | null
+          subject: string | null
+          thread_id: string | null
+          to_addresses: Json | null
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          ai_category?: string | null
+          ai_classified_at?: string | null
+          ai_priority?: string | null
+          ai_summary?: string | null
+          bcc_addresses?: Json | null
+          body_html?: string | null
+          body_text?: string | null
+          building_id?: string | null
+          cc_addresses?: Json | null
+          contact_id?: string | null
+          created_at?: string
+          date?: string | null
+          folder_id?: string | null
+          from_address?: string | null
+          from_name?: string | null
+          has_attachments?: boolean
+          id?: string
+          imap_uid?: string | null
+          in_reply_to?: string | null
+          is_archived?: boolean
+          is_draft?: boolean
+          is_read?: boolean
+          is_starred?: boolean
+          message_id_header?: string | null
+          process_id?: string | null
+          subject?: string | null
+          thread_id?: string | null
+          to_addresses?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          ai_category?: string | null
+          ai_classified_at?: string | null
+          ai_priority?: string | null
+          ai_summary?: string | null
+          bcc_addresses?: Json | null
+          body_html?: string | null
+          body_text?: string | null
+          building_id?: string | null
+          cc_addresses?: Json | null
+          contact_id?: string | null
+          created_at?: string
+          date?: string | null
+          folder_id?: string | null
+          from_address?: string | null
+          from_name?: string | null
+          has_attachments?: boolean
+          id?: string
+          imap_uid?: string | null
+          in_reply_to?: string | null
+          is_archived?: boolean
+          is_draft?: boolean
+          is_read?: boolean
+          is_starred?: boolean
+          message_id_header?: string | null
+          process_id?: string | null
+          subject?: string | null
+          thread_id?: string | null
+          to_addresses?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emails_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "email_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emails_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emails_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emails_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "email_folders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emails_process_id_fkey"
+            columns: ["process_id"]
+            isOneToOne: false
+            referencedRelation: "processes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       forum_post_templates: {
         Row: {
           content: string
@@ -1799,6 +2150,57 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      processes: {
+        Row: {
+          building_id: string | null
+          contact_id: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          building_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          building_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "processes_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "processes_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
