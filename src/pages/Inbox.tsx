@@ -89,6 +89,21 @@ export const Inbox = () => {
 
   const unreadCount = emails.filter(e => !e.is_read).length;
 
+  const handleSync = async () => {
+    setIsSyncing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("fetch-emails");
+      if (error) throw error;
+      toast.success("E-Mails synchronisiert");
+      queryClient.invalidateQueries({ queryKey: ["emails"] });
+      queryClient.invalidateQueries({ queryKey: ["email-accounts"] });
+    } catch (err: any) {
+      toast.error("Sync fehlgeschlagen: " + (err.message || "Unbekannter Fehler"));
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   return (
     <div className="h-[calc(100vh-8rem)] flex rounded-lg border bg-background overflow-hidden">
       {/* Left: Folders & Accounts */}
