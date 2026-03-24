@@ -651,24 +651,60 @@ export const Inbox = () => {
                       </div>
                     </div>
 
-                    <div>
-                      <button className="flex items-center gap-1.5 text-sm hover:underline cursor-pointer" onClick={() => setShowEmailDetails(prev => !prev)}>
-                        <span className="font-medium text-foreground">{selectedEmail.from_name || selectedEmail.from_address}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {selectedEmail.date && new Date(selectedEmail.date).toLocaleString("de-DE")}
-                        </span>
-                        {showEmailDetails ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
-                      </button>
-                      {showEmailDetails && (
-                        <div className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
-                          {selectedEmail.from_name && <div>Von: {selectedEmail.from_name} &lt;{selectedEmail.from_address}&gt;</div>}
-                          {selectedEmail.to_addresses && (
-                            <div>An: {Array.isArray(selectedEmail.to_addresses) ? (selectedEmail.to_addresses as string[]).join(", ") : String(selectedEmail.to_addresses)}</div>
-                          )}
-                          {selectedEmail.cc_addresses && (
-                            <div>CC: {Array.isArray(selectedEmail.cc_addresses) ? (selectedEmail.cc_addresses as string[]).join(", ") : String(selectedEmail.cc_addresses)}</div>
-                          )}
-                        </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 min-w-0">
+                        <button className="flex items-center gap-1.5 text-sm hover:underline cursor-pointer" onClick={() => setShowEmailDetails(prev => !prev)}>
+                          <span className="font-medium text-foreground">{selectedEmail.from_name || selectedEmail.from_address}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {selectedEmail.date && new Date(selectedEmail.date).toLocaleString("de-DE")}
+                          </span>
+                          {showEmailDetails ? <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
+                        </button>
+                        {showEmailDetails && (
+                          <div className="mt-1.5 space-y-0.5 text-xs text-muted-foreground">
+                            {selectedEmail.from_name && <div>Von: {selectedEmail.from_name} &lt;{selectedEmail.from_address}&gt;</div>}
+                            {selectedEmail.to_addresses && (
+                              <div>An: {Array.isArray(selectedEmail.to_addresses) ? (selectedEmail.to_addresses as string[]).join(", ") : String(selectedEmail.to_addresses)}</div>
+                            )}
+                            {selectedEmail.cc_addresses && (
+                              <div>CC: {Array.isArray(selectedEmail.cc_addresses) ? (selectedEmail.cc_addresses as string[]).join(", ") : String(selectedEmail.cc_addresses)}</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      {!senderHasContact && selectedEmail.from_address && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm" className="h-7 gap-1 text-xs shrink-0">
+                              <UserPlus className="h-3.5 w-3.5" />
+                              Kontakt speichern
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-64">
+                            <DropdownMenuItem onClick={openNewContactFromEmail}>
+                              <UserPlus className="h-4 w-4 mr-2" />
+                              Neuen Kontakt anlegen
+                            </DropdownMenuItem>
+                            {contacts.length > 0 && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuSub>
+                                  <DropdownMenuSubTrigger>
+                                    <UserCheck className="h-4 w-4 mr-2" />
+                                    Zu bestehendem Kontakt hinzufügen
+                                  </DropdownMenuSubTrigger>
+                                  <DropdownMenuSubContent className="max-h-60 overflow-y-auto">
+                                    {contacts.map(c => (
+                                      <DropdownMenuItem key={c.id} onClick={() => addEmailToExistingContact(c.id)}>
+                                        {getContactName(c)}
+                                      </DropdownMenuItem>
+                                    ))}
+                                  </DropdownMenuSubContent>
+                                </DropdownMenuSub>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       )}
                     </div>
 
