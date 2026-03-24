@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UserPlus, Edit, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { EmailSettingsSection } from "@/components/email/EmailSettingsSection";
 
 interface AdminUser {
   user_id: string;
@@ -622,6 +623,9 @@ export const Settings = () => {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Email Settings */}
+              <EmailSettingsSection />
 
               {/* Employee Management */}
               <Card>
