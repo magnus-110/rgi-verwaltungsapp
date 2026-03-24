@@ -93,6 +93,22 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Trigger classification for newly fetched emails
+    try {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+      await fetch(`${supabaseUrl}/functions/v1/classify-email`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${anonKey}`,
+        },
+        body: JSON.stringify({}),
+      });
+    } catch (classifyErr) {
+      console.error("classify trigger failed:", classifyErr);
+    }
+
     return new Response(JSON.stringify({ success: true, results }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

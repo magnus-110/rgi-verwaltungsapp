@@ -72,3 +72,6 @@ verify_jwt = false
 [functions.fetch-emails]
 verify_jwt = false
 
+[functions.classify-email]
+verify_jwt = false
+
