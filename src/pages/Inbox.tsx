@@ -166,7 +166,27 @@ export const Inbox = () => {
     },
   });
 
-  const selectedEmail = emails.find(e => e.id === selectedEmailId);
+  // Category counts from current emails
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const e of emails) {
+      const cat = e.ai_category || "Unkategorisiert";
+      counts[cat] = (counts[cat] || 0) + 1;
+    }
+    return counts;
+  }, [emails]);
+
+  const categoryList = useMemo(() => {
+    return Object.entries(categoryCounts).sort((a, b) => b[1] - a[1]);
+  }, [categoryCounts]);
+
+  const filteredEmails = useMemo(() => {
+    if (filterCategory === "all") return emails;
+    if (filterCategory === "Unkategorisiert") return emails.filter(e => !e.ai_category);
+    return emails.filter(e => e.ai_category === filterCategory);
+  }, [emails, filterCategory]);
+
+  const selectedEmail = filteredEmails.find(e => e.id === selectedEmailId) || emails.find(e => e.id === selectedEmailId);
 
   // Auto-select inbox folder
   useEffect(() => {
