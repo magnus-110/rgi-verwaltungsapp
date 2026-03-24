@@ -229,6 +229,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   const updateShare = async (id: string, field: string, value: any) => {
     await supabase.from("contact_building_shares").update({ [field]: value }).eq("id", id);
     refetch();
+    if (field === "share_type") queryClient.invalidateQueries({ queryKey: ["custom-share-types"] });
   };
   const deleteShare = async (id: string) => {
     await supabase.from("contact_building_shares").delete().eq("id", id);
