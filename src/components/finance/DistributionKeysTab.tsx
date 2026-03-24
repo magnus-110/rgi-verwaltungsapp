@@ -23,6 +23,7 @@ export function DistributionKeysTab() {
   const queryClient = useQueryClient();
   const [selectedBuilding, setSelectedBuilding] = useState<string>("");
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+  const [searchTerm, setSearchTerm] = useState("");
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
