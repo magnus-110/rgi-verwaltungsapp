@@ -391,145 +391,152 @@ export const Inbox = () => {
         </div>
       )}
 
-      {/* Middle: Email List */}
-      <div className="w-80 border-r flex flex-col shrink-0">
-        <div className="p-2 border-b space-y-2">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="E-Mails durchsuchen..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="pl-9 h-9"
-            />
-          </div>
-          {/* Archive filters */}
-          {isArchiveFolder && (
-            <div className="flex gap-2">
-              <Select value={filterBuildingId} onValueChange={setFilterBuildingId}>
-                <SelectTrigger className="h-8 text-xs flex-1">
-                  <Building2 className="h-3 w-3 mr-1 shrink-0" />
-                  <SelectValue placeholder="Liegenschaft" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Alle Liegenschaften</SelectItem>
-                  {buildings.map(b => (
-                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={filterContactId} onValueChange={setFilterContactId}>
-                <SelectTrigger className="h-8 text-xs flex-1">
-                  <User className="h-3 w-3 mr-1 shrink-0" />
-                  <SelectValue placeholder="Kontakt" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Alle Kontakte</SelectItem>
-                  {contacts.map(c => (
-                    <SelectItem key={c.id} value={c.id}>{getContactName(c)}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-        </div>
+      {/* Main content: resizable email list + detail */}
+      <ResizablePanelGroup direction="horizontal" className="flex-1">
+        {/* Middle: Email List */}
+        <ResizablePanel defaultSize={35} minSize={20} maxSize={60}>
+          <div className="flex flex-col h-full">
+            {/* Category tabs ABOVE search */}
+            {categoryList.length > 0 && (
+              <div className="border-b">
+                <ScrollArea className="w-full">
+                  <div className="flex px-1 py-1 gap-0.5">
+                    <button
+                      onClick={() => setFilterCategory("all")}
+                      className={cn(
+                        "px-2 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0",
+                        filterCategory === "all" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
+                      )}
+                    >
+                      Alle ({emails.length})
+                    </button>
+                    {categoryList.map(([cat, count]) => (
+                      <button
+                        key={cat}
+                        onClick={() => setFilterCategory(filterCategory === cat ? "all" : cat)}
+                        className={cn(
+                          "px-2 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0",
+                          filterCategory === cat ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
+                        )}
+                      >
+                        {cat} ({count})
+                      </button>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+            )}
 
-        {/* Category tabs */}
-        {categoryList.length > 0 && (
-          <div className="border-b">
-            <ScrollArea className="w-full">
-              <div className="flex px-1 py-1 gap-0.5">
-                <button
-                  onClick={() => setFilterCategory("all")}
-                  className={cn(
-                    "px-2 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0",
-                    filterCategory === "all" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
-                  )}
-                >
-                  Alle ({emails.length})
-                </button>
-                {categoryList.map(([cat, count]) => (
+            {/* Search - filters within selected category */}
+            <div className="p-2 border-b space-y-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder={filterCategory !== "all" ? `In "${filterCategory}" suchen...` : "E-Mails durchsuchen..."}
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  className="pl-9 h-9"
+                />
+              </div>
+              {/* Archive filters */}
+              {isArchiveFolder && (
+                <div className="flex gap-2">
+                  <Select value={filterBuildingId} onValueChange={setFilterBuildingId}>
+                    <SelectTrigger className="h-8 text-xs flex-1">
+                      <Building2 className="h-3 w-3 mr-1 shrink-0" />
+                      <SelectValue placeholder="Liegenschaft" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Alle Liegenschaften</SelectItem>
+                      {buildings.map(b => (
+                        <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={filterContactId} onValueChange={setFilterContactId}>
+                    <SelectTrigger className="h-8 text-xs flex-1">
+                      <User className="h-3 w-3 mr-1 shrink-0" />
+                      <SelectValue placeholder="Kontakt" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Alle Kontakte</SelectItem>
+                      {contacts.map(c => (
+                        <SelectItem key={c.id} value={c.id}>{getContactName(c)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+
+            <ScrollArea className="flex-1">
+              {emailsLoading ? (
+                <div className="p-4 text-center text-sm text-muted-foreground">Laden...</div>
+              ) : filteredEmails.length === 0 ? (
+                <div className="p-8 text-center">
+                  <Mail className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
+                  <p className="text-sm text-muted-foreground">Keine E-Mails vorhanden</p>
+                </div>
+              ) : (
+                filteredEmails.map(email => (
                   <button
-                    key={cat}
-                    onClick={() => setFilterCategory(filterCategory === cat ? "all" : cat)}
+                    key={email.id}
+                    onClick={() => setSelectedEmailId(email.id)}
                     className={cn(
-                      "px-2 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0",
-                      filterCategory === cat ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
+                      "w-full text-left px-3 py-2 border-b transition-colors",
+                      selectedEmailId === email.id ? "bg-accent" : "hover:bg-muted/50",
+                      !email.is_read && "bg-primary/5"
                     )}
                   >
-                    {cat} ({count})
+                    <div className="flex items-center justify-between gap-1">
+                      <span className={cn("text-sm truncate", !email.is_read && "font-semibold")}>
+                        {email.from_name || email.from_address || "Unbekannt"}
+                      </span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {email.has_attachments && <Paperclip className="h-3 w-3 text-muted-foreground" />}
+                        {email.is_starred && <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />}
+                        <span className="text-[11px] text-muted-foreground">
+                          {email.date ? new Date(email.date).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) : ""}
+                        </span>
+                      </div>
+                    </div>
+                    <p className={cn("text-xs truncate", !email.is_read ? "text-foreground" : "text-muted-foreground")}>
+                      {email.subject || "(Kein Betreff)"}
+                    </p>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      {isArchiveFolder && email.building_id && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
+                          <Building2 className="h-2.5 w-2.5" />
+                          {buildings.find(b => b.id === email.building_id)?.name || ""}
+                        </Badge>
+                      )}
+                      {isArchiveFolder && email.contact_id && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
+                          <User className="h-2.5 w-2.5" />
+                          {(() => { const c = contacts.find(c => c.id === email.contact_id); return c ? getContactName(c) : ""; })()}
+                        </Badge>
+                      )}
+                      {email.ai_category && (
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                          {email.ai_category}
+                        </Badge>
+                      )}
+                      {email.ai_priority === "hoch" && (
+                        <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+                          Wichtig
+                        </Badge>
+                      )}
+                    </div>
                   </button>
-                ))}
-              </div>
+                ))
+              )}
             </ScrollArea>
           </div>
-        )}
+        </ResizablePanel>
 
-        <ScrollArea className="flex-1">
-          {emailsLoading ? (
-            <div className="p-4 text-center text-sm text-muted-foreground">Laden...</div>
-          ) : filteredEmails.length === 0 ? (
-            <div className="p-8 text-center">
-              <Mail className="h-12 w-12 mx-auto text-muted-foreground/30 mb-3" />
-              <p className="text-sm text-muted-foreground">Keine E-Mails vorhanden</p>
-            </div>
-          ) : (
-            filteredEmails.map(email => (
-              <button
-                key={email.id}
-                onClick={() => setSelectedEmailId(email.id)}
-                className={cn(
-                  "w-full text-left px-3 py-2 border-b transition-colors",
-                  selectedEmailId === email.id ? "bg-accent" : "hover:bg-muted/50",
-                  !email.is_read && "bg-primary/5"
-                )}
-              >
-                <div className="flex items-center justify-between gap-1">
-                  <span className={cn("text-sm truncate", !email.is_read && "font-semibold")}>
-                    {email.from_name || email.from_address || "Unbekannt"}
-                  </span>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {email.has_attachments && <Paperclip className="h-3 w-3 text-muted-foreground" />}
-                    {email.is_starred && <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />}
-                    <span className="text-[11px] text-muted-foreground">
-                      {email.date ? new Date(email.date).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) : ""}
-                    </span>
-                  </div>
-                </div>
-                <p className={cn("text-xs truncate", !email.is_read ? "text-foreground" : "text-muted-foreground")}>
-                  {email.subject || "(Kein Betreff)"}
-                </p>
-                <div className="flex items-center gap-1 mt-0.5">
-                  {isArchiveFolder && email.building_id && (
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
-                      <Building2 className="h-2.5 w-2.5" />
-                      {buildings.find(b => b.id === email.building_id)?.name || ""}
-                    </Badge>
-                  )}
-                  {isArchiveFolder && email.contact_id && (
-                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
-                      <User className="h-2.5 w-2.5" />
-                      {(() => { const c = contacts.find(c => c.id === email.contact_id); return c ? getContactName(c) : ""; })()}
-                    </Badge>
-                  )}
-                  {email.ai_category && (
-                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                      {email.ai_category}
-                    </Badge>
-                  )}
-                  {email.ai_priority === "hoch" && (
-                    <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
-                      Wichtig
-                    </Badge>
-                  )}
-                </div>
-              </button>
-            ))
-          )}
-        </ScrollArea>
-      </div>
+        <ResizableHandle withHandle />
 
-      {/* Right: Email Detail */}
+        {/* Right: Email Detail */}
       <div className="flex-1 flex flex-col min-w-0">
         {selectedEmail ? (
           <>
