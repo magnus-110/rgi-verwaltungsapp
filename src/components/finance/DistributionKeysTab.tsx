@@ -3,10 +3,11 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Search } from "lucide-react";
 
 const DISTRIBUTION_KEYS = [
   { value: "mea", label: "MEA" },
@@ -22,6 +23,7 @@ export function DistributionKeysTab() {
   const queryClient = useQueryClient();
   const [selectedBuilding, setSelectedBuilding] = useState<string>("");
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+  const [searchTerm, setSearchTerm] = useState("");
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
@@ -33,9 +35,15 @@ export function DistributionKeysTab() {
   });
 
   const { data: accounts = [] } = useQuery({
-    queryKey: ["chart-of-accounts"],
+    queryKey: ["chart-of-accounts-dist", selectedBuilding],
     queryFn: async () => {
-      const { data, error } = await supabase.from("chart_of_accounts").select("*").is("building_id", null).order("sort_order");
+      let query = supabase.from("chart_of_accounts").select("*");
+      if (selectedBuilding) {
+        query = query.or(`building_id.is.null,building_id.eq.${selectedBuilding}`);
+      } else {
+        query = query.is("building_id", null);
+      }
+      const { data, error } = await query.order("sort_order");
       if (error) throw error;
       return data;
     },
@@ -108,9 +116,19 @@ export function DistributionKeysTab() {
             Bitte wählen Sie eine Liegenschaft aus, um die Verteilerschlüssel zu konfigurieren.
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Konto suchen..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9" />
+            </div>
+            <div className="space-y-2">
             {categories.map(cat => {
-              const catAccounts = accounts.filter(a => a.category === cat);
+              const catAccounts = accounts.filter(a => a.category === cat).filter(a => {
+                if (!searchTerm) return true;
+                const term = searchTerm.toLowerCase();
+                return a.account_number.toLowerCase().includes(term) || a.account_name.toLowerCase().includes(term);
+              });
+              if (catAccounts.length === 0) return null;
               const collapsed = collapsedCategories.has(cat);
               const overrideCount = catAccounts.filter(a => overrideMap.has(a.id)).length;
               return (
@@ -170,6 +188,7 @@ export function DistributionKeysTab() {
                 </div>
               );
             })}
+          </div>
           </div>
         )}
       </CardContent>
