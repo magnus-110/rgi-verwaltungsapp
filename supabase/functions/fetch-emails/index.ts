@@ -153,30 +153,46 @@ async function fetchAccountEmails(
       `Mailbox opened: ${mailbox.exists} messages, uidNext: ${mailbox.uidNext}`
     );
 
-    // Determine which messages to fetch - ImapFlow expects a STRING range
-    let range: string;
-    if (account.last_uid) {
-      range = `${parseInt(account.last_uid) + 1}:*`;
-    } else {
-      // First sync: fetch all by UID
-      range = "1:*";
+    if (mailbox.exists === 0) {
+      console.log("No messages in mailbox");
+      return { fetched: 0, deleted: 0 };
     }
 
-    console.log(`Fetching range: ${range}, last_uid: ${account.last_uid}`);
+    // Search for message UIDs
+    let uids: number[];
+    if (account.last_uid) {
+      const lastUid = parseInt(account.last_uid);
+      // Search for UIDs greater than last known
+      uids = await client.search({ uid: `${lastUid + 1}:*` }, { uid: true });
+      // Filter out the last_uid itself (IMAP returns it if range matches)
+      uids = uids.filter((u: number) => u > lastUid);
+    } else {
+      // First sync: get all UIDs
+      uids = await client.search({ all: true }, { uid: true });
+    }
 
-    // Fetch messages
+    console.log(`Found ${uids.length} UIDs to fetch`);
+
+    // Limit to 50 per run
+    const uidsToFetch = uids.slice(0, 50);
+
     let maxUid = account.last_uid ? parseInt(account.last_uid) : 0;
 
-    for await (const msg of client.fetch(range, {
-      uid: true,
-      flags: true,
-      envelope: true,
-      source: true,
-      bodyStructure: true,
-    })) {
-      if (fetched >= 50) break; // Limit per run
-
+    for (const uid of uidsToFetch) {
       try {
+        const msg = await client.fetchOne(`${uid}`, {
+          uid: true,
+          flags: true,
+          envelope: true,
+          source: true,
+          bodyStructure: true,
+        }, { uid: true });
+
+        if (!msg) {
+          console.log(`No message found for UID ${uid}`);
+          continue;
+        }
+
         const envelope = msg.envelope;
         const source = msg.source?.toString() || "";
 
@@ -187,10 +203,8 @@ async function fetchAccountEmails(
         const hasAttachments = checkHasAttachments(msg.bodyStructure);
 
         // Determine from address and name
-        const fromAddr =
-          envelope.from?.[0]?.address || "";
-        const fromName =
-          envelope.from?.[0]?.name || "";
+        const fromAddr = envelope.from?.[0]?.address || "";
+        const fromName = envelope.from?.[0]?.name || "";
 
         // To addresses
         const toAddresses = (envelope.to || [])
@@ -206,7 +220,7 @@ async function fetchAccountEmails(
           .filter(Boolean);
 
         // Check if already imported (by message_id)
-        const messageId = envelope.messageId || `uid-${account.id}-${msg.uid}`;
+        const messageId = envelope.messageId || `uid-${account.id}-${uid}`;
         const { data: existing } = await supabase
           .from("emails")
           .select("id")
@@ -214,12 +228,12 @@ async function fetchAccountEmails(
           .maybeSingle();
 
         if (existing) {
-          if (msg.uid > maxUid) maxUid = msg.uid;
+          if (uid > maxUid) maxUid = uid;
           continue;
         }
 
         // Insert email
-        const { data: insertedEmail, error: insertError } = await supabase
+        const { error: insertError } = await supabase
           .from("emails")
           .insert({
             account_id: account.id,
@@ -239,9 +253,7 @@ async function fetchAccountEmails(
             is_read: msg.flags?.has("\\Seen") || false,
             is_starred: msg.flags?.has("\\Flagged") || false,
             has_attachments: hasAttachments,
-          })
-          .select("id")
-          .single();
+          });
 
         if (insertError) {
           console.error("Insert error:", insertError.message);
@@ -250,13 +262,14 @@ async function fetchAccountEmails(
 
         // Track UID for deletion
         if (account.delete_after_import) {
-          uidsToDelete.push(msg.uid);
+          uidsToDelete.push(uid);
         }
 
-        if (msg.uid > maxUid) maxUid = msg.uid;
+        if (uid > maxUid) maxUid = uid;
         fetched++;
+        console.log(`Fetched email UID ${uid}: ${envelope.subject}`);
       } catch (msgErr: any) {
-        console.error(`Error processing message UID ${msg.uid}:`, msgErr.message);
+        console.error(`Error processing message UID ${uid}:`, msgErr.message);
       }
     }
 
