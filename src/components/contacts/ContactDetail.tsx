@@ -568,7 +568,7 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
                                 <div className="grid grid-cols-2 gap-2">
                                   <div>
                                     <Label className="text-xs">IBAN</Label>
-                                    <Input className="h-7 text-xs font-mono" value={bk.iban ? formatIban(bk.iban) : ""} onChange={e => updateBankInPerson(p._localId, bk._localId, "iban", e.target.value)} placeholder="DE89 3704 ..." className2={ibanErrors[ibanKey] ? "border-destructive" : ""} />
+                                    <Input className={`h-7 text-xs font-mono ${ibanErrors[ibanKey] ? "border-destructive" : ""}`} value={bk.iban ? formatIban(bk.iban) : ""} onChange={e => updateBankInPerson(p._localId, bk._localId, "iban", e.target.value)} placeholder="DE89 3704 ..." />
                                     {ibanErrors[ibanKey] && <p className="text-[10px] text-destructive mt-0.5">{ibanErrors[ibanKey]}</p>}
                                   </div>
                                   <div>
