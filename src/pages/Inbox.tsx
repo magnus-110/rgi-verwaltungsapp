@@ -168,6 +168,8 @@ export const Inbox = () => {
   // All known categories (always shown)
   const ALL_CATEGORIES = ["Rechnung", "Anfrage", "Versicherung", "Wartung", "Vertrag", "Mahnung", "Sonstiges", "Werbung", "Unkategorisiert"];
 
+  const followUpCount = useMemo(() => emails.filter(e => e.is_starred).length, [emails]);
+
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     for (const cat of ALL_CATEGORIES) counts[cat] = 0;
@@ -179,6 +181,7 @@ export const Inbox = () => {
   }, [emails]);
 
   const filteredEmails = useMemo(() => {
+    if (filterCategory === "followup") return emails.filter(e => e.is_starred);
     if (filterCategory === "all") return emails;
     if (filterCategory === "Unkategorisiert") return emails.filter(e => !e.ai_category);
     return emails.filter(e => e.ai_category === filterCategory);
