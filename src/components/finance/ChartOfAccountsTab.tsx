@@ -48,7 +48,7 @@ export function ChartOfAccountsTab() {
     queryKey: ["chart-of-accounts", selectedBuilding],
     queryFn: async () => {
       let query = supabase.from("chart_of_accounts").select("*");
-      if (selectedBuilding) {
+      if (selectedBuilding && selectedBuilding !== "global") {
         query = query.eq("building_id", selectedBuilding);
       } else {
         query = query.is("building_id", null);
