@@ -167,19 +167,18 @@ export const Inbox = () => {
     },
   });
 
-  // Category counts from current emails
+  // All known categories (always shown)
+  const ALL_CATEGORIES = ["Rechnung", "Anfrage", "Versicherung", "Wartung", "Vertrag", "Mahnung", "Sonstiges", "Werbung", "Unkategorisiert"];
+
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = {};
+    for (const cat of ALL_CATEGORIES) counts[cat] = 0;
     for (const e of emails) {
       const cat = e.ai_category || "Unkategorisiert";
       counts[cat] = (counts[cat] || 0) + 1;
     }
     return counts;
   }, [emails]);
-
-  const categoryList = useMemo(() => {
-    return Object.entries(categoryCounts).sort((a, b) => b[1] - a[1]);
-  }, [categoryCounts]);
 
   const filteredEmails = useMemo(() => {
     if (filterCategory === "all") return emails;
