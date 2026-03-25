@@ -600,6 +600,13 @@ export const Inbox = () => {
               )}
             </div>
 
+            {isTrashFolder && (
+              <div className="px-3 py-2 bg-muted/50 border-b text-xs text-muted-foreground flex items-center gap-1.5">
+                <Trash2 className="h-3 w-3" />
+                E-Mails werden nach 30 Tagen automatisch endgültig gelöscht
+              </div>
+            )}
+
             <ScrollArea className="flex-1">
               {emailsLoading ? (
                 <div className="p-4 text-center text-sm text-muted-foreground">Laden...</div>
