@@ -30,7 +30,7 @@ export function BankStatementsTab() {
   const [uploading, setUploading] = useState(false);
   const [booking, setBooking] = useState(false);
   const [bookingAll, setBookingAll] = useState(false);
-  const [selectedBuilding, setSelectedBuilding] = useState<string>("all");
+  const [selectedBuilding, setSelectedBuilding] = useState<string>("");
   const [expandedStatement, setExpandedStatement] = useState<string | null>(null);
   const [assigningBuilding, setAssigningBuilding] = useState<string | null>(null);
   const [selectedTransaction, setSelectedTransaction] = useState<string | null>(null);
@@ -51,17 +51,16 @@ export function BankStatementsTab() {
   const { data: statements = [], isLoading } = useQuery({
     queryKey: ["bank-statements", selectedBuilding],
     queryFn: async () => {
-      let query = supabase
+      if (!selectedBuilding) return [];
+      const { data, error } = await supabase
         .from("bank_statements")
         .select("*")
+        .eq("building_id", selectedBuilding)
         .order("import_date", { ascending: false });
-      if (selectedBuilding !== "all") {
-        query = query.eq("building_id", selectedBuilding);
-      }
-      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
+    enabled: !!selectedBuilding,
   });
 
   // Fetch ALL transactions for ALL statements to determine completion status and global bookable count
@@ -323,6 +322,16 @@ export function BankStatementsTab() {
               </Button>
             </div>
           )}
+          {["matched_invoice", "matched_template", "manually_matched"].includes(txn.match_status) && !txn.booked_at && (
+            <div className="flex gap-1">
+              <Button variant="ghost" size="sm" className="text-xs" onClick={() => { setManualAssignTxn(txn); setManualAssignType("invoice"); setManualAssignId(""); }}>
+                <Link2 className="h-3 w-3 mr-1" />Ändern
+              </Button>
+              <Button variant="ghost" size="sm" className="text-xs text-destructive" onClick={() => removeAssignment(txn.id)}>
+                Entfernen
+              </Button>
+            </div>
+          )}
           {txn.match_status === "ignored" && (
             <Button variant="ghost" size="sm" className="text-xs" onClick={() => updateMatchStatus(txn.id, "unmatched")}>
               Wiederherstellen
@@ -353,11 +362,11 @@ export function BankStatementsTab() {
               )}
 
               <Select value={selectedBuilding} onValueChange={setSelectedBuilding}>
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Alle Liegenschaften" />
+                <SelectTrigger className="w-[220px]">
+                  <Building2 className="h-4 w-4 mr-2 text-muted-foreground" />
+                  <SelectValue placeholder="Liegenschaft wählen…" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Alle Liegenschaften</SelectItem>
                   {buildings.map((b) => (
                     <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
                   ))}
@@ -382,7 +391,13 @@ export function BankStatementsTab() {
           )}
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {!selectedBuilding ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Building2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>Bitte wählen Sie eine Liegenschaft aus</p>
+              <p className="text-sm mt-1">Kontoauszüge werden pro Liegenschaft angezeigt</p>
+            </div>
+          ) : isLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
