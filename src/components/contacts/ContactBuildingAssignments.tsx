@@ -70,7 +70,7 @@ export function ContactBuildingAssignments({ contactId }: Props) {
   };
 
   const assignedBuildingIds = assignments.map(a => a.building_id);
-  const availableBuildings = buildings.filter(b => !assignedBuildingIds.includes(b.id));
+  const availableBuildings = buildings;
 
   return (
     <div className="space-y-4">
