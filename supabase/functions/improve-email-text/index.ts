@@ -1,4 +1,4 @@
-import "npm:@supabase/functions-js/edge-runtime.d.ts";
+// improve-email-text edge function
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
