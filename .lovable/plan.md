@@ -1,25 +1,44 @@
 
 
-# Plan: Mehrfachzuordnung eines Kontakts zum selben Gebäude ermöglichen
+# Plan: KI-Textverbesserung fuer E-Mails + Prioritaet in E-Mail-Liste
 
-## Problem
-Aktuell filtert der `AssignContactDialog` bereits zugeordnete Kontakte aus der Liste (`existingContactIds`). Eigentümer mit mehreren Wohnungen im selben Gebäude können daher nicht mehrfach zugeordnet werden.
+## 1. Edge Function: `improve-email-text`
 
-## Änderungen
+Neue Edge Function mit Mistral API (wie `enhance-prompt` und `chat-with-ai`).
 
-### 1. AssignContactDialog.tsx
-- Entferne den Filter `existingContactIds` aus der Kontaktliste — alle Kontakte bleiben wählbar
-- Zeige bei bereits zugeordneten Kontakten einen Hinweis-Badge (z.B. "Bereits zugeordnet"), damit der Nutzer weiß, dass eine weitere Zuordnung erfolgt
-- Behalte die `existingContactIds`-Prop für den Badge-Hinweis, aber nicht zum Ausfiltern
+- Modell: `mistral-small-latest`
+- System-Prompt: Professioneller Hausverwaltungs-E-Mail-Assistent, der den Text eloquenter und professioneller formuliert, Inhalt und Bedeutung beibehaelt
+- Empfaengt `bodyText` und optional `subject`
+- Gibt verbesserten Text zurueck (non-streaming)
+- Nutzt vorhandenen `MISTRAL_API_KEY`
 
-### 2. BuildingContactsList.tsx
-- Passe die Übergabe von `existingContactIds` an — sie wird weiterhin übergeben, aber nur noch für den Hinweis im Dialog genutzt
-- Keine funktionale Änderung nötig, da mehrere Assignments für denselben `contact_id` bereits von der DB unterstützt werden (kein Unique-Constraint auf `contact_id + building_id`)
+## 2. UI: Suggestion-Widget im FloatingComposeWindow
 
-### 3. ContactBuildingAssignments.tsx
-- Entferne den Filter `availableBuildings` der bereits zugeordnete Gebäude ausschließt, damit ein Kontakt auch mehrfach demselben Gebäude zugeordnet werden kann
+Inspiriert vom bestehenden `PromptEnhancerSuggestion`-Pattern:
 
-### Technische Details
-- Die DB-Tabelle `contact_building_assignments` hat keinen Unique-Constraint auf `(contact_id, building_id)`, daher sind Mehrfachzuordnungen bereits möglich
-- Jede Zuordnung hat eigene `unit_number`, `floor_location`, Shares und Costs — die Daten bleiben pro Assignment getrennt
+- **Wand2-Button** neben dem "Nachricht"-Label (disabled bei weniger als 10 Zeichen)
+- Bei Klick: Edge Function aufrufen, Loading-State anzeigen
+- **Suggestion-Box** erscheint unterhalb des Textfeldes:
+  - Zeigt den verbesserten Text in einem editierbaren Textarea (wie bei Nova/PromptEnhancerSuggestion)
+  - Buttons: "Uebernehmen" (Check-Icon) und "Verwerfen" (X-Icon)
+  - Bei "Uebernehmen": Text wird in `bodyText` eingesetzt
+  - Bei Klick in den Text: direkt editierbar
+- Gleiche Logik auch in `ComposeEmailDialog.tsx` falls noch verwendet
+
+## 3. Prioritaet in der E-Mail-Liste
+
+- In `Inbox.tsx` Zeile 629: Bedingung `=== "hoch"` entfernen
+- Alle Prioritaeten als Badge anzeigen:
+  - `hoch` → rot (destructive)
+  - `mittel` → gelb/orange (outline mit Farbe)
+  - `niedrig` → grau (secondary)
+
+## Dateien
+
+| Datei | Aenderung |
+|---|---|
+| `supabase/functions/improve-email-text/index.ts` | Neue Edge Function (Mistral) |
+| `supabase/config.toml` | Funktion registrieren |
+| `src/components/email/FloatingComposeWindow.tsx` | Wand2-Button + Suggestion-Widget |
+| `src/pages/Inbox.tsx` | Prioritaets-Badges fuer alle Stufen |
 
