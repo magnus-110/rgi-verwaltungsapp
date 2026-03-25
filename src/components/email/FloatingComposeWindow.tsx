@@ -17,8 +17,9 @@ import { cn } from "@/lib/utils";
 export const FloatingComposeWindow = () => {
   const { compose, closeCompose, toggleMinimize, updateCompose } = useComposeEmail();
   const [isSending, setIsSending] = useState(false);
+  const [isImproving, setIsImproving] = useState(false);
+  const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [contactPickerOpen, setContactPickerOpen] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
   
   // Drag state
