@@ -773,10 +773,13 @@ export const Inbox = () => {
                             : null;
                           const initials = assignedProfile 
                             ? [assignedProfile.first_name, assignedProfile.last_name].filter(Boolean).map(n => n?.[0]).join("") 
-                            : null;
-                          return initials ? (
+                            : "";
+                          return (
                             <select
-                              className="inline-flex items-center justify-center h-5 min-w-[20px] rounded-full bg-primary/10 text-primary text-[9px] font-bold px-1 cursor-pointer border-0 appearance-none bg-none"
+                              className={cn(
+                                "h-5 min-w-[20px] rounded-full text-[9px] font-bold cursor-pointer border-0 appearance-none text-center",
+                                initials ? "bg-primary/10 text-primary" : "bg-transparent text-muted-foreground/40 hover:text-muted-foreground"
+                              )}
                               value={(email as any).assigned_to || "none"}
                               onClick={e => e.stopPropagation()}
                               onChange={async (e) => {
@@ -785,17 +788,17 @@ export const Inbox = () => {
                                 await supabase.from("emails").update({ assigned_to: val }).eq("id", email.id);
                                 queryClient.invalidateQueries({ queryKey: ["emails"] });
                               }}
-                              title={assignedProfile ? [assignedProfile.first_name, assignedProfile.last_name].filter(Boolean).join(" ") : "Zuordnung ändern"}
-                              style={{ WebkitAppearance: 'none', MozAppearance: 'none', textAlignLast: 'center', width: `${Math.max(20, initials.length * 8 + 10)}px`, padding: '0 2px' }}
+                              title={assignedProfile ? [assignedProfile.first_name, assignedProfile.last_name].filter(Boolean).join(" ") : "Zuordnen"}
+                              style={{ WebkitAppearance: 'none', MozAppearance: 'none', textAlignLast: 'center', width: initials ? `${Math.max(24, initials.length * 9 + 10)}px` : '24px', padding: '0 2px' }}
                             >
-                              <option value="none">—</option>
+                              <option value="none">{initials ? "—" : "·"}</option>
                               {adminProfiles.map(p => (
                                 <option key={p.user_id} value={p.user_id}>
                                   {[p.first_name, p.last_name].filter(Boolean).map(n => n?.[0]).join("")}
                                 </option>
                               ))}
                             </select>
-                          ) : null;
+                          );
                         })()}
                       </div>
                     </div>
