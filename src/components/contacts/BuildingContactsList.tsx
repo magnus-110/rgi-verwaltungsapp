@@ -565,10 +565,12 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                         {a.phones.map((p) => (
                           <div key={p.id} className="flex items-center gap-2">
                             <Phone className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                            <Input
+                            <BufferedInput
                               value={p.phone_number}
-                              onChange={(e) => updatePhone(p.id, "phone_number", e.target.value)}
+                              onSave={(val) => updatePhone(p.id, "phone_number", val)}
                               placeholder="Nummer"
+                              className="h-7 text-sm flex-1"
+                            />
                               className="h-7 text-sm flex-1"
                             />
                             <Select value={p.label || "Mobil"} onValueChange={(v) => updatePhone(p.id, "label", v)}>
@@ -599,11 +601,12 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                         {a.emails.map((e) => (
                           <div key={e.id} className="flex items-center gap-2">
                             <Mail className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                            <Input
+                            <BufferedInput
                               value={e.email}
-                              onChange={(ev) => updateEmail(e.id, "email", ev.target.value)}
+                              onSave={(val) => updateEmail(e.id, "email", val)}
                               placeholder="E-Mail"
                               className="h-7 text-sm flex-1"
+                            />
                             />
                             <Select value={e.label || "Privat"} onValueChange={(v) => updateEmail(e.id, "label", v)}>
                               <SelectTrigger className="w-24 h-7 text-xs"><SelectValue /></SelectTrigger>
@@ -639,17 +642,15 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                           <div>
                             <Label className="text-xs">Einheit Nr.</Label>
-                            <Input
+                            <BufferedInput
                               value={a.unit_number || ""}
-                              onChange={(e) => updateAssignment(a.id, "unit_number", e.target.value)}
+                              onSave={(val) => updateAssignment(a.id, "unit_number", val)}
                               className="h-8 text-sm"
                             />
-                          </div>
-                          <div>
                             <Label className="text-xs">Etage / Lage</Label>
-                            <Input
+                            <BufferedInput
                               value={a.floor_location || ""}
-                              onChange={(e) => updateAssignment(a.id, "floor_location", e.target.value)}
+                              onSave={(val) => updateAssignment(a.id, "floor_location", val)}
                               className="h-8 text-sm"
                             />
                           </div>
@@ -688,9 +689,9 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                       {/* Notizen */}
                       <div>
                         <Label className="text-xs">Notizen</Label>
-                        <Textarea
+                        <BufferedTextarea
                           value={a.notes || ""}
-                          onChange={(e) => updateAssignment(a.id, "notes", e.target.value)}
+                          onSave={(val) => updateAssignment(a.id, "notes", val)}
                           rows={2}
                           className="text-sm"
                         />
@@ -758,20 +759,9 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                               </Select>
                             </div>
                           )}
-                          <Input
-                            type="text"
-                            inputMode="decimal"
-                            value={s.share_value === 0 ? "" : s.share_value}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (val === "" || val === "0") {
-                                updateShare(s.id, "share_value", 0);
-                              } else {
-                                const num = parseFloat(val);
-                                if (!isNaN(num)) updateShare(s.id, "share_value", num);
-                              }
-                            }}
-                            onFocus={(e) => { if (s.share_value === 0) e.target.value = ""; }}
+                          <BufferedNumberInput
+                            value={s.share_value}
+                            onSave={(val) => updateShare(s.id, "share_value", val)}
                             placeholder="0"
                             className="w-28 h-8 text-sm"
                           />
@@ -843,22 +833,12 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                               </Select>
                             </div>
                           )}
-                          <Input
-                            type="text"
-                            inputMode="decimal"
-                            value={c.amount === 0 ? "" : c.amount}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (val === "" || val === "0") {
-                                updateCost(c.id, "amount", 0);
-                              } else {
-                                const num = parseFloat(val);
-                                if (!isNaN(num)) updateCost(c.id, "amount", num);
-                              }
-                            }}
-                            onFocus={(e) => { if (c.amount === 0) e.target.value = ""; }}
+                          <BufferedNumberInput
+                            value={c.amount}
+                            onSave={(val) => updateCost(c.id, "amount", val)}
                             placeholder="0,00"
                             className="w-24 h-8 text-sm"
+                          />
                           />
                           <span className="text-xs text-muted-foreground">€</span>
                           <Select value={c.interval} onValueChange={(v) => updateCost(c.id, "interval", v)}>
