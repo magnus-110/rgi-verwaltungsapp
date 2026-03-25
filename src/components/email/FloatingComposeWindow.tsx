@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Send, Loader2, Paperclip, X, Users, Search, Minus, Maximize2, ExternalLink, Wand2, Check } from "lucide-react";
+import { Send, Loader2, Paperclip, X, Users, Search, Minus, Maximize2, ExternalLink, Wand2, Check, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
@@ -22,7 +22,10 @@ export const FloatingComposeWindow = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const aiSuggestionRef = useRef<HTMLDivElement>(null);
   const [contactPickerOpen, setContactPickerOpen] = useState(false);
+  const [ccContactPickerOpen, setCcContactPickerOpen] = useState(false);
+  const [bccContactPickerOpen, setBccContactPickerOpen] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
+  const [showCcBcc, setShowCcBcc] = useState(false);
   
   // Drag state
   const [position, setPosition] = useState({ x: window.innerWidth - 660, y: window.innerHeight - 580 });
@@ -109,10 +112,11 @@ export const FloatingComposeWindow = () => {
     );
   }, [contactsWithEmails, contactSearch]);
 
-  const addEmailToField = (email: string) => {
-    const current = compose.to.split(",").map(e => e.trim()).filter(Boolean);
+  const addEmailToField = (email: string, field: "to" | "cc" | "bcc" = "to") => {
+    const currentVal = compose[field];
+    const current = currentVal.split(",").map(e => e.trim()).filter(Boolean);
     if (!current.includes(email)) {
-      updateCompose({ to: current.length > 0 ? `${compose.to}, ${email}` : email });
+      updateCompose({ [field]: current.length > 0 ? `${currentVal}, ${email}` : email });
     }
   };
 
@@ -345,7 +349,16 @@ export const FloatingComposeWindow = () => {
           </div>
 
           <div className="space-y-1">
-            <Label className="text-xs">An</Label>
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">An</Label>
+              <button
+                type="button"
+                className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setShowCcBcc(!showCcBcc)}
+              >
+                {showCcBcc ? "CC/BCC ausblenden" : "CC/BCC"}
+              </button>
+            </div>
             <div className="flex gap-1">
               <Input
                 value={compose.to}
@@ -382,7 +395,7 @@ export const FloatingComposeWindow = () => {
                             <button
                               key={ce.email}
                               className="w-full flex items-center gap-2 px-3 py-1 text-left hover:bg-muted/50 transition-colors"
-                              onClick={() => { addEmailToField(ce.email); if (contact.emails.length === 1) setContactPickerOpen(false); }}
+                              onClick={() => { addEmailToField(ce.email, "to"); if (contact.emails.length === 1) setContactPickerOpen(false); }}
                             >
                               <Checkbox checked={compose.to.split(",").map(e => e.trim()).includes(ce.email)} className="h-3 w-3" />
                               <span className="text-xs text-muted-foreground truncate">{ce.email}</span>
@@ -397,15 +410,105 @@ export const FloatingComposeWindow = () => {
             </div>
           </div>
 
-          <div className="space-y-1">
-            <Label className="text-xs">CC</Label>
-            <Input value={compose.cc} onChange={e => updateCompose({ cc: e.target.value })} placeholder="cc@email.de (optional)" className="h-8 text-sm" />
-          </div>
+          {showCcBcc && (
+            <>
+              <div className="space-y-1">
+                <Label className="text-xs">CC</Label>
+                <div className="flex gap-1">
+                  <Input value={compose.cc} onChange={e => updateCompose({ cc: e.target.value })} placeholder="cc@email.de (optional)" className="h-8 text-sm flex-1" />
+                  <Popover open={ccContactPickerOpen} onOpenChange={setCcContactPickerOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="icon" className="h-8 w-8 shrink-0">
+                        <Users className="h-3.5 w-3.5" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-72 p-0" align="end">
+                      <div className="p-2 border-b">
+                        <div className="relative">
+                          <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                          <Input placeholder="Kontakt suchen..." value={contactSearch} onChange={e => setContactSearch(e.target.value)} className="h-7 pl-7 text-sm" />
+                        </div>
+                      </div>
+                      <ScrollArea className="max-h-48">
+                        {filteredContacts.length === 0 ? (
+                          <p className="p-3 text-sm text-muted-foreground text-center">Keine Kontakte gefunden</p>
+                        ) : (
+                          filteredContacts.map(contact => (
+                            <div key={contact.id} className="border-b last:border-0">
+                              <div className="px-3 pt-1.5 pb-0.5">
+                                <span className="text-xs font-medium">{contact.displayName}</span>
+                                {contact.company_name && contact.first_name && (
+                                  <span className="text-[10px] text-muted-foreground ml-1">({contact.company_name})</span>
+                                )}
+                              </div>
+                              {contact.emails.map(ce => (
+                                <button
+                                  key={ce.email}
+                                  className="w-full flex items-center gap-2 px-3 py-1 text-left hover:bg-muted/50 transition-colors"
+                                  onClick={() => { addEmailToField(ce.email, "cc"); if (contact.emails.length === 1) setCcContactPickerOpen(false); }}
+                                >
+                                  <Checkbox checked={compose.cc.split(",").map(e => e.trim()).includes(ce.email)} className="h-3 w-3" />
+                                  <span className="text-xs text-muted-foreground truncate">{ce.email}</span>
+                                </button>
+                              ))}
+                            </div>
+                          ))
+                        )}
+                      </ScrollArea>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
 
-          <div className="space-y-1">
-            <Label className="text-xs">BCC</Label>
-            <Input value={compose.bcc} onChange={e => updateCompose({ bcc: e.target.value })} placeholder="bcc@email.de (optional)" className="h-8 text-sm" />
-          </div>
+              <div className="space-y-1">
+                <Label className="text-xs">BCC</Label>
+                <div className="flex gap-1">
+                  <Input value={compose.bcc} onChange={e => updateCompose({ bcc: e.target.value })} placeholder="bcc@email.de (optional)" className="h-8 text-sm flex-1" />
+                  <Popover open={bccContactPickerOpen} onOpenChange={setBccContactPickerOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="icon" className="h-8 w-8 shrink-0">
+                        <Users className="h-3.5 w-3.5" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-72 p-0" align="end">
+                      <div className="p-2 border-b">
+                        <div className="relative">
+                          <Search className="absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                          <Input placeholder="Kontakt suchen..." value={contactSearch} onChange={e => setContactSearch(e.target.value)} className="h-7 pl-7 text-sm" />
+                        </div>
+                      </div>
+                      <ScrollArea className="max-h-48">
+                        {filteredContacts.length === 0 ? (
+                          <p className="p-3 text-sm text-muted-foreground text-center">Keine Kontakte gefunden</p>
+                        ) : (
+                          filteredContacts.map(contact => (
+                            <div key={contact.id} className="border-b last:border-0">
+                              <div className="px-3 pt-1.5 pb-0.5">
+                                <span className="text-xs font-medium">{contact.displayName}</span>
+                                {contact.company_name && contact.first_name && (
+                                  <span className="text-[10px] text-muted-foreground ml-1">({contact.company_name})</span>
+                                )}
+                              </div>
+                              {contact.emails.map(ce => (
+                                <button
+                                  key={ce.email}
+                                  className="w-full flex items-center gap-2 px-3 py-1 text-left hover:bg-muted/50 transition-colors"
+                                  onClick={() => { addEmailToField(ce.email, "bcc"); if (contact.emails.length === 1) setBccContactPickerOpen(false); }}
+                                >
+                                  <Checkbox checked={compose.bcc.split(",").map(e => e.trim()).includes(ce.email)} className="h-3 w-3" />
+                                  <span className="text-xs text-muted-foreground truncate">{ce.email}</span>
+                                </button>
+                              ))}
+                            </div>
+                          ))
+                        )}
+                      </ScrollArea>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+            </>
+          )}
 
           <div className="space-y-1">
             <Label className="text-xs">Betreff</Label>
