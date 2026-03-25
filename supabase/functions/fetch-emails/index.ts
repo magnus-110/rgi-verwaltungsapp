@@ -73,14 +73,38 @@ Deno.serve(async (req) => {
 
     const results: Record<string, any> = {};
 
+    // Pre-load account-user assignments to auto-assign emails
+    const { data: accountUsersData } = await supabaseAdmin
+      .from("email_account_users")
+      .select("account_id, user_id");
+
+    const accountDefaultUser: Record<string, string> = {};
+    if (accountUsersData) {
+      const counts: Record<string, { count: number; userId: string }> = {};
+      for (const au of accountUsersData) {
+        if (!counts[au.account_id]) {
+          counts[au.account_id] = { count: 0, userId: au.user_id };
+        }
+        counts[au.account_id].count++;
+        counts[au.account_id].userId = au.user_id;
+      }
+      for (const [accId, info] of Object.entries(counts)) {
+        if (info.count === 1) {
+          accountDefaultUser[accId] = info.userId;
+        }
+      }
+    }
+
     for (const account of accounts as EmailAccount[]) {
       try {
         console.log(`Fetching emails for ${account.email_address}...`);
+        const defaultUserId = accountDefaultUser[account.id] || null;
         const result = await fetchAccountEmails(
           supabaseAdmin,
           account,
           inboxFolder?.id,
-          sentFolder?.id
+          sentFolder?.id,
+          defaultUserId
         );
         results[account.email_address] = result;
 
@@ -137,7 +161,8 @@ async function fetchAccountEmails(
   supabase: any,
   account: EmailAccount,
   inboxFolderId: string | undefined,
-  sentFolderId: string | undefined
+  sentFolderId: string | undefined,
+  defaultAssignedTo: string | null = null
 ) {
   // Port 993 = direct SSL, Port 143 = STARTTLS
   const isSecure = account.imap_port === 993;
@@ -236,6 +261,7 @@ async function fetchAccountEmails(
             is_read: msg.flags?.has("\\Seen") || false,
             is_starred: msg.flags?.has("\\Flagged") || false,
             has_attachments: hasAttachments,
+            assigned_to: defaultAssignedTo,
           })
           .select("id")
           .single();
