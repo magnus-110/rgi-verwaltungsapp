@@ -82,6 +82,18 @@ export const Inbox = () => {
     },
   });
 
+  // Fetch account-user assignments
+  const { data: accountUsers = [] } = useQuery({
+    queryKey: ["email-account-users"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("email_account_users")
+        .select("*");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   // Fetch admin profiles for assignment
   const { data: adminProfiles = [] } = useQuery({
     queryKey: ["admin-profiles"],
@@ -95,6 +107,14 @@ export const Inbox = () => {
       return data;
     },
   });
+
+  // Get account IDs for the currently logged-in user
+  const myAccountIds = useMemo(() => {
+    if (!profile?.user_id) return [];
+    return accountUsers
+      .filter(au => au.user_id === profile.user_id)
+      .map(au => au.account_id);
+  }, [accountUsers, profile?.user_id]);
 
   // Buildings for archive filter
   const { data: buildings = [] } = useQuery({
