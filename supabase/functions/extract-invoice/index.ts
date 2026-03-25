@@ -213,7 +213,7 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: "Du bist ein Experte für die Extraktion von Rechnungsdaten aus OCR-Text. Extrahiere alle relevanten Felder und rufe die Funktion extract_invoice_data auf. Wenn ein Feld nicht erkennbar ist, setze null. Betraege immer als Dezimalzahl (z.B. 1234.56). Datumsangaben im Format YYYY-MM-DD. Fuer suggested_account_number: Schlage eine passende Kontonummer aus dem deutschen SKR-Kontenrahmen vor (z.B. 4200 fuer Reparaturen, 4100 fuer Versicherungen, 4500 fuer Verwaltungskosten). WICHTIG: Extrahiere auch die vollständige Empfängeradresse (an wen die Rechnung adressiert ist, NICHT der Absender/Lieferant). Das ist typischerweise die Hausverwaltung oder der Eigentümer mit Straße und Ort."
+            content: "Du bist ein Experte für die Extraktion von Rechnungsdaten aus OCR-Text. Extrahiere alle relevanten Felder und rufe die Funktion extract_invoice_data auf. Wenn ein Feld nicht erkennbar ist, setze null. Betraege immer als Dezimalzahl (z.B. 1234.56). Datumsangaben im Format YYYY-MM-DD. Fuer suggested_account_number: Schlage eine passende Kontonummer aus dem deutschen SKR-Kontenrahmen vor (z.B. 4200 fuer Reparaturen, 4100 fuer Versicherungen, 4500 fuer Verwaltungskosten). WICHTIG: Extrahiere auch die vollständige Empfängeradresse (an wen die Rechnung adressiert ist, NICHT der Absender/Lieferant). Das ist typischerweise die Hausverwaltung oder der Eigentümer mit Straße und Ort. BRENNSTOFF-ERKENNUNG: Prüfe ob es sich um eine Brennstofflieferung handelt (Heizöl, Pellets, Gas, Fernwärme). Wenn ja, setze is_fuel_purchase=true und extrahiere fuel_type, fuel_quantity und fuel_unit."
           },
           {
             role: "user",
@@ -252,7 +252,11 @@ serve(async (req) => {
                     },
                     description: "Einzelpositionen der Rechnung"
                   },
-                  suggested_account_number: { type: "string", description: "Vorgeschlagene SKR-Kontonummer" }
+                  suggested_account_number: { type: "string", description: "Vorgeschlagene SKR-Kontonummer" },
+                  is_fuel_purchase: { type: "boolean", description: "Ist dies eine Brennstofflieferung (Heizöl, Pellets, Gas, Fernwärme)?" },
+                  fuel_type: { type: "string", enum: ["oil", "pellets", "gas", "district_heating"], description: "Art des Brennstoffs" },
+                  fuel_quantity: { type: "number", description: "Gelieferte Menge des Brennstoffs" },
+                  fuel_unit: { type: "string", description: "Einheit der Menge (l, kg, kWh)" }
                 },
                 required: ["vendor_name", "gross_amount"]
               }
