@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Mail, Plus, Edit, Trash2, Loader2 } from "lucide-react";
+import { Mail, Plus, Edit, Trash2, Loader2, FileSignature } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 
 interface EmailAccount {
   id: string;
@@ -28,6 +29,7 @@ interface EmailAccount {
   delete_after_import: boolean;
   last_sync_at: string | null;
   last_sync_error: string | null;
+  signature_html: string | null;
 }
 
 const emptyAccount = {
@@ -52,6 +54,9 @@ export const EmailSettingsSection = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyAccount);
   const [isSaving, setIsSaving] = useState(false);
+  const [signatureDialogOpen, setSignatureDialogOpen] = useState(false);
+  const [signatureAccountId, setSignatureAccountId] = useState<string | null>(null);
+  const [signatureText, setSignatureText] = useState("");
 
   const { data: accounts = [], isLoading } = useQuery({
     queryKey: ["email-accounts-settings"],
@@ -139,6 +144,26 @@ export const EmailSettingsSection = () => {
     queryClient.invalidateQueries({ queryKey: ["email-accounts"] });
   };
 
+  const openSignatureEditor = (acc: EmailAccount) => {
+    setSignatureAccountId(acc.id);
+    setSignatureText(acc.signature_html || "");
+    setSignatureDialogOpen(true);
+  };
+
+  const saveSignature = async () => {
+    if (!signatureAccountId) return;
+    try {
+      const { error } = await supabase.from("email_accounts").update({ signature_html: signatureText || null }).eq("id", signatureAccountId);
+      if (error) throw error;
+      toast.success("Signatur gespeichert");
+      setSignatureDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["email-accounts-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["email-accounts-compose"] });
+    } catch (err: any) {
+      toast.error(err.message || "Fehler beim Speichern");
+    }
+  };
+
   const updateField = (key: string, value: any) => setForm(prev => ({ ...prev, [key]: value }));
 
   return (
@@ -175,6 +200,12 @@ export const EmailSettingsSection = () => {
                       <Badge variant={acc.is_active ? "default" : "secondary"} className="text-xs">
                         {acc.is_active ? "Aktiv" : "Inaktiv"}
                       </Badge>
+                      {acc.signature_html && (
+                        <Badge variant="outline" className="text-xs gap-1">
+                          <FileSignature className="h-3 w-3" />
+                          Signatur
+                        </Badge>
+                      )}
                     </div>
                     <div className="text-sm text-muted-foreground">{acc.email_address}</div>
                     {acc.last_sync_at && (
@@ -191,6 +222,9 @@ export const EmailSettingsSection = () => {
                       checked={acc.is_active}
                       onCheckedChange={() => toggleActive(acc.id, acc.is_active)}
                     />
+                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => openSignatureEditor(acc)} title="Signatur bearbeiten">
+                      <FileSignature className="h-4 w-4" />
+                    </Button>
                     <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => openEdit(acc)}>
                       <Edit className="h-4 w-4" />
                     </Button>
@@ -290,6 +324,32 @@ export const EmailSettingsSection = () => {
                 {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : null}
                 {editingId ? "Speichern" : "Erstellen"}
               </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={signatureDialogOpen} onOpenChange={setSignatureDialogOpen}>
+        <DialogContent className="sm:max-w-[540px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSignature className="h-5 w-5" />
+              Signatur bearbeiten
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Diese Signatur wird automatisch an neue E-Mails angehängt.
+            </p>
+            <Textarea
+              value={signatureText}
+              onChange={e => setSignatureText(e.target.value)}
+              placeholder={"Mit freundlichen Grüßen\nMax Mustermann\nRGI Hausverwaltung\nTel: +49 123 456789"}
+              className="min-h-[160px] text-sm"
+            />
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <Button variant="outline" onClick={() => setSignatureDialogOpen(false)}>Abbrechen</Button>
+              <Button onClick={saveSignature}>Speichern</Button>
             </div>
           </div>
         </DialogContent>
