@@ -52,13 +52,16 @@ export function BookingTemplatesTab() {
   const [buildingOpen, setBuildingOpen] = useState(false);
   const [buildingSearch, setBuildingSearch] = useState("");
   const [accountSearch, setAccountSearch] = useState("");
+  const [filterBuildingId, setFilterBuildingId] = useState<string>("");
 
   const { data: templates = [], isLoading } = useQuery({
-    queryKey: ["booking-templates"],
+    queryKey: ["booking-templates", filterBuildingId],
     queryFn: async () => {
+      if (!filterBuildingId) return [];
       const { data, error } = await supabase
         .from("booking_templates")
         .select("*, buildings(name), chart_of_accounts(account_number, account_name)")
+        .eq("building_id", filterBuildingId)
         .order("name");
       if (error) throw error;
       return data;
@@ -88,7 +91,7 @@ export function BookingTemplatesTab() {
 
   const openCreate = () => {
     setEditingId(null);
-    setForm(emptyForm);
+    setForm({ ...emptyForm, building_id: filterBuildingId });
     setIsDialogOpen(true);
   };
 
@@ -161,21 +164,39 @@ export function BookingTemplatesTab() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">Buchungsvorlagen</CardTitle>
-            <Button onClick={openCreate}>
+            <Button onClick={openCreate} disabled={!filterBuildingId}>
               <Plus className="h-4 w-4 mr-2" />
               Neue Vorlage
             </Button>
           </div>
+          <div className="mt-3">
+            <Select value={filterBuildingId} onValueChange={setFilterBuildingId}>
+              <SelectTrigger className="w-full sm:w-72">
+                <SelectValue placeholder="Liegenschaft auswählen..." />
+              </SelectTrigger>
+              <SelectContent>
+                {buildings.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {!filterBuildingId ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <LayoutTemplate className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>Bitte wählen Sie eine Liegenschaft aus</p>
+              <p className="text-sm mt-1">Vorlagen werden pro Gebäude verwaltet</p>
+            </div>
+          ) : isLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : templates.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <LayoutTemplate className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Noch keine Buchungsvorlagen angelegt</p>
+              <p>Noch keine Buchungsvorlagen für dieses Gebäude</p>
               <p className="text-sm mt-1">Vorlagen werden beim Kontoauszug-Import automatisch abgeglichen</p>
             </div>
           ) : (
@@ -183,15 +204,11 @@ export function BookingTemplatesTab() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Liegenschaft</TableHead>
                   <TableHead>Kreditor</TableHead>
                   <TableHead>IBAN</TableHead>
                   <TableHead className="text-right">Betrag</TableHead>
                   <TableHead>Konto</TableHead>
                   <TableHead>MwSt</TableHead>
-                  <TableHead>Intervall</TableHead>
-                  <TableHead></TableHead>
-                  <TableHead>Konto</TableHead>
                   <TableHead>Intervall</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
@@ -200,7 +217,6 @@ export function BookingTemplatesTab() {
                 {templates.map((t: any) => (
                   <TableRow key={t.id}>
                     <TableCell className="font-medium text-sm">{t.name}</TableCell>
-                    <TableCell className="text-sm">{t.buildings?.name || "–"}</TableCell>
                     <TableCell className="text-sm">{t.vendor_name || "–"}</TableCell>
                     <TableCell className="text-sm font-mono text-xs">{t.vendor_iban || "–"}</TableCell>
                     <TableCell className="text-sm text-right font-mono">
