@@ -767,39 +767,60 @@ export const Inbox = () => {
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         {/* Assignment badge - clickable to change */}
-                        {(() => {
-                          const assignedProfile = (email as any).assigned_to 
-                            ? adminProfiles.find(p => p.user_id === (email as any).assigned_to) 
-                            : null;
-                          const initials = assignedProfile 
-                            ? [assignedProfile.first_name, assignedProfile.last_name].filter(Boolean).map(n => n?.[0]).join("") 
-                            : "";
-                          return (
-                            <select
-                              className={cn(
-                                "h-5 min-w-[20px] rounded-full text-[9px] font-bold cursor-pointer border-0 appearance-none text-center",
-                                initials ? "bg-primary/10 text-primary" : "bg-transparent text-muted-foreground/40 hover:text-muted-foreground"
-                              )}
-                              value={(email as any).assigned_to || "none"}
-                              onClick={e => e.stopPropagation()}
-                              onChange={async (e) => {
-                                e.stopPropagation();
-                                const val = e.target.value === "none" ? null : e.target.value;
-                                await supabase.from("emails").update({ assigned_to: val }).eq("id", email.id);
-                                queryClient.invalidateQueries({ queryKey: ["emails"] });
-                              }}
-                              title={assignedProfile ? [assignedProfile.first_name, assignedProfile.last_name].filter(Boolean).join(" ") : "Zuordnen"}
-                              style={{ WebkitAppearance: 'none', MozAppearance: 'none', textAlignLast: 'center', width: initials ? `${Math.max(24, initials.length * 9 + 10)}px` : '24px', padding: '0 2px' }}
-                            >
-                              <option value="none">{initials ? "—" : "·"}</option>
-                              {adminProfiles.map(p => (
-                                <option key={p.user_id} value={p.user_id}>
-                                  {[p.first_name, p.last_name].filter(Boolean).map(n => n?.[0]).join("")}
-                                </option>
-                              ))}
-                            </select>
-                          );
-                        })()}
+                         {(() => {
+                           const assignedProfile = (email as any).assigned_to 
+                             ? adminProfiles.find(p => p.user_id === (email as any).assigned_to) 
+                             : null;
+                           const initials = assignedProfile 
+                             ? [assignedProfile.first_name, assignedProfile.last_name].filter(Boolean).map(n => n?.[0]).join("") 
+                             : "";
+                           if (!initials && !(email as any).assigned_to) {
+                             return (
+                               <select
+                                 className="h-5 w-5 rounded-full text-[9px] cursor-pointer border-0 appearance-none text-center bg-transparent text-transparent hover:bg-muted/50"
+                                 value="none"
+                                 onClick={e => e.stopPropagation()}
+                                 onChange={async (e) => {
+                                   e.stopPropagation();
+                                   const val = e.target.value === "none" ? null : e.target.value;
+                                   await supabase.from("emails").update({ assigned_to: val }).eq("id", email.id);
+                                   queryClient.invalidateQueries({ queryKey: ["emails"] });
+                                 }}
+                                 title="Zuordnen"
+                                 style={{ WebkitAppearance: 'none', MozAppearance: 'none', textAlignLast: 'center', padding: '0' }}
+                               >
+                                 <option value="none"> </option>
+                                 {adminProfiles.map(p => (
+                                   <option key={p.user_id} value={p.user_id}>
+                                     {[p.first_name, p.last_name].filter(Boolean).map(n => n?.[0]).join("")}
+                                   </option>
+                                 ))}
+                               </select>
+                             );
+                           }
+                           return (
+                             <select
+                               className="h-5 min-w-[20px] rounded-full text-[9px] font-bold cursor-pointer border-0 appearance-none text-center bg-primary/10 text-primary"
+                               value={(email as any).assigned_to || "none"}
+                               onClick={e => e.stopPropagation()}
+                               onChange={async (e) => {
+                                 e.stopPropagation();
+                                 const val = e.target.value === "none" ? null : e.target.value;
+                                 await supabase.from("emails").update({ assigned_to: val }).eq("id", email.id);
+                                 queryClient.invalidateQueries({ queryKey: ["emails"] });
+                               }}
+                               title={assignedProfile ? [assignedProfile.first_name, assignedProfile.last_name].filter(Boolean).join(" ") : "Zuordnen"}
+                               style={{ WebkitAppearance: 'none', MozAppearance: 'none', textAlignLast: 'center', width: `${Math.max(24, initials.length * 9 + 10)}px`, padding: '0 2px' }}
+                             >
+                               <option value="none">—</option>
+                               {adminProfiles.map(p => (
+                                 <option key={p.user_id} value={p.user_id}>
+                                   {[p.first_name, p.last_name].filter(Boolean).map(n => n?.[0]).join("")}
+                                 </option>
+                               ))}
+                             </select>
+                           );
+                         })()}
                       </div>
                     </div>
                     {isTrashFolder && (

@@ -108,6 +108,18 @@ export const EmailSettingsSection = () => {
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["email-account-users"] });
       toast.success("Mitarbeiter zugeordnet");
+
+      // If account now has exactly 1 user, backfill unassigned emails
+      const currentUsers = getAccountUsers(accountId);
+      if (currentUsers.length === 0) {
+        // We just added the first user — backfill
+        await supabase
+          .from("emails")
+          .update({ assigned_to: userId })
+          .eq("account_id", accountId)
+          .is("assigned_to", null);
+        queryClient.invalidateQueries({ queryKey: ["emails"] });
+      }
     } catch (err: any) {
       if (err.message?.includes("duplicate")) {
         toast.info("Bereits zugeordnet");
