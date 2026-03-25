@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Paperclip, Download, FileText, Image, FileSpreadsheet, File } from "lucide-react";
+import { Paperclip, Download, FileText, Image, FileSpreadsheet, File, Sparkles, Loader2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
 interface EmailAttachmentsProps {
   emailId: string;
@@ -23,7 +25,16 @@ const formatSize = (bytes: number | null) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
+const isPdf = (mimeType: string | null, fileName: string) => {
+  if (mimeType?.includes("pdf")) return true;
+  return fileName.toLowerCase().endsWith(".pdf");
+};
+
 export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
+  const navigate = useNavigate();
+  const [importingId, setImportingId] = useState<string | null>(null);
+  const [importedIds, setImportedIds] = useState<Set<string>>(new Set());
+
   const { data: attachments = [] } = useQuery({
     queryKey: ["email-attachments", emailId],
     queryFn: async () => {
@@ -45,12 +56,67 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
       const { data, error } = await supabase.storage
         .from("email-attachments")
         .createSignedUrl(filePath, 60);
-
       if (error) throw error;
-      
       window.open(data.signedUrl, "_blank");
     } catch (err: any) {
       toast.error("Download fehlgeschlagen: " + err.message);
+    }
+  };
+
+  const handleImportAsInvoice = async (att: { id: string; file_path: string | null; file_name: string; file_size: string | null }) => {
+    if (!att.file_path) return;
+    setImportingId(att.id);
+
+    try {
+      // 1. Get signed URL for the attachment
+      const { data: signedData, error: signedErr } = await supabase.storage
+        .from("email-attachments")
+        .createSignedUrl(att.file_path, 300);
+      if (signedErr || !signedData?.signedUrl) throw new Error("Datei nicht lesbar");
+
+      // 2. Download the file
+      const response = await fetch(signedData.signedUrl);
+      if (!response.ok) throw new Error("Download fehlgeschlagen");
+      const blob = await response.blob();
+
+      // 3. Upload to invoices bucket
+      const timestamp = Date.now();
+      const invoicePath = `unassigned/${timestamp}_${att.file_name}`;
+      const { error: uploadErr } = await supabase.storage
+        .from("invoices")
+        .upload(invoicePath, blob, { contentType: "application/pdf" });
+      if (uploadErr) throw uploadErr;
+
+      // 4. Create invoice record
+      const { data: invoice, error: insertErr } = await supabase
+        .from("invoices")
+        .insert({
+          file_name: att.file_name,
+          file_path: invoicePath,
+          status: "open",
+          ocr_status: "pending",
+          payment_status: "open",
+        })
+        .select("id")
+        .single();
+      if (insertErr) throw insertErr;
+
+      // 5. Trigger OCR extraction
+      supabase.functions.invoke("extract-invoice", {
+        body: { invoiceId: invoice.id },
+      }).catch(err => console.error("OCR trigger error:", err));
+
+      setImportedIds(prev => new Set(prev).add(att.id));
+      toast.success("Rechnung importiert – OCR läuft", {
+        action: {
+          label: "Zur Finanzseite",
+          onClick: () => navigate("/finance"),
+        },
+      });
+    } catch (err: any) {
+      toast.error("Import fehlgeschlagen: " + err.message);
+    } finally {
+      setImportingId(null);
     }
   };
 
@@ -63,23 +129,46 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
       <div className="flex flex-wrap gap-2">
         {attachments.map((att) => {
           const Icon = getFileIcon(att.mime_type);
+          const canImport = isPdf(att.mime_type, att.file_name);
+          const isImporting = importingId === att.id;
+          const isImported = importedIds.has(att.id);
+
           return (
-            <Button
-              key={att.id}
-              variant="outline"
-              size="sm"
-              className="gap-1.5 h-auto py-1.5 px-2.5"
-              onClick={() => att.file_path && handleDownload(att.file_path, att.file_name)}
-            >
-              <Icon className="h-3.5 w-3.5 shrink-0" />
-              <span className="truncate max-w-[150px]">{att.file_name}</span>
-              {att.file_size && (
-                <span className="text-xs text-muted-foreground">
-                  ({formatSize(Number(att.file_size))})
-                </span>
+            <div key={att.id} className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 h-auto py-1.5 px-2.5"
+                onClick={() => att.file_path && handleDownload(att.file_path, att.file_name)}
+              >
+                <Icon className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate max-w-[150px]">{att.file_name}</span>
+                {att.file_size && (
+                  <span className="text-xs text-muted-foreground">
+                    ({formatSize(Number(att.file_size))})
+                  </span>
+                )}
+                <Download className="h-3 w-3 shrink-0" />
+              </Button>
+              {canImport && (
+                <Button
+                  variant={isImported ? "secondary" : "ghost"}
+                  size="sm"
+                  className="h-auto py-1.5 px-1.5"
+                  disabled={isImporting || isImported}
+                  onClick={() => handleImportAsInvoice(att)}
+                  title={isImported ? "Bereits importiert" : "Als Rechnung importieren"}
+                >
+                  {isImporting ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : isImported ? (
+                    <Check className="h-3.5 w-3.5 text-green-600" />
+                  ) : (
+                    <Sparkles className="h-3.5 w-3.5" />
+                  )}
+                </Button>
               )}
-              <Download className="h-3 w-3 shrink-0" />
-            </Button>
+            </div>
           );
         })}
       </div>
