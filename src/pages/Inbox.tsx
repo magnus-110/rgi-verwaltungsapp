@@ -276,7 +276,21 @@ export const Inbox = () => {
     try {
       const { data, error } = await supabase.functions.invoke("fetch-emails");
       if (error) throw error;
-      toast.success("E-Mails synchronisiert");
+      
+      // Check for per-account errors in the response
+      if (data?.results) {
+        const accountErrors = Object.entries(data.results)
+          .filter(([_, v]: [string, any]) => v?.error)
+          .map(([k, v]: [string, any]) => `${k}: ${v.error}`);
+        if (accountErrors.length > 0) {
+          toast.warning(`Sync teilweise erfolgreich. Fehler bei: ${accountErrors.join(", ")}`, { duration: 6000 });
+        } else {
+          toast.success("E-Mails synchronisiert");
+        }
+      } else {
+        toast.success("E-Mails synchronisiert");
+      }
+      
       queryClient.invalidateQueries({ queryKey: ["emails"] });
       queryClient.invalidateQueries({ queryKey: ["email-accounts"] });
       queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });

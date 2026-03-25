@@ -28,9 +28,31 @@ interface ParsedAttachment {
   contentId: string | null;
 }
 
+// Helper to check if an error is a known ignorable TLS/connection error
+function isIgnorableConnectionError(err: any): boolean {
+  const msg = String(err?.message || err || "");
+  return (
+    msg.includes("close_notify") ||
+    msg.includes("UnexpectedEof") ||
+    msg.includes("connection closed") ||
+    msg.includes("Connection not available") ||
+    msg.includes("socket disconnected") ||
+    msg.includes("EPIPE") ||
+    msg.includes("ECONNRESET") ||
+    msg.includes("read ECONNRESET")
+  );
+}
+
 // Suppress Strato TLS close_notify errors at the event loop level
 globalThis.addEventListener("unhandledrejection", (e) => {
-  if (e.reason?.message?.includes("close_notify") || e.reason?.code === "UnexpectedEof") {
+  if (isIgnorableConnectionError(e.reason)) {
+    e.preventDefault();
+  }
+});
+
+// Also catch uncaught error events (this is what actually crashes the runtime)
+globalThis.addEventListener("error", (e) => {
+  if (isIgnorableConnectionError(e.error || e.message)) {
     e.preventDefault();
   }
 });
@@ -165,7 +187,7 @@ async function fetchAccountEmails(
   defaultAssignedTo: string | null = null
 ) {
   // Port 993 = direct SSL, Port 143 = STARTTLS
-  const isSecure = account.imap_port === 993;
+  const isSecure = account.use_ssl || account.imap_port === 993;
   const client = new ImapFlow({
     host: account.imap_host,
     port: account.imap_port,
@@ -178,6 +200,15 @@ async function fetchAccountEmails(
     tls: {
       rejectUnauthorized: false,
     },
+  });
+
+  // Register error handler on the client to prevent uncaught socket errors
+  client.on("error", (err: any) => {
+    if (isIgnorableConnectionError(err)) {
+      console.warn(`Ignorable IMAP error for ${account.email_address}: ${err.message}`);
+      return;
+    }
+    console.error(`IMAP client error for ${account.email_address}:`, err.message);
   });
 
   await client.connect();
@@ -333,11 +364,16 @@ async function fetchAccountEmails(
       }
     }
   } finally {
+    // Graceful cleanup — avoid double-close race conditions
     try {
-      await client.logout();
+      if (client.usable) {
+        await client.logout();
+      }
     } catch (_e) {
-      // ignore
+      // Ignore logout errors (Strato often drops connection here)
     }
+    // Small delay to let pending TLS reads settle before close
+    await new Promise((r) => setTimeout(r, 100));
     try {
       client.close();
     } catch (_e) {
@@ -557,11 +593,6 @@ function decodeQuotedPrintable(str: string, charset: string = "utf-8"): string {
   } catch {
     return new TextDecoder("utf-8").decode(new Uint8Array(bytes));
   }
-}
-
-function decodeCharset(_text: string, _contentType: string): string {
-  // Charset is now handled directly in decodeTextContent and decodeQuotedPrintable
-  return _text;
 }
 
 function decodeRfc2047(str: string): string {
