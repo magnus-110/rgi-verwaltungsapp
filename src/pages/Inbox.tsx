@@ -671,7 +671,26 @@ export const Inbox = () => {
                           {email.ai_priority === "hoch" ? "Wichtig" : email.ai_priority === "mittel" ? "Mittel" : "Niedrig"}
                         </Badge>
                       )}
+                      {isTrashFolder && email.deleted_at && (
+                        <span className="text-[10px] text-muted-foreground">
+                          {(() => {
+                            const daysLeft = Math.max(0, 30 - Math.floor((Date.now() - new Date(email.deleted_at).getTime()) / (1000 * 60 * 60 * 24)));
+                            return `${daysLeft} Tage verbleibend`;
+                          })()}
+                        </span>
+                      )}
                     </div>
+                    {isTrashFolder && (
+                      <div className="flex items-center gap-0.5 mt-0.5">
+                        <button
+                          className="text-[10px] text-primary hover:underline flex items-center gap-0.5"
+                          onClick={(e) => { e.stopPropagation(); restoreEmail(email.id); }}
+                        >
+                          <Undo2 className="h-3 w-3" />
+                          Wiederherstellen
+                        </button>
+                      </div>
+                    )}
                   </button>
                 ))
               )}
