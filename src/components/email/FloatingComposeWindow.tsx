@@ -158,7 +158,23 @@ export const FloatingComposeWindow = () => {
     }
   };
 
-  // Drag handlers
+  const handleImproveText = async () => {
+    if (!compose.bodyText || compose.bodyText.trim().length < 10) return;
+    setIsImproving(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("improve-email-text", {
+        body: { bodyText: compose.bodyText, subject: compose.subject },
+      });
+      if (error) throw error;
+      if (data?.improvedText) {
+        setAiSuggestion(data.improvedText);
+      }
+    } catch (err: any) {
+      toast.error("KI-Verbesserung fehlgeschlagen: " + (err.message || "Unbekannter Fehler"));
+    } finally {
+      setIsImproving(false);
+    }
+  };
   const onDragStart = useCallback((e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest("button, input, textarea, select, [role=combobox]")) return;
     setIsDragging(true);
@@ -354,13 +370,61 @@ export const FloatingComposeWindow = () => {
           </div>
 
           <div className="space-y-1">
-            <Label className="text-xs">Nachricht</Label>
+            <div className="flex items-center gap-1.5">
+              <Label className="text-xs">Nachricht</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5 text-muted-foreground hover:text-primary"
+                onClick={handleImproveText}
+                disabled={isImproving || compose.bodyText.trim().length < 10}
+                title="Text mit KI verbessern"
+              >
+                {isImproving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+              </Button>
+            </div>
             <Textarea
               value={compose.bodyText}
               onChange={e => updateCompose({ bodyText: e.target.value })}
               placeholder="Ihre Nachricht..."
               className="min-h-[140px] resize-none text-sm"
             />
+            {aiSuggestion !== null && (
+              <div className="border border-primary/30 bg-primary/5 rounded-md p-2 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-medium text-primary flex items-center gap-1">
+                    <Wand2 className="h-3 w-3" />
+                    KI-Vorschlag
+                  </span>
+                  <div className="flex gap-0.5">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5 text-green-600 hover:text-green-700 hover:bg-green-50"
+                      onClick={() => { updateCompose({ bodyText: aiSuggestion }); setAiSuggestion(null); }}
+                      title="Übernehmen"
+                    >
+                      <Check className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-5 w-5 text-destructive hover:bg-destructive/10"
+                      onClick={() => setAiSuggestion(null)}
+                      title="Verwerfen"
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+                <Textarea
+                  value={aiSuggestion}
+                  onChange={e => setAiSuggestion(e.target.value)}
+                  className="min-h-[100px] resize-none text-sm bg-transparent border-0 p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                />
+              </div>
+            )}
           </div>
 
           <div className="space-y-1">
