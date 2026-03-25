@@ -251,48 +251,94 @@ export const EmailSettingsSection = () => {
             </p>
           ) : (
             <div className="space-y-3">
-              {accounts.map(acc => (
-                <div key={acc.id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{acc.display_name}</span>
-                      <Badge variant={acc.is_active ? "default" : "secondary"} className="text-xs">
-                        {acc.is_active ? "Aktiv" : "Inaktiv"}
-                      </Badge>
-                      {acc.signature_html && (
-                        <Badge variant="outline" className="text-xs gap-1">
-                          <FileSignature className="h-3 w-3" />
-                          Signatur
-                        </Badge>
+              {accounts.map(acc => {
+                const assignedUsers = getAccountUsers(acc.id);
+                const unassignedStaff = staffProfiles.filter(
+                  sp => !assignedUsers.some(au => au.user_id === sp.user_id)
+                );
+                return (
+                  <div key={acc.id} className="p-4 border rounded-lg space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{acc.display_name}</span>
+                          <Badge variant={acc.is_active ? "default" : "secondary"} className="text-xs">
+                            {acc.is_active ? "Aktiv" : "Inaktiv"}
+                          </Badge>
+                          {acc.signature_html && (
+                            <Badge variant="outline" className="text-xs gap-1">
+                              <FileSignature className="h-3 w-3" />
+                              Signatur
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="text-sm text-muted-foreground">{acc.email_address}</div>
+                        {acc.last_sync_at && (
+                          <div className="text-xs text-muted-foreground">
+                            Letzte Sync: {new Date(acc.last_sync_at).toLocaleString("de-DE")}
+                          </div>
+                        )}
+                        {acc.last_sync_error && (
+                          <div className="text-xs text-destructive">Fehler: {acc.last_sync_error}</div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={acc.is_active}
+                          onCheckedChange={() => toggleActive(acc.id, acc.is_active)}
+                        />
+                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => openSignatureEditor(acc)} title="Signatur bearbeiten">
+                          <FileSignature className="h-4 w-4" />
+                        </Button>
+                        <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => openEdit(acc)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="outline" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => handleDelete(acc.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    {/* Assigned users section */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Users className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                      {assignedUsers.length === 0 ? (
+                        <span className="text-xs text-muted-foreground">Keine Mitarbeiter zugeordnet</span>
+                      ) : (
+                        assignedUsers.map(au => {
+                          const profile = staffProfiles.find(sp => sp.user_id === au.user_id);
+                          const name = profile ? [profile.first_name, profile.last_name].filter(Boolean).join(" ") : "Unbekannt";
+                          return (
+                            <Badge key={au.id} variant="secondary" className="text-xs gap-1 pr-1">
+                              {name}
+                              <button
+                                onClick={() => removeUserFromAccount(au.id)}
+                                className="ml-0.5 rounded-full hover:bg-destructive/20 p-0.5"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </Badge>
+                          );
+                        })
+                      )}
+                      {unassignedStaff.length > 0 && (
+                        <Select onValueChange={(userId) => addUserToAccount(acc.id, userId)}>
+                          <SelectTrigger className="h-7 w-auto min-w-[140px] text-xs gap-1">
+                            <Plus className="h-3 w-3" />
+                            <SelectValue placeholder="Mitarbeiter hinzufügen" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {unassignedStaff.map(sp => (
+                              <SelectItem key={sp.user_id} value={sp.user_id}>
+                                {[sp.first_name, sp.last_name].filter(Boolean).join(" ") || "Unbenannt"}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       )}
                     </div>
-                    <div className="text-sm text-muted-foreground">{acc.email_address}</div>
-                    {acc.last_sync_at && (
-                      <div className="text-xs text-muted-foreground">
-                        Letzte Sync: {new Date(acc.last_sync_at).toLocaleString("de-DE")}
-                      </div>
-                    )}
-                    {acc.last_sync_error && (
-                      <div className="text-xs text-destructive">Fehler: {acc.last_sync_error}</div>
-                    )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      checked={acc.is_active}
-                      onCheckedChange={() => toggleActive(acc.id, acc.is_active)}
-                    />
-                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => openSignatureEditor(acc)} title="Signatur bearbeiten">
-                      <FileSignature className="h-4 w-4" />
-                    </Button>
-                    <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => openEdit(acc)}>
-                      <Edit className="h-4 w-4" />
-                    </Button>
-                    <Button variant="outline" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => handleDelete(acc.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
