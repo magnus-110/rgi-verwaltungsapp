@@ -265,14 +265,33 @@ export const Inbox = () => {
   const deleteEmail = async (emailId: string) => {
     const trashFolder = folders.find(f => f.name === "Papierkorb");
     if (trashFolder) {
-      await supabase.from("emails").update({ folder_id: trashFolder.id }).eq("id", emailId);
+      await supabase.from("emails").update({ folder_id: trashFolder.id, deleted_at: new Date().toISOString() }).eq("id", emailId);
     } else {
       await supabase.from("emails").delete().eq("id", emailId);
     }
     if (selectedEmailId === emailId) setSelectedEmailId(null);
     queryClient.invalidateQueries({ queryKey: ["emails"] });
     queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
-    toast.success("E-Mail gelöscht");
+    toast.success("E-Mail in Papierkorb verschoben");
+  };
+
+  const restoreEmail = async (emailId: string) => {
+    const inboxFolder = folders.find(f => f.name === "Eingang");
+    if (inboxFolder) {
+      await supabase.from("emails").update({ folder_id: inboxFolder.id, deleted_at: null }).eq("id", emailId);
+    }
+    queryClient.invalidateQueries({ queryKey: ["emails"] });
+    queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+    toast.success("E-Mail wiederhergestellt");
+  };
+
+  const permanentDeleteEmail = async (emailId: string) => {
+    await supabase.from("email_attachments").delete().eq("email_id", emailId);
+    await supabase.from("emails").delete().eq("id", emailId);
+    if (selectedEmailId === emailId) setSelectedEmailId(null);
+    queryClient.invalidateQueries({ queryKey: ["emails"] });
+    queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+    toast.success("E-Mail endgültig gelöscht");
   };
 
   const toggleRead = async (emailId: string, currentRead: boolean) => {
