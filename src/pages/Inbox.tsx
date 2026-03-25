@@ -626,9 +626,16 @@ export const Inbox = () => {
                           {email.ai_category}
                         </Badge>
                       )}
-                      {email.ai_priority === "hoch" && (
-                        <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
-                          Wichtig
+                      {email.ai_priority && (
+                        <Badge 
+                          variant={email.ai_priority === "hoch" ? "destructive" : "outline"} 
+                          className={cn(
+                            "text-[10px] px-1.5 py-0",
+                            email.ai_priority === "mittel" && "border-orange-400 text-orange-600 dark:text-orange-400",
+                            email.ai_priority === "niedrig" && "border-muted-foreground/30 text-muted-foreground"
+                          )}
+                        >
+                          {email.ai_priority === "hoch" ? "Wichtig" : email.ai_priority === "mittel" ? "Mittel" : "Niedrig"}
                         </Badge>
                       )}
                     </div>
