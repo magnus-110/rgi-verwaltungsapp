@@ -1630,6 +1630,7 @@ export type Database = {
           last_sync_at: string | null
           last_sync_error: string | null
           last_uid: string | null
+          signature_html: string | null
           smtp_host: string
           smtp_password: string
           smtp_port: number
@@ -1652,6 +1653,7 @@ export type Database = {
           last_sync_at?: string | null
           last_sync_error?: string | null
           last_uid?: string | null
+          signature_html?: string | null
           smtp_host: string
           smtp_password: string
           smtp_port?: number
@@ -1674,6 +1676,7 @@ export type Database = {
           last_sync_at?: string | null
           last_sync_error?: string | null
           last_uid?: string | null
+          signature_html?: string | null
           smtp_host?: string
           smtp_password?: string
           smtp_port?: number
