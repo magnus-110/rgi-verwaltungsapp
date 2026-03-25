@@ -81,3 +81,6 @@ verify_jwt = false
 [functions.improve-email-text]
 verify_jwt = false
 
+[functions.cleanup-deleted-emails]
+verify_jwt = false
+
