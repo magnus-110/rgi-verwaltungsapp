@@ -170,6 +170,7 @@ export const FloatingComposeWindow = () => {
       if (error) throw error;
       if (data?.improvedText) {
         setAiSuggestion(data.improvedText);
+        setTimeout(() => aiSuggestionRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 100);
       }
     } catch (err: any) {
       toast.error("KI-Verbesserung fehlgeschlagen: " + (err.message || "Unbekannter Fehler"));
