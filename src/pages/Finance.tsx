@@ -4,6 +4,7 @@ import { InvoicesTab } from "@/components/finance/InvoicesTab";
 import { BankStatementsTab } from "@/components/finance/BankStatementsTab";
 import { BookingTemplatesTab } from "@/components/finance/BookingTemplatesTab";
 import { BookingsTab } from "@/components/finance/BookingsTab";
+import { BillingTab } from "@/components/finance/BillingTab";
 
 export const Finance = () => {
   return (
@@ -11,17 +12,18 @@ export const Finance = () => {
       <div>
         <h1 className="text-2xl font-bold">Finanzen</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Rechnungen, Vorlagen, Kontoauszüge und Buchungen verwalten
+          Rechnungen, Vorlagen, Kontoauszüge, Buchungen und Abrechnung verwalten
         </p>
       </div>
 
       <Tabs defaultValue="invoices" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="invoices">Rechnungen</TabsTrigger>
           <TabsTrigger value="templates">Vorlagen</TabsTrigger>
           <TabsTrigger value="statements">Kontoauszüge</TabsTrigger>
           <TabsTrigger value="bookings">Buchungen</TabsTrigger>
           <TabsTrigger value="accounts">Kontenrahmen</TabsTrigger>
+          <TabsTrigger value="billing">Abrechnung</TabsTrigger>
         </TabsList>
 
         <TabsContent value="invoices">
@@ -38,6 +40,9 @@ export const Finance = () => {
         </TabsContent>
         <TabsContent value="accounts">
           <ChartOfAccountsTab />
+        </TabsContent>
+        <TabsContent value="billing">
+          <BillingTab />
         </TabsContent>
       </Tabs>
     </div>

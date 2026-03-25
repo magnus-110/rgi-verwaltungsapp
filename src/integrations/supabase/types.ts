@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_balances: {
+        Row: {
+          account_id: string
+          building_id: string
+          closing_balance: number
+          created_at: string
+          fiscal_year: number
+          id: string
+          is_carried_forward: boolean
+          opening_balance: number
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          building_id: string
+          closing_balance?: number
+          created_at?: string
+          fiscal_year: number
+          id?: string
+          is_carried_forward?: boolean
+          opening_balance?: number
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          building_id?: string
+          closing_balance?: number
+          created_at?: string
+          fiscal_year?: number
+          id?: string
+          is_carried_forward?: boolean
+          opening_balance?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_balances_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "account_balances_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bank_statements: {
         Row: {
           account_iban: string | null
@@ -166,6 +217,103 @@ export type Database = {
           },
         ]
       }
+      billing_periods: {
+        Row: {
+          building_id: string
+          created_at: string
+          fiscal_year: number
+          heating_provider: string | null
+          id: string
+          notes: string | null
+          period_from: string
+          period_to: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          building_id: string
+          created_at?: string
+          fiscal_year: number
+          heating_provider?: string | null
+          id?: string
+          notes?: string | null
+          period_from: string
+          period_to: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          building_id?: string
+          created_at?: string
+          fiscal_year?: number
+          heating_provider?: string | null
+          id?: string
+          notes?: string | null
+          period_from?: string
+          period_to?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_periods_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      billing_validations: {
+        Row: {
+          actual_value: number | null
+          billing_period_id: string
+          check_name: string
+          check_type: string
+          created_at: string
+          details: Json | null
+          difference: number | null
+          expected_value: number | null
+          id: string
+          message: string | null
+          status: string
+        }
+        Insert: {
+          actual_value?: number | null
+          billing_period_id: string
+          check_name: string
+          check_type: string
+          created_at?: string
+          details?: Json | null
+          difference?: number | null
+          expected_value?: number | null
+          id?: string
+          message?: string | null
+          status?: string
+        }
+        Update: {
+          actual_value?: number | null
+          billing_period_id?: string
+          check_name?: string
+          check_type?: string
+          created_at?: string
+          details?: Json | null
+          difference?: number | null
+          expected_value?: number | null
+          id?: string
+          message?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_validations_billing_period_id_fkey"
+            columns: ["billing_period_id"]
+            isOneToOne: false
+            referencedRelation: "billing_periods"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       booking_templates: {
         Row: {
           account_id: string | null
@@ -237,6 +385,7 @@ export type Database = {
           account_id: string | null
           ai_warning: string | null
           amount: number
+          booking_category: string | null
           booking_date: string
           booking_reference: string | null
           booking_type: string | null
@@ -268,6 +417,7 @@ export type Database = {
           account_id?: string | null
           ai_warning?: string | null
           amount: number
+          booking_category?: string | null
           booking_date: string
           booking_reference?: string | null
           booking_type?: string | null
@@ -299,6 +449,7 @@ export type Database = {
           account_id?: string | null
           ai_warning?: string | null
           amount?: number
+          booking_category?: string | null
           booking_date?: string
           booking_reference?: string | null
           booking_type?: string | null
@@ -831,11 +982,14 @@ export type Database = {
           account_name: string
           account_number: string
           building_id: string | null
+          carry_forward_balance: boolean
           category: string
           created_at: string
           default_distribution_key: string | null
           id: string
           is_35a_relevant: boolean | null
+          is_billing_relevant: boolean
+          is_heating_relevant: boolean
           is_system_account: boolean | null
           sort_order: number | null
           updated_at: string
@@ -844,11 +998,14 @@ export type Database = {
           account_name: string
           account_number: string
           building_id?: string | null
+          carry_forward_balance?: boolean
           category: string
           created_at?: string
           default_distribution_key?: string | null
           id?: string
           is_35a_relevant?: boolean | null
+          is_billing_relevant?: boolean
+          is_heating_relevant?: boolean
           is_system_account?: boolean | null
           sort_order?: number | null
           updated_at?: string
@@ -857,11 +1014,14 @@ export type Database = {
           account_name?: string
           account_number?: string
           building_id?: string | null
+          carry_forward_balance?: boolean
           category?: string
           created_at?: string
           default_distribution_key?: string | null
           id?: string
           is_35a_relevant?: boolean | null
+          is_billing_relevant?: boolean
+          is_heating_relevant?: boolean
           is_system_account?: boolean | null
           sort_order?: number | null
           updated_at?: string
@@ -2094,6 +2254,76 @@ export type Database = {
             columns: ["building_id"]
             isOneToOne: false
             referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fuel_inventory: {
+        Row: {
+          billing_period_id: string | null
+          building_id: string
+          created_at: string
+          entry_date: string
+          entry_type: string
+          fuel_type: string
+          id: string
+          invoice_id: string | null
+          notes: string | null
+          quantity: number
+          total_price: number
+          unit: string
+          unit_price: number | null
+        }
+        Insert: {
+          billing_period_id?: string | null
+          building_id: string
+          created_at?: string
+          entry_date?: string
+          entry_type?: string
+          fuel_type?: string
+          id?: string
+          invoice_id?: string | null
+          notes?: string | null
+          quantity?: number
+          total_price?: number
+          unit?: string
+          unit_price?: number | null
+        }
+        Update: {
+          billing_period_id?: string | null
+          building_id?: string
+          created_at?: string
+          entry_date?: string
+          entry_type?: string
+          fuel_type?: string
+          id?: string
+          invoice_id?: string | null
+          notes?: string | null
+          quantity?: number
+          total_price?: number
+          unit?: string
+          unit_price?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fuel_inventory_billing_period_id_fkey"
+            columns: ["billing_period_id"]
+            isOneToOne: false
+            referencedRelation: "billing_periods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fuel_inventory_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fuel_inventory_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
             referencedColumns: ["id"]
           },
         ]

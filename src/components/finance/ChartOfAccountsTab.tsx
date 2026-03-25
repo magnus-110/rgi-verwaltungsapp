@@ -33,7 +33,7 @@ export function ChartOfAccountsTab() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [selectedBuilding, setSelectedBuilding] = useState<string>("global");
   const [searchTerm, setSearchTerm] = useState("");
-  const [newAccount, setNewAccount] = useState({ account_number: "", account_name: "", category: "", default_distribution_key: "mea", is_35a_relevant: false });
+  const [newAccount, setNewAccount] = useState({ account_number: "", account_name: "", category: "", default_distribution_key: "mea", is_35a_relevant: false, is_billing_relevant: false, is_heating_relevant: false, carry_forward_balance: false });
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance-coa"],
@@ -75,11 +75,18 @@ export function ChartOfAccountsTab() {
     });
   };
 
+  const [editBillingRelevant, setEditBillingRelevant] = useState(false);
+  const [editHeatingRelevant, setEditHeatingRelevant] = useState(false);
+  const [editCarryForward, setEditCarryForward] = useState(false);
+
   const startEdit = (account: any) => {
     setEditingId(account.id);
     setEditName(account.account_name);
     setEditDistKey(account.default_distribution_key || "mea");
     setEdit35a(account.is_35a_relevant || false);
+    setEditBillingRelevant(account.is_billing_relevant || false);
+    setEditHeatingRelevant(account.is_heating_relevant || false);
+    setEditCarryForward(account.carry_forward_balance || false);
   };
 
   const saveEdit = async (id: string) => {
@@ -87,6 +94,9 @@ export function ChartOfAccountsTab() {
       account_name: editName,
       default_distribution_key: editDistKey,
       is_35a_relevant: edit35a,
+      is_billing_relevant: editBillingRelevant,
+      is_heating_relevant: editHeatingRelevant,
+      carry_forward_balance: editCarryForward,
     }).eq("id", id);
     if (error) { toast.error("Fehler beim Speichern"); return; }
     toast.success("Konto aktualisiert");
@@ -117,7 +127,7 @@ export function ChartOfAccountsTab() {
     if (error) { toast.error("Fehler: " + error.message); return; }
     toast.success("Konto hinzugefügt");
     setIsAddOpen(false);
-    setNewAccount({ account_number: "", account_name: "", category: "", default_distribution_key: "mea", is_35a_relevant: false });
+    setNewAccount({ account_number: "", account_name: "", category: "", default_distribution_key: "mea", is_35a_relevant: false, is_billing_relevant: false, is_heating_relevant: false, carry_forward_balance: false });
     queryClient.invalidateQueries({ queryKey: ["chart-of-accounts"] });
   };
 
@@ -174,8 +184,11 @@ export function ChartOfAccountsTab() {
                         <TableHead className="w-[120px]">Konto-Nr.</TableHead>
                         <TableHead>Bezeichnung</TableHead>
                         <TableHead className="w-[180px]">Verteilerschlüssel</TableHead>
-                        <TableHead className="w-[80px] text-center">§35a</TableHead>
-                        <TableHead className="w-[80px]"></TableHead>
+                         <TableHead className="w-[60px] text-center">§35a</TableHead>
+                         <TableHead className="w-[50px] text-center" title="Abrechnungsrelevant">Abr.</TableHead>
+                         <TableHead className="w-[50px] text-center" title="Heizkosten-relevant">HK</TableHead>
+                         <TableHead className="w-[50px] text-center" title="Saldovortrag">Saldo</TableHead>
+                         <TableHead className="w-[80px]"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -204,13 +217,34 @@ export function ChartOfAccountsTab() {
                               <Badge variant="outline" className="text-xs">{getKeyLabel(account.default_distribution_key)}</Badge>
                             )}
                           </TableCell>
-                          <TableCell className="text-center">
-                            {editingId === account.id ? (
-                              <Checkbox checked={edit35a} onCheckedChange={c => setEdit35a(!!c)} />
-                            ) : (
-                              account.is_35a_relevant && <Badge className="text-xs bg-amber-100 text-amber-800 hover:bg-amber-100">§35a</Badge>
-                            )}
-                          </TableCell>
+                           <TableCell className="text-center">
+                             {editingId === account.id ? (
+                               <Checkbox checked={edit35a} onCheckedChange={c => setEdit35a(!!c)} />
+                             ) : (
+                               account.is_35a_relevant && <Badge className="text-xs bg-amber-100 text-amber-800 hover:bg-amber-100">§35a</Badge>
+                             )}
+                           </TableCell>
+                           <TableCell className="text-center">
+                             {editingId === account.id ? (
+                               <Checkbox checked={editBillingRelevant} onCheckedChange={c => setEditBillingRelevant(!!c)} />
+                             ) : (
+                               account.is_billing_relevant && <Badge className="text-xs bg-blue-100 text-blue-800 hover:bg-blue-100">Abr.</Badge>
+                             )}
+                           </TableCell>
+                           <TableCell className="text-center">
+                             {editingId === account.id ? (
+                               <Checkbox checked={editHeatingRelevant} onCheckedChange={c => setEditHeatingRelevant(!!c)} />
+                             ) : (
+                               account.is_heating_relevant && <Badge className="text-xs bg-orange-100 text-orange-800 hover:bg-orange-100">HK</Badge>
+                             )}
+                           </TableCell>
+                           <TableCell className="text-center">
+                             {editingId === account.id ? (
+                               <Checkbox checked={editCarryForward} onCheckedChange={c => setEditCarryForward(!!c)} />
+                             ) : (
+                               account.carry_forward_balance && <Badge className="text-xs bg-purple-100 text-purple-800 hover:bg-purple-100">SV</Badge>
+                             )}
+                           </TableCell>
                           <TableCell>
                             {editingId === account.id ? (
                               <div className="flex items-center gap-1">
@@ -281,10 +315,22 @@ export function ChartOfAccountsTab() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex items-end pb-2">
+              <div className="flex flex-wrap items-end gap-4 pb-2">
                 <div className="flex items-center gap-2">
                   <Checkbox checked={newAccount.is_35a_relevant} onCheckedChange={c => setNewAccount(p => ({ ...p, is_35a_relevant: !!c }))} />
-                  <Label>§35a relevant</Label>
+                  <Label>§35a</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox checked={newAccount.is_billing_relevant} onCheckedChange={c => setNewAccount(p => ({ ...p, is_billing_relevant: !!c }))} />
+                  <Label>Abrechnung</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox checked={newAccount.is_heating_relevant} onCheckedChange={c => setNewAccount(p => ({ ...p, is_heating_relevant: !!c }))} />
+                  <Label>HK-relevant</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox checked={newAccount.carry_forward_balance} onCheckedChange={c => setNewAccount(p => ({ ...p, carry_forward_balance: !!c }))} />
+                  <Label>Saldovortrag</Label>
                 </div>
               </div>
             </div>
