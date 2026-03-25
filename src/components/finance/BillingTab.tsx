@@ -3,12 +3,15 @@ import { BillingPeriodSelector } from "./BillingPeriodSelector";
 import { BalanceCarryForward } from "./BalanceCarryForward";
 import { FuelInventorySection } from "./FuelInventorySection";
 import { HeatingAccountsSection } from "./HeatingAccountsSection";
+import { HeatingExportSection } from "./HeatingExportSection";
+import { HeatingRebookingSection } from "./HeatingRebookingSection";
+import { AccrualSection } from "./AccrualSection";
 import { BillingValidationPanel } from "./BillingValidationPanel";
+import { BillingAiAnalysis } from "./BillingAiAnalysis";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Check, ChevronDown, ChevronRight, CircleDot } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
 const STEPS = [
   { id: "balances", label: "Salden vom Vorjahr übernehmen", icon: "💰" },
@@ -74,7 +77,6 @@ export function BillingTab() {
 
       {selectedBuildingId && selectedPeriodId && period && (
         <div className="space-y-3">
-          {/* Stepper */}
           {STEPS.map((step) => {
             const isExpanded = expandedSteps.has(step.id);
             return (
@@ -104,30 +106,18 @@ export function BillingTab() {
                       </div>
                     )}
                     {step.id === "export" && (
-                      <Card>
-                        <CardContent className="py-8 text-center text-muted-foreground text-sm">
-                          Export für Ablesefirma — wird in Phase 2 implementiert
-                        </CardContent>
-                      </Card>
+                      <HeatingExportSection buildingId={selectedBuildingId} periodId={selectedPeriodId} fiscalYear={period.fiscal_year} />
                     )}
                     {step.id === "rebooking" && (
-                      <Card>
-                        <CardContent className="py-8 text-center text-muted-foreground text-sm">
-                          Heizkosten-Umbuchungen — wird in Phase 2 implementiert
-                        </CardContent>
-                      </Card>
+                      <HeatingRebookingSection buildingId={selectedBuildingId} periodId={selectedPeriodId} fiscalYear={period.fiscal_year} />
                     )}
                     {step.id === "accruals" && (
-                      <Card>
-                        <CardContent className="py-8 text-center text-muted-foreground text-sm">
-                          Abgrenzungsbuchungen — wird in Phase 2 implementiert
-                        </CardContent>
-                      </Card>
+                      <AccrualSection buildingId={selectedBuildingId} fiscalYear={period.fiscal_year} />
                     )}
                     {step.id === "settlement" && (
                       <Card>
                         <CardContent className="py-8 text-center text-muted-foreground text-sm">
-                          Gesamtabrechnung — wird in Phase 2 implementiert
+                          Gesamtabrechnung — wird in Phase 3 implementiert
                         </CardContent>
                       </Card>
                     )}
@@ -137,10 +127,15 @@ export function BillingTab() {
             );
           })}
 
-          {/* Kontrollcenter */}
+          {/* Kontrollcenter + KI-Analyse */}
           <BillingValidationPanel
             periodId={selectedPeriodId}
             buildingId={selectedBuildingId}
+            fiscalYear={period.fiscal_year}
+          />
+          <BillingAiAnalysis
+            buildingId={selectedBuildingId}
+            periodId={selectedPeriodId}
             fiscalYear={period.fiscal_year}
           />
         </div>
