@@ -95,7 +95,6 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
           file_path: invoicePath,
           status: "open",
           ocr_status: "pending",
-          payment_status: "open",
         })
         .select("id")
         .single();
