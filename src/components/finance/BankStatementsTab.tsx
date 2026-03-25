@@ -154,7 +154,19 @@ export function BankStatementsTab() {
     }
     setUploading(true);
     try {
-      const xmlContent = await file.text();
+      // Read with UTF-8 first to detect encoding from XML declaration
+      let xmlContent = await file.text();
+      const encodingMatch = xmlContent.match(/<\?xml[^?]*encoding=["']([^"']+)["']/i);
+      const declaredEncoding = encodingMatch?.[1]?.toUpperCase();
+      // Re-read with correct encoding if not UTF-8
+      if (declaredEncoding && declaredEncoding !== "UTF-8") {
+        xmlContent = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = () => reject(reader.error);
+          reader.readAsText(file, declaredEncoding);
+        });
+      }
       const { data, error } = await supabase.functions.invoke("parse-bank-statement", {
         body: { xmlContent, buildingId: selectedBuilding !== "all" ? selectedBuilding : null },
       });
