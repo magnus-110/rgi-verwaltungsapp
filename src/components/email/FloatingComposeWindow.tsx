@@ -400,7 +400,7 @@ export const FloatingComposeWindow = () => {
               value={compose.bodyText}
               onChange={e => updateCompose({ bodyText: e.target.value })}
               placeholder="Ihre Nachricht..."
-              className="min-h-[140px] resize-none text-sm"
+              className="min-h-[140px] resize-y text-sm"
             />
             {aiSuggestion !== null && (
               <div ref={aiSuggestionRef} className="border border-primary/30 bg-primary/5 rounded-md p-2 space-y-1.5">
