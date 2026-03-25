@@ -1846,6 +1846,7 @@ export type Database = {
           contact_id: string | null
           created_at: string
           date: string | null
+          deleted_at: string | null
           folder_id: string | null
           from_address: string | null
           from_name: string | null
@@ -1880,6 +1881,7 @@ export type Database = {
           contact_id?: string | null
           created_at?: string
           date?: string | null
+          deleted_at?: string | null
           folder_id?: string | null
           from_address?: string | null
           from_name?: string | null
@@ -1914,6 +1916,7 @@ export type Database = {
           contact_id?: string | null
           created_at?: string
           date?: string | null
+          deleted_at?: string | null
           folder_id?: string | null
           from_address?: string | null
           from_name?: string | null
