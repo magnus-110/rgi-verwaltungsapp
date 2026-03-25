@@ -6,6 +6,7 @@ import { HeatingAccountsSection } from "./HeatingAccountsSection";
 import { HeatingExportSection } from "./HeatingExportSection";
 import { HeatingRebookingSection } from "./HeatingRebookingSection";
 import { AccrualSection } from "./AccrualSection";
+import { BillingSettlement } from "./BillingSettlement";
 import { BillingValidationPanel } from "./BillingValidationPanel";
 import { BillingAiAnalysis } from "./BillingAiAnalysis";
 import { useQuery } from "@tanstack/react-query";
@@ -115,11 +116,7 @@ export function BillingTab() {
                       <AccrualSection buildingId={selectedBuildingId} fiscalYear={period.fiscal_year} />
                     )}
                     {step.id === "settlement" && (
-                      <Card>
-                        <CardContent className="py-8 text-center text-muted-foreground text-sm">
-                          Gesamtabrechnung — wird in Phase 3 implementiert
-                        </CardContent>
-                      </Card>
+                      <BillingSettlement buildingId={selectedBuildingId} periodId={selectedPeriodId} fiscalYear={period.fiscal_year} />
                     )}
                   </div>
                 )}
