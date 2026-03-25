@@ -189,6 +189,10 @@ export const Inbox = () => {
         query = query.eq("account_id", filterAccountId);
       }
 
+      if (filterAssignedTo !== "all") {
+        query = query.eq("assigned_to", filterAssignedTo);
+      }
+
       if (searchTerm.trim()) {
         query = query.or(`subject.ilike.%${searchTerm}%,from_name.ilike.%${searchTerm}%,from_address.ilike.%${searchTerm}%,body_text.ilike.%${searchTerm}%`);
       }
