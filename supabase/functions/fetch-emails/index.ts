@@ -395,13 +395,10 @@ function parseMimePart(headers: string, body: string, result: ParseResult): void
         contentId,
       });
     } else if (ct.includes("text/plain") && !result.bodyText) {
-      let decoded = decodeTextContent(body, transferEncoding);
-      // Handle charset
-      decoded = decodeCharset(decoded, contentType);
+      let decoded = decodeTextContent(body, transferEncoding, contentType);
       result.bodyText = decoded.trim();
     } else if (ct.includes("text/html") && !result.bodyHtml) {
-      let decoded = decodeTextContent(body, transferEncoding);
-      decoded = decodeCharset(decoded, contentType);
+      let decoded = decodeTextContent(body, transferEncoding, contentType);
       result.bodyHtml = decoded.trim();
     }
   }
@@ -485,42 +482,76 @@ function decodeContent(body: string, encoding: string): Uint8Array {
   return new TextEncoder().encode(body);
 }
 
-function decodeTextContent(body: string, encoding: string): string {
+function extractCharset(contentType: string): string {
+  const match = contentType.match(/charset="?([^";\s]+)"?/i);
+  return match ? match[1].trim().toLowerCase() : "utf-8";
+}
+
+function decodeTextContent(body: string, encoding: string, contentType?: string): string {
   const enc = encoding.toLowerCase().trim();
+  const charset = contentType ? extractCharset(contentType) : "utf-8";
   if (enc === "base64") {
     try {
-      return atob(body.replace(/\s/g, ""));
+      const cleaned = body.replace(/\s/g, "");
+      const binary = atob(cleaned);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return new TextDecoder(charset).decode(bytes);
     } catch {
       return body;
     }
   } else if (enc === "quoted-printable") {
-    return decodeQuotedPrintable(body);
+    return decodeQuotedPrintable(body, charset);
   }
   return body;
 }
 
-function decodeQuotedPrintable(str: string): string {
-  return str
-    .replace(/=\r?\n/g, "")
-    .replace(/=([0-9A-Fa-f]{2})/g, (_, hex) =>
-      String.fromCharCode(parseInt(hex, 16))
-    );
+function decodeQuotedPrintable(str: string, charset: string = "utf-8"): string {
+  // Remove soft line breaks
+  const withoutSoftBreaks = str.replace(/=\r?\n/g, "");
+  // Collect bytes
+  const bytes: number[] = [];
+  let i = 0;
+  while (i < withoutSoftBreaks.length) {
+    if (withoutSoftBreaks[i] === "=" && i + 2 < withoutSoftBreaks.length) {
+      const hex = withoutSoftBreaks.substring(i + 1, i + 3);
+      if (/^[0-9A-Fa-f]{2}$/.test(hex)) {
+        bytes.push(parseInt(hex, 16));
+        i += 3;
+        continue;
+      }
+    }
+    bytes.push(withoutSoftBreaks.charCodeAt(i));
+    i++;
+  }
+  try {
+    return new TextDecoder(charset).decode(new Uint8Array(bytes));
+  } catch {
+    return new TextDecoder("utf-8").decode(new Uint8Array(bytes));
+  }
 }
 
-function decodeCharset(text: string, contentType: string): string {
-  // Basic charset handling - most modern emails are UTF-8
-  // For iso-8859-1, the charCodeAt approach from QP decoding already works
-  return text;
+function decodeCharset(_text: string, _contentType: string): string {
+  // Charset is now handled directly in decodeTextContent and decodeQuotedPrintable
+  return _text;
 }
 
 function decodeRfc2047(str: string): string {
   // Decode RFC 2047 encoded words (e.g. =?UTF-8?B?...?=)
   return str.replace(/=\?([^?]+)\?([BbQq])\?([^?]+)\?=/g, (_, charset, encoding, text) => {
     try {
+      const cs = charset.toLowerCase();
       if (encoding.toUpperCase() === "B") {
-        return atob(text);
+        const binary = atob(text);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        return new TextDecoder(cs).decode(bytes);
       } else {
-        return decodeQuotedPrintable(text.replace(/_/g, " "));
+        return decodeQuotedPrintable(text.replace(/_/g, " "), cs);
       }
     } catch {
       return text;

@@ -1630,6 +1630,7 @@ export type Database = {
           last_sync_at: string | null
           last_sync_error: string | null
           last_uid: string | null
+          short_code: string | null
           signature_html: string | null
           smtp_host: string
           smtp_password: string
@@ -1653,6 +1654,7 @@ export type Database = {
           last_sync_at?: string | null
           last_sync_error?: string | null
           last_uid?: string | null
+          short_code?: string | null
           signature_html?: string | null
           smtp_host: string
           smtp_password: string
@@ -1676,6 +1678,7 @@ export type Database = {
           last_sync_at?: string | null
           last_sync_error?: string | null
           last_uid?: string | null
+          short_code?: string | null
           signature_html?: string | null
           smtp_host?: string
           smtp_password?: string
@@ -1841,6 +1844,7 @@ export type Database = {
           ai_classified_at: string | null
           ai_priority: string | null
           ai_summary: string | null
+          assigned_to: string | null
           bcc_addresses: Json | null
           body_html: string | null
           body_text: string | null
@@ -1876,6 +1880,7 @@ export type Database = {
           ai_classified_at?: string | null
           ai_priority?: string | null
           ai_summary?: string | null
+          assigned_to?: string | null
           bcc_addresses?: Json | null
           body_html?: string | null
           body_text?: string | null
@@ -1911,6 +1916,7 @@ export type Database = {
           ai_classified_at?: string | null
           ai_priority?: string | null
           ai_summary?: string | null
+          assigned_to?: string | null
           bcc_addresses?: Json | null
           body_html?: string | null
           body_text?: string | null
@@ -1947,6 +1953,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "email_accounts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emails_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "emails_building_id_fkey"

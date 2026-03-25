@@ -45,6 +45,7 @@ export const Inbox = () => {
   const [filterBuildingId, setFilterBuildingId] = useState<string>("all");
   const [filterContactId, setFilterContactId] = useState<string>("all");
   const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [filterAssignedTo, setFilterAssignedTo] = useState<string>("all");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [newContactDialogOpen, setNewContactDialogOpen] = useState(false);
   const [newContactData, setNewContactData] = useState({ first_name: "", last_name: "", company_name: "", email: "" });
@@ -74,8 +75,22 @@ export const Inbox = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("email_accounts")
-        .select("id, display_name, email_address, is_active, last_sync_at")
+        .select("id, display_name, email_address, is_active, last_sync_at, short_code")
         .order("display_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch admin profiles for assignment
+  const { data: adminProfiles = [] } = useQuery({
+    queryKey: ["admin-profiles"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("user_id, first_name, last_name, role")
+        .in("role", ["admin", "employee"])
+        .order("last_name");
       if (error) throw error;
       return data;
     },
@@ -143,7 +158,7 @@ export const Inbox = () => {
 
   // Fetch emails for selected folder
   const { data: emails = [], isLoading: emailsLoading } = useQuery({
-    queryKey: ["emails", selectedFolderId, searchTerm, filterAccountId, isArchiveFolder, filterBuildingId, filterContactId],
+    queryKey: ["emails", selectedFolderId, searchTerm, filterAccountId, isArchiveFolder, filterBuildingId, filterContactId, filterAssignedTo],
     queryFn: async () => {
       let query = supabase
         .from("emails")
@@ -172,6 +187,12 @@ export const Inbox = () => {
 
       if (filterAccountId !== "all") {
         query = query.eq("account_id", filterAccountId);
+      }
+
+      if (filterAssignedTo === "unassigned") {
+        query = query.is("assigned_to", null);
+      } else if (filterAssignedTo !== "all") {
+        query = query.eq("assigned_to", filterAssignedTo);
       }
 
       if (searchTerm.trim()) {
@@ -577,6 +598,24 @@ export const Inbox = () => {
                   className="pl-9 h-9"
                 />
               </div>
+              {/* Assigned-to filter */}
+              {adminProfiles.length > 0 && (
+                <Select value={filterAssignedTo} onValueChange={setFilterAssignedTo}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <User className="h-3 w-3 mr-1 shrink-0" />
+                    <SelectValue placeholder="Zugeordnet zu" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Alle Zuordnungen</SelectItem>
+                    <SelectItem value="unassigned">Nicht zugeordnet</SelectItem>
+                    {adminProfiles.map(p => (
+                      <SelectItem key={p.user_id} value={p.user_id}>
+                        {[p.first_name, p.last_name].filter(Boolean).join(" ") || "Unbenannt"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               {/* Archive filters */}
               {isArchiveFolder && (
                 <div className="flex gap-2">
@@ -649,7 +688,8 @@ export const Inbox = () => {
                     <p className={cn("text-xs truncate", !email.is_read ? "text-foreground" : "text-muted-foreground")}>
                       {email.subject || "(Kein Betreff)"}
                     </p>
-                    <div className="flex items-center gap-1 mt-0.5">
+                    <div className="flex items-center justify-between gap-1 mt-0.5">
+                      <div className="flex items-center gap-1 flex-1 min-w-0 flex-wrap">
                       {isArchiveFolder && email.building_id && (
                         <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
                           <Building2 className="h-2.5 w-2.5" />
@@ -687,6 +727,39 @@ export const Inbox = () => {
                           })()}
                         </span>
                       )}
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {/* Assignment dropdown */}
+                        <select
+                          className="h-5 text-[10px] bg-transparent border border-border rounded px-1 cursor-pointer text-muted-foreground hover:text-foreground appearance-none max-w-[60px]"
+                          value={(email as any).assigned_to || ""}
+                          onClick={e => e.stopPropagation()}
+                          onChange={async (e) => {
+                            e.stopPropagation();
+                            const val = e.target.value || null;
+                            await supabase.from("emails").update({ assigned_to: val }).eq("id", email.id);
+                            queryClient.invalidateQueries({ queryKey: ["emails"] });
+                          }}
+                          title="Zuordnung"
+                        >
+                          <option value="">—</option>
+                          {adminProfiles.map(p => (
+                            <option key={p.user_id} value={p.user_id}>
+                              {[p.first_name, p.last_name].filter(Boolean).map(n => n?.[0]).join("")}
+                            </option>
+                          ))}
+                        </select>
+                        {/* Short code badge */}
+                        {filterAccountId === "all" && (() => {
+                          const acc = accounts.find(a => a.id === email.account_id);
+                          const code = (acc as any)?.short_code;
+                          return code ? (
+                            <span className="inline-flex items-center justify-center h-5 min-w-[20px] rounded-full bg-primary/10 text-primary text-[9px] font-bold px-1" title={acc?.display_name || ""}>
+                              {code}
+                            </span>
+                          ) : null;
+                        })()}
+                      </div>
                     </div>
                     {isTrashFolder && (
                       <div className="flex items-center gap-0.5 mt-0.5">
