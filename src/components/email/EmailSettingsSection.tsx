@@ -54,6 +54,9 @@ export const EmailSettingsSection = () => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyAccount);
   const [isSaving, setIsSaving] = useState(false);
+  const [signatureDialogOpen, setSignatureDialogOpen] = useState(false);
+  const [signatureAccountId, setSignatureAccountId] = useState<string | null>(null);
+  const [signatureText, setSignatureText] = useState("");
 
   const { data: accounts = [], isLoading } = useQuery({
     queryKey: ["email-accounts-settings"],
@@ -139,6 +142,26 @@ export const EmailSettingsSection = () => {
     await supabase.from("email_accounts").update({ is_active: !currentActive }).eq("id", id);
     queryClient.invalidateQueries({ queryKey: ["email-accounts-settings"] });
     queryClient.invalidateQueries({ queryKey: ["email-accounts"] });
+  };
+
+  const openSignatureEditor = (acc: EmailAccount) => {
+    setSignatureAccountId(acc.id);
+    setSignatureText(acc.signature_html || "");
+    setSignatureDialogOpen(true);
+  };
+
+  const saveSignature = async () => {
+    if (!signatureAccountId) return;
+    try {
+      const { error } = await supabase.from("email_accounts").update({ signature_html: signatureText || null }).eq("id", signatureAccountId);
+      if (error) throw error;
+      toast.success("Signatur gespeichert");
+      setSignatureDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["email-accounts-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["email-accounts-compose"] });
+    } catch (err: any) {
+      toast.error(err.message || "Fehler beim Speichern");
+    }
   };
 
   const updateField = (key: string, value: any) => setForm(prev => ({ ...prev, [key]: value }));
