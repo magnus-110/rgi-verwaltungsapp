@@ -328,6 +328,32 @@ export const EmailSettingsSection = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={signatureDialogOpen} onOpenChange={setSignatureDialogOpen}>
+        <DialogContent className="sm:max-w-[540px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSignature className="h-5 w-5" />
+              Signatur bearbeiten
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Diese Signatur wird automatisch an neue E-Mails angehängt.
+            </p>
+            <Textarea
+              value={signatureText}
+              onChange={e => setSignatureText(e.target.value)}
+              placeholder={"Mit freundlichen Grüßen\nMax Mustermann\nRGI Hausverwaltung\nTel: +49 123 456789"}
+              className="min-h-[160px] text-sm"
+            />
+            <div className="flex justify-end gap-2 pt-2 border-t">
+              <Button variant="outline" onClick={() => setSignatureDialogOpen(false)}>Abbrechen</Button>
+              <Button onClick={saveSignature}>Speichern</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };
