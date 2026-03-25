@@ -596,6 +596,24 @@ export const Inbox = () => {
                   className="pl-9 h-9"
                 />
               </div>
+              {/* Assigned-to filter */}
+              {adminProfiles.length > 0 && (
+                <Select value={filterAssignedTo} onValueChange={setFilterAssignedTo}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <User className="h-3 w-3 mr-1 shrink-0" />
+                    <SelectValue placeholder="Zugeordnet zu" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Alle Zuordnungen</SelectItem>
+                    <SelectItem value="unassigned">Nicht zugeordnet</SelectItem>
+                    {adminProfiles.map(p => (
+                      <SelectItem key={p.user_id} value={p.user_id}>
+                        {[p.first_name, p.last_name].filter(Boolean).join(" ") || "Unbenannt"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               {/* Archive filters */}
               {isArchiveFolder && (
                 <div className="flex gap-2">
