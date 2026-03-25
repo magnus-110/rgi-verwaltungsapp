@@ -46,6 +46,7 @@ const emptyAccount = {
   use_ssl: true,
   is_active: true,
   delete_after_import: true,
+  short_code: "",
 };
 
 export const EmailSettingsSection = () => {
@@ -92,6 +93,7 @@ export const EmailSettingsSection = () => {
       use_ssl: acc.use_ssl,
       is_active: acc.is_active,
       delete_after_import: acc.delete_after_import,
+      short_code: (acc as any).short_code || "",
     });
     setDialogOpen(true);
   };
@@ -245,14 +247,18 @@ export const EmailSettingsSection = () => {
             <DialogTitle>{editingId ? "E-Mail-Konto bearbeiten" : "Neues E-Mail-Konto"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1.5 col-span-1">
                 <Label className="text-xs">Anzeigename *</Label>
                 <Input value={form.display_name} onChange={e => updateField("display_name", e.target.value)} placeholder="z.B. Hausverwaltung" className="h-9" />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 col-span-1">
                 <Label className="text-xs">E-Mail-Adresse *</Label>
                 <Input value={form.email_address} onChange={e => updateField("email_address", e.target.value)} placeholder="info@firma.de" className="h-9" />
+              </div>
+              <div className="space-y-1.5 col-span-1">
+                <Label className="text-xs">Kürzel (2-5 Zeichen)</Label>
+                <Input value={form.short_code} onChange={e => updateField("short_code", e.target.value.toUpperCase().slice(0, 5))} placeholder="z.B. MG" className="h-9" maxLength={5} />
               </div>
             </div>
 

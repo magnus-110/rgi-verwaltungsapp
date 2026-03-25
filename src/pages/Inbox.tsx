@@ -45,6 +45,7 @@ export const Inbox = () => {
   const [filterBuildingId, setFilterBuildingId] = useState<string>("all");
   const [filterContactId, setFilterContactId] = useState<string>("all");
   const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [filterAssignedTo, setFilterAssignedTo] = useState<string>("all");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [newContactDialogOpen, setNewContactDialogOpen] = useState(false);
   const [newContactData, setNewContactData] = useState({ first_name: "", last_name: "", company_name: "", email: "" });
@@ -74,8 +75,22 @@ export const Inbox = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("email_accounts")
-        .select("id, display_name, email_address, is_active, last_sync_at")
+        .select("id, display_name, email_address, is_active, last_sync_at, short_code")
         .order("display_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch admin profiles for assignment
+  const { data: adminProfiles = [] } = useQuery({
+    queryKey: ["admin-profiles"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("user_id, first_name, last_name, role")
+        .in("role", ["admin", "employee"])
+        .order("last_name");
       if (error) throw error;
       return data;
     },
