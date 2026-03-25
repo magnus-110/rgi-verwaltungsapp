@@ -189,7 +189,9 @@ export const Inbox = () => {
         query = query.eq("account_id", filterAccountId);
       }
 
-      if (filterAssignedTo !== "all") {
+      if (filterAssignedTo === "unassigned") {
+        query = query.is("assigned_to", null);
+      } else if (filterAssignedTo !== "all") {
         query = query.eq("assigned_to", filterAssignedTo);
       }
 
