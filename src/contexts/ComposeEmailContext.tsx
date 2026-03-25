@@ -6,6 +6,7 @@ export interface ComposeState {
   accountId: string;
   to: string;
   cc: string;
+  bcc: string;
   subject: string;
   bodyText: string;
   forwardHtml?: string;
@@ -32,6 +33,7 @@ const defaultState: ComposeState = {
   accountId: "",
   to: "",
   cc: "",
+  bcc: "",
   subject: "",
   bodyText: "",
   attachments: [],
@@ -68,6 +70,7 @@ export const ComposeEmailProvider = ({ children }: { children: React.ReactNode }
       accountId: replyTo?.account_id || forward?.account_id || "",
       to: replyTo?.from_address || "",
       cc: "",
+      bcc: "",
       subject: replyTo ? `Re: ${replyTo.subject}` : forward ? `Fwd: ${forward.subject}` : "",
       bodyText: replyTo
         ? `\n\n--- Ursprüngliche Nachricht ---\nVon: ${replyTo.from_name} <${replyTo.from_address}>\nDatum: ${replyTo.date ? new Date(replyTo.date).toLocaleString("de-DE") : ""}\n\n${replyTo.body_text || ""}`

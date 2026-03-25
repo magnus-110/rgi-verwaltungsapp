@@ -47,6 +47,7 @@ export const ComposeEmailDialog = ({
   const [accountId, setAccountId] = useState(replyTo?.account_id || forward?.account_id || "");
   const [to, setTo] = useState(replyTo?.from_address || "");
   const [cc, setCc] = useState("");
+  const [bcc, setBcc] = useState("");
   const [subject, setSubject] = useState(
     replyTo ? `Re: ${replyTo.subject}` : forward ? `Fwd: ${forward.subject}` : ""
   );
@@ -164,6 +165,7 @@ export const ComposeEmailDialog = ({
     try {
       const toAddresses = to.split(",").map((e) => e.trim()).filter(Boolean);
       const ccAddresses = cc ? cc.split(",").map((e) => e.trim()).filter(Boolean) : [];
+      const bccAddresses = bcc ? bcc.split(",").map((e) => e.trim()).filter(Boolean) : [];
 
       const attachmentData = await Promise.all(
         attachments.map(async (att) => ({
@@ -178,6 +180,7 @@ export const ComposeEmailDialog = ({
           account_id: accountId,
           to: toAddresses,
           cc: ccAddresses.length > 0 ? ccAddresses : undefined,
+          bcc: bccAddresses.length > 0 ? bccAddresses : undefined,
           subject,
           body_text: bodyText,
           body_html: forward?.body_html || undefined,
@@ -191,6 +194,7 @@ export const ComposeEmailDialog = ({
       onOpenChange(false);
       setTo("");
       setCc("");
+      setBcc("");
       setSubject("");
       setBodyText("");
       setAttachments([]);
@@ -300,6 +304,16 @@ export const ComposeEmailDialog = ({
               value={cc}
               onChange={(e) => setCc(e.target.value)}
               placeholder="cc@email.de (optional)"
+              className="h-9"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">BCC</Label>
+            <Input
+              value={bcc}
+              onChange={(e) => setBcc(e.target.value)}
+              placeholder="bcc@email.de (optional)"
               className="h-9"
             />
           </div>
