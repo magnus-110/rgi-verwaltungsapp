@@ -49,8 +49,11 @@ export const Inbox = () => {
   const [newContactDialogOpen, setNewContactDialogOpen] = useState(false);
   const [newContactData, setNewContactData] = useState({ first_name: "", last_name: "", company_name: "", email: "" });
   const [contactSearchTerm, setContactSearchTerm] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === 'admin';
 
   // Fetch folders
   const { data: folders = [] } = useQuery({
