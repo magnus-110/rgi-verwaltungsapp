@@ -800,7 +800,7 @@ export const Inbox = () => {
                            }
                            return (
                              <select
-                               className="h-5 min-w-[20px] rounded-full text-[9px] font-bold cursor-pointer border-0 appearance-none text-center bg-primary/10 text-primary"
+                               className="h-5 min-w-[20px] rounded-full text-[9px] font-normal cursor-pointer border-0 appearance-none text-center text-muted-foreground"
                                value={(email as any).assigned_to || "none"}
                                onClick={e => e.stopPropagation()}
                                onChange={async (e) => {
