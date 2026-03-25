@@ -20,7 +20,7 @@ export const FloatingComposeWindow = () => {
   const [isImproving, setIsImproving] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [contactSearch, setContactSearch] = useState("");
+  const [contactPickerOpen, setContactPickerOpen] = useState(false);
   
   // Drag state
   const [position, setPosition] = useState({ x: window.innerWidth - 660, y: window.innerHeight - 580 });
