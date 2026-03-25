@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,60 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+
+/** Input that buffers locally and only calls onSave on blur */
+function BufferedInput({ value: externalValue, onSave, className, ...props }: Omit<React.ComponentProps<typeof Input>, 'onChange' | 'onBlur' | 'value'> & { value: string; onSave: (val: string) => void }) {
+  const [local, setLocal] = useState(externalValue);
+  const savedRef = useRef(externalValue);
+  useEffect(() => { if (externalValue !== savedRef.current) { setLocal(externalValue); savedRef.current = externalValue; } }, [externalValue]);
+  return (
+    <Input
+      {...props}
+      className={className}
+      value={local}
+      onChange={(e) => setLocal(e.target.value)}
+      onBlur={() => { if (local !== savedRef.current) { savedRef.current = local; onSave(local); } }}
+    />
+  );
+}
+
+/** Numeric input that buffers locally and saves on blur */
+function BufferedNumberInput({ value: externalValue, onSave, className, ...props }: Omit<React.ComponentProps<typeof Input>, 'onChange' | 'onBlur' | 'value'> & { value: number; onSave: (val: number) => void }) {
+  const [local, setLocal] = useState(externalValue === 0 ? "" : String(externalValue));
+  const savedRef = useRef(externalValue);
+  useEffect(() => { if (externalValue !== savedRef.current) { setLocal(externalValue === 0 ? "" : String(externalValue)); savedRef.current = externalValue; } }, [externalValue]);
+  return (
+    <Input
+      {...props}
+      type="text"
+      inputMode="decimal"
+      className={className}
+      value={local}
+      onChange={(e) => setLocal(e.target.value)}
+      onBlur={() => {
+        const num = local === "" ? 0 : parseFloat(local);
+        const val = isNaN(num) ? 0 : num;
+        if (val !== savedRef.current) { savedRef.current = val; onSave(val); }
+      }}
+    />
+  );
+}
+
+/** Textarea that buffers locally and saves on blur */
+function BufferedTextarea({ value: externalValue, onSave, className, ...props }: Omit<React.ComponentProps<typeof Textarea>, 'onChange' | 'onBlur' | 'value'> & { value: string; onSave: (val: string) => void }) {
+  const [local, setLocal] = useState(externalValue);
+  const savedRef = useRef(externalValue);
+  useEffect(() => { if (externalValue !== savedRef.current) { setLocal(externalValue); savedRef.current = externalValue; } }, [externalValue]);
+  return (
+    <Textarea
+      {...props}
+      className={className}
+      value={local}
+      onChange={(e) => setLocal(e.target.value)}
+      onBlur={() => { if (local !== savedRef.current) { savedRef.current = local; onSave(local); } }}
+    />
+  );
+}
 
 const USAGE_TYPES = [
   { value: "selbstbewohnt", label: "Selbstbewohnt" },
