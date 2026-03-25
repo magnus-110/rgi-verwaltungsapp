@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Mail, Search, Flag, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip, ChevronDown, ChevronUp, PanelLeftClose, PanelLeftOpen, UserPlus, UserCheck } from "lucide-react";
+import { Mail, Search, Flag, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip, ChevronDown, ChevronUp, PanelLeftClose, PanelLeftOpen, UserPlus, UserCheck, Undo2 } from "lucide-react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -106,6 +106,13 @@ export const Inbox = () => {
     if (!selectedFolderId || folders.length === 0) return false;
     const folder = folders.find(f => f.id === selectedFolderId);
     return folder?.name === "Archiv";
+  }, [selectedFolderId, folders]);
+
+  // Determine if trash folder is selected
+  const isTrashFolder = useMemo(() => {
+    if (!selectedFolderId || folders.length === 0) return false;
+    const folder = folders.find(f => f.id === selectedFolderId);
+    return folder?.name === "Papierkorb";
   }, [selectedFolderId, folders]);
 
   // Unread counts per folder
@@ -258,14 +265,33 @@ export const Inbox = () => {
   const deleteEmail = async (emailId: string) => {
     const trashFolder = folders.find(f => f.name === "Papierkorb");
     if (trashFolder) {
-      await supabase.from("emails").update({ folder_id: trashFolder.id }).eq("id", emailId);
+      await supabase.from("emails").update({ folder_id: trashFolder.id, deleted_at: new Date().toISOString() }).eq("id", emailId);
     } else {
       await supabase.from("emails").delete().eq("id", emailId);
     }
     if (selectedEmailId === emailId) setSelectedEmailId(null);
     queryClient.invalidateQueries({ queryKey: ["emails"] });
     queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
-    toast.success("E-Mail gelöscht");
+    toast.success("E-Mail in Papierkorb verschoben");
+  };
+
+  const restoreEmail = async (emailId: string) => {
+    const inboxFolder = folders.find(f => f.name === "Eingang");
+    if (inboxFolder) {
+      await supabase.from("emails").update({ folder_id: inboxFolder.id, deleted_at: null }).eq("id", emailId);
+    }
+    queryClient.invalidateQueries({ queryKey: ["emails"] });
+    queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+    toast.success("E-Mail wiederhergestellt");
+  };
+
+  const permanentDeleteEmail = async (emailId: string) => {
+    await supabase.from("email_attachments").delete().eq("email_id", emailId);
+    await supabase.from("emails").delete().eq("id", emailId);
+    if (selectedEmailId === emailId) setSelectedEmailId(null);
+    queryClient.invalidateQueries({ queryKey: ["emails"] });
+    queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+    toast.success("E-Mail endgültig gelöscht");
   };
 
   const toggleRead = async (emailId: string, currentRead: boolean) => {
@@ -574,6 +600,13 @@ export const Inbox = () => {
               )}
             </div>
 
+            {isTrashFolder && (
+              <div className="px-3 py-2 bg-muted/50 border-b text-xs text-muted-foreground flex items-center gap-1.5">
+                <Trash2 className="h-3 w-3" />
+                E-Mails werden nach 30 Tagen automatisch endgültig gelöscht
+              </div>
+            )}
+
             <ScrollArea className="flex-1">
               {emailsLoading ? (
                 <div className="p-4 text-center text-sm text-muted-foreground">Laden...</div>
@@ -638,7 +671,26 @@ export const Inbox = () => {
                           {email.ai_priority === "hoch" ? "Wichtig" : email.ai_priority === "mittel" ? "Mittel" : "Niedrig"}
                         </Badge>
                       )}
+                      {isTrashFolder && email.deleted_at && (
+                        <span className="text-[10px] text-muted-foreground">
+                          {(() => {
+                            const daysLeft = Math.max(0, 30 - Math.floor((Date.now() - new Date(email.deleted_at).getTime()) / (1000 * 60 * 60 * 24)));
+                            return `${daysLeft} Tage verbleibend`;
+                          })()}
+                        </span>
+                      )}
                     </div>
+                    {isTrashFolder && (
+                      <div className="flex items-center gap-0.5 mt-0.5">
+                        <button
+                          className="text-[10px] text-primary hover:underline flex items-center gap-0.5"
+                          onClick={(e) => { e.stopPropagation(); restoreEmail(email.id); }}
+                        >
+                          <Undo2 className="h-3 w-3" />
+                          Wiederherstellen
+                        </button>
+                      </div>
+                    )}
                   </button>
                 ))
               )}
@@ -658,20 +710,33 @@ export const Inbox = () => {
                     <div className="flex items-start justify-between gap-4">
                       <h2 className="text-lg font-semibold truncate">{selectedEmail.subject || "(Kein Betreff)"}</h2>
                       <div className="flex items-center gap-1 shrink-0">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleRead(selectedEmail.id, selectedEmail.is_read)} title={selectedEmail.is_read ? "Als ungelesen markieren" : "Als gelesen markieren"}>
-                          <MailOpen className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleFollowUp(selectedEmail.id, selectedEmail.is_starred)} title={selectedEmail.is_starred ? "Nachverfolgung entfernen" : "Zur Nachverfolgung markieren"}>
-                          <Flag className={cn("h-4 w-4", selectedEmail.is_starred && "text-orange-500 fill-orange-500")} />
-                        </Button>
-                        {!selectedEmail.is_archived && (
-                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openArchiveDialog(selectedEmail.id)}>
-                            <Archive className="h-4 w-4" />
-                          </Button>
+                        {isTrashFolder ? (
+                          <>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => restoreEmail(selectedEmail.id)} title="Wiederherstellen">
+                              <Undo2 className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => permanentDeleteEmail(selectedEmail.id)} title="Endgültig löschen">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleRead(selectedEmail.id, selectedEmail.is_read)} title={selectedEmail.is_read ? "Als ungelesen markieren" : "Als gelesen markieren"}>
+                              <MailOpen className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleFollowUp(selectedEmail.id, selectedEmail.is_starred)} title={selectedEmail.is_starred ? "Nachverfolgung entfernen" : "Zur Nachverfolgung markieren"}>
+                              <Flag className={cn("h-4 w-4", selectedEmail.is_starred && "text-orange-500 fill-orange-500")} />
+                            </Button>
+                            {!selectedEmail.is_archived && (
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openArchiveDialog(selectedEmail.id)}>
+                                <Archive className="h-4 w-4" />
+                              </Button>
+                            )}
+                            <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => deleteEmail(selectedEmail.id)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
                         )}
-                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => deleteEmail(selectedEmail.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
                       </div>
                     </div>
 
