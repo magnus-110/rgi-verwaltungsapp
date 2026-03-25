@@ -216,6 +216,19 @@ export function BankStatementsTab() {
     }
   };
 
+  const removeAssignment = async (txnId: string) => {
+    const { error } = await supabase.from("bank_transactions").update({
+      match_status: "unmatched",
+      matched_invoice_id: null,
+      matched_template_id: null,
+    }).eq("id", txnId);
+    if (error) { toast.error("Fehler beim Entfernen der Zuordnung"); }
+    else {
+      toast.success("Zuordnung entfernt");
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+    }
+
   const handleManualAssign = async () => {
     if (!manualAssignTxn || !manualAssignId) return;
     const updateData: any = { match_status: "manually_matched" };
