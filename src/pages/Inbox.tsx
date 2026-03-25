@@ -158,7 +158,7 @@ export const Inbox = () => {
 
   // Fetch emails for selected folder
   const { data: emails = [], isLoading: emailsLoading } = useQuery({
-    queryKey: ["emails", selectedFolderId, searchTerm, filterAccountId, isArchiveFolder, filterBuildingId, filterContactId],
+    queryKey: ["emails", selectedFolderId, searchTerm, filterAccountId, isArchiveFolder, filterBuildingId, filterContactId, filterAssignedTo],
     queryFn: async () => {
       let query = supabase
         .from("emails")
