@@ -166,7 +166,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
               { value: "documents", label: "Dokumente" },
               { value: "forum", label: "Schwarzes Brett" },
               { value: "maintenance", label: "Wartung" },
-              { value: "distribution", label: "Verteilerschlüssel" },
+              { value: "distribution", label: "Kontenrahmen" },
               { value: "finance", label: "Finanzen" },
             ].map(tab => (
               <TabsTrigger key={tab.value} value={tab.value}

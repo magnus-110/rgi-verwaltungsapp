@@ -3,17 +3,21 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AlertTriangle, Check, ClipboardList } from "lucide-react";
+import { AlertTriangle, Check } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 
 interface AccrualSectionProps {
   buildingId: string;
   fiscalYear: number;
+  periodFrom?: string;
+  periodTo?: string;
 }
 
-export function AccrualSection({ buildingId, fiscalYear }: AccrualSectionProps) {
-  // Bookings with performance period that might need accrual adjustment
+export function AccrualSection({ buildingId, fiscalYear, periodFrom, periodTo }: AccrualSectionProps) {
+  const yearStart = periodFrom || `${fiscalYear}-01-01`;
+  const yearEnd = periodTo || `${fiscalYear}-12-31`;
+
   const { data: bookings = [] } = useQuery({
     queryKey: ["accrual-check-bookings", buildingId, fiscalYear],
     queryFn: async () => {
@@ -29,7 +33,6 @@ export function AccrualSection({ buildingId, fiscalYear }: AccrualSectionProps) 
     },
   });
 
-  // Existing accrual bookings
   const { data: accrualBookings = [] } = useQuery({
     queryKey: ["accrual-bookings", buildingId, fiscalYear],
     queryFn: async () => {
@@ -46,20 +49,14 @@ export function AccrualSection({ buildingId, fiscalYear }: AccrualSectionProps) 
     },
   });
 
-  // Find bookings that might need accrual (performance period crosses year boundary)
-  const yearStart = `${fiscalYear}-01-01`;
-  const yearEnd = `${fiscalYear}-12-31`;
-
   const potentialAccruals = bookings.filter((b: any) => {
     if (b.booking_category === "accrual" || b.booking_category === "heating_repost") return false;
     const ppFrom = b.performance_period_from;
     const ppTo = b.performance_period_to;
     if (!ppFrom || !ppTo) return false;
-    // Crosses year boundary
     return ppFrom < yearStart || ppTo > yearEnd;
   });
 
-  // Invoices booked in wrong year (invoice date in different year than booking)
   const wrongYearBookings = bookings.filter((b: any) => {
     if (b.booking_category === "accrual" || b.booking_category === "heating_repost") return false;
     const bDate = b.booking_date;
@@ -75,15 +72,12 @@ export function AccrualSection({ buildingId, fiscalYear }: AccrualSectionProps) 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
-          <ClipboardList className="h-5 w-5" /> Abgrenzungsbuchungen
-        </CardTitle>
+        <CardTitle className="text-base">Abgrenzungsbuchungen</CardTitle>
         <p className="text-sm text-muted-foreground mt-1">
-          Prüfung von Buchungen mit jahresübergreifendem Leistungszeitraum
+          Prüfung von Buchungen mit jahresübergreifendem Leistungszeitraum ({format(new Date(yearStart), "dd.MM.yyyy", { locale: de })} – {format(new Date(yearEnd), "dd.MM.yyyy", { locale: de })})
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Status-Badges */}
         <div className="flex flex-wrap gap-2">
           {potentialAccruals.length > 0 ? (
             <Badge className="bg-amber-100 text-amber-800">
@@ -108,7 +102,6 @@ export function AccrualSection({ buildingId, fiscalYear }: AccrualSectionProps) 
           )}
         </div>
 
-        {/* Potential accruals */}
         {potentialAccruals.length > 0 && (
           <div>
             <h4 className="text-sm font-medium mb-2">Prüfbedarf: Jahresübergreifende Leistungszeiträume</h4>
@@ -146,7 +139,6 @@ export function AccrualSection({ buildingId, fiscalYear }: AccrualSectionProps) 
           </div>
         )}
 
-        {/* Existing accrual bookings */}
         {accrualBookings.length > 0 && (
           <div>
             <h4 className="text-sm font-medium mb-2">Vorhandene Abgrenzungsbuchungen</h4>
@@ -186,7 +178,7 @@ export function AccrualSection({ buildingId, fiscalYear }: AccrualSectionProps) 
 
         {potentialAccruals.length === 0 && accrualBookings.length === 0 && wrongYearBookings.length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-4">
-            Keine abgrenzungsrelevanten Buchungen gefunden. Buchungen mit Leistungszeitraum über die Jahresgrenze werden hier angezeigt.
+            Keine abgrenzungsrelevanten Buchungen gefunden.
           </p>
         )}
       </CardContent>

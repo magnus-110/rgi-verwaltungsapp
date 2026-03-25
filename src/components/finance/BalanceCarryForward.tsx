@@ -148,9 +148,14 @@ export function BalanceCarryForward({ buildingId, fiscalYear, periodId }: Balanc
       </CardHeader>
       <CardContent>
         {carryAccounts.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Keine Konten mit Saldenübernahme markiert. Aktiviere "Saldovortrag" im Kontenrahmen.
-          </p>
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Keine Konten mit Saldenübernahme markiert.
+            </p>
+            <p className="text-xs text-muted-foreground bg-muted/50 rounded-md p-3">
+              Die Einstellung „Saldovortrag" wird pro Konto im <strong>Kontenrahmen</strong>-Tab konfiguriert (Spalte „Saldo"). Im Gebäude-Hub finden Sie den Kontenrahmen ebenfalls unter dem gleichnamigen Tab.
+            </p>
+          </div>
         ) : (
           <Table>
             <TableHeader>

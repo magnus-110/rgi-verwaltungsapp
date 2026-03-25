@@ -9,6 +9,8 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { format } from "date-fns";
+import { de } from "date-fns/locale";
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   draft: { label: "Entwurf", color: "bg-muted text-muted-foreground" },
@@ -33,6 +35,8 @@ export function BillingPeriodSelector({
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newYear, setNewYear] = useState(new Date().getFullYear().toString());
+  const [newPeriodFrom, setNewPeriodFrom] = useState("");
+  const [newPeriodTo, setNewPeriodTo] = useState("");
   const [newProvider, setNewProvider] = useState("");
 
   const { data: buildings = [] } = useQuery({
@@ -61,16 +65,41 @@ export function BillingPeriodSelector({
 
   const selectedPeriod = periods.find((p) => p.id === selectedPeriodId);
 
+  // Auto-fill dates when year changes
+  const handleYearChange = (val: string) => {
+    setNewYear(val);
+    const year = parseInt(val);
+    if (!isNaN(year)) {
+      // Only auto-fill if dates are empty or still match the old auto-fill
+      if (!newPeriodFrom || newPeriodFrom.match(/^\d{4}-01-01$/)) {
+        setNewPeriodFrom(`${year}-01-01`);
+      }
+      if (!newPeriodTo || newPeriodTo.match(/^\d{4}-12-31$/)) {
+        setNewPeriodTo(`${year}-12-31`);
+      }
+    }
+  };
+
+  const openCreateDialog = () => {
+    const year = new Date().getFullYear();
+    setNewYear(year.toString());
+    setNewPeriodFrom(`${year}-01-01`);
+    setNewPeriodTo(`${year}-12-31`);
+    setNewProvider("");
+    setIsCreateOpen(true);
+  };
+
   const createPeriod = async () => {
     if (!selectedBuildingId) return;
     const year = parseInt(newYear);
     if (isNaN(year)) { toast.error("Ungültiges Jahr"); return; }
+    if (!newPeriodFrom || !newPeriodTo) { toast.error("Bitte Zeitraum angeben"); return; }
 
     const { data, error } = await supabase.from("billing_periods").insert({
       building_id: selectedBuildingId,
       fiscal_year: year,
-      period_from: `${year}-01-01`,
-      period_to: `${year}-12-31`,
+      period_from: newPeriodFrom,
+      period_to: newPeriodTo,
       heating_provider: newProvider || null,
       status: "draft",
     }).select().single();
@@ -88,6 +117,16 @@ export function BillingPeriodSelector({
 
   const statusInfo = selectedPeriod ? STATUS_LABELS[selectedPeriod.status] || STATUS_LABELS.draft : null;
 
+  const formatPeriodLabel = (p: any) => {
+    const from = p.period_from;
+    const to = p.period_to;
+    // Check if it's a standard calendar year
+    if (from === `${p.fiscal_year}-01-01` && to === `${p.fiscal_year}-12-31`) {
+      return `${p.fiscal_year}`;
+    }
+    return `${p.fiscal_year} (${format(new Date(from), "dd.MM.yy", { locale: de })} – ${format(new Date(to), "dd.MM.yy", { locale: de })})`;
+  };
+
   return (
     <div className="flex flex-col md:flex-row gap-3 items-start md:items-center">
       <Select value={selectedBuildingId || ""} onValueChange={(v) => { onBuildingChange(v || null); onPeriodChange(null); }}>
@@ -103,13 +142,13 @@ export function BillingPeriodSelector({
 
       {selectedBuildingId && (
         <Select value={selectedPeriodId || ""} onValueChange={(v) => onPeriodChange(v || null)}>
-          <SelectTrigger className="w-full md:w-48">
-            <SelectValue placeholder="Jahr wählen..." />
+          <SelectTrigger className="w-full md:w-56">
+            <SelectValue placeholder="Zeitraum wählen..." />
           </SelectTrigger>
           <SelectContent>
             {periods.map((p) => (
               <SelectItem key={p.id} value={p.id}>
-                {p.fiscal_year}
+                {formatPeriodLabel(p)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -117,7 +156,7 @@ export function BillingPeriodSelector({
       )}
 
       {selectedBuildingId && (
-        <Button size="sm" variant="outline" onClick={() => setIsCreateOpen(true)}>
+        <Button size="sm" variant="outline" onClick={openCreateDialog}>
           <Plus className="h-4 w-4 mr-1" /> Neues Jahr
         </Button>
       )}
@@ -134,8 +173,21 @@ export function BillingPeriodSelector({
           <div className="space-y-4">
             <div>
               <Label>Wirtschaftsjahr</Label>
-              <Input type="number" value={newYear} onChange={(e) => setNewYear(e.target.value)} />
+              <Input type="number" value={newYear} onChange={(e) => handleYearChange(e.target.value)} />
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Zeitraum von</Label>
+                <Input type="date" value={newPeriodFrom} onChange={(e) => setNewPeriodFrom(e.target.value)} />
+              </div>
+              <div>
+                <Label>Zeitraum bis</Label>
+                <Input type="date" value={newPeriodTo} onChange={(e) => setNewPeriodTo(e.target.value)} />
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Standard: 01.01.–31.12. Bei verschobenem Wirtschaftsjahr (z.B. 01.07.–30.06.) die Daten entsprechend anpassen.
+            </p>
             <div>
               <Label>Ablesefirma (optional)</Label>
               <Input value={newProvider} onChange={(e) => setNewProvider(e.target.value)} placeholder="z.B. Brunata, Techem, ista..." />
