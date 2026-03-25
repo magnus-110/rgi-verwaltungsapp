@@ -24,7 +24,6 @@ export function BillingValidationPanel({ periodId, buildingId, fiscalYear }: Bil
     },
   });
 
-  // Live-Checks (clientseitig)
   const { data: fuelEntries = [] } = useQuery({
     queryKey: ["fuel-inventory", buildingId, periodId],
     queryFn: async () => {
@@ -51,20 +50,61 @@ export function BillingValidationPanel({ periodId, buildingId, fiscalYear }: Bil
     },
   });
 
+  const { data: bookings = [] } = useQuery({
+    queryKey: ["validation-bookings", buildingId, fiscalYear],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("account_id, amount, booking_category, booking_type")
+        .eq("building_id", buildingId)
+        .eq("fiscal_year", fiscalYear)
+        .neq("status", "cancelled");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: heatingAccounts = [] } = useQuery({
+    queryKey: ["heating-accounts", buildingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("chart_of_accounts")
+        .select("id")
+        .eq("is_heating_relevant", true)
+        .or(`building_id.is.null,building_id.eq.${buildingId}`);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: shares = [] } = useQuery({
+    queryKey: ["validation-shares", buildingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("contact_building_shares")
+        .select("share_type, share_value, contact_building_assignments!inner(building_id)")
+        .eq("contact_building_assignments.building_id", buildingId);
+      if (error) throw error;
+      return data;
+    },
+  });
+
   // Live-Prüfungen
   type LiveCheck = { name: string; status: "passed" | "warning" | "failed"; message: string };
   const liveChecks: LiveCheck[] = [];
 
-  // Saldenübernahme
+  // 1. Saldenübernahme
   const carriedCount = balances.filter((b) => b.is_carried_forward).length;
-  if (carriedCount > 0) {
-    liveChecks.push({ name: "Saldenübernahme", status: "passed", message: `${carriedCount} Salden übernommen` });
-  } else {
-    liveChecks.push({ name: "Saldenübernahme", status: "warning", message: "Noch keine Salden vom Vorjahr übernommen" });
-  }
+  liveChecks.push(carriedCount > 0
+    ? { name: "Saldenübernahme", status: "passed", message: `${carriedCount} Salden übernommen` }
+    : { name: "Saldenübernahme", status: "warning", message: "Noch keine Salden vom Vorjahr übernommen" }
+  );
 
-  // Brennstoff-Plausibilität
+  // 2. Brennstoff-Plausibilität
   const fuelTypes = [...new Set(fuelEntries.map((e) => e.fuel_type))];
+  if (fuelTypes.length === 0) {
+    liveChecks.push({ name: "Brennstoffdaten", status: "warning", message: "Noch keine Brennstoffdaten erfasst" });
+  }
   fuelTypes.forEach((ft) => {
     const ftEntries = fuelEntries.filter((e) => e.fuel_type === ft);
     const opening = Number(ftEntries.find((e) => e.entry_type === "opening_balance")?.quantity ?? 0);
@@ -83,8 +123,53 @@ export function BillingValidationPanel({ periodId, buildingId, fiscalYear }: Bil
     }
   });
 
-  if (fuelTypes.length === 0) {
-    liveChecks.push({ name: "Brennstoffdaten", status: "warning", message: "Noch keine Brennstoffdaten erfasst" });
+  // 3. HK-Umbuchungen
+  if (heatingAccounts.length > 0) {
+    const heatingTotal = heatingAccounts.reduce((s, a) => {
+      return s + Math.abs(bookings
+        .filter((b) => b.account_id === a.id && b.booking_category !== "heating_repost")
+        .reduce((ss, b) => ss + Number(b.amount), 0));
+    }, 0);
+    const rebookingTotal = bookings
+      .filter((b) => b.booking_category === "heating_repost")
+      .reduce((s, b) => s + Math.abs(Number(b.amount)), 0);
+
+    if (rebookingTotal === 0) {
+      liveChecks.push({ name: "HK-Umbuchungen", status: "warning", message: "Noch keine Umbuchungen erstellt" });
+    } else if (Math.abs(heatingTotal - rebookingTotal) < 0.01) {
+      liveChecks.push({ name: "HK-Umbuchungen", status: "passed", message: `Ausgeglichen: ${heatingTotal.toFixed(2)} €` });
+    } else {
+      liveChecks.push({ name: "HK-Umbuchungen", status: "failed", message: `Differenz: ${(heatingTotal - rebookingTotal).toFixed(2)} €` });
+    }
+  }
+
+  // 4. Einnahmen/Ausgaben
+  const totalIncome = bookings.filter((b) => b.booking_type === "income").reduce((s, b) => s + Math.abs(Number(b.amount)), 0);
+  const totalExpense = bookings.filter((b) => b.booking_type === "expense").reduce((s, b) => s + Math.abs(Number(b.amount)), 0);
+  if (bookings.length > 0) {
+    liveChecks.push({
+      name: "Einnahmen/Ausgaben",
+      status: totalIncome > 0 ? "passed" : "warning",
+      message: `Einnahmen: ${totalIncome.toFixed(2)} € | Ausgaben: ${totalExpense.toFixed(2)} €`,
+    });
+  }
+
+  // 5. Verteilerschlüssel
+  const shareTypes = [...new Set(shares.map((s: any) => s.share_type))];
+  shareTypes.forEach((st) => {
+    const total = shares.filter((s: any) => s.share_type === st).reduce((sum: number, s: any) => sum + Number(s.share_value), 0);
+    // MEA should sum to specific total, others just check > 0
+    if (total <= 0) {
+      liveChecks.push({ name: `Anteile (${st})`, status: "failed", message: "Summe = 0" });
+    } else {
+      liveChecks.push({ name: `Anteile (${st})`, status: "passed", message: `Summe: ${total.toFixed(2)}` });
+    }
+  });
+
+  // 6. Abgrenzungen
+  const accrualBookings = bookings.filter((b) => b.booking_category === "accrual");
+  if (accrualBookings.length > 0) {
+    liveChecks.push({ name: "Abgrenzungen", status: "passed", message: `${accrualBookings.length} Abgrenzungsbuchungen` });
   }
 
   const allChecks = [
