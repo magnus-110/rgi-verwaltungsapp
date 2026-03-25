@@ -930,6 +930,19 @@ export const Inbox = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {isAdmin && (
+        <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
+          <SheetContent className="sm:max-w-xl overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle>E-Mail-Einstellungen</SheetTitle>
+            </SheetHeader>
+            <div className="mt-4">
+              <EmailSettingsSection />
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
     </div>
   );
 };
