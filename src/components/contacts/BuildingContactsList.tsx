@@ -644,6 +644,8 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                               onSave={(val) => updateAssignment(a.id, "unit_number", val)}
                               className="h-8 text-sm"
                             />
+                          </div>
+                          <div>
                             <Label className="text-xs">Etage / Lage</Label>
                             <BufferedInput
                               value={a.floor_location || ""}
