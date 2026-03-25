@@ -490,9 +490,11 @@ export const Inbox = () => {
             <div className="p-2">
               <div className="flex items-center justify-between px-2 py-1">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Konten</p>
-                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => navigate("/settings")}>
-                  <Settings className="h-3 w-3 text-muted-foreground" />
-                </Button>
+                {isAdmin && (
+                  <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setSettingsOpen(true)} title="E-Mail-Konten verwalten">
+                    <Settings className="h-3 w-3 text-muted-foreground" />
+                  </Button>
+                )}
               </div>
               {accounts.length === 0 ? (
                 <p className="px-2 py-2 text-xs text-muted-foreground">
