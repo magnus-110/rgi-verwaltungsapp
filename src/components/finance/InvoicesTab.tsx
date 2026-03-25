@@ -146,14 +146,25 @@ export function InvoicesTab() {
                     <TableHead className="text-right">Brutto</TableHead>
                     <TableHead>Bezahlung</TableHead>
                     <TableHead>Prüfung</TableHead>
-                    <TableHead>OCR</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {invoices.map((inv: any) => {
-                    const ocrStatus = OCR_STATUS[inv.ocr_status] || OCR_STATUS.pending;
                     const isPaid = inv.status === "paid";
                     const isVerified = (inv.review_status || "open") === "verified";
+
+                    const togglePayment = async (e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      const newStatus = isPaid ? "open" : "paid";
+                      const updates: any = { status: newStatus };
+                      if (newStatus === "paid") updates.paid_at = new Date().toISOString();
+                      else updates.paid_at = null;
+                      const { error } = await supabase.from("invoices").update(updates).eq("id", inv.id);
+                      if (error) { toast.error("Fehler"); return; }
+                      toast.success(newStatus === "paid" ? "Als bezahlt markiert" : "Als offen markiert");
+                      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+                    };
+
                     return (
                       <TableRow
                         key={inv.id}
@@ -176,7 +187,8 @@ export function InvoicesTab() {
                         <TableCell>
                           <Badge
                             variant={isPaid ? "default" : "destructive"}
-                            className={isPaid ? "bg-green-600 text-white text-xs" : "text-xs"}
+                            className={`cursor-pointer ${isPaid ? "bg-green-600 text-white text-xs hover:bg-green-700" : "text-xs hover:bg-destructive/80"}`}
+                            onClick={togglePayment}
                           >
                             {isPaid ? "Bezahlt" : "Offen"}
                           </Badge>
@@ -188,13 +200,6 @@ export function InvoicesTab() {
                           >
                             {isVerified ? "Geprüft" : "Offen"}
                           </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <span className={`text-xs flex items-center gap-1 ${ocrStatus.className}`}>
-                            {inv.ocr_status === "processing" && <Loader2 className="h-3 w-3 animate-spin" />}
-                            {inv.ocr_status === "done" && <Sparkles className="h-3 w-3" />}
-                            {ocrStatus.label}
-                          </span>
                         </TableCell>
                       </TableRow>
                     );
