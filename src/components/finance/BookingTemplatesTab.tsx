@@ -204,15 +204,11 @@ export function BookingTemplatesTab() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
-                  <TableHead>Liegenschaft</TableHead>
                   <TableHead>Kreditor</TableHead>
                   <TableHead>IBAN</TableHead>
                   <TableHead className="text-right">Betrag</TableHead>
                   <TableHead>Konto</TableHead>
                   <TableHead>MwSt</TableHead>
-                  <TableHead>Intervall</TableHead>
-                  <TableHead></TableHead>
-                  <TableHead>Konto</TableHead>
                   <TableHead>Intervall</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
@@ -221,7 +217,6 @@ export function BookingTemplatesTab() {
                 {templates.map((t: any) => (
                   <TableRow key={t.id}>
                     <TableCell className="font-medium text-sm">{t.name}</TableCell>
-                    <TableCell className="text-sm">{t.buildings?.name || "–"}</TableCell>
                     <TableCell className="text-sm">{t.vendor_name || "–"}</TableCell>
                     <TableCell className="text-sm font-mono text-xs">{t.vendor_iban || "–"}</TableCell>
                     <TableCell className="text-sm text-right font-mono">
