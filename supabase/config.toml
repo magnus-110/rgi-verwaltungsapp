@@ -84,3 +84,9 @@ verify_jwt = false
 [functions.cleanup-deleted-emails]
 verify_jwt = false
 
+[functions.generate-billing-pdf]
+verify_jwt = false
+
+[functions.generate-economic-plan]
+verify_jwt = false
+
