@@ -688,7 +688,8 @@ export const Inbox = () => {
                     <p className={cn("text-xs truncate", !email.is_read ? "text-foreground" : "text-muted-foreground")}>
                       {email.subject || "(Kein Betreff)"}
                     </p>
-                    <div className="flex items-center gap-1 mt-0.5">
+                    <div className="flex items-center justify-between gap-1 mt-0.5">
+                      <div className="flex items-center gap-1 flex-1 min-w-0 flex-wrap">
                       {isArchiveFolder && email.building_id && (
                         <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-0.5">
                           <Building2 className="h-2.5 w-2.5" />
@@ -726,6 +727,39 @@ export const Inbox = () => {
                           })()}
                         </span>
                       )}
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {/* Assignment dropdown */}
+                        <select
+                          className="h-5 text-[10px] bg-transparent border border-border rounded px-1 cursor-pointer text-muted-foreground hover:text-foreground appearance-none max-w-[60px]"
+                          value={(email as any).assigned_to || ""}
+                          onClick={e => e.stopPropagation()}
+                          onChange={async (e) => {
+                            e.stopPropagation();
+                            const val = e.target.value || null;
+                            await supabase.from("emails").update({ assigned_to: val }).eq("id", email.id);
+                            queryClient.invalidateQueries({ queryKey: ["emails"] });
+                          }}
+                          title="Zuordnung"
+                        >
+                          <option value="">—</option>
+                          {adminProfiles.map(p => (
+                            <option key={p.user_id} value={p.user_id}>
+                              {[p.first_name, p.last_name].filter(Boolean).map(n => n?.[0]).join("")}
+                            </option>
+                          ))}
+                        </select>
+                        {/* Short code badge */}
+                        {filterAccountId === "all" && (() => {
+                          const acc = accounts.find(a => a.id === email.account_id);
+                          const code = (acc as any)?.short_code;
+                          return code ? (
+                            <span className="inline-flex items-center justify-center h-5 min-w-[20px] rounded-full bg-primary/10 text-primary text-[9px] font-bold px-1" title={acc?.display_name || ""}>
+                              {code}
+                            </span>
+                          ) : null;
+                        })()}
+                      </div>
                     </div>
                     {isTrashFolder && (
                       <div className="flex items-center gap-0.5 mt-0.5">
