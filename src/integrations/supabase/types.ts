@@ -1775,6 +1775,117 @@ export type Database = {
           },
         ]
       }
+      economic_plan_items: {
+        Row: {
+          account_id: string | null
+          adjustment_reason: string | null
+          created_at: string | null
+          distribution_key: string | null
+          id: string
+          plan_id: string
+          planned_amount: number | null
+          previous_amount: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          account_id?: string | null
+          adjustment_reason?: string | null
+          created_at?: string | null
+          distribution_key?: string | null
+          id?: string
+          plan_id: string
+          planned_amount?: number | null
+          previous_amount?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          account_id?: string | null
+          adjustment_reason?: string | null
+          created_at?: string | null
+          distribution_key?: string | null
+          id?: string
+          plan_id?: string
+          planned_amount?: number | null
+          previous_amount?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "economic_plan_items_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "economic_plan_items_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "economic_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      economic_plans: {
+        Row: {
+          adjustments: Json | null
+          approved_at: string | null
+          approved_by: string | null
+          based_on_period_id: string | null
+          building_id: string
+          created_at: string | null
+          fiscal_year: number
+          id: string
+          status: string
+          total_costs: number | null
+          total_reserve: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          adjustments?: Json | null
+          approved_at?: string | null
+          approved_by?: string | null
+          based_on_period_id?: string | null
+          building_id: string
+          created_at?: string | null
+          fiscal_year: number
+          id?: string
+          status?: string
+          total_costs?: number | null
+          total_reserve?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          adjustments?: Json | null
+          approved_at?: string | null
+          approved_by?: string | null
+          based_on_period_id?: string | null
+          building_id?: string
+          created_at?: string | null
+          fiscal_year?: number
+          id?: string
+          status?: string
+          total_costs?: number | null
+          total_reserve?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "economic_plans_based_on_period_id_fkey"
+            columns: ["based_on_period_id"]
+            isOneToOne: false
+            referencedRelation: "billing_periods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "economic_plans_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_account_users: {
         Row: {
           account_id: string
@@ -2728,30 +2839,56 @@ export type Database = {
       }
       report_templates: {
         Row: {
+          background_pdf_url: string | null
+          building_id: string | null
           content: string | null
           created_at: string
+          footer_html: string | null
+          header_html: string | null
           id: string
+          is_default: boolean | null
           management_mode: Database["public"]["Enums"]["management_mode"]
+          margins: Json | null
           name: string
           updated_at: string
         }
         Insert: {
+          background_pdf_url?: string | null
+          building_id?: string | null
           content?: string | null
           created_at?: string
+          footer_html?: string | null
+          header_html?: string | null
           id?: string
+          is_default?: boolean | null
           management_mode: Database["public"]["Enums"]["management_mode"]
+          margins?: Json | null
           name: string
           updated_at?: string
         }
         Update: {
+          background_pdf_url?: string | null
+          building_id?: string | null
           content?: string | null
           created_at?: string
+          footer_html?: string | null
+          header_html?: string | null
           id?: string
+          is_default?: boolean | null
           management_mode?: Database["public"]["Enums"]["management_mode"]
+          margins?: Json | null
           name?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "report_templates_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tenants: {
         Row: {
