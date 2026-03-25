@@ -542,19 +542,44 @@ export const Inbox = () => {
                   Noch keine E-Mail-Konten.
                 </p>
               ) : (
-                accounts.map(acc => (
-                  <button
-                    key={acc.id}
-                    onClick={() => setFilterAccountId(filterAccountId === acc.id ? "all" : acc.id)}
-                    className={cn(
-                      "w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md transition-colors",
-                      filterAccountId === acc.id ? "bg-accent text-accent-foreground" : "hover:bg-muted/50 text-muted-foreground"
-                    )}
-                  >
-                    <div className={cn("h-2 w-2 rounded-full shrink-0", acc.is_active ? "bg-green-500" : "bg-muted-foreground")} />
-                    <span className="truncate text-left flex-1">{acc.display_name}</span>
-                  </button>
-                ))
+                <>
+                  {/* Show "Meine Konten" if user has assigned accounts */}
+                  {myAccountIds.length > 0 && (
+                    <>
+                      <p className="px-2 pt-1 pb-0.5 text-[10px] font-semibold text-muted-foreground">Meine Konten</p>
+                      {accounts.filter(acc => myAccountIds.includes(acc.id)).map(acc => (
+                        <button
+                          key={acc.id}
+                          onClick={() => setFilterAccountId(filterAccountId === acc.id ? "all" : acc.id)}
+                          className={cn(
+                            "w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md transition-colors",
+                            filterAccountId === acc.id ? "bg-accent text-accent-foreground" : "hover:bg-muted/50 text-muted-foreground"
+                          )}
+                        >
+                          <div className={cn("h-2 w-2 rounded-full shrink-0", acc.is_active ? "bg-green-500" : "bg-muted-foreground")} />
+                          <span className="truncate text-left flex-1">{acc.display_name}</span>
+                        </button>
+                      ))}
+                    </>
+                  )}
+                  {/* Show all accounts (or "Weitere" if user has own accounts) */}
+                  {myAccountIds.length > 0 && accounts.some(acc => !myAccountIds.includes(acc.id)) && (
+                    <p className="px-2 pt-2 pb-0.5 text-[10px] font-semibold text-muted-foreground">Weitere Konten</p>
+                  )}
+                  {accounts.filter(acc => myAccountIds.length === 0 || !myAccountIds.includes(acc.id)).map(acc => (
+                    <button
+                      key={acc.id}
+                      onClick={() => setFilterAccountId(filterAccountId === acc.id ? "all" : acc.id)}
+                      className={cn(
+                        "w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md transition-colors",
+                        filterAccountId === acc.id ? "bg-accent text-accent-foreground" : "hover:bg-muted/50 text-muted-foreground"
+                      )}
+                    >
+                      <div className={cn("h-2 w-2 rounded-full shrink-0", acc.is_active ? "bg-green-500" : "bg-muted-foreground")} />
+                      <span className="truncate text-left flex-1">{acc.display_name}</span>
+                    </button>
+                  ))}
+                </>
               )}
             </div>
           </ScrollArea>
