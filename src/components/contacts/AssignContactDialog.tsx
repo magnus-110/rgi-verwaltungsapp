@@ -127,8 +127,7 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
     setEditBanks((banksRes.data || []).map(b => ({ iban: b.iban || "", bic: b.bic || "", bank_name: b.bank_name || "", account_holder: b.account_holder || "" })));
   };
 
-  const available = contacts.filter(c => !existingContactIds.includes(c.id));
-  const filtered = available.filter(c => {
+  const filtered = contacts.filter(c => {
     const term = search.toLowerCase();
     return (c.first_name || "").toLowerCase().includes(term) ||
       (c.last_name || "").toLowerCase().includes(term) ||
@@ -264,7 +263,7 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
               <div className="max-h-60 overflow-y-auto border rounded-md">
                 {filtered.length === 0 ? (
                   <div className="p-4 text-center text-sm text-muted-foreground">
-                    {search ? "Keine Ergebnisse" : "Alle Kontakte bereits zugeordnet"}
+                    {search ? "Keine Ergebnisse" : "Keine Kontakte vorhanden"}
                   </div>
                 ) : (
                   filtered.map(c => (
@@ -282,6 +281,9 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
                           <span className="text-xs text-muted-foreground block truncate">{getAddress(c)}</span>
                         )}
                       </div>
+                      {existingContactIds.includes(c.id) && (
+                        <Badge variant="secondary" className="text-[10px] flex-shrink-0">Bereits zugeordnet</Badge>
+                      )}
                       {c.hasEmail && <Mail className="h-3 w-3 text-muted-foreground flex-shrink-0" />}
                     </div>
                   ))
