@@ -294,6 +294,33 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
                                 </div>
                                 )}
                               </TableCell>
+                              <TableCell className="text-center">
+                                <Checkbox
+                                  checked={account.is_billing_relevant}
+                                  onCheckedChange={async (checked) => {
+                                    await supabase.from("chart_of_accounts").update({ is_billing_relevant: !!checked }).eq("id", account.id);
+                                    queryClient.invalidateQueries({ queryKey: ["chart-of-accounts-building", buildingId] });
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <Checkbox
+                                  checked={account.is_heating_relevant}
+                                  onCheckedChange={async (checked) => {
+                                    await supabase.from("chart_of_accounts").update({ is_heating_relevant: !!checked }).eq("id", account.id);
+                                    queryClient.invalidateQueries({ queryKey: ["chart-of-accounts-building", buildingId] });
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <Checkbox
+                                  checked={account.carry_forward_balance}
+                                  onCheckedChange={async (checked) => {
+                                    await supabase.from("chart_of_accounts").update({ carry_forward_balance: !!checked }).eq("id", account.id);
+                                    queryClient.invalidateQueries({ queryKey: ["chart-of-accounts-building", buildingId] });
+                                  }}
+                                />
+                              </TableCell>
                               <TableCell>
                                 {isBuildingAccount && (
                                   <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive"
