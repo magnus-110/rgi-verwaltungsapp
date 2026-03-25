@@ -200,6 +200,12 @@ export const EmailSettingsSection = () => {
                       <Badge variant={acc.is_active ? "default" : "secondary"} className="text-xs">
                         {acc.is_active ? "Aktiv" : "Inaktiv"}
                       </Badge>
+                      {acc.signature_html && (
+                        <Badge variant="outline" className="text-xs gap-1">
+                          <FileSignature className="h-3 w-3" />
+                          Signatur
+                        </Badge>
+                      )}
                     </div>
                     <div className="text-sm text-muted-foreground">{acc.email_address}</div>
                     {acc.last_sync_at && (
