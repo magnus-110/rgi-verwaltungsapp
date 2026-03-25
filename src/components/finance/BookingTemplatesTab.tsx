@@ -91,7 +91,7 @@ export function BookingTemplatesTab() {
 
   const openCreate = () => {
     setEditingId(null);
-    setForm(emptyForm);
+    setForm({ ...emptyForm, building_id: filterBuildingId });
     setIsDialogOpen(true);
   };
 
@@ -164,21 +164,39 @@ export function BookingTemplatesTab() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">Buchungsvorlagen</CardTitle>
-            <Button onClick={openCreate}>
+            <Button onClick={openCreate} disabled={!filterBuildingId}>
               <Plus className="h-4 w-4 mr-2" />
               Neue Vorlage
             </Button>
           </div>
+          <div className="mt-3">
+            <Select value={filterBuildingId} onValueChange={setFilterBuildingId}>
+              <SelectTrigger className="w-full sm:w-72">
+                <SelectValue placeholder="Liegenschaft auswählen..." />
+              </SelectTrigger>
+              <SelectContent>
+                {buildings.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
-          {isLoading ? (
+          {!filterBuildingId ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <LayoutTemplate className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>Bitte wählen Sie eine Liegenschaft aus</p>
+              <p className="text-sm mt-1">Vorlagen werden pro Gebäude verwaltet</p>
+            </div>
+          ) : isLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : templates.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <LayoutTemplate className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <p>Noch keine Buchungsvorlagen angelegt</p>
+              <p>Noch keine Buchungsvorlagen für dieses Gebäude</p>
               <p className="text-sm mt-1">Vorlagen werden beim Kontoauszug-Import automatisch abgeglichen</p>
             </div>
           ) : (
