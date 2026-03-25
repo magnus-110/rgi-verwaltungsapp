@@ -156,6 +156,7 @@ export const FloatingComposeWindow = () => {
     try {
       const toAddresses = compose.to.split(",").map(e => e.trim()).filter(Boolean);
       const ccAddresses = compose.cc ? compose.cc.split(",").map(e => e.trim()).filter(Boolean) : [];
+      const bccAddresses = compose.bcc ? compose.bcc.split(",").map(e => e.trim()).filter(Boolean) : [];
       const attachmentData = await Promise.all(
         compose.attachments.map(async att => ({
           filename: att.name,
@@ -168,6 +169,7 @@ export const FloatingComposeWindow = () => {
           account_id: compose.accountId,
           to: toAddresses,
           cc: ccAddresses.length > 0 ? ccAddresses : undefined,
+          bcc: bccAddresses.length > 0 ? bccAddresses : undefined,
           subject: compose.subject,
           body_text: compose.bodyText,
           body_html: compose.forwardHtml || undefined,
@@ -401,6 +403,11 @@ export const FloatingComposeWindow = () => {
           </div>
 
           <div className="space-y-1">
+            <Label className="text-xs">BCC</Label>
+            <Input value={compose.bcc} onChange={e => updateCompose({ bcc: e.target.value })} placeholder="bcc@email.de (optional)" className="h-8 text-sm" />
+          </div>
+
+          <div className="space-y-1">
             <Label className="text-xs">Betreff</Label>
             <Input value={compose.subject} onChange={e => updateCompose({ subject: e.target.value })} placeholder="Betreff" className="h-8 text-sm" />
           </div>
@@ -457,7 +464,7 @@ export const FloatingComposeWindow = () => {
                 <Textarea
                   value={aiSuggestion}
                   onChange={e => setAiSuggestion(e.target.value)}
-                  className="min-h-[100px] resize-none text-sm bg-transparent border-0 p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                  className="min-h-[100px] resize-y text-sm bg-transparent border-0 p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                 />
               </div>
             )}
