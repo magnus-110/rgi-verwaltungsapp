@@ -12,12 +12,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 import { EmailAttachments } from "@/components/email/EmailAttachments";
 import { ArchiveEmailDialog } from "@/components/email/ArchiveEmailDialog";
 import { EmailHtmlBody } from "@/components/email/EmailHtmlBody";
+import { EmailSettingsSection } from "@/components/email/EmailSettingsSection";
+import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 
 const folderIcons: Record<string, any> = {
@@ -46,8 +49,11 @@ export const Inbox = () => {
   const [newContactDialogOpen, setNewContactDialogOpen] = useState(false);
   const [newContactData, setNewContactData] = useState({ first_name: "", last_name: "", company_name: "", email: "" });
   const [contactSearchTerm, setContactSearchTerm] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === 'admin';
 
   // Fetch folders
   const { data: folders = [] } = useQuery({
@@ -484,9 +490,11 @@ export const Inbox = () => {
             <div className="p-2">
               <div className="flex items-center justify-between px-2 py-1">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Konten</p>
-                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => navigate("/settings")}>
-                  <Settings className="h-3 w-3 text-muted-foreground" />
-                </Button>
+                {isAdmin && (
+                  <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setSettingsOpen(true)} title="E-Mail-Konten verwalten">
+                    <Settings className="h-3 w-3 text-muted-foreground" />
+                  </Button>
+                )}
               </div>
               {accounts.length === 0 ? (
                 <p className="px-2 py-2 text-xs text-muted-foreground">
@@ -922,6 +930,19 @@ export const Inbox = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {isAdmin && (
+        <Sheet open={settingsOpen} onOpenChange={setSettingsOpen}>
+          <SheetContent className="sm:max-w-xl overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle>E-Mail-Einstellungen</SheetTitle>
+            </SheetHeader>
+            <div className="mt-4">
+              <EmailSettingsSection />
+            </div>
+          </SheetContent>
+        </Sheet>
+      )}
     </div>
   );
 };
