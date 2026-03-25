@@ -7,10 +7,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Mail, Plus, Edit, Trash2, Loader2, FileSignature } from "lucide-react";
+import { Mail, Plus, Edit, Trash2, Loader2, FileSignature, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface EmailAccount {
   id: string;
@@ -70,6 +71,62 @@ export const EmailSettingsSection = () => {
       return data as EmailAccount[];
     },
   });
+
+  // Fetch admin/employee profiles
+  const { data: staffProfiles = [] } = useQuery({
+    queryKey: ["staff-profiles"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("user_id, first_name, last_name, role")
+        .in("role", ["admin", "employee"])
+        .order("last_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Fetch account-user assignments
+  const { data: accountUsers = [] } = useQuery({
+    queryKey: ["email-account-users"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("email_account_users")
+        .select("*");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const getAccountUsers = (accountId: string) => {
+    return accountUsers.filter(au => au.account_id === accountId);
+  };
+
+  const addUserToAccount = async (accountId: string, userId: string) => {
+    try {
+      const { error } = await supabase.from("email_account_users").insert({ account_id: accountId, user_id: userId });
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["email-account-users"] });
+      toast.success("Mitarbeiter zugeordnet");
+    } catch (err: any) {
+      if (err.message?.includes("duplicate")) {
+        toast.info("Bereits zugeordnet");
+      } else {
+        toast.error(err.message || "Fehler");
+      }
+    }
+  };
+
+  const removeUserFromAccount = async (id: string) => {
+    try {
+      const { error } = await supabase.from("email_account_users").delete().eq("id", id);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["email-account-users"] });
+      toast.success("Zuordnung entfernt");
+    } catch (err: any) {
+      toast.error(err.message || "Fehler");
+    }
+  };
 
   const openCreate = () => {
     setEditingId(null);
