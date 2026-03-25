@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Mail, Plus, Edit, Trash2, Loader2 } from "lucide-react";
+import { Mail, Plus, Edit, Trash2, Loader2, FileSignature } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 
 interface EmailAccount {
   id: string;
@@ -28,6 +29,7 @@ interface EmailAccount {
   delete_after_import: boolean;
   last_sync_at: string | null;
   last_sync_error: string | null;
+  signature_html: string | null;
 }
 
 const emptyAccount = {
