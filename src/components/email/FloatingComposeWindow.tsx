@@ -403,7 +403,7 @@ export const FloatingComposeWindow = () => {
               className="min-h-[140px] resize-none text-sm"
             />
             {aiSuggestion !== null && (
-              <div className="border border-primary/30 bg-primary/5 rounded-md p-2 space-y-1.5">
+              <div ref={aiSuggestionRef} className="border border-primary/30 bg-primary/5 rounded-md p-2 space-y-1.5">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-medium text-primary flex items-center gap-1">
                     <Wand2 className="h-3 w-3" />
