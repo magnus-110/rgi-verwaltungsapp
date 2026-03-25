@@ -52,13 +52,16 @@ export function BookingTemplatesTab() {
   const [buildingOpen, setBuildingOpen] = useState(false);
   const [buildingSearch, setBuildingSearch] = useState("");
   const [accountSearch, setAccountSearch] = useState("");
+  const [filterBuildingId, setFilterBuildingId] = useState<string>("");
 
   const { data: templates = [], isLoading } = useQuery({
-    queryKey: ["booking-templates"],
+    queryKey: ["booking-templates", filterBuildingId],
     queryFn: async () => {
+      if (!filterBuildingId) return [];
       const { data, error } = await supabase
         .from("booking_templates")
         .select("*, buildings(name), chart_of_accounts(account_number, account_name)")
+        .eq("building_id", filterBuildingId)
         .order("name");
       if (error) throw error;
       return data;
