@@ -543,10 +543,20 @@ export const Inbox = () => {
                 </p>
               ) : (
                 <>
+                  <button
+                    onClick={() => setFilterAccountId("all")}
+                    className={cn(
+                      "w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md transition-colors",
+                      filterAccountId === "all" ? "bg-accent text-accent-foreground" : "hover:bg-muted/50 text-muted-foreground"
+                    )}
+                  >
+                    <Mail className="h-4 w-4 shrink-0" />
+                    <span className="truncate text-left flex-1">Alle Konten</span>
+                  </button>
                   {/* Show "Meine Konten" if user has assigned accounts */}
                   {myAccountIds.length > 0 && (
                     <>
-                      <p className="px-2 pt-1 pb-0.5 text-[10px] font-semibold text-muted-foreground">Meine Konten</p>
+                      <p className="px-2 pt-2 pb-0.5 text-[10px] font-semibold text-muted-foreground">Meine Konten</p>
                       {accounts.filter(acc => myAccountIds.includes(acc.id)).map(acc => (
                         <button
                           key={acc.id}
@@ -643,24 +653,6 @@ export const Inbox = () => {
                   className="pl-9 h-9"
                 />
               </div>
-              {/* Assigned-to filter */}
-              {adminProfiles.length > 0 && (
-                <Select value={filterAssignedTo} onValueChange={setFilterAssignedTo}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <User className="h-3 w-3 mr-1 shrink-0" />
-                    <SelectValue placeholder="Zugeordnet zu" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Alle Zuordnungen</SelectItem>
-                    <SelectItem value="unassigned">Nicht zugeordnet</SelectItem>
-                    {adminProfiles.map(p => (
-                      <SelectItem key={p.user_id} value={p.user_id}>
-                        {[p.first_name, p.last_name].filter(Boolean).join(" ") || "Unbenannt"}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
               {/* Archive filters */}
               {isArchiveFolder && (
                 <div className="flex gap-2">
