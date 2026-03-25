@@ -19,7 +19,6 @@ const SALUTATIONS = [
 const CONTACT_TYPES = [
   { value: "person", label: "Person" },
   { value: "company", label: "Firma" },
-  { value: "owner_group", label: "Eigentümergemeinschaft" },
   { value: "service_provider", label: "Dienstleister" },
 ];
 
