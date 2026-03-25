@@ -571,8 +571,6 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                               placeholder="Nummer"
                               className="h-7 text-sm flex-1"
                             />
-                              className="h-7 text-sm flex-1"
-                            />
                             <Select value={p.label || "Mobil"} onValueChange={(v) => updatePhone(p.id, "label", v)}>
                               <SelectTrigger className="w-24 h-7 text-xs"><SelectValue /></SelectTrigger>
                               <SelectContent>
@@ -606,7 +604,6 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                               onSave={(val) => updateEmail(e.id, "email", val)}
                               placeholder="E-Mail"
                               className="h-7 text-sm flex-1"
-                            />
                             />
                             <Select value={e.label || "Privat"} onValueChange={(v) => updateEmail(e.id, "label", v)}>
                               <SelectTrigger className="w-24 h-7 text-xs"><SelectValue /></SelectTrigger>
@@ -838,7 +835,6 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                             onSave={(val) => updateCost(c.id, "amount", val)}
                             placeholder="0,00"
                             className="w-24 h-8 text-sm"
-                          />
                           />
                           <span className="text-xs text-muted-foreground">€</span>
                           <Select value={c.interval} onValueChange={(v) => updateCost(c.id, "interval", v)}>
