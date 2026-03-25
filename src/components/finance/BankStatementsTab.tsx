@@ -523,7 +523,7 @@ export function BankStatementsTab() {
                               <CheckCircle2 className="h-4 w-4 text-green-600" />Zugeordnete Transaktionen ({matchedTransactions.length})
                             </h4>
                             <Table>
-                              <TableHeader><TableRow><TableHead>Datum</TableHead><TableHead>Name</TableHead><TableHead>Verwendungszweck</TableHead><TableHead className="text-right">Betrag</TableHead><TableHead>Status</TableHead><TableHead></TableHead></TableRow></TableHeader>
+                              <TableHeader><TableRow><TableHead>Datum</TableHead><TableHead>Name</TableHead><TableHead>Verwendungszweck</TableHead><TableHead className="text-right">Betrag</TableHead><TableHead>Status</TableHead><TableHead>Aktionen</TableHead></TableRow></TableHeader>
                               <TableBody>{matchedTransactions.map(renderTransactionRow)}</TableBody>
                             </Table>
                           </div>
