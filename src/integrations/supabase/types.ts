@@ -2850,6 +2850,7 @@ export type Database = {
           management_mode: Database["public"]["Enums"]["management_mode"]
           margins: Json | null
           name: string
+          type: string | null
           updated_at: string
         }
         Insert: {
@@ -2864,6 +2865,7 @@ export type Database = {
           management_mode: Database["public"]["Enums"]["management_mode"]
           margins?: Json | null
           name: string
+          type?: string | null
           updated_at?: string
         }
         Update: {
@@ -2878,6 +2880,7 @@ export type Database = {
           management_mode?: Database["public"]["Enums"]["management_mode"]
           margins?: Json | null
           name?: string
+          type?: string | null
           updated_at?: string
         }
         Relationships: [
