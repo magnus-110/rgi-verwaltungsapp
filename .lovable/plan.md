@@ -1,88 +1,25 @@
 
 
-# Plan: Adresssystem mit Personen als Kernelement umbauen
+# Plan: Mehrfachzuordnung eines Kontakts zum selben Gebäude ermöglichen
 
-## Konzept
+## Problem
+Aktuell filtert der `AssignContactDialog` bereits zugeordnete Kontakte aus der Liste (`existingContactIds`). Eigentümer mit mehreren Wohnungen im selben Gebäude können daher nicht mehrfach zugeordnet werden.
 
-Eine **Adresse** (contact) wird zum Container, der mehrere **Personen** mit jeweils eigenen Kontaktdaten (Telefon, E-Mail, Bankverbindung) enthaelt. Unterscheidung nach Typ: Firma, Eigentuemer, Dienstleister, etc.
+## Änderungen
 
-```text
-┌─────────────────────────────────────┐
-│ Adresse (contacts)                  │
-│ - Typ: Firma / Eigentuemer / ...    │
-│ - Kurzname, Firmenname              │
-│ - Postadresse                       │
-│ - Notizen                           │
-│                                     │
-│  ┌───────────────────────────┐      │
-│  │ Person 1 (Hauptkontakt)  │      │
-│  │ - Anrede, Vor-/Nachname  │      │
-│  │ - Position / Rolle       │      │
-│  │ - Telefone (1..n)        │      │
-│  │ - E-Mails (1..n)         │      │
-│  │ - Bankverbindungen (0..n)│      │
-│  └───────────────────────────┘      │
-│  ┌───────────────────────────┐      │
-│  │ Person 2                  │      │
-│  │ - (gleiche Felder)        │      │
-│  └───────────────────────────┘      │
-└─────────────────────────────────────┘
-```
+### 1. AssignContactDialog.tsx
+- Entferne den Filter `existingContactIds` aus der Kontaktliste — alle Kontakte bleiben wählbar
+- Zeige bei bereits zugeordneten Kontakten einen Hinweis-Badge (z.B. "Bereits zugeordnet"), damit der Nutzer weiß, dass eine weitere Zuordnung erfolgt
+- Behalte die `existingContactIds`-Prop für den Badge-Hinweis, aber nicht zum Ausfiltern
 
-## Datenbank-Aenderungen
+### 2. BuildingContactsList.tsx
+- Passe die Übergabe von `existingContactIds` an — sie wird weiterhin übergeben, aber nur noch für den Hinweis im Dialog genutzt
+- Keine funktionale Änderung nötig, da mehrere Assignments für denselben `contact_id` bereits von der DB unterstützt werden (kein Unique-Constraint auf `contact_id + building_id`)
 
-### 1. Neuer Enum `contact_type`
-Werte: `person`, `company`, `owner_group`, `service_provider`
+### 3. ContactBuildingAssignments.tsx
+- Entferne den Filter `availableBuildings` der bereits zugeordnete Gebäude ausschließt, damit ein Kontakt auch mehrfach demselben Gebäude zugeordnet werden kann
 
-### 2. Tabelle `contacts` erweitern
-- Neues Feld `contact_type` (default `person`)
-- Felder `first_name`, `last_name`, `salutation` bleiben vorerst bestehen (Abwaertskompatibilitaet), werden aber in der UI nicht mehr direkt bearbeitet
-
-### 3. Tabellen `contact_phones`, `contact_emails`, `contact_bank_accounts` erweitern
-- Neues optionales Feld `person_id UUID REFERENCES contact_persons(id) ON DELETE CASCADE`
-- Daten koennen so einer bestimmten Person zugeordnet werden (oder weiterhin nur dem Kontakt global, falls `person_id IS NULL`)
-
-### 4. Datenmigration
-- Fuer bestehende Kontakte mit `first_name`/`last_name` aber ohne `contact_persons`-Eintraege: Automatisch eine `contact_person` erstellen und bestehende Phones/Emails/Banks dieser Person zuordnen
-- `contact_type` anhand `company_name` setzen (`company` wenn vorhanden, sonst `person`)
-
-## UI-Aenderungen
-
-### ContactDetail.tsx - Kompletter Umbau
-- **Tab "Stammdaten"**: Zeigt nur noch Adress-Typ (Dropdown), Kurzname, Firmenname (nur bei Firma/Dienstleister), Postadresse, Notizen
-- **Tab "Personen"** wird zum Haupt-Tab: Jede Person hat aufklappbare Bereiche fuer:
-  - Name/Anrede/Position
-  - Telefonnummern (dynamische Liste wie bisher, aber pro Person)
-  - E-Mails (pro Person)
-  - Bankverbindungen (pro Person)
-- Tabs "Kommunikation" und "Bank" entfallen (sind jetzt pro Person)
-- Tab "Gebaeude" bleibt
-
-### ContactList.tsx
-- Anzeige des Adress-Typs als kleines Badge (Firma, Eigentuemer, etc.)
-- Anzeige des Hauptkontakt-Namens unter dem Adressnamen
-
-### CreateContactDialog.tsx
-- Typ-Auswahl ganz oben
-- Mindestens eine Person muss angelegt werden
-- Phones/Emails/Banks werden der ersten Person zugeordnet
-
-### Email-System (Inbox.tsx)
-- Beim Matching/Erstellen von Kontakten: Person wird zugeordnet, nicht nur der Kontakt
-- Badge zeigt Firmenname + Personenname
-
-### Gebaeude-System
-- `contact_building_assignments` bleibt unveraendert (referenziert weiterhin `contact_id`)
-- Anzeigelogik passt sich an: Zeigt Hauptkontakt-Person des zugeordneten Kontakts
-
-## Dateien
-
-| Datei | Aenderung |
-|---|---|
-| Migration SQL | Enum, Spalten, Datenmigration |
-| `src/components/contacts/ContactDetail.tsx` | Personen-zentriertes Layout mit Phones/Emails/Banks pro Person |
-| `src/components/contacts/ContactList.tsx` | Typ-Badge, Hauptkontakt-Anzeige |
-| `src/components/contacts/CreateContactDialog.tsx` | Typ-Auswahl, Personen-basierte Erfassung |
-| `src/pages/Contacts.tsx` | Contact-Interface um `contact_type` erweitern |
-| `src/pages/Inbox.tsx` | Kontakt-Matching an neues Schema anpassen |
+### Technische Details
+- Die DB-Tabelle `contact_building_assignments` hat keinen Unique-Constraint auf `(contact_id, building_id)`, daher sind Mehrfachzuordnungen bereits möglich
+- Jede Zuordnung hat eigene `unit_number`, `floor_location`, Shares und Costs — die Daten bleiben pro Assignment getrennt
 
