@@ -20,6 +20,7 @@ export const FloatingComposeWindow = () => {
   const [isImproving, setIsImproving] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const aiSuggestionRef = useRef<HTMLDivElement>(null);
   const [contactPickerOpen, setContactPickerOpen] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
   
@@ -28,6 +29,7 @@ export const FloatingComposeWindow = () => {
   const [size, setSize] = useState({ width: 620, height: 520 });
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
+  const [resizeDirection, setResizeDirection] = useState<string>("");
   const dragOffset = useRef({ x: 0, y: 0 });
   const resizeStart = useRef({ x: 0, y: 0, w: 0, h: 0 });
 
@@ -168,6 +170,7 @@ export const FloatingComposeWindow = () => {
       if (error) throw error;
       if (data?.improvedText) {
         setAiSuggestion(data.improvedText);
+        setTimeout(() => aiSuggestionRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 100);
       }
     } catch (err: any) {
       toast.error("KI-Verbesserung fehlgeschlagen: " + (err.message || "Unbekannter Fehler"));
@@ -182,10 +185,11 @@ export const FloatingComposeWindow = () => {
   }, [position]);
 
   // Resize handlers
-  const onResizeStart = useCallback((e: React.MouseEvent) => {
+  const onResizeStart = useCallback((dir: string) => (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setIsResizing(true);
+    setResizeDirection(dir);
     resizeStart.current = { x: e.clientX, y: e.clientY, w: size.width, h: size.height };
   }, [size]);
 
@@ -200,23 +204,27 @@ export const FloatingComposeWindow = () => {
         });
       }
       if (isResizing) {
-        setSize({
-          width: Math.max(400, resizeStart.current.w - (e.clientX - resizeStart.current.x)),
-          height: Math.max(300, resizeStart.current.h - (e.clientY - resizeStart.current.y)),
-        });
-        setPosition(prev => ({
-          x: prev.x + (e.clientX - resizeStart.current.x),
-          y: prev.y + (e.clientY - resizeStart.current.y),
+        const dx = e.clientX - resizeStart.current.x;
+        const dy = e.clientY - resizeStart.current.y;
+        const d = resizeDirection;
+
+        setSize(prev => ({
+          width: Math.max(400, d.includes("e") ? resizeStart.current.w + dx : d.includes("w") ? resizeStart.current.w - dx : prev.width),
+          height: Math.max(300, d.includes("s") ? resizeStart.current.h + dy : d.includes("n") ? resizeStart.current.h - dy : prev.height),
         }));
-        resizeStart.current.x = e.clientX;
-        resizeStart.current.y = e.clientY;
+        setPosition(prev => ({
+          x: d.includes("w") ? prev.x + (e.clientX - resizeStart.current.x) : prev.x,
+          y: d.includes("n") ? prev.y + (e.clientY - resizeStart.current.y) : prev.y,
+        }));
+        if (d.includes("w")) resizeStart.current.x = e.clientX;
+        if (d.includes("n")) resizeStart.current.y = e.clientY;
       }
     };
-    const onUp = () => { setIsDragging(false); setIsResizing(false); };
+    const onUp = () => { setIsDragging(false); setIsResizing(false); setResizeDirection(""); };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
     return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
-  }, [isDragging, isResizing]);
+  }, [isDragging, isResizing, resizeDirection]);
 
   const handlePopOut = () => {
     const params = new URLSearchParams({
@@ -260,11 +268,15 @@ export const FloatingComposeWindow = () => {
       className="fixed z-50 bg-card border border-border rounded-lg shadow-2xl flex flex-col overflow-hidden"
       style={{ left: position.x, top: position.y, width: size.width, height: size.height }}
     >
-      {/* Resize handle top-left */}
-      <div
-        className="absolute top-0 left-0 w-3 h-3 cursor-nw-resize z-10"
-        onMouseDown={onResizeStart}
-      />
+      {/* Resize handles - all edges and corners */}
+      <div className="absolute top-0 left-0 w-3 h-3 cursor-nw-resize z-10" onMouseDown={onResizeStart("nw")} />
+      <div className="absolute top-0 right-0 w-3 h-3 cursor-ne-resize z-10" onMouseDown={onResizeStart("ne")} />
+      <div className="absolute bottom-0 left-0 w-3 h-3 cursor-sw-resize z-10" onMouseDown={onResizeStart("sw")} />
+      <div className="absolute bottom-0 right-0 w-3 h-3 cursor-se-resize z-10" onMouseDown={onResizeStart("se")} />
+      <div className="absolute top-0 left-3 right-3 h-1 cursor-n-resize z-10" onMouseDown={onResizeStart("n")} />
+      <div className="absolute bottom-0 left-3 right-3 h-1 cursor-s-resize z-10" onMouseDown={onResizeStart("s")} />
+      <div className="absolute left-0 top-3 bottom-3 w-1 cursor-w-resize z-10" onMouseDown={onResizeStart("w")} />
+      <div className="absolute right-0 top-3 bottom-3 w-1 cursor-e-resize z-10" onMouseDown={onResizeStart("e")} />
 
       {/* Title bar - draggable */}
       <div
@@ -391,7 +403,7 @@ export const FloatingComposeWindow = () => {
               className="min-h-[140px] resize-none text-sm"
             />
             {aiSuggestion !== null && (
-              <div className="border border-primary/30 bg-primary/5 rounded-md p-2 space-y-1.5">
+              <div ref={aiSuggestionRef} className="border border-primary/30 bg-primary/5 rounded-md p-2 space-y-1.5">
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-medium text-primary flex items-center gap-1">
                     <Wand2 className="h-3 w-3" />
