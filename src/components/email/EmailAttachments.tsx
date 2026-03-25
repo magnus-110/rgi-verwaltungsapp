@@ -162,7 +162,7 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
                   {isImporting ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   ) : isImported ? (
-                    <Check className="h-3.5 w-3.5 text-green-600" />
+                    <Check className="h-3.5 w-3.5 text-emerald-500" />
                   ) : (
                     <Sparkles className="h-3.5 w-3.5" />
                   )}
