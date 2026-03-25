@@ -108,6 +108,13 @@ export const Inbox = () => {
     return folder?.name === "Archiv";
   }, [selectedFolderId, folders]);
 
+  // Determine if trash folder is selected
+  const isTrashFolder = useMemo(() => {
+    if (!selectedFolderId || folders.length === 0) return false;
+    const folder = folders.find(f => f.id === selectedFolderId);
+    return folder?.name === "Papierkorb";
+  }, [selectedFolderId, folders]);
+
   // Unread counts per folder
   const { data: folderCounts = {} } = useQuery({
     queryKey: ["email-folder-counts"],
