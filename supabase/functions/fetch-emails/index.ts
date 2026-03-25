@@ -395,13 +395,10 @@ function parseMimePart(headers: string, body: string, result: ParseResult): void
         contentId,
       });
     } else if (ct.includes("text/plain") && !result.bodyText) {
-      let decoded = decodeTextContent(body, transferEncoding);
-      // Handle charset
-      decoded = decodeCharset(decoded, contentType);
+      let decoded = decodeTextContent(body, transferEncoding, contentType);
       result.bodyText = decoded.trim();
     } else if (ct.includes("text/html") && !result.bodyHtml) {
-      let decoded = decodeTextContent(body, transferEncoding);
-      decoded = decodeCharset(decoded, contentType);
+      let decoded = decodeTextContent(body, transferEncoding, contentType);
       result.bodyHtml = decoded.trim();
     }
   }
