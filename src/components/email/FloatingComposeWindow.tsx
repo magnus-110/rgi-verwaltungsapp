@@ -38,7 +38,7 @@ export const FloatingComposeWindow = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("email_accounts")
-        .select("id, display_name, email_address")
+        .select("id, display_name, email_address, signature_html")
         .eq("is_active", true)
         .order("display_name");
       if (error) throw error;
