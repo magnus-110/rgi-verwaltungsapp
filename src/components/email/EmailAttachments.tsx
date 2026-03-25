@@ -63,7 +63,7 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
     }
   };
 
-  const handleImportAsInvoice = async (att: { id: string; file_path: string | null; file_name: string; file_size: string | null }) => {
+  const handleImportAsInvoice = async (att: { id: string; file_path: string | null; file_name: string; file_size: number | null }) => {
     if (!att.file_path) return;
     setImportingId(att.id);
 
