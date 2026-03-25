@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,60 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+
+/** Input that buffers locally and only calls onSave on blur */
+function BufferedInput({ value: externalValue, onSave, className, ...props }: Omit<React.ComponentProps<typeof Input>, 'onChange' | 'onBlur' | 'value'> & { value: string; onSave: (val: string) => void }) {
+  const [local, setLocal] = useState(externalValue);
+  const savedRef = useRef(externalValue);
+  useEffect(() => { if (externalValue !== savedRef.current) { setLocal(externalValue); savedRef.current = externalValue; } }, [externalValue]);
+  return (
+    <Input
+      {...props}
+      className={className}
+      value={local}
+      onChange={(e) => setLocal(e.target.value)}
+      onBlur={() => { if (local !== savedRef.current) { savedRef.current = local; onSave(local); } }}
+    />
+  );
+}
+
+/** Numeric input that buffers locally and saves on blur */
+function BufferedNumberInput({ value: externalValue, onSave, className, ...props }: Omit<React.ComponentProps<typeof Input>, 'onChange' | 'onBlur' | 'value'> & { value: number; onSave: (val: number) => void }) {
+  const [local, setLocal] = useState(externalValue === 0 ? "" : String(externalValue));
+  const savedRef = useRef(externalValue);
+  useEffect(() => { if (externalValue !== savedRef.current) { setLocal(externalValue === 0 ? "" : String(externalValue)); savedRef.current = externalValue; } }, [externalValue]);
+  return (
+    <Input
+      {...props}
+      type="text"
+      inputMode="decimal"
+      className={className}
+      value={local}
+      onChange={(e) => setLocal(e.target.value)}
+      onBlur={() => {
+        const num = local === "" ? 0 : parseFloat(local);
+        const val = isNaN(num) ? 0 : num;
+        if (val !== savedRef.current) { savedRef.current = val; onSave(val); }
+      }}
+    />
+  );
+}
+
+/** Textarea that buffers locally and saves on blur */
+function BufferedTextarea({ value: externalValue, onSave, className, ...props }: Omit<React.ComponentProps<typeof Textarea>, 'onChange' | 'onBlur' | 'value'> & { value: string; onSave: (val: string) => void }) {
+  const [local, setLocal] = useState(externalValue);
+  const savedRef = useRef(externalValue);
+  useEffect(() => { if (externalValue !== savedRef.current) { setLocal(externalValue); savedRef.current = externalValue; } }, [externalValue]);
+  return (
+    <Textarea
+      {...props}
+      className={className}
+      value={local}
+      onChange={(e) => setLocal(e.target.value)}
+      onBlur={() => { if (local !== savedRef.current) { savedRef.current = local; onSave(local); } }}
+    />
+  );
+}
 
 const USAGE_TYPES = [
   { value: "selbstbewohnt", label: "Selbstbewohnt" },
@@ -511,9 +565,9 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                         {a.phones.map((p) => (
                           <div key={p.id} className="flex items-center gap-2">
                             <Phone className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                            <Input
+                            <BufferedInput
                               value={p.phone_number}
-                              onChange={(e) => updatePhone(p.id, "phone_number", e.target.value)}
+                              onSave={(val) => updatePhone(p.id, "phone_number", val)}
                               placeholder="Nummer"
                               className="h-7 text-sm flex-1"
                             />
@@ -545,9 +599,9 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                         {a.emails.map((e) => (
                           <div key={e.id} className="flex items-center gap-2">
                             <Mail className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                            <Input
+                            <BufferedInput
                               value={e.email}
-                              onChange={(ev) => updateEmail(e.id, "email", ev.target.value)}
+                              onSave={(val) => updateEmail(e.id, "email", val)}
                               placeholder="E-Mail"
                               className="h-7 text-sm flex-1"
                             />
@@ -585,17 +639,17 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                           <div>
                             <Label className="text-xs">Einheit Nr.</Label>
-                            <Input
+                            <BufferedInput
                               value={a.unit_number || ""}
-                              onChange={(e) => updateAssignment(a.id, "unit_number", e.target.value)}
+                              onSave={(val) => updateAssignment(a.id, "unit_number", val)}
                               className="h-8 text-sm"
                             />
                           </div>
                           <div>
                             <Label className="text-xs">Etage / Lage</Label>
-                            <Input
+                            <BufferedInput
                               value={a.floor_location || ""}
-                              onChange={(e) => updateAssignment(a.id, "floor_location", e.target.value)}
+                              onSave={(val) => updateAssignment(a.id, "floor_location", val)}
                               className="h-8 text-sm"
                             />
                           </div>
@@ -634,9 +688,9 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                       {/* Notizen */}
                       <div>
                         <Label className="text-xs">Notizen</Label>
-                        <Textarea
+                        <BufferedTextarea
                           value={a.notes || ""}
-                          onChange={(e) => updateAssignment(a.id, "notes", e.target.value)}
+                          onSave={(val) => updateAssignment(a.id, "notes", val)}
                           rows={2}
                           className="text-sm"
                         />
@@ -704,20 +758,9 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                               </Select>
                             </div>
                           )}
-                          <Input
-                            type="text"
-                            inputMode="decimal"
-                            value={s.share_value === 0 ? "" : s.share_value}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (val === "" || val === "0") {
-                                updateShare(s.id, "share_value", 0);
-                              } else {
-                                const num = parseFloat(val);
-                                if (!isNaN(num)) updateShare(s.id, "share_value", num);
-                              }
-                            }}
-                            onFocus={(e) => { if (s.share_value === 0) e.target.value = ""; }}
+                          <BufferedNumberInput
+                            value={s.share_value}
+                            onSave={(val) => updateShare(s.id, "share_value", val)}
                             placeholder="0"
                             className="w-28 h-8 text-sm"
                           />
@@ -789,20 +832,9 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                               </Select>
                             </div>
                           )}
-                          <Input
-                            type="text"
-                            inputMode="decimal"
-                            value={c.amount === 0 ? "" : c.amount}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (val === "" || val === "0") {
-                                updateCost(c.id, "amount", 0);
-                              } else {
-                                const num = parseFloat(val);
-                                if (!isNaN(num)) updateCost(c.id, "amount", num);
-                              }
-                            }}
-                            onFocus={(e) => { if (c.amount === 0) e.target.value = ""; }}
+                          <BufferedNumberInput
+                            value={c.amount}
+                            onSave={(val) => updateCost(c.id, "amount", val)}
                             placeholder="0,00"
                             className="w-24 h-8 text-sm"
                           />
