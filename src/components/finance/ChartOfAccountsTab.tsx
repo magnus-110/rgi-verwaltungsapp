@@ -33,7 +33,7 @@ export function ChartOfAccountsTab() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [selectedBuilding, setSelectedBuilding] = useState<string>("global");
   const [searchTerm, setSearchTerm] = useState("");
-  const [newAccount, setNewAccount] = useState({ account_number: "", account_name: "", category: "", default_distribution_key: "mea", is_35a_relevant: false });
+  const [newAccount, setNewAccount] = useState({ account_number: "", account_name: "", category: "", default_distribution_key: "mea", is_35a_relevant: false, is_billing_relevant: false, is_heating_relevant: false, carry_forward_balance: false });
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance-coa"],
@@ -315,10 +315,22 @@ export function ChartOfAccountsTab() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex items-end pb-2">
+              <div className="flex flex-wrap items-end gap-4 pb-2">
                 <div className="flex items-center gap-2">
                   <Checkbox checked={newAccount.is_35a_relevant} onCheckedChange={c => setNewAccount(p => ({ ...p, is_35a_relevant: !!c }))} />
-                  <Label>§35a relevant</Label>
+                  <Label>§35a</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox checked={newAccount.is_billing_relevant} onCheckedChange={c => setNewAccount(p => ({ ...p, is_billing_relevant: !!c }))} />
+                  <Label>Abrechnung</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox checked={newAccount.is_heating_relevant} onCheckedChange={c => setNewAccount(p => ({ ...p, is_heating_relevant: !!c }))} />
+                  <Label>HK-relevant</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox checked={newAccount.carry_forward_balance} onCheckedChange={c => setNewAccount(p => ({ ...p, carry_forward_balance: !!c }))} />
+                  <Label>Saldovortrag</Label>
                 </div>
               </div>
             </div>
