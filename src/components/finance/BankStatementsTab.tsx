@@ -228,6 +228,7 @@ export function BankStatementsTab() {
       queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
       queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
     }
+  };
 
   const handleManualAssign = async () => {
     if (!manualAssignTxn || !manualAssignId) return;
