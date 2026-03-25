@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -9,8 +9,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
-import { Loader2, FileText, ExternalLink, CheckCircle, CreditCard, Sparkles, Plus, Trash2 } from "lucide-react";
+import { Loader2, FileText, ExternalLink, CheckCircle, CreditCard, Sparkles, Plus, Trash2, Fuel, ChevronDown, ChevronRight } from "lucide-react";
 
 const PAYMENT_STATUS: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   open: { label: "Offen", variant: "destructive" },
@@ -376,6 +377,10 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
               </div>
             </div>
 
+            {/* Fuel Data Collapsible */}
+            <Separator />
+            <FuelDataSection invoice={inv} buildingId={form.building_id} />
+
             <Separator />
 
             {/* Save */}
@@ -389,5 +394,130 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
         ) : null}
       </SheetContent>
     </Sheet>
+  );
+}
+
+const FUEL_TYPES = [
+  { value: "oil", label: "Heizöl", unit: "l" },
+  { value: "pellets", label: "Pellets", unit: "kg" },
+  { value: "gas", label: "Gas", unit: "kWh" },
+  { value: "district_heating", label: "Fernwärme", unit: "kWh" },
+];
+
+function FuelDataSection({ invoice, buildingId }: { invoice: any; buildingId: string }) {
+  const extracted = invoice?.ocr_extracted_data as any;
+  const isFuelDetected = extracted?.is_fuel_purchase === true;
+
+  const [isOpen, setIsOpen] = useState(isFuelDetected);
+  const [fuelType, setFuelType] = useState(extracted?.fuel_type || "oil");
+  const [fuelQuantity, setFuelQuantity] = useState(extracted?.fuel_quantity?.toString() || "");
+  const [fuelUnit, setFuelUnit] = useState(extracted?.fuel_unit || FUEL_TYPES.find(f => f.value === (extracted?.fuel_type || "oil"))?.unit || "l");
+  const [fuelPrice, setFuelPrice] = useState(invoice?.gross_amount?.toString() || "");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (isFuelDetected) setIsOpen(true);
+  }, [isFuelDetected]);
+
+  const saveFuelEntry = async () => {
+    if (!buildingId) { toast.error("Bitte zuerst eine Liegenschaft zuweisen"); return; }
+    if (!fuelQuantity) { toast.error("Bitte Menge angeben"); return; }
+
+    setSaving(true);
+    // Find the billing period for this invoice's date
+    const invoiceDate = invoice?.invoice_date;
+    let periodId: string | null = null;
+    if (invoiceDate && buildingId) {
+      const { data: periods } = await supabase
+        .from("billing_periods")
+        .select("id")
+        .eq("building_id", buildingId)
+        .lte("period_from", invoiceDate)
+        .gte("period_to", invoiceDate)
+        .maybeSingle();
+      periodId = periods?.id || null;
+    }
+
+    if (!periodId) {
+      // Try to find any period for this building
+      const year = invoiceDate ? new Date(invoiceDate).getFullYear() : new Date().getFullYear();
+      const { data: periods } = await supabase
+        .from("billing_periods")
+        .select("id")
+        .eq("building_id", buildingId)
+        .eq("fiscal_year", year)
+        .maybeSingle();
+      periodId = periods?.id || null;
+    }
+
+    if (!periodId) {
+      toast.error("Kein passender Abrechnungszeitraum gefunden. Bitte zuerst einen anlegen.");
+      setSaving(false);
+      return;
+    }
+
+    const { error } = await supabase.from("fuel_inventory").insert({
+      building_id: buildingId,
+      billing_period_id: periodId,
+      fuel_type: fuelType,
+      entry_type: "purchase",
+      quantity: parseFloat(fuelQuantity),
+      unit: fuelUnit,
+      total_price: fuelPrice ? parseFloat(fuelPrice) : null,
+      entry_date: invoice?.invoice_date || new Date().toISOString().split("T")[0],
+      notes: `Aus Rechnung: ${invoice?.file_name || invoice?.invoice_number || ""}`,
+    });
+
+    setSaving(false);
+    if (error) { toast.error("Fehler: " + error.message); return; }
+    toast.success("Brennstoff-Eintrag gespeichert");
+  };
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <CollapsibleTrigger className="flex items-center gap-2 w-full text-left py-2 hover:bg-muted/30 rounded-md px-2 transition-colors">
+        <Fuel className="h-4 w-4 text-muted-foreground" />
+        <span className="text-sm font-medium flex-1">Brennstoffdaten</span>
+        {isFuelDetected && (
+          <Badge className="bg-amber-100 text-amber-800 text-xs mr-2">Erkannt</Badge>
+        )}
+        {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="space-y-3 pt-3 pl-6">
+          {isFuelDetected && (
+            <p className="text-xs text-muted-foreground bg-muted/50 rounded-md p-2">
+              Die OCR hat diese Rechnung als Brennstofflieferung erkannt. Bitte prüfen und ggf. als Eintrag speichern.
+            </p>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Brennstoffart</Label>
+              <Select value={fuelType} onValueChange={(v) => {
+                setFuelType(v);
+                setFuelUnit(FUEL_TYPES.find(f => f.value === v)?.unit || "l");
+              }}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {FUEL_TYPES.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Menge ({fuelUnit})</Label>
+              <Input className="h-8 text-xs" type="number" step="0.01" value={fuelQuantity} onChange={e => setFuelQuantity(e.target.value)} placeholder="z.B. 3000" />
+            </div>
+          </div>
+          <div>
+            <Label className="text-xs">Gesamtpreis (€)</Label>
+            <Input className="h-8 text-xs" type="number" step="0.01" value={fuelPrice} onChange={e => setFuelPrice(e.target.value)} />
+          </div>
+          <Button size="sm" onClick={saveFuelEntry} disabled={saving}>
+            {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Fuel className="h-4 w-4 mr-1" />}
+            Als Brennstoff-Eintrag speichern
+          </Button>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }

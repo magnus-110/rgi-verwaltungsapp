@@ -133,7 +133,7 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Verteilerschlüssel</CardTitle>
+            <CardTitle className="text-base">Kontenrahmen</CardTitle>
             <div className="flex items-center gap-2">
               {overrideCount > 0 && (
                 <Badge variant="secondary" className="text-xs">{overrideCount} angepasst</Badge>
@@ -147,7 +147,7 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Individuelle Verteilerschlüssel und eigene Konten für diese Liegenschaft.
+            Kontenrahmen, Verteilerschlüssel, Abrechnungsrelevanz und Saldovortrag für diese Liegenschaft.
           </p>
         </CardHeader>
         <CardContent>
@@ -195,6 +195,9 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
                           <TableHead>Bezeichnung</TableHead>
                           <TableHead className="w-[150px]">Standard</TableHead>
                           <TableHead className="w-[200px]">Aktuell</TableHead>
+                          <TableHead className="w-[50px] text-center" title="Abrechnungsrelevant">Abr.</TableHead>
+                          <TableHead className="w-[50px] text-center" title="Heizkosten-relevant">HL</TableHead>
+                          <TableHead className="w-[50px] text-center" title="Saldovortrag">Saldo</TableHead>
                           <TableHead className="w-[50px]"></TableHead>
                         </TableRow>
                       </TableHeader>
@@ -290,6 +293,33 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
                                 </Select>
                                 </div>
                                 )}
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <Checkbox
+                                  checked={account.is_billing_relevant}
+                                  onCheckedChange={async (checked) => {
+                                    await supabase.from("chart_of_accounts").update({ is_billing_relevant: !!checked }).eq("id", account.id);
+                                    queryClient.invalidateQueries({ queryKey: ["chart-of-accounts-building", buildingId] });
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <Checkbox
+                                  checked={account.is_heating_relevant}
+                                  onCheckedChange={async (checked) => {
+                                    await supabase.from("chart_of_accounts").update({ is_heating_relevant: !!checked }).eq("id", account.id);
+                                    queryClient.invalidateQueries({ queryKey: ["chart-of-accounts-building", buildingId] });
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell className="text-center">
+                                <Checkbox
+                                  checked={account.carry_forward_balance}
+                                  onCheckedChange={async (checked) => {
+                                    await supabase.from("chart_of_accounts").update({ carry_forward_balance: !!checked }).eq("id", account.id);
+                                    queryClient.invalidateQueries({ queryKey: ["chart-of-accounts-building", buildingId] });
+                                  }}
+                                />
                               </TableCell>
                               <TableCell>
                                 {isBuildingAccount && (
