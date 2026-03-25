@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, FileText, ExternalLink, CheckCircle, CreditCard, Sparkles } from "lucide-react";
+import { Loader2, FileText, ExternalLink, CheckCircle, CreditCard, Sparkles, Plus, Trash2 } from "lucide-react";
 
 const PAYMENT_STATUS: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   open: { label: "Offen", variant: "destructive" },
@@ -21,6 +21,11 @@ const REVIEW_STATUS: Record<string, { label: string; variant: "default" | "secon
   open: { label: "Offen", variant: "outline" },
   verified: { label: "Geprüft", variant: "default" },
 };
+
+interface LineItem {
+  description: string;
+  amount: number | null;
+}
 
 interface Props {
   invoiceId: string | null;
@@ -50,6 +55,7 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
   });
 
   const [form, setForm] = useState<Record<string, any>>({});
+  const [editLineItems, setEditLineItems] = useState<LineItem[]>([]);
 
   const inv = invoice as any;
   if (inv && !form._initialized) {
@@ -66,15 +72,37 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
       description: inv.description || "",
       building_id: inv.building_id || "",
     });
+    const items = (inv.line_items as any[] || []).map((item: any) => ({
+      description: item.description || "",
+      amount: item.amount ?? null,
+    }));
+    setEditLineItems(items);
   }
 
   const handleClose = () => {
     setForm({});
+    setEditLineItems([]);
     setPdfUrl(null);
     onClose();
   };
 
   const set = (key: string, value: any) => setForm(p => ({ ...p, [key]: value }));
+
+  const updateLineItem = (index: number, field: keyof LineItem, value: any) => {
+    setEditLineItems(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  };
+
+  const addLineItem = () => {
+    setEditLineItems(prev => [...prev, { description: "", amount: null }]);
+  };
+
+  const removeLineItem = (index: number) => {
+    setEditLineItems(prev => prev.filter((_, i) => i !== index));
+  };
 
   const loadPdf = async () => {
     if (!inv?.file_path) return;
@@ -95,6 +123,17 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
   const handleSave = async () => {
     if (!invoiceId) return;
     setSaving(true);
+
+    // Clean line items: remove empty ones, parse amounts
+    const cleanedLineItems = editLineItems
+      .filter(item => item.description.trim() !== "")
+      .map(item => ({
+        description: item.description.trim(),
+        amount: item.amount !== null && item.amount !== undefined && String(item.amount).trim() !== ""
+          ? parseFloat(String(item.amount))
+          : null,
+      }));
+
     const { error } = await supabase.from("invoices").update({
       vendor_name: form.vendor_name || null,
       vendor_iban: form.vendor_iban || null,
@@ -106,6 +145,7 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
       gross_amount: form.gross_amount !== "" ? parseFloat(form.gross_amount) : null,
       description: form.description || null,
       building_id: form.building_id || null,
+      line_items: cleanedLineItems,
     }).eq("id", invoiceId);
     setSaving(false);
     if (error) { toast.error("Fehler: " + error.message); return; }
@@ -143,7 +183,6 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
 
   const paymentConfig = inv ? PAYMENT_STATUS[inv.status] || PAYMENT_STATUS.open : null;
   const reviewConfig = inv ? REVIEW_STATUS[inv.review_status || "open"] || REVIEW_STATUS.open : null;
-  const lineItems = inv?.line_items as any[] || [];
 
   return (
     <Sheet open={!!invoiceId} onOpenChange={(open) => { if (!open) handleClose(); }}>
@@ -291,26 +330,51 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
               </div>
             </div>
 
-            {/* Line Items */}
-            {lineItems.length > 0 && (
-              <>
-                <Separator />
+            {/* Editable Line Items */}
+            <Separator />
+            <div>
+              <div className="flex items-center justify-between mb-2">
                 <div>
-                  <Label className="text-sm font-medium">Positionen ({lineItems.length})</Label>
-                  <p className="text-xs text-muted-foreground mb-2">Automatisch aus dem PDF extrahierte Rechnungspositionen</p>
-                  <div className="space-y-1">
-                    {lineItems.map((item: any, i: number) => (
-                      <div key={i} className="flex justify-between text-sm p-2 rounded bg-muted">
-                        <span className="truncate mr-2">{item.description}</span>
-                        <span className="font-mono whitespace-nowrap">
-                          {item.amount != null ? new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(item.amount) : "–"}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
+                  <Label className="text-sm font-medium">Positionen ({editLineItems.length})</Label>
+                  <p className="text-xs text-muted-foreground">Rechnungspositionen bearbeiten, hinzufügen oder löschen</p>
                 </div>
-              </>
-            )}
+                <Button variant="outline" size="sm" onClick={addLineItem}>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Position
+                </Button>
+              </div>
+              <div className="space-y-2">
+                {editLineItems.map((item, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <Input
+                      value={item.description}
+                      onChange={e => updateLineItem(i, "description", e.target.value)}
+                      placeholder="Beschreibung"
+                      className="flex-1"
+                    />
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={item.amount ?? ""}
+                      onChange={e => updateLineItem(i, "amount", e.target.value === "" ? null : e.target.value)}
+                      placeholder="Betrag €"
+                      className="w-28"
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => removeLineItem(i)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                {editLineItems.length === 0 && (
+                  <p className="text-sm text-muted-foreground py-2">Keine Positionen vorhanden</p>
+                )}
+              </div>
+            </div>
 
             <Separator />
 
