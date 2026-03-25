@@ -10,7 +10,6 @@ import type { Contact } from "@/pages/Contacts";
 const TYPE_CONFIG: Record<string, { label: string; icon: any; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   person: { label: "Person", icon: User, variant: "secondary" },
   company: { label: "Firma", icon: Building2, variant: "default" },
-  owner_group: { label: "Eigentümer", icon: Users, variant: "outline" },
   service_provider: { label: "Dienstleister", icon: Wrench, variant: "secondary" },
 };
 
@@ -115,7 +114,7 @@ export function ContactList({ contacts, selectedId, onSelect, onCreated, loading
                       </Badge>
                     )}
                   </div>
-                  {primaryName && (c.contact_type === "company" || c.contact_type === "service_provider" || c.contact_type === "owner_group") && (
+                  {primaryName && (c.contact_type === "company" || c.contact_type === "service_provider") && (
                     <p className="text-xs text-muted-foreground truncate">{primaryName}</p>
                   )}
                   {c.short_name && c.company_name && (
