@@ -1,31 +1,26 @@
 
 
-# Plan: E-Mail-Anhänge als Rechnungen in Finanzen importieren
+# Plan: fetch-emails Edge Function reparieren
 
-## Konzept
-PDF-Anhänge in der E-Mail-Detailansicht bekommen einen "Als Rechnung importieren"-Button. Per Klick wird der Anhang aus dem `email-attachments` Storage geladen, in den `invoices` Bucket kopiert, ein Rechnungsdatensatz erstellt und die OCR-Erkennung gestartet — genau wie beim Upload auf der Finanzseite.
+## Problem
+"Failed to send a request to the Edge Function" — die Funktion wurde kürzlich geändert und muss neu deployed werden. Zusätzlich fehlen in den CORS-Headers einige Supabase-Client-Header, die neuere SDK-Versionen mitsenden.
 
-**Warum Button statt Drag & Drop:** Echtes Drag & Drop zwischen zwei verschiedenen Seiten (Postfach → Finanzen) ist technisch nicht möglich, da der Seitenwechsel den Drag-Vorgang abbricht. Stattdessen wird ein dedizierter Import-Button direkt am Anhang angeboten — ein Klick genügt.
+## Lösung
 
-## Umsetzung
+### 1) CORS-Headers aktualisieren
+In `supabase/functions/fetch-emails/index.ts` die `corsHeaders` erweitern:
 
-### 1) EmailAttachments.tsx erweitern
-- Neben dem Download-Button einen neuen "Rechnung importieren"-Button (FileText + Sparkles Icon) für PDF-Anhänge anzeigen.
-- Beim Klick:
-  1. Signierte URL des Anhangs aus `email-attachments` Bucket holen
-  2. Datei herunterladen (fetch)
-  3. In `invoices` Bucket hochladen (Pfad: `unassigned/{timestamp}_{filename}`)
-  4. `invoices`-Datensatz erstellen (status: open, ocr_status: pending)
-  5. `extract-invoice` Edge Function aufrufen (OCR + Liegenschaftserkennung)
-  6. Toast-Meldung mit Erfolg und Link zur Finanzseite
-- Button wird disabled/loading während des Imports
-- Bereits importierte Anhänge erkennen (optional: über `file_name` Match in invoices)
+```typescript
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
+```
 
-### 2) Betroffene Dateien
-- `src/components/email/EmailAttachments.tsx` — Import-Button + Logik hinzufügen
+### 2) Redeployment
+Die Dateiänderung triggert automatisch ein Redeployment der Edge Function.
 
-### Technische Details
-- Kein neues Backend nötig: alle Operationen (Storage copy, DB insert, Edge Function invoke) laufen über den bestehenden Supabase Client
-- Die Logik ist identisch mit `InvoiceDropZone.uploadFile`, nur dass die Quelle ein Storage-Blob statt ein lokaler File ist
-- OCR + automatische Liegenschaftserkennung funktionieren wie gewohnt
+## Betroffene Datei
+- `supabase/functions/fetch-emails/index.ts` (nur CORS-Header-Zeile ändern)
 
