@@ -62,7 +62,10 @@ export const ComposeEmailDialog = ({
   const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [contactPickerOpen, setContactPickerOpen] = useState(false);
+  const [ccContactPickerOpen, setCcContactPickerOpen] = useState(false);
+  const [bccContactPickerOpen, setBccContactPickerOpen] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
+  const [showCcBcc, setShowCcBcc] = useState(false);
 
   const { data: accounts = [] } = useQuery({
     queryKey: ["email-accounts-compose"],
@@ -113,10 +116,13 @@ export const ComposeEmailDialog = ({
     setAccountId(accounts[0].id);
   }
 
-  const addEmailToField = (email: string) => {
-    const current = to.split(",").map(e => e.trim()).filter(Boolean);
+  const addEmailToField = (email: string, field: "to" | "cc" | "bcc" = "to") => {
+    const setters = { to: setTo, cc: setCc, bcc: setBcc };
+    const values = { to, cc, bcc };
+    const currentVal = values[field];
+    const current = currentVal.split(",").map(e => e.trim()).filter(Boolean);
     if (!current.includes(email)) {
-      setTo(current.length > 0 ? `${to}, ${email}` : email);
+      setters[field](current.length > 0 ? `${currentVal}, ${email}` : email);
     }
   };
 
@@ -232,7 +238,16 @@ export const ComposeEmailDialog = ({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-xs">An</Label>
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">An</Label>
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                onClick={() => setShowCcBcc(!showCcBcc)}
+              >
+                {showCcBcc ? "CC/BCC ausblenden" : "CC/BCC"}
+              </button>
+            </div>
             <div className="flex gap-1.5">
               <Input
                 value={to}
@@ -275,7 +290,7 @@ export const ComposeEmailDialog = ({
                               key={ce.email}
                               className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-muted/50 transition-colors"
                               onClick={() => {
-                                addEmailToField(ce.email);
+                                addEmailToField(ce.email, "to");
                                 if (contact.emails.length === 1) setContactPickerOpen(false);
                               }}
                             >
@@ -298,25 +313,99 @@ export const ComposeEmailDialog = ({
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs">CC</Label>
-            <Input
-              value={cc}
-              onChange={(e) => setCc(e.target.value)}
-              placeholder="cc@email.de (optional)"
-              className="h-9"
-            />
-          </div>
+          {showCcBcc && (
+            <>
+              <div className="space-y-1.5">
+                <Label className="text-xs">CC</Label>
+                <div className="flex gap-1.5">
+                  <Input value={cc} onChange={(e) => setCc(e.target.value)} placeholder="cc@email.de (optional)" className="h-9 flex-1" />
+                  <Popover open={ccContactPickerOpen} onOpenChange={setCcContactPickerOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" title="Aus Kontakten wählen">
+                        <Users className="h-4 w-4" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-80 p-0" align="end">
+                      <div className="p-2 border-b">
+                        <div className="relative">
+                          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                          <Input placeholder="Kontakt suchen..." value={contactSearch} onChange={e => setContactSearch(e.target.value)} className="h-8 pl-8 text-sm" />
+                        </div>
+                      </div>
+                      <ScrollArea className="max-h-60">
+                        {filteredContacts.length === 0 ? (
+                          <p className="p-3 text-sm text-muted-foreground text-center">Keine Kontakte gefunden</p>
+                        ) : (
+                          filteredContacts.map(contact => (
+                            <div key={contact.id} className="border-b last:border-0">
+                              <div className="px-3 pt-2 pb-1">
+                                <span className="text-sm font-medium">{contact.displayName}</span>
+                                {contact.company_name && contact.first_name && (
+                                  <span className="text-xs text-muted-foreground ml-1.5">({contact.company_name})</span>
+                                )}
+                              </div>
+                              {contact.emails.map(ce => (
+                                <button key={ce.email} className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-muted/50 transition-colors"
+                                  onClick={() => { addEmailToField(ce.email, "cc"); if (contact.emails.length === 1) setCcContactPickerOpen(false); }}>
+                                  <Checkbox checked={cc.split(",").map(e => e.trim()).includes(ce.email)} className="h-3.5 w-3.5" />
+                                  <span className="text-sm text-muted-foreground truncate">{ce.email}</span>
+                                </button>
+                              ))}
+                            </div>
+                          ))
+                        )}
+                      </ScrollArea>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
 
-          <div className="space-y-1.5">
-            <Label className="text-xs">BCC</Label>
-            <Input
-              value={bcc}
-              onChange={(e) => setBcc(e.target.value)}
-              placeholder="bcc@email.de (optional)"
-              className="h-9"
-            />
-          </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">BCC</Label>
+                <div className="flex gap-1.5">
+                  <Input value={bcc} onChange={(e) => setBcc(e.target.value)} placeholder="bcc@email.de (optional)" className="h-9 flex-1" />
+                  <Popover open={bccContactPickerOpen} onOpenChange={setBccContactPickerOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" size="icon" className="h-9 w-9 shrink-0" title="Aus Kontakten wählen">
+                        <Users className="h-4 w-4" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-80 p-0" align="end">
+                      <div className="p-2 border-b">
+                        <div className="relative">
+                          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                          <Input placeholder="Kontakt suchen..." value={contactSearch} onChange={e => setContactSearch(e.target.value)} className="h-8 pl-8 text-sm" />
+                        </div>
+                      </div>
+                      <ScrollArea className="max-h-60">
+                        {filteredContacts.length === 0 ? (
+                          <p className="p-3 text-sm text-muted-foreground text-center">Keine Kontakte gefunden</p>
+                        ) : (
+                          filteredContacts.map(contact => (
+                            <div key={contact.id} className="border-b last:border-0">
+                              <div className="px-3 pt-2 pb-1">
+                                <span className="text-sm font-medium">{contact.displayName}</span>
+                                {contact.company_name && contact.first_name && (
+                                  <span className="text-xs text-muted-foreground ml-1.5">({contact.company_name})</span>
+                                )}
+                              </div>
+                              {contact.emails.map(ce => (
+                                <button key={ce.email} className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-muted/50 transition-colors"
+                                  onClick={() => { addEmailToField(ce.email, "bcc"); if (contact.emails.length === 1) setBccContactPickerOpen(false); }}>
+                                  <Checkbox checked={bcc.split(",").map(e => e.trim()).includes(ce.email)} className="h-3.5 w-3.5" />
+                                  <span className="text-sm text-muted-foreground truncate">{ce.email}</span>
+                                </button>
+                              ))}
+                            </div>
+                          ))
+                        )}
+                      </ScrollArea>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+            </>
+          )}
 
           <div className="space-y-1.5">
             <Label className="text-xs">Betreff</Label>
