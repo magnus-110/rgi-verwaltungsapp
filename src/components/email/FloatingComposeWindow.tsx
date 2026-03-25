@@ -75,6 +75,30 @@ export const FloatingComposeWindow = () => {
     }
   }, [accounts, compose.accountId, updateCompose]);
 
+  // Append signature when account changes (only for new compose, not reply/forward)
+  const prevAccountRef = useRef<string>("");
+  useEffect(() => {
+    if (!compose.accountId || compose.accountId === prevAccountRef.current) return;
+    const account = accounts.find(a => a.id === compose.accountId);
+    if (!account?.signature_html) { prevAccountRef.current = compose.accountId; return; }
+    
+    const sig = `\n\n--\n${account.signature_html}`;
+    // Remove old signature if switching accounts
+    const oldAccount = accounts.find(a => a.id === prevAccountRef.current);
+    let currentBody = compose.bodyText;
+    if (oldAccount?.signature_html) {
+      const oldSig = `\n\n--\n${oldAccount.signature_html}`;
+      if (currentBody.endsWith(oldSig)) {
+        currentBody = currentBody.slice(0, -oldSig.length);
+      }
+    }
+    // Only append if not already present
+    if (!currentBody.endsWith(sig)) {
+      updateCompose({ bodyText: currentBody + sig });
+    }
+    prevAccountRef.current = compose.accountId;
+  }, [compose.accountId, accounts]);
+
   const filteredContacts = useMemo(() => {
     if (!contactSearch) return contactsWithEmails;
     const s = contactSearch.toLowerCase();
