@@ -430,6 +430,48 @@ export function EconomicPlanEditor({ buildingId, periodId, fiscalYear }: Economi
           </Card>
         );
       })}
+
+      {/* Floating Preview Buttons */}
+      {(prevYearTotals.length > 0 || existingPlan) && (
+        <div className="fixed bottom-6 right-6 flex flex-col gap-2 z-40">
+          <Button
+            size="sm"
+            variant="outline"
+            className="shadow-lg bg-background"
+            onClick={() => setPreviewMode("gesamt")}
+          >
+            <Eye className="h-4 w-4 mr-1.5" />
+            Gesamtplan
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="shadow-lg bg-background"
+            onClick={() => setPreviewMode("einzel")}
+            disabled={ownerPlans.length === 0}
+          >
+            <Eye className="h-4 w-4 mr-1.5" />
+            Einzelplan
+          </Button>
+        </div>
+      )}
+
+      {/* Preview Dialog */}
+      <EconomicPlanPreview
+        open={previewMode !== null}
+        onOpenChange={(open) => !open && setPreviewMode(null)}
+        mode={previewMode || "gesamt"}
+        planYear={planYear}
+        fiscalYear={fiscalYear}
+        building={building ?? null}
+        categoryGroups={categoryGroups}
+        getPlannedAmount={getPlannedAmount}
+        totalPrevious={totalPrevious}
+        totalPlanned={totalPlanned}
+        plannedReserve={plannedReserve}
+        totalWithReserve={totalWithReserve}
+        ownerPlans={ownerPlans}
+      />
     </div>
   );
 }
