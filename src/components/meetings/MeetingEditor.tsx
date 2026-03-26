@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AgendaItemEditor } from "./AgendaItemEditor";
 import { MeetingInvitationPdf } from "./MeetingInvitationPdf";
+import { AttendeeManager } from "./AttendeeManager";
+import { LiveVotingManager } from "./LiveVotingManager";
 import { Save, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
 
 interface MeetingEditorProps {
@@ -148,6 +150,16 @@ export const MeetingEditor = ({ meetingId, onSaved, onCancel }: MeetingEditorPro
     {
       title: "3. Einladung",
       description: "Vorschau und PDF generieren",
+      complete: false,
+    },
+    {
+      title: "4. Vollmachten & Teilnehmer",
+      description: "Anwesenheit, Vollmachten und Stimmverbote",
+      complete: false,
+    },
+    {
+      title: "5. Live-Versammlung",
+      description: "Check-in, Quorum und Abstimmungen",
       complete: false,
     },
   ];
@@ -295,6 +307,58 @@ export const MeetingEditor = ({ meetingId, onSaved, onCancel }: MeetingEditorPro
             <CardContent>
               {savedMeetingId && (
                 <MeetingInvitationPdf meetingId={savedMeetingId} buildingId={buildingId} />
+              )}
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
+      {/* Step 3: Vollmachten & Teilnehmer */}
+      <Collapsible open={openSteps[3]} onOpenChange={() => toggleStep(3)}>
+        <Card className={!savedMeetingId ? "opacity-50 pointer-events-none" : ""}>
+          <CollapsibleTrigger asChild>
+            <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base">{steps[3].title}</CardTitle>
+                  <p className="text-sm text-muted-foreground">{steps[3].description}</p>
+                </div>
+                {openSteps[3] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </div>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent>
+              {savedMeetingId && (
+                <AttendeeManager
+                  meetingId={savedMeetingId}
+                  buildingId={buildingId}
+                  lockTime={existingMeeting?.lock_time || null}
+                />
+              )}
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
+      {/* Step 4: Live-Versammlung */}
+      <Collapsible open={openSteps[4]} onOpenChange={() => toggleStep(4)}>
+        <Card className={!savedMeetingId ? "opacity-50 pointer-events-none" : ""}>
+          <CollapsibleTrigger asChild>
+            <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base">{steps[4].title}</CardTitle>
+                  <p className="text-sm text-muted-foreground">{steps[4].description}</p>
+                </div>
+                {openSteps[4] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </div>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent>
+              {savedMeetingId && (
+                <LiveVotingManager meetingId={savedMeetingId} buildingId={buildingId} />
               )}
             </CardContent>
           </CollapsibleContent>
