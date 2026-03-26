@@ -31,7 +31,22 @@ export function EconomicPlanEditor({ buildingId, periodId, fiscalYear }: Economi
   const [editedAmounts, setEditedAmounts] = useState<Record<string, number>>({});
   const [editedReserve, setEditedReserve] = useState<number | null>(null);
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set(["gesamt"]));
+  const [previewMode, setPreviewMode] = useState<"gesamt" | "einzel" | null>(null);
   const [showGuide, setShowGuide] = useState(false);
+
+  // Building info
+  const { data: building } = useQuery({
+    queryKey: ["building-info", buildingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("buildings")
+        .select("name, address, manager_name")
+        .eq("id", buildingId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
 
   // Existing plan
   const { data: existingPlan, isLoading: loadingPlan } = useQuery({
