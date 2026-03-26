@@ -15,7 +15,8 @@ import {
   UserRound,
   Menu,
   MessageSquare,
-  FolderOpen
+  FolderOpen,
+  Users
 } from "lucide-react";
 
 interface WegOwnerLayoutProps {
@@ -102,6 +103,12 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
       label: "Schwarzes Brett", 
       path: '/weg-owner/forum',
       active: location.pathname.startsWith('/weg-owner/forum')
+    },
+    { 
+      icon: Users, 
+      label: "Versammlungen", 
+      path: '/weg-owner/meetings',
+      active: location.pathname.startsWith('/weg-owner/meetings')
     },
     { 
       icon: Sparkles, 

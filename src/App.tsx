@@ -29,6 +29,7 @@ import { Finance } from "./pages/Finance";
 import { Billing } from "./pages/Billing";
 import { EconomicPlan } from "./pages/EconomicPlan";
 import { Inbox } from "./pages/Inbox";
+import { Meetings } from "./pages/Meetings";
 import { AdminLayout } from "./components/AdminLayout";
 import { WegOwnerLayout } from "./components/WegOwnerLayout";
 import { WegOwnerDashboard } from "./pages/weg-owner/Dashboard";
@@ -37,6 +38,7 @@ import { WegOwnerForum } from "./pages/weg-owner/Forum";
 import { WegOwnerChatbot } from "./pages/weg-owner/Chatbot";
 import { WegOwnerSettings } from "./pages/weg-owner/Settings";
 import { WegOwnerFiles } from "./pages/weg-owner/Files";
+import { WegOwnerMeetings } from "./pages/weg-owner/Meetings";
 import { TenantLayout } from "./components/TenantLayout";
 import { TenantDashboard } from "./pages/tenant/Dashboard";
 import { TenantReports } from "./pages/tenant/Reports";
@@ -85,6 +87,7 @@ const App = () => (
               <Route path="/finanzen/abrechnung" element={<AdminLayout><Billing /></AdminLayout>} />
               <Route path="/finanzen/wirtschaftsplan" element={<AdminLayout><EconomicPlan /></AdminLayout>} />
               <Route path="/postfach" element={<AdminLayout><Inbox /></AdminLayout>} />
+              <Route path="/versammlungen" element={<AdminLayout><Meetings /></AdminLayout>} />
               
               {/* Legacy admin routes for compatibility */}
               <Route path="/admin" element={<AdminLayout><Dashboard /></AdminLayout>} />
@@ -103,6 +106,7 @@ const App = () => (
               <Route path="/weg-owner/chatbot" element={<WegOwnerLayout><WegOwnerChatbot /></WegOwnerLayout>} />
               <Route path="/weg-owner/settings" element={<WegOwnerLayout><WegOwnerSettings /></WegOwnerLayout>} />
               <Route path="/weg-owner/files" element={<WegOwnerLayout><WegOwnerFiles /></WegOwnerLayout>} />
+              <Route path="/weg-owner/meetings" element={<WegOwnerLayout><WegOwnerMeetings /></WegOwnerLayout>} />
               
               {/* Tenant Routes */}
               <Route path="/tenant/change-password" element={<TenantLayout><ChangePassword /></TenantLayout>} />

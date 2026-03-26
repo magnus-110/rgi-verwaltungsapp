@@ -13,6 +13,7 @@ import {
   BookUser,
   Landmark,
   Mail,
+  Users,
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -39,6 +40,7 @@ const menuItems = [
   { title: "Meldungen", url: "/reports", icon: ClipboardList },
   { title: "Gebäude", url: "/buildings", icon: Castle },
   { title: "Adressen", url: "/contacts", icon: BookUser },
+  { title: "Versammlungen", url: "/versammlungen", icon: Users },
   { title: "Finanzen", url: "/finanzen", icon: Landmark },
   { title: "Einstellungen", url: "/settings", icon: Settings, adminOnly: true },
 ];
