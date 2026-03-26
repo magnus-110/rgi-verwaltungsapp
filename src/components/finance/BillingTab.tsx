@@ -9,14 +9,11 @@ import { AccrualSection } from "./AccrualSection";
 import { BillingSettlement } from "./BillingSettlement";
 import { BillingValidationPanel } from "./BillingValidationPanel";
 import { BillingAiAnalysis } from "./BillingAiAnalysis";
-import { EconomicPlanEditor } from "./EconomicPlanEditor";
-import { ReportTemplateSettings } from "./ReportTemplateSettings";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronRight, Info, Check } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { ChevronDown, ChevronRight, Info } from "lucide-react";
 
 const STEPS = [
   { id: "balances", label: "Saldenübernahme", description: "Schlusssalden des Vorjahres als Eröffnungssalden übernehmen" },
@@ -25,8 +22,6 @@ const STEPS = [
   { id: "rebooking", label: "Heizkosten-Umbuchungen", description: "Einzelkonten auf das zentrale Heizkonto umbuchen" },
   { id: "accruals", label: "Abgrenzungsbuchungen", description: "Jahresübergreifende Leistungszeiträume prüfen" },
   { id: "settlement", label: "Gesamtabrechnung", description: "Kosten verteilen und Einzelabrechnungen erstellen" },
-  { id: "economic-plan", label: "Wirtschaftsplan", description: "KI-gestützten Wirtschaftsplan für das Folgejahr erstellen" },
-  { id: "templates", label: "PDF-Vorlagen", description: "Briefpapier und Vorlagen für die PDF-Generierung verwalten" },
 ];
 
 export function BillingTab() {
@@ -161,12 +156,6 @@ export function BillingTab() {
                       )}
                       {step.id === "settlement" && (
                         <BillingSettlement buildingId={selectedBuildingId} periodId={selectedPeriodId} fiscalYear={period.fiscal_year} />
-                      )}
-                      {step.id === "economic-plan" && (
-                        <EconomicPlanEditor buildingId={selectedBuildingId} periodId={selectedPeriodId} fiscalYear={period.fiscal_year} />
-                      )}
-                      {step.id === "templates" && (
-                        <ReportTemplateSettings buildingId={selectedBuildingId} />
                       )}
                     </div>
                   </div>
