@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Building2, MapPin, Edit, Trash2, Users, FileText, AlertCircle, Newspaper, Wrench, ChevronLeft, Landmark } from "lucide-react";
+import { Building2, MapPin, Edit, Trash2, Users, FileText, AlertCircle, Newspaper, Wrench, ChevronLeft, Landmark, Scale } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,6 +14,7 @@ import { BuildingFilesTab } from "./BuildingFilesTab";
 import { BuildingForumTab } from "./BuildingForumTab";
 import { BuildingMaintenanceTab } from "./BuildingMaintenanceTab";
 import { BuildingFinanceSummary } from "@/components/finance/BuildingFinanceSummary";
+import { BuildingResolutionsTab } from "./BuildingResolutionsTab";
 import { BuildingDistributionKeysTab } from "@/components/finance/BuildingDistributionKeysTab";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -168,6 +169,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
               { value: "maintenance", label: "Wartung" },
               { value: "distribution", label: "Kontenrahmen" },
               { value: "finance", label: "Finanzen" },
+              ...(building.management_mode === 'weg' ? [{ value: "resolutions", label: "Beschlüsse" }] : []),
             ].map(tab => (
               <TabsTrigger key={tab.value} value={tab.value} variant="underline"
                 className="px-4 py-3 whitespace-nowrap">
@@ -260,6 +262,13 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
           <TabsContent value="finance" className="p-4 md:p-6 mt-0">
             <BuildingFinanceSummary buildingId={buildingId} buildingName={building.name} />
           </TabsContent>
+
+          {/* Resolutions Tab (WEG only) */}
+          {building.management_mode === 'weg' && (
+            <TabsContent value="resolutions" className="p-4 md:p-6 mt-0">
+              <BuildingResolutionsTab buildingId={buildingId} />
+            </TabsContent>
+          )}
         </ScrollArea>
       </Tabs>
 
