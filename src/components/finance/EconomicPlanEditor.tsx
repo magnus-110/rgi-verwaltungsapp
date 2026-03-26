@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Sparkles, Loader2, Check, Save, ChevronDown, ChevronRight, Info, FileText, Shield, PiggyBank, Users } from "lucide-react";
+import { Sparkles, Loader2, Check, Save, ChevronDown, ChevronRight, Info, FileText, Shield, PiggyBank, Users, Eye } from "lucide-react";
 import { toast } from "sonner";
+import { EconomicPlanPreview } from "./EconomicPlanPreview";
 
 interface EconomicPlanEditorProps {
   buildingId: string;
@@ -30,7 +31,22 @@ export function EconomicPlanEditor({ buildingId, periodId, fiscalYear }: Economi
   const [editedAmounts, setEditedAmounts] = useState<Record<string, number>>({});
   const [editedReserve, setEditedReserve] = useState<number | null>(null);
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set(["gesamt"]));
+  const [previewMode, setPreviewMode] = useState<"gesamt" | "einzel" | null>(null);
   const [showGuide, setShowGuide] = useState(false);
+
+  // Building info
+  const { data: building } = useQuery({
+    queryKey: ["building-info", buildingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("buildings")
+        .select("name, address, manager_name")
+        .eq("id", buildingId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
 
   // Existing plan
   const { data: existingPlan, isLoading: loadingPlan } = useQuery({
@@ -414,6 +430,48 @@ export function EconomicPlanEditor({ buildingId, periodId, fiscalYear }: Economi
           </Card>
         );
       })}
+
+      {/* Floating Preview Buttons */}
+      {(prevYearTotals.length > 0 || existingPlan) && (
+        <div className="fixed bottom-6 right-6 flex flex-col gap-2 z-40">
+          <Button
+            size="sm"
+            variant="outline"
+            className="shadow-lg bg-background"
+            onClick={() => setPreviewMode("gesamt")}
+          >
+            <Eye className="h-4 w-4 mr-1.5" />
+            Gesamtplan
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="shadow-lg bg-background"
+            onClick={() => setPreviewMode("einzel")}
+            disabled={ownerPlans.length === 0}
+          >
+            <Eye className="h-4 w-4 mr-1.5" />
+            Einzelplan
+          </Button>
+        </div>
+      )}
+
+      {/* Preview Dialog */}
+      <EconomicPlanPreview
+        open={previewMode !== null}
+        onOpenChange={(open) => !open && setPreviewMode(null)}
+        mode={previewMode || "gesamt"}
+        planYear={planYear}
+        fiscalYear={fiscalYear}
+        building={building ?? null}
+        categoryGroups={categoryGroups}
+        getPlannedAmount={getPlannedAmount}
+        totalPrevious={totalPrevious}
+        totalPlanned={totalPlanned}
+        plannedReserve={plannedReserve}
+        totalWithReserve={totalWithReserve}
+        ownerPlans={ownerPlans}
+      />
     </div>
   );
 }
