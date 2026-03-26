@@ -14,6 +14,7 @@ import { AgendaItemEditor } from "./AgendaItemEditor";
 import { MeetingInvitationPdf } from "./MeetingInvitationPdf";
 import { AttendeeManager } from "./AttendeeManager";
 import { LiveVotingManager } from "./LiveVotingManager";
+import { MeetingProtocol } from "./MeetingProtocol";
 import { Save, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
 
 interface MeetingEditorProps {
@@ -161,6 +162,11 @@ export const MeetingEditor = ({ meetingId, onSaved, onCancel }: MeetingEditorPro
       title: "5. Live-Versammlung",
       description: "Check-in, Quorum und Abstimmungen",
       complete: false,
+    },
+    {
+      title: "6. Protokoll & Beschlüsse",
+      description: "KI-Protokoll generieren, Beschlusssammlung, Portal-Sync",
+      complete: !!existingMeeting?.protocol_published,
     },
   ];
 
@@ -359,6 +365,33 @@ export const MeetingEditor = ({ meetingId, onSaved, onCancel }: MeetingEditorPro
             <CardContent>
               {savedMeetingId && (
                 <LiveVotingManager meetingId={savedMeetingId} buildingId={buildingId} />
+              )}
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
+      {/* Step 5: Protokoll & Beschlüsse */}
+      <Collapsible open={openSteps[5]} onOpenChange={() => toggleStep(5)}>
+        <Card className={!savedMeetingId ? "opacity-50 pointer-events-none" : ""}>
+          <CollapsibleTrigger asChild>
+            <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  {steps[5].complete && <CheckCircle2 className="h-5 w-5 text-green-500" />}
+                  <div>
+                    <CardTitle className="text-base">{steps[5].title}</CardTitle>
+                    <p className="text-sm text-muted-foreground">{steps[5].description}</p>
+                  </div>
+                </div>
+                {openSteps[5] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </div>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent>
+              {savedMeetingId && (
+                <MeetingProtocol meetingId={savedMeetingId} buildingId={buildingId} />
               )}
             </CardContent>
           </CollapsibleContent>

@@ -2450,6 +2450,9 @@ export type Database = {
           lock_time: string | null
           meeting_date: string
           notes: string | null
+          protocol_generated_at: string | null
+          protocol_published: boolean | null
+          protocol_text: string | null
           quorum_reached: boolean | null
           status: string
           title: string
@@ -2464,6 +2467,9 @@ export type Database = {
           lock_time?: string | null
           meeting_date: string
           notes?: string | null
+          protocol_generated_at?: string | null
+          protocol_published?: boolean | null
+          protocol_text?: string | null
           quorum_reached?: boolean | null
           status?: string
           title: string
@@ -2478,6 +2484,9 @@ export type Database = {
           lock_time?: string | null
           meeting_date?: string
           notes?: string | null
+          protocol_generated_at?: string | null
+          protocol_published?: boolean | null
+          protocol_text?: string | null
           quorum_reached?: boolean | null
           status?: string
           title?: string
@@ -2497,6 +2506,79 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      etv_resolutions: {
+        Row: {
+          abstain_count: number | null
+          agenda_item_id: string
+          building_id: string
+          created_at: string | null
+          id: string
+          meeting_id: string
+          no_count: number | null
+          published: boolean | null
+          resolution_number: string | null
+          resolution_text: string
+          resolved_at: string | null
+          result: string
+          voting_principle: string | null
+          yes_count: number | null
+        }
+        Insert: {
+          abstain_count?: number | null
+          agenda_item_id: string
+          building_id: string
+          created_at?: string | null
+          id?: string
+          meeting_id: string
+          no_count?: number | null
+          published?: boolean | null
+          resolution_number?: string | null
+          resolution_text: string
+          resolved_at?: string | null
+          result: string
+          voting_principle?: string | null
+          yes_count?: number | null
+        }
+        Update: {
+          abstain_count?: number | null
+          agenda_item_id?: string
+          building_id?: string
+          created_at?: string | null
+          id?: string
+          meeting_id?: string
+          no_count?: number | null
+          published?: boolean | null
+          resolution_number?: string | null
+          resolution_text?: string
+          resolved_at?: string | null
+          result?: string
+          voting_principle?: string | null
+          yes_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etv_resolutions_agenda_item_id_fkey"
+            columns: ["agenda_item_id"]
+            isOneToOne: false
+            referencedRelation: "etv_agenda_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etv_resolutions_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etv_resolutions_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "etv_meetings"
+            referencedColumns: ["id"]
           },
         ]
       }

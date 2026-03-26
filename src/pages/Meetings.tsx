@@ -5,8 +5,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { useManagementMode } from "@/hooks/useManagementMode";
 import { MeetingList } from "@/components/meetings/MeetingList";
 import { MeetingEditor } from "@/components/meetings/MeetingEditor";
+import { ResolutionLedger } from "@/components/meetings/ResolutionLedger";
 import { Button } from "@/components/ui/button";
-import { Plus, ArrowLeft } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Plus, ArrowLeft, Users, Scale } from "lucide-react";
 
 export const Meetings = () => {
   const { profile } = useAuth();
@@ -68,11 +70,28 @@ export const Meetings = () => {
         </Button>
       </div>
 
-      <MeetingList
-        meetings={meetings}
-        isLoading={isLoading}
-        onSelect={(id) => setSelectedMeetingId(id)}
-      />
+      <Tabs defaultValue="meetings">
+        <TabsList>
+          <TabsTrigger value="meetings" className="gap-2">
+            <Users className="h-4 w-4" />
+            Versammlungen
+          </TabsTrigger>
+          <TabsTrigger value="resolutions" className="gap-2">
+            <Scale className="h-4 w-4" />
+            Beschlusssammlung
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="meetings" className="mt-4">
+          <MeetingList
+            meetings={meetings}
+            isLoading={isLoading}
+            onSelect={(id) => setSelectedMeetingId(id)}
+          />
+        </TabsContent>
+        <TabsContent value="resolutions" className="mt-4">
+          <ResolutionLedger />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
