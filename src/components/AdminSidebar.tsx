@@ -4,7 +4,6 @@ import {
   ClipboardList, 
   Castle, 
   Sparkles,
-  MessageCircle,
   Settings,
   LogOut,
   ToggleLeft,
