@@ -2298,6 +2298,262 @@ export type Database = {
           },
         ]
       }
+      etv_agenda_items: {
+        Row: {
+          abstain_count: number | null
+          admin_notes: string | null
+          category: string | null
+          created_at: string | null
+          description: string | null
+          id: string
+          meeting_id: string
+          no_count: number | null
+          resolution_text: string | null
+          result: string | null
+          sort_order: number
+          status: string | null
+          submitted_by_contact_id: string | null
+          title: string
+          total_mea_voted: number | null
+          voting_principle: string
+          yes_count: number | null
+        }
+        Insert: {
+          abstain_count?: number | null
+          admin_notes?: string | null
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          meeting_id: string
+          no_count?: number | null
+          resolution_text?: string | null
+          result?: string | null
+          sort_order?: number
+          status?: string | null
+          submitted_by_contact_id?: string | null
+          title: string
+          total_mea_voted?: number | null
+          voting_principle?: string
+          yes_count?: number | null
+        }
+        Update: {
+          abstain_count?: number | null
+          admin_notes?: string | null
+          category?: string | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          meeting_id?: string
+          no_count?: number | null
+          resolution_text?: string | null
+          result?: string | null
+          sort_order?: number
+          status?: string | null
+          submitted_by_contact_id?: string | null
+          title?: string
+          total_mea_voted?: number | null
+          voting_principle?: string
+          yes_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etv_agenda_items_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "etv_meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etv_agenda_items_submitted_by_contact_id_fkey"
+            columns: ["submitted_by_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      etv_attendees: {
+        Row: {
+          assignment_id: string
+          attendance_type: string
+          checked_in_at: string | null
+          created_at: string | null
+          id: string
+          meeting_id: string
+          pre_vote_instructions: Json | null
+          proxy_contact_id: string | null
+          proxy_token: string | null
+          proxy_token_used: boolean | null
+          proxy_type: string | null
+          voting_banned_items: string[] | null
+        }
+        Insert: {
+          assignment_id: string
+          attendance_type?: string
+          checked_in_at?: string | null
+          created_at?: string | null
+          id?: string
+          meeting_id: string
+          pre_vote_instructions?: Json | null
+          proxy_contact_id?: string | null
+          proxy_token?: string | null
+          proxy_token_used?: boolean | null
+          proxy_type?: string | null
+          voting_banned_items?: string[] | null
+        }
+        Update: {
+          assignment_id?: string
+          attendance_type?: string
+          checked_in_at?: string | null
+          created_at?: string | null
+          id?: string
+          meeting_id?: string
+          pre_vote_instructions?: Json | null
+          proxy_contact_id?: string | null
+          proxy_token?: string | null
+          proxy_token_used?: boolean | null
+          proxy_type?: string | null
+          voting_banned_items?: string[] | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etv_attendees_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "contact_building_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etv_attendees_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: false
+            referencedRelation: "etv_meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etv_attendees_proxy_contact_id_fkey"
+            columns: ["proxy_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      etv_meetings: {
+        Row: {
+          building_id: string
+          created_at: string | null
+          created_by: string | null
+          id: string
+          location: string | null
+          lock_time: string | null
+          meeting_date: string
+          notes: string | null
+          quorum_reached: boolean | null
+          status: string
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          building_id: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          location?: string | null
+          lock_time?: string | null
+          meeting_date: string
+          notes?: string | null
+          quorum_reached?: boolean | null
+          status?: string
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          building_id?: string
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          location?: string | null
+          lock_time?: string | null
+          meeting_date?: string
+          notes?: string | null
+          quorum_reached?: boolean | null
+          status?: string
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etv_meetings_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etv_meetings_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      etv_votes: {
+        Row: {
+          agenda_item_id: string
+          assignment_id: string
+          id: string
+          ip_address: string | null
+          is_manual_override: boolean | null
+          is_proxy_vote: boolean | null
+          mea_weight: number | null
+          vote: string
+          voted_at: string | null
+          voted_by_user_id: string | null
+        }
+        Insert: {
+          agenda_item_id: string
+          assignment_id: string
+          id?: string
+          ip_address?: string | null
+          is_manual_override?: boolean | null
+          is_proxy_vote?: boolean | null
+          mea_weight?: number | null
+          vote: string
+          voted_at?: string | null
+          voted_by_user_id?: string | null
+        }
+        Update: {
+          agenda_item_id?: string
+          assignment_id?: string
+          id?: string
+          ip_address?: string | null
+          is_manual_override?: boolean | null
+          is_proxy_vote?: boolean | null
+          mea_weight?: number | null
+          vote?: string
+          voted_at?: string | null
+          voted_by_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etv_votes_agenda_item_id_fkey"
+            columns: ["agenda_item_id"]
+            isOneToOne: false
+            referencedRelation: "etv_agenda_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etv_votes_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "contact_building_assignments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       forum_post_templates: {
         Row: {
           content: string
