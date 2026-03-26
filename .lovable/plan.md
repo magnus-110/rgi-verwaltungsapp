@@ -1,96 +1,86 @@
 
 
-# Plan: Tab-Hierarchie mit visuell unterschiedlichen Ebenen
+# Plan: Wirtschaftsplan mit Gesamt- und Einzelwirtschaftsplan + Guided Workflow
 
-## Analyse: Aktuelle Tab-Nutzung
+## Gesetzliche Grundlage (§28 WEG)
 
-Die App verwendet Tabs auf **4 verschiedenen hierarchischen Ebenen**, die aktuell aber alle gleich aussehen:
+Ein Wirtschaftsplan nach deutschem WEG-Recht besteht aus:
+1. **Gesamtwirtschaftsplan** — Alle voraussichtlichen Einnahmen und Ausgaben der Gemeinschaft, aufgeteilt nach Kostenarten
+2. **Einzelwirtschaftspläne** — Pro Eigentümer: deren Anteil an den Gesamtkosten + monatliches Hausgeld (Vorschüsse gem. §28 Abs. 1 WEG)
 
-| Ebene | Beispiel | Zweck |
-|---|---|---|
-| **Level 1 — Seitennavigation** | Finance: Buchen / Abrechnung / Wirtschaftsplan | Hauptbereiche einer Seite |
-| **Level 2 — Unternavigation** | Buchen → Rechnungen / Vorlagen / Kontoauszüge / Buchungen | Sub-Bereiche innerhalb eines Bereichs |
-| **Level 3 — Inhalts-Tabs** | BillingSettlement: Kostenübersicht / Eigentümer / Vermögensbericht | Ansichtswechsel innerhalb eines Moduls |
-| **Spezial — Underline-Tabs** | BuildingDashboard: Übersicht / Personen / Meldungen / ... | Bereits custom gestylt mit Border-Bottom |
+Pflichtinhalte:
+- Voraussichtliche Bewirtschaftungskosten (Instandhaltung, Verwaltung, Versicherung, etc.)
+- Zuführung zur Erhaltungsrücklage (§19 Abs. 2 Nr. 4 WEG)
+- Verteilungsschlüssel je Kostenposition
+- Hausgeld-Vorschüsse pro Eigentümer (monatlich)
+- Vergleich zum Vorjahr
 
-Alle Stellen, die angepasst werden:
+## Neues Konzept: Geführter 5-Schritt-Workflow
 
-- **Level 1**: `Finance.tsx` (Buchen/Abrechnung/Wirtschaftsplan), `Settings.tsx` (5 Tabs), `ContactDetail.tsx` (3 Tabs)
-- **Level 2**: `Finance.tsx` innere Tabs (4 Tabs), `weg-owner/Files.tsx` (2 Tabs), `tenant/Files.tsx` (2 Tabs)
-- **Level 3**: `BillingSettlement.tsx`, `Reports.tsx`, `DocumentSourcesList.tsx`, `BuildingContactsList.tsx`
-- **Spezial**: `BuildingDashboard.tsx` (bereits Underline-Style)
+Analog zur Abrechnung wird der Wirtschaftsplan als Schritt-für-Schritt-Prozess aufgebaut:
 
-## Design-Konzept: 3 visuell unterschiedliche Tab-Ebenen
-
-### Level 1 — Segment Control (Hauptnavigation)
-Groß, prominent, farbiger Hintergrund. Aktiver Tab mit Primary-Farbe.
 ```text
-┌──────────────────────────────────────────────┐
-│  [ Buchen ]  [ Abrechnung ]  [ Wirtschafts… ]│
-│   ▲ active = bg-primary, text-white          │
-│   andere = bg-transparent, text-muted        │
-└──────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────┐
+│ 1. Liegenschaft & Basisjahr wählen              │
+│ 2. Gesamtwirtschaftsplan (Kostenplanung)        │
+│ 3. Erhaltungsrücklage festlegen                 │
+│ 4. Einzelwirtschaftspläne (Hausgeld pro Eigent.)│
+│ 5. Genehmigung & PDF-Export                     │
+└─────────────────────────────────────────────────┘
 ```
-- Hintergrund: `bg-muted/50` mit `rounded-lg p-1`
-- Aktiv: `bg-primary text-primary-foreground shadow-sm`
-- Inaktiv: `text-muted-foreground hover:text-foreground`
-- Größe: `h-11 px-6 text-sm font-medium`
 
-### Level 2 — Pill Tabs (Unternavigation)
-Kleiner, subtiler, Pill-förmig ohne starken Kontrast.
-```text
-  ( Rechnungen )  ( Vorlagen )  ( Kontoauszüge )  ( Buchungen )
-    ▲ active = bg-background border shadow-sm
-```
-- Hintergrund: `bg-muted/30 rounded-md p-0.5`
-- Aktiv: `bg-background text-foreground border border-border shadow-sm`
-- Inaktiv: `text-muted-foreground`
-- Größe: `h-9 px-4 text-xs font-medium`
+### Schritt 1: Liegenschaft & Basisjahr
+- BillingPeriodSelector wie bisher
+- Anzeige: Planjahr = Basisjahr + 1
 
-### Level 3 — Underline Tabs (Inhalts-Tabs)
-Minimalistisch, nur eine Unterlinie zeigt den aktiven Tab.
-```text
-  Kostenübersicht    Eigentümer    Vermögensbericht
-  ═══════════════    
-```
-- Kein Hintergrund (`bg-transparent`)
-- Aktiv: `border-b-2 border-primary text-foreground`
-- Inaktiv: `text-muted-foreground border-b-2 border-transparent`
-- Größe: `h-9 px-3 text-sm`
+### Schritt 2: Gesamtwirtschaftsplan
+- Bestehende Kostenplanung (Tabelle mit Konten, Ist-Vorjahr, Plan-Betrag, Δ%)
+- KI-Vorschlag-Button bleibt (ohne "KI" Label prominent)
+- Gruppierung nach Kostenkategorien (Betriebskosten, Verwaltung, Instandhaltung)
+- Summenzeile mit Gesamtkosten
 
-## Umsetzung
+### Schritt 3: Erhaltungsrücklage
+- Separate Eingabe der geplanten Rücklagenzuführung
+- Anzeige des aktuellen Rücklagenstands
+- Empfehlung basierend auf Gebäudealter/Zustand (optional)
 
-### 1. `src/components/ui/tabs.tsx` — Varianten einführen
+### Schritt 4: Einzelwirtschaftspläne
+- Tabelle pro Eigentümer mit:
+  - Einheit, Name, MEA-Anteil
+  - Anteil Bewirtschaftungskosten
+  - Anteil Rücklage
+  - Gesamt-Jahresbetrag
+  - **Monatliches Hausgeld (= Jahresbetrag / 12)**
+  - Vergleich zum aktuellen Hausgeld
+- Hinweis auf Verteilungsschlüssel-Abweichungen
 
-Neue Props `variant` für `TabsList` und `TabsTrigger`:
-- `variant="segment"` (Level 1)
-- `variant="pill"` (Level 2, default — bisheriges Verhalten ähnlich)
-- `variant="underline"` (Level 3)
+### Schritt 5: Genehmigung & Export
+- Status-Badges (Entwurf → Genehmigt)
+- PDF-Export: Gesamtwirtschaftsplan als Dokument
+- PDF-Export: Einzelwirtschaftspläne (einzeln oder alle)
+- Genehmigen-Button
 
-Verwendet `cva` (class-variance-authority) für saubere Varianten-Verwaltung.
+## Technische Umsetzung
 
-### 2. Alle Tab-Stellen aktualisieren
+### 1. `src/components/finance/EconomicPlanEditor.tsx` — Komplett umbauen
+- Collapsible-Step-Workflow (Pattern aus BillingTab übernehmen)
+- Schritt 1 entfällt (wird von Finance.tsx gehandhabt)
+- Schritte 2-5 als aufklappbare Cards mit Nummerierung
+- Bestehende Logik (Kontenliste, Hausgeld-Vergleich) wird auf die Schritte verteilt
+- Neuer Abschnitt für Erhaltungsrücklage (nutzt `total_reserve` Feld in `economic_plans`)
+- Einzelwirtschaftsplan-Tabelle erweitert um Rücklage-Anteil und Jahresgesamt
 
-| Datei | Aktuelle Ebene | Neue Variante |
-|---|---|---|
-| `Finance.tsx` — äußere Tabs | L1 | `variant="segment"` |
-| `Finance.tsx` — innere Tabs | L2 | `variant="pill"` |
-| `Settings.tsx` | L1 | `variant="segment"` |
-| `ContactDetail.tsx` | L1 | `variant="segment"` |
-| `BuildingDashboard.tsx` | Spezial | `variant="underline"` (formalisiert) |
-| `BillingSettlement.tsx` | L3 | `variant="underline"` |
-| `Reports.tsx` | L3 | `variant="underline"` |
-| `DocumentSourcesList.tsx` | L3 | `variant="underline"` |
-| `BuildingContactsList.tsx` | L3 | `variant="underline"` |
-| `weg-owner/Files.tsx` | L2 | `variant="pill"` |
-| `tenant/Files.tsx` | L2 | `variant="pill"` |
-| `TermsAcceptanceDialog.tsx` | L2 | `variant="pill"` |
-| `LegalDocumentsSheet.tsx` | L2 | `variant="pill"` |
+### 2. Keine DB-Änderungen nötig
+- `economic_plans.total_reserve` existiert bereits
+- `economic_plan_items` hat `distribution_key`
+- `contact_building_shares` und `contact_building_costs` liefern Eigentümerdaten
+
+### 3. `src/pages/Finance.tsx` — Keine Änderung
+Die Wirtschaftsplan-Tab-Logik (Liegenschaft + Periode wählen) bleibt wie sie ist.
 
 ### Betroffene Dateien
 
 | Datei | Änderung |
 |---|---|
-| `src/components/ui/tabs.tsx` | Varianten-System mit `cva` einbauen |
-| 13 Dateien (oben gelistet) | `variant` Prop setzen, custom classNames entfernen |
+| `src/components/finance/EconomicPlanEditor.tsx` | Komplett umgebaut: 4-Schritt-Wizard mit Collapsible-Cards, Rücklage-Sektion, erweiterte Einzelwirtschaftspläne, Genehmigungs-Schritt |
 
