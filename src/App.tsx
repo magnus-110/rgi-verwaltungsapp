@@ -88,7 +88,7 @@ const App = () => (
               <Route path="/admin/reports" element={<AdminLayout><Reports /></AdminLayout>} />
               <Route path="/admin/buildings" element={<AdminLayout><Buildings /></AdminLayout>} />
               <Route path="/admin/forum" element={<Navigate to="/buildings" replace />} />
-              <Route path="/admin/chatbot-settings" element={<AdminLayout><ChatbotSettings /></AdminLayout>} />
+              <Route path="/admin/chatbot-settings" element={<Navigate to="/settings?tab=chatbot" replace />} />
               <Route path="/admin/settings" element={<AdminLayout><Settings /></AdminLayout>} />
               
               {/* WEG-Eigentümer Routes */}
