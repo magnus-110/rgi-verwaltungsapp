@@ -166,11 +166,9 @@ export const MeetingEditor = ({ meetingId, onSaved, onCancel }: MeetingEditorPro
     {
       title: "6. Protokoll & Beschlüsse",
       description: "KI-Protokoll generieren, Beschlusssammlung, Portal-Sync",
-      complete: !!meeting?.protocol_published,
+      complete: !!existingMeeting?.protocol_published,
     },
   ];
-
-  const meeting = existingMeeting;
 
   return (
     <div className="space-y-4 max-w-4xl">
