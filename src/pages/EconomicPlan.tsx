@@ -39,7 +39,7 @@ export const EconomicPlan = () => {
       <div>
         <h1 className="text-2xl font-bold">Wirtschaftsplan</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          KI-gestützten Wirtschaftsplan basierend auf der Vorjahresabrechnung erstellen
+          Wirtschaftsplan basierend auf der Vorjahresabrechnung erstellen
         </p>
       </div>
 
