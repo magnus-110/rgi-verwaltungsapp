@@ -101,19 +101,33 @@ export function EconomicPlanEditor({ buildingId, periodId, fiscalYear }: Economi
   const { data: reserveBalance } = useQuery({
     queryKey: ["reserve-balance", buildingId, fiscalYear],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Get all balances for this building/year, then filter for reserve accounts
+      const { data: balances, error: bErr } = await supabase
         .from("account_balances")
-        .select("closing_balance, chart_of_accounts!inner(account_name)")
+        .select("closing_balance, account_id")
         .eq("building_id", buildingId)
-        .eq("fiscal_year", fiscalYear)
-        .eq("chart_of_accounts.carry_forward_balance" as any, true);
-      if (error) throw error;
-      const reserveAccounts = (data || []).filter((d: any) =>
-        d.chart_of_accounts?.account_name?.toLowerCase().includes("rücklage") ||
-        d.chart_of_accounts?.account_name?.toLowerCase().includes("rucklage") ||
-        d.chart_of_accounts?.account_name?.toLowerCase().includes("erhaltung")
+        .eq("fiscal_year", fiscalYear);
+      if (bErr) throw bErr;
+
+      const { data: accs, error: aErr } = await supabase
+        .from("chart_of_accounts")
+        .select("id, account_name")
+        .eq("carry_forward_balance", true);
+      if (aErr) throw aErr;
+
+      const reserveIds = new Set(
+        (accs || [])
+          .filter((a) =>
+            a.account_name?.toLowerCase().includes("rücklage") ||
+            a.account_name?.toLowerCase().includes("rucklage") ||
+            a.account_name?.toLowerCase().includes("erhaltung")
+          )
+          .map((a) => a.id)
       );
-      return reserveAccounts.reduce((s: number, a: any) => s + Number(a.closing_balance || 0), 0);
+
+      return (balances || [])
+        .filter((b) => reserveIds.has(b.account_id))
+        .reduce((s, a) => s + Number(a.closing_balance || 0), 0);
     },
   });
 
