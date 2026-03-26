@@ -16,7 +16,7 @@ import { Dashboard } from "./pages/Dashboard";
 import { Reports } from "./pages/Reports";
 import { Buildings } from "./pages/Buildings";
 import { Forum } from "./pages/Forum";
-import { ChatbotSettings } from "./pages/ChatbotSettings";
+
 import { Settings } from "./pages/Settings";
 import { Documents } from "./pages/Documents";
 import { DocumentSettings } from "./pages/DocumentSettings";
