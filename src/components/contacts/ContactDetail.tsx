@@ -365,7 +365,7 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
         <Tabs defaultValue="personen">
           <TabsList variant="segment" className="w-full grid grid-cols-3">
             <TabsTrigger variant="segment" value="stammdaten">Stammdaten</TabsTrigger>
-            <TabsTrigger value="personen" className="gap-1">
+            <TabsTrigger variant="segment" value="personen" className="gap-1">
               <Users className="h-3.5 w-3.5" />
               Personen {visiblePersons.length > 0 && `(${visiblePersons.length})`}
             </TabsTrigger>
