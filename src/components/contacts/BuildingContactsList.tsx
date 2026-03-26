@@ -544,11 +544,11 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
               {isExpanded && (
                 <div className="px-4 pb-4 pt-3 border-t border-border">
                   <Tabs defaultValue="overview" className="w-full">
-                    <TabsList className="w-full h-8 mb-3">
-                      <TabsTrigger value="overview" className="text-xs h-7 flex-1">Übersicht</TabsTrigger>
-                      <TabsTrigger value="shares" className="text-xs h-7 flex-1">Anteile</TabsTrigger>
-                      <TabsTrigger value="costs" className="text-xs h-7 flex-1">Kosten</TabsTrigger>
-                      <TabsTrigger value="bank" className="text-xs h-7 flex-1">Bank</TabsTrigger>
+                    <TabsList variant="underline" className="w-full h-8 mb-3">
+                      <TabsTrigger variant="underline" value="overview" className="text-xs h-7 flex-1">Übersicht</TabsTrigger>
+                      <TabsTrigger variant="underline" value="shares" className="text-xs h-7 flex-1">Anteile</TabsTrigger>
+                      <TabsTrigger variant="underline" value="costs" className="text-xs h-7 flex-1">Kosten</TabsTrigger>
+                      <TabsTrigger variant="underline" value="bank" className="text-xs h-7 flex-1">Bank</TabsTrigger>
                     </TabsList>
 
                     {/* Tab: Übersicht */}

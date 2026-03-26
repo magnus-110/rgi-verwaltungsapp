@@ -414,8 +414,8 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
           </p>
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="mb-4 flex-wrap h-auto">
-              <TabsTrigger value="overview">Kostenübersicht</TabsTrigger>
+            <TabsList variant="underline" className="mb-4 flex-wrap h-auto">
+              <TabsTrigger variant="underline" value="overview">Kostenübersicht</TabsTrigger>
               <TabsTrigger value="owners">
                 <Users className="h-4 w-4 mr-1" /> Eigentümer ({ownerResults.length})
               </TabsTrigger>

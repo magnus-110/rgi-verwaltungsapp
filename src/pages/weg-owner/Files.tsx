@@ -189,7 +189,7 @@ export function WegOwnerFiles() {
       </div>
 
       <Tabs defaultValue="personal">
-        <TabsList className="w-full grid grid-cols-2">
+        <TabsList variant="pill" className="w-full grid grid-cols-2">
           <TabsTrigger value="personal" className="gap-2">
             <User className="w-4 h-4" />
             Persönlich ({personalFiles.length})

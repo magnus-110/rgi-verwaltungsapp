@@ -580,9 +580,9 @@ Beschreibung: ${report.description}`;
         {/* Toolbar */}
         <div className="flex flex-wrap items-center gap-4 justify-between">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList>
-              <TabsTrigger value="reports">Meldungen</TabsTrigger>
-              <TabsTrigger value="templates">Vorlagen</TabsTrigger>
+            <TabsList variant="underline">
+              <TabsTrigger variant="underline" value="reports">Meldungen</TabsTrigger>
+              <TabsTrigger variant="underline" value="templates">Vorlagen</TabsTrigger>
             </TabsList>
           </Tabs>
 

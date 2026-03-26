@@ -363,13 +363,13 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
 
       <div className="p-6">
         <Tabs defaultValue="personen">
-          <TabsList className="w-full grid grid-cols-3">
-            <TabsTrigger value="stammdaten">Stammdaten</TabsTrigger>
+          <TabsList variant="segment" className="w-full grid grid-cols-3">
+            <TabsTrigger variant="segment" value="stammdaten">Stammdaten</TabsTrigger>
             <TabsTrigger value="personen" className="gap-1">
               <Users className="h-3.5 w-3.5" />
               Personen {visiblePersons.length > 0 && `(${visiblePersons.length})`}
             </TabsTrigger>
-            <TabsTrigger value="gebaeude">Gebäude</TabsTrigger>
+            <TabsTrigger variant="segment" value="gebaeude">Gebäude</TabsTrigger>
           </TabsList>
 
           {/* Stammdaten Tab */}

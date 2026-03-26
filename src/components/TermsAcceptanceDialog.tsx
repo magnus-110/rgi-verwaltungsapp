@@ -60,9 +60,9 @@ export const TermsAcceptanceDialog = ({ open, userId, onAccepted }: TermsAccepta
             </DialogHeader>
 
             <Tabs defaultValue="agb" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="agb">AGB</TabsTrigger>
-                <TabsTrigger value="datenschutz">Datenschutz</TabsTrigger>
+              <TabsList variant="pill" className="grid w-full grid-cols-2">
+                <TabsTrigger variant="pill" value="agb">AGB</TabsTrigger>
+                <TabsTrigger variant="pill" value="datenschutz">Datenschutz</TabsTrigger>
               </TabsList>
               
               <TabsContent value="agb">

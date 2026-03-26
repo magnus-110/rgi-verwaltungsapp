@@ -157,8 +157,8 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
 
       {/* Tabs */}
       <Tabs defaultValue="overview" className="flex-1 flex flex-col min-h-0">
-        <div className="border-b border-border px-4 md:px-6 bg-card overflow-x-auto">
-          <TabsList className="h-auto p-0 bg-transparent gap-0">
+        <div className="px-4 md:px-6 bg-card overflow-x-auto">
+          <TabsList variant="underline">
             {[
               { value: "overview", label: "Übersicht" },
               { value: "people", label: "Personen" },
@@ -169,8 +169,8 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
               { value: "distribution", label: "Kontenrahmen" },
               { value: "finance", label: "Finanzen" },
             ].map(tab => (
-              <TabsTrigger key={tab.value} value={tab.value}
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-4 py-3 text-sm whitespace-nowrap">
+              <TabsTrigger key={tab.value} value={tab.value} variant="underline"
+                className="px-4 py-3 whitespace-nowrap">
                 {tab.label}
               </TabsTrigger>
             ))}
