@@ -1,34 +1,45 @@
 
-# Plan: WEG-Abrechnungsmodul
 
-## Status: Phase 2 implementiert ✅
+# Plan: Einstellungsseite neu strukturieren & Chatbot integrieren
 
-### Erledigte Schritte (Phase 1)
-1. ✅ **DB-Migrationen**: billing_periods, fuel_inventory, account_balances, billing_validations + neue Spalten in chart_of_accounts und bookings
-2. ✅ **Kontenrahmen erweitert**: 3 neue Flags (is_billing_relevant, is_heating_relevant, carry_forward_balance) im UI
-3. ✅ **BillingTab mit Stepper**: Flexibler Workflow mit 8 Schritten, BillingPeriodSelector
-4. ✅ **Saldenübernahme**: BalanceCarryForward mit Vorjahres-Übernahme
-5. ✅ **Brennstoff-Inventar**: FuelInventorySection mit CRUD und Plausibilitätsprüfung
-6. ✅ **Heizkosten-Kontenübersicht**: HeatingAccountsSection mit Vorjahresvergleich
-7. ✅ **Kontrollcenter**: BillingValidationPanel mit Live-Prüfungen
+## Aktuelle Probleme
+- Settings-Seite ist eine lange Card-Liste ohne Struktur (877 Zeilen)
+- Chatbot-Einstellungen sind eine separate Seite (`/chatbot`) mit eigenem Sidebar-Eintrag
+- Kontenrahmen und PDF-Vorlagen sollen ebenfalls in die Einstellungen (aus dem vorherigen Plan)
 
-### Erledigte Schritte (Phase 2)
-8. ✅ **Rechtskonformität**: Vermögensbericht (§28 WEG), §35a EStG-Bescheinigung, zeitanteilige Berechnung
-9. ✅ **Rücklage als eigene Position**: Betriebskosten + Rücklage getrennt dargestellt
-10. ✅ **PDF-Generierung**: generate-billing-pdf Edge Function (Gesamt + Einzelabrechnungen)
-11. ✅ **Report Templates**: ReportTemplateSettings mit Upload, Vorlagen-Verwaltung
-12. ✅ **Wirtschaftsplan-KI**: generate-economic-plan Edge Function mit Mistral Large
-13. ✅ **EconomicPlanEditor**: KI-gestützter Wirtschaftsplan mit Hausgeld-Vergleich
+## Neue Struktur: Tab-basierte Einstellungsseite
 
-### DB-Tabellen (Phase 2)
-- `economic_plans` — Wirtschaftspläne pro Gebäude/Jahr
-- `economic_plan_items` — Einzelpositionen mit KI-Vorschlägen
-- `report_templates` — PDF-Vorlagen mit Hintergrund-Upload
+Die Einstellungsseite wird in **5 Tabs** aufgeteilt, die über eine horizontale Tab-Navigation erreichbar sind:
 
-## Betroffene Dateien
-- `src/components/finance/BillingTab.tsx` — 8 Schritte inkl. Wirtschaftsplan & Vorlagen
-- `src/components/finance/BillingSettlement.tsx` — Vermögensbericht, §35a, zeitanteilig, PDF-Buttons
-- `src/components/finance/EconomicPlanEditor.tsx` — NEU
-- `src/components/finance/ReportTemplateSettings.tsx` — NEU
-- `supabase/functions/generate-billing-pdf/index.ts` — NEU
-- `supabase/functions/generate-economic-plan/index.ts` — NEU
+```text
+Einstellungen
+├── Profil & Sicherheit     → Persönliche Daten, Passwort ändern
+├── Benutzerverwaltung       → Admins erstellen/verwalten, Mitarbeiter erstellen/verwalten
+├── Chatbot (NOVA)           → System Prompt, Wissensdokumente, Gesprächsverlauf
+├── E-Mail                   → E-Mail-Einstellungen (EmailSettingsSection)
+└── Dokumente & Vorlagen     → Kontenrahmen, PDF-Vorlagen (ReportTemplateSettings)
+```
+
+## Umsetzung
+
+### 1. Settings.tsx umbauen
+- Tabs-Komponente (shadcn `Tabs`) als Hauptnavigation
+- Jeder Tab rendert die entsprechenden Cards
+- **Tab "Chatbot"**: Gesamten Inhalt aus `ChatbotSettings.tsx` hierher verschieben (System Prompt, KnowledgeDocumentsManager, Gesprächsverlauf)
+- **Tab "Dokumente & Vorlagen"**: `ChartOfAccountsTab` (globaler Kontenrahmen) und `ReportTemplateSettings` einbetten
+
+### 2. Sidebar bereinigen
+**`AdminSidebar.tsx`**: "Chatbot"-Eintrag (`/chatbot`) aus `menuItems` entfernen. Die Chatbot-Verwaltung ist nun unter Einstellungen erreichbar.
+
+### 3. Route entfernen
+**`App.tsx`**: Route `/chatbot` entfernt oder als Redirect zu `/settings?tab=chatbot` umgeleitet.
+
+### 4. Betroffene Dateien
+
+| Datei | Änderung |
+|---|---|
+| `src/pages/Settings.tsx` | Komplett umgebaut: 5 Tabs, Chatbot-Logik integriert |
+| `src/components/AdminSidebar.tsx` | "Chatbot" aus menuItems entfernen |
+| `src/App.tsx` | `/chatbot` Route → Redirect zu `/settings` |
+| `src/pages/ChatbotSettings.tsx` | Bleibt als Datei bestehen (Import in Settings), oder Inhalt wird direkt migriert |
+
