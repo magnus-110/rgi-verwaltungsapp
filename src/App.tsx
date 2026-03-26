@@ -72,7 +72,7 @@ const App = () => (
               <Route path="/forum" element={<Navigate to="/buildings" replace />} />
               <Route path="/documents" element={<AdminLayout><Documents /></AdminLayout>} />
               <Route path="/documents/settings" element={<AdminLayout><DocumentSettings /></AdminLayout>} />
-              <Route path="/chatbot" element={<AdminLayout><ChatbotSettings /></AdminLayout>} />
+              <Route path="/chatbot" element={<Navigate to="/settings?tab=chatbot" replace />} />
               <Route path="/webhooks" element={<AdminLayout><WebhookSettings /></AdminLayout>} />
               <Route path="/settings" element={<AdminLayout><Settings /></AdminLayout>} />
               <Route path="/todos" element={<AdminLayout><Todos /></AdminLayout>} />
