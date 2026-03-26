@@ -364,7 +364,7 @@ export const Settings = () => {
           <TabsList variant="segment" className="w-full flex flex-wrap h-auto gap-1">
             <TabsTrigger variant="segment" value="profile" className="flex-1 min-w-[100px] text-xs sm:text-sm">Profil & Sicherheit</TabsTrigger>
             {isAdmin && <TabsTrigger variant="segment" value="users" className="flex-1 min-w-[100px] text-xs sm:text-sm">Benutzerverwaltung</TabsTrigger>}
-            {isAdmin && <TabsTrigger variant="segment" value="chatbot" className="flex-1 min-w-[100px] text-xs sm:text-sm">Chatbot (NOVA)</TabsTrigger>}
+            {isAdmin && <TabsTrigger variant="segment" value="chatbot" className="flex-1 min-w-[100px] text-xs sm:text-sm">Chatbot</TabsTrigger>}
             {isAdmin && <TabsTrigger variant="segment" value="email" className="flex-1 min-w-[100px] text-xs sm:text-sm">E-Mail</TabsTrigger>}
             {isAdmin && <TabsTrigger variant="segment" value="templates" className="flex-1 min-w-[100px] text-xs sm:text-sm">Dokumente & Vorlagen</TabsTrigger>}
           </TabsList>
