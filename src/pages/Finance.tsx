@@ -40,19 +40,19 @@ export const Finance = () => {
       </div>
 
       <Tabs defaultValue="buchen" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="buchen">Buchen</TabsTrigger>
-          <TabsTrigger value="abrechnung">Abrechnung</TabsTrigger>
-          <TabsTrigger value="wirtschaftsplan">Wirtschaftsplan</TabsTrigger>
+        <TabsList variant="segment" className="grid w-full grid-cols-3">
+          <TabsTrigger variant="segment" value="buchen">Buchen</TabsTrigger>
+          <TabsTrigger variant="segment" value="abrechnung">Abrechnung</TabsTrigger>
+          <TabsTrigger variant="segment" value="wirtschaftsplan">Wirtschaftsplan</TabsTrigger>
         </TabsList>
 
         <TabsContent value="buchen">
           <Tabs defaultValue="invoices" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="invoices">Rechnungen</TabsTrigger>
-              <TabsTrigger value="templates">Vorlagen</TabsTrigger>
-              <TabsTrigger value="statements">Kontoauszüge</TabsTrigger>
-              <TabsTrigger value="bookings">Buchungen</TabsTrigger>
+            <TabsList variant="pill" className="grid w-full grid-cols-4">
+              <TabsTrigger variant="pill" value="invoices">Rechnungen</TabsTrigger>
+              <TabsTrigger variant="pill" value="templates">Vorlagen</TabsTrigger>
+              <TabsTrigger variant="pill" value="statements">Kontoauszüge</TabsTrigger>
+              <TabsTrigger variant="pill" value="bookings">Buchungen</TabsTrigger>
             </TabsList>
             <TabsContent value="invoices"><InvoicesTab /></TabsContent>
             <TabsContent value="templates"><BookingTemplatesTab /></TabsContent>

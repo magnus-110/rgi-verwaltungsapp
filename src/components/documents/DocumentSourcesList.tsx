@@ -317,16 +317,16 @@ export function DocumentSourcesList() {
           renderEmptyState("Noch keine Dokumente hochgeladen.")
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="mb-4">
-              <TabsTrigger value="all" className="gap-2">
+            <TabsList variant="underline" className="mb-4">
+              <TabsTrigger variant="underline" value="all" className="gap-2">
                 <FileText className="h-4 w-4" />
                 Alle ({allDocuments.length})
               </TabsTrigger>
-              <TabsTrigger value="general" className="gap-2">
+              <TabsTrigger variant="underline" value="general" className="gap-2">
                 <Globe className="h-4 w-4" />
                 Allgemein ({generalDocuments.length})
               </TabsTrigger>
-              <TabsTrigger value="buildings" className="gap-2">
+              <TabsTrigger variant="underline" value="buildings" className="gap-2">
                 <Building2 className="h-4 w-4" />
                 Gebäude ({buildingDocuments.length})
               </TabsTrigger>

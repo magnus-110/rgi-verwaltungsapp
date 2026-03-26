@@ -18,10 +18,10 @@
          </SheetHeader>
  
          <Tabs defaultValue={defaultTab} className="w-full mt-4">
-           <TabsList className="grid w-full grid-cols-2">
-             <TabsTrigger value="agb">AGB</TabsTrigger>
-             <TabsTrigger value="datenschutz">Datenschutz</TabsTrigger>
-           </TabsList>
+            <TabsList variant="pill" className="grid w-full grid-cols-2">
+              <TabsTrigger variant="pill" value="agb">AGB</TabsTrigger>
+              <TabsTrigger variant="pill" value="datenschutz">Datenschutz</TabsTrigger>
+            </TabsList>
            
            <TabsContent value="agb">
              <ScrollArea className="h-[calc(85vh-140px)] w-full rounded-md border p-4">
