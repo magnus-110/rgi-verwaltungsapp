@@ -26,6 +26,8 @@ import { Calendar } from "./pages/Calendar";
 import { Files } from "./pages/Files";
 import { Contacts } from "./pages/Contacts";
 import { Finance } from "./pages/Finance";
+import { Billing } from "./pages/Billing";
+import { EconomicPlan } from "./pages/EconomicPlan";
 import { Inbox } from "./pages/Inbox";
 import { AdminLayout } from "./components/AdminLayout";
 import { WegOwnerLayout } from "./components/WegOwnerLayout";
@@ -80,6 +82,8 @@ const App = () => (
               <Route path="/files" element={<Navigate to="/buildings" replace />} />
               <Route path="/contacts" element={<AdminLayout><Contacts /></AdminLayout>} />
               <Route path="/finanzen" element={<AdminLayout><Finance /></AdminLayout>} />
+              <Route path="/finanzen/abrechnung" element={<AdminLayout><Billing /></AdminLayout>} />
+              <Route path="/finanzen/wirtschaftsplan" element={<AdminLayout><EconomicPlan /></AdminLayout>} />
               <Route path="/postfach" element={<AdminLayout><Inbox /></AdminLayout>} />
               
               {/* Legacy admin routes for compatibility */}
