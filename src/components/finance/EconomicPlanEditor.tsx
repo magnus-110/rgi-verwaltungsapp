@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Sparkles, Loader2, Check, FileText, Save } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Sparkles, Loader2, Check, Save, ChevronDown, ChevronRight, Info, FileText, Shield, PiggyBank, Users } from "lucide-react";
 import { toast } from "sonner";
 
 interface EconomicPlanEditorProps {
@@ -15,13 +16,23 @@ interface EconomicPlanEditorProps {
   fiscalYear: number;
 }
 
+const STEPS = [
+  { id: "gesamt", label: "Gesamtwirtschaftsplan", description: "Voraussichtliche Bewirtschaftungskosten nach Kostenarten planen", icon: FileText },
+  { id: "ruecklage", label: "Erhaltungsrücklage", description: "Zuführung zur Erhaltungsrücklage gem. §19 Abs. 2 Nr. 4 WEG festlegen", icon: PiggyBank },
+  { id: "einzel", label: "Einzelwirtschaftspläne", description: "Hausgeld-Vorschüsse pro Eigentümer gem. §28 Abs. 1 WEG berechnen", icon: Users },
+  { id: "genehmigung", label: "Genehmigung & Export", description: "Wirtschaftsplan genehmigen und als PDF exportieren", icon: Shield },
+];
+
 export function EconomicPlanEditor({ buildingId, periodId, fiscalYear }: EconomicPlanEditorProps) {
   const queryClient = useQueryClient();
   const planYear = fiscalYear + 1;
   const [generating, setGenerating] = useState(false);
   const [editedAmounts, setEditedAmounts] = useState<Record<string, number>>({});
+  const [editedReserve, setEditedReserve] = useState<number | null>(null);
+  const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set(["gesamt"]));
+  const [showGuide, setShowGuide] = useState(false);
 
-  // Check for existing plan
+  // Existing plan
   const { data: existingPlan, isLoading: loadingPlan } = useQuery({
     queryKey: ["economic-plan", buildingId, planYear],
     queryFn: async () => {
@@ -36,7 +47,7 @@ export function EconomicPlanEditor({ buildingId, periodId, fiscalYear }: Economi
     },
   });
 
-  // Accounts for reference
+  // Billing-relevant accounts
   const { data: accounts = [] } = useQuery({
     queryKey: ["billing-accounts-plan", buildingId],
     queryFn: async () => {
@@ -66,7 +77,7 @@ export function EconomicPlanEditor({ buildingId, periodId, fiscalYear }: Economi
     },
   });
 
-  // Owner assignments for Hausgeld calculation
+  // Owner assignments
   const { data: assignments = [] } = useQuery({
     queryKey: ["plan-assignments", buildingId],
     queryFn: async () => {
@@ -86,14 +97,42 @@ export function EconomicPlanEditor({ buildingId, periodId, fiscalYear }: Economi
     },
   });
 
+  // Current reserve balance
+  const { data: reserveBalance } = useQuery({
+    queryKey: ["reserve-balance", buildingId, fiscalYear],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("account_balances")
+        .select("closing_balance, chart_of_accounts!inner(account_name)")
+        .eq("building_id", buildingId)
+        .eq("fiscal_year", fiscalYear)
+        .eq("chart_of_accounts.carry_forward_balance" as any, true);
+      if (error) throw error;
+      const reserveAccounts = (data || []).filter((d: any) =>
+        d.chart_of_accounts?.account_name?.toLowerCase().includes("rücklage") ||
+        d.chart_of_accounts?.account_name?.toLowerCase().includes("rucklage") ||
+        d.chart_of_accounts?.account_name?.toLowerCase().includes("erhaltung")
+      );
+      return reserveAccounts.reduce((s: number, a: any) => s + Number(a.closing_balance || 0), 0);
+    },
+  });
+
+  const items: any[] = existingPlan?.economic_plan_items || [];
+
+  // Group accounts by category
   const prevYearTotals = accounts.map((acc) => {
     const total = prevBookings
       .filter((b) => b.account_id === acc.id)
       .reduce((s, b) => s + Math.abs(Number(b.amount)), 0);
     return { ...acc, previousAmount: total };
-  }).filter((a) => a.previousAmount > 0 || (existingPlan?.economic_plan_items || []).some((i: any) => i.account_id === a.id));
+  }).filter((a) => a.previousAmount > 0 || items.some((i: any) => i.account_id === a.id));
 
-  const items: any[] = existingPlan?.economic_plan_items || [];
+  const categoryGroups = prevYearTotals.reduce<Record<string, typeof prevYearTotals>>((groups, acc) => {
+    const cat = acc.category || "Sonstige";
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(acc);
+    return groups;
+  }, {});
 
   const getPlannedAmount = (accountId: string, previousAmount: number) => {
     if (editedAmounts[accountId] !== undefined) return editedAmounts[accountId];
@@ -109,6 +148,45 @@ export function EconomicPlanEditor({ buildingId, periodId, fiscalYear }: Economi
   const totalPlanned = prevYearTotals.reduce((s, a) => s + getPlannedAmount(a.id, a.previousAmount), 0);
   const totalPrevious = prevYearTotals.reduce((s, a) => s + a.previousAmount, 0);
 
+  const plannedReserve = editedReserve ?? (existingPlan?.total_reserve ? Number(existingPlan.total_reserve) : 0);
+  const totalWithReserve = totalPlanned + plannedReserve;
+
+  // MEA calculations
+  const meaTotal = assignments.reduce((s, a: any) => {
+    const mea = (a.contact_building_shares || []).find((sh: any) => sh.share_type === "mea");
+    return s + (mea ? Number(mea.share_value) : 0);
+  }, 0);
+
+  const ownerPlans = assignments.map((a: any) => {
+    const contact = a.contacts;
+    const name = contact?.company_name || [contact?.first_name, contact?.last_name].filter(Boolean).join(" ") || "–";
+    const mea = (a.contact_building_shares || []).find((sh: any) => sh.share_type === "mea");
+    const meaValue = mea ? Number(mea.share_value) : 0;
+    const proportion = meaTotal > 0 ? meaValue / meaTotal : 0;
+
+    const annualCosts = totalPlanned * proportion;
+    const annualReserve = plannedReserve * proportion;
+    const annualTotal = annualCosts + annualReserve;
+    const monthlyHausgeld = annualTotal / 12;
+
+    const currentCosts = (a.contact_building_costs || [])
+      .filter((c: any) => c.cost_type === "hausgeld" || c.cost_type === "nebenkosten")
+      .reduce((s: number, c: any) => s + Number(c.amount), 0);
+
+    return { name, unitNumber: a.unit_number || "–", meaValue, annualCosts, annualReserve, annualTotal, monthlyHausgeld, currentHausgeld: currentCosts };
+  });
+
+  const toggleStep = (stepId: string) => {
+    setExpandedSteps((prev) => {
+      const next = new Set(prev);
+      next.has(stepId) ? next.delete(stepId) : next.add(stepId);
+      return next;
+    });
+  };
+
+  const formatCurrency = (n: number) =>
+    new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
+
   const generateWithAI = async () => {
     setGenerating(true);
     try {
@@ -118,7 +196,7 @@ export function EconomicPlanEditor({ buildingId, periodId, fiscalYear }: Economi
       if (error) throw error;
       queryClient.invalidateQueries({ queryKey: ["economic-plan", buildingId, planYear] });
       setEditedAmounts({});
-      toast.success("KI-Wirtschaftsplan generiert");
+      toast.success("Vorschlag generiert");
     } catch (e: any) {
       toast.error("Fehler: " + (e.message || "Unbekannter Fehler"));
     } finally {
@@ -128,12 +206,12 @@ export function EconomicPlanEditor({ buildingId, periodId, fiscalYear }: Economi
 
   const savePlan = useMutation({
     mutationFn: async () => {
-      // Upsert plan
       const planData = {
         building_id: buildingId,
         fiscal_year: planYear,
         based_on_period_id: periodId,
         total_costs: totalPlanned,
+        total_reserve: plannedReserve,
         status: existingPlan?.status || "draft",
       };
 
@@ -146,7 +224,6 @@ export function EconomicPlanEditor({ buildingId, periodId, fiscalYear }: Economi
         planId = (data as any).id;
       }
 
-      // Upsert items
       for (const acc of prevYearTotals) {
         const planned = getPlannedAmount(acc.id, acc.previousAmount);
         const existing = items.find((i: any) => i.account_id === acc.id);
@@ -188,31 +265,6 @@ export function EconomicPlanEditor({ buildingId, periodId, fiscalYear }: Economi
     onError: (e: any) => toast.error(e.message),
   });
 
-  const formatCurrency = (n: number) =>
-    new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
-
-  // Calculate new monthly Hausgeld per owner
-  const meaTotal = assignments.reduce((s, a: any) => {
-    const mea = (a.contact_building_shares || []).find((sh: any) => sh.share_type === "mea");
-    return s + (mea ? Number(mea.share_value) : 0);
-  }, 0);
-
-  const ownerHausgeld = assignments.map((a: any) => {
-    const contact = a.contacts;
-    const name = contact?.company_name || [contact?.first_name, contact?.last_name].filter(Boolean).join(" ") || "–";
-    const mea = (a.contact_building_shares || []).find((sh: any) => sh.share_type === "mea");
-    const meaValue = mea ? Number(mea.share_value) : 0;
-    const proportion = meaTotal > 0 ? meaValue / meaTotal : 0;
-    const annualShare = totalPlanned * proportion;
-    const monthlyHausgeld = annualShare / 12;
-
-    const currentCosts = (a.contact_building_costs || [])
-      .filter((c: any) => c.cost_type === "hausgeld" || c.cost_type === "nebenkosten")
-      .reduce((s: number, c: any) => s + Number(c.amount), 0);
-
-    return { name, unitNumber: a.unit_number || "–", meaValue, monthlyHausgeld, currentHausgeld: currentCosts };
-  });
-
   if (loadingPlan) {
     return (
       <Card>
@@ -224,50 +276,196 @@ export function EconomicPlanEditor({ buildingId, periodId, fiscalYear }: Economi
   }
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
-          <div>
-            <CardTitle className="text-base">Wirtschaftsplan {planYear}</CardTitle>
-            <p className="text-sm text-muted-foreground mt-1">
-              Basierend auf der Abrechnung {fiscalYear}
-              {existingPlan && (
-                <Badge variant="outline" className="ml-2">
-                  {existingPlan.status === "approved" ? "Genehmigt" : existingPlan.status === "active" ? "Aktiv" : "Entwurf"}
-                </Badge>
-              )}
-            </p>
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            <Button size="sm" variant="outline" onClick={generateWithAI} disabled={generating}>
-              {generating ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
-              KI-Vorschlag
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => savePlan.mutate()} disabled={savePlan.isPending}>
-              <Save className="h-4 w-4 mr-1" /> Speichern
-            </Button>
-            {existingPlan && existingPlan.status === "draft" && (
-              <Button size="sm" onClick={() => approvePlan.mutate()} disabled={approvePlan.isPending}>
-                <Check className="h-4 w-4 mr-1" /> Genehmigen
-              </Button>
+    <div className="space-y-2">
+      {/* Header with status */}
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-semibold">Wirtschaftsplan {planYear}</h2>
+          {existingPlan && (
+            <Badge variant={existingPlan.status === "approved" ? "default" : "outline"}>
+              {existingPlan.status === "approved" ? "Genehmigt" : existingPlan.status === "active" ? "Aktiv" : "Entwurf"}
+            </Badge>
+          )}
+        </div>
+        <p className="text-sm text-muted-foreground">Basierend auf Abrechnung {fiscalYear}</p>
+      </div>
+
+      {/* Guide */}
+      <Collapsible open={showGuide} onOpenChange={setShowGuide}>
+        <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-full">
+          <Info className="h-4 w-4" />
+          <span>Anleitung: Wirtschaftsplan erstellen</span>
+          {showGuide ? <ChevronDown className="h-3 w-3 ml-auto" /> : <ChevronRight className="h-3 w-3 ml-auto" />}
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <Card className="mt-2">
+            <CardContent className="pt-4">
+              <ol className="space-y-3 text-sm">
+                {STEPS.map((step, i) => (
+                  <li key={step.id} className="flex gap-3">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground">{i + 1}</span>
+                    <div>
+                      <span className="font-medium">{step.label}</span>
+                      <span className="text-muted-foreground ml-1">– {step.description}</span>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+              <p className="text-xs text-muted-foreground mt-4 border-t pt-3">
+                Der Wirtschaftsplan besteht aus Gesamtwirtschaftsplan (alle Kosten der Gemeinschaft) und Einzelwirtschaftsplänen (Hausgeld pro Eigentümer) gem. §28 WEG.
+              </p>
+            </CardContent>
+          </Card>
+        </CollapsibleContent>
+      </Collapsible>
+
+      {/* Steps */}
+      {STEPS.map((step, index) => {
+        const isExpanded = expandedSteps.has(step.id);
+        const StepIcon = step.icon;
+        return (
+          <Card key={step.id} className="overflow-hidden">
+            <button
+              onClick={() => toggleStep(step.id)}
+              className="w-full flex items-center gap-3 p-4 hover:bg-muted/30 text-left transition-colors"
+            >
+              <span className="flex-shrink-0 w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold">
+                {index + 1}
+              </span>
+              <StepIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <span className="font-medium text-sm">{step.label}</span>
+                {!isExpanded && (
+                  <span className="text-xs text-muted-foreground ml-2 hidden md:inline">{step.description}</span>
+                )}
+              </div>
+              {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+            </button>
+
+            {isExpanded && (
+              <div className="px-4 pb-4 border-t">
+                <div className="pt-4">
+                  {step.id === "gesamt" && (
+                    <GesamtplanStep
+                      categoryGroups={categoryGroups}
+                      prevYearTotals={prevYearTotals}
+                      getPlannedAmount={getPlannedAmount}
+                      getReason={getReason}
+                      setEditedAmounts={setEditedAmounts}
+                      totalPrevious={totalPrevious}
+                      totalPlanned={totalPlanned}
+                      fiscalYear={fiscalYear}
+                      planYear={planYear}
+                      formatCurrency={formatCurrency}
+                      generating={generating}
+                      onGenerate={generateWithAI}
+                      onSave={() => savePlan.mutate()}
+                      saving={savePlan.isPending}
+                    />
+                  )}
+                  {step.id === "ruecklage" && (
+                    <RuecklageStep
+                      plannedReserve={plannedReserve}
+                      reserveBalance={reserveBalance ?? 0}
+                      onReserveChange={setEditedReserve}
+                      formatCurrency={formatCurrency}
+                      planYear={planYear}
+                    />
+                  )}
+                  {step.id === "einzel" && (
+                    <EinzelplanStep
+                      ownerPlans={ownerPlans}
+                      formatCurrency={formatCurrency}
+                      totalWithReserve={totalWithReserve}
+                      planYear={planYear}
+                    />
+                  )}
+                  {step.id === "genehmigung" && (
+                    <GenehmigungenStep
+                      existingPlan={existingPlan}
+                      onSave={() => savePlan.mutate()}
+                      onApprove={() => approvePlan.mutate()}
+                      saving={savePlan.isPending}
+                      approving={approvePlan.isPending}
+                      formatCurrency={formatCurrency}
+                      totalPlanned={totalPlanned}
+                      plannedReserve={plannedReserve}
+                      totalWithReserve={totalWithReserve}
+                      ownerCount={ownerPlans.length}
+                    />
+                  )}
+                </div>
+              </div>
             )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[80px]">Konto</TableHead>
-                  <TableHead>Bezeichnung</TableHead>
-                  <TableHead className="text-right">Ist {fiscalYear}</TableHead>
-                  <TableHead className="text-right w-[140px]">Plan {planYear}</TableHead>
-                  <TableHead className="text-right w-[80px]">Δ %</TableHead>
-                  <TableHead className="hidden md:table-cell">Begründung</TableHead>
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Step 1: Gesamtwirtschaftsplan ────────────────────────────────────────────
+
+interface GesamtplanStepProps {
+  categoryGroups: Record<string, any[]>;
+  prevYearTotals: any[];
+  getPlannedAmount: (id: string, prev: number) => number;
+  getReason: (id: string) => string;
+  setEditedAmounts: React.Dispatch<React.SetStateAction<Record<string, number>>>;
+  totalPrevious: number;
+  totalPlanned: number;
+  fiscalYear: number;
+  planYear: number;
+  formatCurrency: (n: number) => string;
+  generating: boolean;
+  onGenerate: () => void;
+  onSave: () => void;
+  saving: boolean;
+}
+
+function GesamtplanStep({
+  categoryGroups, prevYearTotals, getPlannedAmount, getReason, setEditedAmounts,
+  totalPrevious, totalPlanned, fiscalYear, planYear, formatCurrency,
+  generating, onGenerate, onSave, saving,
+}: GesamtplanStepProps) {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <p className="text-sm text-muted-foreground">
+          Planen Sie die voraussichtlichen Bewirtschaftungskosten für {planYear} basierend auf den Ist-Werten aus {fiscalYear}.
+        </p>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={onGenerate} disabled={generating}>
+            {generating ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
+            Vorschlag generieren
+          </Button>
+          <Button size="sm" variant="outline" onClick={onSave} disabled={saving}>
+            <Save className="h-4 w-4 mr-1" /> Speichern
+          </Button>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[80px]">Konto</TableHead>
+              <TableHead>Bezeichnung</TableHead>
+              <TableHead className="text-right">Ist {fiscalYear}</TableHead>
+              <TableHead className="text-right w-[140px]">Plan {planYear}</TableHead>
+              <TableHead className="text-right w-[80px]">Δ %</TableHead>
+              <TableHead className="hidden md:table-cell">Begründung</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {Object.entries(categoryGroups).map(([category, accs]) => (
+              <>
+                <TableRow key={`cat-${category}`} className="bg-muted/30">
+                  <TableCell colSpan={6} className="font-semibold text-xs uppercase tracking-wider text-muted-foreground py-2">
+                    {category}
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {prevYearTotals.map((acc) => {
+                {accs.map((acc) => {
                   const planned = getPlannedAmount(acc.id, acc.previousAmount);
                   const delta = acc.previousAmount > 0 ? ((planned - acc.previousAmount) / acc.previousAmount) * 100 : 0;
                   return (
@@ -285,7 +483,7 @@ export function EconomicPlanEditor({ buildingId, periodId, fiscalYear }: Economi
                       </TableCell>
                       <TableCell className="text-right text-xs">
                         {delta !== 0 && (
-                          <span className={delta > 0 ? "text-red-600" : "text-green-600"}>
+                          <span className={delta > 0 ? "text-destructive" : "text-green-600"}>
                             {delta > 0 ? "+" : ""}{delta.toFixed(1)}%
                           </span>
                         )}
@@ -296,68 +494,258 @@ export function EconomicPlanEditor({ buildingId, periodId, fiscalYear }: Economi
                     </TableRow>
                   );
                 })}
-                <TableRow className="font-medium border-t-2">
-                  <TableCell></TableCell>
-                  <TableCell>Gesamt</TableCell>
-                  <TableCell className="text-right font-mono">{formatCurrency(totalPrevious)}</TableCell>
-                  <TableCell className="text-right font-mono">{formatCurrency(totalPlanned)}</TableCell>
-                  <TableCell className="text-right text-xs">
-                    {totalPrevious > 0 && (
-                      <span className={totalPlanned > totalPrevious ? "text-red-600" : "text-green-600"}>
-                        {((totalPlanned - totalPrevious) / totalPrevious * 100) > 0 ? "+" : ""}
-                        {((totalPlanned - totalPrevious) / totalPrevious * 100).toFixed(1)}%
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell></TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+              </>
+            ))}
+            <TableRow className="font-medium border-t-2">
+              <TableCell></TableCell>
+              <TableCell>Bewirtschaftungskosten gesamt</TableCell>
+              <TableCell className="text-right font-mono">{formatCurrency(totalPrevious)}</TableCell>
+              <TableCell className="text-right font-mono">{formatCurrency(totalPlanned)}</TableCell>
+              <TableCell className="text-right text-xs">
+                {totalPrevious > 0 && (
+                  <span className={totalPlanned > totalPrevious ? "text-destructive" : "text-green-600"}>
+                    {((totalPlanned - totalPrevious) / totalPrevious * 100) > 0 ? "+" : ""}
+                    {((totalPlanned - totalPrevious) / totalPrevious * 100).toFixed(1)}%
+                  </span>
+                )}
+              </TableCell>
+              <TableCell></TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
 
-      {/* Hausgeld-Vergleich pro Eigentümer */}
-      {ownerHausgeld.length > 0 && (
+// ─── Step 2: Erhaltungsrücklage ───────────────────────────────────────────────
+
+interface RuecklageStepProps {
+  plannedReserve: number;
+  reserveBalance: number;
+  onReserveChange: (v: number) => void;
+  formatCurrency: (n: number) => string;
+  planYear: number;
+}
+
+function RuecklageStep({ plannedReserve, reserveBalance, onReserveChange, formatCurrency, planYear }: RuecklageStepProps) {
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Legen Sie die jährliche Zuführung zur Erhaltungsrücklage gem. §19 Abs. 2 Nr. 4 WEG fest.
+      </p>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Hausgeld-Vergleich pro Eigentümer</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Einheit</TableHead>
-                  <TableHead>Eigentümer</TableHead>
-                  <TableHead className="text-right">MEA</TableHead>
-                  <TableHead className="text-right">Aktuell / Monat</TableHead>
-                  <TableHead className="text-right">Neu / Monat</TableHead>
-                  <TableHead className="text-right">Differenz</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {ownerHausgeld.map((o, i) => {
-                  const diff = o.monthlyHausgeld - o.currentHausgeld;
-                  return (
-                    <TableRow key={i}>
-                      <TableCell className="text-sm">{o.unitNumber}</TableCell>
-                      <TableCell className="text-sm">{o.name}</TableCell>
-                      <TableCell className="text-right font-mono text-sm">{o.meaValue.toFixed(2)}</TableCell>
-                      <TableCell className="text-right font-mono text-sm text-muted-foreground">{formatCurrency(o.currentHausgeld)}</TableCell>
-                      <TableCell className="text-right font-mono text-sm font-medium">{formatCurrency(o.monthlyHausgeld)}</TableCell>
-                      <TableCell className="text-right font-mono text-sm">
-                        <span className={diff > 0 ? "text-red-600" : diff < 0 ? "text-green-600" : ""}>
-                          {diff > 0 ? "+" : ""}{formatCurrency(diff)}
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+          <CardContent className="pt-4">
+            <p className="text-xs text-muted-foreground mb-1">Aktueller Rücklagenstand</p>
+            <p className="text-xl font-bold font-mono">{formatCurrency(reserveBalance)}</p>
+            <p className="text-xs text-muted-foreground mt-1">per Ende Vorjahr</p>
           </CardContent>
         </Card>
-      )}
+
+        <Card className="border-primary/30">
+          <CardContent className="pt-4">
+            <p className="text-xs text-muted-foreground mb-1">Geplante Zuführung {planYear}</p>
+            <Input
+              type="number"
+              className="text-xl font-bold font-mono h-10 mt-1"
+              value={plannedReserve.toFixed(2)}
+              onChange={(e) => onReserveChange(Number(e.target.value))}
+            />
+            <p className="text-xs text-muted-foreground mt-1">jährliche Zuführung</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-4">
+            <p className="text-xs text-muted-foreground mb-1">Prognostizierter Stand Ende {planYear}</p>
+            <p className="text-xl font-bold font-mono">{formatCurrency(reserveBalance + plannedReserve)}</p>
+            <p className="text-xs text-muted-foreground mt-1">nach Zuführung</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="bg-muted/30 rounded-lg p-3 text-xs text-muted-foreground">
+        <p className="font-medium mb-1">Hinweis zur Erhaltungsrücklage</p>
+        <p>Die Zuführung zur Erhaltungsrücklage wird zusätzlich zu den Bewirtschaftungskosten auf die Eigentümer umgelegt und ist Bestandteil des monatlichen Hausgeldes.</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Step 3: Einzelwirtschaftspläne ───────────────────────────────────────────
+
+interface EinzelplanStepProps {
+  ownerPlans: {
+    name: string;
+    unitNumber: string;
+    meaValue: number;
+    annualCosts: number;
+    annualReserve: number;
+    annualTotal: number;
+    monthlyHausgeld: number;
+    currentHausgeld: number;
+  }[];
+  formatCurrency: (n: number) => string;
+  totalWithReserve: number;
+  planYear: number;
+}
+
+function EinzelplanStep({ ownerPlans, formatCurrency, totalWithReserve, planYear }: EinzelplanStepProps) {
+  if (ownerPlans.length === 0) {
+    return (
+      <div className="text-center py-8 text-muted-foreground text-sm">
+        Keine Eigentümer zugewiesen. Bitte weisen Sie zunächst Eigentümer mit MEA-Anteilen in der Kontaktverwaltung zu.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Hausgeld-Vorschüsse gem. §28 Abs. 1 WEG – monatliche Zahlungspflicht je Eigentümer für {planYear}.
+      </p>
+
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Einheit</TableHead>
+              <TableHead>Eigentümer</TableHead>
+              <TableHead className="text-right">MEA</TableHead>
+              <TableHead className="text-right">Bewirt.-Kosten/Jahr</TableHead>
+              <TableHead className="text-right">Rücklage/Jahr</TableHead>
+              <TableHead className="text-right">Gesamt/Jahr</TableHead>
+              <TableHead className="text-right font-semibold">Hausgeld/Monat</TableHead>
+              <TableHead className="text-right">Aktuell/Monat</TableHead>
+              <TableHead className="text-right">Differenz</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {ownerPlans.map((o, i) => {
+              const diff = o.monthlyHausgeld - o.currentHausgeld;
+              return (
+                <TableRow key={i}>
+                  <TableCell className="text-sm">{o.unitNumber}</TableCell>
+                  <TableCell className="text-sm font-medium">{o.name}</TableCell>
+                  <TableCell className="text-right font-mono text-sm">{o.meaValue.toFixed(2)}</TableCell>
+                  <TableCell className="text-right font-mono text-sm">{formatCurrency(o.annualCosts)}</TableCell>
+                  <TableCell className="text-right font-mono text-sm">{formatCurrency(o.annualReserve)}</TableCell>
+                  <TableCell className="text-right font-mono text-sm">{formatCurrency(o.annualTotal)}</TableCell>
+                  <TableCell className="text-right font-mono text-sm font-semibold">{formatCurrency(o.monthlyHausgeld)}</TableCell>
+                  <TableCell className="text-right font-mono text-sm text-muted-foreground">{formatCurrency(o.currentHausgeld)}</TableCell>
+                  <TableCell className="text-right font-mono text-sm">
+                    <span className={diff > 0 ? "text-destructive" : diff < 0 ? "text-green-600" : ""}>
+                      {diff > 0 ? "+" : ""}{formatCurrency(diff)}
+                    </span>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+            <TableRow className="font-medium border-t-2">
+              <TableCell colSpan={3}>Gesamt</TableCell>
+              <TableCell className="text-right font-mono">
+                {formatCurrency(ownerPlans.reduce((s, o) => s + o.annualCosts, 0))}
+              </TableCell>
+              <TableCell className="text-right font-mono">
+                {formatCurrency(ownerPlans.reduce((s, o) => s + o.annualReserve, 0))}
+              </TableCell>
+              <TableCell className="text-right font-mono">
+                {formatCurrency(ownerPlans.reduce((s, o) => s + o.annualTotal, 0))}
+              </TableCell>
+              <TableCell className="text-right font-mono font-semibold">
+                {formatCurrency(ownerPlans.reduce((s, o) => s + o.monthlyHausgeld, 0))}
+              </TableCell>
+              <TableCell className="text-right font-mono text-muted-foreground">
+                {formatCurrency(ownerPlans.reduce((s, o) => s + o.currentHausgeld, 0))}
+              </TableCell>
+              <TableCell></TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+// ─── Step 4: Genehmigung & Export ─────────────────────────────────────────────
+
+interface GenehmigungenStepProps {
+  existingPlan: any;
+  onSave: () => void;
+  onApprove: () => void;
+  saving: boolean;
+  approving: boolean;
+  formatCurrency: (n: number) => string;
+  totalPlanned: number;
+  plannedReserve: number;
+  totalWithReserve: number;
+  ownerCount: number;
+}
+
+function GenehmigungenStep({
+  existingPlan, onSave, onApprove, saving, approving,
+  formatCurrency, totalPlanned, plannedReserve, totalWithReserve, ownerCount,
+}: GenehmigungenStepProps) {
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground">
+        Prüfen Sie die Zusammenfassung und genehmigen Sie den Wirtschaftsplan.
+      </p>
+
+      {/* Summary */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <Card>
+          <CardContent className="pt-4 text-center">
+            <p className="text-xs text-muted-foreground">Bewirtschaftungskosten</p>
+            <p className="text-lg font-bold font-mono mt-1">{formatCurrency(totalPlanned)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 text-center">
+            <p className="text-xs text-muted-foreground">Erhaltungsrücklage</p>
+            <p className="text-lg font-bold font-mono mt-1">{formatCurrency(plannedReserve)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 text-center">
+            <p className="text-xs text-muted-foreground">Gesamtkosten</p>
+            <p className="text-lg font-bold font-mono mt-1">{formatCurrency(totalWithReserve)}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 text-center">
+            <p className="text-xs text-muted-foreground">Eigentümer</p>
+            <p className="text-lg font-bold mt-1">{ownerCount}</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Status & Actions */}
+      <div className="flex items-center justify-between flex-wrap gap-3 pt-2 border-t">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Status:</span>
+          {existingPlan ? (
+            <Badge variant={existingPlan.status === "approved" ? "default" : "outline"}>
+              {existingPlan.status === "approved" ? "Genehmigt" : "Entwurf"}
+            </Badge>
+          ) : (
+            <Badge variant="outline">Nicht gespeichert</Badge>
+          )}
+        </div>
+
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={onSave} disabled={saving}>
+            <Save className="h-4 w-4 mr-1" /> Speichern
+          </Button>
+          {(!existingPlan || existingPlan.status === "draft") && (
+            <Button size="sm" onClick={onApprove} disabled={approving || !existingPlan}>
+              <Check className="h-4 w-4 mr-1" /> Genehmigen
+            </Button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
