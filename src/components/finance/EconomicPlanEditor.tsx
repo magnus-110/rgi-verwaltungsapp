@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Sparkles, Loader2, Check, Save, ChevronDown, ChevronRight, Info, FileText, Shield, PiggyBank, Users } from "lucide-react";
+import { Sparkles, Loader2, Check, Save, ChevronDown, ChevronRight, Info, FileText, Shield, PiggyBank, Users, Eye } from "lucide-react";
 import { toast } from "sonner";
+import { EconomicPlanPreview } from "./EconomicPlanPreview";
 
 interface EconomicPlanEditorProps {
   buildingId: string;
