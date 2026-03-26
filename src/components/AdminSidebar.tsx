@@ -4,7 +4,6 @@ import {
   ClipboardList, 
   Castle, 
   Sparkles,
-  MessageCircle,
   Settings,
   LogOut,
   ToggleLeft,
@@ -41,7 +40,6 @@ const menuItems = [
   { title: "Gebäude", url: "/buildings", icon: Castle },
   { title: "Adressen", url: "/contacts", icon: BookUser },
   { title: "Finanzen", url: "/finanzen", icon: Landmark },
-  { title: "Chatbot", url: "/chatbot", icon: MessageCircle },
   { title: "Einstellungen", url: "/settings", icon: Settings, adminOnly: true },
 ];
 

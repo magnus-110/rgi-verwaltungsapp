@@ -16,7 +16,7 @@ import { Dashboard } from "./pages/Dashboard";
 import { Reports } from "./pages/Reports";
 import { Buildings } from "./pages/Buildings";
 import { Forum } from "./pages/Forum";
-import { ChatbotSettings } from "./pages/ChatbotSettings";
+
 import { Settings } from "./pages/Settings";
 import { Documents } from "./pages/Documents";
 import { DocumentSettings } from "./pages/DocumentSettings";
@@ -72,7 +72,7 @@ const App = () => (
               <Route path="/forum" element={<Navigate to="/buildings" replace />} />
               <Route path="/documents" element={<AdminLayout><Documents /></AdminLayout>} />
               <Route path="/documents/settings" element={<AdminLayout><DocumentSettings /></AdminLayout>} />
-              <Route path="/chatbot" element={<AdminLayout><ChatbotSettings /></AdminLayout>} />
+              <Route path="/chatbot" element={<Navigate to="/settings?tab=chatbot" replace />} />
               <Route path="/webhooks" element={<AdminLayout><WebhookSettings /></AdminLayout>} />
               <Route path="/settings" element={<AdminLayout><Settings /></AdminLayout>} />
               <Route path="/todos" element={<AdminLayout><Todos /></AdminLayout>} />
@@ -88,7 +88,7 @@ const App = () => (
               <Route path="/admin/reports" element={<AdminLayout><Reports /></AdminLayout>} />
               <Route path="/admin/buildings" element={<AdminLayout><Buildings /></AdminLayout>} />
               <Route path="/admin/forum" element={<Navigate to="/buildings" replace />} />
-              <Route path="/admin/chatbot-settings" element={<AdminLayout><ChatbotSettings /></AdminLayout>} />
+              <Route path="/admin/chatbot-settings" element={<Navigate to="/settings?tab=chatbot" replace />} />
               <Route path="/admin/settings" element={<AdminLayout><Settings /></AdminLayout>} />
               
               {/* WEG-Eigentümer Routes */}
