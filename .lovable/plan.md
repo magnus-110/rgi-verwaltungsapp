@@ -1,45 +1,43 @@
 
 
-# Plan: Einstellungsseite neu strukturieren & Chatbot integrieren
+# Plan: Finanzseite mit 3 Unterseiten-Navigation
 
-## Aktuelle Probleme
-- Settings-Seite ist eine lange Card-Liste ohne Struktur (877 Zeilen)
-- Chatbot-Einstellungen sind eine separate Seite (`/chatbot`) mit eigenem Sidebar-Eintrag
-- Kontenrahmen und PDF-Vorlagen sollen ebenfalls in die Einstellungen (aus dem vorherigen Plan)
+## Konzept
 
-## Neue Struktur: Tab-basierte Einstellungsseite
-
-Die Einstellungsseite wird in **5 Tabs** aufgeteilt, die über eine horizontale Tab-Navigation erreichbar sind:
+Die Finanzseite bekommt oben eine **Sub-Navigation mit 3 Bereichen** (wie Tabs/Segment-Control), die zwischen den drei Unterseiten wechselt:
 
 ```text
-Einstellungen
-├── Profil & Sicherheit     → Persönliche Daten, Passwort ändern
-├── Benutzerverwaltung       → Admins erstellen/verwalten, Mitarbeiter erstellen/verwalten
-├── Chatbot (NOVA)           → System Prompt, Wissensdokumente, Gesprächsverlauf
-├── E-Mail                   → E-Mail-Einstellungen (EmailSettingsSection)
-└── Dokumente & Vorlagen     → Kontenrahmen, PDF-Vorlagen (ReportTemplateSettings)
+[ Buchen ]  [ Abrechnung ]  [ Wirtschaftsplan ]
 ```
+
+- **Buchen** = aktuelle Finance-Seite (Rechnungen, Vorlagen, Kontoauszüge, Buchungen)
+- **Abrechnung** = Jahresabrechnung (BillingTab)
+- **Wirtschaftsplan** = Wirtschaftsplan-Editor (ohne "KI-gestützt")
+
+Die Action-Cards und separaten Seiten (`/finanzen/abrechnung`, `/finanzen/wirtschaftsplan`) werden entfernt. Stattdessen wird alles auf einer Seite mit Top-Navigation zusammengeführt.
 
 ## Umsetzung
 
-### 1. Settings.tsx umbauen
-- Tabs-Komponente (shadcn `Tabs`) als Hauptnavigation
-- Jeder Tab rendert die entsprechenden Cards
-- **Tab "Chatbot"**: Gesamten Inhalt aus `ChatbotSettings.tsx` hierher verschieben (System Prompt, KnowledgeDocumentsManager, Gesprächsverlauf)
-- **Tab "Dokumente & Vorlagen"**: `ChartOfAccountsTab` (globaler Kontenrahmen) und `ReportTemplateSettings` einbetten
+### 1. `src/pages/Finance.tsx`
+- Action-Cards entfernen
+- Top-Level `Tabs` mit 3 Werten: `buchen`, `abrechnung`, `wirtschaftsplan`
+- Tab "Buchen": Die 4 bestehenden Sub-Tabs (Rechnungen, Vorlagen, Kontoauszüge, Buchungen)
+- Tab "Abrechnung": `BillingTab`-Komponente direkt einbetten
+- Tab "Wirtschaftsplan": `BillingPeriodSelector` + `EconomicPlanEditor` (Logik aus `EconomicPlan.tsx`)
 
-### 2. Sidebar bereinigen
-**`AdminSidebar.tsx`**: "Chatbot"-Eintrag (`/chatbot`) aus `menuItems` entfernen. Die Chatbot-Verwaltung ist nun unter Einstellungen erreichbar.
+### 2. `src/pages/EconomicPlan.tsx`
+- Beschreibung ändern: "KI-gestützt" entfernen → "Wirtschaftsplan basierend auf der Vorjahresabrechnung erstellen"
 
-### 3. Route entfernen
-**`App.tsx`**: Route `/chatbot` entfernt oder als Redirect zu `/settings?tab=chatbot` umgeleitet.
+### 3. `src/pages/Billing.tsx` & `src/pages/EconomicPlan.tsx`
+- Bleiben als eigenständige Routen bestehen (falls jemand direkt navigiert), aber der Hauptzugang ist nun über die Finance-Seite
 
-### 4. Betroffene Dateien
+### 4. `src/components/finance/EconomicPlanEditor.tsx`
+- "KI-Vorschlag" Button-Text bleibt (das ist intern), aber keine "KI-gestützt"-Labels in Überschriften
+
+## Betroffene Dateien
 
 | Datei | Änderung |
 |---|---|
-| `src/pages/Settings.tsx` | Komplett umgebaut: 5 Tabs, Chatbot-Logik integriert |
-| `src/components/AdminSidebar.tsx` | "Chatbot" aus menuItems entfernen |
-| `src/App.tsx` | `/chatbot` Route → Redirect zu `/settings` |
-| `src/pages/ChatbotSettings.tsx` | Bleibt als Datei bestehen (Import in Settings), oder Inhalt wird direkt migriert |
+| `src/pages/Finance.tsx` | Action-Cards weg, 3 Top-Tabs mit eingebetteten Inhalten |
+| `src/pages/EconomicPlan.tsx` | "KI-gestützt" aus Beschreibung entfernen |
 
