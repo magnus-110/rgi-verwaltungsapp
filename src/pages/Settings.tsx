@@ -579,7 +579,7 @@ export const Settings = () => {
               <Card>
                 <CardHeader><CardTitle>Globaler Kontenrahmen</CardTitle></CardHeader>
                 <CardContent>
-                  <ChartOfAccountsTab buildingId={null} />
+                  <ChartOfAccountsTab />
                 </CardContent>
               </Card>
               <ReportTemplateSettings />
