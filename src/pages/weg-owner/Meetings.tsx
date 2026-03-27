@@ -690,45 +690,44 @@ export const WegOwnerMeetings = () => {
       <Dialog open={showSubmitTop} onOpenChange={setShowSubmitTop}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle className="text-xl">Neuen Antrag einreichen</DialogTitle>
+            <DialogTitle className="text-lg">Antrag einreichen</DialogTitle>
           </DialogHeader>
           <div className="space-y-5">
-            <div className="bg-muted/50 rounded-xl p-4">
-              <p className="text-base text-muted-foreground leading-relaxed">
-                Beschreiben Sie kurz, worüber auf der nächsten Versammlung abgestimmt werden soll. Die Hausverwaltung prüft Ihren Antrag.
-              </p>
+            <p className="text-sm text-muted-foreground">
+              Ihr Antrag wird der Hausverwaltung zur Prüfung vorgelegt.
+            </p>
+
+            <div className="bg-muted/40 rounded-lg p-4 space-y-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Titel *</Label>
+                <Input
+                  placeholder="z.B. Sanierung der Tiefgarage"
+                  value={topTitle}
+                  onChange={(e) => setTopTitle(e.target.value)}
+                  className="h-11"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Beschreibung <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                <Textarea
+                  placeholder="Begründung oder Erläuterung..."
+                  value={topDescription}
+                  onChange={(e) => setTopDescription(e.target.value)}
+                  rows={4}
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
-              <Label className="text-base font-semibold">Was möchten Sie beantragen? *</Label>
-              <Input
-                placeholder="z.B. Sanierung der Tiefgarage"
-                value={topTitle}
-                onChange={(e) => setTopTitle(e.target.value)}
-                className="text-base h-12"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-base font-semibold">Warum ist das wichtig? <span className="text-muted-foreground font-normal">(freiwillig)</span></Label>
-              <Textarea
-                placeholder="Beschreiben Sie kurz, warum dieser Punkt besprochen werden sollte..."
-                value={topDescription}
-                onChange={(e) => setTopDescription(e.target.value)}
-                rows={4}
-                className="text-base"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-base font-semibold">Unterlagen beifügen <span className="text-muted-foreground font-normal">(freiwillig)</span></Label>
+              <Label className="text-sm font-medium">Anhänge <span className="text-muted-foreground font-normal">(optional)</span></Label>
               <div
-                className="border-2 border-dashed rounded-xl p-5 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-colors"
                 onClick={() => document.getElementById("top-file-upload")?.click()}
               >
-                <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                <p className="text-base text-muted-foreground">Hier tippen um Dateien auszuwählen</p>
-                <p className="text-sm text-muted-foreground mt-1">z.B. Fotos, Angebote, Gutachten</p>
+                <Upload className="h-6 w-6 mx-auto mb-1.5 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">Dateien auswählen</p>
+                <p className="text-xs text-muted-foreground mt-0.5">z.B. Fotos, Angebote, Gutachten</p>
               </div>
               <input
                 type="file"
@@ -764,15 +763,14 @@ export const WegOwnerMeetings = () => {
             </div>
 
             <div className="flex justify-end gap-3 border-t pt-4">
-              <Button variant="outline" size="lg" onClick={() => setShowSubmitTop(false)}>
+              <Button variant="outline" onClick={() => setShowSubmitTop(false)}>
                 Abbrechen
               </Button>
               <Button
-                size="lg"
                 onClick={() => submitTopMutation.mutate()}
                 disabled={!topTitle || submitTopMutation.isPending}
               >
-                {submitTopMutation.isPending ? "Wird eingereicht..." : "Antrag einreichen"}
+                {submitTopMutation.isPending ? "Wird eingereicht..." : "Einreichen"}
               </Button>
             </div>
           </div>
