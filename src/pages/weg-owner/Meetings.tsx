@@ -534,13 +534,13 @@ export const WegOwnerMeetings = () => {
 
                   {/* New file upload */}
                   <div className="space-y-2">
-                    <Label className="text-base font-semibold">Neue Dateien hinzufügen <span className="text-muted-foreground font-normal">(freiwillig)</span></Label>
+                    <Label className="text-sm font-medium">Anhänge hinzufügen <span className="text-muted-foreground font-normal">(optional)</span></Label>
                     <div
-                      className="border-2 border-dashed rounded-xl p-5 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                      className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-colors"
                       onClick={() => document.getElementById("edit-top-file-upload")?.click()}
                     >
-                      <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                      <p className="text-base text-muted-foreground">Hier tippen um Dateien auszuwählen</p>
+                      <Upload className="h-6 w-6 mx-auto mb-1.5 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground">Dateien auswählen</p>
                     </div>
                     <input
                       type="file"
