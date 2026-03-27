@@ -729,7 +729,3 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
     </div>
   );
 };
-      </Dialog>
-    </div>
-  );
-};
