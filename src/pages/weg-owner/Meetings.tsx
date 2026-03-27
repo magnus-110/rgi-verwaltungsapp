@@ -691,76 +691,89 @@ export const WegOwnerMeetings = () => {
       <Dialog open={showSubmitTop} onOpenChange={setShowSubmitTop}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Tagesordnungspunkt einreichen</DialogTitle>
+            <DialogTitle className="text-xl">Neuen Antrag einreichen</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Ihr Antrag wird dem Verwalter vorgelegt und kann in eine kommende Versammlung aufgenommen werden.
-            </p>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Titel *</Label>
+          <div className="space-y-5">
+            <div className="bg-muted/50 rounded-xl p-4">
+              <p className="text-base text-muted-foreground leading-relaxed">
+                Beschreiben Sie kurz, worüber auf der nächsten Versammlung abgestimmt werden soll. Die Hausverwaltung prüft Ihren Antrag.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-base font-semibold">Was möchten Sie beantragen? *</Label>
               <Input
-                placeholder="z.B. Antrag auf Sanierung der Tiefgarage"
+                placeholder="z.B. Sanierung der Tiefgarage"
                 value={topTitle}
                 onChange={(e) => setTopTitle(e.target.value)}
+                className="text-base h-12"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Begründung / Erläuterung</Label>
+
+            <div className="space-y-2">
+              <Label className="text-base font-semibold">Warum ist das wichtig? <span className="text-muted-foreground font-normal">(freiwillig)</span></Label>
               <Textarea
-                placeholder="Beschreiben Sie Ihren Antrag..."
+                placeholder="Beschreiben Sie kurz, warum dieser Punkt besprochen werden sollte..."
                 value={topDescription}
                 onChange={(e) => setTopDescription(e.target.value)}
                 rows={4}
+                className="text-base"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Anhänge (optional)</Label>
-              <div className="border border-dashed rounded-md p-3">
-                <input
-                  type="file"
-                  multiple
-                  className="hidden"
-                  id="top-file-upload"
-                  onChange={(e) => {
-                    if (e.target.files) {
-                      setTopFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
-                    }
-                  }}
-                />
-                <label htmlFor="top-file-upload" className="flex items-center gap-2 cursor-pointer text-sm text-muted-foreground hover:text-foreground">
-                  <Upload className="h-4 w-4" />
-                  Dateien auswählen
-                </label>
-                {topFiles.length > 0 && (
-                  <div className="mt-2 space-y-1">
-                    {topFiles.map((file, i) => (
-                      <div key={i} className="flex items-center justify-between text-xs bg-muted rounded px-2 py-1">
-                        <span className="flex items-center gap-1 truncate">
-                          <FileText className="h-3 w-3 flex-shrink-0" />
-                          {file.name}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-5 w-5"
-                          onClick={() => setTopFiles((prev) => prev.filter((_, j) => j !== i))}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+
+            <div className="space-y-2">
+              <Label className="text-base font-semibold">Unterlagen beifügen <span className="text-muted-foreground font-normal">(freiwillig)</span></Label>
+              <div
+                className="border-2 border-dashed rounded-xl p-5 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                onClick={() => document.getElementById("top-file-upload")?.click()}
+              >
+                <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                <p className="text-base text-muted-foreground">Hier tippen um Dateien auszuwählen</p>
+                <p className="text-sm text-muted-foreground mt-1">z.B. Fotos, Angebote, Gutachten</p>
               </div>
+              <input
+                type="file"
+                multiple
+                className="hidden"
+                id="top-file-upload"
+                onChange={(e) => {
+                  if (e.target.files) {
+                    setTopFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
+                  }
+                }}
+              />
+              {topFiles.length > 0 && (
+                <div className="space-y-1.5">
+                  {topFiles.map((file, i) => (
+                    <div key={i} className="flex items-center justify-between bg-muted rounded-lg px-3 py-2">
+                      <span className="flex items-center gap-2 text-sm truncate">
+                        <FileText className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                        {file.name}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={() => setTopFiles((prev) => prev.filter((_, j) => j !== i))}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowSubmitTop(false)}>Abbrechen</Button>
+
+            <div className="flex justify-end gap-3 border-t pt-4">
+              <Button variant="outline" size="lg" onClick={() => setShowSubmitTop(false)}>
+                Abbrechen
+              </Button>
               <Button
+                size="lg"
                 onClick={() => submitTopMutation.mutate()}
                 disabled={!topTitle || submitTopMutation.isPending}
               >
-                {submitTopMutation.isPending ? "Wird eingereicht..." : "TOP einreichen"}
+                {submitTopMutation.isPending ? "Wird eingereicht..." : "Antrag einreichen"}
               </Button>
             </div>
           </div>
