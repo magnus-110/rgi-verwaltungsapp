@@ -213,7 +213,6 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
   const handleDownloadPdf = useCallback(async () => {
     if (!meeting) return;
 
-    // Use the offscreen ref (always mounted) for capture
     const target = offscreenRef.current;
     if (!target) return;
 
@@ -230,7 +229,6 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
         scrollY: 0,
       });
 
-      const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
       const pdfWidth = 210;
@@ -239,15 +237,30 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
       const imgHeight = (canvas.height * pdfWidth) / canvas.width;
 
       if (imgHeight <= pdfHeight) {
-        pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
+        pdf.addImage(canvas.toDataURL("image/png"), "PNG", 0, 0, imgWidth, imgHeight);
       } else {
-        let remainingHeight = imgHeight;
-        let position = 0;
-        while (remainingHeight > 0) {
-          pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-          remainingHeight -= pdfHeight;
-          position -= pdfHeight;
-          if (remainingHeight > 0) pdf.addPage();
+        // Slice canvas into pages to avoid content overlap
+        const pageHeightPx = (pdfHeight / pdfWidth) * canvas.width;
+        const totalPages = Math.ceil(canvas.height / pageHeightPx);
+
+        for (let i = 0; i < totalPages; i++) {
+          if (i > 0) pdf.addPage();
+
+          const sliceHeight = Math.min(pageHeightPx, canvas.height - i * pageHeightPx);
+          const pageCanvas = document.createElement("canvas");
+          pageCanvas.width = canvas.width;
+          pageCanvas.height = sliceHeight;
+          const ctx = pageCanvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(
+              canvas,
+              0, i * pageHeightPx, canvas.width, sliceHeight,
+              0, 0, canvas.width, sliceHeight
+            );
+            const pageImgData = pageCanvas.toDataURL("image/png");
+            const sliceHeightMm = (sliceHeight * pdfWidth) / canvas.width;
+            pdf.addImage(pageImgData, "PNG", 0, 0, imgWidth, sliceHeightMm);
+          }
         }
       }
 

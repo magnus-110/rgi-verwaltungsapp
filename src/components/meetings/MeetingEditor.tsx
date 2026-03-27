@@ -56,18 +56,18 @@ export const MeetingEditor = ({ meetingId, onSaved, onCancel }: MeetingEditorPro
 
   // Load existing meeting
   const { data: existingMeeting } = useQuery({
-    queryKey: ["etv-meeting", meetingId],
+    queryKey: ["etv-meeting", savedMeetingId],
     queryFn: async () => {
-      if (!meetingId) return null;
+      if (!savedMeetingId) return null;
       const { data, error } = await supabase
         .from("etv_meetings")
         .select("*")
-        .eq("id", meetingId)
+        .eq("id", savedMeetingId)
         .single();
       if (error) throw error;
       return data;
     },
-    enabled: !!meetingId,
+    enabled: !!savedMeetingId,
   });
 
   useEffect(() => {
@@ -260,7 +260,7 @@ export const MeetingEditor = ({ meetingId, onSaved, onCancel }: MeetingEditorPro
                           if (error) { toast({ title: "Fehler", description: error.message, variant: "destructive" }); }
                           else {
                             toast({ title: "Versammlung freigeschaltet" });
-                            queryClient.invalidateQueries({ queryKey: ["etv-meeting", meetingId] });
+                            queryClient.invalidateQueries({ queryKey: ["etv-meeting", savedMeetingId] });
                             queryClient.invalidateQueries({ queryKey: ["etv-meetings"] });
                           }
                         }}>
