@@ -143,7 +143,8 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
   if (isLoading) return <div className="text-muted-foreground text-sm">Laden...</div>;
 
   return (
-    <>
+    <div className="space-y-6">
+      <BookingInstructionsSection buildingId={buildingId} initialValue={(buildingData as any)?.booking_instructions} />
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
