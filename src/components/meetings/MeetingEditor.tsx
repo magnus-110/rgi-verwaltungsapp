@@ -9,11 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AgendaItemEditor } from "./AgendaItemEditor";
 import { MeetingInvitationPdf } from "./MeetingInvitationPdf";
-import { AttendeeManager } from "./AttendeeManager";
-import { LiveVotingManager } from "./LiveVotingManager";
+import { MeetingLiveSession } from "./MeetingLiveSession";
 import { MeetingProtocol } from "./MeetingProtocol";
 import { Save, ChevronDown, ChevronUp, CheckCircle2, Globe } from "lucide-react";
 
@@ -28,7 +28,7 @@ export const MeetingEditor = ({ meetingId, onSaved, onCancel }: MeetingEditorPro
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const [step, setStep] = useState(0);
+  const [activeTab, setActiveTab] = useState("vorbereitung");
   const [openSteps, setOpenSteps] = useState<Record<number, boolean>>({ 0: true });
   const [savedMeetingId, setSavedMeetingId] = useState<string | null>(meetingId);
 
@@ -80,9 +80,6 @@ export const MeetingEditor = ({ meetingId, onSaved, onCancel }: MeetingEditorPro
       setLocation(existingMeeting.location || "");
       setNotes(existingMeeting.notes || "");
       setSavedMeetingId(existingMeeting.id);
-      // Open step 1 (agenda) if meeting exists
-      setStep(1);
-      setOpenSteps({ 0: false, 1: true });
     }
   }, [existingMeeting]);
 
@@ -102,18 +99,11 @@ export const MeetingEditor = ({ meetingId, onSaved, onCancel }: MeetingEditorPro
       };
 
       if (savedMeetingId) {
-        const { error } = await supabase
-          .from("etv_meetings")
-          .update(payload)
-          .eq("id", savedMeetingId);
+        const { error } = await supabase.from("etv_meetings").update(payload).eq("id", savedMeetingId);
         if (error) throw error;
         return savedMeetingId;
       } else {
-        const { data, error } = await supabase
-          .from("etv_meetings")
-          .insert(payload)
-          .select("id")
-          .single();
+        const { data, error } = await supabase.from("etv_meetings").insert(payload).select("id").single();
         if (error) throw error;
         return data.id;
       }
@@ -122,8 +112,6 @@ export const MeetingEditor = ({ meetingId, onSaved, onCancel }: MeetingEditorPro
       setSavedMeetingId(id);
       toast({ title: "Gespeichert", description: "Versammlung wurde gespeichert." });
       queryClient.invalidateQueries({ queryKey: ["etv-meetings"] });
-      // Move to next step
-      setStep(1);
       setOpenSteps({ 0: false, 1: true });
     },
     onError: (err: any) => {
@@ -137,304 +125,175 @@ export const MeetingEditor = ({ meetingId, onSaved, onCancel }: MeetingEditorPro
 
   const isStep0Valid = title && buildingId && meetingDate && meetingTime;
 
-  const steps = [
-    {
-      title: "1. Grunddaten",
-      description: "Datum, Uhrzeit, Ort und Liegenschaft",
-      complete: !!savedMeetingId,
-    },
-    {
-      title: "2. Tagesordnung",
-      description: "TOPs anlegen und sortieren",
-      complete: false,
-    },
-    {
-      title: "3. Einladung",
-      description: "Vorschau und PDF generieren",
-      complete: false,
-    },
-    {
-      title: "4. Vollmachten & Teilnehmer",
-      description: "Anwesenheit, Vollmachten und Stimmverbote",
-      complete: false,
-    },
-    {
-      title: "5. Live-Versammlung",
-      description: "Check-in, Quorum und Abstimmungen",
-      complete: false,
-    },
-    {
-      title: "6. Protokoll & Beschlüsse",
-      description: "KI-Protokoll generieren, Beschlusssammlung, Portal-Sync",
-      complete: !!existingMeeting?.protocol_published,
-    },
-  ];
-
   return (
     <div className="space-y-4 max-w-4xl">
       <h2 className="text-xl font-bold text-foreground">
         {meetingId ? "Versammlung bearbeiten" : "Neue Versammlung erstellen"}
       </h2>
 
-      {/* Step 0: Grunddaten */}
-      <Collapsible open={openSteps[0]} onOpenChange={() => toggleStep(0)}>
-        <Card>
-          <CollapsibleTrigger asChild>
-            <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {steps[0].complete && <CheckCircle2 className="h-5 w-5 text-green-500" />}
-                  <div>
-                    <CardTitle className="text-base">{steps[0].title}</CardTitle>
-                    <p className="text-sm text-muted-foreground">{steps[0].description}</p>
-                  </div>
-                </div>
-                {openSteps[0] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </div>
-            </CardHeader>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="title">Titel *</Label>
-                  <Input
-                    id="title"
-                    placeholder="z.B. Ordentliche Eigentümerversammlung 2026"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="building">Liegenschaft *</Label>
-                  <Select value={buildingId} onValueChange={setBuildingId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Liegenschaft wählen..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {buildings.map((b) => (
-                        <SelectItem key={b.id} value={b.id}>
-                          {b.name} — {b.address}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="date">Datum *</Label>
-                  <Input
-                    id="date"
-                    type="date"
-                    value={meetingDate}
-                    onChange={(e) => setMeetingDate(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="time">Uhrzeit *</Label>
-                  <Input
-                    id="time"
-                    type="time"
-                    value={meetingTime}
-                    onChange={(e) => setMeetingTime(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="location">Ort</Label>
-                  <Input
-                    id="location"
-                    placeholder="z.B. Gemeinschaftsraum, Musterstraße 1"
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="notes">Bemerkungen</Label>
-                <Textarea
-                  id="notes"
-                  placeholder="Interne Notizen zur Versammlung..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  rows={3}
-                />
-              </div>
-              <div className="flex justify-end">
-                <Button
-                  onClick={() => saveMutation.mutate()}
-                  disabled={!isStep0Valid || saveMutation.isPending}
-                  className="gap-2"
-                >
-                  <Save className="h-4 w-4" />
-                  {saveMutation.isPending ? "Speichern..." : "Speichern & Weiter"}
-                </Button>
-              </div>
-            </CardContent>
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList variant="segment" className="w-full">
+          <TabsTrigger value="vorbereitung" variant="segment" className="flex-1">
+            Vorbereitung
+          </TabsTrigger>
+          <TabsTrigger value="durchfuehrung" variant="segment" className="flex-1" disabled={!savedMeetingId}>
+            Durchführung
+          </TabsTrigger>
+          <TabsTrigger value="nachbereitung" variant="segment" className="flex-1" disabled={!savedMeetingId}>
+            Nachbereitung
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Step 1: Tagesordnung */}
-      <Collapsible open={openSteps[1]} onOpenChange={() => toggleStep(1)}>
-        <Card className={!savedMeetingId ? "opacity-50 pointer-events-none" : ""}>
-          <CollapsibleTrigger asChild>
-            <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-base">{steps[1].title}</CardTitle>
-                  <p className="text-sm text-muted-foreground">{steps[1].description}</p>
-                </div>
-                {openSteps[1] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </div>
-            </CardHeader>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <CardContent>
-              {savedMeetingId && <AgendaItemEditor meetingId={savedMeetingId} buildingId={buildingId} />}
-            </CardContent>
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
-
-      {/* Step 2: Einladung */}
-      <Collapsible open={openSteps[2]} onOpenChange={() => toggleStep(2)}>
-        <Card className={!savedMeetingId ? "opacity-50 pointer-events-none" : ""}>
-          <CollapsibleTrigger asChild>
-            <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-base">{steps[2].title}</CardTitle>
-                  <p className="text-sm text-muted-foreground">{steps[2].description}</p>
-                </div>
-                {openSteps[2] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </div>
-            </CardHeader>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <CardContent className="space-y-4">
-              {savedMeetingId && (
-                <MeetingInvitationPdf meetingId={savedMeetingId} buildingId={buildingId} />
-              )}
-              {/* Publish button */}
-              {savedMeetingId && existingMeeting?.status === "draft" && (
-                <div className="border-t pt-4">
+        {/* ============ TAB 1: VORBEREITUNG ============ */}
+        <TabsContent value="vorbereitung" className="space-y-4">
+          {/* Grunddaten */}
+          <Collapsible open={openSteps[0]} onOpenChange={() => toggleStep(0)}>
+            <Card>
+              <CollapsibleTrigger asChild>
+                <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="text-sm font-semibold">Für Eigentümer freischalten</h4>
-                      <p className="text-xs text-muted-foreground">
-                        Nach der Freischaltung wird die Versammlung im Eigentümer-Portal sichtbar.
-                      </p>
+                    <div className="flex items-center gap-3">
+                      {savedMeetingId && <CheckCircle2 className="h-5 w-5 text-green-500" />}
+                      <div>
+                        <CardTitle className="text-base">1. Grunddaten</CardTitle>
+                        <p className="text-sm text-muted-foreground">Datum, Uhrzeit, Ort und Liegenschaft</p>
+                      </div>
                     </div>
-                    <Button
-                      className="gap-2"
-                      onClick={async () => {
-                        const { error } = await supabase
-                          .from("etv_meetings")
-                          .update({ status: "published" })
-                          .eq("id", savedMeetingId);
-                        if (error) {
-                          toast({ title: "Fehler", description: error.message, variant: "destructive" });
-                        } else {
-                          toast({ title: "Versammlung freigeschaltet", description: "Eigentümer können die Versammlung jetzt sehen." });
-                          queryClient.invalidateQueries({ queryKey: ["etv-meeting", meetingId] });
-                          queryClient.invalidateQueries({ queryKey: ["etv-meetings"] });
-                        }
-                      }}
-                    >
-                      <Globe className="h-4 w-4" />
-                      Freischalten
+                    {openSteps[0] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </div>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="title">Titel *</Label>
+                      <Input id="title" placeholder="z.B. Ordentliche Eigentümerversammlung 2026" value={title} onChange={(e) => setTitle(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="building">Liegenschaft *</Label>
+                      <Select value={buildingId} onValueChange={setBuildingId}>
+                        <SelectTrigger><SelectValue placeholder="Liegenschaft wählen..." /></SelectTrigger>
+                        <SelectContent>
+                          {buildings.map((b) => (
+                            <SelectItem key={b.id} value={b.id}>{b.name} — {b.address}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="date">Datum *</Label>
+                      <Input id="date" type="date" value={meetingDate} onChange={(e) => setMeetingDate(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="time">Uhrzeit *</Label>
+                      <Input id="time" type="time" value={meetingTime} onChange={(e) => setMeetingTime(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="location">Ort</Label>
+                      <Input id="location" placeholder="z.B. Gemeinschaftsraum, Musterstraße 1" value={location} onChange={(e) => setLocation(e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="notes">Bemerkungen</Label>
+                    <Textarea id="notes" placeholder="Interne Notizen zur Versammlung..." value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} />
+                  </div>
+                  <div className="flex justify-end">
+                    <Button onClick={() => saveMutation.mutate()} disabled={!isStep0Valid || saveMutation.isPending} className="gap-2">
+                      <Save className="h-4 w-4" />
+                      {saveMutation.isPending ? "Speichern..." : "Speichern & Weiter"}
                     </Button>
                   </div>
-                </div>
-              )}
-              {existingMeeting?.status === "published" && (
-                <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400 border-t pt-4">
-                  <CheckCircle2 className="h-4 w-4" />
-                  Versammlung ist für Eigentümer freigeschaltet.
-                </div>
-              )}
-            </CardContent>
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
 
-      {/* Step 3: Vollmachten & Teilnehmer */}
-      <Collapsible open={openSteps[3]} onOpenChange={() => toggleStep(3)}>
-        <Card className={!savedMeetingId ? "opacity-50 pointer-events-none" : ""}>
-          <CollapsibleTrigger asChild>
-            <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-base">{steps[3].title}</CardTitle>
-                  <p className="text-sm text-muted-foreground">{steps[3].description}</p>
-                </div>
-                {openSteps[3] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </div>
-            </CardHeader>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <CardContent>
-              {savedMeetingId && (
-                <AttendeeManager
-                  meetingId={savedMeetingId}
-                  buildingId={buildingId}
-                  lockTime={existingMeeting?.lock_time || null}
-                />
-              )}
-            </CardContent>
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
-
-      {/* Step 4: Live-Versammlung */}
-      <Collapsible open={openSteps[4]} onOpenChange={() => toggleStep(4)}>
-        <Card className={!savedMeetingId ? "opacity-50 pointer-events-none" : ""}>
-          <CollapsibleTrigger asChild>
-            <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-base">{steps[4].title}</CardTitle>
-                  <p className="text-sm text-muted-foreground">{steps[4].description}</p>
-                </div>
-                {openSteps[4] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </div>
-            </CardHeader>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <CardContent>
-              {savedMeetingId && (
-                <LiveVotingManager meetingId={savedMeetingId} buildingId={buildingId} />
-              )}
-            </CardContent>
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
-
-      {/* Step 5: Protokoll & Beschlüsse */}
-      <Collapsible open={openSteps[5]} onOpenChange={() => toggleStep(5)}>
-        <Card className={!savedMeetingId ? "opacity-50 pointer-events-none" : ""}>
-          <CollapsibleTrigger asChild>
-            <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {steps[5].complete && <CheckCircle2 className="h-5 w-5 text-green-500" />}
-                  <div>
-                    <CardTitle className="text-base">{steps[5].title}</CardTitle>
-                    <p className="text-sm text-muted-foreground">{steps[5].description}</p>
+          {/* Tagesordnung */}
+          <Collapsible open={openSteps[1]} onOpenChange={() => toggleStep(1)}>
+            <Card className={!savedMeetingId ? "opacity-50 pointer-events-none" : ""}>
+              <CollapsibleTrigger asChild>
+                <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base">2. Tagesordnung</CardTitle>
+                      <p className="text-sm text-muted-foreground">TOPs anlegen und sortieren</p>
+                    </div>
+                    {openSteps[1] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                   </div>
-                </div>
-                {openSteps[5] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </div>
-            </CardHeader>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            <CardContent>
-              {savedMeetingId && (
-                <MeetingProtocol meetingId={savedMeetingId} buildingId={buildingId} />
-              )}
-            </CardContent>
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent>
+                  {savedMeetingId && <AgendaItemEditor meetingId={savedMeetingId} buildingId={buildingId} />}
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+
+          {/* Einladung */}
+          <Collapsible open={openSteps[2]} onOpenChange={() => toggleStep(2)}>
+            <Card className={!savedMeetingId ? "opacity-50 pointer-events-none" : ""}>
+              <CollapsibleTrigger asChild>
+                <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-base">3. Einladung</CardTitle>
+                      <p className="text-sm text-muted-foreground">Vorschau und PDF generieren</p>
+                    </div>
+                    {openSteps[2] ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </div>
+                </CardHeader>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <CardContent className="space-y-4">
+                  {savedMeetingId && <MeetingInvitationPdf meetingId={savedMeetingId} buildingId={buildingId} />}
+                  {savedMeetingId && existingMeeting?.status === "draft" && (
+                    <div className="border-t pt-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-sm font-semibold">Für Eigentümer freischalten</h4>
+                          <p className="text-xs text-muted-foreground">Nach der Freischaltung wird die Versammlung im Eigentümer-Portal sichtbar.</p>
+                        </div>
+                        <Button className="gap-2" onClick={async () => {
+                          const { error } = await supabase.from("etv_meetings").update({ status: "published" }).eq("id", savedMeetingId);
+                          if (error) { toast({ title: "Fehler", description: error.message, variant: "destructive" }); }
+                          else {
+                            toast({ title: "Versammlung freigeschaltet" });
+                            queryClient.invalidateQueries({ queryKey: ["etv-meeting", meetingId] });
+                            queryClient.invalidateQueries({ queryKey: ["etv-meetings"] });
+                          }
+                        }}>
+                          <Globe className="h-4 w-4" /> Freischalten
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  {existingMeeting?.status === "published" && (
+                    <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400 border-t pt-4">
+                      <CheckCircle2 className="h-4 w-4" /> Versammlung ist für Eigentümer freigeschaltet.
+                    </div>
+                  )}
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+        </TabsContent>
+
+        {/* ============ TAB 2: DURCHFÜHRUNG ============ */}
+        <TabsContent value="durchfuehrung">
+          {savedMeetingId && (
+            <MeetingLiveSession meetingId={savedMeetingId} buildingId={buildingId} />
+          )}
+        </TabsContent>
+
+        {/* ============ TAB 3: NACHBEREITUNG ============ */}
+        <TabsContent value="nachbereitung">
+          {savedMeetingId && (
+            <MeetingProtocol meetingId={savedMeetingId} buildingId={buildingId} />
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
