@@ -107,6 +107,7 @@ export const BuildingResolutionsTab = ({ buildingId }: BuildingResolutionsTabPro
           })}
         </div>
       )}
+      <CreateResolutionDialog buildingId={buildingId} open={showCreate} onOpenChange={setShowCreate} />
     </div>
   );
 };
