@@ -6,9 +6,11 @@ import { useManagementMode } from "@/hooks/useManagementMode";
 import { MeetingList } from "@/components/meetings/MeetingList";
 import { MeetingEditor } from "@/components/meetings/MeetingEditor";
 import { ResolutionLedger } from "@/components/meetings/ResolutionLedger";
+import { SubmittedTopsManager } from "@/components/meetings/SubmittedTopsManager";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, ArrowLeft, Users, Scale } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Plus, ArrowLeft, Users, Scale, Inbox } from "lucide-react";
 
 export const Meetings = () => {
   const { profile } = useAuth();
@@ -30,6 +32,19 @@ export const Meetings = () => {
 
       if (error) throw error;
       return data || [];
+    },
+  });
+
+  // Count pending submitted tops
+  const { data: pendingCount = 0 } = useQuery({
+    queryKey: ["pending-tops-count"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("etv_submitted_tops")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "pending");
+      if (error) throw error;
+      return count || 0;
     },
   });
 
@@ -76,6 +91,15 @@ export const Meetings = () => {
             <Users className="h-4 w-4" />
             Versammlungen
           </TabsTrigger>
+          <TabsTrigger value="submissions" className="gap-2">
+            <Inbox className="h-4 w-4" />
+            Anträge
+            {pendingCount > 0 && (
+              <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-xs">
+                {pendingCount}
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="resolutions" className="gap-2">
             <Scale className="h-4 w-4" />
             Beschlusssammlung
@@ -87,6 +111,9 @@ export const Meetings = () => {
             isLoading={isLoading}
             onSelect={(id) => setSelectedMeetingId(id)}
           />
+        </TabsContent>
+        <TabsContent value="submissions" className="mt-4">
+          <SubmittedTopsManager />
         </TabsContent>
         <TabsContent value="resolutions" className="mt-4">
           <ResolutionLedger />
