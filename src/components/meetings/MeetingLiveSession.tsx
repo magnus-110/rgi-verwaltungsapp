@@ -381,6 +381,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
   if (selectedItem) {
     const isActive = activeVoteItem === selectedItem.id;
     const isVoted = selectedItem.status === "voted";
+    const isClosed = selectedItem.status === "closed";
     const votedCount = isActive ? currentVotes.length : 0;
     const eligibleCount = presentOrRepresented.length;
 
@@ -450,7 +451,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                   <BarChart3 className="h-4 w-4" /> Abstimmung
                 </p>
                 <div className="flex gap-2">
-                  {!isVoted && !isActive && !activeVoteItem && (
+                  {!isVoted && !isClosed && !isActive && !activeVoteItem && (
                     <Button size="sm" onClick={() => startVotingMutation.mutate(selectedItem.id)} disabled={!quorumReached} className="gap-1">
                       <Play className="h-3 w-3" /> Abstimmung starten
                     </Button>
@@ -459,6 +460,16 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                     <Button size="sm" variant="destructive" onClick={() => endVotingMutation.mutate(selectedItem.id)} className="gap-1">
                       <Square className="h-3 w-3" /> Beenden
                     </Button>
+                  )}
+                  {isClosed && (
+                    <>
+                      <Button size="sm" variant="outline" onClick={() => reopenVotingMutation.mutate(selectedItem.id)} className="gap-1">
+                        <RefreshCw className="h-3 w-3" /> Erneut öffnen
+                      </Button>
+                      <Button size="sm" onClick={() => confirmVoteMutation.mutate(selectedItem.id)} className="gap-1">
+                        <CheckCircle2 className="h-3 w-3" /> Ergebnis bestätigen
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
