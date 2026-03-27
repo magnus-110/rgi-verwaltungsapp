@@ -47,6 +47,9 @@ export const WegOwnerMeetings = () => {
   const [editNewFiles, setEditNewFiles] = useState<File[]>([]);
   const [editRemovedPaths, setEditRemovedPaths] = useState<string[]>([]);
   const [deleteTopId, setDeleteTopId] = useState<string | null>(null);
+  const [showProxyDialog, setShowProxyDialog] = useState(false);
+  const [proxyType, setProxyType] = useState<string>("manager");
+  const [proxyContactId, setProxyContactId] = useState<string>("");
 
   // TOP submission form
   const [topTitle, setTopTitle] = useState("");
@@ -451,9 +454,7 @@ export const WegOwnerMeetings = () => {
                           <div className="flex-1">
                             <p className="font-medium text-sm">{item.title}</p>
                             {item.description && <p className="text-xs text-muted-foreground mt-1">{item.description}</p>}
-                            {item.resolution_text && (
-                              <div className="mt-2 p-2 bg-muted rounded text-xs italic">{item.resolution_text}</div>
-                            )}
+                            {/* resolution_text hidden from owner view - admin only */}
                             {item.result && (
                               <Badge variant={item.result === "passed" ? "default" : "destructive"} className="text-xs mt-1">
                                 {item.result === "passed" ? "Angenommen" : "Abgelehnt"}
