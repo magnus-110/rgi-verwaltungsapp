@@ -1,29 +1,31 @@
 
 
-# Plan: A4-Layout & Logo-Fix für Einladung
+# Plan: Beschlusstexte ausblenden & Vollmacht-Vergabe im Eigentümer-Portal
 
-## Probleme
-1. **Logo wird im PDF nicht angezeigt** — `html2canvas` kann Cross-Origin-Bilder nicht rendern. Das Logo muss vor dem Rendering als Base64-DataURL vorgeladen werden.
-2. **PDF weicht von Vorschau ab** — Der Preview-Container (794px) wird im Dialog abgeschnitten/gescrollt. `html2canvas` rendert nur den sichtbaren/geclippten Teil.
-3. **Kein A4-Seitenverhältnis in der Vorschau** — Der Container hat zwar 794px Breite, aber keine feste Höhe. Die Vorschau soll ein echtes A4-Blatt darstellen (794×1123px).
+## Änderung 1: Beschlusstexte im Owner-Portal ausblenden
 
-## Lösung in `MeetingInvitationPdf.tsx`
+In `src/pages/weg-owner/Meetings.tsx` (Zeilen 453-455) den Block mit `resolution_text` entfernen. Dieser Inhalt ist nur für Admins in der Vorbereitung und während der Live-Versammlung relevant.
 
-### 1. Logo als Base64 vorladen
-- `useEffect` + Canvas-Trick: Logo-Bild laden, auf ein unsichtbares `<canvas>` zeichnen, `toDataURL()` speichern
-- Im Preview-`<img>` das Base64-DataURL verwenden statt der externen URL
-- Damit kann `html2canvas` das Logo problemlos erfassen
+## Änderung 2: Vollmacht-Vergabe für Eigentümer
 
-### 2. Preview als A4-Blatt mit Scale-Wrapper
-- Preview-Container: exakt `794px × 1123px` (A4 bei 96dpi), `min-height: 1123px`
-- Äußerer Wrapper mit `transform: scale(0.55)` + `transformOrigin: top center`, damit das A4-Blatt komplett in den Dialog passt
-- `html2canvas` greift auf den unskalierten 794px-Container zu → volle Auflösung
+Wenn eine Versammlung den Status `published` hat, sollen Eigentümer direkt aus dem Meeting-Detail-Dialog ihre Vollmacht vergeben können (z.B. an den Verwalter oder einen anderen Eigentümer).
 
-### 3. html2canvas-Aufruf optimieren
-- Explizit `width: 794`, `windowWidth: 794` setzen
-- `scrollX: 0, scrollY: 0` um Scroll-Offset-Probleme zu vermeiden
+### Umsetzung
+- Im Meeting-Detail-Dialog (`src/pages/weg-owner/Meetings.tsx`, ab Zeile 428) einen neuen Abschnitt "Ihre Vollmacht" unterhalb der Tagesordnung einfügen
+- Der Eigentümer sieht seinen aktuellen Teilnahme-Status (anwesend/abwesend/vertreten)
+- Button "Vollmacht erteilen" öffnet einen Dialog mit Auswahl:
+  - **An Verwalter** (Standard)
+  - **An anderen Eigentümer** (Dropdown mit Kontakten des Gebäudes)
+- Logik: 
+  1. Den `contact_building_assignment` des eingeloggten Users anhand `profile.user_id` + `building_id` ermitteln
+  2. Den zugehörigen `etv_attendees`-Eintrag für dieses Meeting finden
+  3. `attendance_type` auf `proxy`, `proxy_type` und `proxy_contact_id` setzen
+  4. Möglichkeit, Vollmacht wieder zurückzuziehen (auf `absent` zurücksetzen)
+- **1h-Lock-Regel** beachten: Wenn `meeting_date - 1h <= now()`, keine Änderungen mehr erlauben
+
+### Betroffene Dateien
 
 | Datei | Änderung |
 |---|---|
-| `MeetingInvitationPdf.tsx` | Logo via Base64 vorladen; Preview-Container auf 794×1123px (A4) mit Scale-Wrapper; html2canvas-Optionen für korrektes Rendering |
+| `src/pages/weg-owner/Meetings.tsx` | `resolution_text`-Block entfernen; Vollmacht-Sektion im Meeting-Detail-Dialog hinzufügen mit Status-Anzeige und Vergabe-Dialog |
 
