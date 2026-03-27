@@ -688,7 +688,7 @@ export const WegOwnerMeetings = () => {
 
       {/* Submit TOP Dialog */}
       <Dialog open={showSubmitTop} onOpenChange={setShowSubmitTop}>
-        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="text-lg">Antrag einreichen</DialogTitle>
           </DialogHeader>
