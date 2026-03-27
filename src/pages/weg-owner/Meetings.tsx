@@ -8,10 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, MapPin, Users, Plus, Building2, FileText, Upload, Trash2, ClipboardList, Clock, CheckCircle2, XCircle, Pause, Pencil, ExternalLink } from "lucide-react";
+import { Calendar, MapPin, Users, Plus, Building2, FileText, Upload, Trash2, ClipboardList, Clock, CheckCircle2, XCircle, Pause, Pencil, ExternalLink, Shield, Lock, UserX } from "lucide-react";
 import { format as formatDate } from "date-fns";
 import { de } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -46,6 +47,9 @@ export const WegOwnerMeetings = () => {
   const [editNewFiles, setEditNewFiles] = useState<File[]>([]);
   const [editRemovedPaths, setEditRemovedPaths] = useState<string[]>([]);
   const [deleteTopId, setDeleteTopId] = useState<string | null>(null);
+  const [showProxyDialog, setShowProxyDialog] = useState(false);
+  const [proxyType, setProxyType] = useState<string>("manager");
+  const [proxyContactId, setProxyContactId] = useState<string>("");
 
   // TOP submission form
   const [topTitle, setTopTitle] = useState("");
@@ -116,7 +120,122 @@ export const WegOwnerMeetings = () => {
     enabled: !!selectedMeetingId,
   });
 
-  // Submit TOP
+  // Find user's contact assignment for this building
+  const { data: myAssignment } = useQuery({
+    queryKey: ["my-contact-assignment", effectiveBuildingId, profile?.user_id],
+    queryFn: async () => {
+      // Find the contact linked to this user
+      const { data: contact } = await supabase
+        .from("contacts")
+        .select("id")
+        .eq("user_id", profile?.user_id!)
+        .maybeSingle();
+      if (!contact) return null;
+      
+      const { data } = await supabase
+        .from("contact_building_assignments")
+        .select("id")
+        .eq("contact_id", contact.id)
+        .eq("building_id", effectiveBuildingId!)
+        .eq("is_active", true)
+        .limit(1)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!effectiveBuildingId && !!profile?.user_id,
+  });
+
+  // Find user's attendee record for the selected meeting
+  const { data: myAttendee, refetch: refetchAttendee } = useQuery({
+    queryKey: ["my-attendee", selectedMeetingId, myAssignment?.id],
+    queryFn: async () => {
+      if (!myAssignment?.id || !selectedMeetingId) return null;
+      const { data } = await supabase
+        .from("etv_attendees")
+        .select("*")
+        .eq("meeting_id", selectedMeetingId)
+        .eq("assignment_id", myAssignment.id)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!selectedMeetingId && !!myAssignment?.id,
+  });
+
+  // Load other owners for proxy selection
+  const { data: otherOwners = [] } = useQuery({
+    queryKey: ["building-owners-proxy", effectiveBuildingId, profile?.user_id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("contact_building_assignments")
+        .select(`id, unit_number, contacts!inner(id, first_name, last_name, company_name)`)
+        .eq("building_id", effectiveBuildingId!)
+        .eq("role_in_building", "eigentuemer")
+        .eq("is_active", true);
+      // Filter out current user's assignment
+      return (data || []).filter((d: any) => d.id !== myAssignment?.id);
+    },
+    enabled: !!effectiveBuildingId && !!myAssignment?.id,
+  });
+
+  // Set proxy mutation
+  const setProxyMutation = useMutation({
+    mutationFn: async ({ type, contactId }: { type: string; contactId?: string }) => {
+      if (!myAttendee?.id) throw new Error("Kein Teilnehmer-Eintrag gefunden");
+      const { error } = await supabase
+        .from("etv_attendees")
+        .update({
+          attendance_type: "proxy",
+          proxy_type: type,
+          proxy_contact_id: type === "owner" ? (contactId || null) : null,
+        })
+        .eq("id", myAttendee.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "Vollmacht erteilt" });
+      setShowProxyDialog(false);
+      refetchAttendee();
+    },
+    onError: (err: any) => {
+      toast({ title: "Fehler", description: err.message, variant: "destructive" });
+    },
+  });
+
+  // Withdraw proxy mutation
+  const withdrawProxyMutation = useMutation({
+    mutationFn: async () => {
+      if (!myAttendee?.id) throw new Error("Kein Teilnehmer-Eintrag gefunden");
+      const { error } = await supabase
+        .from("etv_attendees")
+        .update({
+          attendance_type: "absent",
+          proxy_type: null,
+          proxy_contact_id: null,
+        })
+        .eq("id", myAttendee.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "Vollmacht zurückgezogen" });
+      refetchAttendee();
+    },
+    onError: (err: any) => {
+      toast({ title: "Fehler", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const getContactName = (contact: any) => {
+    if (contact.company_name) return contact.company_name;
+    return [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Unbenannt";
+  };
+
+  const isProxyLocked = (meetingDate: string) => {
+    const lockTime = new Date(meetingDate);
+    lockTime.setHours(lockTime.getHours() - 1);
+    return new Date() >= lockTime;
+  };
+
+
   const submitTopMutation = useMutation({
     mutationFn: async () => {
       let attachmentPaths: string[] = [];
@@ -450,9 +569,7 @@ export const WegOwnerMeetings = () => {
                           <div className="flex-1">
                             <p className="font-medium text-sm">{item.title}</p>
                             {item.description && <p className="text-xs text-muted-foreground mt-1">{item.description}</p>}
-                            {item.resolution_text && (
-                              <div className="mt-2 p-2 bg-muted rounded text-xs italic">{item.resolution_text}</div>
-                            )}
+                            {/* resolution_text hidden from owner view - admin only */}
                             {item.result && (
                               <Badge variant={item.result === "passed" ? "default" : "destructive"} className="text-xs mt-1">
                                 {item.result === "passed" ? "Angenommen" : "Abgelehnt"}
@@ -463,6 +580,85 @@ export const WegOwnerMeetings = () => {
                       </CardContent>
                     </Card>
                   ))}
+                </div>
+              )}
+
+              {/* Vollmacht-Sektion */}
+              {selectedMeeting.status === "published" && myAttendee && (
+                <div className="border-t pt-4 space-y-3">
+                  <h3 className="font-semibold text-foreground flex items-center gap-2">
+                    <Shield className="h-4 w-4" />
+                    Ihre Teilnahme & Vollmacht
+                  </h3>
+
+                  {isProxyLocked(selectedMeeting.meeting_date) && (
+                    <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/30">
+                      <CardContent className="p-3 flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
+                        <Lock className="h-4 w-4" />
+                        <span>Vollmachten sind gesperrt (1h vor Versammlungsbeginn). Änderungen sind nicht mehr möglich.</span>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  <Card>
+                    <CardContent className="p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium">Aktueller Status</p>
+                          <div className="mt-1">
+                            {myAttendee.attendance_type === "proxy" ? (
+                              <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                Vertreten — {myAttendee.proxy_type === "manager" ? "durch Verwalter" : "durch Eigentümer"}
+                              </Badge>
+                            ) : myAttendee.attendance_type === "present" ? (
+                              <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Anwesend</Badge>
+                            ) : (
+                              <Badge variant="secondary">Nicht teilgenommen / Offen</Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {!isProxyLocked(selectedMeeting.meeting_date) && (
+                        <div className="flex gap-2 pt-1">
+                          {myAttendee.attendance_type !== "proxy" ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="gap-2"
+                              onClick={() => {
+                                setProxyType("manager");
+                                setProxyContactId("");
+                                setShowProxyDialog(true);
+                              }}
+                            >
+                              <Shield className="h-3.5 w-3.5" />
+                              Vollmacht erteilen
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="gap-2"
+                              onClick={() => withdrawProxyMutation.mutate()}
+                              disabled={withdrawProxyMutation.isPending}
+                            >
+                              <UserX className="h-3.5 w-3.5" />
+                              {withdrawProxyMutation.isPending ? "Wird zurückgezogen..." : "Vollmacht zurückziehen"}
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {selectedMeeting.status === "published" && !myAttendee && myAssignment && (
+                <div className="border-t pt-4">
+                  <p className="text-sm text-muted-foreground">
+                    Sie sind noch nicht als Teilnehmer für diese Versammlung registriert. Bitte wenden Sie sich an die Verwaltung.
+                  </p>
                 </div>
               )}
             </div>
@@ -774,6 +970,56 @@ export const WegOwnerMeetings = () => {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Proxy Dialog */}
+      <Dialog open={showProxyDialog} onOpenChange={setShowProxyDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Vollmacht erteilen</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Vollmacht an</Label>
+              <Select value={proxyType} onValueChange={(v) => { setProxyType(v); setProxyContactId(""); }}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="manager">Verwalter</SelectItem>
+                  <SelectItem value="owner">Anderen Eigentümer</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {proxyType === "owner" && (
+              <div className="space-y-2">
+                <Label>Eigentümer auswählen</Label>
+                <Select value={proxyContactId} onValueChange={setProxyContactId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Eigentümer wählen..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {otherOwners.map((o: any) => (
+                      <SelectItem key={o.contacts.id} value={o.contacts.id}>
+                        {getContactName(o.contacts)}{o.unit_number ? ` (Einheit ${o.unit_number})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowProxyDialog(false)}>Abbrechen</Button>
+            <Button
+              onClick={() => setProxyMutation.mutate({ type: proxyType, contactId: proxyContactId || undefined })}
+              disabled={setProxyMutation.isPending || (proxyType === "owner" && !proxyContactId)}
+            >
+              {setProxyMutation.isPending ? "Wird gespeichert..." : "Vollmacht erteilen"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
