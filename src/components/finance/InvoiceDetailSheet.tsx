@@ -411,12 +411,34 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
 
             <Separator />
 
-            {/* Save */}
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={handleSave} disabled={saving}>
+            {/* Save & Delete */}
+            <div className="flex flex-wrap gap-2 justify-between">
+              <Button onClick={handleSave} disabled={saving || deleting}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
                 Speichern
               </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" size="sm" disabled={deleting}>
+                    {deleting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Trash2 className="h-4 w-4 mr-1" />}
+                    Löschen
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Rechnung löschen?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Die Rechnung, das zugehörige PDF, alle verknüpften Buchungen und Zuordnungen werden unwiderruflich gelöscht.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                      Endgültig löschen
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </div>
         ) : null}
