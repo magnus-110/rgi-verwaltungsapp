@@ -72,19 +72,23 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
     const anthracite = [74, 72, 73] as [number, number, number];
     const gray = [150, 150, 150] as [number, number, number];
 
-    // Try to load logo — top right corner
-    let logoH = 15;
+    // Try to load logo — top right corner via canvas DataURL
+    let logoH = 14;
     try {
       const logoUrl = `${window.location.origin}/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png`;
-      const img = await loadImage(logoUrl);
-      const logoW = (img.width / img.height) * logoH;
-      pdf.addImage(img, "PNG", pageWidth - margin - logoW, y, logoW, logoH);
+      const dataUrl = await loadImageAsDataUrl(logoUrl);
+      // Calculate aspect ratio from a temp image
+      const tmpImg = new Image();
+      tmpImg.src = dataUrl;
+      await new Promise(r => { tmpImg.onload = r; });
+      const logoW = (tmpImg.naturalWidth / tmpImg.naturalHeight) * logoH;
+      pdf.addImage(dataUrl, "PNG", pageWidth - margin - logoW, y, logoW, logoH);
     } catch {
       // Logo loading failed, continue without
     }
 
     // Move y below the logo area before starting content
-    y += logoH + 8;
+    y += logoH + 12;
 
     // Title
     pdf.setFont("helvetica", "bold");
@@ -99,7 +103,7 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
     pdf.text(building?.name || "", margin, y);
 
     // Orange line
-    y += 20;
+    y += 12;
     pdf.setDrawColor(...orange);
     pdf.setLineWidth(0.5);
     pdf.line(margin, y, pageWidth - margin, y);
@@ -121,10 +125,10 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
       pdf.text(label, margin, y);
       pdf.setFont("helvetica", "normal");
       pdf.text(value, margin + 30, y);
-      y += 5.5;
+      y += 6;
     }
 
-    y += 8;
+    y += 6;
 
     // Greeting
     pdf.setFont("helvetica", "normal");
@@ -234,18 +238,27 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(8);
     pdf.setTextColor(...gray);
-    const footerText = `Erstellt am ${format(new Date(), "dd.MM.yyyy", { locale: de })} | ${building?.manager_name || "Hausverwaltung"}`;
-    pdf.text(footerText, pageWidth / 2, footerY, { align: "center" });
+    pdf.text("RGI Immobilien GmbH & Co. KG", pageWidth / 2, footerY, { align: "center" });
 
     pdf.save(`Einladung_ETV_${meeting?.title?.replace(/\s+/g, "_") || "Versammlung"}.pdf`);
     toast({ title: "PDF heruntergeladen", description: "Die Einladung wurde als PDF gespeichert." });
   };
 
-  const loadImage = (url: string): Promise<HTMLImageElement> => {
+  const loadImageAsDataUrl = (url: string): Promise<string> => {
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.crossOrigin = "anonymous";
-      img.onload = () => resolve(img);
+      img.onload = () => {
+        try {
+          const canvas = document.createElement("canvas");
+          canvas.width = img.naturalWidth;
+          canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) { reject(new Error("no canvas ctx")); return; }
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL("image/png"));
+        } catch (e) { reject(e); }
+      };
       img.onerror = reject;
       img.src = url;
     });
@@ -396,7 +409,7 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
 
                 {/* Footer */}
                 <div className="mt-8 pt-3 border-t text-center text-[8px]" style={{ borderColor: "#ee7202", color: "#999" }}>
-                  Erstellt am {format(new Date(), "dd.MM.yyyy", { locale: de })} | {building?.manager_name || "Hausverwaltung"}
+                  RGI Immobilien GmbH &amp; Co. KG
                 </div>
               </div>
             </div>
