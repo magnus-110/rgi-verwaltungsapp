@@ -379,6 +379,8 @@ export const WegOwnerMeetings = () => {
                       setSelectedTopId(top.id);
                       setEditTitle(top.title);
                       setEditDescription(top.description || "");
+                      setEditNewFiles([]);
+                      setEditRemovedPaths([]);
                       setIsEditing(false);
                     }}
                   >
