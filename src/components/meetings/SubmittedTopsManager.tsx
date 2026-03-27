@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CheckCircle2, XCircle, Pause, FileText, Inbox, Building2, ExternalLink } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { CheckCircle2, XCircle, FileText, Inbox, Building2, ExternalLink, ChevronDown, ChevronRight } from "lucide-react";
 import { format as formatDate } from "date-fns";
 import { de } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,12 +20,11 @@ export const SubmittedTopsManager = () => {
   const [filterBuildingId, setFilterBuildingId] = useState<string>("all");
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [rejectNote, setRejectNote] = useState("");
-  const [deferId, setDeferId] = useState<string | null>(null);
-  const [deferNote, setDeferNote] = useState("");
   const [acceptTopId, setAcceptTopId] = useState<string | null>(null);
   const [selectedMeetingId, setSelectedMeetingId] = useState<string>("");
+  const [detailTopId, setDetailTopId] = useState<string | null>(null);
+  const [showProcessed, setShowProcessed] = useState(false);
 
-  // Fetch all submitted TOPs
   const { data: allTops = [], isLoading } = useQuery({
     queryKey: ["admin-submitted-tops"],
     queryFn: async () => {
@@ -37,7 +37,6 @@ export const SubmittedTopsManager = () => {
     },
   });
 
-  // Unique buildings from TOPs
   const buildingMap = new Map<string, any>();
   allTops.forEach((t: any) => {
     if (t.buildings) buildingMap.set(t.buildings.id, t.buildings);
@@ -49,10 +48,12 @@ export const SubmittedTopsManager = () => {
     : allTops.filter((t: any) => t.building_id === filterBuildingId);
 
   const pendingTops = filteredTops.filter((t: any) => t.status === "pending");
-  const processedTops = filteredTops.filter((t: any) => t.status !== "pending");
+  const acceptedTops = filteredTops.filter((t: any) => t.status === "accepted");
+  const rejectedTops = filteredTops.filter((t: any) => t.status === "rejected" || t.status === "deferred");
 
-  // Fetch draft meetings for the accept dialog
   const acceptTop = allTops.find((t: any) => t.id === acceptTopId);
+  const detailTop = allTops.find((t: any) => t.id === detailTopId);
+
   const { data: draftMeetings = [] } = useQuery({
     queryKey: ["draft-meetings-for-building", acceptTop?.building_id],
     queryFn: async () => {
@@ -70,7 +71,6 @@ export const SubmittedTopsManager = () => {
 
   const acceptMutation = useMutation({
     mutationFn: async (top: any) => {
-      // Get next sort order for the meeting
       const { data: existingItems } = await supabase
         .from("etv_agenda_items")
         .select("sort_order")
@@ -109,35 +109,46 @@ export const SubmittedTopsManager = () => {
   });
 
   const rejectMutation = useMutation({
-    mutationFn: async ({ id, status, note }: { id: string; status: string; note?: string }) => {
+    mutationFn: async ({ id, note }: { id: string; note?: string }) => {
       const { error } = await supabase
         .from("etv_submitted_tops")
-        .update({ status, admin_notes: note || null, updated_at: new Date().toISOString() })
+        .update({ status: "rejected", admin_notes: note || null, updated_at: new Date().toISOString() })
         .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
-      toast({ title: "Status aktualisiert" });
+      toast({ title: "Antrag abgelehnt" });
       setRejectId(null);
       setRejectNote("");
       queryClient.invalidateQueries({ queryKey: ["admin-submitted-tops"] });
     },
   });
 
-  const statusLabels: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-    pending: { label: "Ausstehend", variant: "outline" },
-    accepted: { label: "Aufgenommen", variant: "default" },
-    rejected: { label: "Abgelehnt", variant: "destructive" },
-    deferred: { label: "Zurückgestellt", variant: "secondary" },
+  const getFileDownloadUrl = async (path: string) => {
+    const { data } = await supabase.storage.from("building-files").createSignedUrl(path, 3600);
+    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+  };
+
+  const getSubmitterName = (top: any) => {
+    const s = top.profiles;
+    return s ? `${s.first_name || ""} ${s.last_name || ""}`.trim() || "Unbekannt" : "Unbekannt";
   };
 
   const renderTopCard = (top: any, showActions: boolean) => {
-    const submitter = top.profiles;
-    const name = submitter ? `${submitter.first_name || ""} ${submitter.last_name || ""}`.trim() : "Unbekannt";
+    const statusLabels: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+      pending: { label: "Ausstehend", variant: "outline" },
+      accepted: { label: "Aufgenommen", variant: "default" },
+      rejected: { label: "Abgelehnt", variant: "destructive" },
+      deferred: { label: "Zurückgestellt", variant: "secondary" },
+    };
     const statusInfo = statusLabels[top.status] || statusLabels.pending;
 
     return (
-      <Card key={top.id} className={showActions ? "border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20" : ""}>
+      <Card
+        key={top.id}
+        className={`cursor-pointer hover:shadow-md transition-shadow ${showActions ? "border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20" : ""}`}
+        onClick={() => setDetailTopId(top.id)}
+      >
         <CardContent className="p-4">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
@@ -146,7 +157,7 @@ export const SubmittedTopsManager = () => {
                 <Badge variant={statusInfo.variant} className="text-xs">{statusInfo.label}</Badge>
               </div>
               {top.description && (
-                <p className="text-xs text-muted-foreground mt-1">{top.description}</p>
+                <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{top.description}</p>
               )}
               <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground flex-wrap">
                 <span className="flex items-center gap-1">
@@ -154,7 +165,7 @@ export const SubmittedTopsManager = () => {
                   {top.buildings?.name}
                 </span>
                 <span>•</span>
-                <span>von {name}</span>
+                <span>von {getSubmitterName(top)}</span>
                 <span>•</span>
                 <span>{formatDate(new Date(top.created_at), "dd.MM.yyyy", { locale: de })}</span>
                 {top.attachment_paths?.length > 0 && (
@@ -162,19 +173,14 @@ export const SubmittedTopsManager = () => {
                     <span>•</span>
                     <span className="flex items-center gap-1">
                       <FileText className="h-3 w-3" />
-                      {top.attachment_paths.length} Anhang/Anhänge
+                      {top.attachment_paths.length}
                     </span>
                   </>
                 )}
               </div>
-              {top.admin_notes && (
-                <p className="text-xs text-muted-foreground mt-2 italic border-l-2 border-muted pl-2">
-                  {top.admin_notes}
-                </p>
-              )}
             </div>
             {showActions && (
-              <div className="flex items-center gap-1 flex-shrink-0">
+              <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                 <Button
                   size="sm"
                   variant="default"
@@ -183,14 +189,6 @@ export const SubmittedTopsManager = () => {
                 >
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   Übernehmen
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1 h-8"
-                  onClick={() => { setDeferId(top.id); setDeferNote(""); }}
-                >
-                  <Pause className="h-3.5 w-3.5" />
                 </Button>
                 <Button
                   size="sm"
@@ -218,7 +216,6 @@ export const SubmittedTopsManager = () => {
 
   return (
     <div className="space-y-4">
-      {/* Filter */}
       {buildings.length > 1 && (
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Gebäude:</span>
@@ -237,7 +234,7 @@ export const SubmittedTopsManager = () => {
       )}
 
       {/* Pending */}
-      {pendingTops.length > 0 && (
+      {pendingTops.length > 0 ? (
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <Inbox className="h-4 w-4 text-amber-500" />
@@ -245,26 +242,140 @@ export const SubmittedTopsManager = () => {
           </div>
           {pendingTops.map((top: any) => renderTopCard(top, true))}
         </div>
-      )}
-
-      {/* Processed */}
-      {processedTops.length > 0 && (
-        <div className="space-y-3">
-          <h3 className="text-sm font-semibold text-muted-foreground">Bearbeitete Anträge</h3>
-          {processedTops.map((top: any) => renderTopCard(top, false))}
-        </div>
-      )}
-
-      {filteredTops.length === 0 && (
+      ) : (
         <Card>
           <CardContent className="py-12 text-center">
             <Inbox className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">Keine eingereichten Anträge vorhanden.</p>
+            <p className="text-muted-foreground">Keine offenen Anträge vorhanden.</p>
           </CardContent>
         </Card>
       )}
 
-      {/* Accept dialog: select meeting */}
+      {/* Processed - collapsible */}
+      {(acceptedTops.length > 0 || rejectedTops.length > 0) && (
+        <Collapsible open={showProcessed} onOpenChange={setShowProcessed}>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" className="gap-2 text-muted-foreground w-full justify-start">
+              {showProcessed ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              Bearbeitete Anträge ({acceptedTops.length + rejectedTops.length})
+            </Button>
+          </CollapsibleTrigger>
+          <CollapsibleContent className="space-y-4 mt-2">
+            {acceptedTops.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+                  Angenommen ({acceptedTops.length})
+                </h4>
+                {acceptedTops.map((top: any) => renderTopCard(top, false))}
+              </div>
+            )}
+            {rejectedTops.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                  <XCircle className="h-3.5 w-3.5 text-destructive" />
+                  Abgelehnt ({rejectedTops.length})
+                </h4>
+                {rejectedTops.map((top: any) => renderTopCard(top, false))}
+              </div>
+            )}
+          </CollapsibleContent>
+        </Collapsible>
+      )}
+
+      {/* Detail dialog */}
+      <Dialog open={!!detailTopId} onOpenChange={() => setDetailTopId(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl">Antragsdetails</DialogTitle>
+          </DialogHeader>
+          {detailTop && (
+            <div className="space-y-5">
+              <div>
+                <h3 className="text-lg font-semibold">{detailTop.title}</h3>
+                <div className="flex items-center gap-3 mt-2 flex-wrap">
+                  <Badge variant={detailTop.status === "accepted" ? "default" : detailTop.status === "rejected" ? "destructive" : "outline"} className="text-sm px-3 py-1">
+                    {detailTop.status === "accepted" ? "Aufgenommen" : detailTop.status === "rejected" ? "Abgelehnt" : "Ausstehend"}
+                  </Badge>
+                  <span className="text-sm text-muted-foreground flex items-center gap-1">
+                    <Building2 className="h-4 w-4" />
+                    {detailTop.buildings?.name}
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground font-medium mb-1">Eingereicht von</p>
+                  <p>{getSubmitterName(detailTop)}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground font-medium mb-1">Eingereicht am</p>
+                  <p>{formatDate(new Date(detailTop.created_at), "dd.MM.yyyy 'um' HH:mm 'Uhr'", { locale: de })}</p>
+                </div>
+              </div>
+
+              {detailTop.description && (
+                <div>
+                  <p className="text-sm font-semibold text-muted-foreground mb-1">Begründung</p>
+                  <p className="text-base leading-relaxed whitespace-pre-wrap">{detailTop.description}</p>
+                </div>
+              )}
+
+              {detailTop.admin_notes && (
+                <div className="border-l-4 border-primary/30 bg-primary/5 rounded-r-lg pl-4 pr-3 py-3">
+                  <p className="text-sm font-semibold text-muted-foreground mb-1">Anmerkung der Verwaltung</p>
+                  <p className="text-base italic">{detailTop.admin_notes}</p>
+                </div>
+              )}
+
+              {detailTop.attachment_paths?.length > 0 && (
+                <div>
+                  <p className="text-sm font-semibold text-muted-foreground mb-2">Anhänge</p>
+                  <div className="space-y-1.5">
+                    {detailTop.attachment_paths.map((path: string, i: number) => {
+                      const fileName = path.split("/").pop()?.replace(/^\d+-/, "") || path;
+                      return (
+                        <Button
+                          key={i}
+                          variant="outline"
+                          className="w-full justify-start gap-2 text-sm h-11"
+                          onClick={() => getFileDownloadUrl(path)}
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                          {fileName}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {detailTop.status === "pending" && (
+                <div className="flex justify-end gap-2 border-t pt-4">
+                  <Button
+                    variant="ghost"
+                    className="gap-1 text-destructive hover:text-destructive"
+                    onClick={() => { setDetailTopId(null); setRejectId(detailTop.id); setRejectNote(""); }}
+                  >
+                    <XCircle className="h-4 w-4" />
+                    Ablehnen
+                  </Button>
+                  <Button
+                    className="gap-2"
+                    onClick={() => { setDetailTopId(null); setAcceptTopId(detailTop.id); setSelectedMeetingId(""); }}
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    In Versammlung übernehmen
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Accept dialog */}
       <Dialog open={!!acceptTopId} onOpenChange={() => setAcceptTopId(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -276,7 +387,7 @@ export const SubmittedTopsManager = () => {
             </p>
             {draftMeetings.length === 0 ? (
               <p className="text-sm text-destructive">
-                Es gibt keine Versammlungen im Status "Entwurf" oder "Freigeschaltet" für dieses Gebäude. Bitte erstellen Sie zuerst eine Versammlung.
+                Keine Versammlungen im Status "Entwurf" oder "Freigeschaltet" für dieses Gebäude vorhanden.
               </p>
             ) : (
               <Select value={selectedMeetingId} onValueChange={setSelectedMeetingId}>
@@ -324,44 +435,10 @@ export const SubmittedTopsManager = () => {
               <Button variant="outline" onClick={() => setRejectId(null)}>Abbrechen</Button>
               <Button
                 variant="destructive"
-                onClick={() => rejectMutation.mutate({ id: rejectId!, status: "rejected", note: rejectNote })}
+                onClick={() => rejectMutation.mutate({ id: rejectId!, note: rejectNote })}
                 disabled={rejectMutation.isPending}
               >
                 Ablehnen
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Defer dialog */}
-      <Dialog open={!!deferId} onOpenChange={() => setDeferId(null)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Antrag zurückstellen</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Der Antrag wird zurückgestellt und kann später in eine andere Versammlung aufgenommen werden.
-            </p>
-            <Textarea
-              placeholder="Begründung (optional, wird dem Eigentümer angezeigt)..."
-              value={deferNote}
-              onChange={(e) => setDeferNote(e.target.value)}
-              rows={3}
-            />
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setDeferId(null)}>Abbrechen</Button>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  rejectMutation.mutate({ id: deferId!, status: "deferred", note: deferNote });
-                  setDeferId(null);
-                  setDeferNote("");
-                }}
-                disabled={rejectMutation.isPending}
-              >
-                Zurückstellen
               </Button>
             </div>
           </div>
