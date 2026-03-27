@@ -120,7 +120,122 @@ export const WegOwnerMeetings = () => {
     enabled: !!selectedMeetingId,
   });
 
-  // Submit TOP
+  // Find user's contact assignment for this building
+  const { data: myAssignment } = useQuery({
+    queryKey: ["my-contact-assignment", effectiveBuildingId, profile?.user_id],
+    queryFn: async () => {
+      // Find the contact linked to this user
+      const { data: contact } = await supabase
+        .from("contacts")
+        .select("id")
+        .eq("user_id", profile?.user_id!)
+        .maybeSingle();
+      if (!contact) return null;
+      
+      const { data } = await supabase
+        .from("contact_building_assignments")
+        .select("id")
+        .eq("contact_id", contact.id)
+        .eq("building_id", effectiveBuildingId!)
+        .eq("is_active", true)
+        .limit(1)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!effectiveBuildingId && !!profile?.user_id,
+  });
+
+  // Find user's attendee record for the selected meeting
+  const { data: myAttendee, refetch: refetchAttendee } = useQuery({
+    queryKey: ["my-attendee", selectedMeetingId, myAssignment?.id],
+    queryFn: async () => {
+      if (!myAssignment?.id || !selectedMeetingId) return null;
+      const { data } = await supabase
+        .from("etv_attendees")
+        .select("*")
+        .eq("meeting_id", selectedMeetingId)
+        .eq("assignment_id", myAssignment.id)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!selectedMeetingId && !!myAssignment?.id,
+  });
+
+  // Load other owners for proxy selection
+  const { data: otherOwners = [] } = useQuery({
+    queryKey: ["building-owners-proxy", effectiveBuildingId, profile?.user_id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("contact_building_assignments")
+        .select(`id, unit_number, contacts!inner(id, first_name, last_name, company_name)`)
+        .eq("building_id", effectiveBuildingId!)
+        .eq("role_in_building", "eigentuemer")
+        .eq("is_active", true);
+      // Filter out current user's assignment
+      return (data || []).filter((d: any) => d.id !== myAssignment?.id);
+    },
+    enabled: !!effectiveBuildingId && !!myAssignment?.id,
+  });
+
+  // Set proxy mutation
+  const setProxyMutation = useMutation({
+    mutationFn: async ({ type, contactId }: { type: string; contactId?: string }) => {
+      if (!myAttendee?.id) throw new Error("Kein Teilnehmer-Eintrag gefunden");
+      const { error } = await supabase
+        .from("etv_attendees")
+        .update({
+          attendance_type: "proxy",
+          proxy_type: type,
+          proxy_contact_id: type === "owner" ? (contactId || null) : null,
+        })
+        .eq("id", myAttendee.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "Vollmacht erteilt" });
+      setShowProxyDialog(false);
+      refetchAttendee();
+    },
+    onError: (err: any) => {
+      toast({ title: "Fehler", description: err.message, variant: "destructive" });
+    },
+  });
+
+  // Withdraw proxy mutation
+  const withdrawProxyMutation = useMutation({
+    mutationFn: async () => {
+      if (!myAttendee?.id) throw new Error("Kein Teilnehmer-Eintrag gefunden");
+      const { error } = await supabase
+        .from("etv_attendees")
+        .update({
+          attendance_type: "absent",
+          proxy_type: null,
+          proxy_contact_id: null,
+        })
+        .eq("id", myAttendee.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "Vollmacht zurückgezogen" });
+      refetchAttendee();
+    },
+    onError: (err: any) => {
+      toast({ title: "Fehler", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const getContactName = (contact: any) => {
+    if (contact.company_name) return contact.company_name;
+    return [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Unbenannt";
+  };
+
+  const isProxyLocked = (meetingDate: string) => {
+    const lockTime = new Date(meetingDate);
+    lockTime.setHours(lockTime.getHours() - 1);
+    return new Date() >= lockTime;
+  };
+
+
   const submitTopMutation = useMutation({
     mutationFn: async () => {
       let attachmentPaths: string[] = [];
