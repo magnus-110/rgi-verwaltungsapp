@@ -474,80 +474,162 @@ export const WegOwnerMeetings = () => {
       <Dialog open={!!selectedTopId} onOpenChange={() => setSelectedTopId(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>
-              {isEditing ? "Antrag bearbeiten" : "Antragsdetails"}
+            <DialogTitle className="text-xl">
+              {isEditing ? "Antrag bearbeiten" : "Ihr Antrag"}
             </DialogTitle>
           </DialogHeader>
           {selectedTop && (
-            <div className="space-y-4">
+            <div className="space-y-5">
               {isEditing ? (
                 <>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Titel</Label>
-                    <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+                  <div className="space-y-2">
+                    <Label className="text-base font-semibold">Was möchten Sie beantragen?</Label>
+                    <Input
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      className="text-base h-12"
+                      placeholder="z.B. Sanierung der Tiefgarage"
+                    />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Begründung</Label>
+                  <div className="space-y-2">
+                    <Label className="text-base font-semibold">Warum ist das wichtig? <span className="text-muted-foreground font-normal">(freiwillig)</span></Label>
                     <Textarea
                       value={editDescription}
                       onChange={(e) => setEditDescription(e.target.value)}
                       rows={4}
+                      className="text-base"
+                      placeholder="Beschreiben Sie kurz, warum dieser Punkt besprochen werden sollte..."
                     />
                   </div>
-                  <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={() => setIsEditing(false)}>Abbrechen</Button>
+
+                  {/* Existing attachments */}
+                  {(() => {
+                    const remainingPaths = (selectedTop.attachment_paths || []).filter((p: string) => !editRemovedPaths.includes(p));
+                    return remainingPaths.length > 0 ? (
+                      <div className="space-y-2">
+                        <Label className="text-base font-semibold">Vorhandene Anhänge</Label>
+                        <div className="space-y-1.5">
+                          {remainingPaths.map((path: string, i: number) => {
+                            const fileName = path.split("/").pop()?.replace(/^\d+-/, "") || path;
+                            return (
+                              <div key={i} className="flex items-center justify-between bg-muted rounded-lg px-3 py-2">
+                                <span className="flex items-center gap-2 text-sm truncate">
+                                  <FileText className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                                  {fileName}
+                                </span>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-destructive hover:text-destructive"
+                                  onClick={() => setEditRemovedPaths((prev) => [...prev, path])}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : null;
+                  })()}
+
+                  {/* New file upload */}
+                  <div className="space-y-2">
+                    <Label className="text-base font-semibold">Neue Dateien hinzufügen <span className="text-muted-foreground font-normal">(freiwillig)</span></Label>
+                    <div
+                      className="border-2 border-dashed rounded-xl p-5 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                      onClick={() => document.getElementById("edit-top-file-upload")?.click()}
+                    >
+                      <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                      <p className="text-base text-muted-foreground">Hier tippen um Dateien auszuwählen</p>
+                    </div>
+                    <input
+                      type="file"
+                      multiple
+                      className="hidden"
+                      id="edit-top-file-upload"
+                      onChange={(e) => {
+                        if (e.target.files) setEditNewFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
+                      }}
+                    />
+                    {editNewFiles.length > 0 && (
+                      <div className="space-y-1.5">
+                        {editNewFiles.map((file, i) => (
+                          <div key={i} className="flex items-center justify-between bg-muted rounded-lg px-3 py-2">
+                            <span className="flex items-center gap-2 text-sm truncate">
+                              <FileText className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                              {file.name}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              onClick={() => setEditNewFiles((prev) => prev.filter((_, j) => j !== i))}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end gap-3 border-t pt-4">
+                    <Button variant="outline" size="lg" onClick={() => { setIsEditing(false); setEditNewFiles([]); setEditRemovedPaths([]); }}>
+                      Abbrechen
+                    </Button>
                     <Button
+                      size="lg"
                       onClick={() => updateTopMutation.mutate({ id: selectedTop.id, title: editTitle, description: editDescription })}
                       disabled={!editTitle || updateTopMutation.isPending}
                     >
-                      Speichern
+                      {updateTopMutation.isPending ? "Wird gespeichert..." : "Änderungen speichern"}
                     </Button>
                   </div>
                 </>
               ) : (
                 <>
                   <div>
-                    <h3 className="font-semibold">{selectedTop.title}</h3>
-                    <Badge variant={topStatusLabels[selectedTop.status]?.variant || "outline"} className="mt-1">
+                    <h3 className="text-lg font-semibold">{selectedTop.title}</h3>
+                    <Badge variant={topStatusLabels[selectedTop.status]?.variant || "outline"} className="mt-2 text-sm px-3 py-1">
                       {topStatusLabels[selectedTop.status]?.label || selectedTop.status}
                     </Badge>
                   </div>
                   {selectedTop.description && (
                     <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-1">Begründung</p>
-                      <p className="text-sm">{selectedTop.description}</p>
+                      <p className="text-sm font-semibold text-muted-foreground mb-1">Begründung</p>
+                      <p className="text-base leading-relaxed">{selectedTop.description}</p>
                     </div>
                   )}
-                  <div className="text-xs text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     Eingereicht am {formatDate(new Date(selectedTop.created_at), "dd.MM.yyyy 'um' HH:mm", { locale: de })}
-                  </div>
+                  </p>
                   {selectedTop.admin_notes && (
-                    <div className="border-l-2 border-muted pl-3">
-                      <p className="text-xs font-medium text-muted-foreground mb-1">Anmerkung der Verwaltung</p>
-                      <p className="text-sm italic">{selectedTop.admin_notes}</p>
+                    <div className="border-l-4 border-primary/30 bg-primary/5 rounded-r-lg pl-4 pr-3 py-3">
+                      <p className="text-sm font-semibold text-muted-foreground mb-1">Anmerkung der Verwaltung</p>
+                      <p className="text-base italic">{selectedTop.admin_notes}</p>
                     </div>
                   )}
                   {selectedTop.etv_meetings?.title && (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-sm text-muted-foreground">
                       Aufgenommen in: <strong>{selectedTop.etv_meetings.title}</strong>
                     </p>
                   )}
-                  {/* Attachments */}
                   {selectedTop.attachment_paths?.length > 0 && (
                     <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-2">Anhänge</p>
-                      <div className="space-y-1">
+                      <p className="text-sm font-semibold text-muted-foreground mb-2">Anhänge</p>
+                      <div className="space-y-1.5">
                         {selectedTop.attachment_paths.map((path: string, i: number) => {
                           const fileName = path.split("/").pop()?.replace(/^\d+-/, "") || path;
                           return (
                             <Button
                               key={i}
                               variant="outline"
-                              size="sm"
-                              className="w-full justify-start gap-2 text-xs"
+                              size="lg"
+                              className="w-full justify-start gap-2 text-sm h-11"
                               onClick={() => getFileDownloadUrl(path)}
                             >
-                              <ExternalLink className="h-3 w-3" />
+                              <ExternalLink className="h-4 w-4" />
                               {fileName}
                             </Button>
                           );
@@ -555,25 +637,24 @@ export const WegOwnerMeetings = () => {
                       </div>
                     </div>
                   )}
-                  {/* Actions for pending TOPs */}
                   {selectedTop.status === "pending" && (
-                    <div className="flex justify-end gap-2 border-t pt-3">
+                    <div className="flex justify-end gap-3 border-t pt-4">
                       <Button
                         variant="outline"
-                        size="sm"
-                        className="gap-1"
+                        size="lg"
+                        className="gap-2"
                         onClick={() => setIsEditing(true)}
                       >
-                        <Pencil className="h-3.5 w-3.5" />
+                        <Pencil className="h-4 w-4" />
                         Bearbeiten
                       </Button>
                       <Button
                         variant="destructive"
-                        size="sm"
-                        className="gap-1"
+                        size="lg"
+                        className="gap-2"
                         onClick={() => setDeleteTopId(selectedTop.id)}
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 className="h-4 w-4" />
                         Löschen
                       </Button>
                     </div>
