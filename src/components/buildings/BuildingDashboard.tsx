@@ -169,6 +169,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
               { value: "forum", label: "Schwarzes Brett" },
               { value: "maintenance", label: "Wartung" },
               { value: "distribution", label: "Kontenrahmen" },
+              { value: "utility", label: "Versorgung" },
               { value: "finance", label: "Finanzen" },
               ...(building.management_mode === 'weg' ? [{ value: "resolutions", label: "Beschlüsse" }] : []),
             ].map(tab => (
