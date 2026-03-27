@@ -188,6 +188,15 @@ export const AttendeeManager = ({ meetingId, buildingId, lockTime }: AttendeeMan
     },
   });
 
+  // Auto-initialize attendees from owners when list is empty
+  const autoInitRef = useRef(false);
+  useEffect(() => {
+    if (attendees.length === 0 && owners.length > 0 && !loadingAttendees && !initMutation.isPending && !autoInitRef.current) {
+      autoInitRef.current = true;
+      initMutation.mutate();
+    }
+  }, [attendees.length, owners.length, loadingAttendees]);
+
   const getContactName = (contact: any) => {
     if (contact.company_name) return contact.company_name;
     return [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Unbenannt";
