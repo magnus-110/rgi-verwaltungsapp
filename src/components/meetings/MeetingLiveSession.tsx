@@ -726,49 +726,9 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
         </CardContent>
       </Card>
 
-      {/* Proxy Dialog */}
-      <Dialog open={!!proxyDialog} onOpenChange={() => setProxyDialog(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Vollmacht erteilen</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Vollmacht-Typ</Label>
-              <Select value={proxyType} onValueChange={setProxyType}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="manager">An Verwalter</SelectItem>
-                  <SelectItem value="owner">An anderen Eigentümer</SelectItem>
-                  <SelectItem value="external">An externe Person (Token-Link)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {proxyType === "owner" && (
-              <div className="space-y-2">
-                <Label>Eigentümer auswählen</Label>
-                <Select value={proxyContactId} onValueChange={setProxyContactId}>
-                  <SelectTrigger><SelectValue placeholder="Eigentümer wählen..." /></SelectTrigger>
-                  <SelectContent>
-                    {allContacts.map((c: any) => (
-                      <SelectItem key={c.contacts.id} value={c.contacts.id}>{getContactName(c.contacts)}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            {proxyType === "external" && (
-              <p className="text-sm text-muted-foreground">Es wird ein Token-Link generiert.</p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setProxyDialog(null)}>Abbrechen</Button>
-            <Button
-              onClick={() => { if (proxyDialog) setProxyMutation.mutate({ attendeeId: proxyDialog, type: proxyType, contactId: proxyContactId || undefined }); }}
-              disabled={setProxyMutation.isPending || (proxyType === "owner" && !proxyContactId)}
-            >
-              {setProxyMutation.isPending ? "Speichern..." : "Vollmacht erteilen"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
+    </div>
+  );
+};
       </Dialog>
     </div>
   );
