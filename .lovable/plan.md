@@ -1,34 +1,29 @@
 
 
-# Plan: PDF via html2canvas — Vorschau = PDF
+# Plan: A4-Layout & Logo-Fix für Einladung
 
-## Problem
-jsPDF zeichnet alles manuell mit Helvetica. Die Vorschau nutzt Century Gothic / Work Sans via CSS. Diese Diskrepanz ist mit jsPDF nicht lösbar — die Schriftarten können nicht eingebettet werden.
+## Probleme
+1. **Logo wird im PDF nicht angezeigt** — `html2canvas` kann Cross-Origin-Bilder nicht rendern. Das Logo muss vor dem Rendering als Base64-DataURL vorgeladen werden.
+2. **PDF weicht von Vorschau ab** — Der Preview-Container (794px) wird im Dialog abgeschnitten/gescrollt. `html2canvas` rendert nur den sichtbaren/geclippten Teil.
+3. **Kein A4-Seitenverhältnis in der Vorschau** — Der Container hat zwar 794px Breite, aber keine feste Höhe. Die Vorschau soll ein echtes A4-Blatt darstellen (794×1123px).
 
-## Lösung: html2canvas + jsPDF
-Die HTML-Vorschau wird **direkt als Bild** gerendert und in ein PDF eingefügt. Das garantiert: Was in der Vorschau steht, landet 1:1 im PDF — mit korrekten Schriftarten, Abständen und Farben.
+## Lösung in `MeetingInvitationPdf.tsx`
 
-**Ablauf:**
-1. `html2canvas` rendert den Preview-Container (`previewRef`) als Canvas
-2. Canvas wird als Bild in ein A4-PDF via `jsPDF` eingefügt
-3. Skalierung auf A4-Breite mit korrektem Seitenverhältnis
-4. Bei langen Inhalten: automatischer Seitenumbruch
+### 1. Logo als Base64 vorladen
+- `useEffect` + Canvas-Trick: Logo-Bild laden, auf ein unsichtbares `<canvas>` zeichnen, `toDataURL()` speichern
+- Im Preview-`<img>` das Base64-DataURL verwenden statt der externen URL
+- Damit kann `html2canvas` das Logo problemlos erfassen
 
-## Änderungen
+### 2. Preview als A4-Blatt mit Scale-Wrapper
+- Preview-Container: exakt `794px × 1123px` (A4 bei 96dpi), `min-height: 1123px`
+- Äußerer Wrapper mit `transform: scale(0.55)` + `transformOrigin: top center`, damit das A4-Blatt komplett in den Dialog passt
+- `html2canvas` greift auf den unskalierten 794px-Container zu → volle Auflösung
 
-### `MeetingInvitationPdf.tsx`
-1. **Import `html2canvas`** (muss als Dependency installiert werden)
-2. **`handleDownloadPdf` komplett ersetzen**: Statt manueller jsPDF-Zeichnung → `html2canvas(previewRef.current)` aufrufen, Canvas zu PNG konvertieren, in A4-PDF einfügen
-3. **Vorschau-Schriftarten korrigieren**: `fontFamily` auf `'Century Gothic', Arial, sans-serif` für Überschriften und `'Work Sans', sans-serif` für Fließtext setzen
-4. **Preview-Container für PDF optimieren**: Feste Breite (z.B. 794px = A4 bei 96dpi) setzen, damit das Rendering konsistent ist
-
-### Dependency
-- `html2canvas` installieren (`npm install html2canvas`)
-
-### Technische Details
+### 3. html2canvas-Aufruf optimieren
+- Explizit `width: 794`, `windowWidth: 794` setzen
+- `scrollX: 0, scrollY: 0` um Scroll-Offset-Probleme zu vermeiden
 
 | Datei | Änderung |
 |---|---|
-| `package.json` | `html2canvas` als Dependency hinzufügen |
-| `MeetingInvitationPdf.tsx` | `handleDownloadPdf` durch html2canvas-basierte Generierung ersetzen; Preview-Schriftarten auf Century Gothic + Work Sans; Preview-Breite fixieren für konsistentes Rendering |
+| `MeetingInvitationPdf.tsx` | Logo via Base64 vorladen; Preview-Container auf 794×1123px (A4) mit Scale-Wrapper; html2canvas-Optionen für korrektes Rendering |
 
