@@ -48,6 +48,19 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
     },
   });
 
+  const { data: buildingData } = useQuery({
+    queryKey: ["building-booking-instructions", buildingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("buildings")
+        .select("booking_instructions")
+        .eq("id", buildingId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const { data: overrides = [] } = useQuery({
     queryKey: ["building-account-overrides", buildingId],
     queryFn: async () => {
