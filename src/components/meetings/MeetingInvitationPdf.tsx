@@ -72,28 +72,31 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
     const anthracite = [74, 72, 73] as [number, number, number];
     const gray = [150, 150, 150] as [number, number, number];
 
-    // Try to load logo
+    // Try to load logo — top right corner
+    let logoH = 15;
     try {
       const logoUrl = `${window.location.origin}/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png`;
       const img = await loadImage(logoUrl);
-      // Logo top right, height ~12mm
-      const logoH = 12;
       const logoW = (img.width / img.height) * logoH;
       pdf.addImage(img, "PNG", pageWidth - margin - logoW, y, logoW, logoH);
     } catch {
       // Logo loading failed, continue without
     }
 
+    // Move y below the logo area before starting content
+    y += logoH + 8;
+
     // Title
     pdf.setFont("helvetica", "bold");
     pdf.setFontSize(17);
     pdf.setTextColor(...anthracite);
-    pdf.text("Einladung zur Eigentümerversammlung", margin, y + 8);
+    pdf.text("Einladung zur Eigentümerversammlung", margin, y);
+    y += 7;
 
     pdf.setFont("helvetica", "normal");
     pdf.setFontSize(10);
     pdf.setTextColor(...gray);
-    pdf.text(building?.name || "", margin, y + 15);
+    pdf.text(building?.name || "", margin, y);
 
     // Orange line
     y += 20;
@@ -340,13 +343,16 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
             {/* Live preview side */}
             <div className="border rounded-lg bg-white overflow-y-auto shadow-sm" ref={previewRef}>
               <div className="p-8 text-[11px] leading-relaxed" style={{ fontFamily: "'Segoe UI', Arial, sans-serif", color: "#4a4849", maxWidth: "600px" }}>
-                {/* Header */}
-                <div className="relative pb-3 mb-6 border-b-2" style={{ borderColor: "#ee7202" }}>
+                {/* Logo top right */}
+                <div className="flex justify-end mb-4">
                   <img
                     src="/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png"
                     alt="Logo"
-                    className="absolute top-0 right-0 h-10"
+                    className="h-12 object-contain"
                   />
+                </div>
+                {/* Header below logo */}
+                <div className="pb-3 mb-6 border-b-2" style={{ borderColor: "#ee7202" }}>
                   <h1 className="text-[16px] font-bold m-0" style={{ color: "#4a4849" }}>
                     Einladung zur Eigentümerversammlung
                   </h1>
