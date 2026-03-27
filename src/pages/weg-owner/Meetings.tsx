@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -160,6 +160,42 @@ export const WegOwnerMeetings = () => {
     },
     enabled: !!selectedMeetingId && !!myAssignment?.id,
   });
+
+  // Auto-create attendee record when owner views a published/in_progress meeting
+  const autoRegisterRef = useRef(false);
+  const autoRegisterMutation = useMutation({
+    mutationFn: async () => {
+      if (!myAssignment?.id || !selectedMeetingId) throw new Error("Missing data");
+      const { error } = await supabase.from("etv_attendees").insert({
+        meeting_id: selectedMeetingId,
+        assignment_id: myAssignment.id,
+        attendance_type: "absent",
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      refetchAttendee();
+    },
+  });
+
+  const selectedMeetingForAutoReg = meetings.find((m: any) => m.id === selectedMeetingId);
+  useEffect(() => {
+    if (
+      selectedMeetingId &&
+      myAssignment?.id &&
+      myAttendee === null &&
+      selectedMeetingForAutoReg &&
+      ["published", "in_progress"].includes(selectedMeetingForAutoReg.status) &&
+      !autoRegisterMutation.isPending &&
+      !autoRegisterRef.current
+    ) {
+      autoRegisterRef.current = true;
+      autoRegisterMutation.mutate();
+    }
+    if (!selectedMeetingId) {
+      autoRegisterRef.current = false;
+    }
+  }, [selectedMeetingId, myAssignment?.id, myAttendee, selectedMeetingForAutoReg?.status]);
 
   // Load other owners for proxy selection
   const { data: otherOwners = [] } = useQuery({
@@ -584,7 +620,7 @@ export const WegOwnerMeetings = () => {
               )}
 
               {/* Vollmacht-Sektion */}
-              {selectedMeeting.status === "published" && myAttendee && (
+              {["published", "in_progress"].includes(selectedMeeting.status) && myAssignment && (
                 <div className="border-t pt-4 space-y-3">
                   <h3 className="font-semibold text-foreground flex items-center gap-2">
                     <Shield className="h-4 w-4" />
@@ -600,6 +636,13 @@ export const WegOwnerMeetings = () => {
                     </Card>
                   )}
 
+                  {!myAttendee ? (
+                    <Card>
+                      <CardContent className="p-4 text-sm text-muted-foreground">
+                        Teilnehmer-Status wird geladen...
+                      </CardContent>
+                    </Card>
+                  ) : (
                   <Card>
                     <CardContent className="p-4 space-y-3">
                       <div className="flex items-center justify-between">
@@ -651,14 +694,7 @@ export const WegOwnerMeetings = () => {
                       )}
                     </CardContent>
                   </Card>
-                </div>
-              )}
-
-              {selectedMeeting.status === "published" && !myAttendee && myAssignment && (
-                <div className="border-t pt-4">
-                  <p className="text-sm text-muted-foreground">
-                    Sie sind noch nicht als Teilnehmer für diese Versammlung registriert. Bitte wenden Sie sich an die Verwaltung.
-                  </p>
+                  )}
                 </div>
               )}
             </div>

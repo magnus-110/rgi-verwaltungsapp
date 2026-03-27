@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -187,6 +187,15 @@ export const AttendeeManager = ({ meetingId, buildingId, lockTime }: AttendeeMan
       toast({ title: "Fehler", description: err.message, variant: "destructive" });
     },
   });
+
+  // Auto-initialize attendees from owners when list is empty
+  const autoInitRef = useRef(false);
+  useEffect(() => {
+    if (attendees.length === 0 && owners.length > 0 && !loadingAttendees && !initMutation.isPending && !autoInitRef.current) {
+      autoInitRef.current = true;
+      initMutation.mutate();
+    }
+  }, [attendees.length, owners.length, loadingAttendees]);
 
   const getContactName = (contact: any) => {
     if (contact.company_name) return contact.company_name;
