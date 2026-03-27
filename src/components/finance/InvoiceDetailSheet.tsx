@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { Loader2, FileText, ExternalLink, CheckCircle, CreditCard, Sparkles, Plus, Trash2, Fuel, ChevronDown, ChevronRight } from "lucide-react";
 
@@ -39,6 +40,7 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const { data: invoice, isLoading } = useQuery({
     queryKey: ["invoice-detail", invoiceId],
@@ -158,6 +160,32 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ["invoices"] });
     queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] });
+  };
+
+
+  const handleDelete = async () => {
+    if (!invoiceId || !inv) return;
+    setDeleting(true);
+    try {
+      // 1. Delete related bookings
+      await supabase.from("bookings").delete().eq("invoice_id", invoiceId);
+      // 2. Unlink bank transactions
+      await supabase.from("bank_transactions").update({ matched_invoice_id: null, match_status: "unmatched" }).eq("matched_invoice_id", invoiceId);
+      // 3. Delete file from storage if exists
+      if (inv.file_path) {
+        await supabase.storage.from("invoices").remove([inv.file_path]);
+      }
+      // 4. Delete invoice record
+      const { error } = await supabase.from("invoices").delete().eq("id", invoiceId);
+      if (error) throw error;
+      toast.success("Rechnung und zugehörige Daten gelöscht");
+      invalidateAll();
+      handleClose();
+    } catch (e: any) {
+      toast.error("Fehler beim Löschen: " + (e.message || "Unbekannt"));
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const togglePaymentStatus = async () => {
@@ -383,12 +411,34 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
 
             <Separator />
 
-            {/* Save */}
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={handleSave} disabled={saving}>
+            {/* Save & Delete */}
+            <div className="flex flex-wrap gap-2 justify-between">
+              <Button onClick={handleSave} disabled={saving || deleting}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
                 Speichern
               </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" size="sm" disabled={deleting}>
+                    {deleting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Trash2 className="h-4 w-4 mr-1" />}
+                    Löschen
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Rechnung löschen?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Die Rechnung, das zugehörige PDF, alle verknüpften Buchungen und Zuordnungen werden unwiderruflich gelöscht.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                      Endgültig löschen
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </div>
         ) : null}
