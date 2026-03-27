@@ -582,6 +582,85 @@ export const WegOwnerMeetings = () => {
                   ))}
                 </div>
               )}
+
+              {/* Vollmacht-Sektion */}
+              {selectedMeeting.status === "published" && myAttendee && (
+                <div className="border-t pt-4 space-y-3">
+                  <h3 className="font-semibold text-foreground flex items-center gap-2">
+                    <Shield className="h-4 w-4" />
+                    Ihre Teilnahme & Vollmacht
+                  </h3>
+
+                  {isProxyLocked(selectedMeeting.meeting_date) && (
+                    <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/30">
+                      <CardContent className="p-3 flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
+                        <Lock className="h-4 w-4" />
+                        <span>Vollmachten sind gesperrt (1h vor Versammlungsbeginn). Änderungen sind nicht mehr möglich.</span>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  <Card>
+                    <CardContent className="p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium">Aktueller Status</p>
+                          <div className="mt-1">
+                            {myAttendee.attendance_type === "proxy" ? (
+                              <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                Vertreten — {myAttendee.proxy_type === "manager" ? "durch Verwalter" : "durch Eigentümer"}
+                              </Badge>
+                            ) : myAttendee.attendance_type === "present" ? (
+                              <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Anwesend</Badge>
+                            ) : (
+                              <Badge variant="secondary">Nicht teilgenommen / Offen</Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {!isProxyLocked(selectedMeeting.meeting_date) && (
+                        <div className="flex gap-2 pt-1">
+                          {myAttendee.attendance_type !== "proxy" ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="gap-2"
+                              onClick={() => {
+                                setProxyType("manager");
+                                setProxyContactId("");
+                                setShowProxyDialog(true);
+                              }}
+                            >
+                              <Shield className="h-3.5 w-3.5" />
+                              Vollmacht erteilen
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="gap-2"
+                              onClick={() => withdrawProxyMutation.mutate()}
+                              disabled={withdrawProxyMutation.isPending}
+                            >
+                              <UserX className="h-3.5 w-3.5" />
+                              {withdrawProxyMutation.isPending ? "Wird zurückgezogen..." : "Vollmacht zurückziehen"}
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
+              {selectedMeeting.status === "published" && !myAttendee && myAssignment && (
+                <div className="border-t pt-4">
+                  <p className="text-sm text-muted-foreground">
+                    Sie sind noch nicht als Teilnehmer für diese Versammlung registriert. Bitte wenden Sie sich an die Verwaltung.
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>
