@@ -76,18 +76,29 @@ Deno.serve(async (req) => {
     const templateIds = transactions.filter(t => t.matched_template_id).map(t => t.matched_template_id);
     const buildingIds = [...new Set(transactions.filter(t => t.building_id).map(t => t.building_id))];
 
-    // Fetch related data
+    // Fetch related data (including booking_instructions from buildings)
     const [invoicesRes, templatesRes, buildingsRes] = await Promise.all([
       invoiceIds.length > 0
-        ? supabase.from("invoices").select("id, invoice_number, invoice_date, vendor_name, net_amount, gross_amount, vat_amount, description, line_items, suggested_account_id, chart_of_accounts:suggested_account_id(account_number, account_name)").in("id", invoiceIds)
+        ? supabase.from("invoices").select("id, invoice_number, invoice_date, vendor_name, net_amount, gross_amount, vat_amount, description, line_items, suggested_account_id, invoice_type, utility_contract_id, installment_period, meter_number, billing_period_from, billing_period_to, total_consumption, paid_installments_total, settlement_difference, chart_of_accounts:suggested_account_id(account_number, account_name)").in("id", invoiceIds)
         : { data: [] },
       templateIds.length > 0
         ? supabase.from("booking_templates").select("id, name, account_id, is_35a_relevant, category, chart_of_accounts:account_id(account_number, account_name)").in("id", templateIds)
         : { data: [] },
       buildingIds.length > 0
-        ? supabase.from("buildings").select("id, name, building_code").in("id", buildingIds)
+        ? supabase.from("buildings").select("id, name, building_code, booking_instructions").in("id", buildingIds)
         : { data: [] },
     ]);
+
+    // Fetch utility contracts for invoices that reference them
+    const contractIds = [...new Set((invoicesRes.data || []).filter((i: any) => i.utility_contract_id).map((i: any) => i.utility_contract_id))];
+    let contractMap = new Map();
+    if (contractIds.length > 0) {
+      const { data: contracts } = await supabase
+        .from("utility_contracts")
+        .select("id, utility_type, prepayment_account_id, expense_account_id, prepay_account:prepayment_account_id(account_number, account_name), expense_account:expense_account_id(account_number, account_name)")
+        .in("id", contractIds);
+      contractMap = new Map((contracts || []).map((c: any) => [c.id, c]));
+    }
 
     const invoiceMap = new Map((invoicesRes.data || []).map((i: any) => [i.id, i]));
     const templateMap = new Map((templatesRes.data || []).map((t: any) => [t.id, t]));
@@ -98,6 +109,7 @@ Deno.serve(async (req) => {
       const building = txn.building_id ? buildingMap.get(txn.building_id) : null;
       const invoice = txn.matched_invoice_id ? invoiceMap.get(txn.matched_invoice_id) : null;
       const template = txn.matched_template_id ? templateMap.get(txn.matched_template_id) : null;
+      const contract = invoice?.utility_contract_id ? contractMap.get(invoice.utility_contract_id) : null;
 
       let vat_rate: number | null = null;
       let vat_amount: number | null = invoice?.vat_amount ?? null;
@@ -127,9 +139,11 @@ Deno.serve(async (req) => {
         building_id: txn.building_id,
         building_name: building?.name || null,
         building_code: building?.building_code || null,
+        booking_instructions: building?.booking_instructions || null,
         invoice_number: invoice?.invoice_number || null,
         invoice_date: invoice?.invoice_date || null,
         invoice_description: invoice?.description || null,
+        invoice_type: invoice?.invoice_type || "standard",
         line_items: invoice?.line_items || [],
         vendor_name: invoice?.vendor_name || txn.creditor_name || txn.debtor_name,
         net_amount: net_amount,
@@ -141,6 +155,19 @@ Deno.serve(async (req) => {
         template_name: template?.name || null,
         is_35a_relevant: template?.is_35a_relevant || false,
         category: template?.category || null,
+        // Utility contract / installment fields
+        utility_type: contract?.utility_type || null,
+        prepayment_account_number: contract?.prepay_account?.account_number || null,
+        prepayment_account_name: contract?.prepay_account?.account_name || null,
+        expense_account_number: contract?.expense_account?.account_number || null,
+        expense_account_name: contract?.expense_account?.account_name || null,
+        installment_period: invoice?.installment_period || null,
+        meter_number: invoice?.meter_number || null,
+        billing_period_from: invoice?.billing_period_from || null,
+        billing_period_to: invoice?.billing_period_to || null,
+        total_consumption: invoice?.total_consumption || null,
+        paid_installments_total: invoice?.paid_installments_total || null,
+        settlement_difference: invoice?.settlement_difference || null,
       };
     });
 
