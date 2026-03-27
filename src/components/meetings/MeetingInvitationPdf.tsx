@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,8 @@ interface MeetingInvitationPdfProps {
   buildingId: string;
 }
 
+const LOGO_URL = "/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png";
+
 export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitationPdfProps) => {
   const { toast } = useToast();
   const [showEditor, setShowEditor] = useState(false);
@@ -27,7 +29,26 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
     "Sollten Sie an der Versammlung nicht teilnehmen können, bitten wir Sie, eine Vollmacht zu erteilen. Ein entsprechendes Formular liegt diesem Schreiben bei.\n\nMit freundlichen Grüßen"
   );
   const [additionalNotes, setAdditionalNotes] = useState("");
+  const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
+
+  // Preload logo as Base64 to avoid html2canvas CORS issues
+  useEffect(() => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(img, 0, 0);
+        setLogoBase64(canvas.toDataURL("image/png"));
+      }
+    };
+    img.onerror = () => console.warn("Logo could not be loaded for PDF");
+    img.src = `${window.location.origin}${LOGO_URL}`;
+  }, []);
 
   const { data: meeting } = useQuery({
     queryKey: ["etv-meeting-detail", meetingId],
@@ -63,15 +84,16 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
     if (!meeting || !previewRef.current) return;
 
     try {
-      // Render the preview HTML to canvas
       const canvas = await html2canvas(previewRef.current, {
         scale: 2,
         useCORS: true,
         allowTaint: true,
         backgroundColor: "#ffffff",
-        width: previewRef.current.scrollWidth,
+        width: 794,
         height: previewRef.current.scrollHeight,
-        windowWidth: previewRef.current.scrollWidth,
+        windowWidth: 794,
+        scrollX: 0,
+        scrollY: 0,
       });
 
       const imgData = canvas.toDataURL("image/png");
@@ -82,20 +104,16 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
       const imgWidth = pdfWidth;
       const imgHeight = (canvas.height * pdfWidth) / canvas.width;
 
-      // Handle multi-page if content is taller than one A4 page
       if (imgHeight <= pdfHeight) {
         pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
       } else {
         let remainingHeight = imgHeight;
         let position = 0;
-
         while (remainingHeight > 0) {
           pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
           remainingHeight -= pdfHeight;
           position -= pdfHeight;
-          if (remainingHeight > 0) {
-            pdf.addPage();
-          }
+          if (remainingHeight > 0) pdf.addPage();
         }
       }
 
@@ -106,9 +124,6 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
       toast({ title: "Fehler", description: "PDF konnte nicht erstellt werden.", variant: "destructive" });
     }
   };
-
-
-
 
   return (
     <div className="space-y-4">
@@ -199,63 +214,84 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
               </Button>
             </div>
 
-            {/* Live preview side */}
-            <div className="border rounded-lg bg-white overflow-y-auto shadow-sm">
-              <div className="p-12 text-[10px] leading-relaxed" ref={previewRef} style={{ fontFamily: "'Work Sans', sans-serif", color: "#4a4849", width: "794px", maxWidth: "794px", background: "#fff" }}>
-                {/* Logo top right */}
-                <div className="flex justify-end mb-4">
-                  <img
-                    src={`${window.location.origin}/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png`}
-                    alt="Logo"
-                    className="h-10 object-contain"
-                    crossOrigin="anonymous"
-                  />
-                </div>
-                {/* Header below logo */}
-                <div className="pb-2 mb-5 border-b-2" style={{ borderColor: "#ee7202" }}>
-                  <h1 className="text-[16px] font-bold m-0" style={{ color: "#4a4849", fontFamily: "'Century Gothic', Arial, sans-serif" }}>
-                    Einladung zur Eigentümerversammlung
-                  </h1>
-                  <p className="text-[9px] mt-1" style={{ color: "#999" }}>{building?.name || ""}</p>
-                </div>
+            {/* Live preview side — A4 sheet with scale wrapper */}
+            <div className="border rounded-lg bg-gray-100 overflow-y-auto shadow-sm flex justify-center p-4">
+              <div style={{ transform: "scale(0.55)", transformOrigin: "top center", width: "794px", height: "fit-content" }}>
+                <div
+                  ref={previewRef}
+                  style={{
+                    fontFamily: "'Work Sans', sans-serif",
+                    color: "#4a4849",
+                    width: "794px",
+                    minHeight: "1123px",
+                    background: "#fff",
+                    padding: "60px 56px",
+                    boxSizing: "border-box",
+                    fontSize: "10px",
+                    lineHeight: "1.6",
+                    boxShadow: "0 2px 12px rgba(0,0,0,0.12)",
+                  }}
+                >
+                  {/* Logo top right */}
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "24px" }}>
+                    {logoBase64 ? (
+                      <img src={logoBase64} alt="Logo" style={{ height: "40px", objectFit: "contain" }} />
+                    ) : (
+                      <img
+                        src={`${window.location.origin}${LOGO_URL}`}
+                        alt="Logo"
+                        style={{ height: "40px", objectFit: "contain" }}
+                        crossOrigin="anonymous"
+                      />
+                    )}
+                  </div>
 
-                {/* Meta */}
-                <div className="mb-5 text-[10px]">
-                  <div className="flex mb-1"><span className="font-semibold w-24">Liegenschaft:</span><span>{building?.name}, {building?.address}</span></div>
-                  <div className="flex mb-1"><span className="font-semibold w-24">Datum:</span><span>{dateStr}</span></div>
-                  <div className="flex mb-1"><span className="font-semibold w-24">Uhrzeit:</span><span>{timeStr} Uhr</span></div>
-                  {meeting?.location && <div className="flex mb-1"><span className="font-semibold w-24">Ort:</span><span>{meeting.location}</span></div>}
-                </div>
+                  {/* Header */}
+                  <div style={{ paddingBottom: "8px", marginBottom: "24px", borderBottom: "2px solid #ee7202" }}>
+                    <h1 style={{ fontSize: "16px", fontWeight: "bold", margin: 0, color: "#4a4849", fontFamily: "'Century Gothic', Arial, sans-serif" }}>
+                      Einladung zur Eigentümerversammlung
+                    </h1>
+                    <p style={{ fontSize: "9px", marginTop: "4px", color: "#999" }}>{building?.name || ""}</p>
+                  </div>
 
-                {/* Greeting */}
-                <div className="mb-5 whitespace-pre-line text-[10px]">{greeting}</div>
+                  {/* Meta */}
+                  <div style={{ marginBottom: "24px", fontSize: "10px" }}>
+                    <div style={{ display: "flex", marginBottom: "4px" }}><span style={{ fontWeight: 600, width: "96px", flexShrink: 0 }}>Liegenschaft:</span><span>{building?.name}, {building?.address}</span></div>
+                    <div style={{ display: "flex", marginBottom: "4px" }}><span style={{ fontWeight: 600, width: "96px", flexShrink: 0 }}>Datum:</span><span>{dateStr}</span></div>
+                    <div style={{ display: "flex", marginBottom: "4px" }}><span style={{ fontWeight: 600, width: "96px", flexShrink: 0 }}>Uhrzeit:</span><span>{timeStr} Uhr</span></div>
+                    {meeting?.location && <div style={{ display: "flex", marginBottom: "4px" }}><span style={{ fontWeight: 600, width: "96px", flexShrink: 0 }}>Ort:</span><span>{meeting.location}</span></div>}
+                  </div>
 
-                {/* Agenda */}
-                <h2 className="text-[12px] font-bold mb-2 pb-1 border-b" style={{ color: "#4a4849", fontFamily: "'Century Gothic', Arial, sans-serif" }}>Tagesordnung</h2>
-                <div className="mt-3 space-y-2">
-                  {agendaItems.map((item: any, idx: number) => (
-                    <div key={item.id} className="p-2 rounded" style={{ background: "#faf8f5", borderLeft: "3px solid #ee7202" }}>
-                      <div>
-                        <span className="font-bold text-[9px]" style={{ color: "#ee7202" }}>TOP {idx + 1}</span>
-                        <span className="font-semibold ml-2 text-[10px]">{item.title}</span>
+                  {/* Greeting */}
+                  <div style={{ marginBottom: "24px", whiteSpace: "pre-line", fontSize: "10px" }}>{greeting}</div>
+
+                  {/* Agenda */}
+                  <h2 style={{ fontSize: "12px", fontWeight: "bold", marginBottom: "8px", paddingBottom: "4px", borderBottom: "1px solid #ddd", color: "#4a4849", fontFamily: "'Century Gothic', Arial, sans-serif" }}>Tagesordnung</h2>
+                  <div style={{ marginTop: "12px" }}>
+                    {agendaItems.map((item: any, idx: number) => (
+                      <div key={item.id} style={{ padding: "8px", borderRadius: "4px", background: "#faf8f5", borderLeft: "3px solid #ee7202", marginBottom: "10px" }}>
+                        <div>
+                          <span style={{ fontWeight: "bold", fontSize: "9px", color: "#ee7202" }}>TOP {idx + 1}</span>
+                          <span style={{ fontWeight: 600, marginLeft: "8px", fontSize: "10px" }}>{item.title}</span>
+                        </div>
+                        {item.description && <p style={{ fontSize: "9px", marginTop: "2px", color: "#666" }}>{item.description}</p>}
                       </div>
-                      {item.description && <p className="text-[9px] mt-0.5" style={{ color: "#666" }}>{item.description}</p>}
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
 
-                {/* Additional notes */}
-                {additionalNotes.trim() && (
-                  <div className="mt-5 whitespace-pre-line text-[10px]">{additionalNotes}</div>
-                )}
+                  {/* Additional notes */}
+                  {additionalNotes.trim() && (
+                    <div style={{ marginTop: "20px", whiteSpace: "pre-line", fontSize: "10px" }}>{additionalNotes}</div>
+                  )}
 
-                {/* Closing */}
-                <div className="mt-6 whitespace-pre-line text-[10px]">{closingText}</div>
-                <p className="font-bold mt-3 text-[10px]">RGI Immobilien GmbH &amp; Co. KG</p>
+                  {/* Closing */}
+                  <div style={{ marginTop: "28px", whiteSpace: "pre-line", fontSize: "10px" }}>{closingText}</div>
+                  <p style={{ fontWeight: "bold", marginTop: "12px", fontSize: "10px" }}>RGI Immobilien GmbH &amp; Co. KG</p>
 
-                {/* Footer */}
-                <div className="mt-10 pt-3 border-t text-center text-[8px]" style={{ borderColor: "#ee7202", color: "#999" }}>
-                  RGI Immobilien GmbH &amp; Co. KG
+                  {/* Footer */}
+                  <div style={{ marginTop: "48px", paddingTop: "12px", borderTop: "1px solid #ee7202", textAlign: "center", fontSize: "8px", color: "#999" }}>
+                    RGI Immobilien GmbH &amp; Co. KG
+                  </div>
                 </div>
               </div>
             </div>
