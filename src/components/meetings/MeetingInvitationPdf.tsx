@@ -10,6 +10,7 @@ import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 interface MeetingInvitationPdfProps {
   meetingId: string;
@@ -59,186 +60,51 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
   const timeStr = meeting ? format(new Date(meeting.meeting_date), "HH:mm", { locale: de }) : "";
 
   const handleDownloadPdf = async () => {
-    if (!meeting) return;
+    if (!meeting || !previewRef.current) return;
 
-    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    const pageWidth = 210;
-    const margin = 20;
-    const contentWidth = pageWidth - 2 * margin;
-    let y = 15;
-
-    // Colors
-    const orange = [238, 114, 2] as [number, number, number];
-    const anthracite = [74, 72, 73] as [number, number, number];
-    const gray = [150, 150, 150] as [number, number, number];
-
-    // Try to load logo — top right corner via canvas DataURL
-    let logoH = 18;
     try {
-      const logoUrl = `${window.location.origin}/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png`;
-      const dataUrl = await loadImageAsDataUrl(logoUrl);
-      const tmpImg = new Image();
-      tmpImg.src = dataUrl;
-      await new Promise(r => { tmpImg.onload = r; });
-      const logoW = (tmpImg.naturalWidth / tmpImg.naturalHeight) * logoH;
-      pdf.addImage(dataUrl, "PNG", pageWidth - margin - logoW, y, logoW, logoH);
-    } catch {
-      // Logo loading failed, continue without
-    }
+      // Render the preview HTML to canvas
+      const canvas = await html2canvas(previewRef.current, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: "#ffffff",
+        width: previewRef.current.scrollWidth,
+        height: previewRef.current.scrollHeight,
+        windowWidth: previewRef.current.scrollWidth,
+      });
 
-    // Move y below the logo area before starting content
-    y += logoH + 8;
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
-    // Title
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(20);
-    pdf.setTextColor(...anthracite);
-    pdf.text("Einladung zur Eigentümerversammlung", margin, y);
-    y += 7;
+      const pdfWidth = 210;
+      const pdfHeight = 297;
+      const imgWidth = pdfWidth;
+      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
 
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(11);
-    pdf.setTextColor(...gray);
-    pdf.text(building?.name || "", margin, y);
+      // Handle multi-page if content is taller than one A4 page
+      if (imgHeight <= pdfHeight) {
+        pdf.addImage(imgData, "PNG", 0, 0, imgWidth, imgHeight);
+      } else {
+        let remainingHeight = imgHeight;
+        let position = 0;
 
-    // Orange line
-    y += 10;
-    pdf.setDrawColor(...orange);
-    pdf.setLineWidth(0.5);
-    pdf.line(margin, y, pageWidth - margin, y);
-    y += 8;
-
-    // Meta block
-    pdf.setFontSize(11);
-    const metaRows = [
-      ["Liegenschaft:", `${building?.name || ""}, ${building?.address || ""}`],
-      ["Datum:", dateStr],
-      ["Uhrzeit:", `${timeStr} Uhr`],
-    ];
-    if (meeting.location) metaRows.push(["Ort:", meeting.location]);
-
-    for (const [label, value] of metaRows) {
-      pdf.setFont("helvetica", "bold");
-      pdf.setTextColor(...anthracite);
-      pdf.text(label, margin, y);
-      pdf.setFont("helvetica", "normal");
-      pdf.text(value, margin + 30, y);
-      y += 6;
-    }
-
-    y += 6;
-
-    // Greeting
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(11);
-    pdf.setTextColor(...anthracite);
-    const greetingLines = pdf.splitTextToSize(greeting, contentWidth);
-    for (const line of greetingLines) {
-      if (y > 270) { pdf.addPage(); y = 15; }
-      pdf.text(line, margin, y);
-      y += 5.5;
-    }
-
-    y += 6;
-
-    // Section title "Tagesordnung"
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(13);
-    pdf.text("Tagesordnung", margin, y);
-    y += 2;
-    pdf.setDrawColor(229, 231, 235);
-    pdf.setLineWidth(0.3);
-    pdf.line(margin, y, pageWidth - margin, y);
-    y += 7;
-
-    // Agenda items
-    for (let i = 0; i < agendaItems.length; i++) {
-      const item = agendaItems[i] as any;
-      if (y > 255) { pdf.addPage(); y = 15; }
-
-      // Left orange bar + background
-      const itemStartY = y - 2;
-      const descLines = item.description ? pdf.splitTextToSize(item.description, contentWidth - 10) : [];
-      const itemHeight = 8 + (descLines.length > 0 ? descLines.length * 5 + 2 : 0);
-
-      pdf.setFillColor(250, 248, 245);
-      pdf.roundedRect(margin, itemStartY, contentWidth, itemHeight, 1.5, 1.5, "F");
-      pdf.setFillColor(...orange);
-      pdf.rect(margin, itemStartY, 1, itemHeight, "F");
-
-      // TOP number in orange
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(10);
-      pdf.setTextColor(...orange);
-      pdf.text(`TOP ${i + 1}`, margin + 4, y + 2);
-
-      // Title
-      pdf.setTextColor(...anthracite);
-      pdf.setFontSize(11);
-      pdf.text(item.title, margin + 20, y + 2);
-
-      y += 7;
-
-      // Description
-      if (descLines.length > 0) {
-        pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(10);
-        pdf.setTextColor(100, 100, 100);
-        for (const dl of descLines) {
-          pdf.text(dl, margin + 4, y);
-          y += 5;
+        while (remainingHeight > 0) {
+          pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+          remainingHeight -= pdfHeight;
+          position -= pdfHeight;
+          if (remainingHeight > 0) {
+            pdf.addPage();
+          }
         }
       }
 
-      y += 5;
+      pdf.save(`Einladung_ETV_${meeting?.title?.replace(/\s+/g, "_") || "Versammlung"}.pdf`);
+      toast({ title: "PDF heruntergeladen", description: "Die Einladung wurde als PDF gespeichert." });
+    } catch (err) {
+      console.error("PDF generation failed:", err);
+      toast({ title: "Fehler", description: "PDF konnte nicht erstellt werden.", variant: "destructive" });
     }
-
-    // Additional notes
-    if (additionalNotes.trim()) {
-      y += 4;
-      if (y > 255) { pdf.addPage(); y = 15; }
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(11);
-      pdf.setTextColor(...anthracite);
-      const noteLines = pdf.splitTextToSize(additionalNotes, contentWidth);
-      for (const nl of noteLines) {
-        if (y > 270) { pdf.addPage(); y = 15; }
-        pdf.text(nl, margin, y);
-        y += 5.5;
-      }
-    }
-
-    // Closing text
-    y += 6;
-    if (y > 255) { pdf.addPage(); y = 15; }
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(11);
-    pdf.setTextColor(...anthracite);
-    const closingLines = pdf.splitTextToSize(closingText, contentWidth);
-    for (const cl of closingLines) {
-      if (y > 270) { pdf.addPage(); y = 15; }
-      pdf.text(cl, margin, y);
-      y += 5.5;
-    }
-
-    // Company name after closing
-    y += 4;
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(11);
-    pdf.text("RGI Immobilien GmbH & Co. KG", margin, y);
-
-    // Footer line
-    const footerY = 287;
-    pdf.setDrawColor(...orange);
-    pdf.setLineWidth(0.3);
-    pdf.line(margin, footerY - 4, pageWidth - margin, footerY - 4);
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(9);
-    pdf.setTextColor(...gray);
-    pdf.text("RGI Immobilien GmbH & Co. KG", pageWidth / 2, footerY, { align: "center" });
-
-    pdf.save(`Einladung_ETV_${meeting?.title?.replace(/\s+/g, "_") || "Versammlung"}.pdf`);
-    toast({ title: "PDF heruntergeladen", description: "Die Einladung wurde als PDF gespeichert." });
   };
 
   const loadImageAsDataUrl = (url: string): Promise<string> => {
@@ -351,8 +217,8 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
             </div>
 
             {/* Live preview side */}
-            <div className="border rounded-lg bg-white overflow-y-auto shadow-sm" ref={previewRef}>
-              <div className="p-6 text-[12px] leading-relaxed" style={{ fontFamily: "'Segoe UI', Arial, sans-serif", color: "#4a4849", maxWidth: "600px" }}>
+            <div className="border rounded-lg bg-white overflow-y-auto shadow-sm">
+              <div className="p-8 text-[11px] leading-relaxed" ref={previewRef} style={{ fontFamily: "'Work Sans', sans-serif", color: "#4a4849", width: "794px", maxWidth: "794px", background: "#fff" }}>
                 {/* Logo top right */}
                 <div className="flex justify-end mb-3">
                   <img
@@ -363,7 +229,7 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
                 </div>
                 {/* Header below logo */}
                 <div className="pb-2 mb-4 border-b-2" style={{ borderColor: "#ee7202" }}>
-                  <h1 className="text-[18px] font-bold m-0" style={{ color: "#4a4849" }}>
+                  <h1 className="text-[18px] font-bold m-0" style={{ color: "#4a4849", fontFamily: "'Century Gothic', Arial, sans-serif" }}>
                     Einladung zur Eigentümerversammlung
                   </h1>
                   <p className="text-[11px] mt-1" style={{ color: "#999" }}>{building?.name || ""}</p>
@@ -381,7 +247,7 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
                 <div className="mb-4 whitespace-pre-line text-[11px]">{greeting}</div>
 
                 {/* Agenda */}
-                <h2 className="text-[13px] font-bold mb-1 pb-1 border-b" style={{ color: "#4a4849" }}>Tagesordnung</h2>
+                <h2 className="text-[13px] font-bold mb-1 pb-1 border-b" style={{ color: "#4a4849", fontFamily: "'Century Gothic', Arial, sans-serif" }}>Tagesordnung</h2>
                 <div className="mt-3 space-y-2">
                   {agendaItems.map((item: any, idx: number) => (
                     <div key={item.id} className="p-2 rounded" style={{ background: "#faf8f5", borderLeft: "3px solid #ee7202" }}>
