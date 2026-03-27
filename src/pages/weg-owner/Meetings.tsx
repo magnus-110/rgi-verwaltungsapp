@@ -43,6 +43,8 @@ export const WegOwnerMeetings = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const [editNewFiles, setEditNewFiles] = useState<File[]>([]);
+  const [editRemovedPaths, setEditRemovedPaths] = useState<string[]>([]);
   const [deleteTopId, setDeleteTopId] = useState<string | null>(null);
 
   // TOP submission form
