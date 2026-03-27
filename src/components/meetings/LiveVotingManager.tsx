@@ -182,6 +182,19 @@ export const LiveVotingManager = ({ meetingId, buildingId }: LiveVotingManagerPr
     },
   });
 
+  const resetVoteMutation = useMutation({
+    mutationFn: async ({ itemId, assignmentId }: { itemId: string; assignmentId: string }) => {
+      const { error } = await supabase.from("etv_votes")
+        .delete()
+        .eq("agenda_item_id", itemId)
+        .eq("assignment_id", assignmentId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["etv-votes-live", activeVoteItem] });
+    },
+  });
+
   // End voting
   const endVotingMutation = useMutation({
     mutationFn: async (itemId: string) => {
@@ -427,6 +440,12 @@ export const LiveVotingManager = ({ meetingId, buildingId }: LiveVotingManagerPr
                                 onClick={() => castVoteMutation.mutate({ itemId: item.id, assignmentId: a.assignment_id, vote: "abstain", meaWeight: meaW })}>
                                 Enth.
                               </Button>
+                              {existingVote && (
+                                <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-orange-500"
+                                  onClick={() => resetVoteMutation.mutate({ itemId: item.id, assignmentId: a.assignment_id })}>
+                                  ↩
+                                </Button>
+                              )}
                             </div>
                           </div>
                         );
