@@ -496,7 +496,7 @@ export const WegOwnerMeetings = () => {
                     <Textarea
                       value={editDescription}
                       onChange={(e) => setEditDescription(e.target.value)}
-                      rows={4}
+                      rows={6}
                       placeholder="Begründung oder Erläuterung..."
                     />
                   </div>
@@ -714,7 +714,7 @@ export const WegOwnerMeetings = () => {
                   placeholder="Begründung oder Erläuterung..."
                   value={topDescription}
                   onChange={(e) => setTopDescription(e.target.value)}
-                  rows={4}
+                  rows={6}
                 />
               </div>
             </div>
