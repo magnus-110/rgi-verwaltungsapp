@@ -1,32 +1,62 @@
 
 
-# Plan: Eigentümer automatisch als Teilnehmer registrieren
+# Plan: Quorum-Fix, Abstimmungs-Workflow, TOP-Detail & Live-Voting-Popup
 
-## Problem
-Die Vollmacht-Sektion (Zeile 587) wird nur angezeigt wenn `myAttendee` existiert. Dieser Eintrag wird aber erst vom Admin manuell angelegt. Eigentümer sehen daher keine Vollmacht-Option.
+## 5 Anforderungen
 
-## Logik-Klarstellung
-"Freigeschaltet" (Status `published`) = alle Eigentümer des Gebäudes sind eingeladen. Kein manueller Schritt nötig.
+1. **Quorum**: Beschlussfähig ab 1 anwesendem Eigentümer (nicht >50%)
+2. **Admin**: Keine Vollmacht-Vergabe, aber Stimmabgabe für Eigentümer beibehalten
+3. **Abstimmung**: Wiedereröffnung nach Schließen möglich; separater "Bestätigen"-Button für endgültiges Ergebnis
+4. **Owner-Portal TOP-Detail**: Klick auf TOP in Einladung öffnet Dialog mit Beschreibung + Anhängen
+5. **Live-Voting-Popup**: Realtime-Popup für Eigentümer wenn Abstimmung geöffnet wird (egal wo in der App); schließt nach Stimmabgabe; Live-Ergebnisse während Versammlung sichtbar
 
-## Umsetzung
+## Technische Details
 
-### 1. Auto-Registrierung im Owner-Portal (`src/pages/weg-owner/Meetings.tsx`)
-- Wenn `myAssignment` vorhanden + `myAttendee` ist `null` + Meeting-Status ist `published` oder `in_progress`: automatisch einen `etv_attendees`-Eintrag mit `attendance_type: "absent"` erstellen (via `useMutation` in einem `useEffect`)
-- Danach `refetchAttendee()` aufrufen, damit die UI sofort aktualisiert wird
+### 1. Quorum-Fix (`MeetingLiveSession.tsx`, Zeile 163)
+```
+// Vorher: quorumReached = presentCount > totalOwners / 2
+// Nachher:
+const quorumReached = presentCount >= 1;
+```
 
-### 2. Vollmacht-Sektion Bedingung erweitern
-- Zeile 587 ändern: Statt `myAttendee` prüfen auf `myAssignment` (der Attendee-Eintrag wird ja automatisch erstellt)
-- Status-Bedingung erweitern: `published` **und** `in_progress`
-- Mutation-Logik: Falls `myAttendee` noch nicht geladen ist (Race Condition), kurz warten oder Button deaktivieren
+### 2. Admin-Vollmacht entfernen (`MeetingLiveSession.tsx`)
+- Shield-Button (Zeile 625-627) und den ganzen Proxy-Dialog (Zeile 684-727) entfernen
+- Manuelle Stimmabgabe bleibt erhalten (Zeile 446-467)
 
-### 3. Admin-seitige Auto-Initialisierung (`src/components/meetings/AttendeeManager.tsx`)
-- `useEffect` hinzufügen: Wenn `attendees.length === 0 && owners.length > 0`, automatisch `initMutation.mutate()` aufrufen (statt nur Button)
-- Button "Eigentümer laden" bleibt als Fallback sichtbar, falls neue Eigentümer hinzugekommen sind
+### 3. Abstimmungs-Workflow (`MeetingLiveSession.tsx`)
+- `endVotingMutation`: Status auf `"closed"` statt `"voted"` setzen; Ergebnis berechnen aber NICHT bestätigen
+- Neuer Status-Flow: `null/open` → `voting` → `closed` → `confirmed`
+- Bei Status `"closed"`: "Abstimmung erneut öffnen" Button + "Ergebnis bestätigen" Button anzeigen
+- "Ergebnis bestätigen" setzt Status auf `"voted"` (final)
+- `getStatusBadge`: Neuer Badge für `"closed"` Status ("Abstimmung beendet - unbestätigt")
+
+### 4. TOP-Detail im Owner-Portal (`weg-owner/Meetings.tsx`)
+- Agenda-Items in der Einladung (Zeile 600-618) klickbar machen
+- Neuer State `selectedAgendaItemId` + Dialog mit:
+  - Titel, Beschreibung
+  - Anhänge (aus `attachment_paths`) mit Download-Links
+  - Abstimmungsergebnis (wenn vorhanden)
+
+### 5. Live-Voting-Popup (Global)
+- **Neue Komponente**: `src/components/meetings/VotingPopup.tsx`
+  - Supabase Realtime Subscription auf `etv_agenda_items` (filter: `status=eq.voting`)
+  - Prüft ob der User ein `etv_attendee` für das betroffene Meeting ist
+  - Zeigt fullscreen-Dialog mit TOP-Titel, Beschlusstext, Ja/Nein/Enthaltung Buttons
+  - Nach Stimmabgabe: Dialog schließt sich automatisch
+  - RLS: Neue INSERT-Policy auf `etv_votes` für WEG-Owner nötig
+- **Integration in `WegOwnerLayout.tsx`**: VotingPopup als permanente Komponente einbinden
+- **Live-Ergebnisse**: Im Meeting-Detail-Dialog (Owner) bei Status `in_progress` die Ergebnisse pro TOP anzeigen (yes_count, no_count, abstain_count) mit Realtime-Refresh
+
+### DB-Migration
+- Neue RLS Policy auf `etv_votes` für INSERT durch WEG-Owner (damit sie selbst abstimmen können)
 
 ### Betroffene Dateien
 
 | Datei | Änderung |
 |---|---|
-| `src/pages/weg-owner/Meetings.tsx` | `useEffect` für Auto-Registrierung; Vollmacht-Bedingung auf `myAssignment` + Status `published`/`in_progress` erweitern |
-| `src/components/meetings/AttendeeManager.tsx` | `useEffect` für automatische Initialisierung aller Eigentümer beim Laden |
+| `src/components/meetings/MeetingLiveSession.tsx` | Quorum auf ≥1; Proxy-Vergabe entfernen; Abstimmungs-Workflow mit closed/confirmed Status |
+| `src/pages/weg-owner/Meetings.tsx` | TOP-Detail-Dialog mit Anhängen; Live-Ergebnisse bei in_progress Meetings |
+| `src/components/meetings/VotingPopup.tsx` | **Neu** — Globaler Realtime-Abstimmungs-Dialog |
+| `src/components/WegOwnerLayout.tsx` | VotingPopup einbinden |
+| Migration | INSERT-Policy auf `etv_votes` für WEG-Owner |
 
