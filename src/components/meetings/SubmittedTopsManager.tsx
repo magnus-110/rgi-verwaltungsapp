@@ -19,6 +19,8 @@ export const SubmittedTopsManager = () => {
   const [filterBuildingId, setFilterBuildingId] = useState<string>("all");
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [rejectNote, setRejectNote] = useState("");
+  const [deferId, setDeferId] = useState<string | null>(null);
+  const [deferNote, setDeferNote] = useState("");
   const [acceptTopId, setAcceptTopId] = useState<string | null>(null);
   const [selectedMeetingId, setSelectedMeetingId] = useState<string>("");
 
@@ -186,8 +188,7 @@ export const SubmittedTopsManager = () => {
                   size="sm"
                   variant="outline"
                   className="gap-1 h-8"
-                  onClick={() => rejectMutation.mutate({ id: top.id, status: "deferred" })}
-                  disabled={rejectMutation.isPending}
+                  onClick={() => { setDeferId(top.id); setDeferNote(""); }}
                 >
                   <Pause className="h-3.5 w-3.5" />
                 </Button>
@@ -327,6 +328,40 @@ export const SubmittedTopsManager = () => {
                 disabled={rejectMutation.isPending}
               >
                 Ablehnen
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Defer dialog */}
+      <Dialog open={!!deferId} onOpenChange={() => setDeferId(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Antrag zurückstellen</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Der Antrag wird zurückgestellt und kann später in eine andere Versammlung aufgenommen werden.
+            </p>
+            <Textarea
+              placeholder="Begründung (optional, wird dem Eigentümer angezeigt)..."
+              value={deferNote}
+              onChange={(e) => setDeferNote(e.target.value)}
+              rows={3}
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setDeferId(null)}>Abbrechen</Button>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  rejectMutation.mutate({ id: deferId!, status: "deferred", note: deferNote });
+                  setDeferId(null);
+                  setDeferNote("");
+                }}
+                disabled={rejectMutation.isPending}
+              >
+                Zurückstellen
               </Button>
             </div>
           </div>

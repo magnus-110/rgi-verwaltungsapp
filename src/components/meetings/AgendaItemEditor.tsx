@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, GripVertical, Trash2, Sparkles, Upload, FileText, X, Wand2, Loader2 } from "lucide-react";
+import { Plus, GripVertical, Trash2, Pencil, Upload, FileText, X, Wand2, Loader2 } from "lucide-react";
 import { AgendaAiAssistant } from "./AgendaAiAssistant";
 
 interface AgendaItemEditorProps {
@@ -46,6 +46,12 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [showAiFor, setShowAiFor] = useState<string | null>(null);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [editItemTitle, setEditItemTitle] = useState("");
+  const [editItemDescription, setEditItemDescription] = useState("");
+  const [editItemResolution, setEditItemResolution] = useState("");
+  const [editItemPrinciple, setEditItemPrinciple] = useState("mea");
+  const [editItemCategory, setEditItemCategory] = useState("sonstiges");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // New item form
@@ -134,8 +140,34 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
   });
 
   const handleAiResult = (itemId: string, text: string) => {
-    updateMutation.mutate({ id: itemId, resolution_text: text });
+    if (editingItemId === itemId) {
+      setEditItemResolution(text);
+    } else {
+      updateMutation.mutate({ id: itemId, resolution_text: text });
+    }
     setShowAiFor(null);
+  };
+
+  const startEditing = (item: AgendaItem) => {
+    setEditingItemId(item.id);
+    setEditItemTitle(item.title);
+    setEditItemDescription(item.description || "");
+    setEditItemResolution(item.resolution_text || "");
+    setEditItemPrinciple(item.voting_principle);
+    setEditItemCategory(item.category || "sonstiges");
+  };
+
+  const saveEdit = () => {
+    if (!editingItemId || !editItemTitle) return;
+    updateMutation.mutate({
+      id: editingItemId,
+      title: editItemTitle,
+      description: editItemDescription || null,
+      resolution_text: editItemResolution || null,
+      voting_principle: editItemPrinciple,
+      category: editItemCategory,
+    });
+    setEditingItemId(null);
   };
 
   const handleGenerateNewResolution = async () => {
@@ -196,73 +228,135 @@ Antworte NUR mit dem Beschlusstext, ohne zusätzliche Erklärungen.`,
                 <span className="text-sm font-mono font-bold">TOP {idx + 1}</span>
               </div>
               <div className="flex-1 space-y-2">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-semibold text-foreground">{item.title}</h4>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-xs">
-                      {votingPrinciples.find((v) => v.value === item.voting_principle)?.label || item.voting_principle}
-                    </Badge>
-                    {item.category && (
-                      <Badge variant="secondary" className="text-xs">
-                        {categories.find((c) => c.value === item.category)?.label || item.category}
-                      </Badge>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => setShowAiFor(showAiFor === item.id ? null : item.id)}
-                    >
-                      <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-destructive"
-                      onClick={() => deleteMutation.mutate(item.id)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-                {item.description && (
-                  <p className="text-sm text-muted-foreground">{item.description}</p>
-                )}
-                {item.resolution_text && (
-                  <div className="bg-muted/50 rounded-md p-3 border">
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Beschlusstext:</p>
-                    <p className="text-sm">{item.resolution_text}</p>
-                  </div>
-                )}
-                {/* Attachments */}
-                {item.attachment_paths && item.attachment_paths.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {item.attachment_paths.map((path, i) => {
-                      const fileName = path.split("/").pop() || path;
-                      return (
+                {editingItemId === item.id ? (
+                  /* Edit mode */
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Titel *</Label>
+                        <Input value={editItemTitle} onChange={(e) => setEditItemTitle(e.target.value)} />
+                      </div>
+                      <div className="flex gap-3">
+                        <div className="flex-1 space-y-1.5">
+                          <Label className="text-xs">Abstimmung</Label>
+                          <Select value={editItemPrinciple} onValueChange={setEditItemPrinciple}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {votingPrinciples.map((v) => (
+                                <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex-1 space-y-1.5">
+                          <Label className="text-xs">Kategorie</Label>
+                          <Select value={editItemCategory} onValueChange={setEditItemCategory}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              {categories.map((c) => (
+                                <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Erläuterung</Label>
+                      <Textarea value={editItemDescription} onChange={(e) => setEditItemDescription(e.target.value)} rows={2} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-xs">Beschlusstext</Label>
                         <Button
-                          key={i}
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
-                          className="h-7 text-xs gap-1"
-                          onClick={() => getFileDownloadUrl(path)}
+                          className="h-7 gap-1 text-xs text-amber-600 hover:text-amber-700"
+                          onClick={() => setShowAiFor(showAiFor === item.id ? null : item.id)}
                         >
-                          <FileText className="h-3 w-3" />
-                          {fileName.replace(/^\d+-/, "")}
+                          <Wand2 className="h-3.5 w-3.5" />
+                          KI generieren
                         </Button>
-                      );
-                    })}
+                      </div>
+                      <Textarea value={editItemResolution} onChange={(e) => setEditItemResolution(e.target.value)} rows={3} />
+                    </div>
+                    {showAiFor === item.id && (
+                      <AgendaAiAssistant
+                        meetingId={meetingId}
+                        buildingId={buildingId}
+                        itemTitle={editItemTitle}
+                        itemDescription={editItemDescription}
+                        onResult={(text) => handleAiResult(item.id, text)}
+                        onClose={() => setShowAiFor(null)}
+                      />
+                    )}
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setEditingItemId(null)}>Abbrechen</Button>
+                      <Button size="sm" onClick={saveEdit} disabled={!editItemTitle || updateMutation.isPending}>Speichern</Button>
+                    </div>
                   </div>
-                )}
-                {showAiFor === item.id && (
-                  <AgendaAiAssistant
-                    meetingId={meetingId}
-                    buildingId={buildingId}
-                    itemTitle={item.title}
-                    itemDescription={item.description || ""}
-                    onResult={(text) => handleAiResult(item.id, text)}
-                    onClose={() => setShowAiFor(null)}
-                  />
+                ) : (
+                  /* View mode */
+                  <>
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-semibold text-foreground">{item.title}</h4>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="text-xs">
+                          {votingPrinciples.find((v) => v.value === item.voting_principle)?.label || item.voting_principle}
+                        </Badge>
+                        {item.category && (
+                          <Badge variant="secondary" className="text-xs">
+                            {categories.find((c) => c.value === item.category)?.label || item.category}
+                          </Badge>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => startEditing(item)}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive"
+                          onClick={() => deleteMutation.mutate(item.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                    {item.description && (
+                      <p className="text-sm text-muted-foreground">{item.description}</p>
+                    )}
+                    {item.resolution_text && (
+                      <div className="bg-muted/50 rounded-md p-3 border">
+                        <p className="text-xs font-medium text-muted-foreground mb-1">Beschlusstext:</p>
+                        <p className="text-sm">{item.resolution_text}</p>
+                      </div>
+                    )}
+                    {/* Attachments */}
+                    {item.attachment_paths && item.attachment_paths.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {item.attachment_paths.map((path, i) => {
+                          const fileName = path.split("/").pop() || path;
+                          return (
+                            <Button
+                              key={i}
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs gap-1"
+                              onClick={() => getFileDownloadUrl(path)}
+                            >
+                              <FileText className="h-3 w-3" />
+                              {fileName.replace(/^\d+-/, "")}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
