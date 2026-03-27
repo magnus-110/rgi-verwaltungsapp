@@ -43,6 +43,8 @@ export const WegOwnerMeetings = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const [editNewFiles, setEditNewFiles] = useState<File[]>([]);
+  const [editRemovedPaths, setEditRemovedPaths] = useState<string[]>([]);
   const [deleteTopId, setDeleteTopId] = useState<string | null>(null);
 
   // TOP submission form
@@ -149,15 +151,38 @@ export const WegOwnerMeetings = () => {
   // Update TOP
   const updateTopMutation = useMutation({
     mutationFn: async ({ id, title, description }: { id: string; title: string; description: string }) => {
+      const top = submittedTops.find((t: any) => t.id === id);
+      let currentPaths: string[] = (top?.attachment_paths || []).filter((p: string) => !editRemovedPaths.includes(p));
+
+      // Delete removed files from storage
+      if (editRemovedPaths.length > 0) {
+        await supabase.storage.from("building-files").remove(editRemovedPaths);
+      }
+
+      // Upload new files
+      for (const file of editNewFiles) {
+        const path = `etv-attachments/${effectiveBuildingId}/${Date.now()}-${file.name}`;
+        const { error: uploadErr } = await supabase.storage.from("building-files").upload(path, file);
+        if (uploadErr) throw uploadErr;
+        currentPaths.push(path);
+      }
+
       const { error } = await supabase
         .from("etv_submitted_tops")
-        .update({ title, description: description || null, updated_at: new Date().toISOString() })
+        .update({
+          title,
+          description: description || null,
+          attachment_paths: currentPaths.length > 0 ? currentPaths : null,
+          updated_at: new Date().toISOString(),
+        })
         .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       toast({ title: "Antrag aktualisiert" });
       setIsEditing(false);
+      setEditNewFiles([]);
+      setEditRemovedPaths([]);
       queryClient.invalidateQueries({ queryKey: ["weg-owner-submitted-tops"] });
     },
     onError: (err: any) => {
@@ -354,6 +379,8 @@ export const WegOwnerMeetings = () => {
                       setSelectedTopId(top.id);
                       setEditTitle(top.title);
                       setEditDescription(top.description || "");
+                      setEditNewFiles([]);
+                      setEditRemovedPaths([]);
                       setIsEditing(false);
                     }}
                   >
@@ -447,80 +474,162 @@ export const WegOwnerMeetings = () => {
       <Dialog open={!!selectedTopId} onOpenChange={() => setSelectedTopId(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>
-              {isEditing ? "Antrag bearbeiten" : "Antragsdetails"}
+            <DialogTitle className="text-xl">
+              {isEditing ? "Antrag bearbeiten" : "Ihr Antrag"}
             </DialogTitle>
           </DialogHeader>
           {selectedTop && (
-            <div className="space-y-4">
+            <div className="space-y-5">
               {isEditing ? (
                 <>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Titel</Label>
-                    <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+                  <div className="space-y-2">
+                    <Label className="text-base font-semibold">Was möchten Sie beantragen?</Label>
+                    <Input
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      className="text-base h-12"
+                      placeholder="z.B. Sanierung der Tiefgarage"
+                    />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Begründung</Label>
+                  <div className="space-y-2">
+                    <Label className="text-base font-semibold">Warum ist das wichtig? <span className="text-muted-foreground font-normal">(freiwillig)</span></Label>
                     <Textarea
                       value={editDescription}
                       onChange={(e) => setEditDescription(e.target.value)}
                       rows={4}
+                      className="text-base"
+                      placeholder="Beschreiben Sie kurz, warum dieser Punkt besprochen werden sollte..."
                     />
                   </div>
-                  <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={() => setIsEditing(false)}>Abbrechen</Button>
+
+                  {/* Existing attachments */}
+                  {(() => {
+                    const remainingPaths = (selectedTop.attachment_paths || []).filter((p: string) => !editRemovedPaths.includes(p));
+                    return remainingPaths.length > 0 ? (
+                      <div className="space-y-2">
+                        <Label className="text-base font-semibold">Vorhandene Anhänge</Label>
+                        <div className="space-y-1.5">
+                          {remainingPaths.map((path: string, i: number) => {
+                            const fileName = path.split("/").pop()?.replace(/^\d+-/, "") || path;
+                            return (
+                              <div key={i} className="flex items-center justify-between bg-muted rounded-lg px-3 py-2">
+                                <span className="flex items-center gap-2 text-sm truncate">
+                                  <FileText className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                                  {fileName}
+                                </span>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-8 w-8 text-destructive hover:text-destructive"
+                                  onClick={() => setEditRemovedPaths((prev) => [...prev, path])}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : null;
+                  })()}
+
+                  {/* New file upload */}
+                  <div className="space-y-2">
+                    <Label className="text-base font-semibold">Neue Dateien hinzufügen <span className="text-muted-foreground font-normal">(freiwillig)</span></Label>
+                    <div
+                      className="border-2 border-dashed rounded-xl p-5 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                      onClick={() => document.getElementById("edit-top-file-upload")?.click()}
+                    >
+                      <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                      <p className="text-base text-muted-foreground">Hier tippen um Dateien auszuwählen</p>
+                    </div>
+                    <input
+                      type="file"
+                      multiple
+                      className="hidden"
+                      id="edit-top-file-upload"
+                      onChange={(e) => {
+                        if (e.target.files) setEditNewFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
+                      }}
+                    />
+                    {editNewFiles.length > 0 && (
+                      <div className="space-y-1.5">
+                        {editNewFiles.map((file, i) => (
+                          <div key={i} className="flex items-center justify-between bg-muted rounded-lg px-3 py-2">
+                            <span className="flex items-center gap-2 text-sm truncate">
+                              <FileText className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                              {file.name}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              onClick={() => setEditNewFiles((prev) => prev.filter((_, j) => j !== i))}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end gap-3 border-t pt-4">
+                    <Button variant="outline" size="lg" onClick={() => { setIsEditing(false); setEditNewFiles([]); setEditRemovedPaths([]); }}>
+                      Abbrechen
+                    </Button>
                     <Button
+                      size="lg"
                       onClick={() => updateTopMutation.mutate({ id: selectedTop.id, title: editTitle, description: editDescription })}
                       disabled={!editTitle || updateTopMutation.isPending}
                     >
-                      Speichern
+                      {updateTopMutation.isPending ? "Wird gespeichert..." : "Änderungen speichern"}
                     </Button>
                   </div>
                 </>
               ) : (
                 <>
                   <div>
-                    <h3 className="font-semibold">{selectedTop.title}</h3>
-                    <Badge variant={topStatusLabels[selectedTop.status]?.variant || "outline"} className="mt-1">
+                    <h3 className="text-lg font-semibold">{selectedTop.title}</h3>
+                    <Badge variant={topStatusLabels[selectedTop.status]?.variant || "outline"} className="mt-2 text-sm px-3 py-1">
                       {topStatusLabels[selectedTop.status]?.label || selectedTop.status}
                     </Badge>
                   </div>
                   {selectedTop.description && (
                     <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-1">Begründung</p>
-                      <p className="text-sm">{selectedTop.description}</p>
+                      <p className="text-sm font-semibold text-muted-foreground mb-1">Begründung</p>
+                      <p className="text-base leading-relaxed">{selectedTop.description}</p>
                     </div>
                   )}
-                  <div className="text-xs text-muted-foreground">
+                  <p className="text-sm text-muted-foreground">
                     Eingereicht am {formatDate(new Date(selectedTop.created_at), "dd.MM.yyyy 'um' HH:mm", { locale: de })}
-                  </div>
+                  </p>
                   {selectedTop.admin_notes && (
-                    <div className="border-l-2 border-muted pl-3">
-                      <p className="text-xs font-medium text-muted-foreground mb-1">Anmerkung der Verwaltung</p>
-                      <p className="text-sm italic">{selectedTop.admin_notes}</p>
+                    <div className="border-l-4 border-primary/30 bg-primary/5 rounded-r-lg pl-4 pr-3 py-3">
+                      <p className="text-sm font-semibold text-muted-foreground mb-1">Anmerkung der Verwaltung</p>
+                      <p className="text-base italic">{selectedTop.admin_notes}</p>
                     </div>
                   )}
                   {selectedTop.etv_meetings?.title && (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-sm text-muted-foreground">
                       Aufgenommen in: <strong>{selectedTop.etv_meetings.title}</strong>
                     </p>
                   )}
-                  {/* Attachments */}
                   {selectedTop.attachment_paths?.length > 0 && (
                     <div>
-                      <p className="text-xs font-medium text-muted-foreground mb-2">Anhänge</p>
-                      <div className="space-y-1">
+                      <p className="text-sm font-semibold text-muted-foreground mb-2">Anhänge</p>
+                      <div className="space-y-1.5">
                         {selectedTop.attachment_paths.map((path: string, i: number) => {
                           const fileName = path.split("/").pop()?.replace(/^\d+-/, "") || path;
                           return (
                             <Button
                               key={i}
                               variant="outline"
-                              size="sm"
-                              className="w-full justify-start gap-2 text-xs"
+                              size="lg"
+                              className="w-full justify-start gap-2 text-sm h-11"
                               onClick={() => getFileDownloadUrl(path)}
                             >
-                              <ExternalLink className="h-3 w-3" />
+                              <ExternalLink className="h-4 w-4" />
                               {fileName}
                             </Button>
                           );
@@ -528,25 +637,24 @@ export const WegOwnerMeetings = () => {
                       </div>
                     </div>
                   )}
-                  {/* Actions for pending TOPs */}
                   {selectedTop.status === "pending" && (
-                    <div className="flex justify-end gap-2 border-t pt-3">
+                    <div className="flex justify-end gap-3 border-t pt-4">
                       <Button
                         variant="outline"
-                        size="sm"
-                        className="gap-1"
+                        size="lg"
+                        className="gap-2"
                         onClick={() => setIsEditing(true)}
                       >
-                        <Pencil className="h-3.5 w-3.5" />
+                        <Pencil className="h-4 w-4" />
                         Bearbeiten
                       </Button>
                       <Button
                         variant="destructive"
-                        size="sm"
-                        className="gap-1"
+                        size="lg"
+                        className="gap-2"
                         onClick={() => setDeleteTopId(selectedTop.id)}
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <Trash2 className="h-4 w-4" />
                         Löschen
                       </Button>
                     </div>
@@ -583,76 +691,89 @@ export const WegOwnerMeetings = () => {
       <Dialog open={showSubmitTop} onOpenChange={setShowSubmitTop}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Tagesordnungspunkt einreichen</DialogTitle>
+            <DialogTitle className="text-xl">Neuen Antrag einreichen</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Ihr Antrag wird dem Verwalter vorgelegt und kann in eine kommende Versammlung aufgenommen werden.
-            </p>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Titel *</Label>
+          <div className="space-y-5">
+            <div className="bg-muted/50 rounded-xl p-4">
+              <p className="text-base text-muted-foreground leading-relaxed">
+                Beschreiben Sie kurz, worüber auf der nächsten Versammlung abgestimmt werden soll. Die Hausverwaltung prüft Ihren Antrag.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-base font-semibold">Was möchten Sie beantragen? *</Label>
               <Input
-                placeholder="z.B. Antrag auf Sanierung der Tiefgarage"
+                placeholder="z.B. Sanierung der Tiefgarage"
                 value={topTitle}
                 onChange={(e) => setTopTitle(e.target.value)}
+                className="text-base h-12"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Begründung / Erläuterung</Label>
+
+            <div className="space-y-2">
+              <Label className="text-base font-semibold">Warum ist das wichtig? <span className="text-muted-foreground font-normal">(freiwillig)</span></Label>
               <Textarea
-                placeholder="Beschreiben Sie Ihren Antrag..."
+                placeholder="Beschreiben Sie kurz, warum dieser Punkt besprochen werden sollte..."
                 value={topDescription}
                 onChange={(e) => setTopDescription(e.target.value)}
                 rows={4}
+                className="text-base"
               />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Anhänge (optional)</Label>
-              <div className="border border-dashed rounded-md p-3">
-                <input
-                  type="file"
-                  multiple
-                  className="hidden"
-                  id="top-file-upload"
-                  onChange={(e) => {
-                    if (e.target.files) {
-                      setTopFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
-                    }
-                  }}
-                />
-                <label htmlFor="top-file-upload" className="flex items-center gap-2 cursor-pointer text-sm text-muted-foreground hover:text-foreground">
-                  <Upload className="h-4 w-4" />
-                  Dateien auswählen
-                </label>
-                {topFiles.length > 0 && (
-                  <div className="mt-2 space-y-1">
-                    {topFiles.map((file, i) => (
-                      <div key={i} className="flex items-center justify-between text-xs bg-muted rounded px-2 py-1">
-                        <span className="flex items-center gap-1 truncate">
-                          <FileText className="h-3 w-3 flex-shrink-0" />
-                          {file.name}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-5 w-5"
-                          onClick={() => setTopFiles((prev) => prev.filter((_, j) => j !== i))}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+
+            <div className="space-y-2">
+              <Label className="text-base font-semibold">Unterlagen beifügen <span className="text-muted-foreground font-normal">(freiwillig)</span></Label>
+              <div
+                className="border-2 border-dashed rounded-xl p-5 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                onClick={() => document.getElementById("top-file-upload")?.click()}
+              >
+                <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                <p className="text-base text-muted-foreground">Hier tippen um Dateien auszuwählen</p>
+                <p className="text-sm text-muted-foreground mt-1">z.B. Fotos, Angebote, Gutachten</p>
               </div>
+              <input
+                type="file"
+                multiple
+                className="hidden"
+                id="top-file-upload"
+                onChange={(e) => {
+                  if (e.target.files) {
+                    setTopFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
+                  }
+                }}
+              />
+              {topFiles.length > 0 && (
+                <div className="space-y-1.5">
+                  {topFiles.map((file, i) => (
+                    <div key={i} className="flex items-center justify-between bg-muted rounded-lg px-3 py-2">
+                      <span className="flex items-center gap-2 text-sm truncate">
+                        <FileText className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                        {file.name}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={() => setTopFiles((prev) => prev.filter((_, j) => j !== i))}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowSubmitTop(false)}>Abbrechen</Button>
+
+            <div className="flex justify-end gap-3 border-t pt-4">
+              <Button variant="outline" size="lg" onClick={() => setShowSubmitTop(false)}>
+                Abbrechen
+              </Button>
               <Button
+                size="lg"
                 onClick={() => submitTopMutation.mutate()}
                 disabled={!topTitle || submitTopMutation.isPending}
               >
-                {submitTopMutation.isPending ? "Wird eingereicht..." : "TOP einreichen"}
+                {submitTopMutation.isPending ? "Wird eingereicht..." : "Antrag einreichen"}
               </Button>
             </div>
           </div>
