@@ -26,6 +26,7 @@ interface MeetingListProps {
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
   draft: { label: "Entwurf", variant: "secondary" },
+  published: { label: "Freigeschaltet", variant: "default" },
   invited: { label: "Eingeladen", variant: "default" },
   in_progress: { label: "Laufend", variant: "destructive" },
   completed: { label: "Abgeschlossen", variant: "outline" },

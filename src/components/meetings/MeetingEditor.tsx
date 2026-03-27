@@ -15,7 +15,7 @@ import { MeetingInvitationPdf } from "./MeetingInvitationPdf";
 import { AttendeeManager } from "./AttendeeManager";
 import { LiveVotingManager } from "./LiveVotingManager";
 import { MeetingProtocol } from "./MeetingProtocol";
-import { Save, ChevronDown, ChevronUp, CheckCircle2 } from "lucide-react";
+import { Save, ChevronDown, ChevronUp, CheckCircle2, Globe } from "lucide-react";
 
 interface MeetingEditorProps {
   meetingId: string | null;
@@ -289,7 +289,7 @@ export const MeetingEditor = ({ meetingId, onSaved, onCancel }: MeetingEditorPro
           </CollapsibleTrigger>
           <CollapsibleContent>
             <CardContent>
-              {savedMeetingId && <AgendaItemEditor meetingId={savedMeetingId} />}
+              {savedMeetingId && <AgendaItemEditor meetingId={savedMeetingId} buildingId={buildingId} />}
             </CardContent>
           </CollapsibleContent>
         </Card>
@@ -310,9 +310,47 @@ export const MeetingEditor = ({ meetingId, onSaved, onCancel }: MeetingEditorPro
             </CardHeader>
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <CardContent>
+            <CardContent className="space-y-4">
               {savedMeetingId && (
                 <MeetingInvitationPdf meetingId={savedMeetingId} buildingId={buildingId} />
+              )}
+              {/* Publish button */}
+              {savedMeetingId && existingMeeting?.status === "draft" && (
+                <div className="border-t pt-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-sm font-semibold">Für Eigentümer freischalten</h4>
+                      <p className="text-xs text-muted-foreground">
+                        Nach der Freischaltung wird die Versammlung im Eigentümer-Portal sichtbar.
+                      </p>
+                    </div>
+                    <Button
+                      className="gap-2"
+                      onClick={async () => {
+                        const { error } = await supabase
+                          .from("etv_meetings")
+                          .update({ status: "published" })
+                          .eq("id", savedMeetingId);
+                        if (error) {
+                          toast({ title: "Fehler", description: error.message, variant: "destructive" });
+                        } else {
+                          toast({ title: "Versammlung freigeschaltet", description: "Eigentümer können die Versammlung jetzt sehen." });
+                          queryClient.invalidateQueries({ queryKey: ["etv-meeting", meetingId] });
+                          queryClient.invalidateQueries({ queryKey: ["etv-meetings"] });
+                        }
+                      }}
+                    >
+                      <Globe className="h-4 w-4" />
+                      Freischalten
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {existingMeeting?.status === "published" && (
+                <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400 border-t pt-4">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Versammlung ist für Eigentümer freigeschaltet.
+                </div>
               )}
             </CardContent>
           </CollapsibleContent>

@@ -8,21 +8,25 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, MapPin, Users, Plus, Building2, FileText, Upload, Trash2 } from "lucide-react";
+import { Calendar, MapPin, Users, Plus, Building2, FileText, Upload, Trash2, ClipboardList, Clock, CheckCircle2, XCircle, Pause } from "lucide-react";
 import { format as formatDate } from "date-fns";
 import { de } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 
 const statusLabels: Record<string, string> = {
-  draft: "Entwurf",
-  invited: "Eingeladen",
+  published: "Eingeladen",
   in_progress: "Laufend",
   completed: "Abgeschlossen",
-  cancelled: "Abgesagt",
+};
+
+const topStatusLabels: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
+  pending: { label: "Ausstehend", variant: "outline" },
+  accepted: { label: "Aufgenommen", variant: "default" },
+  rejected: { label: "Abgelehnt", variant: "destructive" },
+  deferred: { label: "Zurückgestellt", variant: "secondary" },
 };
 
 export const WegOwnerMeetings = () => {
@@ -52,10 +56,9 @@ export const WegOwnerMeetings = () => {
     enabled: !!profile?.user_id,
   });
 
-  // Auto-select if single building
   const effectiveBuildingId = buildings.length === 1 ? buildings[0].id : selectedBuildingId;
 
-  // Fetch meetings for selected building
+  // Fetch meetings — only published, in_progress, completed
   const { data: meetings = [], isLoading: loadingMeetings } = useQuery({
     queryKey: ["weg-owner-meetings", effectiveBuildingId],
     queryFn: async () => {
@@ -63,12 +66,28 @@ export const WegOwnerMeetings = () => {
         .from("etv_meetings")
         .select("*")
         .eq("building_id", effectiveBuildingId!)
-        .in("status", ["invited", "in_progress", "completed"])
+        .in("status", ["published", "in_progress", "completed"])
         .order("meeting_date", { ascending: false });
       if (error) throw error;
       return data || [];
     },
     enabled: !!effectiveBuildingId,
+  });
+
+  // Fetch own submitted TOPs
+  const { data: submittedTops = [], isLoading: loadingTops } = useQuery({
+    queryKey: ["weg-owner-submitted-tops", effectiveBuildingId, profile?.user_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("etv_submitted_tops")
+        .select("*, etv_meetings(title)")
+        .eq("building_id", effectiveBuildingId!)
+        .eq("submitted_by_user_id", profile?.user_id!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!effectiveBuildingId && !!profile?.user_id,
   });
 
   // Fetch agenda items for selected meeting
@@ -87,14 +106,9 @@ export const WegOwnerMeetings = () => {
     enabled: !!selectedMeetingId,
   });
 
-  // Submit TOP mutation
+  // Submit TOP — into etv_submitted_tops (building-level, not meeting-level)
   const submitTopMutation = useMutation({
     mutationFn: async () => {
-      // Find next available meeting for the building (invited or in_progress)
-      const activeMeeting = meetings.find((m: any) => ["invited", "in_progress"].includes(m.status));
-      if (!activeMeeting) throw new Error("Keine aktive Versammlung gefunden");
-
-      // Upload attachments if any
       let attachmentPaths: string[] = [];
       for (const file of topFiles) {
         const path = `etv-attachments/${effectiveBuildingId}/${Date.now()}-${file.name}`;
@@ -103,24 +117,22 @@ export const WegOwnerMeetings = () => {
         attachmentPaths.push(path);
       }
 
-      const { error } = await supabase.from("etv_agenda_items").insert({
-        meeting_id: activeMeeting.id,
+      const { error } = await supabase.from("etv_submitted_tops").insert({
+        building_id: effectiveBuildingId!,
+        submitted_by_user_id: profile?.user_id!,
         title: topTitle,
         description: topDescription || null,
-        status: "submitted",
-        submitted_by_user_id: profile?.user_id,
         attachment_paths: attachmentPaths.length > 0 ? attachmentPaths : null,
-        sort_order: 999, // will be reordered by admin
       });
       if (error) throw error;
     },
     onSuccess: () => {
-      toast({ title: "TOP eingereicht", description: "Ihr Tagesordnungspunkt wurde zur Prüfung eingereicht." });
+      toast({ title: "TOP eingereicht", description: "Ihr Antrag wurde zur Prüfung eingereicht." });
       setTopTitle("");
       setTopDescription("");
       setTopFiles([]);
       setShowSubmitTop(false);
-      queryClient.invalidateQueries({ queryKey: ["weg-owner-agenda"] });
+      queryClient.invalidateQueries({ queryKey: ["weg-owner-submitted-tops"] });
     },
     onError: (err: any) => {
       toast({ title: "Fehler", description: err.message, variant: "destructive" });
@@ -128,7 +140,6 @@ export const WegOwnerMeetings = () => {
   });
 
   const selectedMeeting = meetings.find((m: any) => m.id === selectedMeetingId);
-  const activeMeeting = meetings.find((m: any) => ["invited", "in_progress"].includes(m.status));
   const selectedBuilding = buildings.find((b: any) => b.id === effectiveBuildingId);
 
   // Building selector
@@ -185,12 +196,10 @@ export const WegOwnerMeetings = () => {
           <h1 className="text-2xl font-bold text-foreground">Versammlungen</h1>
           <p className="text-muted-foreground">{selectedBuilding?.name} — {selectedBuilding?.address}</p>
         </div>
-        {activeMeeting && (
-          <Button onClick={() => setShowSubmitTop(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            TOP einreichen
-          </Button>
-        )}
+        <Button onClick={() => setShowSubmitTop(true)} className="gap-2">
+          <Plus className="h-4 w-4" />
+          TOP einreichen
+        </Button>
       </div>
 
       <Tabs defaultValue="meetings">
@@ -199,7 +208,17 @@ export const WegOwnerMeetings = () => {
             <Users className="h-4 w-4" />
             Versammlungen
           </TabsTrigger>
+          <TabsTrigger value="tops" className="gap-2">
+            <ClipboardList className="h-4 w-4" />
+            Meine Anträge
+            {submittedTops.filter((t: any) => t.status === "pending").length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                {submittedTops.filter((t: any) => t.status === "pending").length}
+              </Badge>
+            )}
+          </TabsTrigger>
         </TabsList>
+
         <TabsContent value="meetings" className="mt-4">
           {loadingMeetings ? (
             <div className="space-y-3">
@@ -210,6 +229,9 @@ export const WegOwnerMeetings = () => {
               <CardContent className="py-12 text-center">
                 <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <p className="text-muted-foreground">Keine Versammlungen vorhanden.</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Sie können jederzeit Tagesordnungspunkte einreichen — auch wenn noch keine Versammlung geplant ist.
+                </p>
               </CardContent>
             </Card>
           ) : (
@@ -243,6 +265,76 @@ export const WegOwnerMeetings = () => {
             </div>
           )}
         </TabsContent>
+
+        <TabsContent value="tops" className="mt-4">
+          {loadingTops ? (
+            <div className="space-y-3">
+              {[1, 2].map((i) => <Skeleton key={i} className="h-16 w-full" />)}
+            </div>
+          ) : submittedTops.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <ClipboardList className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">Noch keine Anträge eingereicht.</p>
+                <Button variant="outline" className="mt-4 gap-2" onClick={() => setShowSubmitTop(true)}>
+                  <Plus className="h-4 w-4" />
+                  Ersten TOP einreichen
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {submittedTops.map((top: any) => {
+                const statusInfo = topStatusLabels[top.status] || topStatusLabels.pending;
+                const StatusIcon = top.status === "accepted" ? CheckCircle2 
+                  : top.status === "rejected" ? XCircle 
+                  : top.status === "deferred" ? Pause 
+                  : Clock;
+                return (
+                  <Card key={top.id}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-3">
+                          <StatusIcon className={`h-5 w-5 mt-0.5 flex-shrink-0 ${
+                            top.status === "accepted" ? "text-green-500" 
+                            : top.status === "rejected" ? "text-destructive" 
+                            : "text-muted-foreground"
+                          }`} />
+                          <div>
+                            <h4 className="font-semibold text-sm">{top.title}</h4>
+                            {top.description && (
+                              <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{top.description}</p>
+                            )}
+                            <div className="flex items-center gap-2 mt-2">
+                              <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+                              <span className="text-xs text-muted-foreground">
+                                {formatDate(new Date(top.created_at), "dd.MM.yyyy", { locale: de })}
+                              </span>
+                              {top.etv_meetings?.title && (
+                                <span className="text-xs text-muted-foreground">→ {top.etv_meetings.title}</span>
+                              )}
+                            </div>
+                            {top.admin_notes && (
+                              <p className="text-xs text-muted-foreground mt-2 italic border-l-2 border-muted pl-2">
+                                {top.admin_notes}
+                              </p>
+                            )}
+                            {top.attachment_paths?.length > 0 && (
+                              <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                                <FileText className="h-3 w-3" />
+                                {top.attachment_paths.length} Anhang/Anhänge
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </TabsContent>
       </Tabs>
 
       {/* Meeting Detail Dialog */}
@@ -271,9 +363,6 @@ export const WegOwnerMeetings = () => {
                           <div className="flex-1">
                             <p className="font-medium text-sm">{item.title}</p>
                             {item.description && <p className="text-xs text-muted-foreground mt-1">{item.description}</p>}
-                            {item.status === "submitted" && (
-                              <Badge variant="outline" className="text-xs mt-1">Eingereicht</Badge>
-                            )}
                             {item.resolution_text && (
                               <div className="mt-2 p-2 bg-muted rounded text-xs italic">{item.resolution_text}</div>
                             )}
@@ -302,7 +391,7 @@ export const WegOwnerMeetings = () => {
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Ihr TOP wird zur nächsten Versammlung eingereicht und vom Verwalter geprüft.
+              Ihr Antrag wird dem Verwalter vorgelegt und kann in eine kommende Versammlung aufgenommen werden.
             </p>
             <div className="space-y-1.5">
               <Label className="text-xs">Titel *</Label>
@@ -365,9 +454,9 @@ export const WegOwnerMeetings = () => {
               <Button variant="outline" onClick={() => setShowSubmitTop(false)}>Abbrechen</Button>
               <Button
                 onClick={() => submitTopMutation.mutate()}
-                disabled={!topTitle || submitTopMutation.isPending || !activeMeeting}
+                disabled={!topTitle || submitTopMutation.isPending}
               >
-                TOP einreichen
+                {submitTopMutation.isPending ? "Wird eingereicht..." : "TOP einreichen"}
               </Button>
             </div>
           </div>

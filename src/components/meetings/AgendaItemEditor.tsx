@@ -11,9 +11,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Plus, GripVertical, Trash2, Sparkles } from "lucide-react";
 import { AgendaAiAssistant } from "./AgendaAiAssistant";
+import { SubmittedTopsSection } from "./SubmittedTopsSection";
 
 interface AgendaItemEditorProps {
   meetingId: string;
+  buildingId?: string;
 }
 
 interface AgendaItem {
@@ -40,7 +42,7 @@ const categories = [
   { value: "sonstiges", label: "Sonstiges" },
 ];
 
-export const AgendaItemEditor = ({ meetingId }: AgendaItemEditorProps) => {
+export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -124,6 +126,11 @@ export const AgendaItemEditor = ({ meetingId }: AgendaItemEditorProps) => {
 
   return (
     <div className="space-y-4">
+      {/* Submitted TOPs from owners */}
+      {buildingId && (
+        <SubmittedTopsSection meetingId={meetingId} buildingId={buildingId} />
+      )}
+
       {/* Existing items */}
       {items.map((item, idx) => (
         <Card key={item.id} className="relative">
