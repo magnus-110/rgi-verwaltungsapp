@@ -219,52 +219,38 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
     setEditItemExistingPaths(prev => prev.filter((_, i) => i !== index));
   };
 
-  // Unified AI suggestion component (same design as email)
-  const AiSuggestionBox = ({
-    suggestion,
-    onAccept,
-    onDismiss,
-    onChange,
-  }: {
-    suggestion: string;
-    onAccept: () => void;
-    onDismiss: () => void;
-    onChange: (text: string) => void;
-  }) => (
-    <div className="border border-primary/30 bg-primary/5 rounded-md p-2 space-y-1.5">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] font-medium text-primary flex items-center gap-1">
-          <Wand2 className="h-3 w-3" />
-          KI-Vorschlag
-        </span>
-        <div className="flex gap-0.5">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-5 w-5 text-green-600 hover:text-green-700 hover:bg-green-50"
-            onClick={onAccept}
-            title="Übernehmen"
-          >
-            <Check className="h-3 w-3" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-5 w-5 text-destructive hover:bg-destructive/10"
-            onClick={onDismiss}
-            title="Verwerfen"
-          >
-            <X className="h-3 w-3" />
-          </Button>
+  // Render AI suggestion inline (not as a component to prevent remount/focus loss)
+  const renderAiSuggestion = (
+    suggestion: string | null,
+    onAccept: () => void,
+    onDismiss: () => void,
+    onChange: (text: string) => void,
+  ) => {
+    if (!suggestion) return null;
+    return (
+      <div className="border border-primary/30 bg-primary/5 rounded-md p-2 space-y-1.5">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-medium text-primary flex items-center gap-1">
+            <Wand2 className="h-3 w-3" />
+            KI-Vorschlag
+          </span>
+          <div className="flex gap-0.5">
+            <Button variant="ghost" size="icon" className="h-5 w-5 text-green-600 hover:text-green-700 hover:bg-green-50" onClick={onAccept} title="Übernehmen">
+              <Check className="h-3 w-3" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-5 w-5 text-destructive hover:bg-destructive/10" onClick={onDismiss} title="Verwerfen">
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
         </div>
+        <Textarea
+          value={suggestion}
+          onChange={(e) => onChange(e.target.value)}
+          className="min-h-[100px] resize-y text-sm bg-transparent border-0 p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+        />
       </div>
-      <Textarea
-        value={suggestion}
-        onChange={(e) => onChange(e.target.value)}
-        className="min-h-[100px] resize-y text-sm bg-transparent border-0 p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-      />
-    </div>
-  );
+    );
+  };
 
   // Attachment section for edit mode
   const EditAttachments = () => (
