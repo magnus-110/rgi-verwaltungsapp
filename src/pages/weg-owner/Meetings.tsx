@@ -151,15 +151,38 @@ export const WegOwnerMeetings = () => {
   // Update TOP
   const updateTopMutation = useMutation({
     mutationFn: async ({ id, title, description }: { id: string; title: string; description: string }) => {
+      const top = submittedTops.find((t: any) => t.id === id);
+      let currentPaths: string[] = (top?.attachment_paths || []).filter((p: string) => !editRemovedPaths.includes(p));
+
+      // Delete removed files from storage
+      if (editRemovedPaths.length > 0) {
+        await supabase.storage.from("building-files").remove(editRemovedPaths);
+      }
+
+      // Upload new files
+      for (const file of editNewFiles) {
+        const path = `etv-attachments/${effectiveBuildingId}/${Date.now()}-${file.name}`;
+        const { error: uploadErr } = await supabase.storage.from("building-files").upload(path, file);
+        if (uploadErr) throw uploadErr;
+        currentPaths.push(path);
+      }
+
       const { error } = await supabase
         .from("etv_submitted_tops")
-        .update({ title, description: description || null, updated_at: new Date().toISOString() })
+        .update({
+          title,
+          description: description || null,
+          attachment_paths: currentPaths.length > 0 ? currentPaths : null,
+          updated_at: new Date().toISOString(),
+        })
         .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       toast({ title: "Antrag aktualisiert" });
       setIsEditing(false);
+      setEditNewFiles([]);
+      setEditRemovedPaths([]);
       queryClient.invalidateQueries({ queryKey: ["weg-owner-submitted-tops"] });
     },
     onError: (err: any) => {
