@@ -511,20 +511,30 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                 </div>
               )}
 
-              {isVoted && (
-                <div className="flex gap-6 text-sm">
-                  <div className="text-center">
-                    <div className="text-xl font-bold text-green-600">{selectedItem.yes_count}</div>
-                    <div className="text-xs text-muted-foreground">Ja</div>
+              {(isVoted || isClosed) && (
+                <div className="space-y-2">
+                  <div className="flex gap-6 text-sm">
+                    <div className="text-center">
+                      <div className="text-xl font-bold text-green-600">{selectedItem.yes_count}</div>
+                      <div className="text-xs text-muted-foreground">Ja</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xl font-bold text-red-600">{selectedItem.no_count}</div>
+                      <div className="text-xs text-muted-foreground">Nein</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xl font-bold text-muted-foreground">{selectedItem.abstain_count}</div>
+                      <div className="text-xs text-muted-foreground">Enthaltung</div>
+                    </div>
                   </div>
-                  <div className="text-center">
-                    <div className="text-xl font-bold text-red-600">{selectedItem.no_count}</div>
-                    <div className="text-xs text-muted-foreground">Nein</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xl font-bold text-muted-foreground">{selectedItem.abstain_count}</div>
-                    <div className="text-xs text-muted-foreground">Enthaltung</div>
-                  </div>
+                  {isClosed && (
+                    <p className="text-xs text-orange-600 font-medium">⚠ Ergebnis noch nicht bestätigt</p>
+                  )}
+                  {isVoted && (
+                    <Badge variant={selectedItem.result === "passed" ? "default" : "destructive"}>
+                      {selectedItem.result === "passed" ? "✓ Bestätigt: Angenommen" : "✓ Bestätigt: Abgelehnt"}
+                    </Badge>
+                  )}
                 </div>
               )}
             </div>
