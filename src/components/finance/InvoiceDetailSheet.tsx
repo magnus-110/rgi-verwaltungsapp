@@ -161,6 +161,33 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
     queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] });
   };
 
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!invoiceId || !inv) return;
+    setDeleting(true);
+    try {
+      // 1. Delete related bookings
+      await supabase.from("bookings").delete().eq("invoice_id", invoiceId);
+      // 2. Unlink bank transactions
+      await supabase.from("bank_transactions").update({ matched_invoice_id: null, match_status: "unmatched" }).eq("matched_invoice_id", invoiceId);
+      // 3. Delete file from storage if exists
+      if (inv.file_path) {
+        await supabase.storage.from("invoices").remove([inv.file_path]);
+      }
+      // 4. Delete invoice record
+      const { error } = await supabase.from("invoices").delete().eq("id", invoiceId);
+      if (error) throw error;
+      toast.success("Rechnung und zugehörige Daten gelöscht");
+      invalidateAll();
+      handleClose();
+    } catch (e: any) {
+      toast.error("Fehler beim Löschen: " + (e.message || "Unbekannt"));
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const togglePaymentStatus = async () => {
     if (!invoiceId || !inv) return;
     const newStatus = inv.status === "paid" ? "open" : "paid";
