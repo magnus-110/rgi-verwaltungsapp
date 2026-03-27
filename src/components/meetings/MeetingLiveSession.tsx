@@ -671,10 +671,6 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                     )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <Button variant="ghost" size="icon" className="h-8 w-8" title="Vollmacht"
-                      onClick={() => { setProxyDialog(a.id); setProxyType("manager"); setProxyContactId(""); }}>
-                      <Shield className="h-4 w-4 text-blue-500" />
-                    </Button>
                     <Label className="text-xs">Anw.</Label>
                     <Switch
                       checked={a.attendance_type === "present"}
