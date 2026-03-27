@@ -11,9 +11,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Plus, GripVertical, Trash2, Sparkles } from "lucide-react";
 import { AgendaAiAssistant } from "./AgendaAiAssistant";
+import { SubmittedTopsSection } from "./SubmittedTopsSection";
 
 interface AgendaItemEditorProps {
   meetingId: string;
+  buildingId?: string;
 }
 
 interface AgendaItem {
