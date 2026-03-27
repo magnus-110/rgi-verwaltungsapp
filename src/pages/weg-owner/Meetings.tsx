@@ -636,6 +636,13 @@ export const WegOwnerMeetings = () => {
                     </Card>
                   )}
 
+                  {!myAttendee ? (
+                    <Card>
+                      <CardContent className="p-4 text-sm text-muted-foreground">
+                        Teilnehmer-Status wird geladen...
+                      </CardContent>
+                    </Card>
+                  ) : (
                   <Card>
                     <CardContent className="p-4 space-y-3">
                       <div className="flex items-center justify-between">
