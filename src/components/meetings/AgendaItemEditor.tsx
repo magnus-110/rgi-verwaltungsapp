@@ -9,8 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, GripVertical, Trash2, Pencil, Upload, FileText, X, Wand2, Loader2 } from "lucide-react";
-import { AgendaAiAssistant } from "./AgendaAiAssistant";
+import { Plus, GripVertical, Trash2, Pencil, Upload, FileText, X, Wand2, Loader2, Check } from "lucide-react";
 
 interface AgendaItemEditorProps {
   meetingId: string;
@@ -45,14 +44,18 @@ const categories = [
 export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [showAiFor, setShowAiFor] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Edit state
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editItemTitle, setEditItemTitle] = useState("");
   const [editItemDescription, setEditItemDescription] = useState("");
   const [editItemResolution, setEditItemResolution] = useState("");
   const [editItemPrinciple, setEditItemPrinciple] = useState("mea");
   const [editItemCategory, setEditItemCategory] = useState("sonstiges");
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [editItemExistingPaths, setEditItemExistingPaths] = useState<string[]>([]);
+  const [editNewFiles, setEditNewFiles] = useState<File[]>([]);
 
   // New item form
   const [newTitle, setNewTitle] = useState("");
@@ -61,8 +64,12 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
   const [newPrinciple, setNewPrinciple] = useState("mea");
   const [newCategory, setNewCategory] = useState("sonstiges");
   const [newFiles, setNewFiles] = useState<File[]>([]);
-  const [showNewAi, setShowNewAi] = useState(false);
+
+  // AI suggestion state (unified design like email)
+  const [newAiSuggestion, setNewAiSuggestion] = useState<string | null>(null);
   const [isGeneratingNew, setIsGeneratingNew] = useState(false);
+  const [editAiSuggestion, setEditAiSuggestion] = useState<string | null>(null);
+  const [isGeneratingEdit, setIsGeneratingEdit] = useState(false);
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["etv-agenda-items", meetingId],
@@ -77,17 +84,20 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
     },
   });
 
+  const uploadFiles = async (files: File[]): Promise<string[]> => {
+    const paths: string[] = [];
+    for (const file of files) {
+      const path = `etv-attachments/${buildingId || "general"}/${Date.now()}-${file.name}`;
+      const { error: uploadErr } = await supabase.storage.from("building-files").upload(path, file);
+      if (uploadErr) throw uploadErr;
+      paths.push(path);
+    }
+    return paths;
+  };
+
   const addMutation = useMutation({
     mutationFn: async () => {
-      // Upload files
-      let attachmentPaths: string[] = [];
-      for (const file of newFiles) {
-        const path = `etv-attachments/${buildingId || "general"}/${Date.now()}-${file.name}`;
-        const { error: uploadErr } = await supabase.storage.from("building-files").upload(path, file);
-        if (uploadErr) throw uploadErr;
-        attachmentPaths.push(path);
-      }
-
+      const attachmentPaths = await uploadFiles(newFiles);
       const { error } = await supabase.from("etv_agenda_items").insert({
         meeting_id: meetingId,
         sort_order: items.length + 1,
@@ -108,7 +118,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       setNewPrinciple("mea");
       setNewCategory("sonstiges");
       setNewFiles([]);
-      setShowNewAi(false);
+      setNewAiSuggestion(null);
       toast({ title: "TOP hinzugefügt" });
     },
     onError: (err: any) => {
@@ -139,15 +149,6 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
     },
   });
 
-  const handleAiResult = (itemId: string, text: string) => {
-    if (editingItemId === itemId) {
-      setEditItemResolution(text);
-    } else {
-      updateMutation.mutate({ id: itemId, resolution_text: text });
-    }
-    setShowAiFor(null);
-  };
-
   const startEditing = (item: AgendaItem) => {
     setEditingItemId(item.id);
     setEditItemTitle(item.title);
@@ -155,10 +156,21 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
     setEditItemResolution(item.resolution_text || "");
     setEditItemPrinciple(item.voting_principle);
     setEditItemCategory(item.category || "sonstiges");
+    setEditItemExistingPaths(item.attachment_paths || []);
+    setEditNewFiles([]);
+    setEditAiSuggestion(null);
   };
 
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (!editingItemId || !editItemTitle) return;
+    
+    // Upload new files
+    let allPaths = [...editItemExistingPaths];
+    if (editNewFiles.length > 0) {
+      const newPaths = await uploadFiles(editNewFiles);
+      allPaths = [...allPaths, ...newPaths];
+    }
+
     updateMutation.mutate({
       id: editingItemId,
       title: editItemTitle,
@@ -166,48 +178,35 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       resolution_text: editItemResolution || null,
       voting_principle: editItemPrinciple,
       category: editItemCategory,
+      attachment_paths: allPaths.length > 0 ? allPaths : null,
     });
     setEditingItemId(null);
+    setEditNewFiles([]);
+    setEditAiSuggestion(null);
   };
 
-  const handleGenerateNewResolution = async () => {
-    if (!newTitle) return;
-    setIsGeneratingNew(true);
+  const generateResolution = async (
+    title: string,
+    description: string,
+    setLoading: (v: boolean) => void,
+    setSuggestion: (v: string | null) => void
+  ) => {
+    if (!title) return;
+    setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("chat-with-ai", {
-        body: {
-          message: `Formuliere einen rechtssicheren Beschlusstext für eine WEG-Eigentümerversammlung zum folgenden Tagesordnungspunkt:
-
-Titel: ${newTitle}
-${newDescription ? `Erläuterung: ${newDescription}` : ""}
-
-Der Beschlusstext MUSS folgende Elemente enthalten:
-1. WER: Beginne mit "Die Eigentümer beschließen..."
-2. WAS: Konkreter Beschlussgegenstand
-3. WIE: Umsetzungsweise, ggf. Beauftragung der Verwaltung mit der Durchführung
-4. WANN: Zeitrahmen für die Umsetzung (konkretes Datum oder "unverzüglich" oder "bis spätestens...")
-
-Zusätzliche Anforderungen:
-- Rechtlich korrekt nach WEG-Recht formuliert
-- Klar und eindeutig
-- Der Verwaltung soll ein angemessener Handlungsspielraum bei der Umsetzung eingeräumt werden (z.B. "Die Verwaltung wird ermächtigt, die erforderlichen Maßnahmen zu veranlassen und Angebote bis zu einem angemessenen Rahmen einzuholen"), ohne dies explizit als "finanziellen Spielraum" zu benennen.
-
-Antworte NUR mit dem Beschlusstext, ohne zusätzliche Erklärungen.`,
-          buildingId: buildingId,
-          managementMode: "weg",
-        },
+      const { data, error } = await supabase.functions.invoke("generate-resolution-text", {
+        body: { title, description: description || undefined },
       });
       if (error) throw error;
-      const responseText = typeof data === "string"
-        ? data
-        : data?.response || data?.message || data?.choices?.[0]?.message?.content || "";
-      if (responseText) {
-        setNewResolution(responseText);
+      if (data?.resolutionText) {
+        setSuggestion(data.resolutionText);
+      } else {
+        throw new Error("Keine Antwort erhalten");
       }
     } catch (err: any) {
       toast({ title: "KI-Fehler", description: err.message, variant: "destructive" });
     } finally {
-      setIsGeneratingNew(false);
+      setLoading(false);
     }
   };
 
@@ -215,6 +214,133 @@ Antworte NUR mit dem Beschlusstext, ohne zusätzliche Erklärungen.`,
     const { data } = await supabase.storage.from("building-files").createSignedUrl(path, 3600);
     if (data?.signedUrl) window.open(data.signedUrl, "_blank");
   };
+
+  const removeExistingPath = (index: number) => {
+    setEditItemExistingPaths(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Unified AI suggestion component (same design as email)
+  const AiSuggestionBox = ({
+    suggestion,
+    onAccept,
+    onDismiss,
+    onChange,
+  }: {
+    suggestion: string;
+    onAccept: () => void;
+    onDismiss: () => void;
+    onChange: (text: string) => void;
+  }) => (
+    <div className="border border-primary/30 bg-primary/5 rounded-md p-2 space-y-1.5">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-medium text-primary flex items-center gap-1">
+          <Wand2 className="h-3 w-3" />
+          KI-Vorschlag
+        </span>
+        <div className="flex gap-0.5">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-5 w-5 text-green-600 hover:text-green-700 hover:bg-green-50"
+            onClick={onAccept}
+            title="Übernehmen"
+          >
+            <Check className="h-3 w-3" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-5 w-5 text-destructive hover:bg-destructive/10"
+            onClick={onDismiss}
+            title="Verwerfen"
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+      </div>
+      <Textarea
+        value={suggestion}
+        onChange={(e) => onChange(e.target.value)}
+        className="min-h-[100px] resize-y text-sm bg-transparent border-0 p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+      />
+    </div>
+  );
+
+  // Attachment section for edit mode
+  const EditAttachments = () => (
+    <div className="space-y-1.5">
+      <Label className="text-xs">Anhänge</Label>
+      <div className="border border-dashed rounded-md p-3">
+        <input
+          ref={editFileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            if (e.target.files) {
+              setEditNewFiles(prev => [...prev, ...Array.from(e.target.files!)]);
+            }
+          }}
+        />
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="gap-2 text-muted-foreground"
+          onClick={() => editFileInputRef.current?.click()}
+        >
+          <Upload className="h-4 w-4" />
+          Dateien hinzufügen
+        </Button>
+        {/* Existing attachments */}
+        {editItemExistingPaths.length > 0 && (
+          <div className="mt-2 space-y-1">
+            {editItemExistingPaths.map((path, i) => {
+              const fileName = path.split("/").pop() || path;
+              return (
+                <div key={`existing-${i}`} className="flex items-center justify-between text-xs bg-muted rounded px-2 py-1">
+                  <span className="flex items-center gap-1 truncate">
+                    <FileText className="h-3 w-3 flex-shrink-0" />
+                    {fileName.replace(/^\d+-/, "")}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5"
+                    onClick={() => removeExistingPath(i)}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {/* New files */}
+        {editNewFiles.length > 0 && (
+          <div className="mt-2 space-y-1">
+            {editNewFiles.map((file, i) => (
+              <div key={`new-${i}`} className="flex items-center justify-between text-xs bg-muted rounded px-2 py-1">
+                <span className="flex items-center gap-1 truncate">
+                  <FileText className="h-3 w-3 flex-shrink-0" />
+                  {file.name}
+                  <Badge variant="secondary" className="text-[9px] h-4">Neu</Badge>
+                </span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5"
+                  onClick={() => setEditNewFiles(prev => prev.filter((_, j) => j !== i))}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-4">
@@ -266,32 +392,33 @@ Antworte NUR mit dem Beschlusstext, ohne zusätzliche Erklärungen.`,
                       <Textarea value={editItemDescription} onChange={(e) => setEditItemDescription(e.target.value)} rows={2} />
                     </div>
                     <div className="space-y-1.5">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
                         <Label className="text-xs">Beschlusstext</Label>
                         <Button
+                          type="button"
                           variant="ghost"
-                          size="sm"
-                          className="h-7 gap-1 text-xs text-amber-600 hover:text-amber-700"
-                          onClick={() => setShowAiFor(showAiFor === item.id ? null : item.id)}
+                          size="icon"
+                          className="h-5 w-5 text-muted-foreground hover:text-primary"
+                          onClick={() => generateResolution(editItemTitle, editItemDescription, setIsGeneratingEdit, setEditAiSuggestion)}
+                          disabled={isGeneratingEdit || !editItemTitle}
+                          title="Beschlusstext mit KI generieren"
                         >
-                          <Wand2 className="h-3.5 w-3.5" />
-                          KI generieren
+                          {isGeneratingEdit ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
                         </Button>
                       </div>
-                      <Textarea value={editItemResolution} onChange={(e) => setEditItemResolution(e.target.value)} rows={3} />
+                      <Textarea value={editItemResolution} onChange={(e) => setEditItemResolution(e.target.value)} rows={3} placeholder="Die Eigentümer beschließen..." />
+                      {editAiSuggestion !== null && (
+                        <AiSuggestionBox
+                          suggestion={editAiSuggestion}
+                          onAccept={() => { setEditItemResolution(editAiSuggestion!); setEditAiSuggestion(null); }}
+                          onDismiss={() => setEditAiSuggestion(null)}
+                          onChange={setEditAiSuggestion}
+                        />
+                      )}
                     </div>
-                    {showAiFor === item.id && (
-                      <AgendaAiAssistant
-                        meetingId={meetingId}
-                        buildingId={buildingId}
-                        itemTitle={editItemTitle}
-                        itemDescription={editItemDescription}
-                        onResult={(text) => handleAiResult(item.id, text)}
-                        onClose={() => setShowAiFor(null)}
-                      />
-                    )}
+                    <EditAttachments />
                     <div className="flex justify-end gap-2">
-                      <Button variant="outline" size="sm" onClick={() => setEditingItemId(null)}>Abbrechen</Button>
+                      <Button variant="outline" size="sm" onClick={() => { setEditingItemId(null); setEditAiSuggestion(null); }}>Abbrechen</Button>
                       <Button size="sm" onClick={saveEdit} disabled={!editItemTitle || updateMutation.isPending}>Speichern</Button>
                     </div>
                   </div>
@@ -309,20 +436,10 @@ Antworte NUR mit dem Beschlusstext, ohne zusätzliche Erklärungen.`,
                             {categories.find((c) => c.value === item.category)?.label || item.category}
                           </Badge>
                         )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={() => startEditing(item)}
-                        >
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startEditing(item)}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-destructive"
-                          onClick={() => deleteMutation.mutate(item.id)}
-                        >
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteMutation.mutate(item.id)}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
@@ -336,19 +453,12 @@ Antworte NUR mit dem Beschlusstext, ohne zusätzliche Erklärungen.`,
                         <p className="text-sm">{item.resolution_text}</p>
                       </div>
                     )}
-                    {/* Attachments */}
                     {item.attachment_paths && item.attachment_paths.length > 0 && (
                       <div className="flex flex-wrap gap-1">
                         {item.attachment_paths.map((path, i) => {
                           const fileName = path.split("/").pop() || path;
                           return (
-                            <Button
-                              key={i}
-                              variant="outline"
-                              size="sm"
-                              className="h-7 text-xs gap-1"
-                              onClick={() => getFileDownloadUrl(path)}
-                            >
+                            <Button key={i} variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => getFileDownloadUrl(path)}>
                               <FileText className="h-3 w-3" />
                               {fileName.replace(/^\d+-/, "")}
                             </Button>
@@ -381,9 +491,7 @@ Antworte NUR mit dem Beschlusstext, ohne zusätzliche Erklärungen.`,
               <div className="flex-1 space-y-1.5">
                 <Label className="text-xs">Abstimmung</Label>
                 <Select value={newPrinciple} onValueChange={setNewPrinciple}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {votingPrinciples.map((v) => (
                       <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
@@ -394,9 +502,7 @@ Antworte NUR mit dem Beschlusstext, ohne zusätzliche Erklärungen.`,
               <div className="flex-1 space-y-1.5">
                 <Label className="text-xs">Kategorie</Label>
                 <Select value={newCategory} onValueChange={setNewCategory}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {categories.map((c) => (
                       <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
@@ -416,21 +522,18 @@ Antworte NUR mit dem Beschlusstext, ohne zusätzliche Erklärungen.`,
             />
           </div>
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
               <Label className="text-xs">Beschlusstext (optional)</Label>
               <Button
+                type="button"
                 variant="ghost"
-                size="sm"
-                className="h-7 gap-1 text-xs text-amber-600 hover:text-amber-700"
-                onClick={handleGenerateNewResolution}
-                disabled={!newTitle || isGeneratingNew}
+                size="icon"
+                className="h-5 w-5 text-muted-foreground hover:text-primary"
+                onClick={() => generateResolution(newTitle, newDescription, setIsGeneratingNew, setNewAiSuggestion)}
+                disabled={isGeneratingNew || !newTitle}
+                title="Beschlusstext mit KI generieren"
               >
-                {isGeneratingNew ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Wand2 className="h-3.5 w-3.5" />
-                )}
-                KI generieren
+                {isGeneratingNew ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
               </Button>
             </div>
             <Textarea
@@ -439,6 +542,14 @@ Antworte NUR mit dem Beschlusstext, ohne zusätzliche Erklärungen.`,
               onChange={(e) => setNewResolution(e.target.value)}
               rows={3}
             />
+            {newAiSuggestion !== null && (
+              <AiSuggestionBox
+                suggestion={newAiSuggestion}
+                onAccept={() => { setNewResolution(newAiSuggestion!); setNewAiSuggestion(null); }}
+                onDismiss={() => setNewAiSuggestion(null)}
+                onChange={setNewAiSuggestion}
+              />
+            )}
           </div>
           {/* File upload */}
           <div className="space-y-1.5">
