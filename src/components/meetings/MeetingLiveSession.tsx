@@ -248,6 +248,17 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["etv-votes-live", activeVoteItem] }),
   });
 
+  const resetVoteMutation = useMutation({
+    mutationFn: async ({ itemId, assignmentId }: { itemId: string; assignmentId: string }) => {
+      const { error } = await supabase.from("etv_votes")
+        .delete()
+        .eq("agenda_item_id", itemId)
+        .eq("assignment_id", assignmentId);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["etv-votes-live", activeVoteItem] }),
+  });
+
   const endVotingMutation = useMutation({
     mutationFn: async (itemId: string) => {
       const yesVotes = currentVotes.filter((v: any) => v.vote === "yes");
