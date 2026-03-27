@@ -63,9 +63,9 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
 
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const pageWidth = 210;
-    const margin = 25;
+    const margin = 20;
     const contentWidth = pageWidth - 2 * margin;
-    let y = margin;
+    let y = 15;
 
     // Colors
     const orange = [238, 114, 2] as [number, number, number];
@@ -73,11 +73,10 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
     const gray = [150, 150, 150] as [number, number, number];
 
     // Try to load logo — top right corner via canvas DataURL
-    let logoH = 14;
+    let logoH = 18;
     try {
       const logoUrl = `${window.location.origin}/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png`;
       const dataUrl = await loadImageAsDataUrl(logoUrl);
-      // Calculate aspect ratio from a temp image
       const tmpImg = new Image();
       tmpImg.src = dataUrl;
       await new Promise(r => { tmpImg.onload = r; });
@@ -88,36 +87,35 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
     }
 
     // Move y below the logo area before starting content
-    y += logoH + 12;
+    y += logoH + 8;
 
     // Title
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(17);
+    pdf.setFontSize(20);
     pdf.setTextColor(...anthracite);
     pdf.text("Einladung zur Eigentümerversammlung", margin, y);
     y += 7;
 
     pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(10);
+    pdf.setFontSize(11);
     pdf.setTextColor(...gray);
     pdf.text(building?.name || "", margin, y);
 
     // Orange line
-    y += 12;
+    y += 10;
     pdf.setDrawColor(...orange);
     pdf.setLineWidth(0.5);
     pdf.line(margin, y, pageWidth - margin, y);
-    y += 10;
+    y += 8;
 
     // Meta block
-    pdf.setFontSize(10);
+    pdf.setFontSize(11);
     const metaRows = [
       ["Liegenschaft:", `${building?.name || ""}, ${building?.address || ""}`],
       ["Datum:", dateStr],
       ["Uhrzeit:", `${timeStr} Uhr`],
     ];
     if (meeting.location) metaRows.push(["Ort:", meeting.location]);
-    if (building?.manager_name) metaRows.push(["Verwalter:", building.manager_name]);
 
     for (const [label, value] of metaRows) {
       pdf.setFont("helvetica", "bold");
@@ -132,20 +130,20 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
 
     // Greeting
     pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(10.5);
+    pdf.setFontSize(11);
     pdf.setTextColor(...anthracite);
     const greetingLines = pdf.splitTextToSize(greeting, contentWidth);
     for (const line of greetingLines) {
-      if (y > 270) { pdf.addPage(); y = margin; }
+      if (y > 270) { pdf.addPage(); y = 15; }
       pdf.text(line, margin, y);
-      y += 5;
+      y += 5.5;
     }
 
     y += 6;
 
     // Section title "Tagesordnung"
     pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(12);
+    pdf.setFontSize(13);
     pdf.text("Tagesordnung", margin, y);
     y += 2;
     pdf.setDrawColor(229, 231, 235);
@@ -156,13 +154,12 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
     // Agenda items
     for (let i = 0; i < agendaItems.length; i++) {
       const item = agendaItems[i] as any;
-      if (y > 255) { pdf.addPage(); y = margin; }
+      if (y > 255) { pdf.addPage(); y = 15; }
 
       // Left orange bar + background
       const itemStartY = y - 2;
-      const titleText = `TOP ${i + 1}   ${item.title}`;
       const descLines = item.description ? pdf.splitTextToSize(item.description, contentWidth - 10) : [];
-      const itemHeight = 8 + (descLines.length > 0 ? descLines.length * 4.5 + 2 : 0);
+      const itemHeight = 8 + (descLines.length > 0 ? descLines.length * 5 + 2 : 0);
 
       pdf.setFillColor(250, 248, 245);
       pdf.roundedRect(margin, itemStartY, contentWidth, itemHeight, 1.5, 1.5, "F");
@@ -171,12 +168,13 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
 
       // TOP number in orange
       pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(9.5);
+      pdf.setFontSize(10);
       pdf.setTextColor(...orange);
       pdf.text(`TOP ${i + 1}`, margin + 4, y + 2);
 
       // Title
       pdf.setTextColor(...anthracite);
+      pdf.setFontSize(11);
       pdf.text(item.title, margin + 20, y + 2);
 
       y += 7;
@@ -184,11 +182,11 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
       // Description
       if (descLines.length > 0) {
         pdf.setFont("helvetica", "normal");
-        pdf.setFontSize(9);
+        pdf.setFontSize(10);
         pdf.setTextColor(100, 100, 100);
         for (const dl of descLines) {
           pdf.text(dl, margin + 4, y);
-          y += 4.5;
+          y += 5;
         }
       }
 
@@ -198,45 +196,44 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
     // Additional notes
     if (additionalNotes.trim()) {
       y += 4;
-      if (y > 255) { pdf.addPage(); y = margin; }
+      if (y > 255) { pdf.addPage(); y = 15; }
       pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(10);
+      pdf.setFontSize(11);
       pdf.setTextColor(...anthracite);
       const noteLines = pdf.splitTextToSize(additionalNotes, contentWidth);
       for (const nl of noteLines) {
-        if (y > 270) { pdf.addPage(); y = margin; }
+        if (y > 270) { pdf.addPage(); y = 15; }
         pdf.text(nl, margin, y);
-        y += 5;
+        y += 5.5;
       }
     }
 
     // Closing text
     y += 6;
-    if (y > 255) { pdf.addPage(); y = margin; }
+    if (y > 255) { pdf.addPage(); y = 15; }
     pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(10.5);
+    pdf.setFontSize(11);
     pdf.setTextColor(...anthracite);
     const closingLines = pdf.splitTextToSize(closingText, contentWidth);
     for (const cl of closingLines) {
-      if (y > 270) { pdf.addPage(); y = margin; }
+      if (y > 270) { pdf.addPage(); y = 15; }
       pdf.text(cl, margin, y);
-      y += 5;
+      y += 5.5;
     }
 
-    // Manager name after closing
-    if (building?.manager_name) {
-      y += 4;
-      pdf.setFont("helvetica", "bold");
-      pdf.text(building.manager_name, margin, y);
-    }
+    // Company name after closing
+    y += 4;
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(11);
+    pdf.text("RGI Immobilien GmbH & Co. KG", margin, y);
 
     // Footer line
-    const footerY = 285;
+    const footerY = 287;
     pdf.setDrawColor(...orange);
     pdf.setLineWidth(0.3);
     pdf.line(margin, footerY - 4, pageWidth - margin, footerY - 4);
     pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(8);
+    pdf.setFontSize(9);
     pdf.setTextColor(...gray);
     pdf.text("RGI Immobilien GmbH & Co. KG", pageWidth / 2, footerY, { align: "center" });
 
@@ -355,60 +352,59 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
 
             {/* Live preview side */}
             <div className="border rounded-lg bg-white overflow-y-auto shadow-sm" ref={previewRef}>
-              <div className="p-8 text-[11px] leading-relaxed" style={{ fontFamily: "'Segoe UI', Arial, sans-serif", color: "#4a4849", maxWidth: "600px" }}>
+              <div className="p-6 text-[12px] leading-relaxed" style={{ fontFamily: "'Segoe UI', Arial, sans-serif", color: "#4a4849", maxWidth: "600px" }}>
                 {/* Logo top right */}
-                <div className="flex justify-end mb-4">
+                <div className="flex justify-end mb-3">
                   <img
                     src="/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png"
                     alt="Logo"
-                    className="h-12 object-contain"
+                    className="h-14 object-contain"
                   />
                 </div>
                 {/* Header below logo */}
-                <div className="pb-3 mb-6 border-b-2" style={{ borderColor: "#ee7202" }}>
-                  <h1 className="text-[16px] font-bold m-0" style={{ color: "#4a4849" }}>
+                <div className="pb-2 mb-4 border-b-2" style={{ borderColor: "#ee7202" }}>
+                  <h1 className="text-[18px] font-bold m-0" style={{ color: "#4a4849" }}>
                     Einladung zur Eigentümerversammlung
                   </h1>
-                  <p className="text-[10px] mt-1" style={{ color: "#999" }}>{building?.name || ""}</p>
+                  <p className="text-[11px] mt-1" style={{ color: "#999" }}>{building?.name || ""}</p>
                 </div>
 
                 {/* Meta */}
-                <div className="mb-5 text-[10px]">
+                <div className="mb-4 text-[11px]">
                   <div className="flex mb-1"><span className="font-semibold w-24">Liegenschaft:</span><span>{building?.name}, {building?.address}</span></div>
                   <div className="flex mb-1"><span className="font-semibold w-24">Datum:</span><span>{dateStr}</span></div>
                   <div className="flex mb-1"><span className="font-semibold w-24">Uhrzeit:</span><span>{timeStr} Uhr</span></div>
                   {meeting?.location && <div className="flex mb-1"><span className="font-semibold w-24">Ort:</span><span>{meeting.location}</span></div>}
-                  {building?.manager_name && <div className="flex mb-1"><span className="font-semibold w-24">Verwalter:</span><span>{building.manager_name}</span></div>}
                 </div>
 
                 {/* Greeting */}
-                <div className="mb-4 whitespace-pre-line">{greeting}</div>
+                <div className="mb-4 whitespace-pre-line text-[11px]">{greeting}</div>
 
                 {/* Agenda */}
-                <h2 className="text-[12px] font-bold mb-1 pb-1 border-b" style={{ color: "#4a4849" }}>Tagesordnung</h2>
+                <h2 className="text-[13px] font-bold mb-1 pb-1 border-b" style={{ color: "#4a4849" }}>Tagesordnung</h2>
                 <div className="mt-3 space-y-2">
                   {agendaItems.map((item: any, idx: number) => (
                     <div key={item.id} className="p-2 rounded" style={{ background: "#faf8f5", borderLeft: "3px solid #ee7202" }}>
                       <div>
-                        <span className="font-bold text-[9px]" style={{ color: "#ee7202" }}>TOP {idx + 1}</span>
-                        <span className="font-semibold ml-2">{item.title}</span>
+                        <span className="font-bold text-[10px]" style={{ color: "#ee7202" }}>TOP {idx + 1}</span>
+                        <span className="font-semibold ml-2 text-[11px]">{item.title}</span>
                       </div>
-                      {item.description && <p className="text-[9px] mt-0.5" style={{ color: "#666" }}>{item.description}</p>}
+                      {item.description && <p className="text-[10px] mt-0.5" style={{ color: "#666" }}>{item.description}</p>}
                     </div>
                   ))}
                 </div>
 
                 {/* Additional notes */}
                 {additionalNotes.trim() && (
-                  <div className="mt-4 whitespace-pre-line">{additionalNotes}</div>
+                  <div className="mt-4 whitespace-pre-line text-[11px]">{additionalNotes}</div>
                 )}
 
                 {/* Closing */}
-                <div className="mt-5 whitespace-pre-line">{closingText}</div>
-                {building?.manager_name && <p className="font-bold mt-3">{building.manager_name}</p>}
+                <div className="mt-5 whitespace-pre-line text-[11px]">{closingText}</div>
+                <p className="font-bold mt-3 text-[11px]">RGI Immobilien GmbH &amp; Co. KG</p>
 
                 {/* Footer */}
-                <div className="mt-8 pt-3 border-t text-center text-[8px]" style={{ borderColor: "#ee7202", color: "#999" }}>
+                <div className="mt-8 pt-3 border-t text-center text-[9px]" style={{ borderColor: "#ee7202", color: "#999" }}>
                   RGI Immobilien GmbH &amp; Co. KG
                 </div>
               </div>
