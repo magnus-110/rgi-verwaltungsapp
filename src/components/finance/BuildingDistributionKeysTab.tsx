@@ -406,6 +406,6 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }
