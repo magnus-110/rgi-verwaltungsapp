@@ -483,22 +483,21 @@ export const WegOwnerMeetings = () => {
               {isEditing ? (
                 <>
                   <div className="space-y-2">
-                    <Label className="text-base font-semibold">Was möchten Sie beantragen?</Label>
+                    <Label className="text-sm font-medium">Titel *</Label>
                     <Input
                       value={editTitle}
                       onChange={(e) => setEditTitle(e.target.value)}
-                      className="text-base h-12"
+                      className="h-11"
                       placeholder="z.B. Sanierung der Tiefgarage"
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-base font-semibold">Warum ist das wichtig? <span className="text-muted-foreground font-normal">(freiwillig)</span></Label>
+                    <Label className="text-sm font-medium">Beschreibung <span className="text-muted-foreground font-normal">(optional)</span></Label>
                     <Textarea
                       value={editDescription}
                       onChange={(e) => setEditDescription(e.target.value)}
                       rows={4}
-                      className="text-base"
-                      placeholder="Beschreiben Sie kurz, warum dieser Punkt besprochen werden sollte..."
+                      placeholder="Begründung oder Erläuterung..."
                     />
                   </div>
 
