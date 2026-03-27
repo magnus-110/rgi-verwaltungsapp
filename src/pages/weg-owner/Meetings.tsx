@@ -37,6 +37,7 @@ export const WegOwnerMeetings = () => {
   const queryClient = useQueryClient();
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
   const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);
+  const [selectedAgendaItemId, setSelectedAgendaItemId] = useState<string | null>(null);
   const [showSubmitTop, setShowSubmitTop] = useState(false);
 
   // TOP detail/edit
@@ -598,18 +599,27 @@ export const WegOwnerMeetings = () => {
               ) : (
                 <div className="space-y-3">
                   {agendaItems.map((item: any, idx: number) => (
-                    <Card key={item.id}>
+                    <Card 
+                      key={item.id}
+                      className="cursor-pointer hover:shadow-md transition-shadow"
+                      onClick={() => setSelectedAgendaItemId(item.id)}
+                    >
                       <CardContent className="p-3">
                         <div className="flex items-start gap-2">
                           <span className="text-primary font-bold text-sm">TOP {idx + 1}</span>
                           <div className="flex-1">
                             <p className="font-medium text-sm">{item.title}</p>
-                            {item.description && <p className="text-xs text-muted-foreground mt-1">{item.description}</p>}
-                            {/* resolution_text hidden from owner view - admin only */}
                             {item.result && (
                               <Badge variant={item.result === "passed" ? "default" : "destructive"} className="text-xs mt-1">
                                 {item.result === "passed" ? "Angenommen" : "Abgelehnt"}
                               </Badge>
+                            )}
+                            {selectedMeeting?.status === "in_progress" && item.status === "voted" && (
+                              <div className="flex gap-3 mt-2 text-xs">
+                                <span className="text-green-600 font-medium">Ja: {item.yes_count}</span>
+                                <span className="text-red-600 font-medium">Nein: {item.no_count}</span>
+                                <span className="text-muted-foreground">Enthaltung: {item.abstain_count}</span>
+                              </div>
                             )}
                           </div>
                         </div>
