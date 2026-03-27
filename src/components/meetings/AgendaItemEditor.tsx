@@ -374,16 +374,14 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                         </Button>
                       </div>
                       <Textarea value={editItemResolution} onChange={(e) => setEditItemResolution(e.target.value)} rows={3} placeholder="Die Eigentümer beschließen..." />
-                      {editAiSuggestion !== null && (
-                        <AiSuggestionBox
-                          suggestion={editAiSuggestion}
-                          onAccept={() => { setEditItemResolution(editAiSuggestion!); setEditAiSuggestion(null); }}
-                          onDismiss={() => setEditAiSuggestion(null)}
-                          onChange={setEditAiSuggestion}
-                        />
+                      {renderAiSuggestion(
+                        editAiSuggestion,
+                        () => { setEditItemResolution(editAiSuggestion!); setEditAiSuggestion(null); },
+                        () => setEditAiSuggestion(null),
+                        setEditAiSuggestion,
                       )}
                     </div>
-                    <EditAttachments />
+                    {renderEditAttachments()}
                     <div className="flex justify-end gap-2">
                       <Button variant="outline" size="sm" onClick={() => { setEditingItemId(null); setEditAiSuggestion(null); }}>Abbrechen</Button>
                       <Button size="sm" onClick={saveEdit} disabled={!editItemTitle || updateMutation.isPending}>Speichern</Button>
