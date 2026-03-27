@@ -289,7 +289,7 @@ export const MeetingEditor = ({ meetingId, onSaved, onCancel }: MeetingEditorPro
           </CollapsibleTrigger>
           <CollapsibleContent>
             <CardContent>
-              {savedMeetingId && <AgendaItemEditor meetingId={savedMeetingId} />}
+              {savedMeetingId && <AgendaItemEditor meetingId={savedMeetingId} buildingId={buildingId} />}
             </CardContent>
           </CollapsibleContent>
         </Card>
