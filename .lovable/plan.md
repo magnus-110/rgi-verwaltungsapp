@@ -1,34 +1,34 @@
 
 
-# Plan: PDF-Generierung an Vorschau angleichen + Footer-Text ändern
+# Plan: PDF via html2canvas — Vorschau = PDF
 
-## Probleme
-1. **Logo im PDF fehlerhaft** — jsPDF `addImage` mit HTMLImageElement kann bei Cross-Origin-Bildern in der Sandbox fehlschlagen. Lösung: Logo als Canvas-basiertes DataURL laden, bevor es an jsPDF übergeben wird.
-2. **PDF sieht anders aus als Vorschau** — jsPDF nutzt nur Helvetica, die Abstände und Schriftgrößen stimmen nicht mit der HTML-Vorschau überein. Lösung: Abstände, Schriftgrößen und Zeilenabstände im PDF-Code exakt an die Vorschau anpassen.
-3. **Footer-Text falsch** — Statt "Erstellt am ... | Hausverwaltung" soll nur "RGI Immobilien GmbH & Co. KG" stehen — sowohl im PDF als auch in der Vorschau.
+## Problem
+jsPDF zeichnet alles manuell mit Helvetica. Die Vorschau nutzt Century Gothic / Work Sans via CSS. Diese Diskrepanz ist mit jsPDF nicht lösbar — die Schriftarten können nicht eingebettet werden.
 
-## Änderungen in `MeetingInvitationPdf.tsx`
+## Lösung: html2canvas + jsPDF
+Die HTML-Vorschau wird **direkt als Bild** gerendert und in ein PDF eingefügt. Das garantiert: Was in der Vorschau steht, landet 1:1 im PDF — mit korrekten Schriftarten, Abständen und Farben.
 
-### Logo-Fix
-- Logo über Canvas zu DataURL konvertieren, dann als DataURL an `pdf.addImage()` übergeben
-- Fallback: wenn Logo nicht lädt, einfach ohne Logo weitermachen
+**Ablauf:**
+1. `html2canvas` rendert den Preview-Container (`previewRef`) als Canvas
+2. Canvas wird als Bild in ein A4-PDF via `jsPDF` eingefügt
+3. Skalierung auf A4-Breite mit korrektem Seitenverhältnis
+4. Bei langen Inhalten: automatischer Seitenumbruch
 
-### PDF-Abstände angleichen
-- Titel-Abstand nach Logo: `y += logoH + 12` (mehr Luft wie in Vorschau)
-- Building-Name direkt unter Titel mit kleinerem Abstand
-- Orange Linie: Abstand reduzieren auf `y += 12` statt `y += 20`
-- Meta-Block: Zeilenabstand auf 6mm
-- Greeting: Zeilenabstand 5.5mm
-- Agenda-Items: Padding und Abstände an Vorschau anpassen
-- Closing: Konsistenter Abstand
+## Änderungen
 
-### Footer ändern
-- PDF Zeile 237: `"RGI Immobilien GmbH & Co. KG"` statt `Erstellt am ... | ...`
-- Vorschau Zeile 399: Gleiches — nur "RGI Immobilien GmbH & Co. KG"
+### `MeetingInvitationPdf.tsx`
+1. **Import `html2canvas`** (muss als Dependency installiert werden)
+2. **`handleDownloadPdf` komplett ersetzen**: Statt manueller jsPDF-Zeichnung → `html2canvas(previewRef.current)` aufrufen, Canvas zu PNG konvertieren, in A4-PDF einfügen
+3. **Vorschau-Schriftarten korrigieren**: `fontFamily` auf `'Century Gothic', Arial, sans-serif` für Überschriften und `'Work Sans', sans-serif` für Fließtext setzen
+4. **Preview-Container für PDF optimieren**: Feste Breite (z.B. 794px = A4 bei 96dpi) setzen, damit das Rendering konsistent ist
+
+### Dependency
+- `html2canvas` installieren (`npm install html2canvas`)
 
 ### Technische Details
 
 | Datei | Änderung |
 |---|---|
-| `MeetingInvitationPdf.tsx` | Logo via Canvas→DataURL laden; PDF-Abstände an HTML-Vorschau angleichen; Footer-Text in PDF und Vorschau auf "RGI Immobilien GmbH & Co. KG" ändern |
+| `package.json` | `html2canvas` als Dependency hinzufügen |
+| `MeetingInvitationPdf.tsx` | `handleDownloadPdf` durch html2canvas-basierte Generierung ersetzen; Preview-Schriftarten auf Century Gothic + Work Sans; Preview-Breite fixieren für konsistentes Rendering |
 
