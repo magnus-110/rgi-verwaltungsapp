@@ -160,7 +160,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
   const presentOrRepresented = attendees.filter((a: any) => a.attendance_type === "present" || a.attendance_type === "proxy");
   const totalOwners = attendees.length;
   const presentCount = presentOrRepresented.length;
-  const quorumReached = totalOwners > 0 && presentCount > totalOwners / 2;
+  const quorumReached = presentCount >= 1;
 
   const totalMea = attendees.reduce((sum: number, a: any) => {
     const shares = a.contact_building_assignments?.contact_building_shares || [];
@@ -268,7 +268,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
         result = twoThirdsVotes && fiftyPercentMea ? "passed" : "failed";
       }
       const { error } = await supabase.from("etv_agenda_items").update({
-        status: "voted", result, yes_count: yesVotes.length, no_count: noVotes.length,
+        status: "closed", result, yes_count: yesVotes.length, no_count: noVotes.length,
         abstain_count: abstainVotes.length, total_mea_voted: currentVotes.reduce((s: number, v: any) => s + (v.mea_weight || 0), 0),
       }).eq("id", itemId);
       if (error) throw error;
@@ -339,11 +339,39 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
     }
   };
 
+  // Confirm vote result (closed → voted/final)
+  const confirmVoteMutation = useMutation({
+    mutationFn: async (itemId: string) => {
+      const { error } = await supabase.from("etv_agenda_items").update({ status: "voted" }).eq("id", itemId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["etv-agenda-items-live", meetingId] });
+      toast({ title: "Ergebnis bestätigt" });
+    },
+  });
+
+  // Reopen voting (closed → voting)
+  const reopenVotingMutation = useMutation({
+    mutationFn: async (itemId: string) => {
+      const { error } = await supabase.from("etv_agenda_items").update({ status: "voting", result: null }).eq("id", itemId);
+      if (error) throw error;
+    },
+    onSuccess: (_, itemId) => {
+      setActiveVoteItem(itemId);
+      queryClient.invalidateQueries({ queryKey: ["etv-agenda-items-live", meetingId] });
+      toast({ title: "Abstimmung erneut geöffnet" });
+    },
+  });
+
   const getStatusBadge = (item: AgendaItem) => {
     if (item.status === "voted") {
       return <Badge variant={item.result === "passed" ? "default" : "destructive"}>
-        {item.result === "passed" ? "Angenommen" : "Abgelehnt"}
+        {item.result === "passed" ? "✓ Angenommen" : "✗ Abgelehnt"}
       </Badge>;
+    }
+    if (item.status === "closed") {
+      return <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">Unbestätigt</Badge>;
     }
     if (item.status === "voting") return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">Abstimmung läuft</Badge>;
     return <Badge variant="secondary">Offen</Badge>;
