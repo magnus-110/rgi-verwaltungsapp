@@ -507,13 +507,11 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
               onChange={(e) => setNewResolution(e.target.value)}
               rows={3}
             />
-            {newAiSuggestion !== null && (
-              <AiSuggestionBox
-                suggestion={newAiSuggestion}
-                onAccept={() => { setNewResolution(newAiSuggestion!); setNewAiSuggestion(null); }}
-                onDismiss={() => setNewAiSuggestion(null)}
-                onChange={setNewAiSuggestion}
-              />
+            {renderAiSuggestion(
+              newAiSuggestion,
+              () => { setNewResolution(newAiSuggestion!); setNewAiSuggestion(null); },
+              () => setNewAiSuggestion(null),
+              setNewAiSuggestion,
             )}
           </div>
           {/* File upload */}
