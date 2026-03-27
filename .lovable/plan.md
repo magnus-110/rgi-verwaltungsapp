@@ -1,24 +1,60 @@
 
 
-# Plan: Einladung überarbeiten — Briefpapier-Design & ohne Beschlusstext
+# Plan: Versammlungen für Eigentümer sichtbar machen + PDF-Einladung mit Live-Editor
 
-## Änderungen
+## Problem 1: Versammlungen nicht sichtbar für Eigentümer
 
-### 1. Beschlusstext entfernen
-Aus der `generateHtml()`-Funktion die Zeile mit `resolution_text` und den `voting-badge` komplett entfernen. Die Einladung zeigt pro TOP nur noch Nummer, Titel und Beschreibung.
+Die RLS-Policy auf `etv_meetings` prüft den Zugang über `contact_building_assignments` + `contacts`, aber das Owner-Portal nutzt `weg_owner_buildings`. Wenn ein Eigentümer keinen passenden Eintrag in `contact_building_assignments` hat (oder der `contacts`-Eintrag keine `user_id` hat), schlägt die RLS-Prüfung fehl.
 
-### 2. Briefpapier-Design mit Logo oben rechts
-Das HTML-Template komplett überarbeiten, damit es dem App-Design entspricht:
+**Lösung:** Neue Migration, die die bestehende RLS-Policy für `etv_meetings` und `etv_agenda_items` erweitert, sodass auch Eigentümer über `weg_owner_buildings` Zugriff erhalten.
 
-- **Logo**: RGI-Logo (`/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png`) oben rechts als absolute positioniertes Element im Header, wie auf einem Briefkopf. Da es ein iframe mit `srcDoc` ist, wird das Logo als Base64-DataURL eingebettet oder als absolute URL zum Preview-Host referenziert.
-- **Farbschema**: RGI Orange (`#ee7202`) als Akzentfarbe statt dem bisherigen Blau (`#2563eb`). Anthrazit (`#4a4849`) für Text. Cremeweiß (`#faf8f5`) als Hintergrund-Akzent.
-- **Header**: Logo rechts, Titel "Einladung zur Eigentümerversammlung" links — klassisches Briefpapier-Layout.
-- **TOPs**: Border-left in Orange statt Blau, saubere Darstellung mit nur TOP-Nummer, Titel und optionaler Beschreibung.
-- **Footer**: Dezente Linie in Orange.
+```sql
+-- Erweiterte Policy: Zugriff über weg_owner_buildings ODER contact_building_assignments
+DROP POLICY "WEG owners can view their building meetings" ON public.etv_meetings;
+CREATE POLICY "WEG owners can view their building meetings" ON public.etv_meetings
+  FOR SELECT TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.weg_owner_buildings wob
+      WHERE wob.building_id = etv_meetings.building_id
+        AND wob.user_id = auth.uid()
+    )
+    OR EXISTS (
+      SELECT 1 FROM public.contact_building_assignments cba
+      JOIN public.contacts c ON c.id = cba.contact_id
+      WHERE cba.building_id = etv_meetings.building_id
+        AND c.user_id = auth.uid()
+    )
+  );
+```
+
+Gleiches für `etv_agenda_items`.
+
+## Problem 2: PDF statt HTML + Live-Editing
+
+### Neues Konzept für `MeetingInvitationPdf.tsx`
+
+Die Vorschau wird zu einem **Live-Editor**, in dem der Admin Texte direkt bearbeiten kann, bevor ein echtes PDF generiert wird.
+
+**Bearbeitbare Felder:**
+- Begrüßungstext (vorausgefüllt mit Standardtext)
+- Schlusstext / Hinweise (z.B. Vollmachts-Hinweis)
+- Freies Textfeld für zusätzliche Informationen
+
+**UI-Aufbau:**
+- Klick auf "Vorschau & Bearbeiten" öffnet einen Dialog im A4-Format
+- Links/oben: Bearbeitbare Textfelder, die direkt im Brief-Layout eingebettet sind (contentEditable oder Textarea-Overlays)
+- Der Inhalt wird live im Briefpapier-Design dargestellt
+- Button "Als PDF herunterladen" generiert ein echtes PDF clientseitig
+
+**PDF-Generierung:**
+- Clientseitig über `window.print()` mit `@media print`-Styles, was ein sauberes PDF über den Browser-Druckdialog erzeugt — oder alternativ über die bestehende HTML-zu-Print-Pipeline
+- Alternativ: `html2canvas` + `jspdf` für direkten PDF-Download ohne Druckdialog
 
 ### Technische Details
 
 | Datei | Änderung |
 |---|---|
-| `src/components/meetings/MeetingInvitationPdf.tsx` | `generateHtml()` — Template-Redesign: Blau→Orange, Logo oben rechts, Beschlusstext+Voting-Badge entfernen. Logo-URL als absolute URL (`window.location.origin + '/lovable-uploads/...'`) für iframe-Kompatibilität. |
+| `supabase/migrations/new.sql` | RLS-Policies für `etv_meetings` und `etv_agenda_items` erweitern um `weg_owner_buildings`-Zugang |
+| `src/components/meetings/MeetingInvitationPdf.tsx` | Komplett überarbeiten: Bearbeitbare Textfelder im Briefpapier-Layout, PDF-Download via Print-API oder jspdf |
 
