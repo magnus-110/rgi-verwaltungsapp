@@ -103,7 +103,7 @@ export const WebhookSettings = () => {
     setIsBookingTesting(true);
     try {
       const { data, error } = await supabase.functions.invoke('send-booking-data', {
-        body: { bookAll: true }
+        body: { testMode: true }
       });
 
       if (error) throw error;
@@ -238,12 +238,12 @@ export const WebhookSettings = () => {
               Buchungs-Webhook Testen
             </CardTitle>
             <CardDescription>
-              Alle gematchten, noch nicht gebuchten Transaktionen an Make.com senden
+              Eine fiktive Test-Transaktion (Abschlag Gas) an Make.com senden — ohne DB-Änderung
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <Button onClick={handleTestBookingWebhook} disabled={isBookingTesting}>
-              {isBookingTesting ? "Sende Buchungen..." : "Buchungen an Make.com senden"}
+              {isBookingTesting ? "Sende Test-Buchung..." : "Test-Buchung an Make.com senden"}
             </Button>
 
             {lastBookingResult && (

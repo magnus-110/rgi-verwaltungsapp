@@ -42,7 +42,80 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { statementId, bookAll } = await req.json();
+    const { statementId, bookAll, testMode } = await req.json();
+
+    // Test mode: send a fictional dummy transaction without touching DB
+    if (testMode) {
+      const dummyPayload = {
+        transactions: [{
+          transaction_id: "test-" + crypto.randomUUID(),
+          booking_date: new Date().toISOString().split("T")[0],
+          value_date: new Date().toISOString().split("T")[0],
+          amount: -250.00,
+          currency: "EUR",
+          creditor_name: "Stadtwerke Musterstadt GmbH",
+          creditor_iban: "DE89370400440532013000",
+          debtor_name: null,
+          debtor_iban: null,
+          purpose: "Abschlag Gas Dezember 2025 Kd-Nr 4711 Zähler 00012345",
+          end_to_end_ref: "SWMS-2025-12-4711",
+          match_type: "matched_template",
+          building_id: "test-building-id",
+          building_name: "Musterhaus Beispielstraße 1",
+          building_code: "MH001",
+          booking_instructions: "Stadtwerke Musterstadt immer auf Konto 1590 buchen. Gas-Abschläge sind Vorauszahlungen.",
+          invoice_number: null,
+          invoice_date: null,
+          invoice_description: null,
+          invoice_type: "installment",
+          line_items: [],
+          vendor_name: "Stadtwerke Musterstadt GmbH",
+          net_amount: 210.08,
+          gross_amount: 250.00,
+          vat_amount: 39.92,
+          vat_rate: 19.0,
+          account_number: "4200",
+          account_name: "Gaskosten",
+          template_name: "Stadtwerke Gas Abschlag",
+          is_35a_relevant: false,
+          category: "versorgung",
+          utility_type: "gas",
+          prepayment_account_number: "1590",
+          prepayment_account_name: "Vorauszahlungen Gas",
+          expense_account_number: "4200",
+          expense_account_name: "Gaskosten",
+          installment_period: "2025-12",
+          meter_number: "00012345",
+          billing_period_from: null,
+          billing_period_to: null,
+          total_consumption: null,
+          paid_installments_total: null,
+          settlement_difference: null,
+        }],
+        batch_number: 1,
+        total_batches: 1,
+        test_mode: true,
+      };
+
+      const response = await fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dummyPayload),
+      });
+
+      return new Response(
+        JSON.stringify({
+          success: response.ok,
+          bookedCount: 0,
+          totalBookable: 1,
+          message: response.ok
+            ? "Test-Transaktion erfolgreich an Make.com gesendet (keine DB-Änderung)"
+            : `Webhook fehlgeschlagen: HTTP ${response.status}`,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     if (!statementId && !bookAll) {
       return new Response(JSON.stringify({ error: "statementId or bookAll required" }), {
         status: 400,
