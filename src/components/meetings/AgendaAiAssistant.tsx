@@ -8,7 +8,8 @@ import { Sparkles, X, Loader2, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface AgendaAiAssistantProps {
-  meetingId: string;
+  meetingId?: string;
+  buildingId?: string;
   itemTitle: string;
   itemDescription: string;
   onResult: (text: string) => void;
@@ -17,6 +18,7 @@ interface AgendaAiAssistantProps {
 
 export const AgendaAiAssistant = ({
   meetingId,
+  buildingId: propBuildingId,
   itemTitle,
   itemDescription,
   onResult,
@@ -26,19 +28,22 @@ export const AgendaAiAssistant = ({
   const [generatedText, setGeneratedText] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
 
-  // Get building_id from meeting
+  // Get building_id from meeting if not provided directly
   const { data: meeting } = useQuery({
     queryKey: ["etv-meeting-building", meetingId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("etv_meetings")
         .select("building_id")
-        .eq("id", meetingId)
+        .eq("id", meetingId!)
         .single();
       if (error) throw error;
       return data;
     },
+    enabled: !!meetingId && !propBuildingId,
   });
+
+  const effectiveBuildingId = propBuildingId || meeting?.building_id;
 
   const handleGenerate = async () => {
     setIsGenerating(true);
@@ -50,21 +55,38 @@ export const AgendaAiAssistant = ({
 Titel: ${itemTitle}
 ${itemDescription ? `Erläuterung: ${itemDescription}` : ""}
 
-Der Beschlusstext soll:
-- Mit "Die Eigentümer beschließen..." beginnen
-- Rechtlich korrekt nach WEG-Recht formuliert sein
-- Klar und eindeutig sein
+Der Beschlusstext MUSS folgende Elemente enthalten:
+1. WER: Beginne mit "Die Eigentümer beschließen..."
+2. WAS: Konkreter Beschlussgegenstand
+3. WIE: Umsetzungsweise, ggf. Beauftragung der Verwaltung mit der Durchführung
+4. WANN: Zeitrahmen für die Umsetzung (konkretes Datum oder "unverzüglich" oder "bis spätestens...")
+
+Zusätzliche Anforderungen:
+- Rechtlich korrekt nach WEG-Recht formuliert
+- Klar und eindeutig
+- Der Verwaltung soll ein angemessener Handlungsspielraum bei der Umsetzung eingeräumt werden (z.B. "Die Verwaltung wird ermächtigt, die erforderlichen Maßnahmen zu veranlassen und Angebote bis zu einem angemessenen Rahmen einzuholen"), ohne dies explizit als "finanziellen Spielraum" zu benennen.
 - Sich auf die Teilungserklärung beziehen, falls relevant
 
 Antworte NUR mit dem Beschlusstext, ohne zusätzliche Erklärungen.`,
-          buildingId: meeting?.building_id,
+          buildingId: effectiveBuildingId,
           managementMode: "weg",
         },
       });
 
       if (error) throw error;
-      setGeneratedText(data?.response || data?.message || "");
+      
+      // Extract response text from various possible response formats
+      const responseText = typeof data === "string" 
+        ? data 
+        : data?.response || data?.message || data?.choices?.[0]?.message?.content || "";
+      
+      if (!responseText) {
+        throw new Error("Keine Antwort vom KI-Assistenten erhalten.");
+      }
+      
+      setGeneratedText(responseText);
     } catch (err: any) {
+      console.error("AI generation error:", err);
       toast({
         title: "KI-Fehler",
         description: err.message || "Beschlusstext konnte nicht generiert werden.",
@@ -113,7 +135,7 @@ Antworte NUR mit dem Beschlusstext, ohne zusätzliche Erklärungen.`,
             <Textarea
               value={generatedText}
               onChange={(e) => setGeneratedText(e.target.value)}
-              rows={4}
+              rows={6}
               className="text-sm"
             />
             <div className="flex gap-2 justify-end">

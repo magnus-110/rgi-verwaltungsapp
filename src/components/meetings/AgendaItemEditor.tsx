@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -9,9 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, GripVertical, Trash2, Sparkles } from "lucide-react";
+import { Plus, GripVertical, Trash2, Sparkles, Upload, FileText, X, Wand2, Loader2 } from "lucide-react";
 import { AgendaAiAssistant } from "./AgendaAiAssistant";
-import { SubmittedTopsSection } from "./SubmittedTopsSection";
 
 interface AgendaItemEditorProps {
   meetingId: string;
@@ -27,6 +26,7 @@ interface AgendaItem {
   voting_principle: string;
   category: string | null;
   status: string | null;
+  attachment_paths: string[] | null;
 }
 
 const votingPrinciples = [
@@ -45,8 +45,8 @@ const categories = [
 export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProps) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [editingId, setEditingId] = useState<string | null>(null);
   const [showAiFor, setShowAiFor] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // New item form
   const [newTitle, setNewTitle] = useState("");
@@ -54,6 +54,9 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
   const [newResolution, setNewResolution] = useState("");
   const [newPrinciple, setNewPrinciple] = useState("mea");
   const [newCategory, setNewCategory] = useState("sonstiges");
+  const [newFiles, setNewFiles] = useState<File[]>([]);
+  const [showNewAi, setShowNewAi] = useState(false);
+  const [isGeneratingNew, setIsGeneratingNew] = useState(false);
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["etv-agenda-items", meetingId],
@@ -70,6 +73,15 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
 
   const addMutation = useMutation({
     mutationFn: async () => {
+      // Upload files
+      let attachmentPaths: string[] = [];
+      for (const file of newFiles) {
+        const path = `etv-attachments/${buildingId || "general"}/${Date.now()}-${file.name}`;
+        const { error: uploadErr } = await supabase.storage.from("building-files").upload(path, file);
+        if (uploadErr) throw uploadErr;
+        attachmentPaths.push(path);
+      }
+
       const { error } = await supabase.from("etv_agenda_items").insert({
         meeting_id: meetingId,
         sort_order: items.length + 1,
@@ -78,6 +90,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
         resolution_text: newResolution || null,
         voting_principle: newPrinciple,
         category: newCategory,
+        attachment_paths: attachmentPaths.length > 0 ? attachmentPaths : null,
       });
       if (error) throw error;
     },
@@ -88,6 +101,8 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       setNewResolution("");
       setNewPrinciple("mea");
       setNewCategory("sonstiges");
+      setNewFiles([]);
+      setShowNewAi(false);
       toast({ title: "TOP hinzugefügt" });
     },
     onError: (err: any) => {
@@ -114,7 +129,6 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["etv-agenda-items", meetingId] });
-      setEditingId(null);
       toast({ title: "TOP aktualisiert" });
     },
   });
@@ -124,13 +138,54 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
     setShowAiFor(null);
   };
 
+  const handleGenerateNewResolution = async () => {
+    if (!newTitle) return;
+    setIsGeneratingNew(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("chat-with-ai", {
+        body: {
+          message: `Formuliere einen rechtssicheren Beschlusstext für eine WEG-Eigentümerversammlung zum folgenden Tagesordnungspunkt:
+
+Titel: ${newTitle}
+${newDescription ? `Erläuterung: ${newDescription}` : ""}
+
+Der Beschlusstext MUSS folgende Elemente enthalten:
+1. WER: Beginne mit "Die Eigentümer beschließen..."
+2. WAS: Konkreter Beschlussgegenstand
+3. WIE: Umsetzungsweise, ggf. Beauftragung der Verwaltung mit der Durchführung
+4. WANN: Zeitrahmen für die Umsetzung (konkretes Datum oder "unverzüglich" oder "bis spätestens...")
+
+Zusätzliche Anforderungen:
+- Rechtlich korrekt nach WEG-Recht formuliert
+- Klar und eindeutig
+- Der Verwaltung soll ein angemessener Handlungsspielraum bei der Umsetzung eingeräumt werden (z.B. "Die Verwaltung wird ermächtigt, die erforderlichen Maßnahmen zu veranlassen und Angebote bis zu einem angemessenen Rahmen einzuholen"), ohne dies explizit als "finanziellen Spielraum" zu benennen.
+
+Antworte NUR mit dem Beschlusstext, ohne zusätzliche Erklärungen.`,
+          buildingId: buildingId,
+          managementMode: "weg",
+        },
+      });
+      if (error) throw error;
+      const responseText = typeof data === "string"
+        ? data
+        : data?.response || data?.message || data?.choices?.[0]?.message?.content || "";
+      if (responseText) {
+        setNewResolution(responseText);
+      }
+    } catch (err: any) {
+      toast({ title: "KI-Fehler", description: err.message, variant: "destructive" });
+    } finally {
+      setIsGeneratingNew(false);
+    }
+  };
+
+  const getFileDownloadUrl = async (path: string) => {
+    const { data } = await supabase.storage.from("building-files").createSignedUrl(path, 3600);
+    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+  };
+
   return (
     <div className="space-y-4">
-      {/* Submitted TOPs from owners */}
-      {buildingId && (
-        <SubmittedTopsSection meetingId={meetingId} buildingId={buildingId} />
-      )}
-
       {/* Existing items */}
       {items.map((item, idx) => (
         <Card key={item.id} className="relative">
@@ -179,9 +234,30 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                     <p className="text-sm">{item.resolution_text}</p>
                   </div>
                 )}
+                {/* Attachments */}
+                {item.attachment_paths && item.attachment_paths.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {item.attachment_paths.map((path, i) => {
+                      const fileName = path.split("/").pop() || path;
+                      return (
+                        <Button
+                          key={i}
+                          variant="outline"
+                          size="sm"
+                          className="h-7 text-xs gap-1"
+                          onClick={() => getFileDownloadUrl(path)}
+                        >
+                          <FileText className="h-3 w-3" />
+                          {fileName.replace(/^\d+-/, "")}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                )}
                 {showAiFor === item.id && (
                   <AgendaAiAssistant
                     meetingId={meetingId}
+                    buildingId={buildingId}
                     itemTitle={item.title}
                     itemDescription={item.description || ""}
                     onResult={(text) => handleAiResult(item.id, text)}
@@ -246,13 +322,76 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
             />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs">Beschlusstext (optional)</Label>
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">Beschlusstext (optional)</Label>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1 text-xs text-amber-600 hover:text-amber-700"
+                onClick={handleGenerateNewResolution}
+                disabled={!newTitle || isGeneratingNew}
+              >
+                {isGeneratingNew ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Wand2 className="h-3.5 w-3.5" />
+                )}
+                KI generieren
+              </Button>
+            </div>
             <Textarea
               placeholder="Die Eigentümer beschließen..."
               value={newResolution}
               onChange={(e) => setNewResolution(e.target.value)}
-              rows={2}
+              rows={3}
             />
+          </div>
+          {/* File upload */}
+          <div className="space-y-1.5">
+            <Label className="text-xs">Anhänge (optional)</Label>
+            <div className="border border-dashed rounded-md p-3">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  if (e.target.files) {
+                    setNewFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="gap-2 text-muted-foreground"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload className="h-4 w-4" />
+                Dateien auswählen
+              </Button>
+              {newFiles.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {newFiles.map((file, i) => (
+                    <div key={i} className="flex items-center justify-between text-xs bg-muted rounded px-2 py-1">
+                      <span className="flex items-center gap-1 truncate">
+                        <FileText className="h-3 w-3 flex-shrink-0" />
+                        {file.name}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5"
+                        onClick={() => setNewFiles((prev) => prev.filter((_, j) => j !== i))}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
           <div className="flex justify-end">
             <Button

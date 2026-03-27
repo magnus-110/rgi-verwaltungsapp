@@ -9,8 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, MapPin, Users, Plus, Building2, FileText, Upload, Trash2, ClipboardList, Clock, CheckCircle2, XCircle, Pause } from "lucide-react";
+import { Calendar, MapPin, Users, Plus, Building2, FileText, Upload, Trash2, ClipboardList, Clock, CheckCircle2, XCircle, Pause, Pencil, ExternalLink } from "lucide-react";
 import { format as formatDate } from "date-fns";
 import { de } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -37,6 +38,13 @@ export const WegOwnerMeetings = () => {
   const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);
   const [showSubmitTop, setShowSubmitTop] = useState(false);
 
+  // TOP detail/edit
+  const [selectedTopId, setSelectedTopId] = useState<string | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [deleteTopId, setDeleteTopId] = useState<string | null>(null);
+
   // TOP submission form
   const [topTitle, setTopTitle] = useState("");
   const [topDescription, setTopDescription] = useState("");
@@ -58,7 +66,7 @@ export const WegOwnerMeetings = () => {
 
   const effectiveBuildingId = buildings.length === 1 ? buildings[0].id : selectedBuildingId;
 
-  // Fetch meetings — only published, in_progress, completed
+  // Fetch meetings
   const { data: meetings = [], isLoading: loadingMeetings } = useQuery({
     queryKey: ["weg-owner-meetings", effectiveBuildingId],
     queryFn: async () => {
@@ -106,7 +114,7 @@ export const WegOwnerMeetings = () => {
     enabled: !!selectedMeetingId,
   });
 
-  // Submit TOP — into etv_submitted_tops (building-level, not meeting-level)
+  // Submit TOP
   const submitTopMutation = useMutation({
     mutationFn: async () => {
       let attachmentPaths: string[] = [];
@@ -116,7 +124,6 @@ export const WegOwnerMeetings = () => {
         if (uploadErr) throw uploadErr;
         attachmentPaths.push(path);
       }
-
       const { error } = await supabase.from("etv_submitted_tops").insert({
         building_id: effectiveBuildingId!,
         submitted_by_user_id: profile?.user_id!,
@@ -139,8 +146,57 @@ export const WegOwnerMeetings = () => {
     },
   });
 
+  // Update TOP
+  const updateTopMutation = useMutation({
+    mutationFn: async ({ id, title, description }: { id: string; title: string; description: string }) => {
+      const { error } = await supabase
+        .from("etv_submitted_tops")
+        .update({ title, description: description || null, updated_at: new Date().toISOString() })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "Antrag aktualisiert" });
+      setIsEditing(false);
+      queryClient.invalidateQueries({ queryKey: ["weg-owner-submitted-tops"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Fehler", description: err.message, variant: "destructive" });
+    },
+  });
+
+  // Delete TOP
+  const deleteTopMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const top = submittedTops.find((t: any) => t.id === id);
+      // Delete attachments from storage
+      if (top?.attachment_paths?.length) {
+        for (const path of top.attachment_paths) {
+          await supabase.storage.from("building-files").remove([path]);
+        }
+      }
+      const { error } = await supabase.from("etv_submitted_tops").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "Antrag gelöscht" });
+      setDeleteTopId(null);
+      setSelectedTopId(null);
+      queryClient.invalidateQueries({ queryKey: ["weg-owner-submitted-tops"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Fehler", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const selectedTop = submittedTops.find((t: any) => t.id === selectedTopId);
   const selectedMeeting = meetings.find((m: any) => m.id === selectedMeetingId);
   const selectedBuilding = buildings.find((b: any) => b.id === effectiveBuildingId);
+
+  const getFileDownloadUrl = async (path: string) => {
+    const { data } = await supabase.storage.from("building-files").createSignedUrl(path, 3600);
+    if (data?.signedUrl) window.open(data.signedUrl, "_blank");
+  };
 
   // Building selector
   if (!effectiveBuildingId) {
@@ -291,7 +347,16 @@ export const WegOwnerMeetings = () => {
                   : top.status === "deferred" ? Pause 
                   : Clock;
                 return (
-                  <Card key={top.id}>
+                  <Card
+                    key={top.id}
+                    className="cursor-pointer hover:shadow-md transition-shadow"
+                    onClick={() => {
+                      setSelectedTopId(top.id);
+                      setEditTitle(top.title);
+                      setEditDescription(top.description || "");
+                      setIsEditing(false);
+                    }}
+                  >
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between">
                         <div className="flex items-start gap-3">
@@ -305,7 +370,7 @@ export const WegOwnerMeetings = () => {
                             {top.description && (
                               <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{top.description}</p>
                             )}
-                            <div className="flex items-center gap-2 mt-2">
+                            <div className="flex items-center gap-2 mt-2 flex-wrap">
                               <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
                               <span className="text-xs text-muted-foreground">
                                 {formatDate(new Date(top.created_at), "dd.MM.yyyy", { locale: de })}
@@ -314,19 +379,14 @@ export const WegOwnerMeetings = () => {
                                 <span className="text-xs text-muted-foreground">→ {top.etv_meetings.title}</span>
                               )}
                             </div>
-                            {top.admin_notes && (
-                              <p className="text-xs text-muted-foreground mt-2 italic border-l-2 border-muted pl-2">
-                                {top.admin_notes}
-                              </p>
-                            )}
-                            {top.attachment_paths?.length > 0 && (
-                              <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
-                                <FileText className="h-3 w-3" />
-                                {top.attachment_paths.length} Anhang/Anhänge
-                              </div>
-                            )}
                           </div>
                         </div>
+                        {top.attachment_paths?.length > 0 && (
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <FileText className="h-3 w-3" />
+                            {top.attachment_paths.length}
+                          </div>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -382,6 +442,142 @@ export const WegOwnerMeetings = () => {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* TOP Detail/Edit Dialog */}
+      <Dialog open={!!selectedTopId} onOpenChange={() => setSelectedTopId(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {isEditing ? "Antrag bearbeiten" : "Antragsdetails"}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedTop && (
+            <div className="space-y-4">
+              {isEditing ? (
+                <>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Titel</Label>
+                    <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Begründung</Label>
+                    <Textarea
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      rows={4}
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setIsEditing(false)}>Abbrechen</Button>
+                    <Button
+                      onClick={() => updateTopMutation.mutate({ id: selectedTop.id, title: editTitle, description: editDescription })}
+                      disabled={!editTitle || updateTopMutation.isPending}
+                    >
+                      Speichern
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div>
+                    <h3 className="font-semibold">{selectedTop.title}</h3>
+                    <Badge variant={topStatusLabels[selectedTop.status]?.variant || "outline"} className="mt-1">
+                      {topStatusLabels[selectedTop.status]?.label || selectedTop.status}
+                    </Badge>
+                  </div>
+                  {selectedTop.description && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Begründung</p>
+                      <p className="text-sm">{selectedTop.description}</p>
+                    </div>
+                  )}
+                  <div className="text-xs text-muted-foreground">
+                    Eingereicht am {formatDate(new Date(selectedTop.created_at), "dd.MM.yyyy 'um' HH:mm", { locale: de })}
+                  </div>
+                  {selectedTop.admin_notes && (
+                    <div className="border-l-2 border-muted pl-3">
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Anmerkung der Verwaltung</p>
+                      <p className="text-sm italic">{selectedTop.admin_notes}</p>
+                    </div>
+                  )}
+                  {selectedTop.etv_meetings?.title && (
+                    <p className="text-xs text-muted-foreground">
+                      Aufgenommen in: <strong>{selectedTop.etv_meetings.title}</strong>
+                    </p>
+                  )}
+                  {/* Attachments */}
+                  {selectedTop.attachment_paths?.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-2">Anhänge</p>
+                      <div className="space-y-1">
+                        {selectedTop.attachment_paths.map((path: string, i: number) => {
+                          const fileName = path.split("/").pop()?.replace(/^\d+-/, "") || path;
+                          return (
+                            <Button
+                              key={i}
+                              variant="outline"
+                              size="sm"
+                              className="w-full justify-start gap-2 text-xs"
+                              onClick={() => getFileDownloadUrl(path)}
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              {fileName}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {/* Actions for pending TOPs */}
+                  {selectedTop.status === "pending" && (
+                    <div className="flex justify-end gap-2 border-t pt-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1"
+                        onClick={() => setIsEditing(true)}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Bearbeiten
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        className="gap-1"
+                        onClick={() => setDeleteTopId(selectedTop.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Löschen
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deleteTopId} onOpenChange={() => setDeleteTopId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Antrag löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Der Antrag und alle zugehörigen Anhänge werden unwiderruflich gelöscht.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteTopId && deleteTopMutation.mutate(deleteTopId)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Submit TOP Dialog */}
       <Dialog open={showSubmitTop} onOpenChange={setShowSubmitTop}>
