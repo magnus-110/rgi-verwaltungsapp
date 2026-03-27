@@ -201,25 +201,26 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
 
             {/* Live preview side */}
             <div className="border rounded-lg bg-white overflow-y-auto shadow-sm">
-              <div className="p-8 text-[11px] leading-relaxed" ref={previewRef} style={{ fontFamily: "'Work Sans', sans-serif", color: "#4a4849", width: "794px", maxWidth: "794px", background: "#fff" }}>
+              <div className="p-12 text-[10px] leading-relaxed" ref={previewRef} style={{ fontFamily: "'Work Sans', sans-serif", color: "#4a4849", width: "794px", maxWidth: "794px", background: "#fff" }}>
                 {/* Logo top right */}
-                <div className="flex justify-end mb-3">
+                <div className="flex justify-end mb-4">
                   <img
-                    src="/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png"
+                    src={`${window.location.origin}/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png`}
                     alt="Logo"
-                    className="h-14 object-contain"
+                    className="h-10 object-contain"
+                    crossOrigin="anonymous"
                   />
                 </div>
                 {/* Header below logo */}
-                <div className="pb-2 mb-4 border-b-2" style={{ borderColor: "#ee7202" }}>
-                  <h1 className="text-[18px] font-bold m-0" style={{ color: "#4a4849", fontFamily: "'Century Gothic', Arial, sans-serif" }}>
+                <div className="pb-2 mb-5 border-b-2" style={{ borderColor: "#ee7202" }}>
+                  <h1 className="text-[16px] font-bold m-0" style={{ color: "#4a4849", fontFamily: "'Century Gothic', Arial, sans-serif" }}>
                     Einladung zur Eigentümerversammlung
                   </h1>
-                  <p className="text-[11px] mt-1" style={{ color: "#999" }}>{building?.name || ""}</p>
+                  <p className="text-[9px] mt-1" style={{ color: "#999" }}>{building?.name || ""}</p>
                 </div>
 
                 {/* Meta */}
-                <div className="mb-4 text-[11px]">
+                <div className="mb-5 text-[10px]">
                   <div className="flex mb-1"><span className="font-semibold w-24">Liegenschaft:</span><span>{building?.name}, {building?.address}</span></div>
                   <div className="flex mb-1"><span className="font-semibold w-24">Datum:</span><span>{dateStr}</span></div>
                   <div className="flex mb-1"><span className="font-semibold w-24">Uhrzeit:</span><span>{timeStr} Uhr</span></div>
@@ -227,33 +228,33 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
                 </div>
 
                 {/* Greeting */}
-                <div className="mb-4 whitespace-pre-line text-[11px]">{greeting}</div>
+                <div className="mb-5 whitespace-pre-line text-[10px]">{greeting}</div>
 
                 {/* Agenda */}
-                <h2 className="text-[13px] font-bold mb-1 pb-1 border-b" style={{ color: "#4a4849", fontFamily: "'Century Gothic', Arial, sans-serif" }}>Tagesordnung</h2>
+                <h2 className="text-[12px] font-bold mb-2 pb-1 border-b" style={{ color: "#4a4849", fontFamily: "'Century Gothic', Arial, sans-serif" }}>Tagesordnung</h2>
                 <div className="mt-3 space-y-2">
                   {agendaItems.map((item: any, idx: number) => (
                     <div key={item.id} className="p-2 rounded" style={{ background: "#faf8f5", borderLeft: "3px solid #ee7202" }}>
                       <div>
-                        <span className="font-bold text-[10px]" style={{ color: "#ee7202" }}>TOP {idx + 1}</span>
-                        <span className="font-semibold ml-2 text-[11px]">{item.title}</span>
+                        <span className="font-bold text-[9px]" style={{ color: "#ee7202" }}>TOP {idx + 1}</span>
+                        <span className="font-semibold ml-2 text-[10px]">{item.title}</span>
                       </div>
-                      {item.description && <p className="text-[10px] mt-0.5" style={{ color: "#666" }}>{item.description}</p>}
+                      {item.description && <p className="text-[9px] mt-0.5" style={{ color: "#666" }}>{item.description}</p>}
                     </div>
                   ))}
                 </div>
 
                 {/* Additional notes */}
                 {additionalNotes.trim() && (
-                  <div className="mt-4 whitespace-pre-line text-[11px]">{additionalNotes}</div>
+                  <div className="mt-5 whitespace-pre-line text-[10px]">{additionalNotes}</div>
                 )}
 
                 {/* Closing */}
-                <div className="mt-5 whitespace-pre-line text-[11px]">{closingText}</div>
-                <p className="font-bold mt-3 text-[11px]">RGI Immobilien GmbH &amp; Co. KG</p>
+                <div className="mt-6 whitespace-pre-line text-[10px]">{closingText}</div>
+                <p className="font-bold mt-3 text-[10px]">RGI Immobilien GmbH &amp; Co. KG</p>
 
                 {/* Footer */}
-                <div className="mt-8 pt-3 border-t text-center text-[9px]" style={{ borderColor: "#ee7202", color: "#999" }}>
+                <div className="mt-10 pt-3 border-t text-center text-[8px]" style={{ borderColor: "#ee7202", color: "#999" }}>
                   RGI Immobilien GmbH &amp; Co. KG
                 </div>
               </div>
