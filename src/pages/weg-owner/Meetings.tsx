@@ -1,15 +1,21 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, MapPin, Users, FileText } from "lucide-react";
-import { format } from "date-fns";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Calendar, MapPin, Users, Plus, Building2, FileText, Upload, Trash2 } from "lucide-react";
+import { format as formatDate } from "date-fns";
 import { de } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 const statusLabels: Record<string, string> = {
   draft: "Entwurf",
@@ -21,94 +27,226 @@ const statusLabels: Record<string, string> = {
 
 export const WegOwnerMeetings = () => {
   const { profile } = useAuth();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
+  const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);
+  const [showSubmitTop, setShowSubmitTop] = useState(false);
 
-  const { data: meetings = [], isLoading } = useQuery({
-    queryKey: ["weg-owner-meetings", profile?.user_id],
+  // TOP submission form
+  const [topTitle, setTopTitle] = useState("");
+  const [topDescription, setTopDescription] = useState("");
+  const [topFiles, setTopFiles] = useState<File[]>([]);
+
+  // Fetch buildings
+  const { data: buildings = [], isLoading: loadingBuildings } = useQuery({
+    queryKey: ["weg-owner-buildings", profile?.user_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("weg_owner_buildings")
+        .select("building_id, buildings(id, name, address)")
+        .eq("user_id", profile?.user_id);
+      if (error) throw error;
+      return (data || []).map((d: any) => d.buildings).filter(Boolean);
+    },
+    enabled: !!profile?.user_id,
+  });
+
+  // Auto-select if single building
+  const effectiveBuildingId = buildings.length === 1 ? buildings[0].id : selectedBuildingId;
+
+  // Fetch meetings for selected building
+  const { data: meetings = [], isLoading: loadingMeetings } = useQuery({
+    queryKey: ["weg-owner-meetings", effectiveBuildingId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("etv_meetings")
-        .select("*, buildings(name, address)")
+        .select("*")
+        .eq("building_id", effectiveBuildingId!)
         .in("status", ["invited", "in_progress", "completed"])
         .order("meeting_date", { ascending: false });
       if (error) throw error;
       return data || [];
     },
-    enabled: !!profile?.user_id,
+    enabled: !!effectiveBuildingId,
   });
 
+  // Fetch agenda items for selected meeting
   const { data: agendaItems = [] } = useQuery({
-    queryKey: ["weg-owner-agenda", selectedId],
+    queryKey: ["weg-owner-agenda", selectedMeetingId],
     queryFn: async () => {
-      if (!selectedId) return [];
+      if (!selectedMeetingId) return [];
       const { data, error } = await supabase
         .from("etv_agenda_items")
         .select("*")
-        .eq("meeting_id", selectedId)
+        .eq("meeting_id", selectedMeetingId)
         .order("sort_order");
       if (error) throw error;
       return data || [];
     },
-    enabled: !!selectedId,
+    enabled: !!selectedMeetingId,
   });
 
-  const selectedMeeting = meetings.find((m: any) => m.id === selectedId);
+  // Submit TOP mutation
+  const submitTopMutation = useMutation({
+    mutationFn: async () => {
+      // Find next available meeting for the building (invited or in_progress)
+      const activeMeeting = meetings.find((m: any) => ["invited", "in_progress"].includes(m.status));
+      if (!activeMeeting) throw new Error("Keine aktive Versammlung gefunden");
 
-  return (
-    <div className="p-4 space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Versammlungen</h1>
-        <p className="text-muted-foreground">Ihre Eigentümerversammlungen im Überblick</p>
-      </div>
+      // Upload attachments if any
+      let attachmentPaths: string[] = [];
+      for (const file of topFiles) {
+        const path = `etv-attachments/${effectiveBuildingId}/${Date.now()}-${file.name}`;
+        const { error: uploadErr } = await supabase.storage.from("building-files").upload(path, file);
+        if (uploadErr) throw uploadErr;
+        attachmentPaths.push(path);
+      }
 
-      {isLoading ? (
-        <div className="space-y-3">
-          {[1, 2].map((i) => <Skeleton key={i} className="h-20 w-full" />)}
+      const { error } = await supabase.from("etv_agenda_items").insert({
+        meeting_id: activeMeeting.id,
+        title: topTitle,
+        description: topDescription || null,
+        status: "submitted",
+        submitted_by_user_id: profile?.user_id,
+        attachment_paths: attachmentPaths.length > 0 ? attachmentPaths : null,
+        sort_order: 999, // will be reordered by admin
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "TOP eingereicht", description: "Ihr Tagesordnungspunkt wurde zur Prüfung eingereicht." });
+      setTopTitle("");
+      setTopDescription("");
+      setTopFiles([]);
+      setShowSubmitTop(false);
+      queryClient.invalidateQueries({ queryKey: ["weg-owner-agenda"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Fehler", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const selectedMeeting = meetings.find((m: any) => m.id === selectedMeetingId);
+  const activeMeeting = meetings.find((m: any) => ["invited", "in_progress"].includes(m.status));
+  const selectedBuilding = buildings.find((b: any) => b.id === effectiveBuildingId);
+
+  // Building selector
+  if (!effectiveBuildingId) {
+    return (
+      <div className="p-4 space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Versammlungen</h1>
+          <p className="text-muted-foreground">Wählen Sie ein Gebäude aus</p>
         </div>
-      ) : meetings.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">Keine anstehenden Versammlungen.</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-3">
-          {meetings.map((meeting: any) => {
-            const building = meeting.buildings;
-            return (
+        {loadingBuildings ? (
+          <div className="space-y-3">
+            {[1, 2].map((i) => <Skeleton key={i} className="h-20 w-full" />)}
+          </div>
+        ) : buildings.length === 0 ? (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <Building2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground">Keine Gebäude zugewiesen.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {buildings.map((b: any) => (
               <Card
-                key={meeting.id}
+                key={b.id}
                 className="cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => setSelectedId(meeting.id)}
+                onClick={() => setSelectedBuildingId(b.id)}
               >
-                <CardContent className="p-4 space-y-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold">{meeting.title}</h3>
-                    <Badge variant="secondary">{statusLabels[meeting.status] || meeting.status}</Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{building?.name} — {building?.address}</p>
-                  <div className="flex gap-4 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      {format(new Date(meeting.meeting_date), "dd.MM.yyyy 'um' HH:mm 'Uhr'", { locale: de })}
-                    </span>
-                    {meeting.location && (
-                      <span className="flex items-center gap-1">
-                        <MapPin className="h-3 w-3" />
-                        {meeting.location}
-                      </span>
-                    )}
+                <CardContent className="p-4 flex items-center gap-3">
+                  <Building2 className="h-8 w-8 text-primary flex-shrink-0" />
+                  <div>
+                    <h3 className="font-semibold">{b.name}</h3>
+                    <p className="text-sm text-muted-foreground">{b.address}</p>
                   </div>
                 </CardContent>
               </Card>
-            );
-          })}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
 
-      {/* Detail-Dialog */}
-      <Dialog open={!!selectedId} onOpenChange={() => setSelectedId(null)}>
+  return (
+    <div className="p-4 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          {buildings.length > 1 && (
+            <Button variant="ghost" size="sm" className="mb-1 -ml-2 text-muted-foreground" onClick={() => setSelectedBuildingId(null)}>
+              ← Gebäude wechseln
+            </Button>
+          )}
+          <h1 className="text-2xl font-bold text-foreground">Versammlungen</h1>
+          <p className="text-muted-foreground">{selectedBuilding?.name} — {selectedBuilding?.address}</p>
+        </div>
+        {activeMeeting && (
+          <Button onClick={() => setShowSubmitTop(true)} className="gap-2">
+            <Plus className="h-4 w-4" />
+            TOP einreichen
+          </Button>
+        )}
+      </div>
+
+      <Tabs defaultValue="meetings">
+        <TabsList>
+          <TabsTrigger value="meetings" className="gap-2">
+            <Users className="h-4 w-4" />
+            Versammlungen
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="meetings" className="mt-4">
+          {loadingMeetings ? (
+            <div className="space-y-3">
+              {[1, 2].map((i) => <Skeleton key={i} className="h-20 w-full" />)}
+            </div>
+          ) : meetings.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">Keine Versammlungen vorhanden.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {meetings.map((meeting: any) => (
+                <Card
+                  key={meeting.id}
+                  className="cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => setSelectedMeetingId(meeting.id)}
+                >
+                  <CardContent className="p-4 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold">{meeting.title}</h3>
+                      <Badge variant="secondary">{statusLabels[meeting.status] || meeting.status}</Badge>
+                    </div>
+                    <div className="flex gap-4 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        {formatDate(new Date(meeting.meeting_date), "dd.MM.yyyy 'um' HH:mm 'Uhr'", { locale: de })}
+                      </span>
+                      {meeting.location && (
+                        <span className="flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          {meeting.location}
+                        </span>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+
+      {/* Meeting Detail Dialog */}
+      <Dialog open={!!selectedMeetingId} onOpenChange={() => setSelectedMeetingId(null)}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{selectedMeeting?.title}</DialogTitle>
@@ -116,8 +254,9 @@ export const WegOwnerMeetings = () => {
           {selectedMeeting && (
             <div className="space-y-4">
               <div className="text-sm space-y-1 text-muted-foreground">
-                <p><strong>Datum:</strong> {format(new Date(selectedMeeting.meeting_date), "dd.MM.yyyy 'um' HH:mm 'Uhr'", { locale: de })}</p>
+                <p><strong>Datum:</strong> {formatDate(new Date(selectedMeeting.meeting_date), "dd.MM.yyyy 'um' HH:mm 'Uhr'", { locale: de })}</p>
                 {selectedMeeting.location && <p><strong>Ort:</strong> {selectedMeeting.location}</p>}
+                <Badge variant="secondary">{statusLabels[selectedMeeting.status] || selectedMeeting.status}</Badge>
               </div>
               <h3 className="font-semibold text-foreground">Tagesordnung</h3>
               {agendaItems.length === 0 ? (
@@ -127,13 +266,24 @@ export const WegOwnerMeetings = () => {
                   {agendaItems.map((item: any, idx: number) => (
                     <Card key={item.id}>
                       <CardContent className="p-3">
-                        <p className="font-medium text-sm">
-                          <span className="text-primary font-bold">TOP {idx + 1}</span> {item.title}
-                        </p>
-                        {item.description && <p className="text-xs text-muted-foreground mt-1">{item.description}</p>}
-                        {item.resolution_text && (
-                          <div className="mt-2 p-2 bg-muted rounded text-xs italic">{item.resolution_text}</div>
-                        )}
+                        <div className="flex items-start gap-2">
+                          <span className="text-primary font-bold text-sm">TOP {idx + 1}</span>
+                          <div className="flex-1">
+                            <p className="font-medium text-sm">{item.title}</p>
+                            {item.description && <p className="text-xs text-muted-foreground mt-1">{item.description}</p>}
+                            {item.status === "submitted" && (
+                              <Badge variant="outline" className="text-xs mt-1">Eingereicht</Badge>
+                            )}
+                            {item.resolution_text && (
+                              <div className="mt-2 p-2 bg-muted rounded text-xs italic">{item.resolution_text}</div>
+                            )}
+                            {item.result && (
+                              <Badge variant={item.result === "passed" ? "default" : "destructive"} className="text-xs mt-1">
+                                {item.result === "passed" ? "Angenommen" : "Abgelehnt"}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
                       </CardContent>
                     </Card>
                   ))}
@@ -141,6 +291,86 @@ export const WegOwnerMeetings = () => {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Submit TOP Dialog */}
+      <Dialog open={showSubmitTop} onOpenChange={setShowSubmitTop}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Tagesordnungspunkt einreichen</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Ihr TOP wird zur nächsten Versammlung eingereicht und vom Verwalter geprüft.
+            </p>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Titel *</Label>
+              <Input
+                placeholder="z.B. Antrag auf Sanierung der Tiefgarage"
+                value={topTitle}
+                onChange={(e) => setTopTitle(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Begründung / Erläuterung</Label>
+              <Textarea
+                placeholder="Beschreiben Sie Ihren Antrag..."
+                value={topDescription}
+                onChange={(e) => setTopDescription(e.target.value)}
+                rows={4}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Anhänge (optional)</Label>
+              <div className="border border-dashed rounded-md p-3">
+                <input
+                  type="file"
+                  multiple
+                  className="hidden"
+                  id="top-file-upload"
+                  onChange={(e) => {
+                    if (e.target.files) {
+                      setTopFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
+                    }
+                  }}
+                />
+                <label htmlFor="top-file-upload" className="flex items-center gap-2 cursor-pointer text-sm text-muted-foreground hover:text-foreground">
+                  <Upload className="h-4 w-4" />
+                  Dateien auswählen
+                </label>
+                {topFiles.length > 0 && (
+                  <div className="mt-2 space-y-1">
+                    {topFiles.map((file, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs bg-muted rounded px-2 py-1">
+                        <span className="flex items-center gap-1 truncate">
+                          <FileText className="h-3 w-3 flex-shrink-0" />
+                          {file.name}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5"
+                          onClick={() => setTopFiles((prev) => prev.filter((_, j) => j !== i))}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowSubmitTop(false)}>Abbrechen</Button>
+              <Button
+                onClick={() => submitTopMutation.mutate()}
+                disabled={!topTitle || submitTopMutation.isPending || !activeMeeting}
+              >
+                TOP einreichen
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

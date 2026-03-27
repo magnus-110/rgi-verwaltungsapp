@@ -3,10 +3,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Scale, Search, CheckCircle2, XCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Scale, Search, CheckCircle2, XCircle, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { useState } from "react";
+import { CreateResolutionDialog } from "./CreateResolutionDialog";
 
 interface BuildingResolutionsTabProps {
   buildingId: string;
@@ -14,6 +16,7 @@ interface BuildingResolutionsTabProps {
 
 export const BuildingResolutionsTab = ({ buildingId }: BuildingResolutionsTabProps) => {
   const [search, setSearch] = useState("");
+  const [showCreate, setShowCreate] = useState(false);
 
   const { data: resolutions = [], isLoading } = useQuery({
     queryKey: ["building-resolutions", buildingId],
