@@ -491,22 +491,54 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                     <Progress value={eligibleCount > 0 ? (votedCount / eligibleCount) * 100 : 0} className="h-2" />
                     <p className="text-xs text-muted-foreground mt-1">{votedCount} / {eligibleCount} Stimmen</p>
                   </div>
+
+                  {/* Live tally */}
+                  {votedCount > 0 && (() => {
+                    const yesVotes = currentVotes.filter((v: any) => v.vote === "yes");
+                    const noVotes = currentVotes.filter((v: any) => v.vote === "no");
+                    const abstainVotes = currentVotes.filter((v: any) => v.vote === "abstain");
+                    const yesMea = yesVotes.reduce((s: number, v: any) => s + (v.mea_weight || 0), 0);
+                    const noMea = noVotes.reduce((s: number, v: any) => s + (v.mea_weight || 0), 0);
+                    const totalVotedMea = currentVotes.reduce((s: number, v: any) => s + (v.mea_weight || 0), 0);
+
+                    let currentResult = "—";
+                    const principle = selectedItem.voting_principle;
+                    if (principle === "mea") {
+                      currentResult = totalVotedMea > 0 && yesMea > totalVotedMea / 2 ? "Angenommen" : "Abgelehnt";
+                    } else if (principle === "headcount") {
+                      currentResult = yesVotes.length > noVotes.length ? "Angenommen" : "Abgelehnt";
+                    } else if (principle === "double_qualified") {
+                      const twoThirds = yesVotes.length >= (currentVotes.length * 2) / 3;
+                      const fiftyMea = yesMea > totalMea / 2;
+                      currentResult = twoThirds && fiftyMea ? "Angenommen" : "Abgelehnt";
+                    }
+
+                    return (
+                      <div className="flex items-center gap-4 p-2 rounded bg-muted/50 text-sm">
+                        <span className="text-green-600 font-medium">Ja: {yesVotes.length}{principle === "mea" || principle === "double_qualified" ? ` (${yesMea.toFixed(2)} MEA)` : ""}</span>
+                        <span className="text-red-600 font-medium">Nein: {noVotes.length}{principle === "mea" || principle === "double_qualified" ? ` (${noMea.toFixed(2)} MEA)` : ""}</span>
+                        <span className="text-muted-foreground font-medium">Enth.: {abstainVotes.length}</span>
+                        <span className="ml-auto font-semibold">
+                          Zwischenstand: <span className={currentResult === "Angenommen" ? "text-green-600" : "text-red-600"}>{currentResult}</span>
+                        </span>
+                      </div>
+                    );
+                  })()}
+
                   <div className="space-y-1">
                     <p className="text-xs font-medium text-muted-foreground">Manuelle Stimmabgabe:</p>
                     {presentOrRepresented.map((a: any) => {
                       const contact = a.contact_building_assignments?.contacts;
                       const existingVote = currentVotes.find((v: any) => v.assignment_id === a.assignment_id);
                       const meaW = getMeaWeight(a);
+                      const rowBg = existingVote
+                        ? existingVote.vote === "yes" ? "bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800"
+                        : existingVote.vote === "no" ? "bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800"
+                        : "bg-muted/50 border-muted"
+                        : "";
                       return (
-                        <div key={a.id} className="flex items-center justify-between py-1 px-2 rounded border">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs">{getContactName(contact)}</span>
-                            {existingVote && (
-                              <Badge variant="outline" className="text-[10px] px-1">
-                                {existingVote.vote === "yes" ? "✅" : existingVote.vote === "no" ? "❌" : "➖"}
-                              </Badge>
-                            )}
-                          </div>
+                        <div key={a.id} className={`flex items-center justify-between py-1 px-2 rounded border ${rowBg}`}>
+                          <span className="text-xs">{getContactName(contact)}</span>
                           <div className="flex gap-1">
                             <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-green-600"
                               onClick={() => castVoteMutation.mutate({ itemId: selectedItem.id, assignmentId: a.assignment_id, vote: "yes", meaWeight: meaW })}>Ja</Button>
