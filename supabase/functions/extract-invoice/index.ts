@@ -22,11 +22,9 @@ function findBestBuildingMatch(
   let bestLength = 0;
 
   for (const b of buildings) {
-    // Check if building address or name appears in the recipient address
     const addressNorm = normalizeForMatch(b.address);
     const nameNorm = normalizeForMatch(b.name);
     
-    // Try address match (more specific, preferred)
     if (addressNorm.length > 3 && normalized.includes(addressNorm)) {
       if (addressNorm.length > bestLength) {
         bestLength = addressNorm.length;
@@ -34,7 +32,6 @@ function findBestBuildingMatch(
       }
     }
     
-    // Try name match
     if (nameNorm.length > 3 && normalized.includes(nameNorm)) {
       if (nameNorm.length > bestLength) {
         bestLength = nameNorm.length;
@@ -42,11 +39,9 @@ function findBestBuildingMatch(
       }
     }
     
-    // Also check if recipient address parts appear in building address (reverse match)
-    // Split recipient into meaningful parts (street + number patterns)
     const streetPattern = normalized.match(/([a-zäöüß]+(?:str|straße|weg|platz|allee|gasse|ring|damm)[a-zäöüß]*\s*\d+)/);
     if (streetPattern && addressNorm.includes(streetPattern[1])) {
-      const matchLen = streetPattern[1].length + 10; // bonus for street match
+      const matchLen = streetPattern[1].length + 10;
       if (matchLen > bestLength) {
         bestLength = matchLen;
         bestMatch = b.id;
@@ -201,7 +196,7 @@ serve(async (req) => {
       });
     }
 
-    // Step 2: Mistral tool-calling to extract structured data (including recipient_address)
+    // Step 2: Mistral tool-calling to extract structured data
     const extractionResponse = await fetch("https://api.mistral.ai/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -213,7 +208,17 @@ serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: "Du bist ein Experte für die Extraktion von Rechnungsdaten aus OCR-Text. Extrahiere alle relevanten Felder und rufe die Funktion extract_invoice_data auf. Wenn ein Feld nicht erkennbar ist, setze null. Betraege immer als Dezimalzahl (z.B. 1234.56). Datumsangaben im Format YYYY-MM-DD. Fuer suggested_account_number: Schlage eine passende Kontonummer aus dem deutschen SKR-Kontenrahmen vor (z.B. 4200 fuer Reparaturen, 4100 fuer Versicherungen, 4500 fuer Verwaltungskosten). WICHTIG: Extrahiere auch die vollständige Empfängeradresse (an wen die Rechnung adressiert ist, NICHT der Absender/Lieferant). Das ist typischerweise die Hausverwaltung oder der Eigentümer mit Straße und Ort. BRENNSTOFF-ERKENNUNG: Prüfe ob es sich um eine Brennstofflieferung handelt (Heizöl, Pellets, Gas, Fernwärme). Wenn ja, setze is_fuel_purchase=true und extrahiere fuel_type, fuel_quantity und fuel_unit."
+            content: `Du bist ein Experte für die Extraktion von Rechnungsdaten aus OCR-Text. Extrahiere alle relevanten Felder und rufe die Funktion extract_invoice_data auf. Wenn ein Feld nicht erkennbar ist, setze null. Betraege immer als Dezimalzahl (z.B. 1234.56). Datumsangaben im Format YYYY-MM-DD. Fuer suggested_account_number: Schlage eine passende Kontonummer aus dem deutschen SKR-Kontenrahmen vor (z.B. 4200 fuer Reparaturen, 4100 fuer Versicherungen, 4500 fuer Verwaltungskosten). WICHTIG: Extrahiere auch die vollständige Empfängeradresse (an wen die Rechnung adressiert ist, NICHT der Absender/Lieferant). Das ist typischerweise die Hausverwaltung oder der Eigentümer mit Straße und Ort.
+
+BRENNSTOFF-ERKENNUNG: Prüfe ob es sich um eine Brennstofflieferung handelt (Heizöl, Pellets, Gas, Fernwärme). Wenn ja, setze is_fuel_purchase=true und extrahiere fuel_type, fuel_quantity und fuel_unit.
+
+ABSCHLAGSZAHLUNGEN / VERSORGUNGSVERTRÄGE:
+Prüfe ob es sich um einen Abschlagsplan oder eine Jahresabrechnung handelt:
+- ABSCHLAGSPLAN: Schlüsselwörter sind "Abschlag", "Abschlagsplan", "monatliche Vorauszahlung", "neuer Abschlag", "Abschlagszahlung". Setze invoice_type="installment" und extrahiere installment_amount (monatlicher Abschlagsbetrag), installment_interval, contract_number, meter_number.
+- JAHRESABRECHNUNG / ENDABRECHNUNG: Schlüsselwörter sind "Jahresabrechnung", "Verbrauchsabrechnung", "Endabrechnung", "Schlussrechnung", "Abrechnungszeitraum". Setze invoice_type="annual_settlement" und extrahiere billing_period_from, billing_period_to, total_consumption, paid_installments_total (Summe aller bereits gezahlten Abschläge), settlement_difference (Nachzahlung positiv, Gutschrift negativ).
+- Bei einer normalen Rechnung setze invoice_type="standard".
+
+Bestimme auch den utility_type wenn es sich um Gas, Strom, Wasser oder Fernwärme handelt.`
           },
           {
             role: "user",
@@ -238,7 +243,7 @@ serve(async (req) => {
                   vat_amount: { type: "number", description: "MwSt-Betrag" },
                   gross_amount: { type: "number", description: "Bruttobetrag" },
                   description: { type: "string", description: "Kurzbeschreibung der Rechnung" },
-                  recipient_address: { type: "string", description: "Vollständige Empfängeradresse inkl. Name, Straße, PLZ, Ort (an wen die Rechnung adressiert ist)" },
+                  recipient_address: { type: "string", description: "Vollständige Empfängeradresse inkl. Name, Straße, PLZ, Ort" },
                   line_items: {
                     type: "array",
                     items: {
@@ -253,10 +258,23 @@ serve(async (req) => {
                     description: "Einzelpositionen der Rechnung"
                   },
                   suggested_account_number: { type: "string", description: "Vorgeschlagene SKR-Kontonummer" },
-                  is_fuel_purchase: { type: "boolean", description: "Ist dies eine Brennstofflieferung (Heizöl, Pellets, Gas, Fernwärme)?" },
+                  // Fuel fields
+                  is_fuel_purchase: { type: "boolean", description: "Ist dies eine Brennstofflieferung?" },
                   fuel_type: { type: "string", enum: ["oil", "pellets", "gas", "district_heating"], description: "Art des Brennstoffs" },
-                  fuel_quantity: { type: "number", description: "Gelieferte Menge des Brennstoffs" },
-                  fuel_unit: { type: "string", description: "Einheit der Menge (l, kg, kWh)" }
+                  fuel_quantity: { type: "number", description: "Gelieferte Menge" },
+                  fuel_unit: { type: "string", description: "Einheit (l, kg, kWh)" },
+                  // Installment / utility fields
+                  invoice_type: { type: "string", enum: ["standard", "installment", "annual_settlement"], description: "Rechnungstyp: standard, installment (Abschlag), annual_settlement (Jahresabrechnung)" },
+                  utility_type: { type: "string", enum: ["gas", "strom", "wasser", "fernwaerme"], description: "Art des Versorgungsvertrags" },
+                  installment_amount: { type: "number", description: "Monatlicher Abschlagsbetrag" },
+                  installment_interval: { type: "string", description: "Intervall: monatlich, quartalsweise" },
+                  contract_number: { type: "string", description: "Vertragsnummer des Versorgungsvertrags" },
+                  meter_number: { type: "string", description: "Zählernummer" },
+                  billing_period_from: { type: "string", description: "Abrechnungszeitraum Start (YYYY-MM-DD)" },
+                  billing_period_to: { type: "string", description: "Abrechnungszeitraum Ende (YYYY-MM-DD)" },
+                  total_consumption: { type: "number", description: "Gesamtverbrauch im Abrechnungszeitraum" },
+                  paid_installments_total: { type: "number", description: "Summe aller gezahlten Abschläge" },
+                  settlement_difference: { type: "number", description: "Nachzahlung (positiv) oder Gutschrift (negativ)" },
                 },
                 required: ["vendor_name", "gross_amount"]
               }
@@ -374,6 +392,17 @@ serve(async (req) => {
     if (extracted.gross_amount != null) updateData.gross_amount = extracted.gross_amount;
     if (extracted.description) updateData.description = extracted.description;
 
+    // Installment / utility fields
+    if (extracted.invoice_type && extracted.invoice_type !== "standard") {
+      updateData.invoice_type = extracted.invoice_type;
+    }
+    if (extracted.meter_number) updateData.meter_number = extracted.meter_number;
+    if (extracted.billing_period_from) updateData.billing_period_from = extracted.billing_period_from;
+    if (extracted.billing_period_to) updateData.billing_period_to = extracted.billing_period_to;
+    if (extracted.total_consumption != null) updateData.total_consumption = extracted.total_consumption;
+    if (extracted.paid_installments_total != null) updateData.paid_installments_total = extracted.paid_installments_total;
+    if (extracted.settlement_difference != null) updateData.settlement_difference = extracted.settlement_difference;
+
     const { error: updateError } = await supabase
       .from("invoices")
       .update(updateData)
@@ -387,10 +416,64 @@ serve(async (req) => {
       });
     }
 
+    // Auto-create or update utility contract if installment detected and building matched
+    const finalBuildingId = matchedBuildingId || invoice.building_id;
+    if (finalBuildingId && extracted.utility_type && (extracted.invoice_type === "installment" || extracted.invoice_type === "annual_settlement")) {
+      try {
+        // Check if a matching utility contract already exists
+        const { data: existingContract } = await supabase
+          .from("utility_contracts")
+          .select("id")
+          .eq("building_id", finalBuildingId)
+          .eq("utility_type", extracted.utility_type)
+          .eq("status", "active")
+          .maybeSingle();
+
+        if (!existingContract && extracted.invoice_type === "installment") {
+          // Create new utility contract
+          const { data: newContract } = await supabase
+            .from("utility_contracts")
+            .insert({
+              building_id: finalBuildingId,
+              vendor_name: extracted.vendor_name || "Unbekannt",
+              vendor_iban: extracted.vendor_iban || null,
+              utility_type: extracted.utility_type,
+              contract_number: extracted.contract_number || null,
+              meter_number: extracted.meter_number || null,
+              installment_amount: extracted.installment_amount || extracted.gross_amount || null,
+              installment_interval: extracted.installment_interval || "monatlich",
+            })
+            .select("id")
+            .single();
+
+          if (newContract) {
+            await supabase.from("invoices").update({ utility_contract_id: newContract.id }).eq("id", invoiceId);
+            console.log(`Created utility contract ${newContract.id} for building ${finalBuildingId}`);
+          }
+        } else if (existingContract) {
+          // Link invoice to existing contract
+          await supabase.from("invoices").update({ utility_contract_id: existingContract.id }).eq("id", invoiceId);
+          
+          // Update contract with new installment amount if it changed
+          if (extracted.invoice_type === "installment" && extracted.installment_amount) {
+            await supabase.from("utility_contracts").update({
+              installment_amount: extracted.installment_amount,
+              meter_number: extracted.meter_number || undefined,
+              updated_at: new Date().toISOString(),
+            }).eq("id", existingContract.id);
+          }
+          console.log(`Linked invoice to existing contract ${existingContract.id}`);
+        }
+      } catch (contractError) {
+        console.error("Utility contract handling error:", contractError);
+        // Non-fatal: invoice was already saved successfully
+      }
+    }
+
     console.log(`Invoice ${invoiceId} OCR completed successfully`);
 
     return new Response(
-      JSON.stringify({ success: true, extracted, matchedBuildingId }),
+      JSON.stringify({ success: true, extracted, matchedBuildingId: finalBuildingId }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error) {

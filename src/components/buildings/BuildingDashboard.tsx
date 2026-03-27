@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Building2, MapPin, Edit, Trash2, Users, FileText, AlertCircle, Newspaper, Wrench, ChevronLeft, Landmark, Scale } from "lucide-react";
+import { Building2, MapPin, Edit, Trash2, Users, FileText, AlertCircle, Newspaper, Wrench, ChevronLeft, Landmark, Scale, Flame } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -16,6 +16,7 @@ import { BuildingMaintenanceTab } from "./BuildingMaintenanceTab";
 import { BuildingFinanceSummary } from "@/components/finance/BuildingFinanceSummary";
 import { BuildingResolutionsTab } from "./BuildingResolutionsTab";
 import { BuildingDistributionKeysTab } from "@/components/finance/BuildingDistributionKeysTab";
+import { UtilityContractsTab } from "@/components/finance/UtilityContractsTab";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -168,6 +169,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
               { value: "forum", label: "Schwarzes Brett" },
               { value: "maintenance", label: "Wartung" },
               { value: "distribution", label: "Kontenrahmen" },
+              { value: "utility", label: "Versorgung" },
               { value: "finance", label: "Finanzen" },
               ...(building.management_mode === 'weg' ? [{ value: "resolutions", label: "Beschlüsse" }] : []),
             ].map(tab => (
@@ -256,6 +258,11 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
           {/* Distribution Keys Tab */}
           <TabsContent value="distribution" className="p-4 md:p-6 mt-0">
             <BuildingDistributionKeysTab buildingId={buildingId} />
+          </TabsContent>
+
+          {/* Utility Contracts Tab */}
+          <TabsContent value="utility" className="p-4 md:p-6 mt-0">
+            <UtilityContractsTab buildingId={buildingId} />
           </TabsContent>
 
           {/* Finance Tab */}

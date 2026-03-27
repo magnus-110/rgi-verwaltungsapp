@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { BookingInstructionsSection } from "@/components/buildings/BookingInstructionsSection";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,19 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
         .select("*")
         .or(`building_id.is.null,building_id.eq.${buildingId}`)
         .order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: buildingData } = useQuery({
+    queryKey: ["building-booking-instructions", buildingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("buildings")
+        .select("booking_instructions")
+        .eq("id", buildingId)
+        .single();
       if (error) throw error;
       return data;
     },
@@ -129,7 +143,8 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
   if (isLoading) return <div className="text-muted-foreground text-sm">Laden...</div>;
 
   return (
-    <>
+    <div className="space-y-6">
+      <BookingInstructionsSection buildingId={buildingId} initialValue={(buildingData as any)?.booking_instructions} />
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -391,6 +406,6 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }

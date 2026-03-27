@@ -790,6 +790,7 @@ export type Database = {
       buildings: {
         Row: {
           address: string
+          booking_instructions: string | null
           building_code: string
           created_at: string | null
           id: string
@@ -802,6 +803,7 @@ export type Database = {
         }
         Insert: {
           address: string
+          booking_instructions?: string | null
           building_code: string
           created_at?: string | null
           id?: string
@@ -814,6 +816,7 @@ export type Database = {
         }
         Update: {
           address?: string
+          booking_instructions?: string | null
           building_code?: string
           created_at?: string | null
           id?: string
@@ -2872,6 +2875,8 @@ export type Database = {
       }
       invoices: {
         Row: {
+          billing_period_from: string | null
+          billing_period_to: string | null
           building_id: string | null
           created_at: string
           created_by: string | null
@@ -2881,24 +2886,33 @@ export type Database = {
           file_path: string | null
           gross_amount: number | null
           id: string
+          installment_period: string | null
           invoice_date: string | null
           invoice_number: string | null
+          invoice_type: Database["public"]["Enums"]["invoice_type"] | null
           line_items: Json | null
+          meter_number: string | null
           net_amount: number | null
           ocr_error: string | null
           ocr_extracted_data: Json | null
           ocr_raw_data: Json | null
           ocr_status: string
           paid_at: string | null
+          paid_installments_total: number | null
           review_status: string
+          settlement_difference: number | null
           status: string
           suggested_account_id: string | null
+          total_consumption: number | null
           updated_at: string
+          utility_contract_id: string | null
           vat_amount: number | null
           vendor_iban: string | null
           vendor_name: string | null
         }
         Insert: {
+          billing_period_from?: string | null
+          billing_period_to?: string | null
           building_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -2908,24 +2922,33 @@ export type Database = {
           file_path?: string | null
           gross_amount?: number | null
           id?: string
+          installment_period?: string | null
           invoice_date?: string | null
           invoice_number?: string | null
+          invoice_type?: Database["public"]["Enums"]["invoice_type"] | null
           line_items?: Json | null
+          meter_number?: string | null
           net_amount?: number | null
           ocr_error?: string | null
           ocr_extracted_data?: Json | null
           ocr_raw_data?: Json | null
           ocr_status?: string
           paid_at?: string | null
+          paid_installments_total?: number | null
           review_status?: string
+          settlement_difference?: number | null
           status?: string
           suggested_account_id?: string | null
+          total_consumption?: number | null
           updated_at?: string
+          utility_contract_id?: string | null
           vat_amount?: number | null
           vendor_iban?: string | null
           vendor_name?: string | null
         }
         Update: {
+          billing_period_from?: string | null
+          billing_period_to?: string | null
           building_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -2935,19 +2958,26 @@ export type Database = {
           file_path?: string | null
           gross_amount?: number | null
           id?: string
+          installment_period?: string | null
           invoice_date?: string | null
           invoice_number?: string | null
+          invoice_type?: Database["public"]["Enums"]["invoice_type"] | null
           line_items?: Json | null
+          meter_number?: string | null
           net_amount?: number | null
           ocr_error?: string | null
           ocr_extracted_data?: Json | null
           ocr_raw_data?: Json | null
           ocr_status?: string
           paid_at?: string | null
+          paid_installments_total?: number | null
           review_status?: string
+          settlement_difference?: number | null
           status?: string
           suggested_account_id?: string | null
+          total_consumption?: number | null
           updated_at?: string
+          utility_contract_id?: string | null
           vat_amount?: number | null
           vendor_iban?: string | null
           vendor_name?: string | null
@@ -2965,6 +2995,13 @@ export type Database = {
             columns: ["suggested_account_id"]
             isOneToOne: false
             referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_utility_contract_id_fkey"
+            columns: ["utility_contract_id"]
+            isOneToOne: false
+            referencedRelation: "utility_contracts"
             referencedColumns: ["id"]
           },
         ]
@@ -3698,6 +3735,88 @@ export type Database = {
           },
         ]
       }
+      utility_contracts: {
+        Row: {
+          building_id: string
+          contract_number: string | null
+          created_at: string | null
+          expense_account_id: string | null
+          id: string
+          installment_amount: number | null
+          installment_interval: string | null
+          meter_number: string | null
+          notes: string | null
+          period_from: string | null
+          period_to: string | null
+          prepayment_account_id: string | null
+          status: string | null
+          updated_at: string | null
+          utility_type: Database["public"]["Enums"]["utility_type"]
+          vendor_iban: string | null
+          vendor_name: string
+        }
+        Insert: {
+          building_id: string
+          contract_number?: string | null
+          created_at?: string | null
+          expense_account_id?: string | null
+          id?: string
+          installment_amount?: number | null
+          installment_interval?: string | null
+          meter_number?: string | null
+          notes?: string | null
+          period_from?: string | null
+          period_to?: string | null
+          prepayment_account_id?: string | null
+          status?: string | null
+          updated_at?: string | null
+          utility_type: Database["public"]["Enums"]["utility_type"]
+          vendor_iban?: string | null
+          vendor_name: string
+        }
+        Update: {
+          building_id?: string
+          contract_number?: string | null
+          created_at?: string | null
+          expense_account_id?: string | null
+          id?: string
+          installment_amount?: number | null
+          installment_interval?: string | null
+          meter_number?: string | null
+          notes?: string | null
+          period_from?: string | null
+          period_to?: string | null
+          prepayment_account_id?: string | null
+          status?: string | null
+          updated_at?: string | null
+          utility_type?: Database["public"]["Enums"]["utility_type"]
+          vendor_iban?: string | null
+          vendor_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "utility_contracts_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "utility_contracts_expense_account_id_fkey"
+            columns: ["expense_account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "utility_contracts_prepayment_account_id_fkey"
+            columns: ["prepayment_account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       weg_owner_buildings: {
         Row: {
           building_id: string
@@ -3943,6 +4062,7 @@ export type Database = {
         | "fewo"
         | "leerstand"
       cost_interval: "monatlich" | "quartal" | "jaehrlich"
+      invoice_type: "standard" | "installment" | "annual_settlement"
       management_mode: "weg" | "rent"
       share_type:
         | "mea"
@@ -3954,6 +4074,7 @@ export type Database = {
         | "wasser"
         | "warmwasser"
         | "heizkosten"
+      utility_type: "gas" | "strom" | "wasser" | "fernwaerme"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -4092,6 +4213,7 @@ export const Constants = {
         "leerstand",
       ],
       cost_interval: ["monatlich", "quartal", "jaehrlich"],
+      invoice_type: ["standard", "installment", "annual_settlement"],
       management_mode: ["weg", "rent"],
       share_type: [
         "mea",
@@ -4104,6 +4226,7 @@ export const Constants = {
         "warmwasser",
         "heizkosten",
       ],
+      utility_type: ["gas", "strom", "wasser", "fernwaerme"],
     },
   },
 } as const
