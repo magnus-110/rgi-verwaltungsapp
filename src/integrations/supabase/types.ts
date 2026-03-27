@@ -2302,6 +2302,7 @@ export type Database = {
         Row: {
           abstain_count: number | null
           admin_notes: string | null
+          attachment_paths: string[] | null
           category: string | null
           created_at: string | null
           description: string | null
@@ -2313,6 +2314,7 @@ export type Database = {
           sort_order: number
           status: string | null
           submitted_by_contact_id: string | null
+          submitted_by_user_id: string | null
           title: string
           total_mea_voted: number | null
           voting_principle: string
@@ -2321,6 +2323,7 @@ export type Database = {
         Insert: {
           abstain_count?: number | null
           admin_notes?: string | null
+          attachment_paths?: string[] | null
           category?: string | null
           created_at?: string | null
           description?: string | null
@@ -2332,6 +2335,7 @@ export type Database = {
           sort_order?: number
           status?: string | null
           submitted_by_contact_id?: string | null
+          submitted_by_user_id?: string | null
           title: string
           total_mea_voted?: number | null
           voting_principle?: string
@@ -2340,6 +2344,7 @@ export type Database = {
         Update: {
           abstain_count?: number | null
           admin_notes?: string | null
+          attachment_paths?: string[] | null
           category?: string | null
           created_at?: string | null
           description?: string | null
@@ -2351,6 +2356,7 @@ export type Database = {
           sort_order?: number
           status?: string | null
           submitted_by_contact_id?: string | null
+          submitted_by_user_id?: string | null
           title?: string
           total_mea_voted?: number | null
           voting_principle?: string
@@ -2370,6 +2376,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "contacts"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etv_agenda_items_submitted_by_user_id_fkey"
+            columns: ["submitted_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -2512,49 +2525,58 @@ export type Database = {
       etv_resolutions: {
         Row: {
           abstain_count: number | null
-          agenda_item_id: string
+          agenda_item_id: string | null
           building_id: string
           created_at: string | null
+          created_by: string | null
           id: string
-          meeting_id: string
+          meeting_id: string | null
           no_count: number | null
+          notes: string | null
           published: boolean | null
           resolution_number: string | null
           resolution_text: string
           resolved_at: string | null
           result: string
+          source: string
           voting_principle: string | null
           yes_count: number | null
         }
         Insert: {
           abstain_count?: number | null
-          agenda_item_id: string
+          agenda_item_id?: string | null
           building_id: string
           created_at?: string | null
+          created_by?: string | null
           id?: string
-          meeting_id: string
+          meeting_id?: string | null
           no_count?: number | null
+          notes?: string | null
           published?: boolean | null
           resolution_number?: string | null
           resolution_text: string
           resolved_at?: string | null
           result: string
+          source?: string
           voting_principle?: string | null
           yes_count?: number | null
         }
         Update: {
           abstain_count?: number | null
-          agenda_item_id?: string
+          agenda_item_id?: string | null
           building_id?: string
           created_at?: string | null
+          created_by?: string | null
           id?: string
-          meeting_id?: string
+          meeting_id?: string | null
           no_count?: number | null
+          notes?: string | null
           published?: boolean | null
           resolution_number?: string | null
           resolution_text?: string
           resolved_at?: string | null
           result?: string
+          source?: string
           voting_principle?: string | null
           yes_count?: number | null
         }
@@ -2572,6 +2594,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "buildings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etv_resolutions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
           },
           {
             foreignKeyName: "etv_resolutions_meeting_id_fkey"

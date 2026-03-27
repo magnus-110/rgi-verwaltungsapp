@@ -3,10 +3,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Scale, Search, CheckCircle2, XCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Scale, Search, CheckCircle2, XCircle, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { useState } from "react";
+import { CreateResolutionDialog } from "./CreateResolutionDialog";
 
 interface BuildingResolutionsTabProps {
   buildingId: string;
@@ -14,6 +16,7 @@ interface BuildingResolutionsTabProps {
 
 export const BuildingResolutionsTab = ({ buildingId }: BuildingResolutionsTabProps) => {
   const [search, setSearch] = useState("");
+  const [showCreate, setShowCreate] = useState(false);
 
   const { data: resolutions = [], isLoading } = useQuery({
     queryKey: ["building-resolutions", buildingId],
@@ -47,14 +50,20 @@ export const BuildingResolutionsTab = ({ buildingId }: BuildingResolutionsTabPro
 
   return (
     <div className="space-y-4">
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <Input
-          placeholder="Beschlüsse durchsuchen..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9"
-        />
+      <div className="flex gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Beschlüsse durchsuchen..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        <Button onClick={() => setShowCreate(true)} className="gap-2">
+          <Plus className="h-4 w-4" />
+          Eintragen
+        </Button>
       </div>
 
       {filtered.length === 0 ? (
@@ -98,6 +107,7 @@ export const BuildingResolutionsTab = ({ buildingId }: BuildingResolutionsTabPro
           })}
         </div>
       )}
+      <CreateResolutionDialog buildingId={buildingId} open={showCreate} onOpenChange={setShowCreate} />
     </div>
   );
 };
