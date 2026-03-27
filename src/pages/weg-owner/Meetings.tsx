@@ -694,14 +694,7 @@ export const WegOwnerMeetings = () => {
                       )}
                     </CardContent>
                   </Card>
-                </div>
-              )}
-
-              {selectedMeeting.status === "published" && !myAttendee && myAssignment && (
-                <div className="border-t pt-4">
-                  <p className="text-sm text-muted-foreground">
-                    Sie sind noch nicht als Teilnehmer für diese Versammlung registriert. Bitte wenden Sie sich an die Verwaltung.
-                  </p>
+                  )}
                 </div>
               )}
             </div>
