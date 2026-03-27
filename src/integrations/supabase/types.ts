@@ -2611,6 +2611,70 @@ export type Database = {
           },
         ]
       }
+      etv_submitted_tops: {
+        Row: {
+          accepted_into_meeting_id: string | null
+          admin_notes: string | null
+          attachment_paths: string[] | null
+          building_id: string
+          created_at: string
+          description: string | null
+          id: string
+          status: string
+          submitted_by_user_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          accepted_into_meeting_id?: string | null
+          admin_notes?: string | null
+          attachment_paths?: string[] | null
+          building_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          status?: string
+          submitted_by_user_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          accepted_into_meeting_id?: string | null
+          admin_notes?: string | null
+          attachment_paths?: string[] | null
+          building_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          status?: string
+          submitted_by_user_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "etv_submitted_tops_accepted_into_meeting_id_fkey"
+            columns: ["accepted_into_meeting_id"]
+            isOneToOne: false
+            referencedRelation: "etv_meetings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etv_submitted_tops_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "etv_submitted_tops_submitted_by_user_id_fkey"
+            columns: ["submitted_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
       etv_votes: {
         Row: {
           agenda_item_id: string
