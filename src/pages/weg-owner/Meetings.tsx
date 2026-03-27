@@ -506,7 +506,7 @@ export const WegOwnerMeetings = () => {
                     const remainingPaths = (selectedTop.attachment_paths || []).filter((p: string) => !editRemovedPaths.includes(p));
                     return remainingPaths.length > 0 ? (
                       <div className="space-y-2">
-                        <Label className="text-base font-semibold">Vorhandene Anhänge</Label>
+                        <Label className="text-sm font-medium">Vorhandene Anhänge</Label>
                         <div className="space-y-1.5">
                           {remainingPaths.map((path: string, i: number) => {
                             const fileName = path.split("/").pop()?.replace(/^\d+-/, "") || path;
