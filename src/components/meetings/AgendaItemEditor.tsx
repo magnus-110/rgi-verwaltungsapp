@@ -252,8 +252,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
     );
   };
 
-  // Attachment section for edit mode
-  const EditAttachments = () => (
+  const renderEditAttachments = () => (
     <div className="space-y-1.5">
       <Label className="text-xs">Anhänge</Label>
       <div className="border border-dashed rounded-md p-3">
@@ -268,17 +267,10 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
             }
           }}
         />
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="gap-2 text-muted-foreground"
-          onClick={() => editFileInputRef.current?.click()}
-        >
+        <Button type="button" variant="ghost" size="sm" className="gap-2 text-muted-foreground" onClick={() => editFileInputRef.current?.click()}>
           <Upload className="h-4 w-4" />
           Dateien hinzufügen
         </Button>
-        {/* Existing attachments */}
         {editItemExistingPaths.length > 0 && (
           <div className="mt-2 space-y-1">
             {editItemExistingPaths.map((path, i) => {
@@ -289,12 +281,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                     <FileText className="h-3 w-3 flex-shrink-0" />
                     {fileName.replace(/^\d+-/, "")}
                   </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-5 w-5"
-                    onClick={() => removeExistingPath(i)}
-                  >
+                  <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeExistingPath(i)}>
                     <X className="h-3 w-3" />
                   </Button>
                 </div>
@@ -302,7 +289,6 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
             })}
           </div>
         )}
-        {/* New files */}
         {editNewFiles.length > 0 && (
           <div className="mt-2 space-y-1">
             {editNewFiles.map((file, i) => (
@@ -312,12 +298,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                   {file.name}
                   <Badge variant="secondary" className="text-[9px] h-4">Neu</Badge>
                 </span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-5 w-5"
-                  onClick={() => setEditNewFiles(prev => prev.filter((_, j) => j !== i))}
-                >
+                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setEditNewFiles(prev => prev.filter((_, j) => j !== i))}>
                   <X className="h-3 w-3" />
                 </Button>
               </div>
