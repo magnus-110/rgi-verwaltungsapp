@@ -160,7 +160,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
   const presentOrRepresented = attendees.filter((a: any) => a.attendance_type === "present" || a.attendance_type === "proxy");
   const totalOwners = attendees.length;
   const presentCount = presentOrRepresented.length;
-  const quorumReached = totalOwners > 0 && presentCount > totalOwners / 2;
+  const quorumReached = presentCount >= 1;
 
   const totalMea = attendees.reduce((sum: number, a: any) => {
     const shares = a.contact_building_assignments?.contact_building_shares || [];
@@ -268,7 +268,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
         result = twoThirdsVotes && fiftyPercentMea ? "passed" : "failed";
       }
       const { error } = await supabase.from("etv_agenda_items").update({
-        status: "voted", result, yes_count: yesVotes.length, no_count: noVotes.length,
+        status: "closed", result, yes_count: yesVotes.length, no_count: noVotes.length,
         abstain_count: abstainVotes.length, total_mea_voted: currentVotes.reduce((s: number, v: any) => s + (v.mea_weight || 0), 0),
       }).eq("id", itemId);
       if (error) throw error;
@@ -339,11 +339,39 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
     }
   };
 
+  // Confirm vote result (closed → voted/final)
+  const confirmVoteMutation = useMutation({
+    mutationFn: async (itemId: string) => {
+      const { error } = await supabase.from("etv_agenda_items").update({ status: "voted" }).eq("id", itemId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["etv-agenda-items-live", meetingId] });
+      toast({ title: "Ergebnis bestätigt" });
+    },
+  });
+
+  // Reopen voting (closed → voting)
+  const reopenVotingMutation = useMutation({
+    mutationFn: async (itemId: string) => {
+      const { error } = await supabase.from("etv_agenda_items").update({ status: "voting", result: null }).eq("id", itemId);
+      if (error) throw error;
+    },
+    onSuccess: (_, itemId) => {
+      setActiveVoteItem(itemId);
+      queryClient.invalidateQueries({ queryKey: ["etv-agenda-items-live", meetingId] });
+      toast({ title: "Abstimmung erneut geöffnet" });
+    },
+  });
+
   const getStatusBadge = (item: AgendaItem) => {
     if (item.status === "voted") {
       return <Badge variant={item.result === "passed" ? "default" : "destructive"}>
-        {item.result === "passed" ? "Angenommen" : "Abgelehnt"}
+        {item.result === "passed" ? "✓ Angenommen" : "✗ Abgelehnt"}
       </Badge>;
+    }
+    if (item.status === "closed") {
+      return <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">Unbestätigt</Badge>;
     }
     if (item.status === "voting") return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">Abstimmung läuft</Badge>;
     return <Badge variant="secondary">Offen</Badge>;
@@ -353,6 +381,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
   if (selectedItem) {
     const isActive = activeVoteItem === selectedItem.id;
     const isVoted = selectedItem.status === "voted";
+    const isClosed = selectedItem.status === "closed";
     const votedCount = isActive ? currentVotes.length : 0;
     const eligibleCount = presentOrRepresented.length;
 
@@ -422,7 +451,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                   <BarChart3 className="h-4 w-4" /> Abstimmung
                 </p>
                 <div className="flex gap-2">
-                  {!isVoted && !isActive && !activeVoteItem && (
+                  {!isVoted && !isClosed && !isActive && !activeVoteItem && (
                     <Button size="sm" onClick={() => startVotingMutation.mutate(selectedItem.id)} disabled={!quorumReached} className="gap-1">
                       <Play className="h-3 w-3" /> Abstimmung starten
                     </Button>
@@ -431,6 +460,16 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                     <Button size="sm" variant="destructive" onClick={() => endVotingMutation.mutate(selectedItem.id)} className="gap-1">
                       <Square className="h-3 w-3" /> Beenden
                     </Button>
+                  )}
+                  {isClosed && (
+                    <>
+                      <Button size="sm" variant="outline" onClick={() => reopenVotingMutation.mutate(selectedItem.id)} className="gap-1">
+                        <RefreshCw className="h-3 w-3" /> Erneut öffnen
+                      </Button>
+                      <Button size="sm" onClick={() => confirmVoteMutation.mutate(selectedItem.id)} className="gap-1">
+                        <CheckCircle2 className="h-3 w-3" /> Ergebnis bestätigen
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
@@ -472,20 +511,30 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                 </div>
               )}
 
-              {isVoted && (
-                <div className="flex gap-6 text-sm">
-                  <div className="text-center">
-                    <div className="text-xl font-bold text-green-600">{selectedItem.yes_count}</div>
-                    <div className="text-xs text-muted-foreground">Ja</div>
+              {(isVoted || isClosed) && (
+                <div className="space-y-2">
+                  <div className="flex gap-6 text-sm">
+                    <div className="text-center">
+                      <div className="text-xl font-bold text-green-600">{selectedItem.yes_count}</div>
+                      <div className="text-xs text-muted-foreground">Ja</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xl font-bold text-red-600">{selectedItem.no_count}</div>
+                      <div className="text-xs text-muted-foreground">Nein</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-xl font-bold text-muted-foreground">{selectedItem.abstain_count}</div>
+                      <div className="text-xs text-muted-foreground">Enthaltung</div>
+                    </div>
                   </div>
-                  <div className="text-center">
-                    <div className="text-xl font-bold text-red-600">{selectedItem.no_count}</div>
-                    <div className="text-xs text-muted-foreground">Nein</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xl font-bold text-muted-foreground">{selectedItem.abstain_count}</div>
-                    <div className="text-xs text-muted-foreground">Enthaltung</div>
-                  </div>
+                  {isClosed && (
+                    <p className="text-xs text-orange-600 font-medium">⚠ Ergebnis noch nicht bestätigt</p>
+                  )}
+                  {isVoted && (
+                    <Badge variant={selectedItem.result === "passed" ? "default" : "destructive"}>
+                      {selectedItem.result === "passed" ? "✓ Bestätigt: Angenommen" : "✓ Bestätigt: Abgelehnt"}
+                    </Badge>
+                  )}
                 </div>
               )}
             </div>
@@ -622,10 +671,6 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                     )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <Button variant="ghost" size="icon" className="h-8 w-8" title="Vollmacht"
-                      onClick={() => { setProxyDialog(a.id); setProxyType("manager"); setProxyContactId(""); }}>
-                      <Shield className="h-4 w-4 text-blue-500" />
-                    </Button>
                     <Label className="text-xs">Anw.</Label>
                     <Switch
                       checked={a.attendance_type === "present"}
@@ -681,50 +726,6 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
         </CardContent>
       </Card>
 
-      {/* Proxy Dialog */}
-      <Dialog open={!!proxyDialog} onOpenChange={() => setProxyDialog(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Vollmacht erteilen</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Vollmacht-Typ</Label>
-              <Select value={proxyType} onValueChange={setProxyType}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="manager">An Verwalter</SelectItem>
-                  <SelectItem value="owner">An anderen Eigentümer</SelectItem>
-                  <SelectItem value="external">An externe Person (Token-Link)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {proxyType === "owner" && (
-              <div className="space-y-2">
-                <Label>Eigentümer auswählen</Label>
-                <Select value={proxyContactId} onValueChange={setProxyContactId}>
-                  <SelectTrigger><SelectValue placeholder="Eigentümer wählen..." /></SelectTrigger>
-                  <SelectContent>
-                    {allContacts.map((c: any) => (
-                      <SelectItem key={c.contacts.id} value={c.contacts.id}>{getContactName(c.contacts)}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            {proxyType === "external" && (
-              <p className="text-sm text-muted-foreground">Es wird ein Token-Link generiert.</p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setProxyDialog(null)}>Abbrechen</Button>
-            <Button
-              onClick={() => { if (proxyDialog) setProxyMutation.mutate({ attendeeId: proxyDialog, type: proxyType, contactId: proxyContactId || undefined }); }}
-              disabled={setProxyMutation.isPending || (proxyType === "owner" && !proxyContactId)}
-            >
-              {setProxyMutation.isPending ? "Speichern..." : "Vollmacht erteilen"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };

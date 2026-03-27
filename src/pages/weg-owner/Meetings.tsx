@@ -37,6 +37,7 @@ export const WegOwnerMeetings = () => {
   const queryClient = useQueryClient();
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
   const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);
+  const [selectedAgendaItemId, setSelectedAgendaItemId] = useState<string | null>(null);
   const [showSubmitTop, setShowSubmitTop] = useState(false);
 
   // TOP detail/edit
@@ -598,18 +599,27 @@ export const WegOwnerMeetings = () => {
               ) : (
                 <div className="space-y-3">
                   {agendaItems.map((item: any, idx: number) => (
-                    <Card key={item.id}>
+                    <Card 
+                      key={item.id}
+                      className="cursor-pointer hover:shadow-md transition-shadow"
+                      onClick={() => setSelectedAgendaItemId(item.id)}
+                    >
                       <CardContent className="p-3">
                         <div className="flex items-start gap-2">
                           <span className="text-primary font-bold text-sm">TOP {idx + 1}</span>
                           <div className="flex-1">
                             <p className="font-medium text-sm">{item.title}</p>
-                            {item.description && <p className="text-xs text-muted-foreground mt-1">{item.description}</p>}
-                            {/* resolution_text hidden from owner view - admin only */}
                             {item.result && (
                               <Badge variant={item.result === "passed" ? "default" : "destructive"} className="text-xs mt-1">
                                 {item.result === "passed" ? "Angenommen" : "Abgelehnt"}
                               </Badge>
+                            )}
+                            {selectedMeeting?.status === "in_progress" && item.status === "voted" && (
+                              <div className="flex gap-3 mt-2 text-xs">
+                                <span className="text-green-600 font-medium">Ja: {item.yes_count}</span>
+                                <span className="text-red-600 font-medium">Nein: {item.no_count}</span>
+                                <span className="text-muted-foreground">Enthaltung: {item.abstain_count}</span>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -702,7 +712,86 @@ export const WegOwnerMeetings = () => {
         </DialogContent>
       </Dialog>
 
-      {/* TOP Detail/Edit Dialog */}
+      {/* Agenda Item Detail Dialog */}
+      <Dialog open={!!selectedAgendaItemId} onOpenChange={() => setSelectedAgendaItemId(null)}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          {(() => {
+            const item = agendaItems.find((a: any) => a.id === selectedAgendaItemId);
+            if (!item) return null;
+            const idx = agendaItems.indexOf(item);
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle>TOP {idx + 1}: {item.title}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  {item.description && (
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground mb-1">Beschreibung</p>
+                      <p className="text-sm leading-relaxed">{item.description}</p>
+                    </div>
+                  )}
+
+                  {item.attachment_paths && item.attachment_paths.length > 0 && (
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground mb-2">Anhänge</p>
+                      <div className="space-y-1.5">
+                        {item.attachment_paths.map((path: string, i: number) => {
+                          const fileName = path.split("/").pop()?.replace(/^\d+-/, "") || path;
+                          return (
+                            <Button
+                              key={i}
+                              variant="outline"
+                              size="sm"
+                              className="w-full justify-start gap-2 text-sm"
+                              onClick={() => getFileDownloadUrl(path)}
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                              {fileName}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {(item.status === "voted" || item.status === "closed") && (
+                    <div className="border-t pt-3">
+                      <p className="text-sm font-medium text-muted-foreground mb-2">Abstimmungsergebnis</p>
+                      <div className="flex gap-6 text-sm">
+                        <div className="text-center">
+                          <div className="text-xl font-bold text-green-600">{item.yes_count}</div>
+                          <div className="text-xs text-muted-foreground">Ja</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-xl font-bold text-red-600">{item.no_count}</div>
+                          <div className="text-xs text-muted-foreground">Nein</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-xl font-bold text-muted-foreground">{item.abstain_count}</div>
+                          <div className="text-xs text-muted-foreground">Enthaltung</div>
+                        </div>
+                      </div>
+                      {item.result && (
+                        <Badge variant={item.result === "passed" ? "default" : "destructive"} className="mt-2">
+                          {item.result === "passed" ? "Angenommen" : "Abgelehnt"}
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+
+                  {item.status === "voting" && (
+                    <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                      Abstimmung läuft gerade
+                    </Badge>
+                  )}
+                </div>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!selectedTopId} onOpenChange={() => setSelectedTopId(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
