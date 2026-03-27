@@ -40,6 +40,7 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const { data: invoice, isLoading } = useQuery({
     queryKey: ["invoice-detail", invoiceId],
