@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,123 @@ interface MeetingInvitationPdfProps {
 
 const LOGO_URL = "/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png";
 
+// A4 preview content as a standalone component so it can be reused
+const A4Preview = ({
+  innerRef,
+  logoBase64,
+  building,
+  dateStr,
+  timeStr,
+  meeting,
+  greeting,
+  agendaItems,
+  additionalNotes,
+  closingText,
+}: {
+  innerRef?: React.Ref<HTMLDivElement>;
+  logoBase64: string | null;
+  building: any;
+  dateStr: string;
+  timeStr: string;
+  meeting: any;
+  greeting: string;
+  agendaItems: any[];
+  additionalNotes: string;
+  closingText: string;
+}) => (
+  <div
+    ref={innerRef}
+    style={{
+      fontFamily: "'Work Sans', sans-serif",
+      color: "#4a4849",
+      width: "794px",
+      minHeight: "1123px",
+      background: "#fff",
+      padding: "72px 68px",
+      boxSizing: "border-box",
+      fontSize: "15px",
+      lineHeight: "1.5",
+    }}
+  >
+    {/* Logo top right */}
+    <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "32px" }}>
+      {logoBase64 ? (
+        <img src={logoBase64} alt="Logo" style={{ height: "48px", objectFit: "contain" }} />
+      ) : (
+        <img
+          src={`${window.location.origin}${LOGO_URL}`}
+          alt="Logo"
+          style={{ height: "48px", objectFit: "contain" }}
+          crossOrigin="anonymous"
+        />
+      )}
+    </div>
+
+    {/* Header */}
+    <div style={{ paddingBottom: "10px", marginBottom: "28px", borderBottom: "2px solid #ee7202" }}>
+      <h1 style={{ fontSize: "22px", fontWeight: "bold", margin: 0, color: "#4a4849", fontFamily: "'Century Gothic', Arial, sans-serif" }}>
+        Einladung zur Eigentümerversammlung
+      </h1>
+      <p style={{ fontSize: "11px", marginTop: "4px", color: "#999" }}>{building?.name || ""}</p>
+    </div>
+
+    {/* Meta */}
+    <div style={{ marginBottom: "28px", fontSize: "13px" }}>
+      <div style={{ display: "flex", marginBottom: "5px" }}>
+        <span style={{ fontWeight: 600, width: "110px", flexShrink: 0 }}>Liegenschaft:</span>
+        <span>{building?.name}, {building?.address}</span>
+      </div>
+      <div style={{ display: "flex", marginBottom: "5px" }}>
+        <span style={{ fontWeight: 600, width: "110px", flexShrink: 0 }}>Datum:</span>
+        <span>{dateStr}</span>
+      </div>
+      <div style={{ display: "flex", marginBottom: "5px" }}>
+        <span style={{ fontWeight: 600, width: "110px", flexShrink: 0 }}>Uhrzeit:</span>
+        <span>{timeStr} Uhr</span>
+      </div>
+      {meeting?.location && (
+        <div style={{ display: "flex", marginBottom: "5px" }}>
+          <span style={{ fontWeight: 600, width: "110px", flexShrink: 0 }}>Ort:</span>
+          <span>{meeting.location}</span>
+        </div>
+      )}
+    </div>
+
+    {/* Greeting */}
+    <div style={{ marginBottom: "28px", whiteSpace: "pre-line", fontSize: "13px" }}>{greeting}</div>
+
+    {/* Agenda */}
+    <h2 style={{ fontSize: "16px", fontWeight: "bold", marginBottom: "10px", paddingBottom: "6px", borderBottom: "1px solid #ddd", color: "#4a4849", fontFamily: "'Century Gothic', Arial, sans-serif" }}>
+      Tagesordnung
+    </h2>
+    <div style={{ marginTop: "14px" }}>
+      {agendaItems.map((item: any, idx: number) => (
+        <div key={item.id} style={{ padding: "10px 12px", borderRadius: "4px", background: "#faf8f5", borderLeft: "3px solid #ee7202", marginBottom: "12px" }}>
+          <div>
+            <span style={{ fontWeight: "bold", fontSize: "11px", color: "#ee7202" }}>TOP {idx + 1}</span>
+            <span style={{ fontWeight: 600, marginLeft: "10px", fontSize: "13px" }}>{item.title}</span>
+          </div>
+          {item.description && <p style={{ fontSize: "11px", marginTop: "3px", color: "#666" }}>{item.description}</p>}
+        </div>
+      ))}
+    </div>
+
+    {/* Additional notes */}
+    {additionalNotes.trim() && (
+      <div style={{ marginTop: "24px", whiteSpace: "pre-line", fontSize: "13px" }}>{additionalNotes}</div>
+    )}
+
+    {/* Closing */}
+    <div style={{ marginTop: "32px", whiteSpace: "pre-line", fontSize: "13px" }}>{closingText}</div>
+    <p style={{ fontWeight: "bold", marginTop: "14px", fontSize: "13px" }}>RGI Immobilien GmbH &amp; Co. KG</p>
+
+    {/* Footer */}
+    <div style={{ marginTop: "56px", paddingTop: "12px", borderTop: "1px solid #ee7202", textAlign: "center", fontSize: "10px", color: "#999" }}>
+      RGI Immobilien GmbH &amp; Co. KG
+    </div>
+  </div>
+);
+
 export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitationPdfProps) => {
   const { toast } = useToast();
   const [showEditor, setShowEditor] = useState(false);
@@ -31,6 +148,7 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
   const [additionalNotes, setAdditionalNotes] = useState("");
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
+  const offscreenRef = useRef<HTMLDivElement>(null);
 
   // Preload logo as Base64 to avoid html2canvas CORS issues
   useEffect(() => {
@@ -80,17 +198,33 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
   const dateStr = meeting ? format(new Date(meeting.meeting_date), "dd. MMMM yyyy", { locale: de }) : "";
   const timeStr = meeting ? format(new Date(meeting.meeting_date), "HH:mm", { locale: de }) : "";
 
-  const handleDownloadPdf = async () => {
-    if (!meeting || !previewRef.current) return;
+  const previewProps = {
+    logoBase64,
+    building,
+    dateStr,
+    timeStr,
+    meeting,
+    greeting,
+    agendaItems,
+    additionalNotes,
+    closingText,
+  };
+
+  const handleDownloadPdf = useCallback(async () => {
+    if (!meeting) return;
+
+    // Use the offscreen ref (always mounted) for capture
+    const target = offscreenRef.current;
+    if (!target) return;
 
     try {
-      const canvas = await html2canvas(previewRef.current, {
+      const canvas = await html2canvas(target, {
         scale: 2,
         useCORS: true,
         allowTaint: true,
         backgroundColor: "#ffffff",
         width: 794,
-        height: previewRef.current.scrollHeight,
+        height: target.scrollHeight,
         windowWidth: 794,
         scrollX: 0,
         scrollY: 0,
@@ -123,7 +257,7 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
       console.error("PDF generation failed:", err);
       toast({ title: "Fehler", description: "PDF konnte nicht erstellt werden.", variant: "destructive" });
     }
-  };
+  }, [meeting, logoBase64, greeting, closingText, additionalNotes, agendaItems, toast]);
 
   return (
     <div className="space-y-4">
@@ -150,6 +284,11 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
           <Download className="h-4 w-4" />
           Als PDF herunterladen
         </Button>
+      </div>
+
+      {/* Hidden offscreen A4 sheet — always mounted for html2canvas capture */}
+      <div style={{ position: "fixed", left: "-9999px", top: 0, zIndex: -1, overflow: "hidden" }}>
+        <A4Preview innerRef={offscreenRef} {...previewProps} />
       </div>
 
       <Dialog open={showEditor} onOpenChange={setShowEditor}>
@@ -214,85 +353,10 @@ export const MeetingInvitationPdf = ({ meetingId, buildingId }: MeetingInvitatio
               </Button>
             </div>
 
-            {/* Live preview side — A4 sheet with scale wrapper */}
-            <div className="border rounded-lg bg-gray-100 overflow-y-auto shadow-sm flex justify-center p-4">
-              <div style={{ transform: "scale(0.55)", transformOrigin: "top center", width: "794px", height: "fit-content" }}>
-                <div
-                  ref={previewRef}
-                  style={{
-                    fontFamily: "'Work Sans', sans-serif",
-                    color: "#4a4849",
-                    width: "794px",
-                    minHeight: "1123px",
-                    background: "#fff",
-                    padding: "60px 56px",
-                    boxSizing: "border-box",
-                    fontSize: "10px",
-                    lineHeight: "1.6",
-                    boxShadow: "0 2px 12px rgba(0,0,0,0.12)",
-                  }}
-                >
-                  {/* Logo top right */}
-                  <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "24px" }}>
-                    {logoBase64 ? (
-                      <img src={logoBase64} alt="Logo" style={{ height: "40px", objectFit: "contain" }} />
-                    ) : (
-                      <img
-                        src={`${window.location.origin}${LOGO_URL}`}
-                        alt="Logo"
-                        style={{ height: "40px", objectFit: "contain" }}
-                        crossOrigin="anonymous"
-                      />
-                    )}
-                  </div>
-
-                  {/* Header */}
-                  <div style={{ paddingBottom: "8px", marginBottom: "24px", borderBottom: "2px solid #ee7202" }}>
-                    <h1 style={{ fontSize: "16px", fontWeight: "bold", margin: 0, color: "#4a4849", fontFamily: "'Century Gothic', Arial, sans-serif" }}>
-                      Einladung zur Eigentümerversammlung
-                    </h1>
-                    <p style={{ fontSize: "9px", marginTop: "4px", color: "#999" }}>{building?.name || ""}</p>
-                  </div>
-
-                  {/* Meta */}
-                  <div style={{ marginBottom: "24px", fontSize: "10px" }}>
-                    <div style={{ display: "flex", marginBottom: "4px" }}><span style={{ fontWeight: 600, width: "96px", flexShrink: 0 }}>Liegenschaft:</span><span>{building?.name}, {building?.address}</span></div>
-                    <div style={{ display: "flex", marginBottom: "4px" }}><span style={{ fontWeight: 600, width: "96px", flexShrink: 0 }}>Datum:</span><span>{dateStr}</span></div>
-                    <div style={{ display: "flex", marginBottom: "4px" }}><span style={{ fontWeight: 600, width: "96px", flexShrink: 0 }}>Uhrzeit:</span><span>{timeStr} Uhr</span></div>
-                    {meeting?.location && <div style={{ display: "flex", marginBottom: "4px" }}><span style={{ fontWeight: 600, width: "96px", flexShrink: 0 }}>Ort:</span><span>{meeting.location}</span></div>}
-                  </div>
-
-                  {/* Greeting */}
-                  <div style={{ marginBottom: "24px", whiteSpace: "pre-line", fontSize: "10px" }}>{greeting}</div>
-
-                  {/* Agenda */}
-                  <h2 style={{ fontSize: "12px", fontWeight: "bold", marginBottom: "8px", paddingBottom: "4px", borderBottom: "1px solid #ddd", color: "#4a4849", fontFamily: "'Century Gothic', Arial, sans-serif" }}>Tagesordnung</h2>
-                  <div style={{ marginTop: "12px" }}>
-                    {agendaItems.map((item: any, idx: number) => (
-                      <div key={item.id} style={{ padding: "8px", borderRadius: "4px", background: "#faf8f5", borderLeft: "3px solid #ee7202", marginBottom: "10px" }}>
-                        <div>
-                          <span style={{ fontWeight: "bold", fontSize: "9px", color: "#ee7202" }}>TOP {idx + 1}</span>
-                          <span style={{ fontWeight: 600, marginLeft: "8px", fontSize: "10px" }}>{item.title}</span>
-                        </div>
-                        {item.description && <p style={{ fontSize: "9px", marginTop: "2px", color: "#666" }}>{item.description}</p>}
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Additional notes */}
-                  {additionalNotes.trim() && (
-                    <div style={{ marginTop: "20px", whiteSpace: "pre-line", fontSize: "10px" }}>{additionalNotes}</div>
-                  )}
-
-                  {/* Closing */}
-                  <div style={{ marginTop: "28px", whiteSpace: "pre-line", fontSize: "10px" }}>{closingText}</div>
-                  <p style={{ fontWeight: "bold", marginTop: "12px", fontSize: "10px" }}>RGI Immobilien GmbH &amp; Co. KG</p>
-
-                  {/* Footer */}
-                  <div style={{ marginTop: "48px", paddingTop: "12px", borderTop: "1px solid #ee7202", textAlign: "center", fontSize: "8px", color: "#999" }}>
-                    RGI Immobilien GmbH &amp; Co. KG
-                  </div>
-                </div>
+            {/* Live preview side — A4 sheet scaled to fit */}
+            <div className="border rounded-lg overflow-y-auto shadow-sm flex justify-center p-4" style={{ background: "#e8e8e8" }}>
+              <div style={{ transform: "scale(0.52)", transformOrigin: "top center", width: "794px", height: "fit-content" }}>
+                <A4Preview innerRef={previewRef} {...previewProps} />
               </div>
             </div>
           </div>
