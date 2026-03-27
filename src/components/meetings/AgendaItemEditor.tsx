@@ -219,55 +219,40 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
     setEditItemExistingPaths(prev => prev.filter((_, i) => i !== index));
   };
 
-  // Unified AI suggestion component (same design as email)
-  const AiSuggestionBox = ({
-    suggestion,
-    onAccept,
-    onDismiss,
-    onChange,
-  }: {
-    suggestion: string;
-    onAccept: () => void;
-    onDismiss: () => void;
-    onChange: (text: string) => void;
-  }) => (
-    <div className="border border-primary/30 bg-primary/5 rounded-md p-2 space-y-1.5">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] font-medium text-primary flex items-center gap-1">
-          <Wand2 className="h-3 w-3" />
-          KI-Vorschlag
-        </span>
-        <div className="flex gap-0.5">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-5 w-5 text-green-600 hover:text-green-700 hover:bg-green-50"
-            onClick={onAccept}
-            title="Übernehmen"
-          >
-            <Check className="h-3 w-3" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-5 w-5 text-destructive hover:bg-destructive/10"
-            onClick={onDismiss}
-            title="Verwerfen"
-          >
-            <X className="h-3 w-3" />
-          </Button>
+  // Render AI suggestion inline (not as a component to prevent remount/focus loss)
+  const renderAiSuggestion = (
+    suggestion: string | null,
+    onAccept: () => void,
+    onDismiss: () => void,
+    onChange: (text: string) => void,
+  ) => {
+    if (!suggestion) return null;
+    return (
+      <div className="border border-primary/30 bg-primary/5 rounded-md p-2 space-y-1.5">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-medium text-primary flex items-center gap-1">
+            <Wand2 className="h-3 w-3" />
+            KI-Vorschlag
+          </span>
+          <div className="flex gap-0.5">
+            <Button variant="ghost" size="icon" className="h-5 w-5 text-green-600 hover:text-green-700 hover:bg-green-50" onClick={onAccept} title="Übernehmen">
+              <Check className="h-3 w-3" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-5 w-5 text-destructive hover:bg-destructive/10" onClick={onDismiss} title="Verwerfen">
+              <X className="h-3 w-3" />
+            </Button>
+          </div>
         </div>
+        <Textarea
+          value={suggestion}
+          onChange={(e) => onChange(e.target.value)}
+          className="min-h-[100px] resize-y text-sm bg-transparent border-0 p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+        />
       </div>
-      <Textarea
-        value={suggestion}
-        onChange={(e) => onChange(e.target.value)}
-        className="min-h-[100px] resize-y text-sm bg-transparent border-0 p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
-      />
-    </div>
-  );
+    );
+  };
 
-  // Attachment section for edit mode
-  const EditAttachments = () => (
+  const renderEditAttachments = () => (
     <div className="space-y-1.5">
       <Label className="text-xs">Anhänge</Label>
       <div className="border border-dashed rounded-md p-3">
@@ -282,17 +267,10 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
             }
           }}
         />
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="gap-2 text-muted-foreground"
-          onClick={() => editFileInputRef.current?.click()}
-        >
+        <Button type="button" variant="ghost" size="sm" className="gap-2 text-muted-foreground" onClick={() => editFileInputRef.current?.click()}>
           <Upload className="h-4 w-4" />
           Dateien hinzufügen
         </Button>
-        {/* Existing attachments */}
         {editItemExistingPaths.length > 0 && (
           <div className="mt-2 space-y-1">
             {editItemExistingPaths.map((path, i) => {
@@ -303,12 +281,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                     <FileText className="h-3 w-3 flex-shrink-0" />
                     {fileName.replace(/^\d+-/, "")}
                   </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-5 w-5"
-                    onClick={() => removeExistingPath(i)}
-                  >
+                  <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeExistingPath(i)}>
                     <X className="h-3 w-3" />
                   </Button>
                 </div>
@@ -316,7 +289,6 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
             })}
           </div>
         )}
-        {/* New files */}
         {editNewFiles.length > 0 && (
           <div className="mt-2 space-y-1">
             {editNewFiles.map((file, i) => (
@@ -326,12 +298,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                   {file.name}
                   <Badge variant="secondary" className="text-[9px] h-4">Neu</Badge>
                 </span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-5 w-5"
-                  onClick={() => setEditNewFiles(prev => prev.filter((_, j) => j !== i))}
-                >
+                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setEditNewFiles(prev => prev.filter((_, j) => j !== i))}>
                   <X className="h-3 w-3" />
                 </Button>
               </div>
@@ -407,16 +374,14 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                         </Button>
                       </div>
                       <Textarea value={editItemResolution} onChange={(e) => setEditItemResolution(e.target.value)} rows={3} placeholder="Die Eigentümer beschließen..." />
-                      {editAiSuggestion !== null && (
-                        <AiSuggestionBox
-                          suggestion={editAiSuggestion}
-                          onAccept={() => { setEditItemResolution(editAiSuggestion!); setEditAiSuggestion(null); }}
-                          onDismiss={() => setEditAiSuggestion(null)}
-                          onChange={setEditAiSuggestion}
-                        />
+                      {renderAiSuggestion(
+                        editAiSuggestion,
+                        () => { setEditItemResolution(editAiSuggestion!); setEditAiSuggestion(null); },
+                        () => setEditAiSuggestion(null),
+                        setEditAiSuggestion,
                       )}
                     </div>
-                    <EditAttachments />
+                    {renderEditAttachments()}
                     <div className="flex justify-end gap-2">
                       <Button variant="outline" size="sm" onClick={() => { setEditingItemId(null); setEditAiSuggestion(null); }}>Abbrechen</Button>
                       <Button size="sm" onClick={saveEdit} disabled={!editItemTitle || updateMutation.isPending}>Speichern</Button>
@@ -542,13 +507,11 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
               onChange={(e) => setNewResolution(e.target.value)}
               rows={3}
             />
-            {newAiSuggestion !== null && (
-              <AiSuggestionBox
-                suggestion={newAiSuggestion}
-                onAccept={() => { setNewResolution(newAiSuggestion!); setNewAiSuggestion(null); }}
-                onDismiss={() => setNewAiSuggestion(null)}
-                onChange={setNewAiSuggestion}
-              />
+            {renderAiSuggestion(
+              newAiSuggestion,
+              () => { setNewResolution(newAiSuggestion!); setNewAiSuggestion(null); },
+              () => setNewAiSuggestion(null),
+              setNewAiSuggestion,
             )}
           </div>
           {/* File upload */}
