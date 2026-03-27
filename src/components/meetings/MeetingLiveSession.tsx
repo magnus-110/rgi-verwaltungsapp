@@ -514,6 +514,10 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                               onClick={() => castVoteMutation.mutate({ itemId: selectedItem.id, assignmentId: a.assignment_id, vote: "no", meaWeight: meaW })}>Nein</Button>
                             <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-muted-foreground"
                               onClick={() => castVoteMutation.mutate({ itemId: selectedItem.id, assignmentId: a.assignment_id, vote: "abstain", meaWeight: meaW })}>Enth.</Button>
+                            {existingVote && (
+                              <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-orange-500"
+                                onClick={() => resetVoteMutation.mutate({ itemId: selectedItem.id, assignmentId: a.assignment_id })}>↩</Button>
+                            )}
                           </div>
                         </div>
                       );
