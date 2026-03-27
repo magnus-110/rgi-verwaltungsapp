@@ -162,7 +162,6 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
     queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] });
   };
 
-  const [deleting, setDeleting] = useState(false);
 
   const handleDelete = async () => {
     if (!invoiceId || !inv) return;
