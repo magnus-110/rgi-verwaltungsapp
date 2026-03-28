@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
+import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -163,6 +164,30 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       toast({ title: "TOP gelöscht" });
     },
   });
+
+  const reorderMutation = useMutation({
+    mutationFn: async (reorderedItems: { id: string; sort_order: number }[]) => {
+      for (const item of reorderedItems) {
+        const { error } = await supabase
+          .from("etv_agenda_items")
+          .update({ sort_order: item.sort_order } as any)
+          .eq("id", item.id);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["etv-agenda-items", meetingId] });
+    },
+  });
+
+  const handleDragEnd = useCallback((result: DropResult) => {
+    if (!result.destination || result.source.index === result.destination.index) return;
+    const reordered = Array.from(items);
+    const [moved] = reordered.splice(result.source.index, 1);
+    reordered.splice(result.destination.index, 0, moved);
+    const updates = reordered.map((item, idx) => ({ id: item.id, sort_order: idx + 1 }));
+    reorderMutation.mutate(updates);
+  }, [items, reorderMutation]);
 
   const updateMutation = useMutation({
     mutationFn: async (item: Partial<AgendaItem> & { id: string }) => {
@@ -400,143 +425,160 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
 
   return (
     <div className="space-y-4">
-      {/* Existing items */}
-      {items.map((item, idx) => (
-        <Card key={item.id} className="relative">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <div className="flex items-center gap-2 text-muted-foreground pt-1">
-                <GripVertical className="h-4 w-4" />
-                <span className="text-sm font-mono font-bold">TOP {idx + 1}</span>
-              </div>
-              <div className="flex-1 space-y-2">
-                {editingItemId === item.id ? (
-                  /* Edit mode */
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs font-semibold">TOP bearbeiten</Label>
-                      {renderTemplateDropdown("edit")}
+      {/* Existing items with drag & drop */}
+      <DragDropContext onDragEnd={handleDragEnd}>
+        <Droppable droppableId="agenda-items">
+          {(provided) => (
+            <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-2">
+              {items.map((item, idx) => (
+                <Draggable key={item.id} draggableId={item.id} index={idx} isDragDisabled={!!editingItemId}>
+                  {(provided, snapshot) => (
+                    <div ref={provided.innerRef} {...provided.draggableProps}>
+                      <Card className={`relative ${snapshot.isDragging ? "shadow-lg ring-2 ring-primary/20" : ""}`}>
+                        <CardContent className="p-4">
+                          <div className="flex items-start gap-3">
+                            <div className="flex items-center gap-2 text-muted-foreground pt-1">
+                              <div {...provided.dragHandleProps}>
+                                <GripVertical className="h-4 w-4 cursor-grab" />
+                              </div>
+                              <span className="text-sm font-mono font-bold">TOP {idx + 1}</span>
+                            </div>
+                            <div className="flex-1 space-y-2">
+                              {editingItemId === item.id ? (
+                                /* Edit mode */
+                                <div className="space-y-3">
+                                  <div className="flex items-center justify-between">
+                                    <Label className="text-xs font-semibold">TOP bearbeiten</Label>
+                                    {renderTemplateDropdown("edit")}
+                                  </div>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <div className="space-y-1.5">
+                                      <Label className="text-xs">Titel *</Label>
+                                      <Input value={editItemTitle} onChange={(e) => setEditItemTitle(e.target.value)} />
+                                    </div>
+                                    <div className="flex gap-3">
+                                      <div className="flex-1 space-y-1.5">
+                                        <Label className="text-xs">Abstimmung</Label>
+                                        <Select value={editItemPrinciple} onValueChange={setEditItemPrinciple}>
+                                          <SelectTrigger><SelectValue /></SelectTrigger>
+                                          <SelectContent>
+                                            {votingPrinciples.map((v) => (
+                                              <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                      <div className="flex-1 space-y-1.5">
+                                        <Label className="text-xs">Kategorie</Label>
+                                        <Select value={editItemCategory} onValueChange={setEditItemCategory}>
+                                          <SelectTrigger><SelectValue /></SelectTrigger>
+                                          <SelectContent>
+                                            {categories.map((c) => (
+                                              <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs">Erläuterung</Label>
+                                    <Textarea value={editItemDescription} onChange={(e) => setEditItemDescription(e.target.value)} rows={2} />
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <div className="flex items-center gap-1.5">
+                                      <Label className="text-xs">Beschlusstext</Label>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-5 w-5 text-muted-foreground hover:text-primary"
+                                        onClick={() => generateResolution(editItemTitle, editItemDescription, setIsGeneratingEdit, setEditAiSuggestion)}
+                                        disabled={isGeneratingEdit || !editItemTitle}
+                                        title="Beschlusstext mit KI generieren"
+                                      >
+                                        {isGeneratingEdit ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+                                      </Button>
+                                    </div>
+                                    <Textarea value={editItemResolution} onChange={(e) => setEditItemResolution(e.target.value)} rows={3} placeholder="Die Eigentümer beschließen..." />
+                                    {renderAiSuggestion(
+                                      editAiSuggestion,
+                                      () => { setEditItemResolution(editAiSuggestion!); setEditAiSuggestion(null); },
+                                      () => setEditAiSuggestion(null),
+                                      setEditAiSuggestion,
+                                    )}
+                                  </div>
+                                  {renderDoubleQualifiedCheckboxes(editRequiresDQ, setEditRequiresDQ, editDQRelevant, setEditDQRelevant)}
+                                  {renderEditAttachments()}
+                                  <div className="flex justify-end gap-2">
+                                    <Button variant="outline" size="sm" onClick={() => { setEditingItemId(null); setEditAiSuggestion(null); }}>Abbrechen</Button>
+                                    <Button size="sm" onClick={saveEdit} disabled={!editItemTitle || updateMutation.isPending}>Speichern</Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                /* View mode */
+                                <>
+                                  <div className="flex items-center justify-between">
+                                    <h4 className="font-semibold text-foreground">{item.title}</h4>
+                                    <div className="flex items-center gap-2">
+                                      <Badge variant="outline" className="text-xs">
+                                        {votingPrinciples.find((v) => v.value === item.voting_principle)?.label || item.voting_principle}
+                                      </Badge>
+                                      {item.requires_double_qualified && (
+                                        <Badge variant="secondary" className="text-xs bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                                          DQ erforderlich
+                                        </Badge>
+                                      )}
+                                      {item.category && (
+                                        <Badge variant="secondary" className="text-xs">
+                                          {categories.find((c) => c.value === item.category)?.label || item.category}
+                                        </Badge>
+                                      )}
+                                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startEditing(item)}>
+                                        <Pencil className="h-3.5 w-3.5" />
+                                      </Button>
+                                      <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteMutation.mutate(item.id)}>
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                  {item.description && (
+                                    <p className="text-sm text-muted-foreground">{item.description}</p>
+                                  )}
+                                  {item.resolution_text && (
+                                    <div className="bg-muted/50 rounded-md p-3 border">
+                                      <p className="text-xs font-medium text-muted-foreground mb-1">Beschlusstext:</p>
+                                      <p className="text-sm">{item.resolution_text}</p>
+                                    </div>
+                                  )}
+                                  {item.attachment_paths && item.attachment_paths.length > 0 && (
+                                    <div className="flex flex-wrap gap-1">
+                                      {item.attachment_paths.map((path, i) => {
+                                        const fileName = path.split("/").pop() || path;
+                                        return (
+                                          <Button key={i} variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => getFileDownloadUrl(path)}>
+                                            <FileText className="h-3 w-3" />
+                                            {fileName.replace(/^\d+-/, "")}
+                                          </Button>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs">Titel *</Label>
-                        <Input value={editItemTitle} onChange={(e) => setEditItemTitle(e.target.value)} />
-                      </div>
-                      <div className="flex gap-3">
-                        <div className="flex-1 space-y-1.5">
-                          <Label className="text-xs">Abstimmung</Label>
-                          <Select value={editItemPrinciple} onValueChange={setEditItemPrinciple}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              {votingPrinciples.map((v) => (
-                                <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="flex-1 space-y-1.5">
-                          <Label className="text-xs">Kategorie</Label>
-                          <Select value={editItemCategory} onValueChange={setEditItemCategory}>
-                            <SelectTrigger><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              {categories.map((c) => (
-                                <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Erläuterung</Label>
-                      <Textarea value={editItemDescription} onChange={(e) => setEditItemDescription(e.target.value)} rows={2} />
-                    </div>
-                    <div className="space-y-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <Label className="text-xs">Beschlusstext</Label>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-5 w-5 text-muted-foreground hover:text-primary"
-                          onClick={() => generateResolution(editItemTitle, editItemDescription, setIsGeneratingEdit, setEditAiSuggestion)}
-                          disabled={isGeneratingEdit || !editItemTitle}
-                          title="Beschlusstext mit KI generieren"
-                        >
-                          {isGeneratingEdit ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
-                        </Button>
-                      </div>
-                      <Textarea value={editItemResolution} onChange={(e) => setEditItemResolution(e.target.value)} rows={3} placeholder="Die Eigentümer beschließen..." />
-                      {renderAiSuggestion(
-                        editAiSuggestion,
-                        () => { setEditItemResolution(editAiSuggestion!); setEditAiSuggestion(null); },
-                        () => setEditAiSuggestion(null),
-                        setEditAiSuggestion,
-                      )}
-                    </div>
-                    {renderDoubleQualifiedCheckboxes(editRequiresDQ, setEditRequiresDQ, editDQRelevant, setEditDQRelevant)}
-                    {renderEditAttachments()}
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline" size="sm" onClick={() => { setEditingItemId(null); setEditAiSuggestion(null); }}>Abbrechen</Button>
-                      <Button size="sm" onClick={saveEdit} disabled={!editItemTitle || updateMutation.isPending}>Speichern</Button>
-                    </div>
-                  </div>
-                ) : (
-                  /* View mode */
-                  <>
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-semibold text-foreground">{item.title}</h4>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="outline" className="text-xs">
-                          {votingPrinciples.find((v) => v.value === item.voting_principle)?.label || item.voting_principle}
-                        </Badge>
-                        {item.requires_double_qualified && (
-                          <Badge variant="secondary" className="text-xs bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
-                            DQ erforderlich
-                          </Badge>
-                        )}
-                        {item.category && (
-                          <Badge variant="secondary" className="text-xs">
-                            {categories.find((c) => c.value === item.category)?.label || item.category}
-                          </Badge>
-                        )}
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startEditing(item)}>
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteMutation.mutate(item.id)}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                    {item.description && (
-                      <p className="text-sm text-muted-foreground">{item.description}</p>
-                    )}
-                    {item.resolution_text && (
-                      <div className="bg-muted/50 rounded-md p-3 border">
-                        <p className="text-xs font-medium text-muted-foreground mb-1">Beschlusstext:</p>
-                        <p className="text-sm">{item.resolution_text}</p>
-                      </div>
-                    )}
-                    {item.attachment_paths && item.attachment_paths.length > 0 && (
-                      <div className="flex flex-wrap gap-1">
-                        {item.attachment_paths.map((path, i) => {
-                          const fileName = path.split("/").pop() || path;
-                          return (
-                            <Button key={i} variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => getFileDownloadUrl(path)}>
-                              <FileText className="h-3 w-3" />
-                              {fileName.replace(/^\d+-/, "")}
-                            </Button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
+                  )}
+                </Draggable>
+              ))}
+              {provided.placeholder}
             </div>
-          </CardContent>
-        </Card>
-      ))}
+          )}
+        </Droppable>
+      </DragDropContext>
 
       {/* Add new item form */}
       <Card className="border-dashed">
