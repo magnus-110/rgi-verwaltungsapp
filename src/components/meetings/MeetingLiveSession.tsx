@@ -945,9 +945,8 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
           </div>
         </div>
       </Card>
-        <CardContent className="space-y-3">
-          <div className="flex items-center justify-between text-sm">
-            <span>{presentCount} von {totalOwners} Eigentümern anwesend/vertreten</span>
+
+
             <Badge variant={quorumReached ? "default" : "destructive"}>
               {quorumReached ? "Beschlussfähig" : "Nicht beschlussfähig"}
             </Badge>
