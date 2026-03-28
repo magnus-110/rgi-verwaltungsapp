@@ -164,6 +164,18 @@ export const WegOwnerMeetings = () => {
     enabled: !!selectedMeetingId && myAssignments.length > 0,
   });
 
+  // Realtime subscription for attendee changes
+  useEffect(() => {
+    if (!selectedMeetingId) return;
+    const channel = supabase
+      .channel(`owner-attendees-${selectedMeetingId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'etv_attendees', filter: `meeting_id=eq.${selectedMeetingId}` },
+        () => queryClient.invalidateQueries({ queryKey: ["my-attendees"] })
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [selectedMeetingId, queryClient]);
+
   // Auto-create attendee records for ALL assignments when owner views a published/in_progress meeting
   const autoRegisterRef = useRef(false);
   const autoRegisterMutation = useMutation({
