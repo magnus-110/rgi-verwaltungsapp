@@ -9,9 +9,13 @@ import { Search, Scale, CheckCircle2, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 
-export const ResolutionLedger = () => {
+interface ResolutionLedgerProps {
+  buildingFilter?: string;
+}
+
+export const ResolutionLedger = ({ buildingFilter: externalBuildingFilter }: ResolutionLedgerProps = {}) => {
   const [search, setSearch] = useState("");
-  const [buildingFilter, setBuildingFilter] = useState<string>("all");
+  const activeBuildingFilter = externalBuildingFilter || "all";
 
   const { data: resolutions = [], isLoading } = useQuery({
     queryKey: ["etv-resolutions"],
@@ -29,53 +33,27 @@ export const ResolutionLedger = () => {
     },
   });
 
-  const { data: buildings = [] } = useQuery({
-    queryKey: ["weg-buildings-filter"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("buildings")
-        .select("id, name")
-        .eq("management_mode", "weg")
-        .order("name");
-      if (error) throw error;
-      return data || [];
-    },
-  });
-
   const filtered = resolutions.filter((r: any) => {
     const matchesSearch =
       !search ||
       r.resolution_text?.toLowerCase().includes(search.toLowerCase()) ||
       r.resolution_number?.toLowerCase().includes(search.toLowerCase()) ||
       r.buildings?.name?.toLowerCase().includes(search.toLowerCase());
-    const matchesBuilding = buildingFilter === "all" || r.building_id === buildingFilter;
+    const matchesBuilding = activeBuildingFilter === "all" || r.building_id === activeBuildingFilter;
     return matchesSearch && matchesBuilding;
   });
 
   return (
     <div className="space-y-4">
-      {/* Filters */}
-      <div className="flex gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Beschlüsse durchsuchen..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <Select value={buildingFilter} onValueChange={setBuildingFilter}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="Alle Liegenschaften" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Alle Liegenschaften</SelectItem>
-            {buildings.map((b: any) => (
-              <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      {/* Search only - building filter is handled by parent */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Beschlüsse durchsuchen..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="pl-9"
+        />
       </div>
 
       {/* Results */}

@@ -14,10 +14,14 @@ import { format as formatDate } from "date-fns";
 import { de } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
 
-export const SubmittedTopsManager = () => {
+interface SubmittedTopsManagerProps {
+  buildingFilter?: string;
+}
+
+export const SubmittedTopsManager = ({ buildingFilter: externalBuildingFilter }: SubmittedTopsManagerProps = {}) => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [filterBuildingId, setFilterBuildingId] = useState<string>("all");
+  const filterBuildingId = externalBuildingFilter || "all";
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [rejectNote, setRejectNote] = useState("");
   const [acceptTopId, setAcceptTopId] = useState<string | null>(null);
