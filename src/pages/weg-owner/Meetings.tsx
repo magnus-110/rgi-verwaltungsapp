@@ -1169,6 +1169,7 @@ export const WegOwnerMeetings = () => {
                 <SelectContent>
                   <SelectItem value="manager">Verwalter</SelectItem>
                   <SelectItem value="owner">Anderen Eigentümer</SelectItem>
+                  <SelectItem value="external">Externe Person</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1190,6 +1191,20 @@ export const WegOwnerMeetings = () => {
                 </Select>
               </div>
             )}
+
+            {proxyType === "external" && (
+              <div className="space-y-2">
+                <Label>Name der externen Person</Label>
+                <Input
+                  value={proxyExternalName}
+                  onChange={(e) => setProxyExternalName(e.target.value)}
+                  placeholder="Vor- und Nachname eingeben..."
+                />
+                <p className="text-xs text-muted-foreground">
+                  Es wird ein einmaliger Link generiert, den Sie an die Person weitergeben können. Über diesen Link kann die Person an der Abstimmung teilnehmen.
+                </p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowProxyDialog(false); setProxyAssignmentId(null); }}>Abbrechen</Button>
@@ -1197,9 +1212,9 @@ export const WegOwnerMeetings = () => {
               onClick={() => {
                 const attendee = myAttendees.find((a: any) => a.assignment_id === proxyAssignmentId);
                 if (!attendee) return;
-                setProxyMutation.mutate({ attendeeId: attendee.id, type: proxyType, contactId: proxyContactId || undefined });
+                setProxyMutation.mutate({ attendeeId: attendee.id, type: proxyType, contactId: proxyContactId || undefined, externalName: proxyExternalName || undefined });
               }}
-              disabled={setProxyMutation.isPending || (proxyType === "owner" && !proxyContactId)}
+              disabled={setProxyMutation.isPending || (proxyType === "owner" && !proxyContactId) || (proxyType === "external" && !proxyExternalName.trim())}
             >
               {setProxyMutation.isPending ? "Wird gespeichert..." : "Vollmacht erteilen"}
             </Button>
