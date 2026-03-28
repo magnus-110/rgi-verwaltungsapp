@@ -1538,6 +1538,7 @@ export const WegOwnerMeetings = () => {
                 </Button>
               </div>
             </div>
+          )}
         </DialogContent>
       </Dialog>
 
