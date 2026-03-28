@@ -2,42 +2,51 @@
 
 ## Problem
 
-Currently the system treats each owner as having **one** assignment per building. But owners can have multiple units (e.g. Magnus Göttinger has 2 units in one building and 1 in another). Each unit assignment should have its own:
-- Attendee record (for check-in/quorum)
-- Proxy (Vollmacht) — independently per unit
-- Vote — independently per unit
+Magnus Göttinger's data is correctly set up — his contact has `user_id` linked, and he has 2 active assignments in Beispielgebäude (unit 0001 as Beirat, unit 0003 as Eigentümer). The issue is **RLS (Row-Level Security)**: the `contact_building_assignments` table only allows admin access. When Magnus (role: `weg_owner`) queries it, Supabase returns zero rows — so the UI shows "not linked".
 
-The root issue: everywhere the code uses `.maybeSingle()` or `.limit(1)` to find the owner's `contact_building_assignment`, which only returns 1 of potentially N assignments.
+The same problem applies to the `contacts` table — also admin-only RLS. So the initial `contacts` lookup by `user_id` also fails silently.
 
-## Plan
+## Fix
 
-### 1. Owner Portal — Multi-Assignment Support (`src/pages/weg-owner/Meetings.tsx`)
+### 1. Add RLS policies for WEG owners to read their own data
 
-**Query change**: `myAssignment` query (line 125-147) must return an **array** of all assignments (with `unit_number`) instead of a single record. Rename to `myAssignments`.
+**Migration**: Add SELECT policies so WEG owners can read:
+- Their own `contacts` record (where `user_id = auth.uid()`)
+- Their own `contact_building_assignments` (via contact → user_id chain)
+- Their own `contact_building_shares` (via assignment → contact → user_id chain)
 
-**Auto-register**: Create attendee records for ALL assignments, not just one (line 166-199).
+```sql
+-- Owners can read their own contact record
+CREATE POLICY "WEG owners can view own contact"
+ON contacts FOR SELECT TO authenticated
+USING (user_id = auth.uid());
 
-**Proxy UI**: Replace the single proxy section (line 632-708) with a **loop over each assignment**. Each unit shows:
-- Unit number + status badge
-- Its own "Vollmacht erteilen" / "zurückziehen" button
-- The proxy/attendee mutations must accept an `assignmentId` and `attendeeId` parameter
+-- Owners can read their own building assignments
+CREATE POLICY "WEG owners can view own building assignments"
+ON contact_building_assignments FOR SELECT TO authenticated
+USING (
+  contact_id IN (
+    SELECT id FROM contacts WHERE user_id = auth.uid()
+  )
+);
 
-**Attendee query**: `myAttendee` (line 150-163) becomes `myAttendees` — fetch all attendee records for all of the user's assignments in this meeting.
+-- Owners can read their own building shares
+CREATE POLICY "WEG owners can view own building shares"
+ON contact_building_shares FOR SELECT TO authenticated
+USING (
+  assignment_id IN (
+    SELECT cba.id FROM contact_building_assignments cba
+    JOIN contacts c ON c.id = cba.contact_id
+    WHERE c.user_id = auth.uid()
+  )
+);
+```
 
-### 2. Global Voting Popup — Multi-Unit Voting (`src/components/meetings/VotingPopup.tsx`)
+### 2. No code changes needed
 
-**Assignment lookup** (line 45-51): Change `.maybeSingle()` to return all assignments. Store as array.
+The existing queries in `src/pages/weg-owner/Meetings.tsx` and `src/components/meetings/VotingPopup.tsx` are already correct — they just silently fail due to RLS blocking.
 
-**Vote submission**: When a vote is cast, insert a vote for **each** assignment that has an attendee record with `attendance_type !== "proxy"`. Each vote carries its own MEA/SQM weight from the respective assignment's shares.
-
-**UI**: Show which units are being voted for (e.g. "Sie stimmen für 2 Einheiten ab: 0001, 0002").
-
-### 3. Admin Attendee Manager (`src/components/meetings/AttendeeManager.tsx`)
-
-Already loads all `contact_building_assignments` as separate attendee rows — **no changes needed**. Each unit is already a separate attendee entry on the admin side.
-
-### Files to modify
-- `src/pages/weg-owner/Meetings.tsx` — main changes (multi-assignment queries, per-unit proxy UI)
-- `src/components/meetings/VotingPopup.tsx` — multi-assignment voting
-- No database schema changes needed (the data model already supports this via `contact_building_assignments` + `etv_attendees`)
+### Files
+- **New migration**: 3 RLS policies on `contacts`, `contact_building_assignments`, `contact_building_shares`
+- **No application code changes**
 
