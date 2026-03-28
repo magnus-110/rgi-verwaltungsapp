@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -16,7 +17,7 @@ import {
 import {
   Play, Square, CheckCircle2, XCircle, Users, BarChart3, UserCheck, UserX,
   ArrowLeft, ArrowRight, ChevronLeft, Save, Shield, Copy, Lock, AlertTriangle,
-  RefreshCw, StickyNote, FileText
+  RefreshCw, StickyNote, FileText, Plus, Gavel
 } from "lucide-react";
 
 interface MeetingLiveSessionProps {
@@ -38,7 +39,15 @@ interface AgendaItem {
   abstain_count: number;
   total_mea_voted: number;
   admin_notes: string | null;
+  requires_double_qualified: boolean;
+  double_qualified_relevant: boolean;
 }
+
+const votingPrincipleLabels: Record<string, string> = {
+  mea: "MEA (Wertprinzip)",
+  headcount: "Kopfprinzip",
+  sqm: "Quadratmeter",
+};
 
 export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSessionProps) => {
   const { toast } = useToast();
@@ -52,6 +61,11 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
   const [proxyDialog, setProxyDialog] = useState<string | null>(null);
   const [proxyType, setProxyType] = useState<string>("manager");
   const [proxyContactId, setProxyContactId] = useState<string>("");
+  
+  // Geschäftsbeschluss dialog
+  const [showProceduralDialog, setShowProceduralDialog] = useState(false);
+  const [proceduralTitle, setProceduralTitle] = useState("");
+  const [proceduralResolution, setProceduralResolution] = useState("");
 
   // Load agenda items
   const { data: agendaItems = [] } = useQuery({
@@ -174,6 +188,12 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
     return sum + (meaShare?.share_value || 0);
   }, 0);
 
+  const totalSqm = attendees.reduce((sum: number, a: any) => {
+    const shares = a.contact_building_assignments?.contact_building_shares || [];
+    const sqmShare = shares.find((s: any) => s.share_type === "sqm");
+    return sum + (sqmShare?.share_value || 0);
+  }, 0);
+
   const getContactName = (contact: any) => {
     if (!contact) return "Unbekannt";
     if (contact.company_name) return contact.company_name;
@@ -184,6 +204,40 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
     const shares = attendee.contact_building_assignments?.contact_building_shares || [];
     const meaShare = shares.find((s: any) => s.share_type === "mea");
     return meaShare?.share_value || 0;
+  };
+
+  const getSqmWeight = (attendee: any) => {
+    const shares = attendee.contact_building_assignments?.contact_building_shares || [];
+    const sqmShare = shares.find((s: any) => s.share_type === "sqm");
+    return sqmShare?.share_value || 0;
+  };
+
+  // Compute result for a given voting principle
+  const computeResult = (principle: string, votes: any[], item?: AgendaItem) => {
+    const yesVotes = votes.filter((v: any) => v.vote === "yes");
+    const noVotes = votes.filter((v: any) => v.vote === "no");
+
+    if (principle === "mea") {
+      const yesMea = yesVotes.reduce((s: number, v: any) => s + (v.mea_weight || 0), 0);
+      const totalVotedMea = votes.reduce((s: number, v: any) => s + (v.mea_weight || 0), 0);
+      return totalVotedMea > 0 && yesMea > totalVotedMea / 2 ? "passed" : "failed";
+    } else if (principle === "headcount") {
+      return yesVotes.length > noVotes.length ? "passed" : "failed";
+    } else if (principle === "sqm") {
+      const yesSqm = yesVotes.reduce((s: number, v: any) => s + (v.sqm_weight || 0), 0);
+      const totalVotedSqm = votes.reduce((s: number, v: any) => s + (v.sqm_weight || 0), 0);
+      return totalVotedSqm > 0 && yesSqm > totalVotedSqm / 2 ? "passed" : "failed";
+    }
+    return "failed";
+  };
+
+  // Check double qualified majority
+  const checkDoubleQualified = (votes: any[]) => {
+    const yesVotes = votes.filter((v: any) => v.vote === "yes");
+    const yesMea = yesVotes.reduce((s: number, v: any) => s + (v.mea_weight || 0), 0);
+    const twoThirdsVotes = yesVotes.length >= (votes.length * 2) / 3;
+    const fiftyPercentMea = totalMea > 0 && yesMea > totalMea / 2;
+    return twoThirdsVotes && fiftyPercentMea;
   };
 
   // Mutations
@@ -238,11 +292,12 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
   });
 
   const castVoteMutation = useMutation({
-    mutationFn: async ({ itemId, assignmentId, vote, meaWeight }: { itemId: string; assignmentId: string; vote: string; meaWeight: number }) => {
+    mutationFn: async ({ itemId, assignmentId, vote, meaWeight, sqmWeight }: { itemId: string; assignmentId: string; vote: string; meaWeight: number; sqmWeight?: number }) => {
       const { error } = await supabase.from("etv_votes").upsert({
         agenda_item_id: itemId, assignment_id: assignmentId, vote, mea_weight: meaWeight,
+        sqm_weight: sqmWeight || 0,
         is_manual_override: true, voted_at: new Date().toISOString(),
-      }, { onConflict: "agenda_item_id,assignment_id" });
+      } as any, { onConflict: "agenda_item_id,assignment_id" });
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["etv-votes-live", activeVoteItem] }),
@@ -265,19 +320,9 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
       const noVotes = currentVotes.filter((v: any) => v.vote === "no");
       const abstainVotes = currentVotes.filter((v: any) => v.vote === "abstain");
       const item = agendaItems.find((i) => i.id === itemId);
-      let result = "failed";
-      if (item?.voting_principle === "mea") {
-        const yesMea = yesVotes.reduce((s: number, v: any) => s + (v.mea_weight || 0), 0);
-        const totalVotedMea = currentVotes.reduce((s: number, v: any) => s + (v.mea_weight || 0), 0);
-        result = totalVotedMea > 0 && yesMea > totalVotedMea / 2 ? "passed" : "failed";
-      } else if (item?.voting_principle === "headcount") {
-        result = yesVotes.length > noVotes.length ? "passed" : "failed";
-      } else if (item?.voting_principle === "double_qualified") {
-        const yesMea = yesVotes.reduce((s: number, v: any) => s + (v.mea_weight || 0), 0);
-        const twoThirdsVotes = yesVotes.length >= (currentVotes.length * 2) / 3;
-        const fiftyPercentMea = yesMea > totalMea / 2;
-        result = twoThirdsVotes && fiftyPercentMea ? "passed" : "failed";
-      }
+      
+      const result = computeResult(item?.voting_principle || "mea", currentVotes, item);
+
       const { error } = await supabase.from("etv_agenda_items").update({
         status: "closed", result, yes_count: yesVotes.length, no_count: noVotes.length,
         abstain_count: abstainVotes.length, total_mea_voted: currentVotes.reduce((s: number, v: any) => s + (v.mea_weight || 0), 0),
@@ -337,6 +382,33 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
     },
   });
 
+  // Add procedural resolution (Geschäftsbeschluss) during meeting
+  const addProceduralMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("etv_agenda_items").insert({
+        meeting_id: meetingId,
+        sort_order: agendaItems.length + 1,
+        title: proceduralTitle,
+        resolution_text: proceduralResolution || null,
+        voting_principle: "headcount",
+        category: "geschaeftsbeschluss",
+        status: "voted",
+        result: "passed",
+      } as any);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["etv-agenda-items-live", meetingId] });
+      setShowProceduralDialog(false);
+      setProceduralTitle("");
+      setProceduralResolution("");
+      toast({ title: "Geschäftsbeschluss hinzugefügt" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Fehler", description: err.message, variant: "destructive" });
+    },
+  });
+
   // Navigation
   const selectedIdx = agendaItems.findIndex((i) => i.id === selectedTopId);
   const selectedItem = selectedIdx >= 0 ? agendaItems[selectedIdx] : null;
@@ -377,15 +449,66 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
 
   const getStatusBadge = (item: AgendaItem) => {
     if (item.status === "voted") {
-      return <Badge variant={item.result === "passed" ? "default" : "destructive"}>
-        {item.result === "passed" ? "✓ Angenommen" : "✗ Abgelehnt"}
-      </Badge>;
+      // Check double qualified
+      const dqPassed = item.requires_double_qualified || item.double_qualified_relevant;
+      return (
+        <div className="flex items-center gap-1">
+          <Badge variant={item.result === "passed" ? "default" : "destructive"}>
+            {item.result === "passed" ? "✓ Angenommen" : "✗ Abgelehnt"}
+          </Badge>
+        </div>
+      );
     }
     if (item.status === "closed") {
       return <Badge className="bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">Unbestätigt</Badge>;
     }
     if (item.status === "voting") return <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">Abstimmung läuft</Badge>;
     return <Badge variant="secondary">Offen</Badge>;
+  };
+
+  // Render live tally with principle awareness
+  const renderLiveTally = (item: AgendaItem) => {
+    const yesVotes = currentVotes.filter((v: any) => v.vote === "yes");
+    const noVotes = currentVotes.filter((v: any) => v.vote === "no");
+    const abstainVotes = currentVotes.filter((v: any) => v.vote === "abstain");
+    const yesMea = yesVotes.reduce((s: number, v: any) => s + (v.mea_weight || 0), 0);
+    const noMea = noVotes.reduce((s: number, v: any) => s + (v.mea_weight || 0), 0);
+    const totalVotedMea = currentVotes.reduce((s: number, v: any) => s + (v.mea_weight || 0), 0);
+    const yesSqm = yesVotes.reduce((s: number, v: any) => s + (v.sqm_weight || 0), 0);
+    const noSqm = noVotes.reduce((s: number, v: any) => s + (v.sqm_weight || 0), 0);
+
+    const currentResult = computeResult(item.voting_principle, currentVotes, item);
+    const dqResult = (item.requires_double_qualified || item.double_qualified_relevant) ? checkDoubleQualified(currentVotes) : null;
+    const resultLabel = currentResult === "passed" ? "Angenommen" : "Abgelehnt";
+
+    const showMea = item.voting_principle === "mea";
+    const showSqm = item.voting_principle === "sqm";
+
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center gap-4 p-2 rounded bg-muted/50 text-sm flex-wrap">
+          <span className="text-green-600 font-medium">
+            Ja: {yesVotes.length}
+            {showMea && ` (${yesMea.toFixed(2)} MEA)`}
+            {showSqm && ` (${yesSqm.toFixed(1)} m²)`}
+          </span>
+          <span className="text-red-600 font-medium">
+            Nein: {noVotes.length}
+            {showMea && ` (${noMea.toFixed(2)} MEA)`}
+            {showSqm && ` (${noSqm.toFixed(1)} m²)`}
+          </span>
+          <span className="text-muted-foreground font-medium">Enth.: {abstainVotes.length}</span>
+          <span className="ml-auto font-semibold">
+            Zwischenstand: <span className={currentResult === "passed" ? "text-green-600" : "text-red-600"}>{resultLabel}</span>
+          </span>
+        </div>
+        {dqResult !== null && (
+          <div className={`text-xs font-medium px-2 py-1 rounded ${dqResult ? "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200" : "bg-muted text-muted-foreground"}`}>
+            Doppelt qualifizierte Mehrheit: {dqResult ? "✓ Erreicht" : "✗ Nicht erreicht"}
+          </div>
+        )}
+      </div>
+    );
   };
 
   // ============ TOP DETAIL VIEW ============
@@ -422,6 +545,27 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg">TOP {selectedIdx + 1}: {selectedItem.title}</CardTitle>
               {getStatusBadge(selectedItem)}
+            </div>
+            {/* Show voting method */}
+            <div className="flex items-center gap-2 mt-1">
+              <Badge variant="outline" className="text-xs">
+                {votingPrincipleLabels[selectedItem.voting_principle] || selectedItem.voting_principle}
+              </Badge>
+              {selectedItem.requires_double_qualified && (
+                <Badge className="text-xs bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                  DQ erforderlich
+                </Badge>
+              )}
+              {selectedItem.double_qualified_relevant && !selectedItem.requires_double_qualified && (
+                <Badge variant="outline" className="text-xs border-purple-300 text-purple-700 dark:text-purple-300">
+                  DQ relevant
+                </Badge>
+              )}
+              {selectedItem.category === "geschaeftsbeschluss" && (
+                <Badge variant="outline" className="text-xs border-amber-300 text-amber-700 dark:text-amber-300">
+                  <Gavel className="h-3 w-3 mr-1" /> Geschäftsbeschluss
+                </Badge>
+              )}
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -493,37 +637,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                   </div>
 
                   {/* Live tally */}
-                  {votedCount > 0 && (() => {
-                    const yesVotes = currentVotes.filter((v: any) => v.vote === "yes");
-                    const noVotes = currentVotes.filter((v: any) => v.vote === "no");
-                    const abstainVotes = currentVotes.filter((v: any) => v.vote === "abstain");
-                    const yesMea = yesVotes.reduce((s: number, v: any) => s + (v.mea_weight || 0), 0);
-                    const noMea = noVotes.reduce((s: number, v: any) => s + (v.mea_weight || 0), 0);
-                    const totalVotedMea = currentVotes.reduce((s: number, v: any) => s + (v.mea_weight || 0), 0);
-
-                    let currentResult = "—";
-                    const principle = selectedItem.voting_principle;
-                    if (principle === "mea") {
-                      currentResult = totalVotedMea > 0 && yesMea > totalVotedMea / 2 ? "Angenommen" : "Abgelehnt";
-                    } else if (principle === "headcount") {
-                      currentResult = yesVotes.length > noVotes.length ? "Angenommen" : "Abgelehnt";
-                    } else if (principle === "double_qualified") {
-                      const twoThirds = yesVotes.length >= (currentVotes.length * 2) / 3;
-                      const fiftyMea = yesMea > totalMea / 2;
-                      currentResult = twoThirds && fiftyMea ? "Angenommen" : "Abgelehnt";
-                    }
-
-                    return (
-                      <div className="flex items-center gap-4 p-2 rounded bg-muted/50 text-sm">
-                        <span className="text-green-600 font-medium">Ja: {yesVotes.length}{principle === "mea" || principle === "double_qualified" ? ` (${yesMea.toFixed(2)} MEA)` : ""}</span>
-                        <span className="text-red-600 font-medium">Nein: {noVotes.length}{principle === "mea" || principle === "double_qualified" ? ` (${noMea.toFixed(2)} MEA)` : ""}</span>
-                        <span className="text-muted-foreground font-medium">Enth.: {abstainVotes.length}</span>
-                        <span className="ml-auto font-semibold">
-                          Zwischenstand: <span className={currentResult === "Angenommen" ? "text-green-600" : "text-red-600"}>{currentResult}</span>
-                        </span>
-                      </div>
-                    );
-                  })()}
+                  {votedCount > 0 && renderLiveTally(selectedItem)}
 
                   <div className="space-y-1">
                     <p className="text-xs font-medium text-muted-foreground">Manuelle Stimmabgabe:</p>
@@ -531,6 +645,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                       const contact = a.contact_building_assignments?.contacts;
                       const existingVote = currentVotes.find((v: any) => v.assignment_id === a.assignment_id);
                       const meaW = getMeaWeight(a);
+                      const sqmW = getSqmWeight(a);
                       const rowBg = existingVote
                         ? existingVote.vote === "yes" ? "bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800"
                         : existingVote.vote === "no" ? "bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800"
@@ -541,11 +656,11 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                           <span className="text-xs">{getContactName(contact)}</span>
                           <div className="flex gap-1">
                             <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-green-600"
-                              onClick={() => castVoteMutation.mutate({ itemId: selectedItem.id, assignmentId: a.assignment_id, vote: "yes", meaWeight: meaW })}>Ja</Button>
+                              onClick={() => castVoteMutation.mutate({ itemId: selectedItem.id, assignmentId: a.assignment_id, vote: "yes", meaWeight: meaW, sqmWeight: sqmW })}>Ja</Button>
                             <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-red-600"
-                              onClick={() => castVoteMutation.mutate({ itemId: selectedItem.id, assignmentId: a.assignment_id, vote: "no", meaWeight: meaW })}>Nein</Button>
+                              onClick={() => castVoteMutation.mutate({ itemId: selectedItem.id, assignmentId: a.assignment_id, vote: "no", meaWeight: meaW, sqmWeight: sqmW })}>Nein</Button>
                             <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-muted-foreground"
-                              onClick={() => castVoteMutation.mutate({ itemId: selectedItem.id, assignmentId: a.assignment_id, vote: "abstain", meaWeight: meaW })}>Enth.</Button>
+                              onClick={() => castVoteMutation.mutate({ itemId: selectedItem.id, assignmentId: a.assignment_id, vote: "abstain", meaWeight: meaW, sqmWeight: sqmW })}>Enth.</Button>
                             {existingVote && (
                               <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-orange-500"
                                 onClick={() => resetVoteMutation.mutate({ itemId: selectedItem.id, assignmentId: a.assignment_id })}>↩</Button>
@@ -637,6 +752,11 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                   <div className="text-center"><div className="text-2xl font-bold text-red-600">{resultDialog.no_count}</div><div className="text-muted-foreground">Nein</div></div>
                   <div className="text-center"><div className="text-2xl font-bold text-muted-foreground">{resultDialog.abstain_count}</div><div className="text-muted-foreground">Enthaltung</div></div>
                 </div>
+                {(resultDialog.requires_double_qualified || resultDialog.double_qualified_relevant) && (
+                  <div className="text-sm font-medium">
+                    Doppelt qualifizierte Mehrheit: wird nach Bestätigung geprüft
+                  </div>
+                )}
               </div>
             )}
           </DialogContent>
@@ -735,9 +855,15 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
       {/* TOP Overview */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <BarChart3 className="h-4 w-4" /> Tagesordnungspunkte
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" /> Tagesordnungspunkte
+            </CardTitle>
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setShowProceduralDialog(true)}>
+              <Gavel className="h-3.5 w-3.5" />
+              Geschäftsbeschluss
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-2">
           {agendaItems.length === 0 && (
@@ -756,6 +882,17 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-bold text-primary">TOP {idx + 1}</span>
                     <span className="text-sm font-medium">{item.title}</span>
+                    <Badge variant="outline" className="text-[10px] hidden md:inline-flex">
+                      {votingPrincipleLabels[item.voting_principle] || item.voting_principle}
+                    </Badge>
+                    {item.requires_double_qualified && (
+                      <Badge className="text-[10px] hidden md:inline-flex bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">DQ</Badge>
+                    )}
+                    {item.category === "geschaeftsbeschluss" && (
+                      <Badge variant="outline" className="text-[10px] hidden md:inline-flex border-amber-300 text-amber-700">
+                        <Gavel className="h-2.5 w-2.5 mr-0.5" /> GB
+                      </Badge>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     {getStatusBadge(item)}
@@ -773,6 +910,45 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
         </CardContent>
       </Card>
 
+      {/* Geschäftsbeschluss Dialog */}
+      <Dialog open={showProceduralDialog} onOpenChange={setShowProceduralDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Gavel className="h-5 w-5" />
+              Geschäftsbeschluss einfügen
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Titel *</Label>
+              <Input
+                placeholder="z.B. Änderung der Abstimmungsmethode"
+                value={proceduralTitle}
+                onChange={(e) => setProceduralTitle(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Beschlusstext</Label>
+              <Textarea
+                placeholder="Die Versammlung beschließt..."
+                value={proceduralResolution}
+                onChange={(e) => setProceduralResolution(e.target.value)}
+                rows={3}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Geschäftsbeschlüsse werden automatisch als angenommen eingetragen (z.B. Verfahrensbeschlüsse).
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowProceduralDialog(false)}>Abbrechen</Button>
+            <Button onClick={() => addProceduralMutation.mutate()} disabled={!proceduralTitle || addProceduralMutation.isPending} className="gap-1">
+              <Plus className="h-4 w-4" /> Einfügen
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
