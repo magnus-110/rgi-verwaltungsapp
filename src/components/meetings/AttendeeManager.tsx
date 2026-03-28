@@ -225,7 +225,7 @@ export const AttendeeManager = ({ meetingId, buildingId, lockTime }: AttendeeMan
 
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          {attendees.length} Teilnehmer | {attendees.filter((a) => a.attendance_type !== "absent").length} anwesend/vertreten
+          {attendees.length} Teilnehmer | {attendees.filter((a) => a.attendance_type === "present").length} anwesend | {attendees.filter((a) => !!a.proxy_type).length} mit Vollmacht
         </p>
         {attendees.length === 0 && owners.length > 0 && (
           <Button onClick={() => initMutation.mutate()} disabled={initMutation.isPending} size="sm" className="gap-2">
