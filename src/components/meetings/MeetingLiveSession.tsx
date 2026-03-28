@@ -839,9 +839,12 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                     <span className="text-sm font-medium truncate">{getContactName(contact)}</span>
                     {cba?.unit_number && <Badge variant="outline" className="text-xs shrink-0">E{cba.unit_number}</Badge>}
                     {a.proxy_type && (
-                      <span className="text-xs text-muted-foreground">
-                        ({a.proxy_type === "manager" ? "Verwalter" : a.proxy_type === "owner" ? "Eigentümer" : "Extern"})
-                      </span>
+                      <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-xs shrink-0">
+                        v.d. {a.proxy_type === "manager" ? "Verwalter" : a.proxy_type === "owner" ? (() => {
+                          const proxyContact = allContacts.find((c: any) => c.contacts.id === a.proxy_contact_id);
+                          return proxyContact ? getContactName(proxyContact.contacts) : "Eigentümer";
+                        })() : (a.proxy_external_name || "Extern")}
+                      </Badge>
                     )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">

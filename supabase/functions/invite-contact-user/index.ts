@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
       })
     }
 
-    const { contact_id, building_id, management_mode } = await req.json()
+    const { contact_id, building_id, management_mode, send_email = true } = await req.json()
     if (!contact_id || !building_id || !management_mode) {
       return new Response(JSON.stringify({ error: 'Missing contact_id, building_id, or management_mode' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -184,18 +184,20 @@ Deno.serve(async (req) => {
       }, { onConflict: 'user_id,building_id' })
     }
 
-    // Send webhook
-    await sendToMakeWebhook({
-      event: 'user_created',
-      email,
-      password,
-      first_name: contact.first_name || '',
-      last_name: contact.last_name || '',
-      management_mode,
-      building_id,
-      role,
-      created_at: new Date().toISOString()
-    })
+    // Send webhook only if send_email is true
+    if (send_email) {
+      await sendToMakeWebhook({
+        event: 'user_created',
+        email,
+        password,
+        first_name: contact.first_name || '',
+        last_name: contact.last_name || '',
+        management_mode,
+        building_id,
+        role,
+        created_at: new Date().toISOString()
+      })
+    }
 
     return new Response(JSON.stringify({
       success: true,
