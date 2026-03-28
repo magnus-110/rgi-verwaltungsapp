@@ -220,22 +220,6 @@ export const SubmittedTopsManager = ({ buildingFilter: externalBuildingFilter }:
 
   return (
     <div className="space-y-4">
-      {buildings.length > 1 && (
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Gebäude:</span>
-          <Select value={filterBuildingId} onValueChange={setFilterBuildingId}>
-            <SelectTrigger className="w-64">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Alle Gebäude</SelectItem>
-              {buildings.map((b: any) => (
-                <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
 
       {/* Pending */}
       {pendingTops.length > 0 ? (
