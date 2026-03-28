@@ -329,6 +329,31 @@ export const WegOwnerMeetings = () => {
     },
   });
 
+  // Save voting instructions mutation
+  const saveInstructionsMutation = useMutation({
+    mutationFn: async ({ attendeeId, instructions }: { attendeeId: string; instructions: Record<string, string> }) => {
+      // Filter out "frei" entries — only store actual instructions
+      const filtered: Record<string, string> = {};
+      for (const [key, value] of Object.entries(instructions)) {
+        if (value && value !== "frei") filtered[key] = value;
+      }
+      const { error } = await supabase
+        .from("etv_attendees")
+        .update({ pre_vote_instructions: Object.keys(filtered).length > 0 ? filtered : null })
+        .eq("id", attendeeId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "Weisungen gespeichert", description: "Ihre Abstimmungsweisungen wurden hinterlegt." });
+      setShowInstructionsDialog(false);
+      setInstructionsAttendeeId(null);
+      refetchAttendees();
+    },
+    onError: (err: any) => {
+      toast({ title: "Fehler", description: err.message, variant: "destructive" });
+    },
+  });
+
   const getContactName = (contact: any) => {
     if (contact.company_name) return contact.company_name;
     return [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Unbenannt";
