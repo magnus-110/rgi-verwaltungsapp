@@ -1,62 +1,43 @@
 
 
-# Plan: Quorum-Fix, Abstimmungs-Workflow, TOP-Detail & Live-Voting-Popup
+## Problem
 
-## 5 Anforderungen
+Currently the system treats each owner as having **one** assignment per building. But owners can have multiple units (e.g. Magnus Göttinger has 2 units in one building and 1 in another). Each unit assignment should have its own:
+- Attendee record (for check-in/quorum)
+- Proxy (Vollmacht) — independently per unit
+- Vote — independently per unit
 
-1. **Quorum**: Beschlussfähig ab 1 anwesendem Eigentümer (nicht >50%)
-2. **Admin**: Keine Vollmacht-Vergabe, aber Stimmabgabe für Eigentümer beibehalten
-3. **Abstimmung**: Wiedereröffnung nach Schließen möglich; separater "Bestätigen"-Button für endgültiges Ergebnis
-4. **Owner-Portal TOP-Detail**: Klick auf TOP in Einladung öffnet Dialog mit Beschreibung + Anhängen
-5. **Live-Voting-Popup**: Realtime-Popup für Eigentümer wenn Abstimmung geöffnet wird (egal wo in der App); schließt nach Stimmabgabe; Live-Ergebnisse während Versammlung sichtbar
+The root issue: everywhere the code uses `.maybeSingle()` or `.limit(1)` to find the owner's `contact_building_assignment`, which only returns 1 of potentially N assignments.
 
-## Technische Details
+## Plan
 
-### 1. Quorum-Fix (`MeetingLiveSession.tsx`, Zeile 163)
-```
-// Vorher: quorumReached = presentCount > totalOwners / 2
-// Nachher:
-const quorumReached = presentCount >= 1;
-```
+### 1. Owner Portal — Multi-Assignment Support (`src/pages/weg-owner/Meetings.tsx`)
 
-### 2. Admin-Vollmacht entfernen (`MeetingLiveSession.tsx`)
-- Shield-Button (Zeile 625-627) und den ganzen Proxy-Dialog (Zeile 684-727) entfernen
-- Manuelle Stimmabgabe bleibt erhalten (Zeile 446-467)
+**Query change**: `myAssignment` query (line 125-147) must return an **array** of all assignments (with `unit_number`) instead of a single record. Rename to `myAssignments`.
 
-### 3. Abstimmungs-Workflow (`MeetingLiveSession.tsx`)
-- `endVotingMutation`: Status auf `"closed"` statt `"voted"` setzen; Ergebnis berechnen aber NICHT bestätigen
-- Neuer Status-Flow: `null/open` → `voting` → `closed` → `confirmed`
-- Bei Status `"closed"`: "Abstimmung erneut öffnen" Button + "Ergebnis bestätigen" Button anzeigen
-- "Ergebnis bestätigen" setzt Status auf `"voted"` (final)
-- `getStatusBadge`: Neuer Badge für `"closed"` Status ("Abstimmung beendet - unbestätigt")
+**Auto-register**: Create attendee records for ALL assignments, not just one (line 166-199).
 
-### 4. TOP-Detail im Owner-Portal (`weg-owner/Meetings.tsx`)
-- Agenda-Items in der Einladung (Zeile 600-618) klickbar machen
-- Neuer State `selectedAgendaItemId` + Dialog mit:
-  - Titel, Beschreibung
-  - Anhänge (aus `attachment_paths`) mit Download-Links
-  - Abstimmungsergebnis (wenn vorhanden)
+**Proxy UI**: Replace the single proxy section (line 632-708) with a **loop over each assignment**. Each unit shows:
+- Unit number + status badge
+- Its own "Vollmacht erteilen" / "zurückziehen" button
+- The proxy/attendee mutations must accept an `assignmentId` and `attendeeId` parameter
 
-### 5. Live-Voting-Popup (Global)
-- **Neue Komponente**: `src/components/meetings/VotingPopup.tsx`
-  - Supabase Realtime Subscription auf `etv_agenda_items` (filter: `status=eq.voting`)
-  - Prüft ob der User ein `etv_attendee` für das betroffene Meeting ist
-  - Zeigt fullscreen-Dialog mit TOP-Titel, Beschlusstext, Ja/Nein/Enthaltung Buttons
-  - Nach Stimmabgabe: Dialog schließt sich automatisch
-  - RLS: Neue INSERT-Policy auf `etv_votes` für WEG-Owner nötig
-- **Integration in `WegOwnerLayout.tsx`**: VotingPopup als permanente Komponente einbinden
-- **Live-Ergebnisse**: Im Meeting-Detail-Dialog (Owner) bei Status `in_progress` die Ergebnisse pro TOP anzeigen (yes_count, no_count, abstain_count) mit Realtime-Refresh
+**Attendee query**: `myAttendee` (line 150-163) becomes `myAttendees` — fetch all attendee records for all of the user's assignments in this meeting.
 
-### DB-Migration
-- Neue RLS Policy auf `etv_votes` für INSERT durch WEG-Owner (damit sie selbst abstimmen können)
+### 2. Global Voting Popup — Multi-Unit Voting (`src/components/meetings/VotingPopup.tsx`)
 
-### Betroffene Dateien
+**Assignment lookup** (line 45-51): Change `.maybeSingle()` to return all assignments. Store as array.
 
-| Datei | Änderung |
-|---|---|
-| `src/components/meetings/MeetingLiveSession.tsx` | Quorum auf ≥1; Proxy-Vergabe entfernen; Abstimmungs-Workflow mit closed/confirmed Status |
-| `src/pages/weg-owner/Meetings.tsx` | TOP-Detail-Dialog mit Anhängen; Live-Ergebnisse bei in_progress Meetings |
-| `src/components/meetings/VotingPopup.tsx` | **Neu** — Globaler Realtime-Abstimmungs-Dialog |
-| `src/components/WegOwnerLayout.tsx` | VotingPopup einbinden |
-| Migration | INSERT-Policy auf `etv_votes` für WEG-Owner |
+**Vote submission**: When a vote is cast, insert a vote for **each** assignment that has an attendee record with `attendance_type !== "proxy"`. Each vote carries its own MEA/SQM weight from the respective assignment's shares.
+
+**UI**: Show which units are being voted for (e.g. "Sie stimmen für 2 Einheiten ab: 0001, 0002").
+
+### 3. Admin Attendee Manager (`src/components/meetings/AttendeeManager.tsx`)
+
+Already loads all `contact_building_assignments` as separate attendee rows — **no changes needed**. Each unit is already a separate attendee entry on the admin side.
+
+### Files to modify
+- `src/pages/weg-owner/Meetings.tsx` — main changes (multi-assignment queries, per-unit proxy UI)
+- `src/components/meetings/VotingPopup.tsx` — multi-assignment voting
+- No database schema changes needed (the data model already supports this via `contact_building_assignments` + `etv_attendees`)
 
