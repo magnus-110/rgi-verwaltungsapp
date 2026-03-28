@@ -67,6 +67,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
   const [showProceduralDialog, setShowProceduralDialog] = useState(false);
   const [proceduralTitle, setProceduralTitle] = useState("");
   const [proceduralResolution, setProceduralResolution] = useState("");
+  const [proceduralPrinciple, setProceduralPrinciple] = useState("headcount");
 
   // Load agenda items
   const { data: agendaItems = [] } = useQuery({
