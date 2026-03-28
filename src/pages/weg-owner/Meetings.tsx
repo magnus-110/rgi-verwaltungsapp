@@ -172,7 +172,27 @@ export const WegOwnerMeetings = () => {
     enabled: !!selectedMeetingId && myAssignments.length > 0,
   });
 
-  // Realtime subscription for attendee changes
+  // Fetch proxies received BY this user (where proxy_contact_id = my contact)
+  const { data: receivedProxies = [] } = useQuery({
+    queryKey: ["received-proxies", selectedMeetingId, myContactId],
+    queryFn: async () => {
+      if (!myContactId || !selectedMeetingId) return [];
+      const { data } = await supabase
+        .from("etv_attendees")
+        .select(`
+          id, proxy_type, pre_vote_instructions,
+          contact_building_assignments!inner(
+            unit_number,
+            contacts!inner(first_name, last_name, company_name)
+          )
+        `)
+        .eq("meeting_id", selectedMeetingId)
+        .eq("proxy_contact_id", myContactId);
+      return data || [];
+    },
+    enabled: !!selectedMeetingId && !!myContactId,
+  });
+
   useEffect(() => {
     if (!selectedMeetingId) return;
     const channel = supabase
