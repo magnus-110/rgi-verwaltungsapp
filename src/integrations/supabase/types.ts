@@ -2309,9 +2309,11 @@ export type Database = {
           category: string | null
           created_at: string | null
           description: string | null
+          double_qualified_relevant: boolean
           id: string
           meeting_id: string
           no_count: number | null
+          requires_double_qualified: boolean
           resolution_text: string | null
           result: string | null
           sort_order: number
@@ -2330,9 +2332,11 @@ export type Database = {
           category?: string | null
           created_at?: string | null
           description?: string | null
+          double_qualified_relevant?: boolean
           id?: string
           meeting_id: string
           no_count?: number | null
+          requires_double_qualified?: boolean
           resolution_text?: string | null
           result?: string | null
           sort_order?: number
@@ -2351,9 +2355,11 @@ export type Database = {
           category?: string | null
           created_at?: string | null
           description?: string | null
+          double_qualified_relevant?: boolean
           id?: string
           meeting_id?: string
           no_count?: number | null
+          requires_double_qualified?: boolean
           resolution_text?: string | null
           result?: string | null
           sort_order?: number
@@ -2464,7 +2470,9 @@ export type Database = {
           id: string
           location: string | null
           lock_time: string | null
+          meeting_chair: string | null
           meeting_date: string
+          minutes_taker: string | null
           notes: string | null
           protocol_generated_at: string | null
           protocol_published: boolean | null
@@ -2481,7 +2489,9 @@ export type Database = {
           id?: string
           location?: string | null
           lock_time?: string | null
+          meeting_chair?: string | null
           meeting_date: string
+          minutes_taker?: string | null
           notes?: string | null
           protocol_generated_at?: string | null
           protocol_published?: boolean | null
@@ -2498,7 +2508,9 @@ export type Database = {
           id?: string
           location?: string | null
           lock_time?: string | null
+          meeting_chair?: string | null
           meeting_date?: string
+          minutes_taker?: string | null
           notes?: string | null
           protocol_generated_at?: string | null
           protocol_published?: boolean | null
@@ -2524,6 +2536,42 @@ export type Database = {
             referencedColumns: ["user_id"]
           },
         ]
+      }
+      etv_resolution_templates: {
+        Row: {
+          category: string | null
+          created_at: string
+          id: string
+          requires_double_qualified: boolean
+          resolution_text: string
+          sort_order: number | null
+          title: string
+          updated_at: string
+          voting_principle: string | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          id?: string
+          requires_double_qualified?: boolean
+          resolution_text: string
+          sort_order?: number | null
+          title: string
+          updated_at?: string
+          voting_principle?: string | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          id?: string
+          requires_double_qualified?: boolean
+          resolution_text?: string
+          sort_order?: number | null
+          title?: string
+          updated_at?: string
+          voting_principle?: string | null
+        }
+        Relationships: []
       }
       etv_resolutions: {
         Row: {
