@@ -2,35 +2,56 @@
 
 ## Problem
 
-1. **Proxy name not shown**: When a proxy is assigned to another owner, the badge only says "durch Eigentümer" — it doesn't show the actual name (e.g. "durch Cristina van Praag"). The `myAttendees` query fetches `select("*")` which includes `proxy_contact_id` but not the related contact's name.
-
-2. **External proxy link not prominent enough**: The link exists but is small and lacks explanation text for how to share it.
+1. **No real-time updates**: After setting a proxy, the badge doesn't update instantly — user must manually refetch
+2. **Withdraw proxy has no confirmation**: Clicking "Zurückziehen" immediately executes without asking
+3. **External proxy link disappears**: Link is only copied to clipboard on save, not persistently shown
+4. **Proxy info not clickable**: User wants to tap the entire proxy card/badge area to open a detail dialog showing all info (proxy name, type, link for external)
 
 ## Plan
 
-### 1. Enhance `myAttendees` query to include proxy contact name
+### 1. Add Supabase Realtime subscription for attendees
 
-Change the query from `select("*")` to include the proxy contact's name:
+Subscribe to `etv_attendees` changes for the selected meeting. On any INSERT/UPDATE, invalidate the `my-attendees` query so badges update instantly after proxy assignment/withdrawal.
+
 ```typescript
-.select("*, proxy_contact:contacts!proxy_contact_id(first_name, last_name, company_name)")
+useEffect(() => {
+  if (!selectedMeetingId) return;
+  const channel = supabase
+    .channel(`attendees-${selectedMeetingId}`)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'etv_attendees', filter: `meeting_id=eq.${selectedMeetingId}` },
+      () => queryClient.invalidateQueries({ queryKey: ["my-attendees"] })
+    )
+    .subscribe();
+  return () => { supabase.removeChannel(channel); };
+}, [selectedMeetingId]);
 ```
 
-This joins the `contacts` table via `proxy_contact_id` so we get the proxy's name.
+### 2. Add AlertDialog confirmation for proxy withdrawal
 
-### 2. Update badge display to show actual name
+Replace the direct `withdrawProxyMutation.mutate()` call with a state-driven AlertDialog asking "Vollmacht wirklich zurückziehen?" with Cancel/Confirm buttons.
 
-In the attendee card (line 686-688), update the badge text:
-- **Manager**: "Vollmacht: Verwalter" (keep as is)
-- **Owner**: "Vollmacht: [First Last Name]" — use the joined contact data
-- **External**: "Vollmacht: [External Name]" (already works via `proxy_external_name`)
+New state: `withdrawAttendeeId` — when set, shows the AlertDialog. On confirm, calls `withdrawProxyMutation.mutate(withdrawAttendeeId)`.
 
-### 3. Improve external proxy link section
+### 3. Replace inline proxy display with clickable detail dialog
 
-When an external proxy is active, show a more prominent card with:
-- Explanation text: "Teilen Sie diesen Link mit der bevollmächtigten Person. Über den Link kann sie an Abstimmungen teilnehmen. Der Link ist gültig bis die Vollmacht zurückgezogen wird."
-- Larger, more visible link display
-- Copy button + native Share button (if `navigator.share` is available)
+Replace the current layout (badge + external link card + buttons in each assignment card) with:
+
+- **The entire proxy area is a clickable card** — tapping it opens a `proxyDetailAttendeeId` dialog
+- **The dialog shows**:
+  - Proxy type (Verwalter / Eigentümer / Extern)
+  - Proxy name
+  - For external: the link with copy + share buttons + explanation text
+  - "Vollmacht zurückziehen" button (which triggers the confirmation AlertDialog)
+- **When no proxy is set**: tapping the card opens the existing proxy assignment dialog
+
+This consolidates the UI: one tap = see everything or assign.
+
+### 4. Mobile-optimized layout
+
+- Cards use full width, no `justify-between` with side-by-side layout
+- Badge is prominent and tappable
+- External link section uses word-break for long URLs on small screens
 
 ### Files to modify
-- **`src/pages/weg-owner/Meetings.tsx`**: attendees query select, badge display, external link section
+- **`src/pages/weg-owner/Meetings.tsx`**: realtime subscription, withdrawal confirmation, clickable proxy detail dialog, mobile layout
 
