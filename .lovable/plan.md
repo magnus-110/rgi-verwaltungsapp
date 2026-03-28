@@ -1,57 +1,36 @@
 
 
-## Redesign: Meeting Live Session Dashboard
+## Fixes: Attendance Count & Received Proxies Visibility
 
-### Current State
-The "Durchführung" tab renders three separate `Card` components stacked vertically:
-1. Eröffnung & Quorum card
-2. Anwesenheitsliste & Vollmachten card  
-3. Tagesordnungspunkte card
+### Issue 1: "Anwesend" shows -1
 
-This feels disconnected and takes a lot of vertical space.
+**Root cause**: Line 798 calculates `presentCount - proxyCount`. `presentCount` only includes attendees with `attendance_type === "present"` OR `(attendance_type === "proxy" AND checked_in_at IS NOT NULL)`. When nobody is checked in but a proxy is assigned, `proxyCount = 1` and `presentCount = 0`, giving `-1`.
 
-### New Layout: Unified Dashboard
+**Fix in `src/components/meetings/MeetingLiveSession.tsx`**:
+- Add `physicallyPresent = attendees.filter(a => a.attendance_type === "present").length`
+- Use `physicallyPresent` for the "Anwesend" tile (line 798) instead of `presentCount - proxyCount`
+- Keep "Vertreten" showing `proxyCount` (only those with `checked_in_at` set)
+- Keep the Status tile using `presentCount` (total present + represented)
 
-Replace the three cards with a single cohesive dashboard using a grid layout:
+### Issue 2: Cristina can't see received proxies
 
-```text
-┌──────────────────────────────────────────────────────┐
-│  VERSAMMLUNGS-COCKPIT                                │
-├────────────┬────────────┬────────────┬───────────────┤
-│  Anwesend  │  Vertreten │  MEA-Quote │   Status      │
-│    1/3     │     0      │   33.3%    │ Beschlussfähig│
-│  ████░░░░  │            │  ████░░░░  │   ● Grün      │
-├────────────┴────────────┴────────────┴───────────────┤
-│  [Versammlung eröffnen]        [Versammlung schließen]│
-├──────────────────────────────────────────────────────┤
-│  ANWESENHEIT                        [Eigentümer laden]│
-│  ┌─ Magnus Göttinger  E0001  v.d. Andreas G.  [⬤] ──┐│
-│  ├─ Magnus Göttinger  E0003  v.d. Cristina   [⬤] ──┤│
-│  └─ Cristina van P.   E0002                  [ ] ──┘│
-├──────────────────────────────────────────────────────┤
-│  TAGESORDNUNG                   [+ Geschäftsbeschluss]│
-│  TOP 1  Begrüßung                         ● Offen   >│
-│  TOP 2  Jahresabrechnung          ✓ Angenommen       >│
-│  TOP 3  Wirtschaftsplan           ✗ Abgelehnt        >│
-└──────────────────────────────────────────────────────┘
+**Root cause**: RLS policy on `etv_attendees` only allows WEG owners to SELECT rows where `assignment_id` links to **their own** contact. Received proxies are rows belonging to **other** owners where `proxy_contact_id` = Cristina's contact ID. These rows are blocked by RLS.
+
+**Fix — new RLS policy via migration**:
+```sql
+CREATE POLICY "WEG owners can view proxies granted to them"
+ON public.etv_attendees
+FOR SELECT TO authenticated
+USING (
+  proxy_contact_id IN (
+    SELECT c.id FROM contacts c WHERE c.user_id = auth.uid()
+  )
+);
 ```
 
-### Design Details
-
-1. **Stats bar** — 4 compact metric tiles in a responsive grid (`grid-cols-2 md:grid-cols-4`) replacing the quorum card. Each shows: icon, value, label, and a subtle colored background. No card borders, just `bg-muted/30 rounded-lg p-3`.
-
-2. **Action buttons** — Inline below stats, not inside a card. `Versammlung eröffnen/schließen` as outline buttons.
-
-3. **Attendance section** — A borderless section with a subtle heading. Each attendee row uses a cleaner layout: colored left-border indicator (green=present, blue=proxy, gray=absent) instead of separate icons. Toggle switch on the right.
-
-4. **Agenda section** — Compact list items with left color-coded status dot, no nested cards. Hover highlights the row. Each row: `TOP n | Title | badges | status dot | chevron`.
-
-5. **Visual polish**:
-   - Remove nested `Card` inside `Card` for TOPs (currently `Card` inside `CardContent`)
-   - Use `Separator` between sections instead of card borders
-   - Consistent `text-sm` sizing throughout
-   - Progress bars inside stat tiles instead of standalone
+This lets owners read attendee rows where they are the designated proxy holder, without granting broader access.
 
 ### Files to modify
-- **`src/components/meetings/MeetingLiveSession.tsx`**: Rewrite the overview section (lines 775-921) with the unified dashboard layout. No logic changes needed.
+1. **`src/components/meetings/MeetingLiveSession.tsx`** — Fix the "Anwesend" stat tile calculation
+2. **New migration** — Add RLS policy for proxy visibility on `etv_attendees`
 
