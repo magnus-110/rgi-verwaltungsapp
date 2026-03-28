@@ -772,6 +772,49 @@ export const WegOwnerMeetings = () => {
                 </div>
               )}
 
+              {/* Received Proxies Section */}
+              {receivedProxies.length > 0 && ["published", "in_progress"].includes(selectedMeeting.status) && (
+                <div className="border-t pt-4 space-y-3">
+                  <h3 className="font-semibold text-foreground flex items-center gap-2">
+                    <Shield className="h-4 w-4 text-blue-500" />
+                    Erhaltene Vollmachten
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Folgende Eigentümer haben Ihnen eine Vollmacht erteilt. Sie stimmen in deren Namen ab.
+                  </p>
+                  {receivedProxies.map((proxy: any) => {
+                    const cba = proxy.contact_building_assignments;
+                    const ownerContact = cba?.contacts;
+                    const ownerName = ownerContact?.company_name || [ownerContact?.first_name, ownerContact?.last_name].filter(Boolean).join(" ") || "Unbekannt";
+                    return (
+                      <Card key={proxy.id} className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20">
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium">{ownerName}</p>
+                              {cba?.unit_number && (
+                                <p className="text-xs text-muted-foreground">Einheit {cba.unit_number}</p>
+                              )}
+                            </div>
+                            <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 shrink-0">
+                              Vollmacht erhalten
+                            </Badge>
+                          </div>
+                          {proxy.pre_vote_instructions && Object.keys(proxy.pre_vote_instructions).length > 0 && (
+                            <div className="mt-3 p-2 bg-amber-50 dark:bg-amber-950/30 rounded border border-amber-200 dark:border-amber-800">
+                              <p className="text-xs font-medium text-amber-800 dark:text-amber-300 mb-1">Weisungen:</p>
+                              {Object.entries(proxy.pre_vote_instructions).map(([topId, instruction]: [string, any]) => (
+                                <p key={topId} className="text-xs text-amber-700 dark:text-amber-400">• {String(instruction)}</p>
+                              ))}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+
               {/* Show message when no assignments found */}
               {["published", "in_progress"].includes(selectedMeeting.status) && myAssignments.length === 0 && (
                 <div className="border-t pt-4">
