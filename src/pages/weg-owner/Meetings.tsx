@@ -56,6 +56,7 @@ export const WegOwnerMeetings = () => {
   const [proxyExternalName, setProxyExternalName] = useState<string>("");
   const [proxyDetailAttendeeId, setProxyDetailAttendeeId] = useState<string | null>(null);
   const [withdrawAttendeeId, setWithdrawAttendeeId] = useState<string | null>(null);
+  const [viewReceivedProxy, setViewReceivedProxy] = useState<any>(null);
 
   // TOP submission form
   const [topTitle, setTopTitle] = useState("");
@@ -787,73 +788,114 @@ export const WegOwnerMeetings = () => {
                     const cba = proxy.contact_building_assignments;
                     const ownerContact = cba?.contacts;
                     const ownerName = ownerContact?.company_name || [ownerContact?.first_name, ownerContact?.last_name].filter(Boolean).join(" ") || "Unbekannt";
-                    const hasInstructions = proxy.pre_vote_instructions && Object.keys(proxy.pre_vote_instructions).length > 0;
-                    const shares = cba?.contact_building_shares || [];
-                    const meaShare = shares.find((s: any) => s.share_type === "mea");
                     return (
-                      <Collapsible key={proxy.id}>
-                        <CollapsibleTrigger asChild>
-                          <Card className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 cursor-pointer hover:bg-blue-100/50 dark:hover:bg-blue-950/40 transition-colors">
-                            <CardContent className="p-4">
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="min-w-0 flex items-center gap-2">
-                                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 transition-transform [[data-state=open]_&]:rotate-90" />
-                                  <div>
-                                    <p className="text-sm font-medium">{ownerName}</p>
-                                    {cba?.unit_number && (
-                                      <p className="text-xs text-muted-foreground">Einheit {cba.unit_number}</p>
-                                    )}
-                                  </div>
-                                </div>
-                                <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 shrink-0">
-                                  Vollmacht erhalten
-                                </Badge>
-                              </div>
-                            </CardContent>
-                          </Card>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent>
-                          <div className="ml-4 mt-1 mb-2 p-3 rounded-lg border border-blue-100 dark:border-blue-900 bg-background space-y-2 text-sm">
-                            <div className="grid grid-cols-2 gap-2 text-xs">
-                              <div>
-                                <span className="text-muted-foreground">Eigentümer:</span>
-                                <p className="font-medium">{ownerName}</p>
-                              </div>
+                      <Card
+                        key={proxy.id}
+                        className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 cursor-pointer hover:bg-blue-100/50 dark:hover:bg-blue-950/40 transition-colors"
+                        onClick={() => setViewReceivedProxy(proxy)}
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium">{ownerName}</p>
                               {cba?.unit_number && (
-                                <div>
-                                  <span className="text-muted-foreground">Einheit:</span>
-                                  <p className="font-medium">{cba.unit_number}</p>
-                                </div>
+                                <p className="text-xs text-muted-foreground">Einheit {cba.unit_number}</p>
                               )}
-                              {meaShare && (
-                                <div>
-                                  <span className="text-muted-foreground">MEA-Anteil:</span>
-                                  <p className="font-medium">{meaShare.share_value} / 1000</p>
-                                </div>
-                              )}
-                              <div>
-                                <span className="text-muted-foreground">Typ:</span>
-                                <p className="font-medium">{proxy.proxy_type === "manager" ? "Verwaltervollmacht" : "Eigentümervollmacht"}</p>
-                              </div>
                             </div>
-                            {hasInstructions && (
-                              <div className="p-2 bg-amber-50 dark:bg-amber-950/30 rounded border border-amber-200 dark:border-amber-800">
-                                <p className="text-xs font-medium text-amber-800 dark:text-amber-300 mb-1">Weisungen:</p>
-                                {Object.entries(proxy.pre_vote_instructions).map(([topId, instruction]: [string, any]) => (
-                                  <p key={topId} className="text-xs text-amber-700 dark:text-amber-400">• {String(instruction)}</p>
-                                ))}
-                              </div>
-                            )}
-                            {!hasInstructions && (
-                              <p className="text-xs text-muted-foreground italic">Keine Weisungen hinterlegt – freie Stimmabgabe.</p>
-                            )}
+                            <div className="flex items-center gap-2 shrink-0">
+                              <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                Vollmacht erhalten
+                              </Badge>
+                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                            </div>
                           </div>
-                        </CollapsibleContent>
-                      </Collapsible>
+                        </CardContent>
+                      </Card>
                     );
                   })}
                 </div>
               )}
+
+              {/* Received Proxy Detail Dialog */}
+              <Dialog open={!!viewReceivedProxy} onOpenChange={(open) => !open && setViewReceivedProxy(null)}>
+                <DialogContent className="max-w-md">
+                  {viewReceivedProxy && (() => {
+                    const cba = viewReceivedProxy.contact_building_assignments;
+                    const ownerContact = cba?.contacts;
+                    const ownerName = ownerContact?.company_name || [ownerContact?.first_name, ownerContact?.last_name].filter(Boolean).join(" ") || "Unbekannt";
+                    const hasInstructions = viewReceivedProxy.pre_vote_instructions && Object.keys(viewReceivedProxy.pre_vote_instructions).length > 0;
+                    const shares = cba?.contact_building_shares || [];
+                    const meaShare = shares.find((s: any) => s.share_type === "mea");
+                    return (
+                      <>
+                        <DialogHeader>
+                          <DialogTitle className="flex items-center gap-2">
+                            <Shield className="h-5 w-5 text-blue-500" />
+                            Vollmacht
+                          </DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div className="rounded-lg border bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800 p-4 space-y-3">
+                            <div className="flex items-center gap-3">
+                              <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                                <Users className="h-5 w-5 text-blue-600 dark:text-blue-300" />
+                              </div>
+                              <div>
+                                <p className="font-semibold text-foreground">{ownerName}</p>
+                                <p className="text-xs text-muted-foreground">hat Ihnen eine Vollmacht erteilt</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            {cba?.unit_number && (
+                              <div className="rounded-lg bg-muted/40 p-3">
+                                <p className="text-[11px] text-muted-foreground uppercase tracking-wide">Einheit</p>
+                                <p className="text-sm font-semibold mt-0.5">{cba.unit_number}</p>
+                              </div>
+                            )}
+                            {meaShare && (
+                              <div className="rounded-lg bg-muted/40 p-3">
+                                <p className="text-[11px] text-muted-foreground uppercase tracking-wide">MEA-Anteil</p>
+                                <p className="text-sm font-semibold mt-0.5">{meaShare.share_value} / 1000</p>
+                              </div>
+                            )}
+                            <div className="rounded-lg bg-muted/40 p-3">
+                              <p className="text-[11px] text-muted-foreground uppercase tracking-wide">Vollmacht-Typ</p>
+                              <p className="text-sm font-semibold mt-0.5">{viewReceivedProxy.proxy_type === "manager" ? "Verwalter" : "Eigentümer"}</p>
+                            </div>
+                            <div className="rounded-lg bg-muted/40 p-3">
+                              <p className="text-[11px] text-muted-foreground uppercase tracking-wide">Status</p>
+                              <p className="text-sm font-semibold mt-0.5 text-green-600">Aktiv</p>
+                            </div>
+                          </div>
+
+                          {hasInstructions && (
+                            <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-950/30 p-4 space-y-2">
+                              <p className="text-xs font-semibold text-amber-800 dark:text-amber-300 uppercase tracking-wide">Weisungen des Eigentümers</p>
+                              <div className="space-y-1.5">
+                                {Object.entries(viewReceivedProxy.pre_vote_instructions).map(([topId, instruction]: [string, any]) => (
+                                  <div key={topId} className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-400">
+                                    <span className="mt-0.5">•</span>
+                                    <span>{String(instruction)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {!hasInstructions && (
+                            <div className="rounded-lg border bg-muted/30 p-4 text-center">
+                              <p className="text-sm text-muted-foreground">Keine Weisungen hinterlegt</p>
+                              <p className="text-xs text-muted-foreground mt-1">Sie können frei im Namen des Eigentümers abstimmen.</p>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    );
+                  })()}
+                </DialogContent>
+              </Dialog>
 
               {/* Show message when no assignments found */}
               {["published", "in_progress"].includes(selectedMeeting.status) && myAssignments.length === 0 && (
