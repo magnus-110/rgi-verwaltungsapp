@@ -53,6 +53,8 @@ export const WegOwnerMeetings = () => {
   const [proxyType, setProxyType] = useState<string>("manager");
   const [proxyContactId, setProxyContactId] = useState<string>("");
   const [proxyExternalName, setProxyExternalName] = useState<string>("");
+  const [proxyDetailAttendeeId, setProxyDetailAttendeeId] = useState<string | null>(null);
+  const [withdrawAttendeeId, setWithdrawAttendeeId] = useState<string | null>(null);
 
   // TOP submission form
   const [topTitle, setTopTitle] = useState("");
