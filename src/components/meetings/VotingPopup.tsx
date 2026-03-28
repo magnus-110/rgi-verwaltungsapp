@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -7,12 +7,17 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, XCircle, MinusCircle, Vote } from "lucide-react";
 
+interface VotingAssignment {
+  id: string;
+  unit_number: string | null;
+  attendee_id: string;
+  mea_weight: number;
+}
+
 export const VotingPopup = () => {
   const { profile } = useAuth();
-  const queryClient = useQueryClient();
   const [votingItem, setVotingItem] = useState<any>(null);
-  const [myAssignmentId, setMyAssignmentId] = useState<string | null>(null);
-  const [myMeaWeight, setMyMeaWeight] = useState<number>(0);
+  const [myVotingAssignments, setMyVotingAssignments] = useState<VotingAssignment[]>([]);
   const [hasVoted, setHasVoted] = useState(false);
 
   // Listen for voting agenda items via realtime
@@ -42,39 +47,51 @@ export const VotingPopup = () => {
               .maybeSingle();
             if (!contact) return;
 
-            const { data: assignment } = await supabase
+            // Get ALL assignments for this user in this building
+            const { data: assignments } = await supabase
               .from("contact_building_assignments")
-              .select("id, contact_building_shares(share_type, share_value)")
+              .select("id, unit_number, contact_building_shares(share_type, share_value)")
               .eq("contact_id", contact.id)
               .eq("building_id", meeting.building_id)
-              .eq("is_active", true)
-              .maybeSingle();
-            if (!assignment) return;
+              .eq("is_active", true);
+            if (!assignments || assignments.length === 0) return;
 
-            const { data: attendee } = await supabase
-              .from("etv_attendees")
-              .select("id, attendance_type")
-              .eq("meeting_id", meeting.id)
-              .eq("assignment_id", assignment.id)
-              .maybeSingle();
-            // Only show if attendee exists and hasn't given proxy
-            if (!attendee || attendee.attendance_type === "proxy") return;
+            // For each assignment, check attendee status and existing votes
+            const validAssignments: VotingAssignment[] = [];
+            for (const assignment of assignments) {
+              const { data: attendee } = await supabase
+                .from("etv_attendees")
+                .select("id, attendance_type")
+                .eq("meeting_id", meeting.id)
+                .eq("assignment_id", assignment.id)
+                .maybeSingle();
+              // Only include if attendee exists and hasn't given proxy
+              if (!attendee || attendee.attendance_type === "proxy") continue;
 
-            // Check if already voted
-            const { data: existingVote } = await supabase
-              .from("etv_votes")
-              .select("id")
-              .eq("agenda_item_id", newItem.id)
-              .eq("assignment_id", assignment.id)
-              .maybeSingle();
-            if (existingVote) return;
+              // Check if already voted
+              const { data: existingVote } = await supabase
+                .from("etv_votes")
+                .select("id")
+                .eq("agenda_item_id", newItem.id)
+                .eq("assignment_id", assignment.id)
+                .maybeSingle();
+              if (existingVote) continue;
 
-            const meaShare = (assignment as any).contact_building_shares?.find(
-              (s: any) => s.share_type === "mea"
-            );
+              const meaShare = (assignment as any).contact_building_shares?.find(
+                (s: any) => s.share_type === "mea"
+              );
 
-            setMyAssignmentId(assignment.id);
-            setMyMeaWeight(meaShare?.share_value || 0);
+              validAssignments.push({
+                id: assignment.id,
+                unit_number: assignment.unit_number,
+                attendee_id: attendee.id,
+                mea_weight: meaShare?.share_value || 0,
+              });
+            }
+
+            if (validAssignments.length === 0) return;
+
+            setMyVotingAssignments(validAssignments);
             setVotingItem(newItem);
             setHasVoted(false);
           } else if (
@@ -85,6 +102,7 @@ export const VotingPopup = () => {
             // Voting closed for this item
             if (votingItem?.id === newItem.id) {
               setVotingItem(null);
+              setMyVotingAssignments([]);
             }
           }
         }
@@ -98,29 +116,40 @@ export const VotingPopup = () => {
 
   const castVoteMutation = useMutation({
     mutationFn: async (vote: string) => {
-      if (!votingItem || !myAssignmentId) throw new Error("Missing data");
-      const { error } = await supabase.from("etv_votes").upsert(
-        {
-          agenda_item_id: votingItem.id,
-          assignment_id: myAssignmentId,
-          vote,
-          mea_weight: myMeaWeight,
-          voted_at: new Date().toISOString(),
-        },
-        { onConflict: "agenda_item_id,assignment_id" }
-      );
-      if (error) throw error;
+      if (!votingItem || myVotingAssignments.length === 0) throw new Error("Missing data");
+      
+      // Insert a vote for each valid assignment
+      const rows = myVotingAssignments.map(a => ({
+        agenda_item_id: votingItem.id,
+        assignment_id: a.id,
+        vote,
+        mea_weight: a.mea_weight,
+        voted_at: new Date().toISOString(),
+      }));
+
+      for (const row of rows) {
+        const { error } = await supabase.from("etv_votes").upsert(
+          row,
+          { onConflict: "agenda_item_id,assignment_id" }
+        );
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       setHasVoted(true);
       setTimeout(() => {
         setVotingItem(null);
+        setMyVotingAssignments([]);
         setHasVoted(false);
       }, 1500);
     },
   });
 
   if (!votingItem || profile?.role !== "weg_owner") return null;
+
+  const unitLabels = myVotingAssignments
+    .map(a => a.unit_number || "–")
+    .join(", ");
 
   return (
     <Dialog open={!!votingItem} onOpenChange={() => {}}>
@@ -155,9 +184,21 @@ export const VotingPopup = () => {
               </div>
             )}
 
-            <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
-              Abstimmung läuft
-            </Badge>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                Abstimmung läuft
+              </Badge>
+              {myVotingAssignments.length > 1 && (
+                <Badge variant="secondary">
+                  {myVotingAssignments.length} Einheiten: {unitLabels}
+                </Badge>
+              )}
+              {myVotingAssignments.length === 1 && myVotingAssignments[0].unit_number && (
+                <Badge variant="secondary">
+                  Einheit {myVotingAssignments[0].unit_number}
+                </Badge>
+              )}
+            </div>
 
             <div className="grid grid-cols-3 gap-3">
               <Button

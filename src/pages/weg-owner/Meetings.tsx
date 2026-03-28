@@ -49,6 +49,7 @@ export const WegOwnerMeetings = () => {
   const [editRemovedPaths, setEditRemovedPaths] = useState<string[]>([]);
   const [deleteTopId, setDeleteTopId] = useState<string | null>(null);
   const [showProxyDialog, setShowProxyDialog] = useState(false);
+  const [proxyAssignmentId, setProxyAssignmentId] = useState<string | null>(null);
   const [proxyType, setProxyType] = useState<string>("manager");
   const [proxyContactId, setProxyContactId] = useState<string>("");
 
@@ -121,61 +122,65 @@ export const WegOwnerMeetings = () => {
     enabled: !!selectedMeetingId,
   });
 
-  // Find user's contact assignment for this building
-  const { data: myAssignment } = useQuery({
-    queryKey: ["my-contact-assignment", effectiveBuildingId, profile?.user_id],
+  // Find ALL user's contact assignments for this building (multi-unit support)
+  const { data: myAssignments = [] } = useQuery({
+    queryKey: ["my-contact-assignments", effectiveBuildingId, profile?.user_id],
     queryFn: async () => {
-      // Find the contact linked to this user
       const { data: contact } = await supabase
         .from("contacts")
         .select("id")
         .eq("user_id", profile?.user_id!)
         .maybeSingle();
-      if (!contact) return null;
+      if (!contact) return [];
       
       const { data } = await supabase
         .from("contact_building_assignments")
-        .select("id")
+        .select("id, unit_number, contact_building_shares(share_type, share_value)")
         .eq("contact_id", contact.id)
         .eq("building_id", effectiveBuildingId!)
         .eq("is_active", true)
-        .limit(1)
-        .maybeSingle();
-      return data;
+        .order("unit_number");
+      return data || [];
     },
     enabled: !!effectiveBuildingId && !!profile?.user_id,
   });
 
-  // Find user's attendee record for the selected meeting
-  const { data: myAttendee, refetch: refetchAttendee } = useQuery({
-    queryKey: ["my-attendee", selectedMeetingId, myAssignment?.id],
+  // Find ALL user's attendee records for the selected meeting (one per assignment)
+  const { data: myAttendees = [], refetch: refetchAttendees } = useQuery({
+    queryKey: ["my-attendees", selectedMeetingId, myAssignments.map(a => a.id).join(",")],
     queryFn: async () => {
-      if (!myAssignment?.id || !selectedMeetingId) return null;
+      if (!myAssignments.length || !selectedMeetingId) return [];
+      const assignmentIds = myAssignments.map(a => a.id);
       const { data } = await supabase
         .from("etv_attendees")
         .select("*")
         .eq("meeting_id", selectedMeetingId)
-        .eq("assignment_id", myAssignment.id)
-        .maybeSingle();
-      return data;
+        .in("assignment_id", assignmentIds);
+      return data || [];
     },
-    enabled: !!selectedMeetingId && !!myAssignment?.id,
+    enabled: !!selectedMeetingId && myAssignments.length > 0,
   });
 
-  // Auto-create attendee record when owner views a published/in_progress meeting
+  // Auto-create attendee records for ALL assignments when owner views a published/in_progress meeting
   const autoRegisterRef = useRef(false);
   const autoRegisterMutation = useMutation({
     mutationFn: async () => {
-      if (!myAssignment?.id || !selectedMeetingId) throw new Error("Missing data");
-      const { error } = await supabase.from("etv_attendees").insert({
+      if (!myAssignments.length || !selectedMeetingId) throw new Error("Missing data");
+      // Find which assignments don't have attendee records yet
+      const existingAssignmentIds = myAttendees.map(a => a.assignment_id);
+      const missingAssignments = myAssignments.filter(a => !existingAssignmentIds.includes(a.id));
+      if (missingAssignments.length === 0) return;
+      
+      const rows = missingAssignments.map(a => ({
         meeting_id: selectedMeetingId,
-        assignment_id: myAssignment.id,
-        attendance_type: "absent",
-      });
+        assignment_id: a.id,
+        attendance_type: "absent" as const,
+      }));
+      const { error } = await supabase.from("etv_attendees").insert(rows);
       if (error) throw error;
     },
     onSuccess: () => {
-      refetchAttendee();
+      refetchAttendees();
     },
   });
 
@@ -183,24 +188,29 @@ export const WegOwnerMeetings = () => {
   useEffect(() => {
     if (
       selectedMeetingId &&
-      myAssignment?.id &&
-      myAttendee === null &&
+      myAssignments.length > 0 &&
       selectedMeetingForAutoReg &&
       ["published", "in_progress"].includes(selectedMeetingForAutoReg.status) &&
       !autoRegisterMutation.isPending &&
       !autoRegisterRef.current
     ) {
-      autoRegisterRef.current = true;
-      autoRegisterMutation.mutate();
+      // Check if any assignments are missing attendee records
+      const existingAssignmentIds = myAttendees.map(a => a.assignment_id);
+      const hasMissing = myAssignments.some(a => !existingAssignmentIds.includes(a.id));
+      if (hasMissing) {
+        autoRegisterRef.current = true;
+        autoRegisterMutation.mutate();
+      }
     }
     if (!selectedMeetingId) {
       autoRegisterRef.current = false;
     }
-  }, [selectedMeetingId, myAssignment?.id, myAttendee, selectedMeetingForAutoReg?.status]);
+  }, [selectedMeetingId, myAssignments.length, myAttendees.length, selectedMeetingForAutoReg?.status]);
 
   // Load other owners for proxy selection
+  const myAssignmentIds = myAssignments.map(a => a.id);
   const { data: otherOwners = [] } = useQuery({
-    queryKey: ["building-owners-proxy", effectiveBuildingId, profile?.user_id],
+    queryKey: ["building-owners-proxy", effectiveBuildingId, myAssignmentIds.join(",")],
     queryFn: async () => {
       const { data } = await supabase
         .from("contact_building_assignments")
@@ -208,16 +218,15 @@ export const WegOwnerMeetings = () => {
         .eq("building_id", effectiveBuildingId!)
         .eq("role_in_building", "eigentuemer")
         .eq("is_active", true);
-      // Filter out current user's assignment
-      return (data || []).filter((d: any) => d.id !== myAssignment?.id);
+      // Filter out current user's assignments
+      return (data || []).filter((d: any) => !myAssignmentIds.includes(d.id));
     },
-    enabled: !!effectiveBuildingId && !!myAssignment?.id,
+    enabled: !!effectiveBuildingId && myAssignments.length > 0,
   });
 
-  // Set proxy mutation
+  // Set proxy mutation — now accepts attendeeId
   const setProxyMutation = useMutation({
-    mutationFn: async ({ type, contactId }: { type: string; contactId?: string }) => {
-      if (!myAttendee?.id) throw new Error("Kein Teilnehmer-Eintrag gefunden");
+    mutationFn: async ({ attendeeId, type, contactId }: { attendeeId: string; type: string; contactId?: string }) => {
       const { error } = await supabase
         .from("etv_attendees")
         .update({
@@ -225,23 +234,23 @@ export const WegOwnerMeetings = () => {
           proxy_type: type,
           proxy_contact_id: type === "owner" ? (contactId || null) : null,
         })
-        .eq("id", myAttendee.id);
+        .eq("id", attendeeId);
       if (error) throw error;
     },
     onSuccess: () => {
       toast({ title: "Vollmacht erteilt" });
       setShowProxyDialog(false);
-      refetchAttendee();
+      setProxyAssignmentId(null);
+      refetchAttendees();
     },
     onError: (err: any) => {
       toast({ title: "Fehler", description: err.message, variant: "destructive" });
     },
   });
 
-  // Withdraw proxy mutation
+  // Withdraw proxy mutation — now accepts attendeeId
   const withdrawProxyMutation = useMutation({
-    mutationFn: async () => {
-      if (!myAttendee?.id) throw new Error("Kein Teilnehmer-Eintrag gefunden");
+    mutationFn: async (attendeeId: string) => {
       const { error } = await supabase
         .from("etv_attendees")
         .update({
@@ -249,12 +258,12 @@ export const WegOwnerMeetings = () => {
           proxy_type: null,
           proxy_contact_id: null,
         })
-        .eq("id", myAttendee.id);
+        .eq("id", attendeeId);
       if (error) throw error;
     },
     onSuccess: () => {
       toast({ title: "Vollmacht zurückgezogen" });
-      refetchAttendee();
+      refetchAttendees();
     },
     onError: (err: any) => {
       toast({ title: "Fehler", description: err.message, variant: "destructive" });
@@ -629,8 +638,8 @@ export const WegOwnerMeetings = () => {
                 </div>
               )}
 
-              {/* Vollmacht-Sektion */}
-              {["published", "in_progress"].includes(selectedMeeting.status) && myAssignment && (
+              {/* Vollmacht-Sektion — pro Einheit */}
+              {["published", "in_progress"].includes(selectedMeeting.status) && myAssignments.length > 0 && (
                 <div className="border-t pt-4 space-y-3">
                   <h3 className="font-semibold text-foreground flex items-center gap-2">
                     <Shield className="h-4 w-4" />
@@ -646,65 +655,78 @@ export const WegOwnerMeetings = () => {
                     </Card>
                   )}
 
-                  {!myAttendee ? (
-                    <Card>
-                      <CardContent className="p-4 text-sm text-muted-foreground">
-                        Teilnehmer-Status wird geladen...
-                      </CardContent>
-                    </Card>
-                  ) : (
-                  <Card>
-                    <CardContent className="p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-medium">Aktueller Status</p>
-                          <div className="mt-1">
-                            {myAttendee.attendance_type === "proxy" ? (
-                              <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                                Vertreten — {myAttendee.proxy_type === "manager" ? "durch Verwalter" : "durch Eigentümer"}
-                              </Badge>
-                            ) : myAttendee.attendance_type === "present" ? (
-                              <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Anwesend</Badge>
-                            ) : (
-                              <Badge variant="secondary">Nicht teilgenommen / Offen</Badge>
-                            )}
+                  {myAssignments.map((assignment: any) => {
+                    const attendee = myAttendees.find((a: any) => a.assignment_id === assignment.id);
+                    return (
+                      <Card key={assignment.id}>
+                        <CardContent className="p-4 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium">
+                                {assignment.unit_number ? `Einheit ${assignment.unit_number}` : "Zuordnung"}
+                              </p>
+                              <div className="mt-1">
+                                {!attendee ? (
+                                  <Badge variant="secondary">Wird geladen...</Badge>
+                                ) : attendee.attendance_type === "proxy" ? (
+                                  <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                    Vertreten — {attendee.proxy_type === "manager" ? "durch Verwalter" : "durch Eigentümer"}
+                                  </Badge>
+                                ) : attendee.attendance_type === "present" ? (
+                                  <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Anwesend</Badge>
+                                ) : (
+                                  <Badge variant="secondary">Nicht teilgenommen / Offen</Badge>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
 
-                      {!isProxyLocked(selectedMeeting.meeting_date) && (
-                        <div className="flex gap-2 pt-1">
-                          {myAttendee.attendance_type !== "proxy" ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="gap-2"
-                              onClick={() => {
-                                setProxyType("manager");
-                                setProxyContactId("");
-                                setShowProxyDialog(true);
-                              }}
-                            >
-                              <Shield className="h-3.5 w-3.5" />
-                              Vollmacht erteilen
-                            </Button>
-                          ) : (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="gap-2"
-                              onClick={() => withdrawProxyMutation.mutate()}
-                              disabled={withdrawProxyMutation.isPending}
-                            >
-                              <UserX className="h-3.5 w-3.5" />
-                              {withdrawProxyMutation.isPending ? "Wird zurückgezogen..." : "Vollmacht zurückziehen"}
-                            </Button>
+                          {attendee && !isProxyLocked(selectedMeeting.meeting_date) && (
+                            <div className="flex gap-2 pt-1">
+                              {attendee.attendance_type !== "proxy" ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="gap-2"
+                                  onClick={() => {
+                                    setProxyAssignmentId(assignment.id);
+                                    setProxyType("manager");
+                                    setProxyContactId("");
+                                    setShowProxyDialog(true);
+                                  }}
+                                >
+                                  <Shield className="h-3.5 w-3.5" />
+                                  Vollmacht erteilen
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="gap-2"
+                                  onClick={() => withdrawProxyMutation.mutate(attendee.id)}
+                                  disabled={withdrawProxyMutation.isPending}
+                                >
+                                  <UserX className="h-3.5 w-3.5" />
+                                  {withdrawProxyMutation.isPending ? "Wird zurückgezogen..." : "Vollmacht zurückziehen"}
+                                </Button>
+                              )}
+                            </div>
                           )}
-                        </div>
-                      )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Show message when no assignments found */}
+              {["published", "in_progress"].includes(selectedMeeting.status) && myAssignments.length === 0 && (
+                <div className="border-t pt-4">
+                  <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/30">
+                    <CardContent className="p-4 text-sm text-amber-700 dark:text-amber-400">
+                      Ihr Benutzerkonto ist noch nicht mit einem Eigentümer-Kontakt verknüpft. Bitte wenden Sie sich an Ihre Hausverwaltung.
                     </CardContent>
                   </Card>
-                  )}
                 </div>
               )}
             </div>
@@ -1137,9 +1159,13 @@ export const WegOwnerMeetings = () => {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowProxyDialog(false)}>Abbrechen</Button>
+            <Button variant="outline" onClick={() => { setShowProxyDialog(false); setProxyAssignmentId(null); }}>Abbrechen</Button>
             <Button
-              onClick={() => setProxyMutation.mutate({ type: proxyType, contactId: proxyContactId || undefined })}
+              onClick={() => {
+                const attendee = myAttendees.find((a: any) => a.assignment_id === proxyAssignmentId);
+                if (!attendee) return;
+                setProxyMutation.mutate({ attendeeId: attendee.id, type: proxyType, contactId: proxyContactId || undefined });
+              }}
               disabled={setProxyMutation.isPending || (proxyType === "owner" && !proxyContactId)}
             >
               {setProxyMutation.isPending ? "Wird gespeichert..." : "Vollmacht erteilen"}
