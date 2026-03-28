@@ -154,7 +154,7 @@ export const WegOwnerMeetings = () => {
       const assignmentIds = myAssignments.map(a => a.id);
       const { data } = await supabase
         .from("etv_attendees")
-        .select("*")
+        .select("*, proxy_contact:contacts!etv_attendees_proxy_contact_id_fkey(first_name, last_name, company_name)")
         .eq("meeting_id", selectedMeetingId)
         .in("assignment_id", assignmentIds);
       return data || [];
@@ -684,8 +684,15 @@ export const WegOwnerMeetings = () => {
                                   <Badge variant="secondary">Wird geladen...</Badge>
                                  ) : attendee.attendance_type === "proxy" ? (
                                    <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                                     Vertreten — {attendee.proxy_type === "manager" ? "durch Verwalter" : attendee.proxy_type === "external" ? `durch ${attendee.proxy_external_name || "Externe Person"}` : "durch Eigentümer"}
-                                   </Badge>
+                                      Vertreten — {attendee.proxy_type === "manager" ? "durch Verwalter" : attendee.proxy_type === "external" ? `durch ${attendee.proxy_external_name || "Externe Person"}` : (() => {
+                                        const pc = attendee.proxy_contact;
+                                        if (pc) {
+                                          const name = pc.company_name || [pc.first_name, pc.last_name].filter(Boolean).join(" ");
+                                          return `durch ${name || "Eigentümer"}`;
+                                        }
+                                        return "durch Eigentümer";
+                                      })()}
+                                    </Badge>
                                 ) : attendee.attendance_type === "present" ? (
                                   <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Anwesend</Badge>
                                 ) : (
@@ -694,22 +701,51 @@ export const WegOwnerMeetings = () => {
                               </div>
                               {/* Token link for external proxy */}
                               {attendee?.proxy_type === "external" && attendee?.proxy_token && (
-                                <div className="mt-2 flex items-center gap-2">
-                                  <code className="text-xs bg-muted px-2 py-1 rounded truncate max-w-[200px]">
-                                    {`${window.location.origin}/etv-proxy/${attendee.proxy_token}`}
-                                  </code>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7"
-                                    onClick={() => {
-                                      navigator.clipboard.writeText(`${window.location.origin}/etv-proxy/${attendee.proxy_token}`);
-                                      toast({ title: "Link kopiert" });
-                                    }}
-                                  >
-                                    <Copy className="h-3.5 w-3.5" />
-                                  </Button>
-                                </div>
+                                <Card className="mt-3 border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800">
+                                  <CardContent className="p-3 space-y-2">
+                                    <div className="flex items-center gap-2 text-sm font-medium text-blue-800 dark:text-blue-300">
+                                      <Link2 className="h-4 w-4" />
+                                      Vollmacht-Link für {attendee.proxy_external_name || "externe Person"}
+                                    </div>
+                                    <p className="text-xs text-blue-700 dark:text-blue-400">
+                                      Teilen Sie diesen Link mit der bevollmächtigten Person. Über den Link kann sie an Abstimmungen teilnehmen und Ergebnisse einsehen. Der Link ist gültig, bis die Vollmacht zurückgezogen wird.
+                                    </p>
+                                    <div className="flex items-center gap-2">
+                                      <code className="text-xs bg-white dark:bg-blue-900/50 px-2 py-1.5 rounded border border-blue-200 dark:border-blue-700 truncate flex-1">
+                                        {`${window.location.origin}/etv-proxy/${attendee.proxy_token}`}
+                                      </code>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="shrink-0 gap-1.5"
+                                        onClick={() => {
+                                          navigator.clipboard.writeText(`${window.location.origin}/etv-proxy/${attendee.proxy_token}`);
+                                          toast({ title: "Link kopiert" });
+                                        }}
+                                      >
+                                        <Copy className="h-3.5 w-3.5" />
+                                        Kopieren
+                                      </Button>
+                                      {typeof navigator.share === "function" && (
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="shrink-0 gap-1.5"
+                                          onClick={() => {
+                                            navigator.share({
+                                              title: "Vollmacht-Link zur Eigentümerversammlung",
+                                              text: `Hallo ${attendee.proxy_external_name || ""}, hier ist Ihr Vollmacht-Link zur Abstimmung:`,
+                                              url: `${window.location.origin}/etv-proxy/${attendee.proxy_token}`,
+                                            }).catch(() => {});
+                                          }}
+                                        >
+                                          <ExternalLink className="h-3.5 w-3.5" />
+                                          Teilen
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </CardContent>
+                                </Card>
                               )}
                             </div>
                           </div>
