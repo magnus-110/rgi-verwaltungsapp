@@ -783,9 +783,16 @@ export const WegOwnerMeetings = () => {
                               {!attendee ? (
                                 <Badge variant="secondary">Wird geladen...</Badge>
                               ) : hasProxy ? (
-                                <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 max-w-[200px] truncate">
-                                  Vollmacht: {getProxyLabel()}
-                                </Badge>
+                                <div className="flex items-center gap-1.5">
+                                  <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 max-w-[200px] truncate">
+                                    Vollmacht: {getProxyLabel()}
+                                  </Badge>
+                                  {attendee?.pre_vote_instructions && Object.keys(attendee.pre_vote_instructions).length > 0 && (
+                                    <Badge variant="secondary" className="text-xs h-5 px-1.5">
+                                      {Object.keys(attendee.pre_vote_instructions).length} W.
+                                    </Badge>
+                                  )}
+                                </div>
                               ) : attendee.attendance_type === "present" ? (
                                 <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Anwesend</Badge>
                               ) : (
