@@ -247,21 +247,29 @@ export const AttendeeManager = ({ meetingId, buildingId, lockTime }: AttendeeMan
         {attendees.map((attendee) => {
           const cba = attendee.contact_building_assignments as any;
           const contact = cba.contacts;
+          const proxyContactName = attendee.proxy_type === "owner" && attendee.proxy_contact_id
+            ? (() => {
+                const proxyContact = allContacts.find((c: any) => c.contacts.id === attendee.proxy_contact_id);
+                return proxyContact ? getContactName(proxyContact.contacts) : null;
+              })()
+            : null;
           return (
             <Card key={attendee.id}>
               <CardContent className="p-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm truncate">{getContactName(contact)}</span>
-                      {cba.unit_number && (
-                        <Badge variant="outline" className="text-xs">Einheit {cba.unit_number}</Badge>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-sm truncate">
+                        {cba.unit_number ? `${cba.unit_number} – ` : ""}{getContactName(contact)}
+                      </span>
+                      {attendee.proxy_type === "manager" && (
+                        <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-xs">Vollmacht: Verwalter</Badge>
                       )}
                       {attendanceBadge(attendee.attendance_type)}
                     </div>
-                    {attendee.proxy_type && (
+                    {attendee.proxy_type && attendee.proxy_type !== "manager" && (
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        Vollmacht: {attendee.proxy_type === "manager" ? "Verwalter" : attendee.proxy_type === "owner" ? "Eigentümer" : "Extern"}
+                        Vollmacht: {attendee.proxy_type === "owner" ? (proxyContactName || "Eigentümer") : "Extern"}
                         {attendee.proxy_token && (
                           <button
                             className="ml-2 text-primary hover:underline inline-flex items-center gap-1"
