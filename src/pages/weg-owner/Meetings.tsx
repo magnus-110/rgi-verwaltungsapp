@@ -52,6 +52,7 @@ export const WegOwnerMeetings = () => {
   const [proxyAssignmentId, setProxyAssignmentId] = useState<string | null>(null);
   const [proxyType, setProxyType] = useState<string>("manager");
   const [proxyContactId, setProxyContactId] = useState<string>("");
+  const [proxyExternalName, setProxyExternalName] = useState<string>("");
 
   // TOP submission form
   const [topTitle, setTopTitle] = useState("");
@@ -226,19 +227,29 @@ export const WegOwnerMeetings = () => {
 
   // Set proxy mutation — now accepts attendeeId
   const setProxyMutation = useMutation({
-    mutationFn: async ({ attendeeId, type, contactId }: { attendeeId: string; type: string; contactId?: string }) => {
+    mutationFn: async ({ attendeeId, type, contactId, externalName }: { attendeeId: string; type: string; contactId?: string; externalName?: string }) => {
+      const token = type === "external" ? crypto.randomUUID() : null;
       const { error } = await supabase
         .from("etv_attendees")
         .update({
           attendance_type: "proxy",
           proxy_type: type,
           proxy_contact_id: type === "owner" ? (contactId || null) : null,
+          proxy_token: token,
+          proxy_external_name: type === "external" ? (externalName || null) : null,
         })
         .eq("id", attendeeId);
       if (error) throw error;
+      return token;
     },
-    onSuccess: () => {
-      toast({ title: "Vollmacht erteilt" });
+    onSuccess: (token) => {
+      if (token) {
+        const link = `${window.location.origin}/etv-proxy/${token}`;
+        navigator.clipboard.writeText(link);
+        toast({ title: "Vollmacht erteilt", description: "Der Vollmacht-Link wurde in die Zwischenablage kopiert." });
+      } else {
+        toast({ title: "Vollmacht erteilt" });
+      }
       setShowProxyDialog(false);
       setProxyAssignmentId(null);
       refetchAttendees();
@@ -248,7 +259,7 @@ export const WegOwnerMeetings = () => {
     },
   });
 
-  // Withdraw proxy mutation — now accepts attendeeId
+  // Withdraw proxy mutation — clears token and external name too
   const withdrawProxyMutation = useMutation({
     mutationFn: async (attendeeId: string) => {
       const { error } = await supabase
@@ -257,6 +268,9 @@ export const WegOwnerMeetings = () => {
           attendance_type: "absent",
           proxy_type: null,
           proxy_contact_id: null,
+          proxy_token: null,
+          proxy_token_used: false,
+          proxy_external_name: null,
         })
         .eq("id", attendeeId);
       if (error) throw error;
