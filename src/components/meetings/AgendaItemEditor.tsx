@@ -9,7 +9,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, GripVertical, Trash2, Pencil, Upload, FileText, X, Wand2, Loader2, Check } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Plus, GripVertical, Trash2, Pencil, Upload, FileText, X, Wand2, Loader2, Check, BookTemplate, ChevronDown } from "lucide-react";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
 
 interface AgendaItemEditorProps {
   meetingId: string;
@@ -26,12 +30,14 @@ interface AgendaItem {
   category: string | null;
   status: string | null;
   attachment_paths: string[] | null;
+  requires_double_qualified: boolean;
+  double_qualified_relevant: boolean;
 }
 
 const votingPrinciples = [
   { value: "mea", label: "MEA (Wertprinzip)" },
   { value: "headcount", label: "Kopfprinzip" },
-  { value: "double_qualified", label: "Doppelt qualifizierte Mehrheit" },
+  { value: "sqm", label: "Quadratmeter" },
 ];
 
 const categories = [
@@ -56,6 +62,8 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
   const [editItemCategory, setEditItemCategory] = useState("sonstiges");
   const [editItemExistingPaths, setEditItemExistingPaths] = useState<string[]>([]);
   const [editNewFiles, setEditNewFiles] = useState<File[]>([]);
+  const [editRequiresDQ, setEditRequiresDQ] = useState(false);
+  const [editDQRelevant, setEditDQRelevant] = useState(false);
 
   // New item form
   const [newTitle, setNewTitle] = useState("");
@@ -64,8 +72,10 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
   const [newPrinciple, setNewPrinciple] = useState("mea");
   const [newCategory, setNewCategory] = useState("sonstiges");
   const [newFiles, setNewFiles] = useState<File[]>([]);
+  const [newRequiresDQ, setNewRequiresDQ] = useState(false);
+  const [newDQRelevant, setNewDQRelevant] = useState(false);
 
-  // AI suggestion state (unified design like email)
+  // AI suggestion state
   const [newAiSuggestion, setNewAiSuggestion] = useState<string | null>(null);
   const [isGeneratingNew, setIsGeneratingNew] = useState(false);
   const [editAiSuggestion, setEditAiSuggestion] = useState<string | null>(null);
@@ -81,6 +91,19 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
         .order("sort_order", { ascending: true });
       if (error) throw error;
       return (data || []) as AgendaItem[];
+    },
+  });
+
+  // Load resolution templates
+  const { data: templates = [] } = useQuery({
+    queryKey: ["etv-resolution-templates"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("etv_resolution_templates")
+        .select("*")
+        .order("sort_order", { ascending: true });
+      if (error) throw error;
+      return data || [];
     },
   });
 
@@ -107,7 +130,9 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
         voting_principle: newPrinciple,
         category: newCategory,
         attachment_paths: attachmentPaths.length > 0 ? attachmentPaths : null,
-      });
+        requires_double_qualified: newRequiresDQ,
+        double_qualified_relevant: newDQRelevant,
+      } as any);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -119,6 +144,8 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       setNewCategory("sonstiges");
       setNewFiles([]);
       setNewAiSuggestion(null);
+      setNewRequiresDQ(false);
+      setNewDQRelevant(false);
       toast({ title: "TOP hinzugefügt" });
     },
     onError: (err: any) => {
@@ -140,7 +167,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
   const updateMutation = useMutation({
     mutationFn: async (item: Partial<AgendaItem> & { id: string }) => {
       const { id, ...update } = item;
-      const { error } = await supabase.from("etv_agenda_items").update(update).eq("id", id);
+      const { error } = await supabase.from("etv_agenda_items").update(update as any).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -159,12 +186,13 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
     setEditItemExistingPaths(item.attachment_paths || []);
     setEditNewFiles([]);
     setEditAiSuggestion(null);
+    setEditRequiresDQ(item.requires_double_qualified || false);
+    setEditDQRelevant(item.double_qualified_relevant || false);
   };
 
   const saveEdit = async () => {
     if (!editingItemId || !editItemTitle) return;
     
-    // Upload new files
     let allPaths = [...editItemExistingPaths];
     if (editNewFiles.length > 0) {
       const newPaths = await uploadFiles(editNewFiles);
@@ -179,10 +207,29 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       voting_principle: editItemPrinciple,
       category: editItemCategory,
       attachment_paths: allPaths.length > 0 ? allPaths : null,
+      requires_double_qualified: editRequiresDQ,
+      double_qualified_relevant: editDQRelevant,
     });
     setEditingItemId(null);
     setEditNewFiles([]);
     setEditAiSuggestion(null);
+  };
+
+  const applyTemplate = (template: any, target: "new" | "edit") => {
+    if (target === "new") {
+      setNewTitle(template.title);
+      setNewResolution(template.resolution_text);
+      setNewPrinciple(template.voting_principle || "mea");
+      setNewCategory(template.category || "sonstiges");
+      setNewRequiresDQ(template.requires_double_qualified || false);
+    } else {
+      setEditItemTitle(template.title);
+      setEditItemResolution(template.resolution_text);
+      setEditItemPrinciple(template.voting_principle || "mea");
+      setEditItemCategory(template.category || "sonstiges");
+      setEditRequiresDQ(template.requires_double_qualified || false);
+    }
+    toast({ title: "Vorlage übernommen" });
   };
 
   const generateResolution = async (
@@ -219,7 +266,6 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
     setEditItemExistingPaths(prev => prev.filter((_, i) => i !== index));
   };
 
-  // Render AI suggestion inline (not as a component to prevent remount/focus loss)
   const renderAiSuggestion = (
     suggestion: string | null,
     onAccept: () => void,
@@ -249,6 +295,49 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
           className="min-h-[100px] resize-y text-sm bg-transparent border-0 p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
         />
       </div>
+    );
+  };
+
+  const renderDoubleQualifiedCheckboxes = (
+    requiresDQ: boolean,
+    setRequiresDQ: (v: boolean) => void,
+    dqRelevant: boolean,
+    setDQRelevant: (v: boolean) => void,
+  ) => (
+    <div className="space-y-2 border rounded-md p-3 bg-muted/30">
+      <p className="text-xs font-medium text-muted-foreground">Doppelt qualifizierte Mehrheit</p>
+      <div className="flex items-center gap-2">
+        <Checkbox id="req-dq" checked={requiresDQ} onCheckedChange={(c) => setRequiresDQ(!!c)} />
+        <Label htmlFor="req-dq" className="text-xs cursor-pointer">Erfordert doppelt qualifizierte Mehrheit</Label>
+      </div>
+      <div className="flex items-center gap-2">
+        <Checkbox id="dq-rel" checked={dqRelevant} onCheckedChange={(c) => setDQRelevant(!!c)} />
+        <Label htmlFor="dq-rel" className="text-xs cursor-pointer">Doppelt qualifizierte Mehrheit relevant (Ergebnis anzeigen)</Label>
+      </div>
+    </div>
+  );
+
+  const renderTemplateDropdown = (target: "new" | "edit") => {
+    if (templates.length === 0) return null;
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button type="button" variant="outline" size="sm" className="gap-1.5 text-xs">
+            <BookTemplate className="h-3.5 w-3.5" />
+            Vorlage
+            <ChevronDown className="h-3 w-3" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="max-h-64 overflow-y-auto">
+          <DropdownMenuLabel className="text-xs">Beschlussvorlage wählen</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          {templates.map((t: any) => (
+            <DropdownMenuItem key={t.id} onClick={() => applyTemplate(t, target)} className="text-xs">
+              {t.title}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
     );
   };
 
@@ -324,6 +413,10 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                 {editingItemId === item.id ? (
                   /* Edit mode */
                   <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold">TOP bearbeiten</Label>
+                      {renderTemplateDropdown("edit")}
+                    </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div className="space-y-1.5">
                         <Label className="text-xs">Titel *</Label>
@@ -381,6 +474,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                         setEditAiSuggestion,
                       )}
                     </div>
+                    {renderDoubleQualifiedCheckboxes(editRequiresDQ, setEditRequiresDQ, editDQRelevant, setEditDQRelevant)}
                     {renderEditAttachments()}
                     <div className="flex justify-end gap-2">
                       <Button variant="outline" size="sm" onClick={() => { setEditingItemId(null); setEditAiSuggestion(null); }}>Abbrechen</Button>
@@ -396,6 +490,11 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                         <Badge variant="outline" className="text-xs">
                           {votingPrinciples.find((v) => v.value === item.voting_principle)?.label || item.voting_principle}
                         </Badge>
+                        {item.requires_double_qualified && (
+                          <Badge variant="secondary" className="text-xs bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                            DQ erforderlich
+                          </Badge>
+                        )}
                         {item.category && (
                           <Badge variant="secondary" className="text-xs">
                             {categories.find((c) => c.value === item.category)?.label || item.category}
@@ -442,7 +541,10 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       {/* Add new item form */}
       <Card className="border-dashed">
         <CardContent className="p-4 space-y-3">
-          <h4 className="text-sm font-semibold text-muted-foreground">Neuen TOP hinzufügen</h4>
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-semibold text-muted-foreground">Neuen TOP hinzufügen</h4>
+            {renderTemplateDropdown("new")}
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs">Titel *</Label>
@@ -514,6 +616,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
               setNewAiSuggestion,
             )}
           </div>
+          {renderDoubleQualifiedCheckboxes(newRequiresDQ, setNewRequiresDQ, newDQRelevant, setNewDQRelevant)}
           {/* File upload */}
           <div className="space-y-1.5">
             <Label className="text-xs">Anhänge (optional)</Label>

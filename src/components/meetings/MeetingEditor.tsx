@@ -39,6 +39,8 @@ export const MeetingEditor = ({ meetingId, onSaved, onCancel }: MeetingEditorPro
   const [meetingTime, setMeetingTime] = useState("18:00");
   const [location, setLocation] = useState("");
   const [notes, setNotes] = useState("");
+  const [meetingChair, setMeetingChair] = useState("");
+  const [minutesTaker, setMinutesTaker] = useState("");
 
   // Load WEG buildings
   const { data: buildings = [] } = useQuery({
@@ -79,6 +81,8 @@ export const MeetingEditor = ({ meetingId, onSaved, onCancel }: MeetingEditorPro
       setMeetingTime(d.toTimeString().slice(0, 5));
       setLocation(existingMeeting.location || "");
       setNotes(existingMeeting.notes || "");
+      setMeetingChair((existingMeeting as any).meeting_chair || "");
+      setMinutesTaker((existingMeeting as any).minutes_taker || "");
       setSavedMeetingId(existingMeeting.id);
     }
   }, [existingMeeting]);
@@ -88,7 +92,7 @@ export const MeetingEditor = ({ meetingId, onSaved, onCancel }: MeetingEditorPro
       const meetingDateTime = new Date(`${meetingDate}T${meetingTime}:00`).toISOString();
       const lockTime = new Date(new Date(`${meetingDate}T${meetingTime}:00`).getTime() - 60 * 60 * 1000).toISOString();
 
-      const payload = {
+      const payload: any = {
         title,
         building_id: buildingId,
         meeting_date: meetingDateTime,
@@ -96,6 +100,8 @@ export const MeetingEditor = ({ meetingId, onSaved, onCancel }: MeetingEditorPro
         notes: notes || null,
         lock_time: lockTime,
         created_by: profile?.user_id,
+        meeting_chair: meetingChair || null,
+        minutes_taker: minutesTaker || null,
       };
 
       if (savedMeetingId) {
@@ -192,6 +198,16 @@ export const MeetingEditor = ({ meetingId, onSaved, onCancel }: MeetingEditorPro
                     <div className="space-y-2">
                       <Label htmlFor="location">Ort</Label>
                       <Input id="location" placeholder="z.B. Gemeinschaftsraum, Musterstraße 1" value={location} onChange={(e) => setLocation(e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="meetingChair">Versammlungsführer (optional)</Label>
+                      <Input id="meetingChair" placeholder="z.B. Max Mustermann" value={meetingChair} onChange={(e) => setMeetingChair(e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="minutesTaker">Protokollführer (optional)</Label>
+                      <Input id="minutesTaker" placeholder="z.B. Erika Musterfrau" value={minutesTaker} onChange={(e) => setMinutesTaker(e.target.value)} />
                     </div>
                   </div>
                   <div className="space-y-2">
