@@ -12,7 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, MapPin, Users, Plus, Building2, FileText, Upload, Trash2, ClipboardList, Clock, CheckCircle2, XCircle, Pause, Pencil, ExternalLink, Shield, Lock, UserX, Copy, Link2 } from "lucide-react";
+import { Calendar, MapPin, Users, Plus, Building2, FileText, Upload, Trash2, ClipboardList, Clock, CheckCircle2, XCircle, Pause, Pencil, ExternalLink, Shield, Lock, UserX, Copy, Link2, ChevronRight } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { format as formatDate } from "date-fns";
 import { de } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -786,30 +787,69 @@ export const WegOwnerMeetings = () => {
                     const cba = proxy.contact_building_assignments;
                     const ownerContact = cba?.contacts;
                     const ownerName = ownerContact?.company_name || [ownerContact?.first_name, ownerContact?.last_name].filter(Boolean).join(" ") || "Unbekannt";
+                    const hasInstructions = proxy.pre_vote_instructions && Object.keys(proxy.pre_vote_instructions).length > 0;
+                    const shares = cba?.contact_building_shares || [];
+                    const meaShare = shares.find((s: any) => s.share_type === "mea");
                     return (
-                      <Card key={proxy.id} className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20">
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium">{ownerName}</p>
+                      <Collapsible key={proxy.id}>
+                        <CollapsibleTrigger asChild>
+                          <Card className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20 cursor-pointer hover:bg-blue-100/50 dark:hover:bg-blue-950/40 transition-colors">
+                            <CardContent className="p-4">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="min-w-0 flex items-center gap-2">
+                                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 transition-transform [[data-state=open]_&]:rotate-90" />
+                                  <div>
+                                    <p className="text-sm font-medium">{ownerName}</p>
+                                    {cba?.unit_number && (
+                                      <p className="text-xs text-muted-foreground">Einheit {cba.unit_number}</p>
+                                    )}
+                                  </div>
+                                </div>
+                                <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 shrink-0">
+                                  Vollmacht erhalten
+                                </Badge>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <div className="ml-4 mt-1 mb-2 p-3 rounded-lg border border-blue-100 dark:border-blue-900 bg-background space-y-2 text-sm">
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div>
+                                <span className="text-muted-foreground">Eigentümer:</span>
+                                <p className="font-medium">{ownerName}</p>
+                              </div>
                               {cba?.unit_number && (
-                                <p className="text-xs text-muted-foreground">Einheit {cba.unit_number}</p>
+                                <div>
+                                  <span className="text-muted-foreground">Einheit:</span>
+                                  <p className="font-medium">{cba.unit_number}</p>
+                                </div>
                               )}
+                              {meaShare && (
+                                <div>
+                                  <span className="text-muted-foreground">MEA-Anteil:</span>
+                                  <p className="font-medium">{meaShare.share_value} / 1000</p>
+                                </div>
+                              )}
+                              <div>
+                                <span className="text-muted-foreground">Typ:</span>
+                                <p className="font-medium">{proxy.proxy_type === "manager" ? "Verwaltervollmacht" : "Eigentümervollmacht"}</p>
+                              </div>
                             </div>
-                            <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 shrink-0">
-                              Vollmacht erhalten
-                            </Badge>
+                            {hasInstructions && (
+                              <div className="p-2 bg-amber-50 dark:bg-amber-950/30 rounded border border-amber-200 dark:border-amber-800">
+                                <p className="text-xs font-medium text-amber-800 dark:text-amber-300 mb-1">Weisungen:</p>
+                                {Object.entries(proxy.pre_vote_instructions).map(([topId, instruction]: [string, any]) => (
+                                  <p key={topId} className="text-xs text-amber-700 dark:text-amber-400">• {String(instruction)}</p>
+                                ))}
+                              </div>
+                            )}
+                            {!hasInstructions && (
+                              <p className="text-xs text-muted-foreground italic">Keine Weisungen hinterlegt – freie Stimmabgabe.</p>
+                            )}
                           </div>
-                          {proxy.pre_vote_instructions && Object.keys(proxy.pre_vote_instructions).length > 0 && (
-                            <div className="mt-3 p-2 bg-amber-50 dark:bg-amber-950/30 rounded border border-amber-200 dark:border-amber-800">
-                              <p className="text-xs font-medium text-amber-800 dark:text-amber-300 mb-1">Weisungen:</p>
-                              {Object.entries(proxy.pre_vote_instructions).map(([topId, instruction]: [string, any]) => (
-                                <p key={topId} className="text-xs text-amber-700 dark:text-amber-400">• {String(instruction)}</p>
-                              ))}
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
+                        </CollapsibleContent>
+                      </Collapsible>
                     );
                   })}
                 </div>
