@@ -53,6 +53,8 @@ export const WegOwnerMeetings = () => {
   const [proxyType, setProxyType] = useState<string>("manager");
   const [proxyContactId, setProxyContactId] = useState<string>("");
   const [proxyExternalName, setProxyExternalName] = useState<string>("");
+  const [proxyDetailAttendeeId, setProxyDetailAttendeeId] = useState<string | null>(null);
+  const [withdrawAttendeeId, setWithdrawAttendeeId] = useState<string | null>(null);
 
   // TOP submission form
   const [topTitle, setTopTitle] = useState("");
@@ -161,6 +163,18 @@ export const WegOwnerMeetings = () => {
     },
     enabled: !!selectedMeetingId && myAssignments.length > 0,
   });
+
+  // Realtime subscription for attendee changes
+  useEffect(() => {
+    if (!selectedMeetingId) return;
+    const channel = supabase
+      .channel(`owner-attendees-${selectedMeetingId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'etv_attendees', filter: `meeting_id=eq.${selectedMeetingId}` },
+        () => queryClient.invalidateQueries({ queryKey: ["my-attendees"] })
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [selectedMeetingId, queryClient]);
 
   // Auto-create attendee records for ALL assignments when owner views a published/in_progress meeting
   const autoRegisterRef = useRef(false);
@@ -664,124 +678,67 @@ export const WegOwnerMeetings = () => {
                     <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/30">
                       <CardContent className="p-3 flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
                         <Lock className="h-4 w-4" />
-                        <span>Vollmachten sind gesperrt (1h vor Versammlungsbeginn). Änderungen sind nicht mehr möglich.</span>
+                        <span>Vollmachten sind gesperrt (1h vor Versammlungsbeginn).</span>
                       </CardContent>
                     </Card>
                   )}
 
                   {myAssignments.map((assignment: any) => {
                     const attendee = myAttendees.find((a: any) => a.assignment_id === assignment.id);
+                    const hasProxy = attendee?.attendance_type === "proxy";
+                    const locked = isProxyLocked(selectedMeeting.meeting_date);
+
+                    const getProxyLabel = () => {
+                      if (!attendee || !hasProxy) return null;
+                      if (attendee.proxy_type === "manager") return "Verwalter";
+                      if (attendee.proxy_type === "external") return attendee.proxy_external_name || "Externe Person";
+                      const pc = attendee.proxy_contact;
+                      if (pc) {
+                        return pc.company_name || [pc.first_name, pc.last_name].filter(Boolean).join(" ") || "Eigentümer";
+                      }
+                      return "Eigentümer";
+                    };
+
                     return (
-                      <Card key={assignment.id}>
-                        <CardContent className="p-4 space-y-3">
-                          <div className="flex items-center justify-between">
-                            <div>
+                      <Card
+                        key={assignment.id}
+                        className={`cursor-pointer transition-shadow hover:shadow-md ${hasProxy ? "border-blue-200 dark:border-blue-800" : ""}`}
+                        onClick={() => {
+                          if (locked) return;
+                          if (hasProxy && attendee) {
+                            setProxyDetailAttendeeId(attendee.id);
+                          } else if (attendee) {
+                            setProxyAssignmentId(assignment.id);
+                            setProxyType("manager");
+                            setProxyContactId("");
+                            setProxyExternalName("");
+                            setShowProxyDialog(true);
+                          }
+                        }}
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
                               <p className="text-sm font-medium">
                                 {assignment.unit_number ? `Einheit ${assignment.unit_number}` : "Zuordnung"}
                               </p>
-                              <div className="mt-1">
-                                {!attendee ? (
-                                  <Badge variant="secondary">Wird geladen...</Badge>
-                                 ) : attendee.attendance_type === "proxy" ? (
-                                   <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                                      Vertreten — {attendee.proxy_type === "manager" ? "durch Verwalter" : attendee.proxy_type === "external" ? `durch ${attendee.proxy_external_name || "Externe Person"}` : (() => {
-                                        const pc = attendee.proxy_contact;
-                                        if (pc) {
-                                          const name = pc.company_name || [pc.first_name, pc.last_name].filter(Boolean).join(" ");
-                                          return `durch ${name || "Eigentümer"}`;
-                                        }
-                                        return "durch Eigentümer";
-                                      })()}
-                                    </Badge>
-                                ) : attendee.attendance_type === "present" ? (
-                                  <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Anwesend</Badge>
-                                ) : (
-                                  <Badge variant="secondary">Nicht teilgenommen / Offen</Badge>
-                                )}
-                              </div>
-                              {/* Token link for external proxy */}
-                              {attendee?.proxy_type === "external" && attendee?.proxy_token && (
-                                <Card className="mt-3 border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800">
-                                  <CardContent className="p-3 space-y-2">
-                                    <div className="flex items-center gap-2 text-sm font-medium text-blue-800 dark:text-blue-300">
-                                      <Link2 className="h-4 w-4" />
-                                      Vollmacht-Link für {attendee.proxy_external_name || "externe Person"}
-                                    </div>
-                                    <p className="text-xs text-blue-700 dark:text-blue-400">
-                                      Teilen Sie diesen Link mit der bevollmächtigten Person. Über den Link kann sie an Abstimmungen teilnehmen und Ergebnisse einsehen. Der Link ist gültig, bis die Vollmacht zurückgezogen wird.
-                                    </p>
-                                    <div className="flex items-center gap-2">
-                                      <code className="text-xs bg-white dark:bg-blue-900/50 px-2 py-1.5 rounded border border-blue-200 dark:border-blue-700 truncate flex-1">
-                                        {`${window.location.origin}/etv-proxy/${attendee.proxy_token}`}
-                                      </code>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="shrink-0 gap-1.5"
-                                        onClick={() => {
-                                          navigator.clipboard.writeText(`${window.location.origin}/etv-proxy/${attendee.proxy_token}`);
-                                          toast({ title: "Link kopiert" });
-                                        }}
-                                      >
-                                        <Copy className="h-3.5 w-3.5" />
-                                        Kopieren
-                                      </Button>
-                                      {typeof navigator.share === "function" && (
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          className="shrink-0 gap-1.5"
-                                          onClick={() => {
-                                            navigator.share({
-                                              title: "Vollmacht-Link zur Eigentümerversammlung",
-                                              text: `Hallo ${attendee.proxy_external_name || ""}, hier ist Ihr Vollmacht-Link zur Abstimmung:`,
-                                              url: `${window.location.origin}/etv-proxy/${attendee.proxy_token}`,
-                                            }).catch(() => {});
-                                          }}
-                                        >
-                                          <ExternalLink className="h-3.5 w-3.5" />
-                                          Teilen
-                                        </Button>
-                                      )}
-                                    </div>
-                                  </CardContent>
-                                </Card>
+                            </div>
+                            <div className="shrink-0">
+                              {!attendee ? (
+                                <Badge variant="secondary">Wird geladen...</Badge>
+                              ) : hasProxy ? (
+                                <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 max-w-[200px] truncate">
+                                  Vollmacht: {getProxyLabel()}
+                                </Badge>
+                              ) : attendee.attendance_type === "present" ? (
+                                <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Anwesend</Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-muted-foreground">
+                                  {locked ? "Offen" : "Vollmacht erteilen →"}
+                                </Badge>
                               )}
                             </div>
                           </div>
-
-                          {attendee && !isProxyLocked(selectedMeeting.meeting_date) && (
-                            <div className="flex gap-2 pt-1">
-                              {attendee.attendance_type !== "proxy" ? (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="gap-2"
-                                  onClick={() => {
-                                    setProxyAssignmentId(assignment.id);
-                                    setProxyType("manager");
-                                    setProxyContactId("");
-                                    setProxyExternalName("");
-                                    setShowProxyDialog(true);
-                                  }}
-                                >
-                                  <Shield className="h-3.5 w-3.5" />
-                                  Vollmacht erteilen
-                                </Button>
-                              ) : (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="gap-2"
-                                  onClick={() => withdrawProxyMutation.mutate(attendee.id)}
-                                  disabled={withdrawProxyMutation.isPending}
-                                >
-                                  <UserX className="h-3.5 w-3.5" />
-                                  {withdrawProxyMutation.isPending ? "Wird zurückgezogen..." : "Vollmacht zurückziehen"}
-                                </Button>
-                              )}
-                            </div>
-                          )}
                         </CardContent>
                       </Card>
                     );
@@ -1258,6 +1215,137 @@ export const WegOwnerMeetings = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Proxy Detail Dialog */}
+      <Dialog open={!!proxyDetailAttendeeId} onOpenChange={() => setProxyDetailAttendeeId(null)}>
+        <DialogContent className="max-w-md">
+          {(() => {
+            const attendee = myAttendees.find((a: any) => a.id === proxyDetailAttendeeId);
+            if (!attendee) return null;
+            const assignment = myAssignments.find((a: any) => a.id === attendee.assignment_id);
+            const proxyLabel = attendee.proxy_type === "manager" ? "Verwalter" 
+              : attendee.proxy_type === "external" ? (attendee.proxy_external_name || "Externe Person")
+              : (() => {
+                  const pc = attendee.proxy_contact;
+                  if (pc) return pc.company_name || [pc.first_name, pc.last_name].filter(Boolean).join(" ") || "Eigentümer";
+                  return "Eigentümer";
+                })();
+            const proxyTypeLabel = attendee.proxy_type === "manager" ? "Verwalter" : attendee.proxy_type === "external" ? "Externe Person" : "Anderer Eigentümer";
+            const proxyLink = attendee.proxy_type === "external" && attendee.proxy_token ? `${window.location.origin}/etv-proxy/${attendee.proxy_token}` : null;
+
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Shield className="h-5 w-5" />
+                    Vollmacht — {assignment?.unit_number ? `Einheit ${assignment.unit_number}` : "Zuordnung"}
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Art</span>
+                      <Badge variant="secondary">{proxyTypeLabel}</Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Bevollmächtigt</span>
+                      <span className="text-sm font-medium">{proxyLabel}</span>
+                    </div>
+                  </div>
+
+                  {proxyLink && (
+                    <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800">
+                      <CardContent className="p-3 space-y-3">
+                        <div className="flex items-center gap-2 text-sm font-medium text-blue-800 dark:text-blue-300">
+                          <Link2 className="h-4 w-4" />
+                          Abstimmungs-Link
+                        </div>
+                        <p className="text-xs text-blue-700 dark:text-blue-400">
+                          Teilen Sie diesen Link mit der bevollmächtigten Person. Über den Link kann sie an Abstimmungen teilnehmen und Ergebnisse einsehen. Der Link ist gültig, bis die Vollmacht zurückgezogen wird.
+                        </p>
+                        <code className="block text-xs bg-white dark:bg-blue-900/50 px-2 py-2 rounded border border-blue-200 dark:border-blue-700 break-all">
+                          {proxyLink}
+                        </code>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 gap-1.5"
+                            onClick={() => {
+                              navigator.clipboard.writeText(proxyLink);
+                              toast({ title: "Link kopiert" });
+                            }}
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                            Kopieren
+                          </Button>
+                          {typeof navigator.share === "function" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1 gap-1.5"
+                              onClick={() => {
+                                navigator.share({
+                                  title: "Vollmacht-Link zur Eigentümerversammlung",
+                                  text: `Hallo ${attendee.proxy_external_name || ""}, hier ist Ihr Vollmacht-Link zur Abstimmung:`,
+                                  url: proxyLink,
+                                }).catch(() => {});
+                              }}
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                              Teilen
+                            </Button>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {selectedMeeting && !isProxyLocked(selectedMeeting.meeting_date) && (
+                    <Button
+                      variant="outline"
+                      className="w-full gap-2 text-destructive hover:text-destructive"
+                      onClick={() => {
+                        setProxyDetailAttendeeId(null);
+                        setWithdrawAttendeeId(attendee.id);
+                      }}
+                    >
+                      <UserX className="h-4 w-4" />
+                      Vollmacht zurückziehen
+                    </Button>
+                  )}
+                </div>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Withdraw Confirmation AlertDialog */}
+      <AlertDialog open={!!withdrawAttendeeId} onOpenChange={(open) => { if (!open) setWithdrawAttendeeId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Vollmacht zurückziehen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Die bevollmächtigte Person kann danach nicht mehr in Ihrem Namen abstimmen. Ein eventuell geteilter Link wird ungültig.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (withdrawAttendeeId) {
+                  withdrawProxyMutation.mutate(withdrawAttendeeId);
+                  setWithdrawAttendeeId(null);
+                }
+              }}
+            >
+              Zurückziehen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
