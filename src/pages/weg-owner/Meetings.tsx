@@ -1359,70 +1359,186 @@ export const WegOwnerMeetings = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Proxy Dialog */}
-      <Dialog open={showProxyDialog} onOpenChange={setShowProxyDialog}>
-        <DialogContent>
+      {/* Proxy Dialog — Combined: Type → Person → Instructions → Create */}
+      <Dialog open={showProxyDialog} onOpenChange={(open) => { if (!open) { setShowProxyDialog(false); setProxyAssignmentId(null); setCreatedProxyToken(null); } }}>
+        <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Vollmacht erteilen</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-primary" />
+              {createdProxyToken ? "Vollmacht erteilt" : "Vollmacht erteilen"}
+            </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Vollmacht an</Label>
-              <Select value={proxyType} onValueChange={(v) => { setProxyType(v); setProxyContactId(""); }}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="manager">Verwalter</SelectItem>
-                  <SelectItem value="owner">Anderen Eigentümer</SelectItem>
-                  <SelectItem value="external">Externe Person</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
 
-            {proxyType === "owner" && (
+          {/* After creation: show external link */}
+          {createdProxyToken ? (() => {
+            const proxyLink = `${window.location.origin}/etv-proxy/${createdProxyToken}`;
+            return (
+              <div className="space-y-4">
+                <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-center gap-2 text-sm font-medium text-blue-800 dark:text-blue-300">
+                      <Link2 className="h-4 w-4" />
+                      Abstimmungs-Link für {proxyExternalName || "externe Person"}
+                    </div>
+                    <p className="text-xs text-blue-700 dark:text-blue-400">
+                      Teilen Sie diesen Link mit der bevollmächtigten Person. Über den Link kann sie an Abstimmungen teilnehmen.
+                    </p>
+                    <code className="block text-xs bg-white dark:bg-blue-900/50 px-2 py-2 rounded border border-blue-200 dark:border-blue-700 break-all">
+                      {proxyLink}
+                    </code>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 gap-1.5"
+                        onClick={() => {
+                          navigator.clipboard.writeText(proxyLink);
+                          toast({ title: "Link kopiert" });
+                        }}
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                        Kopieren
+                      </Button>
+                      {typeof navigator.share === "function" && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 gap-1.5"
+                          onClick={() => {
+                            navigator.share({
+                              title: "Vollmacht-Link zur Eigentümerversammlung",
+                              text: `Hallo ${proxyExternalName || ""}, hier ist Ihr Vollmacht-Link zur Abstimmung:`,
+                              url: proxyLink,
+                            }).catch(() => {});
+                          }}
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          Teilen
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+                <Button className="w-full" onClick={() => { setShowProxyDialog(false); setProxyAssignmentId(null); setCreatedProxyToken(null); }}>
+                  Fertig
+                </Button>
+              </div>
+            );
+          })() : (
+            <div className="space-y-5">
+              {/* Step 1: Proxy type */}
               <div className="space-y-2">
-                <Label>Eigentümer auswählen</Label>
-                <Select value={proxyContactId} onValueChange={setProxyContactId}>
+                <Label className="text-sm font-medium">1. Vollmacht an</Label>
+                <Select value={proxyType} onValueChange={(v) => { setProxyType(v); setProxyContactId(""); }}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Eigentümer wählen..." />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {otherOwners.map((o: any) => (
-                      <SelectItem key={o.contacts.id} value={o.contacts.id}>
-                        {getContactName(o.contacts)}{o.unit_number ? ` (Einheit ${o.unit_number})` : ""}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="manager">Verwalter</SelectItem>
+                    <SelectItem value="owner">Anderen Eigentümer</SelectItem>
+                    <SelectItem value="external">Externe Person</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-            )}
 
-            {proxyType === "external" && (
-              <div className="space-y-2">
-                <Label>Name der externen Person</Label>
-                <Input
-                  value={proxyExternalName}
-                  onChange={(e) => setProxyExternalName(e.target.value)}
-                  placeholder="Vor- und Nachname eingeben..."
-                />
-                <p className="text-xs text-muted-foreground">
-                  Es wird ein einmaliger Link generiert, den Sie an die Person weitergeben können. Über diesen Link kann die Person an der Abstimmung teilnehmen.
-                </p>
+              {/* Step 2: Person selection */}
+              {proxyType === "owner" && (
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">2. Eigentümer auswählen</Label>
+                  <Select value={proxyContactId} onValueChange={setProxyContactId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Eigentümer wählen..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {otherOwners.map((o: any) => (
+                        <SelectItem key={o.contacts.id} value={o.contacts.id}>
+                          {getContactName(o.contacts)}{o.unit_number ? ` (Einheit ${o.unit_number})` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {proxyType === "external" && (
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">2. Name der externen Person</Label>
+                  <Input
+                    value={proxyExternalName}
+                    onChange={(e) => setProxyExternalName(e.target.value)}
+                    placeholder="Vor- und Nachname eingeben..."
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Es wird ein Link generiert, den Sie an die Person weitergeben können.
+                  </p>
+                </div>
+              )}
+
+              {/* Step 3: Voting instructions (optional) */}
+              {agendaItems.length > 0 && (
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-sm font-medium">{proxyType === "manager" ? "2" : "3"}. Abstimmungsweisungen <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Legen Sie fest, wie abgestimmt werden soll. Bei „Frei" entscheidet der Bevollmächtigte.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    {agendaItems.map((item: any, idx: number) => {
+                      const currentValue = votingInstructions[item.id] || "frei";
+                      return (
+                        <div key={item.id} className="rounded-lg border p-3 space-y-2">
+                          <div className="flex items-start gap-2">
+                            <span className="text-primary font-bold text-sm shrink-0">TOP {idx + 1}</span>
+                            <span className="text-sm">{item.title}</span>
+                          </div>
+                          <div className="flex gap-1.5">
+                            {[
+                              { value: "yes", label: "Ja", activeClass: "bg-green-600 text-white hover:bg-green-700 border-green-600" },
+                              { value: "no", label: "Nein", activeClass: "bg-red-600 text-white hover:bg-red-700 border-red-600" },
+                              { value: "abstain", label: "Enthaltung", activeClass: "bg-muted-foreground text-white hover:bg-muted-foreground/90 border-muted-foreground" },
+                              { value: "frei", label: "Frei", activeClass: "bg-primary text-primary-foreground hover:bg-primary/90 border-primary" },
+                            ].map((option) => (
+                              <Button
+                                key={option.value}
+                                variant="outline"
+                                size="sm"
+                                className={`flex-1 text-xs h-8 ${currentValue === option.value ? option.activeClass : ""}`}
+                                onClick={() => setVotingInstructions(prev => ({ ...prev, [item.id]: option.value }))}
+                              >
+                                {option.label}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Create button */}
+              <div className="flex justify-end gap-3 border-t pt-4">
+                <Button variant="outline" onClick={() => { setShowProxyDialog(false); setProxyAssignmentId(null); }}>Abbrechen</Button>
+                <Button
+                  onClick={() => {
+                    const attendee = myAttendees.find((a: any) => a.assignment_id === proxyAssignmentId);
+                    if (!attendee) return;
+                    setProxyMutation.mutate({
+                      attendeeId: attendee.id,
+                      type: proxyType,
+                      contactId: proxyContactId || undefined,
+                      externalName: proxyExternalName || undefined,
+                      instructions: votingInstructions,
+                    });
+                  }}
+                  disabled={setProxyMutation.isPending || (proxyType === "owner" && !proxyContactId) || (proxyType === "external" && !proxyExternalName.trim())}
+                >
+                  {setProxyMutation.isPending ? "Wird gespeichert..." : "Vollmacht erteilen"}
+                </Button>
               </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setShowProxyDialog(false); setProxyAssignmentId(null); }}>Abbrechen</Button>
-            <Button
-              onClick={() => {
-                const attendee = myAttendees.find((a: any) => a.assignment_id === proxyAssignmentId);
-                if (!attendee) return;
-                setProxyMutation.mutate({ attendeeId: attendee.id, type: proxyType, contactId: proxyContactId || undefined, externalName: proxyExternalName || undefined });
-              }}
-              disabled={setProxyMutation.isPending || (proxyType === "owner" && !proxyContactId) || (proxyType === "external" && !proxyExternalName.trim())}
-            >
-              {setProxyMutation.isPending ? "Wird gespeichert..." : "Vollmacht erteilen"}
+            </div>
+          )}
             </Button>
           </DialogFooter>
         </DialogContent>
