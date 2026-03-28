@@ -216,19 +216,20 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
       ? editEmails.some(e => e.email.trim()) 
       : selectedContact?.hasEmail;
 
-    if (sendInvite && hasEmail) {
+    // Always create auth account if contact has email, only control email sending via send_email flag
+    if (hasEmail) {
       setInviting(true);
       try {
         const { error: inviteError } = await supabase.functions.invoke("invite-contact-user", {
-          body: { contact_id: selectedId, building_id: buildingId, management_mode: managementMode },
+          body: { contact_id: selectedId, building_id: buildingId, management_mode: managementMode, send_email: sendInvite },
         });
         if (inviteError) {
-          toast({ title: "Zugeordnet, aber Einladung fehlgeschlagen", description: inviteError.message, variant: "destructive" });
+          toast({ title: "Zugeordnet, aber Account-Erstellung fehlgeschlagen", description: inviteError.message, variant: "destructive" });
         } else {
-          toast({ title: "Kontakt zugeordnet & Einladung gesendet" });
+          toast({ title: sendInvite ? "Kontakt zugeordnet & Einladung gesendet" : "Kontakt zugeordnet & Account erstellt" });
         }
       } catch (e) {
-        toast({ title: "Zugeordnet, aber Einladung fehlgeschlagen", variant: "destructive" });
+        toast({ title: "Zugeordnet, aber Account-Erstellung fehlgeschlagen", variant: "destructive" });
       }
       setInviting(false);
     } else {
