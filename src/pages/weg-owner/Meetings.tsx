@@ -1480,6 +1480,33 @@ export const WegOwnerMeetings = () => {
                     </Card>
                   )}
 
+                  {/* Weisungen bearbeiten button */}
+                  {selectedMeeting && agendaItems.length > 0 && (
+                    <Button
+                      variant="outline"
+                      className="w-full gap-2"
+                      onClick={() => {
+                        const existing = attendee.pre_vote_instructions || {};
+                        const initial: Record<string, string> = {};
+                        agendaItems.forEach((item: any) => {
+                          initial[item.id] = existing[item.id] || "frei";
+                        });
+                        setVotingInstructions(initial);
+                        setInstructionsAttendeeId(attendee.id);
+                        setShowInstructionsDialog(true);
+                      }}
+                      disabled={isProxyLocked(selectedMeeting.meeting_date)}
+                    >
+                      <Vote className="h-4 w-4" />
+                      Weisungen bearbeiten
+                      {attendee.pre_vote_instructions && Object.keys(attendee.pre_vote_instructions).length > 0 && (
+                        <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                          {Object.keys(attendee.pre_vote_instructions).length}
+                        </Badge>
+                      )}
+                    </Button>
+                  )}
+
                   {selectedMeeting && !isProxyLocked(selectedMeeting.meeting_date) && (
                     <Button
                       variant="outline"
