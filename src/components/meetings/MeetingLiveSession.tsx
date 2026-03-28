@@ -10,13 +10,14 @@ import { Progress } from "@/components/ui/progress";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter
 } from "@/components/ui/dialog";
 import {
   Play, Square, CheckCircle2, XCircle, Users, BarChart3, UserCheck, UserX,
-  ArrowLeft, ArrowRight, ChevronLeft, Save, Shield, Copy, Lock, AlertTriangle,
+  ArrowLeft, ArrowRight, ChevronRight, ChevronLeft, Save, Shield, Copy, Lock, AlertTriangle,
   RefreshCw, StickyNote, FileText, Plus, Gavel
 } from "lucide-react";
 
@@ -773,73 +774,109 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
   }
 
   // ============ OVERVIEW VIEW ============
-  return (
-    <div className="space-y-6">
-      {/* Quorum & Controls */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Users className="h-4 w-4" /> Eröffnung & Quorum
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center justify-between text-sm">
-            <span>{presentCount} von {totalOwners} Eigentümern anwesend/vertreten</span>
-            <Badge variant={quorumReached ? "default" : "destructive"}>
-              {quorumReached ? "Beschlussfähig" : "Nicht beschlussfähig"}
-            </Badge>
-          </div>
-          <Progress value={totalOwners > 0 ? (presentCount / totalOwners) * 100 : 0} className="h-2" />
-          {totalMea > 0 && (
-            <p className="text-xs text-muted-foreground">
-              MEA: {presentMea.toFixed(2)} / {totalMea.toFixed(2)} ({((presentMea / totalMea) * 100).toFixed(1)}%)
-            </p>
-          )}
-          <div className="flex gap-2">
-            <Button size="sm" onClick={() => updateMeetingStatusMutation.mutate("in_progress")} variant="outline">
-              Versammlung eröffnen
-            </Button>
-            <Button size="sm" onClick={() => updateMeetingStatusMutation.mutate("completed")} variant="outline">
-              Versammlung schließen
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+  const proxyCount = attendees.filter((a: any) => a.attendance_type === "proxy").length;
+  const meaPercent = totalMea > 0 ? ((presentMea / totalMea) * 100) : 0;
 
-      {/* Attendance List */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Anwesenheitsliste & Vollmachten</CardTitle>
+  return (
+    <div className="space-y-0">
+      {/* Unified Dashboard Card */}
+      <Card className="overflow-hidden">
+        {/* Dashboard Header */}
+        <div className="px-5 py-4 border-b border-border bg-muted/20">
+          <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+            <Shield className="h-4 w-4 text-primary" />
+            Versammlungs-Cockpit
+          </h2>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4">
+          <div className="rounded-lg bg-muted/30 p-3 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+              <UserCheck className="h-3.5 w-3.5" /> Anwesend
+            </div>
+            <div className="text-xl font-bold text-foreground">{presentCount - proxyCount}<span className="text-sm font-normal text-muted-foreground"> / {totalOwners}</span></div>
+            <Progress value={totalOwners > 0 ? ((presentCount - proxyCount) / totalOwners) * 100 : 0} className="h-1.5" />
+          </div>
+
+          <div className="rounded-lg bg-muted/30 p-3 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+              <Users className="h-3.5 w-3.5" /> Vertreten
+            </div>
+            <div className="text-xl font-bold text-foreground">{proxyCount}</div>
+            <p className="text-[11px] text-muted-foreground">per Vollmacht</p>
+          </div>
+
+          <div className="rounded-lg bg-muted/30 p-3 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+              <BarChart3 className="h-3.5 w-3.5" /> MEA-Quote
+            </div>
+            <div className="text-xl font-bold text-foreground">{meaPercent.toFixed(1)}<span className="text-sm font-normal text-muted-foreground">%</span></div>
+            <Progress value={meaPercent} className="h-1.5" />
+          </div>
+
+          <div className="rounded-lg bg-muted/30 p-3 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+              <Shield className="h-3.5 w-3.5" /> Status
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className={`h-2.5 w-2.5 rounded-full ${quorumReached ? 'bg-green-500' : 'bg-destructive'}`} />
+              <span className="text-sm font-semibold text-foreground">{quorumReached ? "Beschlussfähig" : "Nicht beschlussfähig"}</span>
+            </div>
+            <p className="text-[11px] text-muted-foreground">{presentCount} von {totalOwners} anw./vertr.</p>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex gap-2 px-4 pb-4">
+          <Button size="sm" onClick={() => updateMeetingStatusMutation.mutate("in_progress")} variant="outline" className="gap-1.5">
+            <Play className="h-3.5 w-3.5" /> Versammlung eröffnen
+          </Button>
+          <Button size="sm" onClick={() => updateMeetingStatusMutation.mutate("completed")} variant="outline" className="gap-1.5">
+            <Square className="h-3.5 w-3.5" /> Versammlung schließen
+          </Button>
+        </div>
+
+        <Separator />
+
+        {/* Attendance Section */}
+        <div className="px-5 py-3">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-foreground">Anwesenheit</h3>
             {attendees.length === 0 && owners.length > 0 && (
-              <Button onClick={() => initMutation.mutate()} disabled={initMutation.isPending} size="sm" className="gap-2">
-                <RefreshCw className={`h-3.5 w-3.5 ${initMutation.isPending ? "animate-spin" : ""}`} />
+              <Button onClick={() => initMutation.mutate()} disabled={initMutation.isPending} size="sm" variant="outline" className="gap-1.5 h-7 text-xs">
+                <RefreshCw className={`h-3 w-3 ${initMutation.isPending ? "animate-spin" : ""}`} />
                 Eigentümer laden
               </Button>
             )}
           </div>
-        </CardHeader>
-        <CardContent>
+
           {attendees.length === 0 && owners.length === 0 && (
             <div className="py-6 text-center text-muted-foreground">
               <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
-              <p>Keine Eigentümer gefunden. Bitte unter Adressen anlegen.</p>
+              <p className="text-sm">Keine Eigentümer gefunden. Bitte unter Adressen anlegen.</p>
             </div>
           )}
-          <div className="space-y-2">
+
+          <div className="space-y-1">
             {attendees.map((a: any) => {
               const cba = a.contact_building_assignments;
               const contact = cba?.contacts;
+              const borderColor = a.attendance_type === "present"
+                ? "border-l-green-500"
+                : a.attendance_type === "proxy"
+                ? "border-l-blue-500"
+                : "border-l-muted-foreground/30";
               return (
-                <div key={a.id} className="flex items-center justify-between p-2 rounded border">
+                <div
+                  key={a.id}
+                  className={`flex items-center justify-between py-2 px-3 rounded-md border-l-[3px] ${borderColor} hover:bg-muted/30 transition-colors`}
+                >
                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                    {a.attendance_type === "present" ? <UserCheck className="h-4 w-4 text-green-500 shrink-0" />
-                      : a.attendance_type === "proxy" ? <Users className="h-4 w-4 text-blue-500 shrink-0" />
-                      : <UserX className="h-4 w-4 text-muted-foreground shrink-0" />}
                     <span className="text-sm font-medium truncate">{getContactName(contact)}</span>
-                    {cba?.unit_number && <Badge variant="outline" className="text-xs shrink-0">E{cba.unit_number}</Badge>}
+                    {cba?.unit_number && <Badge variant="outline" className="text-[10px] shrink-0 px-1.5 py-0">E{cba.unit_number}</Badge>}
                     {a.proxy_type && (
-                      <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-xs shrink-0">
+                      <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-[10px] shrink-0">
                         v.d. {a.proxy_type === "manager" ? "Verwalter" : a.proxy_type === "owner" ? (() => {
                           const proxyContact = allContacts.find((c: any) => c.contacts.id === a.proxy_contact_id);
                           return proxyContact ? getContactName(proxyContact.contacts) : "Eigentümer";
@@ -848,7 +885,6 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                     )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <Label className="text-xs">Anw.</Label>
                     <Switch
                       checked={a.attendance_type === "present"}
                       onCheckedChange={(checked) => checkInMutation.mutate({ id: a.id, present: checked })}
@@ -859,66 +895,57 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
               );
             })}
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* TOP Overview */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" /> Tagesordnungspunkte
-            </CardTitle>
-            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setShowProceduralDialog(true)}>
-              <Gavel className="h-3.5 w-3.5" />
+        <Separator />
+
+        {/* Agenda Section */}
+        <div className="px-5 py-3">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-foreground">Tagesordnung</h3>
+            <Button size="sm" variant="outline" className="gap-1.5 h-7 text-xs" onClick={() => setShowProceduralDialog(true)}>
+              <Gavel className="h-3 w-3" />
               Geschäftsbeschluss
             </Button>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-2">
+
           {agendaItems.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-4">
               Keine TOPs vorhanden. Bitte zuerst unter "Vorbereitung" anlegen.
             </p>
           )}
-          {agendaItems.map((item, idx) => (
-            <Card
-              key={item.id}
-              className="cursor-pointer hover:bg-muted/50 transition-colors"
-              onClick={() => setSelectedTopId(item.id)}
-            >
-              <CardContent className="p-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-bold text-primary">TOP {idx + 1}</span>
-                    <span className="text-sm font-medium">{item.title}</span>
-                    <Badge variant="outline" className="text-[10px] hidden md:inline-flex">
-                      {votingPrincipleLabels[item.voting_principle] || item.voting_principle}
-                    </Badge>
+
+          <div className="space-y-1">
+            {agendaItems.map((item, idx) => (
+              <div
+                key={item.id}
+                className="flex items-center justify-between py-2.5 px-3 rounded-md hover:bg-muted/30 cursor-pointer transition-colors group"
+                onClick={() => setSelectedTopId(item.id)}
+              >
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <span className="text-xs font-bold text-primary whitespace-nowrap">TOP {idx + 1}</span>
+                  <span className="text-sm font-medium truncate">{item.title}</span>
+                  <div className="hidden md:flex items-center gap-1.5">
                     {item.requires_double_qualified && (
-                      <Badge className="text-[10px] hidden md:inline-flex bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">DQ</Badge>
+                      <Badge className="text-[10px] bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 px-1.5 py-0">DQ</Badge>
                     )}
                     {item.category === "geschaeftsbeschluss" && (
-                      <Badge variant="outline" className="text-[10px] hidden md:inline-flex border-amber-300 text-amber-700">
+                      <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-700 px-1.5 py-0">
                         <Gavel className="h-2.5 w-2.5 mr-0.5" /> GB
                       </Badge>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    {getStatusBadge(item)}
-                    <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                  </div>
                 </div>
-                {item.status === "voted" && (
-                  <p className="text-xs text-muted-foreground mt-1 ml-12">
-                    Ja: {item.yes_count} | Nein: {item.no_count} | Enthaltung: {item.abstain_count}
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          ))}
-        </CardContent>
+                <div className="flex items-center gap-2 shrink-0">
+                  {getStatusBadge(item)}
+                  <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </Card>
+
 
       {/* Geschäftsbeschluss Dialog */}
       <Dialog open={showProceduralDialog} onOpenChange={setShowProceduralDialog}>
