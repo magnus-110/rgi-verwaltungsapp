@@ -383,6 +383,9 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
     },
   });
 
+  // Geschäftsbeschluss options
+  const [proceduralAutoAccept, setProceduralAutoAccept] = useState(true);
+
   // Add procedural resolution (Geschäftsbeschluss) during meeting
   const addProceduralMutation = useMutation({
     mutationFn: async () => {
@@ -393,8 +396,8 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
         resolution_text: proceduralResolution || null,
         voting_principle: "headcount",
         category: "geschaeftsbeschluss",
-        status: "voted",
-        result: "passed",
+        status: proceduralAutoAccept ? "voted" : "open",
+        result: proceduralAutoAccept ? "passed" : null,
       } as any);
       if (error) throw error;
     },
@@ -403,6 +406,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
       setShowProceduralDialog(false);
       setProceduralTitle("");
       setProceduralResolution("");
+      setProceduralAutoAccept(true);
       toast({ title: "Geschäftsbeschluss hinzugefügt" });
     },
     onError: (err: any) => {
@@ -450,11 +454,9 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
 
   const getStatusBadge = (item: AgendaItem) => {
     if (item.status === "voted") {
-      // Check double qualified
-      const dqPassed = item.requires_double_qualified || item.double_qualified_relevant;
       return (
         <div className="flex items-center gap-1">
-          <Badge variant={item.result === "passed" ? "default" : "destructive"}>
+          <Badge className={item.result === "passed" ? "bg-green-600 hover:bg-green-700 text-white" : "bg-destructive hover:bg-destructive/90 text-destructive-foreground"}>
             {item.result === "passed" ? "✓ Angenommen" : "✗ Abgelehnt"}
           </Badge>
         </div>
@@ -694,9 +696,9 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                     <p className="text-xs text-orange-600 font-medium">⚠ Ergebnis noch nicht bestätigt</p>
                   )}
                   {isVoted && (
-                    <Badge variant={selectedItem.result === "passed" ? "default" : "destructive"}>
-                      {selectedItem.result === "passed" ? "✓ Bestätigt: Angenommen" : "✓ Bestätigt: Abgelehnt"}
-                    </Badge>
+                     <Badge className={selectedItem.result === "passed" ? "bg-green-600 hover:bg-green-700 text-white" : "bg-destructive hover:bg-destructive/90 text-destructive-foreground"}>
+                       {selectedItem.result === "passed" ? "✓ Bestätigt: Angenommen" : "✓ Bestätigt: Abgelehnt"}
+                     </Badge>
                   )}
                 </div>
               )}
@@ -938,8 +940,14 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                 rows={3}
               />
             </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={proceduralAutoAccept} onCheckedChange={setProceduralAutoAccept} />
+              <Label className="text-sm cursor-pointer">Automatisch als angenommen eintragen</Label>
+            </div>
             <p className="text-xs text-muted-foreground">
-              Geschäftsbeschlüsse werden automatisch als angenommen eingetragen (z.B. Verfahrensbeschlüsse).
+              {proceduralAutoAccept
+                ? "Der Beschluss wird direkt als angenommen eingetragen (z.B. Verfahrensbeschlüsse)."
+                : "Der Beschluss wird als offener TOP eingefügt und kann regulär abgestimmt werden."}
             </p>
           </div>
           <DialogFooter>

@@ -7,21 +7,38 @@ import { MeetingList } from "@/components/meetings/MeetingList";
 import { MeetingEditor } from "@/components/meetings/MeetingEditor";
 import { ResolutionLedger } from "@/components/meetings/ResolutionLedger";
 import { SubmittedTopsManager } from "@/components/meetings/SubmittedTopsManager";
+import { ResolutionTemplatesManager } from "@/components/meetings/ResolutionTemplatesManager";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ArrowLeft, Users, Scale, Inbox } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, ArrowLeft, Users, Scale, Inbox, Building2, BookTemplate } from "lucide-react";
 
 export const Meetings = () => {
   const { profile } = useAuth();
   const { managementMode } = useManagementMode();
   const [selectedMeetingId, setSelectedMeetingId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [selectedBuildingId, setSelectedBuildingId] = useState<string>("all");
 
-  const { data: meetings = [], isLoading, refetch } = useQuery({
-    queryKey: ["etv-meetings", managementMode],
+  // Load WEG buildings for filter
+  const { data: wegBuildings = [] } = useQuery({
+    queryKey: ["weg-buildings-filter"],
     queryFn: async () => {
       const { data, error } = await supabase
+        .from("buildings")
+        .select("id, name, address")
+        .eq("management_mode", "weg")
+        .order("name");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const { data: meetings = [], isLoading, refetch } = useQuery({
+    queryKey: ["etv-meetings", managementMode, selectedBuildingId],
+    queryFn: async () => {
+      let query = supabase
         .from("etv_meetings")
         .select(`
           *,
@@ -30,6 +47,11 @@ export const Meetings = () => {
         .eq("buildings.management_mode", "weg")
         .order("meeting_date", { ascending: false });
 
+      if (selectedBuildingId !== "all") {
+        query = query.eq("building_id", selectedBuildingId);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
       return data || [];
     },
@@ -85,6 +107,22 @@ export const Meetings = () => {
         </Button>
       </div>
 
+      {/* Building Filter */}
+      <div className="flex items-center gap-2">
+        <Building2 className="h-4 w-4 text-muted-foreground" />
+        <Select value={selectedBuildingId} onValueChange={setSelectedBuildingId}>
+          <SelectTrigger className="w-[300px]">
+            <SelectValue placeholder="Liegenschaft filtern..." />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Alle Liegenschaften</SelectItem>
+            {wegBuildings.map((b) => (
+              <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <Tabs defaultValue="meetings">
         <TabsList>
           <TabsTrigger value="meetings" className="gap-2">
@@ -104,6 +142,10 @@ export const Meetings = () => {
             <Scale className="h-4 w-4" />
             Beschlusssammlung
           </TabsTrigger>
+          <TabsTrigger value="templates" className="gap-2">
+            <BookTemplate className="h-4 w-4" />
+            Vorlagen
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="meetings" className="mt-4">
           <MeetingList
@@ -117,6 +159,9 @@ export const Meetings = () => {
         </TabsContent>
         <TabsContent value="resolutions" className="mt-4">
           <ResolutionLedger />
+        </TabsContent>
+        <TabsContent value="templates" className="mt-4">
+          <ResolutionTemplatesManager />
         </TabsContent>
       </Tabs>
     </div>
