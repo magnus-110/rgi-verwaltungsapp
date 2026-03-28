@@ -246,7 +246,6 @@ export const WegOwnerMeetings = () => {
       const { error } = await supabase
         .from("etv_attendees")
         .update({
-          attendance_type: "proxy",
           proxy_type: type,
           proxy_contact_id: type === "owner" ? (contactId || null) : null,
           proxy_token: token,
@@ -279,7 +278,6 @@ export const WegOwnerMeetings = () => {
       const { error } = await supabase
         .from("etv_attendees")
         .update({
-          attendance_type: "absent",
           proxy_type: null,
           proxy_contact_id: null,
           proxy_token: null,
@@ -685,7 +683,7 @@ export const WegOwnerMeetings = () => {
 
                   {myAssignments.map((assignment: any) => {
                     const attendee = myAttendees.find((a: any) => a.assignment_id === assignment.id);
-                    const hasProxy = attendee?.attendance_type === "proxy";
+                    const hasProxy = !!attendee?.proxy_type;
                     const locked = isProxyLocked(selectedMeeting.meeting_date);
 
                     const getProxyLabel = () => {

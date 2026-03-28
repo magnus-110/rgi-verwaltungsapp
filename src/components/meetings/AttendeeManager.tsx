@@ -166,7 +166,6 @@ export const AttendeeManager = ({ meetingId, buildingId, lockTime }: AttendeeMan
       const { error } = await supabase
         .from("etv_attendees")
         .update({
-          attendance_type: "proxy",
           proxy_type: type,
           proxy_contact_id: type !== "external" ? (contactId || null) : null,
           proxy_token: token,
@@ -226,7 +225,7 @@ export const AttendeeManager = ({ meetingId, buildingId, lockTime }: AttendeeMan
 
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          {attendees.length} Teilnehmer | {attendees.filter((a) => a.attendance_type !== "absent").length} anwesend/vertreten
+          {attendees.length} Teilnehmer | {attendees.filter((a) => a.attendance_type === "present").length} anwesend | {attendees.filter((a) => !!a.proxy_type).length} mit Vollmacht
         </p>
         {attendees.length === 0 && owners.length > 0 && (
           <Button onClick={() => initMutation.mutate()} disabled={initMutation.isPending} size="sm" className="gap-2">
@@ -266,7 +265,13 @@ export const AttendeeManager = ({ meetingId, buildingId, lockTime }: AttendeeMan
                         {cba.unit_number ? `${cba.unit_number} – ` : ""}{getContactName(contact)}
                       </span>
                       {attendee.proxy_type === "manager" && (
-                        <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-xs">Vollmacht: Verwalter</Badge>
+                        <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-xs">v.d. Verwalter</Badge>
+                      )}
+                      {attendee.proxy_type === "owner" && proxyContactName && (
+                        <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-xs">v.d. {proxyContactName}</Badge>
+                      )}
+                      {attendee.proxy_type === "external" && (
+                        <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-xs">v.d. {attendee.proxy_external_name || "Extern"}</Badge>
                       )}
                       {attendanceBadge(attendee.attendance_type)}
                     </div>
