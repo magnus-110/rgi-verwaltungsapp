@@ -610,8 +610,8 @@ export const WegOwnerMeetings = () => {
                           <div className="flex-1">
                             <p className="font-medium text-sm">{item.title}</p>
                             {item.result && (
-                              <Badge variant={item.result === "passed" ? "default" : "destructive"} className="text-xs mt-1">
-                                {item.result === "passed" ? "Angenommen" : "Abgelehnt"}
+                              <Badge className={`text-xs mt-1 ${item.result === "passed" ? "bg-green-600 hover:bg-green-700 text-white" : "bg-destructive hover:bg-destructive/90 text-destructive-foreground"}`}>
+                                {item.result === "passed" ? "✓ Angenommen" : "✗ Abgelehnt"}
                               </Badge>
                             )}
                             {selectedMeeting?.status === "in_progress" && item.status === "voted" && (
@@ -773,8 +773,8 @@ export const WegOwnerMeetings = () => {
                         </div>
                       </div>
                       {item.result && (
-                        <Badge variant={item.result === "passed" ? "default" : "destructive"} className="mt-2">
-                          {item.result === "passed" ? "Angenommen" : "Abgelehnt"}
+                      <Badge className={`mt-2 ${item.result === "passed" ? "bg-green-600 hover:bg-green-700 text-white" : "bg-destructive hover:bg-destructive/90 text-destructive-foreground"}`}>
+                          {item.result === "passed" ? "✓ Angenommen" : "✗ Abgelehnt"}
                         </Badge>
                       )}
                     </div>

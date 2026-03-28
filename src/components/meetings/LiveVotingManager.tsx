@@ -366,8 +366,8 @@ export const LiveVotingManager = ({ meetingId, buildingId }: LiveVotingManagerPr
                         <span className="text-sm font-bold text-primary">TOP {idx + 1}</span>
                         <span className="text-sm font-medium">{item.title}</span>
                         {isVoted && (
-                          <Badge variant={item.result === "passed" ? "default" : "destructive"}>
-                            {item.result === "passed" ? "Angenommen" : "Abgelehnt"}
+                          <Badge className={item.result === "passed" ? "bg-green-600 hover:bg-green-700 text-white" : "bg-destructive hover:bg-destructive/90 text-destructive-foreground"}>
+                            {item.result === "passed" ? "✓ Angenommen" : "✗ Abgelehnt"}
                           </Badge>
                         )}
                       </div>
