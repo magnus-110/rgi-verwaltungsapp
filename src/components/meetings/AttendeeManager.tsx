@@ -166,7 +166,6 @@ export const AttendeeManager = ({ meetingId, buildingId, lockTime }: AttendeeMan
       const { error } = await supabase
         .from("etv_attendees")
         .update({
-          attendance_type: "proxy",
           proxy_type: type,
           proxy_contact_id: type !== "external" ? (contactId || null) : null,
           proxy_token: token,

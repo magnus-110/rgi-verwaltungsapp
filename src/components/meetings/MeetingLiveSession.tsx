@@ -172,8 +172,10 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
     if (Object.keys(notes).length) setEditNotes(prev => ({ ...notes, ...prev }));
   }, [agendaItems]);
 
-  // Quorum calculation
-  const presentOrRepresented = attendees.filter((a: any) => a.attendance_type === "present" || a.attendance_type === "proxy");
+  // Quorum calculation — only count explicitly checked-in attendees
+  const presentOrRepresented = attendees.filter(
+    (a: any) => a.attendance_type === "present" || (a.attendance_type === "proxy" && a.checked_in_at)
+  );
   const totalOwners = attendees.length;
   const presentCount = presentOrRepresented.length;
   const quorumReached = presentCount >= 1;
