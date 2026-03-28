@@ -942,6 +942,19 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                 rows={3}
               />
             </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Abstimmungsmethode</Label>
+              <Select value={proceduralPrinciple} onValueChange={setProceduralPrinciple}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="headcount">Kopfprinzip</SelectItem>
+                  <SelectItem value="mea">MEA (Wertprinzip)</SelectItem>
+                  <SelectItem value="sqm">Quadratmeter</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="flex items-center gap-2">
               <Switch checked={proceduralAutoAccept} onCheckedChange={setProceduralAutoAccept} />
               <Label className="text-sm cursor-pointer">Automatisch als angenommen eintragen</Label>
