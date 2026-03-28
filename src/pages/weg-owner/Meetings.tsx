@@ -725,6 +725,7 @@ export const WegOwnerMeetings = () => {
                                     setProxyAssignmentId(assignment.id);
                                     setProxyType("manager");
                                     setProxyContactId("");
+                                    setProxyExternalName("");
                                     setShowProxyDialog(true);
                                   }}
                                 >
