@@ -144,6 +144,28 @@ export const LiveVotingManager = ({ meetingId, buildingId }: LiveVotingManagerPr
     },
   });
 
+  // Auto-cast pre-votes from proxy instructions
+  const autoCastPreVotes = useCallback(async (itemId: string) => {
+    const proxyAttendees = attendees.filter(
+      (a: any) => a.attendance_type === "proxy" && a.checked_in_at && a.pre_vote_instructions
+    );
+    for (const attendee of proxyAttendees) {
+      const instructions = attendee.pre_vote_instructions as Record<string, string>;
+      const vote = instructions[itemId];
+      if (vote && ["yes", "no", "abstain"].includes(vote)) {
+        const meaW = getMeaWeight(attendee);
+        await supabase.from("etv_votes").upsert({
+          agenda_item_id: itemId,
+          assignment_id: attendee.assignment_id,
+          vote,
+          mea_weight: meaW,
+          is_manual_override: false,
+          voted_at: new Date().toISOString(),
+        }, { onConflict: "agenda_item_id,assignment_id" });
+      }
+    }
+  }, [attendees]);
+
   // Start voting on a TOP
   const startVotingMutation = useMutation({
     mutationFn: async (itemId: string) => {
@@ -152,10 +174,13 @@ export const LiveVotingManager = ({ meetingId, buildingId }: LiveVotingManagerPr
         .update({ status: "voting" })
         .eq("id", itemId);
       if (error) throw error;
+      // Auto-cast any pre-vote instructions
+      await autoCastPreVotes(itemId);
     },
     onSuccess: (_, itemId) => {
       setActiveVoteItem(itemId);
       queryClient.invalidateQueries({ queryKey: ["etv-agenda-items-live", meetingId] });
+      queryClient.invalidateQueries({ queryKey: ["etv-votes-live", itemId] });
       toast({ title: "Abstimmung gestartet" });
     },
   });
@@ -454,9 +479,13 @@ export const LiveVotingManager = ({ meetingId, buildingId }: LiveVotingManagerPr
                             : existingVote.vote === "no" ? "bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800"
                             : "bg-muted/50 border-muted"
                             : "";
+                          const hasPreVote = a.attendance_type === "proxy" && a.pre_vote_instructions && a.pre_vote_instructions[item.id];
                           return (
                             <div key={a.id} className={`flex items-center justify-between py-1 px-2 rounded border ${rowBg}`}>
-                              <span className="text-xs">{getContactName(contact)}</span>
+                              <span className="text-xs">
+                                {getContactName(contact)}
+                                {hasPreVote && <Badge variant="outline" className="ml-1 text-[10px] h-4 px-1 border-amber-300 text-amber-600">Weisung</Badge>}
+                              </span>
                               <div className="flex gap-1">
                                 <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-green-600"
                                   onClick={() => castVoteMutation.mutate({ itemId: item.id, assignmentId: a.assignment_id, vote: "yes", meaWeight: meaW })}>Ja</Button>

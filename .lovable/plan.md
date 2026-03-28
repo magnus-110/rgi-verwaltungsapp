@@ -1,36 +1,24 @@
+## Pre-Voting Instructions (Weisungsbefugnis) — Implemented
 
+### Owner Portal (`src/pages/weg-owner/Meetings.tsx`)
+- Owners who granted a proxy can open a **"Weisungen bearbeiten"** dialog from the proxy detail view
+- Per agenda item (TOP), they choose: **Ja**, **Nein**, **Enthaltung**, or **Frei** (free discretion)
+- Instructions are saved to `etv_attendees.pre_vote_instructions` (JSONB)
+- A badge on the proxy card shows the number of set instructions (e.g., "3 W.")
+- Instructions become read-only when proxy is locked (1h before meeting)
+- The "Received Proxies" detail dialog now shows instructions with TOP names and color-coded vote labels
 
-## Fixes: Attendance Count & Received Proxies Visibility
+### Admin Live Voting (`src/components/meetings/LiveVotingManager.tsx`)
+- When an admin starts a vote on a TOP, the system **auto-casts** votes for proxy attendees who have matching pre_vote_instructions
+- Auto-cast votes use `is_manual_override: false` to distinguish from admin-entered votes
+- In the manual vote list, attendees with pre-vote instructions show a "Weisung" badge
+- The admin can still override any auto-cast vote manually
 
-### Issue 1: "Anwesend" shows -1
-
-**Root cause**: Line 798 calculates `presentCount - proxyCount`. `presentCount` only includes attendees with `attendance_type === "present"` OR `(attendance_type === "proxy" AND checked_in_at IS NOT NULL)`. When nobody is checked in but a proxy is assigned, `proxyCount = 1` and `presentCount = 0`, giving `-1`.
-
-**Fix in `src/components/meetings/MeetingLiveSession.tsx`**:
-- Add `physicallyPresent = attendees.filter(a => a.attendance_type === "present").length`
-- Use `physicallyPresent` for the "Anwesend" tile (line 798) instead of `presentCount - proxyCount`
-- Keep "Vertreten" showing `proxyCount` (only those with `checked_in_at` set)
-- Keep the Status tile using `presentCount` (total present + represented)
-
-### Issue 2: Cristina can't see received proxies
-
-**Root cause**: RLS policy on `etv_attendees` only allows WEG owners to SELECT rows where `assignment_id` links to **their own** contact. Received proxies are rows belonging to **other** owners where `proxy_contact_id` = Cristina's contact ID. These rows are blocked by RLS.
-
-**Fix — new RLS policy via migration**:
-```sql
-CREATE POLICY "WEG owners can view proxies granted to them"
-ON public.etv_attendees
-FOR SELECT TO authenticated
-USING (
-  proxy_contact_id IN (
-    SELECT c.id FROM contacts c WHERE c.user_id = auth.uid()
-  )
-);
+### Data Format
+```json
+// etv_attendees.pre_vote_instructions
+{
+  "<agenda_item_uuid>": "yes" | "no" | "abstain"
+}
 ```
-
-This lets owners read attendee rows where they are the designated proxy holder, without granting broader access.
-
-### Files to modify
-1. **`src/components/meetings/MeetingLiveSession.tsx`** — Fix the "Anwesend" stat tile calculation
-2. **New migration** — Add RLS policy for proxy visibility on `etv_attendees`
-
+Items not listed = free discretion for the proxy holder.

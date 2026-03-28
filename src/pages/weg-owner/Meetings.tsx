@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, MapPin, Users, Plus, Building2, FileText, Upload, Trash2, ClipboardList, Clock, CheckCircle2, XCircle, Pause, Pencil, ExternalLink, Shield, Lock, UserX, Copy, Link2, ChevronRight } from "lucide-react";
+import { Calendar, MapPin, Users, Plus, Building2, FileText, Upload, Trash2, ClipboardList, Clock, CheckCircle2, XCircle, Pause, Pencil, ExternalLink, Shield, Lock, UserX, Copy, Link2, ChevronRight, Vote } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { format as formatDate } from "date-fns";
 import { de } from "date-fns/locale";
@@ -57,6 +57,9 @@ export const WegOwnerMeetings = () => {
   const [proxyDetailAttendeeId, setProxyDetailAttendeeId] = useState<string | null>(null);
   const [withdrawAttendeeId, setWithdrawAttendeeId] = useState<string | null>(null);
   const [viewReceivedProxy, setViewReceivedProxy] = useState<any>(null);
+  const [showInstructionsDialog, setShowInstructionsDialog] = useState(false);
+  const [instructionsAttendeeId, setInstructionsAttendeeId] = useState<string | null>(null);
+  const [votingInstructions, setVotingInstructions] = useState<Record<string, string>>({});
 
   // TOP submission form
   const [topTitle, setTopTitle] = useState("");
@@ -319,6 +322,31 @@ export const WegOwnerMeetings = () => {
     },
     onSuccess: () => {
       toast({ title: "Vollmacht zurückgezogen" });
+      refetchAttendees();
+    },
+    onError: (err: any) => {
+      toast({ title: "Fehler", description: err.message, variant: "destructive" });
+    },
+  });
+
+  // Save voting instructions mutation
+  const saveInstructionsMutation = useMutation({
+    mutationFn: async ({ attendeeId, instructions }: { attendeeId: string; instructions: Record<string, string> }) => {
+      // Filter out "frei" entries — only store actual instructions
+      const filtered: Record<string, string> = {};
+      for (const [key, value] of Object.entries(instructions)) {
+        if (value && value !== "frei") filtered[key] = value;
+      }
+      const { error } = await supabase
+        .from("etv_attendees")
+        .update({ pre_vote_instructions: Object.keys(filtered).length > 0 ? filtered : null })
+        .eq("id", attendeeId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({ title: "Weisungen gespeichert", description: "Ihre Abstimmungsweisungen wurden hinterlegt." });
+      setShowInstructionsDialog(false);
+      setInstructionsAttendeeId(null);
       refetchAttendees();
     },
     onError: (err: any) => {
@@ -755,9 +783,16 @@ export const WegOwnerMeetings = () => {
                               {!attendee ? (
                                 <Badge variant="secondary">Wird geladen...</Badge>
                               ) : hasProxy ? (
-                                <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 max-w-[200px] truncate">
-                                  Vollmacht: {getProxyLabel()}
-                                </Badge>
+                                <div className="flex items-center gap-1.5">
+                                  <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 max-w-[200px] truncate">
+                                    Vollmacht: {getProxyLabel()}
+                                  </Badge>
+                                  {attendee?.pre_vote_instructions && Object.keys(attendee.pre_vote_instructions).length > 0 && (
+                                    <Badge variant="secondary" className="text-xs h-5 px-1.5">
+                                      {Object.keys(attendee.pre_vote_instructions).length} W.
+                                    </Badge>
+                                  )}
+                                </div>
                               ) : attendee.attendance_type === "present" ? (
                                 <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Anwesend</Badge>
                               ) : (
@@ -874,12 +909,20 @@ export const WegOwnerMeetings = () => {
                             <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-950/30 p-4 space-y-2">
                               <p className="text-xs font-semibold text-amber-800 dark:text-amber-300 uppercase tracking-wide">Weisungen des Eigentümers</p>
                               <div className="space-y-1.5">
-                                {Object.entries(viewReceivedProxy.pre_vote_instructions).map(([topId, instruction]: [string, any]) => (
-                                  <div key={topId} className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-400">
-                                    <span className="mt-0.5">•</span>
-                                    <span>{String(instruction)}</span>
-                                  </div>
-                                ))}
+                                {Object.entries(viewReceivedProxy.pre_vote_instructions).map(([topId, instruction]: [string, any]) => {
+                                  const topItem = agendaItems.find((a: any) => a.id === topId);
+                                  const topIdx = topItem ? agendaItems.indexOf(topItem) + 1 : null;
+                                  const voteLabel = instruction === "yes" ? "Ja" : instruction === "no" ? "Nein" : instruction === "abstain" ? "Enthaltung" : String(instruction);
+                                  const voteColor = instruction === "yes" ? "text-green-700 dark:text-green-400" : instruction === "no" ? "text-red-700 dark:text-red-400" : "text-amber-700 dark:text-amber-400";
+                                  return (
+                                    <div key={topId} className="flex items-center justify-between text-sm">
+                                      <span className="text-amber-700 dark:text-amber-400">
+                                        {topIdx ? `TOP ${topIdx}` : "TOP"}: {topItem?.title || "Unbekannt"}
+                                      </span>
+                                      <Badge variant="outline" className={`text-xs ${voteColor}`}>{voteLabel}</Badge>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
                           )}
@@ -1452,6 +1495,33 @@ export const WegOwnerMeetings = () => {
                     </Card>
                   )}
 
+                  {/* Weisungen bearbeiten button */}
+                  {selectedMeeting && agendaItems.length > 0 && (
+                    <Button
+                      variant="outline"
+                      className="w-full gap-2"
+                      onClick={() => {
+                        const existing = attendee.pre_vote_instructions || {};
+                        const initial: Record<string, string> = {};
+                        agendaItems.forEach((item: any) => {
+                          initial[item.id] = existing[item.id] || "frei";
+                        });
+                        setVotingInstructions(initial);
+                        setInstructionsAttendeeId(attendee.id);
+                        setShowInstructionsDialog(true);
+                      }}
+                      disabled={isProxyLocked(selectedMeeting.meeting_date)}
+                    >
+                      <Vote className="h-4 w-4" />
+                      Weisungen bearbeiten
+                      {attendee.pre_vote_instructions && Object.keys(attendee.pre_vote_instructions).length > 0 && (
+                        <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                          {Object.keys(attendee.pre_vote_instructions).length}
+                        </Badge>
+                      )}
+                    </Button>
+                  )}
+
                   {selectedMeeting && !isProxyLocked(selectedMeeting.meeting_date) && (
                     <Button
                       variant="outline"
@@ -1497,6 +1567,77 @@ export const WegOwnerMeetings = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Voting Instructions Dialog */}
+      <Dialog open={showInstructionsDialog} onOpenChange={(open) => { if (!open) { setShowInstructionsDialog(false); setInstructionsAttendeeId(null); } }}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Vote className="h-5 w-5 text-primary" />
+              Abstimmungsweisungen
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Legen Sie fest, wie Ihr Bevollmächtigter bei den einzelnen Tagesordnungspunkten abstimmen soll. Bei „Frei" kann der Bevollmächtigte nach eigenem Ermessen abstimmen.
+            </p>
+
+            <div className="space-y-3">
+              {agendaItems.map((item: any, idx: number) => {
+                const currentValue = votingInstructions[item.id] || "frei";
+                return (
+                  <div key={item.id} className="rounded-lg border p-3 space-y-2">
+                    <div className="flex items-start gap-2">
+                      <span className="text-primary font-bold text-sm shrink-0">TOP {idx + 1}</span>
+                      <span className="text-sm font-medium">{item.title}</span>
+                    </div>
+                    <div className="flex gap-1.5">
+                      {[
+                        { value: "yes", label: "Ja", activeClass: "bg-green-600 text-white hover:bg-green-700 border-green-600" },
+                        { value: "no", label: "Nein", activeClass: "bg-red-600 text-white hover:bg-red-700 border-red-600" },
+                        { value: "abstain", label: "Enthaltung", activeClass: "bg-muted-foreground text-white hover:bg-muted-foreground/90 border-muted-foreground" },
+                        { value: "frei", label: "Frei", activeClass: "bg-primary text-primary-foreground hover:bg-primary/90 border-primary" },
+                      ].map((option) => (
+                        <Button
+                          key={option.value}
+                          variant="outline"
+                          size="sm"
+                          className={`flex-1 text-xs h-8 ${currentValue === option.value ? option.activeClass : ""}`}
+                          onClick={() => setVotingInstructions(prev => ({ ...prev, [item.id]: option.value }))}
+                        >
+                          {option.label}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {agendaItems.length === 0 && (
+              <div className="text-center py-6 text-muted-foreground text-sm">
+                Noch keine Tagesordnungspunkte vorhanden.
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 border-t pt-4">
+              <Button variant="outline" onClick={() => { setShowInstructionsDialog(false); setInstructionsAttendeeId(null); }}>
+                Abbrechen
+              </Button>
+              <Button
+                onClick={() => {
+                  if (instructionsAttendeeId) {
+                    saveInstructionsMutation.mutate({ attendeeId: instructionsAttendeeId, instructions: votingInstructions });
+                  }
+                }}
+                disabled={saveInstructionsMutation.isPending || !instructionsAttendeeId}
+              >
+                {saveInstructionsMutation.isPending ? "Wird gespeichert..." : "Weisungen speichern"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
