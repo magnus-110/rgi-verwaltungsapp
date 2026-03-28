@@ -107,9 +107,9 @@ export const LiveVotingManager = ({ meetingId, buildingId }: LiveVotingManagerPr
     return () => { supabase.removeChannel(channel); };
   }, [activeVoteItem, queryClient]);
 
-  // Calculate quorum
+  // Calculate quorum — only count explicitly checked-in attendees
   const presentOrRepresented = attendees.filter(
-    (a: any) => a.attendance_type === "present" || a.attendance_type === "proxy"
+    (a: any) => a.attendance_type === "present" || (a.attendance_type === "proxy" && a.checked_in_at)
   );
   const totalOwners = attendees.length;
   const presentCount = presentOrRepresented.length;

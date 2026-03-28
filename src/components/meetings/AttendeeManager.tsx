@@ -265,7 +265,13 @@ export const AttendeeManager = ({ meetingId, buildingId, lockTime }: AttendeeMan
                         {cba.unit_number ? `${cba.unit_number} – ` : ""}{getContactName(contact)}
                       </span>
                       {attendee.proxy_type === "manager" && (
-                        <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-xs">Vollmacht: Verwalter</Badge>
+                        <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-xs">v.d. Verwalter</Badge>
+                      )}
+                      {attendee.proxy_type === "owner" && proxyContactName && (
+                        <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-xs">v.d. {proxyContactName}</Badge>
+                      )}
+                      {attendee.proxy_type === "external" && (
+                        <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-xs">v.d. {attendee.proxy_external_name || "Extern"}</Badge>
                       )}
                       {attendanceBadge(attendee.attendance_type)}
                     </div>
