@@ -56,6 +56,7 @@ export const WegOwnerMeetings = () => {
   const [proxyExternalName, setProxyExternalName] = useState<string>("");
   const [proxyDetailAttendeeId, setProxyDetailAttendeeId] = useState<string | null>(null);
   const [withdrawAttendeeId, setWithdrawAttendeeId] = useState<string | null>(null);
+  const [viewReceivedProxy, setViewReceivedProxy] = useState<any>(null);
 
   // TOP submission form
   const [topTitle, setTopTitle] = useState("");
