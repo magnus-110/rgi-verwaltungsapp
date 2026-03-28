@@ -774,15 +774,177 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
   }
 
   // ============ OVERVIEW VIEW ============
+  const proxyCount = attendees.filter((a: any) => a.attendance_type === "proxy").length;
+  const meaPercent = totalMea > 0 ? ((presentMea / totalMea) * 100) : 0;
+
   return (
-    <div className="space-y-6">
-      {/* Quorum & Controls */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Users className="h-4 w-4" /> Eröffnung & Quorum
-          </CardTitle>
-        </CardHeader>
+    <div className="space-y-0">
+      {/* Unified Dashboard Card */}
+      <Card className="overflow-hidden">
+        {/* Dashboard Header */}
+        <div className="px-5 py-4 border-b border-border bg-muted/20">
+          <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+            <Shield className="h-4 w-4 text-primary" />
+            Versammlungs-Cockpit
+          </h2>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 p-4">
+          <div className="rounded-lg bg-muted/30 p-3 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+              <UserCheck className="h-3.5 w-3.5" /> Anwesend
+            </div>
+            <div className="text-xl font-bold text-foreground">{presentCount - proxyCount}<span className="text-sm font-normal text-muted-foreground"> / {totalOwners}</span></div>
+            <Progress value={totalOwners > 0 ? ((presentCount - proxyCount) / totalOwners) * 100 : 0} className="h-1.5" />
+          </div>
+
+          <div className="rounded-lg bg-muted/30 p-3 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+              <Users className="h-3.5 w-3.5" /> Vertreten
+            </div>
+            <div className="text-xl font-bold text-foreground">{proxyCount}</div>
+            <p className="text-[11px] text-muted-foreground">per Vollmacht</p>
+          </div>
+
+          <div className="rounded-lg bg-muted/30 p-3 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+              <BarChart3 className="h-3.5 w-3.5" /> MEA-Quote
+            </div>
+            <div className="text-xl font-bold text-foreground">{meaPercent.toFixed(1)}<span className="text-sm font-normal text-muted-foreground">%</span></div>
+            <Progress value={meaPercent} className="h-1.5" />
+          </div>
+
+          <div className="rounded-lg bg-muted/30 p-3 space-y-1.5">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
+              <Shield className="h-3.5 w-3.5" /> Status
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className={`h-2.5 w-2.5 rounded-full ${quorumReached ? 'bg-green-500' : 'bg-destructive'}`} />
+              <span className="text-sm font-semibold text-foreground">{quorumReached ? "Beschlussfähig" : "Nicht beschlussfähig"}</span>
+            </div>
+            <p className="text-[11px] text-muted-foreground">{presentCount} von {totalOwners} anw./vertr.</p>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex gap-2 px-4 pb-4">
+          <Button size="sm" onClick={() => updateMeetingStatusMutation.mutate("in_progress")} variant="outline" className="gap-1.5">
+            <Play className="h-3.5 w-3.5" /> Versammlung eröffnen
+          </Button>
+          <Button size="sm" onClick={() => updateMeetingStatusMutation.mutate("completed")} variant="outline" className="gap-1.5">
+            <Square className="h-3.5 w-3.5" /> Versammlung schließen
+          </Button>
+        </div>
+
+        <Separator />
+
+        {/* Attendance Section */}
+        <div className="px-5 py-3">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-foreground">Anwesenheit</h3>
+            {attendees.length === 0 && owners.length > 0 && (
+              <Button onClick={() => initMutation.mutate()} disabled={initMutation.isPending} size="sm" variant="outline" className="gap-1.5 h-7 text-xs">
+                <RefreshCw className={`h-3 w-3 ${initMutation.isPending ? "animate-spin" : ""}`} />
+                Eigentümer laden
+              </Button>
+            )}
+          </div>
+
+          {attendees.length === 0 && owners.length === 0 && (
+            <div className="py-6 text-center text-muted-foreground">
+              <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
+              <p className="text-sm">Keine Eigentümer gefunden. Bitte unter Adressen anlegen.</p>
+            </div>
+          )}
+
+          <div className="space-y-1">
+            {attendees.map((a: any) => {
+              const cba = a.contact_building_assignments;
+              const contact = cba?.contacts;
+              const borderColor = a.attendance_type === "present"
+                ? "border-l-green-500"
+                : a.attendance_type === "proxy"
+                ? "border-l-blue-500"
+                : "border-l-muted-foreground/30";
+              return (
+                <div
+                  key={a.id}
+                  className={`flex items-center justify-between py-2 px-3 rounded-md border-l-[3px] ${borderColor} hover:bg-muted/30 transition-colors`}
+                >
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <span className="text-sm font-medium truncate">{getContactName(contact)}</span>
+                    {cba?.unit_number && <Badge variant="outline" className="text-[10px] shrink-0 px-1.5 py-0">E{cba.unit_number}</Badge>}
+                    {a.proxy_type && (
+                      <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-[10px] shrink-0">
+                        v.d. {a.proxy_type === "manager" ? "Verwalter" : a.proxy_type === "owner" ? (() => {
+                          const proxyContact = allContacts.find((c: any) => c.contacts.id === a.proxy_contact_id);
+                          return proxyContact ? getContactName(proxyContact.contacts) : "Eigentümer";
+                        })() : (a.proxy_external_name || "Extern")}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Switch
+                      checked={a.attendance_type === "present"}
+                      onCheckedChange={(checked) => checkInMutation.mutate({ id: a.id, present: checked })}
+                      disabled={a.attendance_type === "proxy"}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* Agenda Section */}
+        <div className="px-5 py-3">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-foreground">Tagesordnung</h3>
+            <Button size="sm" variant="outline" className="gap-1.5 h-7 text-xs" onClick={() => setShowProceduralDialog(true)}>
+              <Gavel className="h-3 w-3" />
+              Geschäftsbeschluss
+            </Button>
+          </div>
+
+          {agendaItems.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              Keine TOPs vorhanden. Bitte zuerst unter "Vorbereitung" anlegen.
+            </p>
+          )}
+
+          <div className="space-y-1">
+            {agendaItems.map((item, idx) => (
+              <div
+                key={item.id}
+                className="flex items-center justify-between py-2.5 px-3 rounded-md hover:bg-muted/30 cursor-pointer transition-colors group"
+                onClick={() => setSelectedTopId(item.id)}
+              >
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <span className="text-xs font-bold text-primary whitespace-nowrap">TOP {idx + 1}</span>
+                  <span className="text-sm font-medium truncate">{item.title}</span>
+                  <div className="hidden md:flex items-center gap-1.5">
+                    {item.requires_double_qualified && (
+                      <Badge className="text-[10px] bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 px-1.5 py-0">DQ</Badge>
+                    )}
+                    {item.category === "geschaeftsbeschluss" && (
+                      <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-700 px-1.5 py-0">
+                        <Gavel className="h-2.5 w-2.5 mr-0.5" /> GB
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {getStatusBadge(item)}
+                  <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Card>
         <CardContent className="space-y-3">
           <div className="flex items-center justify-between text-sm">
             <span>{presentCount} von {totalOwners} Eigentümern anwesend/vertreten</span>
