@@ -774,7 +774,8 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
   }
 
   // ============ OVERVIEW VIEW ============
-  const proxyCount = attendees.filter((a: any) => a.attendance_type === "proxy").length;
+  const proxyCount = attendees.filter((a: any) => a.attendance_type === "proxy" && a.checked_in_at).length;
+  const physicallyPresent = attendees.filter((a: any) => a.attendance_type === "present").length;
   const meaPercent = totalMea > 0 ? ((presentMea / totalMea) * 100) : 0;
 
   return (
@@ -795,8 +796,8 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
               <UserCheck className="h-3.5 w-3.5" /> Anwesend
             </div>
-            <div className="text-xl font-bold text-foreground">{presentCount - proxyCount}<span className="text-sm font-normal text-muted-foreground"> / {totalOwners}</span></div>
-            <Progress value={totalOwners > 0 ? ((presentCount - proxyCount) / totalOwners) * 100 : 0} className="h-1.5" />
+            <div className="text-xl font-bold text-foreground">{physicallyPresent}<span className="text-sm font-normal text-muted-foreground"> / {totalOwners}</span></div>
+            <Progress value={totalOwners > 0 ? (physicallyPresent / totalOwners) * 100 : 0} className="h-1.5" />
           </div>
 
           <div className="rounded-lg bg-muted/30 p-3 space-y-1.5">
