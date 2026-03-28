@@ -60,6 +60,7 @@ export const WegOwnerMeetings = () => {
   const [showInstructionsDialog, setShowInstructionsDialog] = useState(false);
   const [instructionsAttendeeId, setInstructionsAttendeeId] = useState<string | null>(null);
   const [votingInstructions, setVotingInstructions] = useState<Record<string, string>>({});
+  const [createdProxyToken, setCreatedProxyToken] = useState<string | null>(null);
 
   // TOP submission form
   const [topTitle, setTopTitle] = useState("");
