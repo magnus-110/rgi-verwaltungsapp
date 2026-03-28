@@ -682,10 +682,10 @@ export const WegOwnerMeetings = () => {
                               <div className="mt-1">
                                 {!attendee ? (
                                   <Badge variant="secondary">Wird geladen...</Badge>
-                                ) : attendee.attendance_type === "proxy" ? (
-                                  <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                                    Vertreten — {attendee.proxy_type === "manager" ? "durch Verwalter" : "durch Eigentümer"}
-                                  </Badge>
+                                 ) : attendee.attendance_type === "proxy" ? (
+                                   <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                     Vertreten — {attendee.proxy_type === "manager" ? "durch Verwalter" : attendee.proxy_type === "external" ? `durch ${attendee.proxy_external_name || "Externe Person"}` : "durch Eigentümer"}
+                                   </Badge>
                                 ) : attendee.attendance_type === "present" ? (
                                   <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Anwesend</Badge>
                                 ) : (
