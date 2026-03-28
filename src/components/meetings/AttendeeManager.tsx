@@ -32,6 +32,7 @@ interface Attendee {
   proxy_contact_id: string | null;
   proxy_token: string | null;
   proxy_token_used: boolean | null;
+  proxy_external_name: string | null;
   pre_vote_instructions: any;
   checked_in_at: string | null;
   voting_banned_items: string[] | null;
