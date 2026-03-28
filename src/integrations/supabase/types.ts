@@ -2735,6 +2735,7 @@ export type Database = {
           is_manual_override: boolean | null
           is_proxy_vote: boolean | null
           mea_weight: number | null
+          sqm_weight: number | null
           vote: string
           voted_at: string | null
           voted_by_user_id: string | null
@@ -2747,6 +2748,7 @@ export type Database = {
           is_manual_override?: boolean | null
           is_proxy_vote?: boolean | null
           mea_weight?: number | null
+          sqm_weight?: number | null
           vote: string
           voted_at?: string | null
           voted_by_user_id?: string | null
@@ -2759,6 +2761,7 @@ export type Database = {
           is_manual_override?: boolean | null
           is_proxy_vote?: boolean | null
           mea_weight?: number | null
+          sqm_weight?: number | null
           vote?: string
           voted_at?: string | null
           voted_by_user_id?: string | null

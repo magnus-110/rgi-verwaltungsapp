@@ -39,6 +39,7 @@ interface AgendaItem {
   abstain_count: number;
   total_mea_voted: number;
   admin_notes: string | null;
+  category: string | null;
   requires_double_qualified: boolean;
   double_qualified_relevant: boolean;
 }
