@@ -692,6 +692,25 @@ export const WegOwnerMeetings = () => {
                                   <Badge variant="secondary">Nicht teilgenommen / Offen</Badge>
                                 )}
                               </div>
+                              {/* Token link for external proxy */}
+                              {attendee?.proxy_type === "external" && attendee?.proxy_token && (
+                                <div className="mt-2 flex items-center gap-2">
+                                  <code className="text-xs bg-muted px-2 py-1 rounded truncate max-w-[200px]">
+                                    {`${window.location.origin}/etv-proxy/${attendee.proxy_token}`}
+                                  </code>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(`${window.location.origin}/etv-proxy/${attendee.proxy_token}`);
+                                      toast({ title: "Link kopiert" });
+                                    }}
+                                  >
+                                    <Copy className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              )}
                             </div>
                           </div>
 
