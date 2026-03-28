@@ -17,23 +17,13 @@ export const EtvProxy = () => {
     queryFn: async () => {
       if (!token) throw new Error("Kein Token angegeben");
 
-      // Find attendee by proxy token
-      const { data: attendee, error: attErr } = await supabase
-        .from("etv_attendees")
-        .select(`
-          id, proxy_external_name, proxy_token_used, attendance_type, proxy_type,
-          etv_meetings!inner(
-            id, title, meeting_date, location, status,
-            buildings!inner(name, address)
-          )
-        `)
-        .eq("proxy_token", token)
-        .maybeSingle();
+      const { data: result, error: rpcErr } = await supabase
+        .rpc("get_attendee_by_proxy_token", { p_token: token });
 
-      if (attErr) throw attErr;
-      if (!attendee) throw new Error("INVALID_TOKEN");
+      if (rpcErr) throw rpcErr;
+      if (!result) throw new Error("INVALID_TOKEN");
 
-      return attendee;
+      return result as any;
     },
     enabled: !!token,
     retry: false,
