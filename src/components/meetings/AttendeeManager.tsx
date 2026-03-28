@@ -130,7 +130,9 @@ export const AttendeeManager = ({ meetingId, buildingId, lockTime }: AttendeeMan
           attendance_type: "absent",
         }));
       if (newAttendees.length === 0) return;
-      const { error } = await supabase.from("etv_attendees").insert(newAttendees);
+      const { error } = await supabase
+        .from("etv_attendees")
+        .upsert(newAttendees, { onConflict: "meeting_id,assignment_id" });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -189,13 +191,13 @@ export const AttendeeManager = ({ meetingId, buildingId, lockTime }: AttendeeMan
   });
 
   // Auto-initialize attendees from owners when list is empty
-  const autoInitRef = useRef(false);
+  const autoInitRef = useRef<string | null>(null);
   useEffect(() => {
-    if (attendees.length === 0 && owners.length > 0 && !loadingAttendees && !initMutation.isPending && !autoInitRef.current) {
-      autoInitRef.current = true;
+    if (attendees.length === 0 && owners.length > 0 && !loadingAttendees && !initMutation.isPending && autoInitRef.current !== meetingId) {
+      autoInitRef.current = meetingId;
       initMutation.mutate();
     }
-  }, [attendees.length, owners.length, loadingAttendees]);
+  }, [attendees.length, owners.length, loadingAttendees, meetingId]);
 
   const getContactName = (contact: any) => {
     if (contact.company_name) return contact.company_name;
