@@ -142,6 +142,10 @@ export const Meetings = () => {
             <Scale className="h-4 w-4" />
             Beschlusssammlung
           </TabsTrigger>
+          <TabsTrigger value="templates" className="gap-2">
+            <BookTemplate className="h-4 w-4" />
+            Vorlagen
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="meetings" className="mt-4">
           <MeetingList
@@ -155,6 +159,9 @@ export const Meetings = () => {
         </TabsContent>
         <TabsContent value="resolutions" className="mt-4">
           <ResolutionLedger />
+        </TabsContent>
+        <TabsContent value="templates" className="mt-4">
+          <ResolutionTemplatesManager />
         </TabsContent>
       </Tabs>
     </div>
