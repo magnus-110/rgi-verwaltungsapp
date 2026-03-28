@@ -781,6 +781,11 @@ export const WegOwnerMeetings = () => {
                             setProxyType("manager");
                             setProxyContactId("");
                             setProxyExternalName("");
+                            setCreatedProxyToken(null);
+                            // Initialize voting instructions
+                            const initial: Record<string, string> = {};
+                            agendaItems.forEach((item: any) => { initial[item.id] = "frei"; });
+                            setVotingInstructions(initial);
                             setShowProxyDialog(true);
                           }
                         }}
