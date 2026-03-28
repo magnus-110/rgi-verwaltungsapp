@@ -678,124 +678,67 @@ export const WegOwnerMeetings = () => {
                     <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/30">
                       <CardContent className="p-3 flex items-center gap-2 text-sm text-amber-700 dark:text-amber-400">
                         <Lock className="h-4 w-4" />
-                        <span>Vollmachten sind gesperrt (1h vor Versammlungsbeginn). Änderungen sind nicht mehr möglich.</span>
+                        <span>Vollmachten sind gesperrt (1h vor Versammlungsbeginn).</span>
                       </CardContent>
                     </Card>
                   )}
 
                   {myAssignments.map((assignment: any) => {
                     const attendee = myAttendees.find((a: any) => a.assignment_id === assignment.id);
+                    const hasProxy = attendee?.attendance_type === "proxy";
+                    const locked = isProxyLocked(selectedMeeting.meeting_date);
+
+                    const getProxyLabel = () => {
+                      if (!attendee || !hasProxy) return null;
+                      if (attendee.proxy_type === "manager") return "Verwalter";
+                      if (attendee.proxy_type === "external") return attendee.proxy_external_name || "Externe Person";
+                      const pc = attendee.proxy_contact;
+                      if (pc) {
+                        return pc.company_name || [pc.first_name, pc.last_name].filter(Boolean).join(" ") || "Eigentümer";
+                      }
+                      return "Eigentümer";
+                    };
+
                     return (
-                      <Card key={assignment.id}>
-                        <CardContent className="p-4 space-y-3">
-                          <div className="flex items-center justify-between">
-                            <div>
+                      <Card
+                        key={assignment.id}
+                        className={`cursor-pointer transition-shadow hover:shadow-md ${hasProxy ? "border-blue-200 dark:border-blue-800" : ""}`}
+                        onClick={() => {
+                          if (locked) return;
+                          if (hasProxy && attendee) {
+                            setProxyDetailAttendeeId(attendee.id);
+                          } else if (attendee) {
+                            setProxyAssignmentId(assignment.id);
+                            setProxyType("manager");
+                            setProxyContactId("");
+                            setProxyExternalName("");
+                            setShowProxyDialog(true);
+                          }
+                        }}
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
                               <p className="text-sm font-medium">
                                 {assignment.unit_number ? `Einheit ${assignment.unit_number}` : "Zuordnung"}
                               </p>
-                              <div className="mt-1">
-                                {!attendee ? (
-                                  <Badge variant="secondary">Wird geladen...</Badge>
-                                 ) : attendee.attendance_type === "proxy" ? (
-                                   <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                                      Vertreten — {attendee.proxy_type === "manager" ? "durch Verwalter" : attendee.proxy_type === "external" ? `durch ${attendee.proxy_external_name || "Externe Person"}` : (() => {
-                                        const pc = attendee.proxy_contact;
-                                        if (pc) {
-                                          const name = pc.company_name || [pc.first_name, pc.last_name].filter(Boolean).join(" ");
-                                          return `durch ${name || "Eigentümer"}`;
-                                        }
-                                        return "durch Eigentümer";
-                                      })()}
-                                    </Badge>
-                                ) : attendee.attendance_type === "present" ? (
-                                  <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Anwesend</Badge>
-                                ) : (
-                                  <Badge variant="secondary">Nicht teilgenommen / Offen</Badge>
-                                )}
-                              </div>
-                              {/* Token link for external proxy */}
-                              {attendee?.proxy_type === "external" && attendee?.proxy_token && (
-                                <Card className="mt-3 border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800">
-                                  <CardContent className="p-3 space-y-2">
-                                    <div className="flex items-center gap-2 text-sm font-medium text-blue-800 dark:text-blue-300">
-                                      <Link2 className="h-4 w-4" />
-                                      Vollmacht-Link für {attendee.proxy_external_name || "externe Person"}
-                                    </div>
-                                    <p className="text-xs text-blue-700 dark:text-blue-400">
-                                      Teilen Sie diesen Link mit der bevollmächtigten Person. Über den Link kann sie an Abstimmungen teilnehmen und Ergebnisse einsehen. Der Link ist gültig, bis die Vollmacht zurückgezogen wird.
-                                    </p>
-                                    <div className="flex items-center gap-2">
-                                      <code className="text-xs bg-white dark:bg-blue-900/50 px-2 py-1.5 rounded border border-blue-200 dark:border-blue-700 truncate flex-1">
-                                        {`${window.location.origin}/etv-proxy/${attendee.proxy_token}`}
-                                      </code>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        className="shrink-0 gap-1.5"
-                                        onClick={() => {
-                                          navigator.clipboard.writeText(`${window.location.origin}/etv-proxy/${attendee.proxy_token}`);
-                                          toast({ title: "Link kopiert" });
-                                        }}
-                                      >
-                                        <Copy className="h-3.5 w-3.5" />
-                                        Kopieren
-                                      </Button>
-                                      {typeof navigator.share === "function" && (
-                                        <Button
-                                          variant="outline"
-                                          size="sm"
-                                          className="shrink-0 gap-1.5"
-                                          onClick={() => {
-                                            navigator.share({
-                                              title: "Vollmacht-Link zur Eigentümerversammlung",
-                                              text: `Hallo ${attendee.proxy_external_name || ""}, hier ist Ihr Vollmacht-Link zur Abstimmung:`,
-                                              url: `${window.location.origin}/etv-proxy/${attendee.proxy_token}`,
-                                            }).catch(() => {});
-                                          }}
-                                        >
-                                          <ExternalLink className="h-3.5 w-3.5" />
-                                          Teilen
-                                        </Button>
-                                      )}
-                                    </div>
-                                  </CardContent>
-                                </Card>
+                            </div>
+                            <div className="shrink-0">
+                              {!attendee ? (
+                                <Badge variant="secondary">Wird geladen...</Badge>
+                              ) : hasProxy ? (
+                                <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 max-w-[200px] truncate">
+                                  Vollmacht: {getProxyLabel()}
+                                </Badge>
+                              ) : attendee.attendance_type === "present" ? (
+                                <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Anwesend</Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-muted-foreground">
+                                  {locked ? "Offen" : "Vollmacht erteilen →"}
+                                </Badge>
                               )}
                             </div>
                           </div>
-
-                          {attendee && !isProxyLocked(selectedMeeting.meeting_date) && (
-                            <div className="flex gap-2 pt-1">
-                              {attendee.attendance_type !== "proxy" ? (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="gap-2"
-                                  onClick={() => {
-                                    setProxyAssignmentId(assignment.id);
-                                    setProxyType("manager");
-                                    setProxyContactId("");
-                                    setProxyExternalName("");
-                                    setShowProxyDialog(true);
-                                  }}
-                                >
-                                  <Shield className="h-3.5 w-3.5" />
-                                  Vollmacht erteilen
-                                </Button>
-                              ) : (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="gap-2"
-                                  onClick={() => withdrawProxyMutation.mutate(attendee.id)}
-                                  disabled={withdrawProxyMutation.isPending}
-                                >
-                                  <UserX className="h-3.5 w-3.5" />
-                                  {withdrawProxyMutation.isPending ? "Wird zurückgezogen..." : "Vollmacht zurückziehen"}
-                                </Button>
-                              )}
-                            </div>
-                          )}
                         </CardContent>
                       </Card>
                     );
