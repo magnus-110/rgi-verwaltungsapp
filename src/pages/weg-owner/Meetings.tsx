@@ -1552,6 +1552,77 @@ export const WegOwnerMeetings = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Voting Instructions Dialog */}
+      <Dialog open={showInstructionsDialog} onOpenChange={(open) => { if (!open) { setShowInstructionsDialog(false); setInstructionsAttendeeId(null); } }}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Vote className="h-5 w-5 text-primary" />
+              Abstimmungsweisungen
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Legen Sie fest, wie Ihr Bevollmächtigter bei den einzelnen Tagesordnungspunkten abstimmen soll. Bei „Frei" kann der Bevollmächtigte nach eigenem Ermessen abstimmen.
+            </p>
+
+            <div className="space-y-3">
+              {agendaItems.map((item: any, idx: number) => {
+                const currentValue = votingInstructions[item.id] || "frei";
+                return (
+                  <div key={item.id} className="rounded-lg border p-3 space-y-2">
+                    <div className="flex items-start gap-2">
+                      <span className="text-primary font-bold text-sm shrink-0">TOP {idx + 1}</span>
+                      <span className="text-sm font-medium">{item.title}</span>
+                    </div>
+                    <div className="flex gap-1.5">
+                      {[
+                        { value: "yes", label: "Ja", activeClass: "bg-green-600 text-white hover:bg-green-700 border-green-600" },
+                        { value: "no", label: "Nein", activeClass: "bg-red-600 text-white hover:bg-red-700 border-red-600" },
+                        { value: "abstain", label: "Enthaltung", activeClass: "bg-muted-foreground text-white hover:bg-muted-foreground/90 border-muted-foreground" },
+                        { value: "frei", label: "Frei", activeClass: "bg-primary text-primary-foreground hover:bg-primary/90 border-primary" },
+                      ].map((option) => (
+                        <Button
+                          key={option.value}
+                          variant="outline"
+                          size="sm"
+                          className={`flex-1 text-xs h-8 ${currentValue === option.value ? option.activeClass : ""}`}
+                          onClick={() => setVotingInstructions(prev => ({ ...prev, [item.id]: option.value }))}
+                        >
+                          {option.label}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {agendaItems.length === 0 && (
+              <div className="text-center py-6 text-muted-foreground text-sm">
+                Noch keine Tagesordnungspunkte vorhanden.
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3 border-t pt-4">
+              <Button variant="outline" onClick={() => { setShowInstructionsDialog(false); setInstructionsAttendeeId(null); }}>
+                Abbrechen
+              </Button>
+              <Button
+                onClick={() => {
+                  if (instructionsAttendeeId) {
+                    saveInstructionsMutation.mutate({ attendeeId: instructionsAttendeeId, instructions: votingInstructions });
+                  }
+                }}
+                disabled={saveInstructionsMutation.isPending || !instructionsAttendeeId}
+              >
+                {saveInstructionsMutation.isPending ? "Wird gespeichert..." : "Weisungen speichern"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

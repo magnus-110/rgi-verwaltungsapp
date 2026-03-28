@@ -144,6 +144,28 @@ export const LiveVotingManager = ({ meetingId, buildingId }: LiveVotingManagerPr
     },
   });
 
+  // Auto-cast pre-votes from proxy instructions
+  const autoCastPreVotes = useCallback(async (itemId: string) => {
+    const proxyAttendees = attendees.filter(
+      (a: any) => a.attendance_type === "proxy" && a.checked_in_at && a.pre_vote_instructions
+    );
+    for (const attendee of proxyAttendees) {
+      const instructions = attendee.pre_vote_instructions as Record<string, string>;
+      const vote = instructions[itemId];
+      if (vote && ["yes", "no", "abstain"].includes(vote)) {
+        const meaW = getMeaWeight(attendee);
+        await supabase.from("etv_votes").upsert({
+          agenda_item_id: itemId,
+          assignment_id: attendee.assignment_id,
+          vote,
+          mea_weight: meaW,
+          is_manual_override: false,
+          voted_at: new Date().toISOString(),
+        }, { onConflict: "agenda_item_id,assignment_id" });
+      }
+    }
+  }, [attendees]);
+
   // Start voting on a TOP
   const startVotingMutation = useMutation({
     mutationFn: async (itemId: string) => {
@@ -152,10 +174,13 @@ export const LiveVotingManager = ({ meetingId, buildingId }: LiveVotingManagerPr
         .update({ status: "voting" })
         .eq("id", itemId);
       if (error) throw error;
+      // Auto-cast any pre-vote instructions
+      await autoCastPreVotes(itemId);
     },
     onSuccess: (_, itemId) => {
       setActiveVoteItem(itemId);
       queryClient.invalidateQueries({ queryKey: ["etv-agenda-items-live", meetingId] });
+      queryClient.invalidateQueries({ queryKey: ["etv-votes-live", itemId] });
       toast({ title: "Abstimmung gestartet" });
     },
   });
