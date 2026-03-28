@@ -4026,6 +4026,14 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_owner_assignments_in_user_buildings: {
+        Args: { _user_id: string }
+        Returns: string[]
+      }
+      get_owner_contact_ids_in_user_buildings: {
+        Args: { _user_id: string }
+        Returns: string[]
+      }
       get_user_building_ids: { Args: { _user_id: string }; Returns: string[] }
       get_user_role: {
         Args: { user_uuid: string }
