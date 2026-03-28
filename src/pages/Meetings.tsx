@@ -7,12 +7,12 @@ import { MeetingList } from "@/components/meetings/MeetingList";
 import { MeetingEditor } from "@/components/meetings/MeetingEditor";
 import { ResolutionLedger } from "@/components/meetings/ResolutionLedger";
 import { SubmittedTopsManager } from "@/components/meetings/SubmittedTopsManager";
-import { ResolutionTemplatesManager } from "@/components/meetings/ResolutionTemplatesManager";
+
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, ArrowLeft, Users, Scale, Inbox, Building2, BookTemplate } from "lucide-react";
+import { Plus, ArrowLeft, Users, Scale, Inbox, Building2 } from "lucide-react";
 
 export const Meetings = () => {
   const { profile } = useAuth();
@@ -142,10 +142,6 @@ export const Meetings = () => {
             <Scale className="h-4 w-4" />
             Beschlusssammlung
           </TabsTrigger>
-          <TabsTrigger value="templates" className="gap-2">
-            <BookTemplate className="h-4 w-4" />
-            Vorlagen
-          </TabsTrigger>
         </TabsList>
         <TabsContent value="meetings" className="mt-4">
           <MeetingList
@@ -155,13 +151,10 @@ export const Meetings = () => {
           />
         </TabsContent>
         <TabsContent value="submissions" className="mt-4">
-          <SubmittedTopsManager />
+          <SubmittedTopsManager buildingFilter={selectedBuildingId} />
         </TabsContent>
         <TabsContent value="resolutions" className="mt-4">
-          <ResolutionLedger />
-        </TabsContent>
-        <TabsContent value="templates" className="mt-4">
-          <ResolutionTemplatesManager />
+          <ResolutionLedger buildingFilter={selectedBuildingId} />
         </TabsContent>
       </Tabs>
     </div>

@@ -11,7 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, GripVertical, Trash2, Pencil, Upload, FileText, X, Wand2, Loader2, Check, BookTemplate, ChevronDown } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Plus, GripVertical, Trash2, Pencil, Upload, FileText, X, Wand2, Loader2, Check, BookTemplate, ChevronDown, ChevronUp, Settings } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
@@ -719,6 +721,163 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
           </div>
         </CardContent>
       </Card>
+
+      {/* Inline Template Management */}
+      <TemplateManager templates={templates} queryClient={queryClient} toast={toast} />
     </div>
+  );
+};
+
+// ============ INLINE TEMPLATE MANAGER ============
+const TemplateManager = ({ templates, queryClient, toast }: { templates: any[]; queryClient: any; toast: any }) => {
+  const [open, setOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [title, setTitle] = useState("");
+  const [resolutionText, setResolutionText] = useState("");
+  const [votingPrinciple, setVotingPrinciple] = useState("mea");
+  const [category, setCategory] = useState("sonstiges");
+  const [requiresDQ, setRequiresDQ] = useState(false);
+
+  const votingPrinciples = [
+    { value: "mea", label: "MEA (Wertprinzip)" },
+    { value: "headcount", label: "Kopfprinzip" },
+    { value: "sqm", label: "Quadratmeter" },
+  ];
+  const categories = [
+    { value: "baulich", label: "Baulich" },
+    { value: "finanziell", label: "Finanziell" },
+    { value: "verwaltung", label: "Verwaltung" },
+    { value: "sonstiges", label: "Sonstiges" },
+  ];
+
+  const resetForm = () => {
+    setTitle(""); setResolutionText(""); setVotingPrinciple("mea");
+    setCategory("sonstiges"); setRequiresDQ(false); setEditingId(null);
+  };
+
+  const openCreate = () => { resetForm(); setDialogOpen(true); };
+  const openEdit = (t: any) => {
+    setEditingId(t.id); setTitle(t.title); setResolutionText(t.resolution_text || "");
+    setVotingPrinciple(t.voting_principle || "mea"); setCategory(t.category || "sonstiges");
+    setRequiresDQ(t.requires_double_qualified || false); setDialogOpen(true);
+  };
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const payload = { title, resolution_text: resolutionText || null, voting_principle: votingPrinciple, category, requires_double_qualified: requiresDQ } as any;
+      if (editingId) {
+        const { error } = await supabase.from("etv_resolution_templates").update(payload).eq("id", editingId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("etv_resolution_templates").insert({ ...payload, sort_order: templates.length + 1 });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["etv-resolution-templates"] });
+      setDialogOpen(false); resetForm();
+      toast({ title: editingId ? "Vorlage aktualisiert" : "Vorlage erstellt" });
+    },
+    onError: (err: any) => toast({ title: "Fehler", description: err.message, variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("etv_resolution_templates").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["etv-resolution-templates"] });
+      toast({ title: "Vorlage gelöscht" });
+    },
+  });
+
+  return (
+    <>
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <Card className="border-dashed border-muted-foreground/30">
+          <CollapsibleTrigger asChild>
+            <CardContent className="p-3 cursor-pointer hover:bg-muted/30 transition-colors">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Settings className="h-4 w-4" />
+                  Beschlussvorlagen verwalten ({templates.length})
+                </span>
+                {open ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+              </div>
+            </CardContent>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="pt-0 pb-3 px-3 space-y-2">
+              {templates.map((t: any) => (
+                <div key={t.id} className="flex items-center justify-between p-2 rounded border text-sm">
+                  <div className="flex-1 min-w-0">
+                    <span className="font-medium">{t.title}</span>
+                    <div className="flex gap-1 mt-0.5">
+                      <Badge variant="outline" className="text-[10px]">
+                        {votingPrinciples.find(v => v.value === t.voting_principle)?.label || t.voting_principle}
+                      </Badge>
+                      {t.requires_double_qualified && <Badge className="text-[10px] bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">DQ</Badge>}
+                    </div>
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(t)}><Pencil className="h-3 w-3" /></Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => deleteMutation.mutate(t.id)}><Trash2 className="h-3 w-3" /></Button>
+                  </div>
+                </div>
+              ))}
+              <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs" onClick={openCreate}>
+                <Plus className="h-3.5 w-3.5" /> Neue Vorlage
+              </Button>
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>{editingId ? "Vorlage bearbeiten" : "Neue Beschlussvorlage"}</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Titel *</Label>
+              <Input placeholder="z.B. Genehmigung der Jahresabrechnung" value={title} onChange={(e) => setTitle(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Beschlusstext</Label>
+              <Textarea placeholder="Die Eigentümer beschließen..." value={resolutionText} onChange={(e) => setResolutionText(e.target.value)} rows={4} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Abstimmungsmethode</Label>
+                <Select value={votingPrinciple} onValueChange={setVotingPrinciple}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {votingPrinciples.map(v => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Kategorie</Label>
+                <Select value={category} onValueChange={setCategory}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {categories.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox id="tpl-dq" checked={requiresDQ} onCheckedChange={(c) => setRequiresDQ(!!c)} />
+              <Label htmlFor="tpl-dq" className="text-xs cursor-pointer">Erfordert doppelt qualifizierte Mehrheit</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Abbrechen</Button>
+            <Button onClick={() => saveMutation.mutate()} disabled={!title || saveMutation.isPending}>{editingId ? "Speichern" : "Erstellen"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };
