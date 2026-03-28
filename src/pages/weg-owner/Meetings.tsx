@@ -273,10 +273,19 @@ export const WegOwnerMeetings = () => {
     enabled: !!effectiveBuildingId && myAssignments.length > 0,
   });
 
-  // Set proxy mutation — now accepts attendeeId
+  // Set proxy mutation — now also saves voting instructions
   const setProxyMutation = useMutation({
-    mutationFn: async ({ attendeeId, type, contactId, externalName }: { attendeeId: string; type: string; contactId?: string; externalName?: string }) => {
+    mutationFn: async ({ attendeeId, type, contactId, externalName, instructions }: { attendeeId: string; type: string; contactId?: string; externalName?: string; instructions?: Record<string, string> }) => {
       const token = type === "external" ? crypto.randomUUID() : null;
+      // Filter instructions — only store actual votes, not "frei"
+      let filteredInstructions: Record<string, string> | null = null;
+      if (instructions) {
+        const filtered: Record<string, string> = {};
+        for (const [key, value] of Object.entries(instructions)) {
+          if (value && value !== "frei") filtered[key] = value;
+        }
+        filteredInstructions = Object.keys(filtered).length > 0 ? filtered : null;
+      }
       const { error } = await supabase
         .from("etv_attendees")
         .update({
@@ -284,6 +293,7 @@ export const WegOwnerMeetings = () => {
           proxy_contact_id: type === "owner" ? (contactId || null) : null,
           proxy_token: token,
           proxy_external_name: type === "external" ? (externalName || null) : null,
+          pre_vote_instructions: filteredInstructions,
         })
         .eq("id", attendeeId);
       if (error) throw error;
@@ -291,14 +301,16 @@ export const WegOwnerMeetings = () => {
     },
     onSuccess: (token) => {
       if (token) {
+        // For external: show the link in the same dialog
+        setCreatedProxyToken(token);
         const link = `${window.location.origin}/etv-proxy/${token}`;
         navigator.clipboard.writeText(link);
         toast({ title: "Vollmacht erteilt", description: "Der Vollmacht-Link wurde in die Zwischenablage kopiert." });
       } else {
         toast({ title: "Vollmacht erteilt" });
+        setShowProxyDialog(false);
+        setProxyAssignmentId(null);
       }
-      setShowProxyDialog(false);
-      setProxyAssignmentId(null);
       refetchAttendees();
     },
     onError: (err: any) => {
