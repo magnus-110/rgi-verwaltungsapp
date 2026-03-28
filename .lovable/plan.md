@@ -1,46 +1,57 @@
 
 
-## Problem
+## Redesign: Meeting Live Session Dashboard
 
-The `etv_attendees` table has **15 duplicate rows** for Magnus Göttinger — 8 rows for assignment `0cb25a7f` (unit 0001/Beirat) and 7 rows for assignment `8556ff2e` (unit 0003/Eigentümer). Each assignment should have exactly **one** row per meeting.
+### Current State
+The "Durchführung" tab renders three separate `Card` components stacked vertically:
+1. Eröffnung & Quorum card
+2. Anwesenheitsliste & Vollmachten card  
+3. Tagesordnungspunkte card
 
-**Root causes:**
-1. The auto-init logic (`initMutation`) ran multiple times, inserting duplicates because there's no unique constraint on `(meeting_id, assignment_id)`
-2. Proxy mutations insert new rows or don't clean up old ones properly
+This feels disconnected and takes a lot of vertical space.
 
-## Plan
+### New Layout: Unified Dashboard
 
-### 1. Database migration: Clean up duplicates + add unique constraint
+Replace the three cards with a single cohesive dashboard using a grid layout:
 
-```sql
--- Keep only the most recent row per (meeting_id, assignment_id)
-DELETE FROM etv_attendees
-WHERE id NOT IN (
-  SELECT DISTINCT ON (meeting_id, assignment_id) id
-  FROM etv_attendees
-  ORDER BY meeting_id, assignment_id, created_at DESC
-);
-
--- Prevent future duplicates
-ALTER TABLE etv_attendees
-ADD CONSTRAINT etv_attendees_meeting_assignment_unique
-UNIQUE (meeting_id, assignment_id);
+```text
+┌──────────────────────────────────────────────────────┐
+│  VERSAMMLUNGS-COCKPIT                                │
+├────────────┬────────────┬────────────┬───────────────┤
+│  Anwesend  │  Vertreten │  MEA-Quote │   Status      │
+│    1/3     │     0      │   33.3%    │ Beschlussfähig│
+│  ████░░░░  │            │  ████░░░░  │   ● Grün      │
+├────────────┴────────────┴────────────┴───────────────┤
+│  [Versammlung eröffnen]        [Versammlung schließen]│
+├──────────────────────────────────────────────────────┤
+│  ANWESENHEIT                        [Eigentümer laden]│
+│  ┌─ Magnus Göttinger  E0001  v.d. Andreas G.  [⬤] ──┐│
+│  ├─ Magnus Göttinger  E0003  v.d. Cristina   [⬤] ──┤│
+│  └─ Cristina van P.   E0002                  [ ] ──┘│
+├──────────────────────────────────────────────────────┤
+│  TAGESORDNUNG                   [+ Geschäftsbeschluss]│
+│  TOP 1  Begrüßung                         ● Offen   >│
+│  TOP 2  Jahresabrechnung          ✓ Angenommen       >│
+│  TOP 3  Wirtschaftsplan           ✗ Abgelehnt        >│
+└──────────────────────────────────────────────────────┘
 ```
 
-### 2. Fix `AttendeeManager.tsx` init logic
+### Design Details
 
-Update the `initMutation` to use `upsert` instead of `insert` so re-runs are idempotent:
-```typescript
-const { error } = await supabase
-  .from("etv_attendees")
-  .upsert(newAttendees, { onConflict: "meeting_id,assignment_id" });
-```
+1. **Stats bar** — 4 compact metric tiles in a responsive grid (`grid-cols-2 md:grid-cols-4`) replacing the quorum card. Each shows: icon, value, label, and a subtle colored background. No card borders, just `bg-muted/30 rounded-lg p-3`.
 
-### 3. Fix auto-init guard
+2. **Action buttons** — Inline below stats, not inside a card. `Versammlung eröffnen/schließen` as outline buttons.
 
-The `autoInitRef` guard is fragile — if the query refetches and returns 0 attendees temporarily (e.g. RLS race), it re-triggers. Add the `meetingId` to the ref tracking to make it more robust, and also check `loadingAttendees` is stable before running.
+3. **Attendance section** — A borderless section with a subtle heading. Each attendee row uses a cleaner layout: colored left-border indicator (green=present, blue=proxy, gray=absent) instead of separate icons. Toggle switch on the right.
 
-### Files
-- **New migration**: Delete duplicates + add unique constraint
-- **`src/components/meetings/AttendeeManager.tsx`**: Change `insert` to `upsert`, improve auto-init guard
+4. **Agenda section** — Compact list items with left color-coded status dot, no nested cards. Hover highlights the row. Each row: `TOP n | Title | badges | status dot | chevron`.
+
+5. **Visual polish**:
+   - Remove nested `Card` inside `Card` for TOPs (currently `Card` inside `CardContent`)
+   - Use `Separator` between sections instead of card borders
+   - Consistent `text-sm` sizing throughout
+   - Progress bars inside stat tiles instead of standalone
+
+### Files to modify
+- **`src/components/meetings/MeetingLiveSession.tsx`**: Rewrite the overview section (lines 775-921) with the unified dashboard layout. No logic changes needed.
 
