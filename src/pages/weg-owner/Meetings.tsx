@@ -125,27 +125,35 @@ export const WegOwnerMeetings = () => {
     enabled: !!selectedMeetingId,
   });
 
-  // Find ALL user's contact assignments for this building (multi-unit support)
-  const { data: myAssignments = [] } = useQuery({
-    queryKey: ["my-contact-assignments", effectiveBuildingId, profile?.user_id],
+  // Find user's contact ID
+  const { data: myContactId } = useQuery({
+    queryKey: ["my-contact-id", profile?.user_id],
     queryFn: async () => {
-      const { data: contact } = await supabase
+      const { data } = await supabase
         .from("contacts")
         .select("id")
         .eq("user_id", profile?.user_id!)
         .maybeSingle();
-      if (!contact) return [];
-      
+      return data?.id || null;
+    },
+    enabled: !!profile?.user_id,
+  });
+
+  // Find ALL user's contact assignments for this building (multi-unit support)
+  const { data: myAssignments = [] } = useQuery({
+    queryKey: ["my-contact-assignments", effectiveBuildingId, myContactId],
+    queryFn: async () => {
+      if (!myContactId) return [];
       const { data } = await supabase
         .from("contact_building_assignments")
         .select("id, unit_number, contact_building_shares(share_type, share_value)")
-        .eq("contact_id", contact.id)
+        .eq("contact_id", myContactId)
         .eq("building_id", effectiveBuildingId!)
         .eq("is_active", true)
         .order("unit_number");
       return data || [];
     },
-    enabled: !!effectiveBuildingId && !!profile?.user_id,
+    enabled: !!effectiveBuildingId && !!myContactId,
   });
 
   // Find ALL user's attendee records for the selected meeting (one per assignment)
