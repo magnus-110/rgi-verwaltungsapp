@@ -1538,9 +1538,6 @@ export const WegOwnerMeetings = () => {
                 </Button>
               </div>
             </div>
-          )}
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
 
