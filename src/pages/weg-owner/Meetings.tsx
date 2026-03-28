@@ -1215,6 +1215,137 @@ export const WegOwnerMeetings = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Proxy Detail Dialog */}
+      <Dialog open={!!proxyDetailAttendeeId} onOpenChange={() => setProxyDetailAttendeeId(null)}>
+        <DialogContent className="max-w-md">
+          {(() => {
+            const attendee = myAttendees.find((a: any) => a.id === proxyDetailAttendeeId);
+            if (!attendee) return null;
+            const assignment = myAssignments.find((a: any) => a.id === attendee.assignment_id);
+            const proxyLabel = attendee.proxy_type === "manager" ? "Verwalter" 
+              : attendee.proxy_type === "external" ? (attendee.proxy_external_name || "Externe Person")
+              : (() => {
+                  const pc = attendee.proxy_contact;
+                  if (pc) return pc.company_name || [pc.first_name, pc.last_name].filter(Boolean).join(" ") || "Eigentümer";
+                  return "Eigentümer";
+                })();
+            const proxyTypeLabel = attendee.proxy_type === "manager" ? "Verwalter" : attendee.proxy_type === "external" ? "Externe Person" : "Anderer Eigentümer";
+            const proxyLink = attendee.proxy_type === "external" && attendee.proxy_token ? `${window.location.origin}/etv-proxy/${attendee.proxy_token}` : null;
+
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Shield className="h-5 w-5" />
+                    Vollmacht — {assignment?.unit_number ? `Einheit ${assignment.unit_number}` : "Zuordnung"}
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Art</span>
+                      <Badge variant="secondary">{proxyTypeLabel}</Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Bevollmächtigt</span>
+                      <span className="text-sm font-medium">{proxyLabel}</span>
+                    </div>
+                  </div>
+
+                  {proxyLink && (
+                    <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800">
+                      <CardContent className="p-3 space-y-3">
+                        <div className="flex items-center gap-2 text-sm font-medium text-blue-800 dark:text-blue-300">
+                          <Link2 className="h-4 w-4" />
+                          Abstimmungs-Link
+                        </div>
+                        <p className="text-xs text-blue-700 dark:text-blue-400">
+                          Teilen Sie diesen Link mit der bevollmächtigten Person. Über den Link kann sie an Abstimmungen teilnehmen und Ergebnisse einsehen. Der Link ist gültig, bis die Vollmacht zurückgezogen wird.
+                        </p>
+                        <code className="block text-xs bg-white dark:bg-blue-900/50 px-2 py-2 rounded border border-blue-200 dark:border-blue-700 break-all">
+                          {proxyLink}
+                        </code>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 gap-1.5"
+                            onClick={() => {
+                              navigator.clipboard.writeText(proxyLink);
+                              toast({ title: "Link kopiert" });
+                            }}
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                            Kopieren
+                          </Button>
+                          {typeof navigator.share === "function" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1 gap-1.5"
+                              onClick={() => {
+                                navigator.share({
+                                  title: "Vollmacht-Link zur Eigentümerversammlung",
+                                  text: `Hallo ${attendee.proxy_external_name || ""}, hier ist Ihr Vollmacht-Link zur Abstimmung:`,
+                                  url: proxyLink,
+                                }).catch(() => {});
+                              }}
+                            >
+                              <ExternalLink className="h-3.5 w-3.5" />
+                              Teilen
+                            </Button>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {selectedMeeting && !isProxyLocked(selectedMeeting.meeting_date) && (
+                    <Button
+                      variant="outline"
+                      className="w-full gap-2 text-destructive hover:text-destructive"
+                      onClick={() => {
+                        setProxyDetailAttendeeId(null);
+                        setWithdrawAttendeeId(attendee.id);
+                      }}
+                    >
+                      <UserX className="h-4 w-4" />
+                      Vollmacht zurückziehen
+                    </Button>
+                  )}
+                </div>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Withdraw Confirmation AlertDialog */}
+      <AlertDialog open={!!withdrawAttendeeId} onOpenChange={(open) => { if (!open) setWithdrawAttendeeId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Vollmacht zurückziehen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Die bevollmächtigte Person kann danach nicht mehr in Ihrem Namen abstimmen. Ein eventuell geteilter Link wird ungültig.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (withdrawAttendeeId) {
+                  withdrawProxyMutation.mutate(withdrawAttendeeId);
+                  setWithdrawAttendeeId(null);
+                }
+              }}
+            >
+              Zurückziehen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
