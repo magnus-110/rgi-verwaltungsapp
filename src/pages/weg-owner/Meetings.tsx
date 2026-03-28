@@ -909,12 +909,20 @@ export const WegOwnerMeetings = () => {
                             <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/80 dark:bg-amber-950/30 p-4 space-y-2">
                               <p className="text-xs font-semibold text-amber-800 dark:text-amber-300 uppercase tracking-wide">Weisungen des Eigentümers</p>
                               <div className="space-y-1.5">
-                                {Object.entries(viewReceivedProxy.pre_vote_instructions).map(([topId, instruction]: [string, any]) => (
-                                  <div key={topId} className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-400">
-                                    <span className="mt-0.5">•</span>
-                                    <span>{String(instruction)}</span>
-                                  </div>
-                                ))}
+                                {Object.entries(viewReceivedProxy.pre_vote_instructions).map(([topId, instruction]: [string, any]) => {
+                                  const topItem = agendaItems.find((a: any) => a.id === topId);
+                                  const topIdx = topItem ? agendaItems.indexOf(topItem) + 1 : null;
+                                  const voteLabel = instruction === "yes" ? "Ja" : instruction === "no" ? "Nein" : instruction === "abstain" ? "Enthaltung" : String(instruction);
+                                  const voteColor = instruction === "yes" ? "text-green-700 dark:text-green-400" : instruction === "no" ? "text-red-700 dark:text-red-400" : "text-amber-700 dark:text-amber-400";
+                                  return (
+                                    <div key={topId} className="flex items-center justify-between text-sm">
+                                      <span className="text-amber-700 dark:text-amber-400">
+                                        {topIdx ? `TOP ${topIdx}` : "TOP"}: {topItem?.title || "Unbekannt"}
+                                      </span>
+                                      <Badge variant="outline" className={`text-xs ${voteColor}`}>{voteLabel}</Badge>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
                           )}
