@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, MapPin, Users, Plus, Building2, FileText, Upload, Trash2, ClipboardList, Clock, CheckCircle2, XCircle, Pause, Pencil, ExternalLink, Shield, Lock, UserX } from "lucide-react";
+import { Calendar, MapPin, Users, Plus, Building2, FileText, Upload, Trash2, ClipboardList, Clock, CheckCircle2, XCircle, Pause, Pencil, ExternalLink, Shield, Lock, UserX, Copy, Link2 } from "lucide-react";
 import { format as formatDate } from "date-fns";
 import { de } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -52,6 +52,7 @@ export const WegOwnerMeetings = () => {
   const [proxyAssignmentId, setProxyAssignmentId] = useState<string | null>(null);
   const [proxyType, setProxyType] = useState<string>("manager");
   const [proxyContactId, setProxyContactId] = useState<string>("");
+  const [proxyExternalName, setProxyExternalName] = useState<string>("");
 
   // TOP submission form
   const [topTitle, setTopTitle] = useState("");
@@ -226,19 +227,29 @@ export const WegOwnerMeetings = () => {
 
   // Set proxy mutation — now accepts attendeeId
   const setProxyMutation = useMutation({
-    mutationFn: async ({ attendeeId, type, contactId }: { attendeeId: string; type: string; contactId?: string }) => {
+    mutationFn: async ({ attendeeId, type, contactId, externalName }: { attendeeId: string; type: string; contactId?: string; externalName?: string }) => {
+      const token = type === "external" ? crypto.randomUUID() : null;
       const { error } = await supabase
         .from("etv_attendees")
         .update({
           attendance_type: "proxy",
           proxy_type: type,
           proxy_contact_id: type === "owner" ? (contactId || null) : null,
+          proxy_token: token,
+          proxy_external_name: type === "external" ? (externalName || null) : null,
         })
         .eq("id", attendeeId);
       if (error) throw error;
+      return token;
     },
-    onSuccess: () => {
-      toast({ title: "Vollmacht erteilt" });
+    onSuccess: (token) => {
+      if (token) {
+        const link = `${window.location.origin}/etv-proxy/${token}`;
+        navigator.clipboard.writeText(link);
+        toast({ title: "Vollmacht erteilt", description: "Der Vollmacht-Link wurde in die Zwischenablage kopiert." });
+      } else {
+        toast({ title: "Vollmacht erteilt" });
+      }
       setShowProxyDialog(false);
       setProxyAssignmentId(null);
       refetchAttendees();
@@ -248,7 +259,7 @@ export const WegOwnerMeetings = () => {
     },
   });
 
-  // Withdraw proxy mutation — now accepts attendeeId
+  // Withdraw proxy mutation — clears token and external name too
   const withdrawProxyMutation = useMutation({
     mutationFn: async (attendeeId: string) => {
       const { error } = await supabase
@@ -257,6 +268,9 @@ export const WegOwnerMeetings = () => {
           attendance_type: "absent",
           proxy_type: null,
           proxy_contact_id: null,
+          proxy_token: null,
+          proxy_token_used: false,
+          proxy_external_name: null,
         })
         .eq("id", attendeeId);
       if (error) throw error;
@@ -668,16 +682,35 @@ export const WegOwnerMeetings = () => {
                               <div className="mt-1">
                                 {!attendee ? (
                                   <Badge variant="secondary">Wird geladen...</Badge>
-                                ) : attendee.attendance_type === "proxy" ? (
-                                  <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                                    Vertreten — {attendee.proxy_type === "manager" ? "durch Verwalter" : "durch Eigentümer"}
-                                  </Badge>
+                                 ) : attendee.attendance_type === "proxy" ? (
+                                   <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                     Vertreten — {attendee.proxy_type === "manager" ? "durch Verwalter" : attendee.proxy_type === "external" ? `durch ${attendee.proxy_external_name || "Externe Person"}` : "durch Eigentümer"}
+                                   </Badge>
                                 ) : attendee.attendance_type === "present" ? (
                                   <Badge className="bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">Anwesend</Badge>
                                 ) : (
                                   <Badge variant="secondary">Nicht teilgenommen / Offen</Badge>
                                 )}
                               </div>
+                              {/* Token link for external proxy */}
+                              {attendee?.proxy_type === "external" && attendee?.proxy_token && (
+                                <div className="mt-2 flex items-center gap-2">
+                                  <code className="text-xs bg-muted px-2 py-1 rounded truncate max-w-[200px]">
+                                    {`${window.location.origin}/etv-proxy/${attendee.proxy_token}`}
+                                  </code>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7"
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(`${window.location.origin}/etv-proxy/${attendee.proxy_token}`);
+                                      toast({ title: "Link kopiert" });
+                                    }}
+                                  >
+                                    <Copy className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              )}
                             </div>
                           </div>
 
@@ -692,6 +725,7 @@ export const WegOwnerMeetings = () => {
                                     setProxyAssignmentId(assignment.id);
                                     setProxyType("manager");
                                     setProxyContactId("");
+                                    setProxyExternalName("");
                                     setShowProxyDialog(true);
                                   }}
                                 >
@@ -1136,6 +1170,7 @@ export const WegOwnerMeetings = () => {
                 <SelectContent>
                   <SelectItem value="manager">Verwalter</SelectItem>
                   <SelectItem value="owner">Anderen Eigentümer</SelectItem>
+                  <SelectItem value="external">Externe Person</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1157,6 +1192,20 @@ export const WegOwnerMeetings = () => {
                 </Select>
               </div>
             )}
+
+            {proxyType === "external" && (
+              <div className="space-y-2">
+                <Label>Name der externen Person</Label>
+                <Input
+                  value={proxyExternalName}
+                  onChange={(e) => setProxyExternalName(e.target.value)}
+                  placeholder="Vor- und Nachname eingeben..."
+                />
+                <p className="text-xs text-muted-foreground">
+                  Es wird ein einmaliger Link generiert, den Sie an die Person weitergeben können. Über diesen Link kann die Person an der Abstimmung teilnehmen.
+                </p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setShowProxyDialog(false); setProxyAssignmentId(null); }}>Abbrechen</Button>
@@ -1164,9 +1213,9 @@ export const WegOwnerMeetings = () => {
               onClick={() => {
                 const attendee = myAttendees.find((a: any) => a.assignment_id === proxyAssignmentId);
                 if (!attendee) return;
-                setProxyMutation.mutate({ attendeeId: attendee.id, type: proxyType, contactId: proxyContactId || undefined });
+                setProxyMutation.mutate({ attendeeId: attendee.id, type: proxyType, contactId: proxyContactId || undefined, externalName: proxyExternalName || undefined });
               }}
-              disabled={setProxyMutation.isPending || (proxyType === "owner" && !proxyContactId)}
+              disabled={setProxyMutation.isPending || (proxyType === "owner" && !proxyContactId) || (proxyType === "external" && !proxyExternalName.trim())}
             >
               {setProxyMutation.isPending ? "Wird gespeichert..." : "Vollmacht erteilen"}
             </Button>
