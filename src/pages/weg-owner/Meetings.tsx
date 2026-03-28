@@ -12,7 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calendar, MapPin, Users, Plus, Building2, FileText, Upload, Trash2, ClipboardList, Clock, CheckCircle2, XCircle, Pause, Pencil, ExternalLink, Shield, Lock, UserX, Copy, Link2 } from "lucide-react";
+import { Calendar, MapPin, Users, Plus, Building2, FileText, Upload, Trash2, ClipboardList, Clock, CheckCircle2, XCircle, Pause, Pencil, ExternalLink, Shield, Lock, UserX, Copy, Link2, ChevronRight } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { format as formatDate } from "date-fns";
 import { de } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
