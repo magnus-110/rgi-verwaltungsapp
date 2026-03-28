@@ -2405,6 +2405,7 @@ export type Database = {
           meeting_id: string
           pre_vote_instructions: Json | null
           proxy_contact_id: string | null
+          proxy_external_name: string | null
           proxy_token: string | null
           proxy_token_used: boolean | null
           proxy_type: string | null
@@ -2419,6 +2420,7 @@ export type Database = {
           meeting_id: string
           pre_vote_instructions?: Json | null
           proxy_contact_id?: string | null
+          proxy_external_name?: string | null
           proxy_token?: string | null
           proxy_token_used?: boolean | null
           proxy_type?: string | null
@@ -2433,6 +2435,7 @@ export type Database = {
           meeting_id?: string
           pre_vote_instructions?: Json | null
           proxy_contact_id?: string | null
+          proxy_external_name?: string | null
           proxy_token?: string | null
           proxy_token_used?: boolean | null
           proxy_type?: string | null
@@ -4023,6 +4026,7 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_user_building_ids: { Args: { _user_id: string }; Returns: string[] }
       get_user_role: {
         Args: { user_uuid: string }
         Returns: Database["public"]["Enums"]["app_role"]
