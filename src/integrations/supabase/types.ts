@@ -4012,6 +4012,7 @@ export type Database = {
         }
         Returns: string
       }
+      get_attendee_by_proxy_token: { Args: { p_token: string }; Returns: Json }
       get_building_manager_names: {
         Args: { building_id_param: string }
         Returns: string[]
