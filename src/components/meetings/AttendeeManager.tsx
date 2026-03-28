@@ -32,6 +32,7 @@ interface Attendee {
   proxy_contact_id: string | null;
   proxy_token: string | null;
   proxy_token_used: boolean | null;
+  proxy_external_name: string | null;
   pre_vote_instructions: any;
   checked_in_at: string | null;
   voting_banned_items: string[] | null;
@@ -271,7 +272,7 @@ export const AttendeeManager = ({ meetingId, buildingId, lockTime }: AttendeeMan
                     </div>
                     {attendee.proxy_type && attendee.proxy_type !== "manager" && (
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        Vollmacht: {attendee.proxy_type === "owner" ? (proxyContactName || "Eigentümer") : "Extern"}
+                        Vollmacht: {attendee.proxy_type === "owner" ? (proxyContactName || "Eigentümer") : (attendee.proxy_external_name || "Extern")}
                         {attendee.proxy_token && (
                           <button
                             className="ml-2 text-primary hover:underline inline-flex items-center gap-1"

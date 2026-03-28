@@ -30,6 +30,7 @@ import { Billing } from "./pages/Billing";
 import { EconomicPlan } from "./pages/EconomicPlan";
 import { Inbox } from "./pages/Inbox";
 import { Meetings } from "./pages/Meetings";
+import { EtvProxy } from "./pages/EtvProxy";
 import { AdminLayout } from "./components/AdminLayout";
 import { WegOwnerLayout } from "./components/WegOwnerLayout";
 import { WegOwnerDashboard } from "./pages/weg-owner/Dashboard";
@@ -117,6 +118,7 @@ const App = () => (
               <Route path="/tenant/settings" element={<TenantLayout><TenantSettings /></TenantLayout>} />
               <Route path="/tenant/files" element={<TenantLayout><TenantFiles /></TenantLayout>} />
               
+              <Route path="/etv-proxy/:token" element={<EtvProxy />} />
               <Route path="/offline" element={<Offline />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
