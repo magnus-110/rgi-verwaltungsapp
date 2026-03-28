@@ -125,27 +125,35 @@ export const WegOwnerMeetings = () => {
     enabled: !!selectedMeetingId,
   });
 
-  // Find ALL user's contact assignments for this building (multi-unit support)
-  const { data: myAssignments = [] } = useQuery({
-    queryKey: ["my-contact-assignments", effectiveBuildingId, profile?.user_id],
+  // Find user's contact ID
+  const { data: myContactId } = useQuery({
+    queryKey: ["my-contact-id", profile?.user_id],
     queryFn: async () => {
-      const { data: contact } = await supabase
+      const { data } = await supabase
         .from("contacts")
         .select("id")
         .eq("user_id", profile?.user_id!)
         .maybeSingle();
-      if (!contact) return [];
-      
+      return data?.id || null;
+    },
+    enabled: !!profile?.user_id,
+  });
+
+  // Find ALL user's contact assignments for this building (multi-unit support)
+  const { data: myAssignments = [] } = useQuery({
+    queryKey: ["my-contact-assignments", effectiveBuildingId, myContactId],
+    queryFn: async () => {
+      if (!myContactId) return [];
       const { data } = await supabase
         .from("contact_building_assignments")
         .select("id, unit_number, contact_building_shares(share_type, share_value)")
-        .eq("contact_id", contact.id)
+        .eq("contact_id", myContactId)
         .eq("building_id", effectiveBuildingId!)
         .eq("is_active", true)
         .order("unit_number");
       return data || [];
     },
-    enabled: !!effectiveBuildingId && !!profile?.user_id,
+    enabled: !!effectiveBuildingId && !!myContactId,
   });
 
   // Find ALL user's attendee records for the selected meeting (one per assignment)
@@ -164,7 +172,27 @@ export const WegOwnerMeetings = () => {
     enabled: !!selectedMeetingId && myAssignments.length > 0,
   });
 
-  // Realtime subscription for attendee changes
+  // Fetch proxies received BY this user (where proxy_contact_id = my contact)
+  const { data: receivedProxies = [] } = useQuery({
+    queryKey: ["received-proxies", selectedMeetingId, myContactId],
+    queryFn: async () => {
+      if (!myContactId || !selectedMeetingId) return [];
+      const { data } = await supabase
+        .from("etv_attendees")
+        .select(`
+          id, proxy_type, pre_vote_instructions,
+          contact_building_assignments!inner(
+            unit_number,
+            contacts!inner(first_name, last_name, company_name)
+          )
+        `)
+        .eq("meeting_id", selectedMeetingId)
+        .eq("proxy_contact_id", myContactId);
+      return data || [];
+    },
+    enabled: !!selectedMeetingId && !!myContactId,
+  });
+
   useEffect(() => {
     if (!selectedMeetingId) return;
     const channel = supabase
@@ -737,6 +765,49 @@ export const WegOwnerMeetings = () => {
                               )}
                             </div>
                           </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Received Proxies Section */}
+              {receivedProxies.length > 0 && ["published", "in_progress"].includes(selectedMeeting.status) && (
+                <div className="border-t pt-4 space-y-3">
+                  <h3 className="font-semibold text-foreground flex items-center gap-2">
+                    <Shield className="h-4 w-4 text-blue-500" />
+                    Erhaltene Vollmachten
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Folgende Eigentümer haben Ihnen eine Vollmacht erteilt. Sie stimmen in deren Namen ab.
+                  </p>
+                  {receivedProxies.map((proxy: any) => {
+                    const cba = proxy.contact_building_assignments;
+                    const ownerContact = cba?.contacts;
+                    const ownerName = ownerContact?.company_name || [ownerContact?.first_name, ownerContact?.last_name].filter(Boolean).join(" ") || "Unbekannt";
+                    return (
+                      <Card key={proxy.id} className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/20">
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium">{ownerName}</p>
+                              {cba?.unit_number && (
+                                <p className="text-xs text-muted-foreground">Einheit {cba.unit_number}</p>
+                              )}
+                            </div>
+                            <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 shrink-0">
+                              Vollmacht erhalten
+                            </Badge>
+                          </div>
+                          {proxy.pre_vote_instructions && Object.keys(proxy.pre_vote_instructions).length > 0 && (
+                            <div className="mt-3 p-2 bg-amber-50 dark:bg-amber-950/30 rounded border border-amber-200 dark:border-amber-800">
+                              <p className="text-xs font-medium text-amber-800 dark:text-amber-300 mb-1">Weisungen:</p>
+                              {Object.entries(proxy.pre_vote_instructions).map(([topId, instruction]: [string, any]) => (
+                                <p key={topId} className="text-xs text-amber-700 dark:text-amber-400">• {String(instruction)}</p>
+                              ))}
+                            </div>
+                          )}
                         </CardContent>
                       </Card>
                     );
