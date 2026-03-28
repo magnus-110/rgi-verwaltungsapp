@@ -395,7 +395,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
         sort_order: agendaItems.length + 1,
         title: proceduralTitle,
         resolution_text: proceduralResolution || null,
-        voting_principle: "headcount",
+        voting_principle: proceduralPrinciple,
         category: "geschaeftsbeschluss",
         status: proceduralAutoAccept ? "voted" : "open",
         result: proceduralAutoAccept ? "passed" : null,
@@ -408,6 +408,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
       setProceduralTitle("");
       setProceduralResolution("");
       setProceduralAutoAccept(true);
+      setProceduralPrinciple("headcount");
       toast({ title: "Geschäftsbeschluss hinzugefügt" });
     },
     onError: (err: any) => {
