@@ -1,11 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, XCircle, MinusCircle, Vote } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { CheckCircle2, XCircle, MinusCircle, Vote, ChevronDown } from "lucide-react";
 
 interface VotingAssignment {
   id: string;
@@ -19,8 +20,134 @@ export const VotingPopup = () => {
   const [votingItem, setVotingItem] = useState<any>(null);
   const [myVotingAssignments, setMyVotingAssignments] = useState<VotingAssignment[]>([]);
   const [hasVoted, setHasVoted] = useState(false);
+  const [descOpen, setDescOpen] = useState(false);
 
-  // Listen for voting agenda items via realtime
+  const checkVotingForItem = useCallback(async (agendaItem: any) => {
+    if (!profile?.user_id) return;
+
+    const { data: meeting } = await supabase
+      .from("etv_meetings")
+      .select("id, building_id")
+      .eq("id", agendaItem.meeting_id)
+      .single();
+    if (!meeting) return;
+
+    const { data: contact } = await supabase
+      .from("contacts")
+      .select("id")
+      .eq("user_id", profile.user_id!)
+      .maybeSingle();
+    if (!contact) return;
+
+    // 1. Get user's OWN assignments in this building
+    const { data: assignments } = await supabase
+      .from("contact_building_assignments")
+      .select("id, unit_number, contact_building_shares(share_type, share_value)")
+      .eq("contact_id", contact.id)
+      .eq("building_id", meeting.building_id)
+      .eq("is_active", true);
+
+    const validAssignments: VotingAssignment[] = [];
+
+    if (assignments) {
+      for (const assignment of assignments) {
+        const { data: attendee } = await supabase
+          .from("etv_attendees")
+          .select("id, attendance_type")
+          .eq("meeting_id", meeting.id)
+          .eq("assignment_id", assignment.id)
+          .maybeSingle();
+        // Skip if no attendee or if they GAVE their proxy away
+        if (!attendee || attendee.attendance_type === "proxy") continue;
+
+        const { data: existingVote } = await supabase
+          .from("etv_votes")
+          .select("id")
+          .eq("agenda_item_id", agendaItem.id)
+          .eq("assignment_id", assignment.id)
+          .maybeSingle();
+        if (existingVote) continue;
+
+        const meaShare = (assignment as any).contact_building_shares?.find(
+          (s: any) => s.share_type === "mea"
+        );
+        validAssignments.push({
+          id: assignment.id,
+          unit_number: assignment.unit_number,
+          attendee_id: attendee.id,
+          mea_weight: meaShare?.share_value || 0,
+        });
+      }
+    }
+
+    // 2. Get units where this user is the PROXY HOLDER (received proxy)
+    const { data: proxiedAttendees } = await supabase
+      .from("etv_attendees")
+      .select("id, assignment_id, attendance_type")
+      .eq("meeting_id", meeting.id)
+      .eq("proxy_contact_id", contact.id)
+      .eq("attendance_type", "proxy");
+
+    if (proxiedAttendees) {
+      for (const pa of proxiedAttendees) {
+        // Skip if already in validAssignments (own unit)
+        if (validAssignments.some(a => a.id === pa.assignment_id)) continue;
+
+        const { data: existingVote } = await supabase
+          .from("etv_votes")
+          .select("id")
+          .eq("agenda_item_id", agendaItem.id)
+          .eq("assignment_id", pa.assignment_id)
+          .maybeSingle();
+        if (existingVote) continue;
+
+        const { data: assignment } = await supabase
+          .from("contact_building_assignments")
+          .select("id, unit_number, contact_building_shares(share_type, share_value)")
+          .eq("id", pa.assignment_id)
+          .single();
+        if (!assignment) continue;
+
+        const meaShare = (assignment as any).contact_building_shares?.find(
+          (s: any) => s.share_type === "mea"
+        );
+        validAssignments.push({
+          id: assignment.id,
+          unit_number: assignment.unit_number,
+          attendee_id: pa.id,
+          mea_weight: meaShare?.share_value || 0,
+        });
+      }
+    }
+
+    if (validAssignments.length === 0) return;
+
+    setMyVotingAssignments(validAssignments);
+    setVotingItem(agendaItem);
+    setHasVoted(false);
+    setDescOpen(false);
+  }, [profile?.user_id]);
+
+  // Initial load: check if there's an active vote right now
+  useEffect(() => {
+    if (!profile?.user_id || profile?.role !== "weg_owner") return;
+
+    const checkActiveVotes = async () => {
+      const { data: activeItems } = await supabase
+        .from("etv_agenda_items")
+        .select("*")
+        .eq("status", "voting");
+
+      if (activeItems && activeItems.length > 0) {
+        // Check the first active voting item
+        await checkVotingForItem(activeItems[0]);
+      }
+    };
+
+    checkActiveVotes();
+  }, [profile?.user_id, profile?.role, checkVotingForItem]);
+
+  // Realtime listener for voting status changes
   useEffect(() => {
     if (!profile?.user_id || profile?.role !== "weg_owner") return;
 
@@ -32,74 +159,12 @@ export const VotingPopup = () => {
         async (payload) => {
           const newItem = payload.new as any;
           if (newItem.status === "voting") {
-            // Check if user is an attendee of this meeting
-            const { data: meeting } = await supabase
-              .from("etv_meetings")
-              .select("id, building_id")
-              .eq("id", newItem.meeting_id)
-              .single();
-            if (!meeting) return;
-
-            const { data: contact } = await supabase
-              .from("contacts")
-              .select("id")
-              .eq("user_id", profile.user_id!)
-              .maybeSingle();
-            if (!contact) return;
-
-            // Get ALL assignments for this user in this building
-            const { data: assignments } = await supabase
-              .from("contact_building_assignments")
-              .select("id, unit_number, contact_building_shares(share_type, share_value)")
-              .eq("contact_id", contact.id)
-              .eq("building_id", meeting.building_id)
-              .eq("is_active", true);
-            if (!assignments || assignments.length === 0) return;
-
-            // For each assignment, check attendee status and existing votes
-            const validAssignments: VotingAssignment[] = [];
-            for (const assignment of assignments) {
-              const { data: attendee } = await supabase
-                .from("etv_attendees")
-                .select("id, attendance_type")
-                .eq("meeting_id", meeting.id)
-                .eq("assignment_id", assignment.id)
-                .maybeSingle();
-              // Only include if attendee exists and hasn't given proxy
-              if (!attendee || attendee.attendance_type === "proxy") continue;
-
-              // Check if already voted
-              const { data: existingVote } = await supabase
-                .from("etv_votes")
-                .select("id")
-                .eq("agenda_item_id", newItem.id)
-                .eq("assignment_id", assignment.id)
-                .maybeSingle();
-              if (existingVote) continue;
-
-              const meaShare = (assignment as any).contact_building_shares?.find(
-                (s: any) => s.share_type === "mea"
-              );
-
-              validAssignments.push({
-                id: assignment.id,
-                unit_number: assignment.unit_number,
-                attendee_id: attendee.id,
-                mea_weight: meaShare?.share_value || 0,
-              });
-            }
-
-            if (validAssignments.length === 0) return;
-
-            setMyVotingAssignments(validAssignments);
-            setVotingItem(newItem);
-            setHasVoted(false);
+            await checkVotingForItem(newItem);
           } else if (
             payload.old &&
             (payload.old as any).status === "voting" &&
             newItem.status !== "voting"
           ) {
-            // Voting closed for this item
             if (votingItem?.id === newItem.id) {
               setVotingItem(null);
               setMyVotingAssignments([]);
@@ -112,13 +177,12 @@ export const VotingPopup = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [profile?.user_id, profile?.role]);
+  }, [profile?.user_id, profile?.role, checkVotingForItem, votingItem?.id]);
 
   const castVoteMutation = useMutation({
     mutationFn: async (vote: string) => {
       if (!votingItem || myVotingAssignments.length === 0) throw new Error("Missing data");
-      
-      // Insert a vote for each valid assignment
+
       const rows = myVotingAssignments.map(a => ({
         agenda_item_id: votingItem.id,
         assignment_id: a.id,
@@ -176,6 +240,18 @@ export const VotingPopup = () => {
               <p className="text-sm text-muted-foreground mb-1">Tagesordnungspunkt</p>
               <p className="font-semibold">{votingItem.title}</p>
             </div>
+
+            {votingItem.description && (
+              <Collapsible open={descOpen} onOpenChange={setDescOpen}>
+                <CollapsibleTrigger className="flex items-center gap-1 text-sm text-primary hover:underline">
+                  <ChevronDown className={`h-4 w-4 transition-transform ${descOpen ? "rotate-180" : ""}`} />
+                  Beschreibung anzeigen
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  <p className="text-sm bg-muted rounded-lg p-3 mt-2">{votingItem.description}</p>
+                </CollapsibleContent>
+              </Collapsible>
+            )}
 
             {votingItem.resolution_text && (
               <div>
