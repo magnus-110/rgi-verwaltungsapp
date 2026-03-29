@@ -1,50 +1,55 @@
 
 
-## Auto-Mark Proxy Holders as "Present" (Represented)
+## Fix VotingPopup: Make It Work for All Participants
 
-### Problem
-When owner A gives a proxy to owner B (or external person), and B checks in as present, owner A remains marked as "absent". The system blocks manual check-in for proxied attendees (`disabled={a.attendance_type === "proxy"}`). The user expects that if the proxy holder is present, the proxied owner should automatically count as "present (represented)".
+### Problems Identified
 
-### Solution
-Change the logic so that when a proxy is assigned, the attendee's `attendance_type` is automatically derived from their proxy holder's presence — not manually toggled. The Switch for proxied attendees should reflect whether the proxy holder is checked in.
+1. **VotingPopup only lives in `WegOwnerLayout`** — only `weg_owner` role users see it. Admins on the `/versammlungen` page (admin layout) never see it (expected), but the filter on line 25 (`profile?.role !== "weg_owner"`) and line 148 blocks everyone else.
 
-### Changes to `src/components/meetings/MeetingLiveSession.tsx`
+2. **Line 69 skips proxy holders**: `if (!attendee || attendee.attendance_type === "proxy") continue;` — this skips units where the owner gave a proxy. But the popup never looks for units where the current user *received* a proxy from someone else (via `proxy_contact_id`).
 
-**1. Derive "effective presence" for proxied attendees**
+3. **EtvProxy page has NO voting UI** — external proxy holders see a static info page with no realtime voting capability.
 
-Add a helper function that checks if a proxied attendee's proxy holder is present:
-- If `proxy_type === "manager"` → always considered present (manager runs the meeting)
-- If `proxy_type === "owner"` → check if the owner with `proxy_contact_id` has an attendee record with `attendance_type === "present"`
-- If `proxy_type === "external"` → check if `proxy_token_used === true` OR if the external person has been manually checked in (set `checked_in_at`)
+4. **Initial load problem**: The popup only listens for UPDATE events. If the owner opens the app AFTER voting already started, they won't see the popup (no UPDATE fires for them).
 
-**2. Update the check-in mutation for proxy holders**
+---
 
-When an owner who holds proxies from others is checked in/out, also update the `attendance_type` of all attendees who gave them a proxy:
-- Check in owner B → find all attendees where `proxy_type === "owner"` and `proxy_contact_id === B's contact_id` → set their `attendance_type` to `"proxy"` and `checked_in_at` to now
-- Check out owner B → set those proxied attendees back to `"absent"` and clear `checked_in_at`
+### Plan
 
-**3. Auto-set proxy attendance when proxy is first assigned**
+#### 1. Fix VotingPopup to include proxy-received units (`VotingPopup.tsx`)
 
-In `AttendeeManager.tsx`, when a proxy is granted (`setProxyMutation`):
-- Set the attendee's `attendance_type` to `"proxy"` immediately (not just the proxy fields)
-- If `proxy_type === "manager"`, also set `checked_in_at` to now (manager is always present)
-- If `proxy_type === "owner"`, check if proxy holder is already checked in → if yes, set `checked_in_at`
+After fetching the user's own assignments (lines 50-90), add a second query:
+- Query `etv_attendees` where `proxy_contact_id = contact.id` AND `meeting_id = meeting.id` AND `attendance_type = "proxy"`
+- For each such attendee, fetch the linked `assignment_id`, get the assignment's `unit_number` and MEA share
+- Check for existing votes, then add to `validAssignments`
+- This ensures a proxy holder votes for all units they represent
 
-**4. Update the Switch UI for proxied attendees**
+#### 2. Add initial check on mount (`VotingPopup.tsx`)
 
-Instead of disabling the Switch, show it as checked (green) when the proxy holder is present, with a tooltip "Vertreten durch [Name]". Keep it non-interactive (disabled) but visually reflecting the derived state.
+Add a second `useEffect` that runs on mount (when the component first loads):
+- Query `etv_agenda_items` where `status = 'voting'`
+- For each found item, run the same logic as the realtime handler to check if the user should vote
+- This handles the case where the user opens the app after voting already started
 
-**5. Update quorum calculation (already correct)**
+#### 3. Add expandable description to VotingPopup
 
-Line 177-178 already counts `attendance_type === "proxy" && checked_in_at` — this will work correctly once we set `checked_in_at` properly on proxy assignment/check-in.
+Add a toggle state. Below the TOP title, show a "Beschreibung anzeigen" link that expands `votingItem.description` if present.
 
-### Changes to `src/components/meetings/AttendeeManager.tsx`
+#### 4. Add voting UI to EtvProxy page (`EtvProxy.tsx`)
 
-**1. Update `setProxyMutation`** to also set `attendance_type: "proxy"` when granting a proxy.
+For external proxy holders accessing via token link:
+- Add Supabase Realtime subscription listening for `etv_agenda_items` UPDATE to `status = 'voting'`
+- Filter to only the meeting this proxy is for (from the token data)
+- When voting starts, show a voting overlay (similar to VotingPopup) with Ja/Nein/Enthaltung buttons
+- Cast votes using the attendee's `assignment_id` from the token data
+- Also check on initial load if a vote is already active
 
-**2. Add a "remove proxy" action** that resets `attendance_type` back to `"absent"` and clears all proxy fields.
+#### 5. Keep existing filters correct
+
+- Own units with `attendance_type === "proxy"` (gave proxy away) are correctly skipped
+- Only add units where user is the proxy *holder* (received proxy)
 
 ### Files to modify
-- `src/components/meetings/MeetingLiveSession.tsx` — checkInMutation cascade, Switch UI
-- `src/components/meetings/AttendeeManager.tsx` — setProxyMutation sets attendance_type
+- `src/components/meetings/VotingPopup.tsx` — add proxy-received units query, initial load check, expandable description
+- `src/pages/EtvProxy.tsx` — add realtime voting UI for external proxy holders
 
