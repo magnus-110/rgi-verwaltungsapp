@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -213,43 +212,38 @@ export const VotingPopup = () => {
   const totalUnits = myVotingAssignments.length;
 
   const voteButtons = [
-    { value: "yes", label: "Ja", icon: CheckCircle2, className: "bg-green-600 hover:bg-green-700 text-white" },
-    { value: "no", label: "Nein", icon: XCircle, className: "bg-red-600 hover:bg-red-700 text-white" },
+    { value: "yes", label: "Ja", icon: CheckCircle2, className: "bg-green-600 hover:bg-green-700 text-white border-green-600" },
+    { value: "no", label: "Nein", icon: XCircle, className: "bg-red-600 hover:bg-red-700 text-white border-red-600" },
     { value: "abstain", label: "Enthaltung", icon: MinusCircle, className: "" },
   ];
 
   return (
-    <Dialog open={!!votingItem} onOpenChange={() => {}}>
-      <DialogContent
-        className="max-w-lg w-[95vw]"
-        onPointerDownOutside={(e) => e.preventDefault()}
-        onEscapeKeyDown={(e) => e.preventDefault()}
-      >
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-xl">
-            <Vote className="h-6 w-6 text-primary" />
-            Abstimmung
-          </DialogTitle>
-        </DialogHeader>
+    <div className="fixed inset-0 z-[100] bg-background flex items-center justify-center p-4">
+      <div className="w-full max-w-xl space-y-6">
+        {/* Header */}
+        <div className="text-center">
+          <Vote className="h-10 w-10 text-primary mx-auto mb-2" />
+          <h1 className="text-2xl font-bold text-foreground">Abstimmung</h1>
+        </div>
 
         {allDone ? (
-          <div className="py-10 text-center space-y-3">
-            <CheckCircle2 className="h-20 w-20 text-green-500 mx-auto" />
-            <p className="text-xl font-semibold">Alle Stimmen abgegeben!</p>
+          <div className="py-16 text-center space-y-4">
+            <CheckCircle2 className="h-24 w-24 text-green-500 mx-auto" />
+            <p className="text-2xl font-semibold">Alle Stimmen abgegeben!</p>
           </div>
         ) : (
-          <div className="space-y-5">
+          <div className="space-y-6">
             {/* Progress indicator */}
             {totalUnits > 1 && (
               <div className="flex items-center justify-between">
-                <Badge variant="secondary" className="text-sm px-3 py-1">
+                <Badge variant="secondary" className="text-sm px-3 py-1.5">
                   Einheit {currentUnitIndex + 1} von {totalUnits}
                 </Badge>
-                <div className="flex gap-1.5">
+                <div className="flex gap-2">
                   {Array.from({ length: totalUnits }).map((_, i) => (
                     <div
                       key={i}
-                      className={`h-2.5 w-2.5 rounded-full transition-colors ${
+                      className={`h-3 w-3 rounded-full transition-colors ${
                         i < currentUnitIndex ? "bg-green-500" :
                         i === currentUnitIndex ? "bg-primary" : "bg-muted-foreground/30"
                       }`}
@@ -261,7 +255,7 @@ export const VotingPopup = () => {
 
             {/* Unit label */}
             {currentAssignment?.unit_number && (
-              <Badge className="bg-primary/10 text-primary border-primary/20 text-base px-4 py-1.5">
+              <Badge className="bg-primary/10 text-primary border-primary/20 text-lg px-5 py-2">
                 Einheit {currentAssignment.unit_number}
               </Badge>
             )}
@@ -269,7 +263,7 @@ export const VotingPopup = () => {
             {/* TOP info */}
             <div>
               <p className="text-sm text-muted-foreground mb-1">Tagesordnungspunkt</p>
-              <p className="font-semibold text-lg">{votingItem.title}</p>
+              <p className="font-semibold text-xl">{votingItem.title}</p>
             </div>
 
             {votingItem.description && (
@@ -279,7 +273,7 @@ export const VotingPopup = () => {
                   Beschreibung anzeigen
                 </CollapsibleTrigger>
                 <CollapsibleContent>
-                  <p className="text-sm bg-muted rounded-lg p-3 mt-2">{votingItem.description}</p>
+                  <p className="text-sm bg-muted rounded-lg p-4 mt-2">{votingItem.description}</p>
                 </CollapsibleContent>
               </Collapsible>
             )}
@@ -287,22 +281,22 @@ export const VotingPopup = () => {
             {votingItem.resolution_text && (
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Beschlusstext</p>
-                <p className="text-sm bg-muted rounded-lg p-3">{votingItem.resolution_text}</p>
+                <p className="text-sm bg-muted rounded-lg p-4">{votingItem.resolution_text}</p>
               </div>
             )}
 
-            <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+            <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 text-sm px-4 py-1.5">
               Abstimmung läuft
             </Badge>
 
             {/* Vote selection buttons */}
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-4">
               {voteButtons.map(({ value, label, icon: Icon, className }) => (
                 <Button
                   key={value}
                   size="lg"
                   variant={value === "abstain" ? "outline" : "default"}
-                  className={`h-20 flex-col gap-1.5 text-base transition-all ${
+                  className={`h-28 flex-col gap-2 text-lg transition-all ${
                     value !== "abstain" ? className : ""
                   } ${
                     selectedVote === value
@@ -312,7 +306,7 @@ export const VotingPopup = () => {
                   onClick={() => setSelectedVote(value)}
                   disabled={castVoteMutation.isPending}
                 >
-                  <Icon className="h-7 w-7" />
+                  <Icon className="h-10 w-10" />
                   <span>{label}</span>
                 </Button>
               ))}
@@ -322,7 +316,7 @@ export const VotingPopup = () => {
             {selectedVote && (
               <Button
                 size="lg"
-                className="w-full h-14 text-lg font-semibold"
+                className="w-full h-16 text-xl font-semibold"
                 onClick={() => castVoteMutation.mutate(selectedVote)}
                 disabled={castVoteMutation.isPending}
               >
@@ -331,7 +325,7 @@ export const VotingPopup = () => {
             )}
           </div>
         )}
-      </DialogContent>
-    </Dialog>
+      </div>
+    </div>
   );
 };
