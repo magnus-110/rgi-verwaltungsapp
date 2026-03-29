@@ -788,6 +788,8 @@ export const WegOwnerMeetings = () => {
                             const initial: Record<string, string> = {};
                             agendaItems.forEach((item: any) => { initial[item.id] = "frei"; });
                             setVotingInstructions(initial);
+                            setProxyStep(1);
+                            setExpandedTopIds(new Set());
                             setShowProxyDialog(true);
                           }
                         }}
