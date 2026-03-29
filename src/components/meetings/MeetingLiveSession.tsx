@@ -269,6 +269,23 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
         checked_in_at: present ? new Date().toISOString() : null,
       }).eq("id", id);
       if (error) throw error;
+
+      // Cascade: find attendees who gave this person a proxy
+      const checkedInAttendee = attendees.find((a: any) => a.id === id);
+      if (checkedInAttendee) {
+        const contactId = checkedInAttendee.contact_building_assignments?.contacts?.id;
+        if (contactId) {
+          const proxiedAttendees = attendees.filter(
+            (a: any) => a.proxy_type === "owner" && a.proxy_contact_id === contactId
+          );
+          for (const pa of proxiedAttendees) {
+            await supabase.from("etv_attendees").update({
+              attendance_type: present ? "proxy" : "absent",
+              checked_in_at: present ? new Date().toISOString() : null,
+            }).eq("id", pa.id);
+          }
+        }
+      }
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["etv-attendees-live", meetingId] }),
   });
@@ -886,11 +903,22 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                     )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <Switch
-                      checked={a.attendance_type === "present"}
-                      onCheckedChange={(checked) => checkInMutation.mutate({ id: a.id, present: checked })}
-                      disabled={a.attendance_type === "proxy"}
-                    />
+                    {a.proxy_type ? (
+                      <div className="flex items-center gap-1.5">
+                        <Switch
+                          checked={a.attendance_type === "proxy" && !!a.checked_in_at}
+                          disabled
+                        />
+                        {a.attendance_type === "proxy" && a.checked_in_at && (
+                          <span className="text-[10px] text-muted-foreground">vertreten</span>
+                        )}
+                      </div>
+                    ) : (
+                      <Switch
+                        checked={a.attendance_type === "present"}
+                        onCheckedChange={(checked) => checkInMutation.mutate({ id: a.id, present: checked })}
+                      />
+                    )}
                   </div>
                 </div>
               );
