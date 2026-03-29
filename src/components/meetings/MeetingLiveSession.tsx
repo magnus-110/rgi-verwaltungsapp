@@ -882,6 +882,22 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
           </Button>
         </div>
 
+        {/* Secret Ballot Toggle */}
+        <div className="flex items-center justify-between px-4 pb-3">
+          <div className="flex items-center gap-2">
+            <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+            <Label htmlFor="secret-ballot" className="text-sm font-medium">Geheime Abstimmung</Label>
+          </div>
+          <Switch
+            id="secret-ballot"
+            checked={isSecretBallot}
+            onCheckedChange={(checked) => {
+              setIsSecretBallot(checked);
+              toggleSecretBallotMutation.mutate(checked);
+            }}
+          />
+        </div>
+
         <Separator />
 
         {/* Attendance Section */}
