@@ -653,7 +653,8 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                   <div className="space-y-1">
                     <p className="text-xs font-medium text-muted-foreground">Manuelle Stimmabgabe:</p>
                     {presentOrRepresented.map((a: any) => {
-                      const contact = a.contact_building_assignments?.contacts;
+                      const cba = a.contact_building_assignments;
+                      const contact = cba?.contacts;
                       const existingVote = currentVotes.find((v: any) => v.assignment_id === a.assignment_id);
                       const meaW = getMeaWeight(a);
                       const sqmW = getSqmWeight(a);
@@ -664,7 +665,18 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                         : "";
                       return (
                         <div key={a.id} className={`flex items-center justify-between py-1 px-2 rounded border ${rowBg}`}>
-                          <span className="text-xs">{getContactName(contact)}</span>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            {cba?.unit_number && <Badge variant="outline" className="text-[10px] shrink-0 px-1 py-0">E{cba.unit_number}</Badge>}
+                            <span className="text-xs truncate">{getContactName(contact)}</span>
+                            {a.proxy_type && (
+                              <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 text-[9px] shrink-0 px-1 py-0">
+                                v.d. {a.proxy_type === "manager" ? "Verw." : a.proxy_type === "owner" ? (() => {
+                                  const proxyContact = allContacts.find((c: any) => c.contacts.id === a.proxy_contact_id);
+                                  return proxyContact ? getContactName(proxyContact.contacts) : "Eig.";
+                                })() : (a.proxy_external_name || "Ext.")}
+                              </Badge>
+                            )}
+                          </div>
                           <div className="flex gap-1">
                             <Button size="sm" variant="ghost" className="h-6 px-2 text-xs text-green-600"
                               onClick={() => castVoteMutation.mutate({ itemId: selectedItem.id, assignmentId: a.assignment_id, vote: "yes", meaWeight: meaW, sqmWeight: sqmW })}>Ja</Button>
