@@ -163,12 +163,26 @@ export const AttendeeManager = ({ meetingId, buildingId, lockTime }: AttendeeMan
   const setProxyMutation = useMutation({
     mutationFn: async ({ attendeeId, type, contactId }: { attendeeId: string; type: string; contactId?: string }) => {
       const token = type === "external" ? crypto.randomUUID() : null;
+
+      // Determine if proxy holder is already present
+      let proxyHolderPresent = false;
+      if (type === "manager") {
+        proxyHolderPresent = true; // manager always runs the meeting
+      } else if (type === "owner" && contactId) {
+        const holderAttendee = attendees.find(
+          (a) => a.contact_building_assignments?.contacts?.id === contactId
+        );
+        proxyHolderPresent = holderAttendee?.attendance_type === "present";
+      }
+
       const { error } = await supabase
         .from("etv_attendees")
         .update({
           proxy_type: type,
           proxy_contact_id: type !== "external" ? (contactId || null) : null,
           proxy_token: token,
+          attendance_type: "proxy",
+          checked_in_at: proxyHolderPresent ? new Date().toISOString() : null,
         })
         .eq("id", attendeeId);
       if (error) throw error;
@@ -176,6 +190,7 @@ export const AttendeeManager = ({ meetingId, buildingId, lockTime }: AttendeeMan
     },
     onSuccess: (token) => {
       queryClient.invalidateQueries({ queryKey: ["etv-attendees", meetingId] });
+      queryClient.invalidateQueries({ queryKey: ["etv-attendees-live", meetingId] });
       setProxyDialog(null);
       if (token) {
         const link = `${window.location.origin}/etv-proxy/${token}`;
