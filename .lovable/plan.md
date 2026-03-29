@@ -1,68 +1,48 @@
 
 
-## Fix VotingPopup: Larger Dialog, Per-Unit Pagination, Confirmation Step, Fix RLS
+## Fix Voting Results, Fullscreen Popup, Owner Live Dashboard, Proxy Badges
 
-### Problems
-1. **Dialog too small** — `max-w-md` is cramped
-2. **Votes not saving** — RLS INSERT policy on `etv_votes` requires `c.user_id = auth.uid()`, which fails for proxy holders voting on someone else's unit. External proxy holders (no auth) can't insert at all.
-3. **No confirmation step** — votes are cast immediately on button click
-4. **Multiple units vote all at once** — user with 3 units votes identically for all with one click; should be per-unit with separate pages
+### Issues Identified
+
+1. **Voting result possibly wrong**: The `computeResult` function in `MeetingLiveSession.tsx` (line 221) is correct for headcount (`yesVotes.length > noVotes.length`), so 2 yes vs 1 no should show "passed". The likely cause: the voting principle is set to **MEA** (not headcount), and the `mea_weight` stored in votes is 0 (because the VotingPopup or pre-vote logic didn't correctly fetch MEA weights). When all MEA weights are 0, `totalVotedMea = 0` → `yesMea > 0/2` is false → "failed". Need to verify and fix MEA weight propagation in VotingPopup's `castVoteMutation`.
+
+2. **VotingPopup not fullscreen**: Currently `max-w-lg w-[95vw]` — needs to be truly fullscreen (`fixed inset-0 z-50` or `max-w-none w-screen h-screen`).
+
+3. **No owner live dashboard**: When owners click into a meeting, they see TOPs and proxy management but no live voting results, quorum status, or attendance stats like the admin cockpit shows.
+
+4. **No proxy badge in admin voting list**: In `MeetingLiveSession.tsx` lines 655-682, the manual vote rows only show the contact name — no unit number badge and no proxy badge (unlike the attendance list at line 880-889).
+
+---
 
 ### Plan
 
-#### 1. Fix RLS on `etv_votes` (migration)
+#### 1. Make VotingPopup fullscreen (`VotingPopup.tsx`)
 
-Update the INSERT policy to also allow proxy holders:
-```sql
--- Drop old policy
-DROP POLICY "WEG owners can insert their own votes" ON etv_votes;
+Replace the `DialogContent` with a fullscreen overlay using `fixed inset-0 z-[100]` instead of the centered dialog. Content centered vertically with large buttons. Remove `Dialog` wrapper entirely and use a custom fullscreen div with backdrop.
 
--- New policy: allow insert if user owns the unit OR is the proxy holder
-CREATE POLICY "Owners and proxy holders can insert votes" ON etv_votes
-FOR INSERT TO authenticated
-WITH CHECK (
-  EXISTS (
-    SELECT 1 FROM etv_attendees ea
-    JOIN contact_building_assignments cba ON cba.id = ea.assignment_id
-    JOIN contacts c ON c.id = cba.contact_id
-    WHERE ea.assignment_id = etv_votes.assignment_id
-    AND (c.user_id = auth.uid() OR ea.proxy_contact_id = (
-      SELECT id FROM contacts WHERE user_id = auth.uid() LIMIT 1
-    ))
-  )
-);
-```
+#### 2. Fix result display — add unit number + proxy badge to admin voting rows (`MeetingLiveSession.tsx`)
 
-For external proxy holders (unauthenticated), create an edge function `cast-proxy-vote` that validates the proxy token and inserts the vote server-side with service role key.
+In the "Manuelle Stimmabgabe" sections (lines ~655-682 and ~471-503), for each attendee row:
+- Show unit number badge: `E{cba.unit_number}` (like the attendance list)
+- Show proxy badge if `a.proxy_type` is set: blue badge with "v.d. Verwalter/Eigentümer/Extern" (same logic as attendance list lines 882-889)
 
-#### 2. Rewrite VotingPopup with per-unit pagination (`VotingPopup.tsx`)
+#### 3. Add live dashboard section to owner meeting view (`src/pages/weg-owner/Meetings.tsx`)
 
-- **`currentUnitIndex`** state tracks which unit (0-based) the user is voting for
-- Show one unit at a time: unit number, TOP title, expandable description, resolution text
-- Three vote buttons (Ja/Nein/Enthaltung) set a **local selection** state — not submitted yet
-- **Confirm button** ("Stimme bestätigen") appears after selection, submits only that unit's vote
-- On confirm success, advance to next unit (`currentUnitIndex + 1`)
-- After last unit, show success screen, then close
-- Progress indicator: "Einheit 1 von 3" with dots/steps
-- Dialog size: `max-w-lg` with more padding
+When an owner views a meeting that is `in_progress`:
+- Add a "Live Dashboard" card at the top showing:
+  - Quorum status (present/represented count, MEA quota)
+  - Current TOP being voted on
+  - Live voting results (Ja/Nein/Enthaltung counts) with realtime subscription
+  - Voted TOPs with results (passed/failed badges)
+- Subscribe to `etv_agenda_items` changes via Supabase Realtime
+- Subscribe to `etv_votes` changes for the active voting item
 
-#### 3. Update EtvProxy voting UI (`EtvProxy.tsx`)
+#### 4. Debug MEA weight issue in vote casting
 
-- Same confirmation flow (select then confirm)
-- Call new `cast-proxy-vote` edge function instead of direct supabase insert
-- Larger card layout
-
-#### 4. Create `cast-proxy-vote` edge function
-
-- Accepts `{ token, agenda_item_id, vote }`
-- Validates token against `etv_attendees.proxy_token`
-- Fetches assignment_id and MEA weight
-- Inserts vote with service role client
-- Returns success/error
+Check that `VotingPopup.tsx`'s `castVoteMutation` correctly passes `mea_weight` from `assignment.mea_weight` — it does (line 185). The issue may be that the `contact_building_shares` query in `checkVotingForItem` isn't returning data due to RLS. Verify the RLS policy on `contact_building_shares` allows `weg_owner` to read their own shares (it does — line-level check shows the SELECT policy exists). If shares are still 0, add a fallback: look up the share server-side or ensure the query returns correctly.
 
 ### Files to modify
-- **Migration**: Update RLS policy on `etv_votes`
-- `src/components/meetings/VotingPopup.tsx` — per-unit pagination, confirmation step, larger dialog
-- `src/pages/EtvProxy.tsx` — confirmation step, call edge function
-- `supabase/functions/cast-proxy-vote/index.ts` — new edge function for external votes
+- `src/components/meetings/VotingPopup.tsx` — fullscreen overlay, verify MEA weight
+- `src/components/meetings/MeetingLiveSession.tsx` — add unit number + proxy badges to voting rows
+- `src/pages/weg-owner/Meetings.tsx` — add live dashboard section for in-progress meetings
 
