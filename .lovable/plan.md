@@ -1,55 +1,68 @@
 
 
-## Fix VotingPopup: Make It Work for All Participants
+## Fix VotingPopup: Larger Dialog, Per-Unit Pagination, Confirmation Step, Fix RLS
 
-### Problems Identified
-
-1. **VotingPopup only lives in `WegOwnerLayout`** — only `weg_owner` role users see it. Admins on the `/versammlungen` page (admin layout) never see it (expected), but the filter on line 25 (`profile?.role !== "weg_owner"`) and line 148 blocks everyone else.
-
-2. **Line 69 skips proxy holders**: `if (!attendee || attendee.attendance_type === "proxy") continue;` — this skips units where the owner gave a proxy. But the popup never looks for units where the current user *received* a proxy from someone else (via `proxy_contact_id`).
-
-3. **EtvProxy page has NO voting UI** — external proxy holders see a static info page with no realtime voting capability.
-
-4. **Initial load problem**: The popup only listens for UPDATE events. If the owner opens the app AFTER voting already started, they won't see the popup (no UPDATE fires for them).
-
----
+### Problems
+1. **Dialog too small** — `max-w-md` is cramped
+2. **Votes not saving** — RLS INSERT policy on `etv_votes` requires `c.user_id = auth.uid()`, which fails for proxy holders voting on someone else's unit. External proxy holders (no auth) can't insert at all.
+3. **No confirmation step** — votes are cast immediately on button click
+4. **Multiple units vote all at once** — user with 3 units votes identically for all with one click; should be per-unit with separate pages
 
 ### Plan
 
-#### 1. Fix VotingPopup to include proxy-received units (`VotingPopup.tsx`)
+#### 1. Fix RLS on `etv_votes` (migration)
 
-After fetching the user's own assignments (lines 50-90), add a second query:
-- Query `etv_attendees` where `proxy_contact_id = contact.id` AND `meeting_id = meeting.id` AND `attendance_type = "proxy"`
-- For each such attendee, fetch the linked `assignment_id`, get the assignment's `unit_number` and MEA share
-- Check for existing votes, then add to `validAssignments`
-- This ensures a proxy holder votes for all units they represent
+Update the INSERT policy to also allow proxy holders:
+```sql
+-- Drop old policy
+DROP POLICY "WEG owners can insert their own votes" ON etv_votes;
 
-#### 2. Add initial check on mount (`VotingPopup.tsx`)
+-- New policy: allow insert if user owns the unit OR is the proxy holder
+CREATE POLICY "Owners and proxy holders can insert votes" ON etv_votes
+FOR INSERT TO authenticated
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM etv_attendees ea
+    JOIN contact_building_assignments cba ON cba.id = ea.assignment_id
+    JOIN contacts c ON c.id = cba.contact_id
+    WHERE ea.assignment_id = etv_votes.assignment_id
+    AND (c.user_id = auth.uid() OR ea.proxy_contact_id = (
+      SELECT id FROM contacts WHERE user_id = auth.uid() LIMIT 1
+    ))
+  )
+);
+```
 
-Add a second `useEffect` that runs on mount (when the component first loads):
-- Query `etv_agenda_items` where `status = 'voting'`
-- For each found item, run the same logic as the realtime handler to check if the user should vote
-- This handles the case where the user opens the app after voting already started
+For external proxy holders (unauthenticated), create an edge function `cast-proxy-vote` that validates the proxy token and inserts the vote server-side with service role key.
 
-#### 3. Add expandable description to VotingPopup
+#### 2. Rewrite VotingPopup with per-unit pagination (`VotingPopup.tsx`)
 
-Add a toggle state. Below the TOP title, show a "Beschreibung anzeigen" link that expands `votingItem.description` if present.
+- **`currentUnitIndex`** state tracks which unit (0-based) the user is voting for
+- Show one unit at a time: unit number, TOP title, expandable description, resolution text
+- Three vote buttons (Ja/Nein/Enthaltung) set a **local selection** state — not submitted yet
+- **Confirm button** ("Stimme bestätigen") appears after selection, submits only that unit's vote
+- On confirm success, advance to next unit (`currentUnitIndex + 1`)
+- After last unit, show success screen, then close
+- Progress indicator: "Einheit 1 von 3" with dots/steps
+- Dialog size: `max-w-lg` with more padding
 
-#### 4. Add voting UI to EtvProxy page (`EtvProxy.tsx`)
+#### 3. Update EtvProxy voting UI (`EtvProxy.tsx`)
 
-For external proxy holders accessing via token link:
-- Add Supabase Realtime subscription listening for `etv_agenda_items` UPDATE to `status = 'voting'`
-- Filter to only the meeting this proxy is for (from the token data)
-- When voting starts, show a voting overlay (similar to VotingPopup) with Ja/Nein/Enthaltung buttons
-- Cast votes using the attendee's `assignment_id` from the token data
-- Also check on initial load if a vote is already active
+- Same confirmation flow (select then confirm)
+- Call new `cast-proxy-vote` edge function instead of direct supabase insert
+- Larger card layout
 
-#### 5. Keep existing filters correct
+#### 4. Create `cast-proxy-vote` edge function
 
-- Own units with `attendance_type === "proxy"` (gave proxy away) are correctly skipped
-- Only add units where user is the proxy *holder* (received proxy)
+- Accepts `{ token, agenda_item_id, vote }`
+- Validates token against `etv_attendees.proxy_token`
+- Fetches assignment_id and MEA weight
+- Inserts vote with service role client
+- Returns success/error
 
 ### Files to modify
-- `src/components/meetings/VotingPopup.tsx` — add proxy-received units query, initial load check, expandable description
-- `src/pages/EtvProxy.tsx` — add realtime voting UI for external proxy holders
+- **Migration**: Update RLS policy on `etv_votes`
+- `src/components/meetings/VotingPopup.tsx` — per-unit pagination, confirmation step, larger dialog
+- `src/pages/EtvProxy.tsx` — confirmation step, call edge function
+- `supabase/functions/cast-proxy-vote/index.ts` — new edge function for external votes
 
