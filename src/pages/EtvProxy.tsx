@@ -17,6 +17,7 @@ import { de } from "date-fns/locale";
 export const EtvProxy = () => {
   const { token } = useParams<{ token: string }>();
   const [votingItem, setVotingItem] = useState<any>(null);
+  const [selectedVote, setSelectedVote] = useState<string | null>(null);
   const [hasVoted, setHasVoted] = useState(false);
   const [descOpen, setDescOpen] = useState(false);
 
@@ -40,16 +41,13 @@ export const EtvProxy = () => {
   // Check for active vote on load
   useEffect(() => {
     if (!meetingId) return;
-
     const checkActive = async () => {
       const { data: items } = await supabase
         .from("etv_agenda_items")
         .select("*")
         .eq("meeting_id", meetingId)
         .eq("status", "voting");
-
       if (items && items.length > 0) {
-        // Check if already voted
         const { data: existing } = await supabase
           .from("etv_votes")
           .select("id")
@@ -59,18 +57,17 @@ export const EtvProxy = () => {
         if (!existing) {
           setVotingItem(items[0]);
           setHasVoted(false);
+          setSelectedVote(null);
           setDescOpen(false);
         }
       }
     };
-
     checkActive();
   }, [meetingId, assignmentId]);
 
-  // Realtime listener for voting
+  // Realtime listener
   useEffect(() => {
     if (!meetingId) return;
-
     const channel = supabase
       .channel(`proxy-voting-${token}`)
       .on(
@@ -79,7 +76,6 @@ export const EtvProxy = () => {
         async (payload) => {
           const newItem = payload.new as any;
           if (newItem.meeting_id !== meetingId) return;
-
           if (newItem.status === "voting") {
             const { data: existing } = await supabase
               .from("etv_votes")
@@ -90,6 +86,7 @@ export const EtvProxy = () => {
             if (!existing) {
               setVotingItem(newItem);
               setHasVoted(false);
+              setSelectedVote(null);
               setDescOpen(false);
             }
           } else if (
@@ -104,41 +101,24 @@ export const EtvProxy = () => {
         }
       )
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [meetingId, assignmentId, token, votingItem?.id]);
 
   const castVoteMutation = useMutation({
     mutationFn: async (vote: string) => {
-      if (!votingItem || !assignmentId) throw new Error("Missing data");
-
-      // Get MEA weight
-      const { data: shares } = await supabase
-        .from("contact_building_shares")
-        .select("share_value")
-        .eq("assignment_id", assignmentId)
-        .eq("share_type", "mea")
-        .maybeSingle();
-
-      const { error } = await supabase.from("etv_votes").upsert(
-        {
-          agenda_item_id: votingItem.id,
-          assignment_id: assignmentId,
-          vote,
-          mea_weight: shares?.share_value || 0,
-          voted_at: new Date().toISOString(),
-        },
-        { onConflict: "agenda_item_id,assignment_id" }
-      );
-      if (error) throw error;
+      if (!votingItem || !token) throw new Error("Missing data");
+      const res = await supabase.functions.invoke("cast-proxy-vote", {
+        body: { token, agenda_item_id: votingItem.id, vote },
+      });
+      if (res.error) throw res.error;
+      if (res.data?.error) throw new Error(res.data.error);
     },
     onSuccess: () => {
       setHasVoted(true);
       setTimeout(() => {
         setVotingItem(null);
         setHasVoted(false);
+        setSelectedVote(null);
       }, 2000);
     },
   });
@@ -181,27 +161,33 @@ export const EtvProxy = () => {
   const isCompleted = meeting.status === "completed";
   const isActive = meeting.status === "in_progress";
 
-  // Voting overlay for external proxy
+  const voteButtons = [
+    { value: "yes", label: "Ja", icon: CheckCircle2, className: "bg-green-600 hover:bg-green-700 text-white" },
+    { value: "no", label: "Nein", icon: XCircle, className: "bg-red-600 hover:bg-red-700 text-white" },
+    { value: "abstain", label: "Enthaltung", icon: MinusCircle, className: "" },
+  ];
+
+  // Voting overlay
   if (votingItem) {
     return (
       <div className="min-h-screen bg-background p-4 flex items-center justify-center">
-        <Card className="w-full max-w-md">
+        <Card className="w-full max-w-lg">
           <CardContent className="p-6 space-y-5">
             <div className="flex items-center gap-2">
-              <Vote className="h-5 w-5 text-primary" />
-              <h1 className="text-lg font-bold">Abstimmung</h1>
+              <Vote className="h-6 w-6 text-primary" />
+              <h1 className="text-xl font-bold">Abstimmung</h1>
             </div>
 
             {hasVoted ? (
-              <div className="py-8 text-center space-y-3">
-                <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto" />
-                <p className="text-lg font-semibold">Stimme abgegeben!</p>
+              <div className="py-10 text-center space-y-3">
+                <CheckCircle2 className="h-20 w-20 text-green-500 mx-auto" />
+                <p className="text-xl font-semibold">Stimme abgegeben!</p>
               </div>
             ) : (
               <>
                 <div>
                   <p className="text-sm text-muted-foreground mb-1">Tagesordnungspunkt</p>
-                  <p className="font-semibold">{votingItem.title}</p>
+                  <p className="font-semibold text-lg">{votingItem.title}</p>
                 </div>
 
                 {votingItem.description && (
@@ -228,35 +214,37 @@ export const EtvProxy = () => {
                 </Badge>
 
                 <div className="grid grid-cols-3 gap-3">
-                  <Button
-                    size="lg"
-                    className="h-16 flex-col gap-1 bg-green-600 hover:bg-green-700 text-white"
-                    onClick={() => castVoteMutation.mutate("yes")}
-                    disabled={castVoteMutation.isPending}
-                  >
-                    <CheckCircle2 className="h-6 w-6" />
-                    <span className="text-sm">Ja</span>
-                  </Button>
-                  <Button
-                    size="lg"
-                    className="h-16 flex-col gap-1 bg-red-600 hover:bg-red-700 text-white"
-                    onClick={() => castVoteMutation.mutate("no")}
-                    disabled={castVoteMutation.isPending}
-                  >
-                    <XCircle className="h-6 w-6" />
-                    <span className="text-sm">Nein</span>
-                  </Button>
-                  <Button
-                    size="lg"
-                    variant="outline"
-                    className="h-16 flex-col gap-1"
-                    onClick={() => castVoteMutation.mutate("abstain")}
-                    disabled={castVoteMutation.isPending}
-                  >
-                    <MinusCircle className="h-6 w-6" />
-                    <span className="text-sm">Enthaltung</span>
-                  </Button>
+                  {voteButtons.map(({ value, label, icon: Icon, className }) => (
+                    <Button
+                      key={value}
+                      size="lg"
+                      variant={value === "abstain" ? "outline" : "default"}
+                      className={`h-20 flex-col gap-1.5 text-base transition-all ${
+                        value !== "abstain" ? className : ""
+                      } ${
+                        selectedVote === value
+                          ? "ring-4 ring-primary ring-offset-2 scale-105"
+                          : "opacity-80 hover:opacity-100"
+                      }`}
+                      onClick={() => setSelectedVote(value)}
+                      disabled={castVoteMutation.isPending}
+                    >
+                      <Icon className="h-7 w-7" />
+                      <span>{label}</span>
+                    </Button>
+                  ))}
                 </div>
+
+                {selectedVote && (
+                  <Button
+                    size="lg"
+                    className="w-full h-14 text-lg font-semibold"
+                    onClick={() => castVoteMutation.mutate(selectedVote)}
+                    disabled={castVoteMutation.isPending}
+                  >
+                    {castVoteMutation.isPending ? "Wird gespeichert…" : "Stimme bestätigen"}
+                  </Button>
+                )}
               </>
             )}
           </CardContent>
