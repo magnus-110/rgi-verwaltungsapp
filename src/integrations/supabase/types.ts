@@ -2471,6 +2471,7 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           id: string
+          is_secret_ballot: boolean
           location: string | null
           lock_time: string | null
           meeting_chair: string | null
@@ -2490,6 +2491,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           id?: string
+          is_secret_ballot?: boolean
           location?: string | null
           lock_time?: string | null
           meeting_chair?: string | null
@@ -2509,6 +2511,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           id?: string
+          is_secret_ballot?: boolean
           location?: string | null
           lock_time?: string | null
           meeting_chair?: string | null
