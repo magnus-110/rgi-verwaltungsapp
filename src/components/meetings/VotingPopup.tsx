@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -16,22 +16,55 @@ interface VotingAssignment {
 
 export const VotingPopup = () => {
   const { profile } = useAuth();
+  const queryClient = useQueryClient();
   const [votingItem, setVotingItem] = useState<any>(null);
   const [myVotingAssignments, setMyVotingAssignments] = useState<VotingAssignment[]>([]);
   const [currentUnitIndex, setCurrentUnitIndex] = useState(0);
   const [selectedVote, setSelectedVote] = useState<string | null>(null);
   const [allDone, setAllDone] = useState(false);
   const [descOpen, setDescOpen] = useState(false);
+  const [meetingId, setMeetingId] = useState<string | null>(null);
+  const [isSecretBallot, setIsSecretBallot] = useState(true);
+
+  // Live vote counts after voting done
+  const { data: liveVotes = [] } = useQuery({
+    queryKey: ["voting-popup-live-votes", votingItem?.id],
+    queryFn: async () => {
+      if (!votingItem) return [];
+      const { data, error } = await supabase
+        .from("etv_votes")
+        .select("vote, assignment_id, contact_building_assignments:assignment_id(unit_number, contacts:contact_id(first_name, last_name, company_name))")
+        .eq("agenda_item_id", votingItem.id);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!votingItem && allDone,
+  });
+
+  // Realtime for votes when showing results
+  useEffect(() => {
+    if (!votingItem?.id || !allDone) return;
+    const channel = supabase
+      .channel(`popup-votes-${votingItem.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "etv_votes", filter: `agenda_item_id=eq.${votingItem.id}` }, () => {
+        queryClient.invalidateQueries({ queryKey: ["voting-popup-live-votes", votingItem.id] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [votingItem?.id, allDone, queryClient]);
 
   const checkVotingForItem = useCallback(async (agendaItem: any) => {
     if (!profile?.user_id) return;
 
     const { data: meeting } = await supabase
       .from("etv_meetings")
-      .select("id, building_id")
+      .select("id, building_id, is_secret_ballot")
       .eq("id", agendaItem.meeting_id)
       .single();
     if (!meeting) return;
+
+    setMeetingId(meeting.id);
+    setIsSecretBallot((meeting as any).is_secret_ballot ?? true);
 
     const { data: contact } = await supabase
       .from("contacts")
@@ -143,7 +176,7 @@ export const VotingPopup = () => {
     checkActiveVotes();
   }, [profile?.user_id, profile?.role, checkVotingForItem]);
 
-  // Realtime
+  // Realtime for agenda item status changes
   useEffect(() => {
     if (!profile?.user_id || profile?.role !== "weg_owner") return;
     const channel = supabase
@@ -163,6 +196,7 @@ export const VotingPopup = () => {
             if (votingItem?.id === newItem.id) {
               setVotingItem(null);
               setMyVotingAssignments([]);
+              setAllDone(false);
             }
           }
         }
@@ -195,13 +229,7 @@ export const VotingPopup = () => {
         setSelectedVote(null);
       } else {
         setAllDone(true);
-        setTimeout(() => {
-          setVotingItem(null);
-          setMyVotingAssignments([]);
-          setAllDone(false);
-          setCurrentUnitIndex(0);
-          setSelectedVote(null);
-        }, 2000);
+        // Don't auto-close — show live results until voting ends
       }
     },
   });
@@ -217,6 +245,16 @@ export const VotingPopup = () => {
     { value: "abstain", label: "Enthaltung", icon: MinusCircle, className: "" },
   ];
 
+  const yesCount = liveVotes.filter((v: any) => v.vote === "yes").length;
+  const noCount = liveVotes.filter((v: any) => v.vote === "no").length;
+  const abstainCount = liveVotes.filter((v: any) => v.vote === "abstain").length;
+
+  const getContactName = (contact: any) => {
+    if (!contact) return "Unbekannt";
+    if (contact.company_name) return contact.company_name;
+    return [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Unbenannt";
+  };
+
   return (
     <div className="fixed inset-0 z-[100] bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-xl space-y-6">
@@ -227,9 +265,53 @@ export const VotingPopup = () => {
         </div>
 
         {allDone ? (
-          <div className="py-16 text-center space-y-4">
-            <CheckCircle2 className="h-24 w-24 text-green-500 mx-auto" />
-            <p className="text-2xl font-semibold">Alle Stimmen abgegeben!</p>
+          <div className="space-y-6">
+            <div className="py-8 text-center space-y-4">
+              <CheckCircle2 className="h-20 w-20 text-green-500 mx-auto" />
+              <p className="text-2xl font-semibold">Alle Stimmen abgegeben!</p>
+            </div>
+
+            {/* Live Results */}
+            <div className="bg-muted rounded-lg p-5 space-y-4">
+              <h3 className="font-semibold text-foreground text-center">Live-Ergebnis</h3>
+              <div className="flex justify-center gap-6 text-lg">
+                <span className="text-green-600 font-bold">Ja: {yesCount}</span>
+                <span className="text-red-600 font-bold">Nein: {noCount}</span>
+                <span className="text-muted-foreground font-semibold">Enth.: {abstainCount}</span>
+              </div>
+
+              {/* Public ballot: show who voted what */}
+              {!isSecretBallot && liveVotes.length > 0 && (
+                <div className="space-y-2 pt-2 border-t border-border">
+                  <p className="text-sm text-muted-foreground text-center">Einzelstimmen</p>
+                  {liveVotes.map((v: any, i: number) => {
+                    const cba = v.contact_building_assignments;
+                    const contact = cba?.contacts;
+                    return (
+                      <div key={i} className="flex items-center justify-between text-sm py-1">
+                        <div className="flex items-center gap-2">
+                          <span>{getContactName(contact)}</span>
+                          {cba?.unit_number && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">E{cba.unit_number}</Badge>
+                          )}
+                        </div>
+                        <Badge className={
+                          v.vote === "yes" ? "bg-green-600 text-white" :
+                          v.vote === "no" ? "bg-red-600 text-white" :
+                          "bg-muted-foreground/20 text-muted-foreground"
+                        }>
+                          {v.vote === "yes" ? "Ja" : v.vote === "no" ? "Nein" : "Enthaltung"}
+                        </Badge>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <p className="text-sm text-center text-muted-foreground">
+              Die Ergebnisse werden live aktualisiert. Die Ansicht schließt sich automatisch, wenn die Abstimmung beendet wird.
+            </p>
           </div>
         ) : (
           <div className="space-y-6">

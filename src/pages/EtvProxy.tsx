@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,13 +9,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import {
   Shield, Calendar, MapPin, Building2, CheckCircle2, AlertTriangle,
-  Vote, XCircle, MinusCircle, ChevronDown,
+  Vote, XCircle, MinusCircle, ChevronDown, Users, BarChart3,
 } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 
 export const EtvProxy = () => {
   const { token } = useParams<{ token: string }>();
+  const queryClient = useQueryClient();
   const [votingItem, setVotingItem] = useState<any>(null);
   const [selectedVote, setSelectedVote] = useState<string | null>(null);
   const [hasVoted, setHasVoted] = useState(false);
@@ -37,6 +38,53 @@ export const EtvProxy = () => {
 
   const meetingId = (data as any)?.etv_meetings?.id;
   const assignmentId = (data as any)?.assignment_id;
+  const isSecretBallot = (data as any)?.etv_meetings?.is_secret_ballot ?? true;
+
+  // Live votes for the current voting item
+  const { data: liveVotes = [] } = useQuery({
+    queryKey: ["proxy-live-votes", votingItem?.id],
+    queryFn: async () => {
+      if (!votingItem) return [];
+      const { data, error } = await supabase
+        .from("etv_votes")
+        .select("vote, assignment_id, contact_building_assignments:assignment_id(unit_number, contacts:contact_id(first_name, last_name, company_name))")
+        .eq("agenda_item_id", votingItem.id);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!votingItem,
+  });
+
+  // Live attendees for dashboard
+  const { data: proxyAttendees = [] } = useQuery({
+    queryKey: ["proxy-live-attendees", meetingId],
+    queryFn: async () => {
+      if (!meetingId) return [];
+      const { data, error } = await supabase
+        .from("etv_attendees")
+        .select("id, attendance_type, checked_in_at")
+        .eq("meeting_id", meetingId);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!meetingId,
+  });
+
+  // Live agenda items
+  const { data: proxyAgendaItems = [] } = useQuery({
+    queryKey: ["proxy-live-agenda", meetingId],
+    queryFn: async () => {
+      if (!meetingId) return [];
+      const { data, error } = await supabase
+        .from("etv_agenda_items")
+        .select("id, title, status, result")
+        .eq("meeting_id", meetingId)
+        .order("sort_order");
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!meetingId,
+  });
 
   // Check for active vote on load
   useEffect(() => {
@@ -59,13 +107,17 @@ export const EtvProxy = () => {
           setHasVoted(false);
           setSelectedVote(null);
           setDescOpen(false);
+        } else {
+          // Already voted - show results
+          setVotingItem(items[0]);
+          setHasVoted(true);
         }
       }
     };
     checkActive();
   }, [meetingId, assignmentId]);
 
-  // Realtime listener
+  // Realtime listener for agenda items
   useEffect(() => {
     if (!meetingId) return;
     const channel = supabase
@@ -88,6 +140,9 @@ export const EtvProxy = () => {
               setHasVoted(false);
               setSelectedVote(null);
               setDescOpen(false);
+            } else {
+              setVotingItem(newItem);
+              setHasVoted(true);
             }
           } else if (
             payload.old &&
@@ -96,13 +151,28 @@ export const EtvProxy = () => {
           ) {
             if (votingItem?.id === newItem.id) {
               setVotingItem(null);
+              setHasVoted(false);
             }
           }
+          // Refresh agenda list
+          queryClient.invalidateQueries({ queryKey: ["proxy-live-agenda", meetingId] });
         }
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [meetingId, assignmentId, token, votingItem?.id]);
+  }, [meetingId, assignmentId, token, votingItem?.id, queryClient]);
+
+  // Realtime for votes
+  useEffect(() => {
+    if (!votingItem?.id) return;
+    const channel = supabase
+      .channel(`proxy-votes-${votingItem.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "etv_votes", filter: `agenda_item_id=eq.${votingItem.id}` }, () => {
+        queryClient.invalidateQueries({ queryKey: ["proxy-live-votes", votingItem.id] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [votingItem?.id, queryClient]);
 
   const castVoteMutation = useMutation({
     mutationFn: async (vote: string) => {
@@ -115,13 +185,15 @@ export const EtvProxy = () => {
     },
     onSuccess: () => {
       setHasVoted(true);
-      setTimeout(() => {
-        setVotingItem(null);
-        setHasVoted(false);
-        setSelectedVote(null);
-      }, 2000);
+      // Don't auto-close - show live results
     },
   });
+
+  const getContactName = (contact: any) => {
+    if (!contact) return "Unbekannt";
+    if (contact.company_name) return contact.company_name;
+    return [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Unbenannt";
+  };
 
   if (isLoading) {
     return (
@@ -167,88 +239,142 @@ export const EtvProxy = () => {
     { value: "abstain", label: "Enthaltung", icon: MinusCircle, className: "" },
   ];
 
-  // Voting overlay
+  const yesCount = liveVotes.filter((v: any) => v.vote === "yes").length;
+  const noCount = liveVotes.filter((v: any) => v.vote === "no").length;
+  const abstainCount = liveVotes.filter((v: any) => v.vote === "abstain").length;
+
+  const proxyPresentCount = proxyAttendees.filter(
+    (a: any) => a.attendance_type === "present" || (a.attendance_type === "proxy" && a.checked_in_at)
+  ).length;
+
+  const activeAgendaItem = proxyAgendaItems.find((i: any) => i.status === "voting");
+  const votedAgendaItems = proxyAgendaItems.filter((i: any) => i.status === "voted" || i.status === "closed");
+
+  // Fullscreen voting overlay
   if (votingItem) {
     return (
       <div className="min-h-screen bg-background p-4 flex items-center justify-center">
-        <Card className="w-full max-w-lg">
-          <CardContent className="p-6 space-y-5">
-            <div className="flex items-center gap-2">
-              <Vote className="h-6 w-6 text-primary" />
-              <h1 className="text-xl font-bold">Abstimmung</h1>
-            </div>
+        <div className="w-full max-w-lg space-y-5">
+          <div className="flex items-center gap-2 justify-center">
+            <Vote className="h-8 w-8 text-primary" />
+            <h1 className="text-2xl font-bold">Abstimmung</h1>
+          </div>
 
-            {hasVoted ? (
-              <div className="py-10 text-center space-y-3">
-                <CheckCircle2 className="h-20 w-20 text-green-500 mx-auto" />
+          {hasVoted ? (
+            <div className="space-y-5">
+              <div className="py-6 text-center space-y-3">
+                <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto" />
                 <p className="text-xl font-semibold">Stimme abgegeben!</p>
               </div>
-            ) : (
-              <>
-                <div>
-                  <p className="text-sm text-muted-foreground mb-1">Tagesordnungspunkt</p>
-                  <p className="font-semibold text-lg">{votingItem.title}</p>
-                </div>
 
-                {votingItem.description && (
-                  <Collapsible open={descOpen} onOpenChange={setDescOpen}>
-                    <CollapsibleTrigger className="flex items-center gap-1 text-sm text-primary hover:underline">
-                      <ChevronDown className={`h-4 w-4 transition-transform ${descOpen ? "rotate-180" : ""}`} />
-                      Beschreibung anzeigen
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <p className="text-sm bg-muted rounded-lg p-3 mt-2">{votingItem.description}</p>
-                    </CollapsibleContent>
-                  </Collapsible>
-                )}
-
-                {votingItem.resolution_text && (
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Beschlusstext</p>
-                    <p className="text-sm bg-muted rounded-lg p-3">{votingItem.resolution_text}</p>
+              {/* Live Results */}
+              <Card>
+                <CardContent className="p-4 space-y-3">
+                  <h3 className="font-semibold text-sm text-center">Live-Ergebnis</h3>
+                  <div className="flex justify-center gap-6 text-base">
+                    <span className="text-green-600 font-bold">Ja: {yesCount}</span>
+                    <span className="text-red-600 font-bold">Nein: {noCount}</span>
+                    <span className="text-muted-foreground font-semibold">Enth.: {abstainCount}</span>
                   </div>
-                )}
 
-                <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
-                  Abstimmung läuft
-                </Badge>
+                  {!isSecretBallot && liveVotes.length > 0 && (
+                    <div className="space-y-1 pt-2 border-t border-border">
+                      <p className="text-xs text-muted-foreground text-center">Einzelstimmen</p>
+                      {liveVotes.map((v: any, i: number) => {
+                        const cba = v.contact_building_assignments;
+                        const contact = cba?.contacts;
+                        return (
+                          <div key={i} className="flex items-center justify-between text-sm py-0.5">
+                            <div className="flex items-center gap-1.5">
+                              <span>{getContactName(contact)}</span>
+                              {cba?.unit_number && (
+                                <Badge variant="outline" className="text-[9px] px-1 py-0">E{cba.unit_number}</Badge>
+                              )}
+                            </div>
+                            <span className={
+                              v.vote === "yes" ? "text-green-600 font-semibold" :
+                              v.vote === "no" ? "text-red-600 font-semibold" :
+                              "text-muted-foreground"
+                            }>
+                              {v.vote === "yes" ? "Ja" : v.vote === "no" ? "Nein" : "Enthaltung"}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
-                <div className="grid grid-cols-3 gap-3">
-                  {voteButtons.map(({ value, label, icon: Icon, className }) => (
-                    <Button
-                      key={value}
-                      size="lg"
-                      variant={value === "abstain" ? "outline" : "default"}
-                      className={`h-20 flex-col gap-1.5 text-base transition-all ${
-                        value !== "abstain" ? className : ""
-                      } ${
-                        selectedVote === value
-                          ? "ring-4 ring-primary ring-offset-2 scale-105"
-                          : "opacity-80 hover:opacity-100"
-                      }`}
-                      onClick={() => setSelectedVote(value)}
-                      disabled={castVoteMutation.isPending}
-                    >
-                      <Icon className="h-7 w-7" />
-                      <span>{label}</span>
-                    </Button>
-                  ))}
+              <p className="text-xs text-center text-muted-foreground">
+                Ergebnisse werden live aktualisiert. Die Ansicht wechselt automatisch, wenn die Abstimmung beendet wird.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div>
+                <p className="text-sm text-muted-foreground mb-1">Tagesordnungspunkt</p>
+                <p className="font-semibold text-lg">{votingItem.title}</p>
+              </div>
+
+              {votingItem.description && (
+                <Collapsible open={descOpen} onOpenChange={setDescOpen}>
+                  <CollapsibleTrigger className="flex items-center gap-1 text-sm text-primary hover:underline">
+                    <ChevronDown className={`h-4 w-4 transition-transform ${descOpen ? "rotate-180" : ""}`} />
+                    Beschreibung anzeigen
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <p className="text-sm bg-muted rounded-lg p-3 mt-2">{votingItem.description}</p>
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
+
+              {votingItem.resolution_text && (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Beschlusstext</p>
+                  <p className="text-sm bg-muted rounded-lg p-3">{votingItem.resolution_text}</p>
                 </div>
+              )}
 
-                {selectedVote && (
+              <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                Abstimmung läuft
+              </Badge>
+
+              <div className="grid grid-cols-3 gap-3">
+                {voteButtons.map(({ value, label, icon: Icon, className }) => (
                   <Button
+                    key={value}
                     size="lg"
-                    className="w-full h-14 text-lg font-semibold"
-                    onClick={() => castVoteMutation.mutate(selectedVote)}
+                    variant={value === "abstain" ? "outline" : "default"}
+                    className={`h-24 flex-col gap-1.5 text-base transition-all ${
+                      value !== "abstain" ? className : ""
+                    } ${
+                      selectedVote === value
+                        ? "ring-4 ring-primary ring-offset-2 scale-105"
+                        : "opacity-80 hover:opacity-100"
+                    }`}
+                    onClick={() => setSelectedVote(value)}
                     disabled={castVoteMutation.isPending}
                   >
-                    {castVoteMutation.isPending ? "Wird gespeichert…" : "Stimme bestätigen"}
+                    <Icon className="h-8 w-8" />
+                    <span>{label}</span>
                   </Button>
-                )}
-              </>
-            )}
-          </CardContent>
-        </Card>
+                ))}
+              </div>
+
+              {selectedVote && (
+                <Button
+                  size="lg"
+                  className="w-full h-14 text-lg font-semibold"
+                  onClick={() => castVoteMutation.mutate(selectedVote)}
+                  disabled={castVoteMutation.isPending}
+                >
+                  {castVoteMutation.isPending ? "Wird gespeichert…" : "Stimme bestätigen"}
+                </Button>
+              )}
+            </>
+          )}
+        </div>
       </div>
     );
   }
@@ -295,6 +421,50 @@ export const EtvProxy = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Live Dashboard for active meetings */}
+        {isActive && (
+          <Card className="border-primary/30 bg-primary/5">
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <BarChart3 className="h-4 w-4 text-primary" />
+                <h3 className="font-semibold text-sm text-foreground">Live-Dashboard</h3>
+                <div className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
+                  <Users className="h-3 w-3" />
+                  {proxyPresentCount}/{proxyAttendees.length} anwesend
+                </div>
+              </div>
+
+              {activeAgendaItem ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 text-xs">
+                      <Vote className="h-3 w-3 mr-1" />
+                      Abstimmung läuft
+                    </Badge>
+                    <span className="text-sm font-medium truncate">{activeAgendaItem.title}</span>
+                  </div>
+                </div>
+              ) : votedAgendaItems.length > 0 ? (
+                <div className="space-y-1.5">
+                  <p className="text-xs text-muted-foreground">
+                    {votedAgendaItems.length} TOP(s) abgestimmt
+                  </p>
+                  {votedAgendaItems.slice(-3).map((item: any) => (
+                    <div key={item.id} className="flex items-center justify-between text-xs">
+                      <span className="truncate">{item.title}</span>
+                      <Badge variant={item.result === "passed" ? "default" : "destructive"} className="text-[10px] ml-2 shrink-0">
+                        {item.result === "passed" ? "Angenommen" : "Abgelehnt"}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">Noch keine Abstimmung gestartet</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardContent className="p-4 text-center space-y-2">
