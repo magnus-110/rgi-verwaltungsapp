@@ -903,22 +903,10 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                     )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    {a.proxy_type ? (
-                      <div className="flex items-center gap-1.5">
-                        <Switch
-                          checked={a.attendance_type === "proxy" && !!a.checked_in_at}
-                          disabled
-                        />
-                        {a.attendance_type === "proxy" && a.checked_in_at && (
-                          <span className="text-[10px] text-muted-foreground">vertreten</span>
-                        )}
-                      </div>
-                    ) : (
-                      <Switch
-                        checked={a.attendance_type === "present"}
-                        onCheckedChange={(checked) => checkInMutation.mutate({ id: a.id, present: checked })}
-                      />
-                    )}
+                    <Switch
+                      checked={a.attendance_type === "present" || (a.attendance_type === "proxy" && !!a.checked_in_at)}
+                      onCheckedChange={(checked) => checkInMutation.mutate({ id: a.id, present: checked })}
+                    />
                   </div>
                 </div>
               );
