@@ -1,24 +1,38 @@
-## Pre-Voting Instructions (Weisungsbefugnis) — Implemented
 
-### Owner Portal (`src/pages/weg-owner/Meetings.tsx`)
-- Owners who granted a proxy can open a **"Weisungen bearbeiten"** dialog from the proxy detail view
-- Per agenda item (TOP), they choose: **Ja**, **Nein**, **Enthaltung**, or **Frei** (free discretion)
-- Instructions are saved to `etv_attendees.pre_vote_instructions` (JSONB)
-- A badge on the proxy card shows the number of set instructions (e.g., "3 W.")
-- Instructions become read-only when proxy is locked (1h before meeting)
-- The "Received Proxies" detail dialog now shows instructions with TOP names and color-coded vote labels
 
-### Admin Live Voting (`src/components/meetings/LiveVotingManager.tsx`)
-- When an admin starts a vote on a TOP, the system **auto-casts** votes for proxy attendees who have matching pre_vote_instructions
-- Auto-cast votes use `is_manual_override: false` to distinguish from admin-entered votes
-- In the manual vote list, attendees with pre-vote instructions show a "Weisung" badge
-- The admin can still override any auto-cast vote manually
+## Progressive Proxy Dialog with Modern UI
 
-### Data Format
-```json
-// etv_attendees.pre_vote_instructions
-{
-  "<agenda_item_uuid>": "yes" | "no" | "abstain"
-}
+### Current State
+The proxy dialog (lines 1362-1543) shows all steps at once: type selection, person selection, and voting instructions all visible simultaneously.
+
+### Changes to `src/pages/weg-owner/Meetings.tsx`
+
+**1. Add a `proxyStep` state** to track which step is active (1 = type, 2 = person, 3 = instructions).
+
+**2. Progressive reveal logic:**
+- Step 1: Show proxy type as 3 visual cards (Verwalter / Eigentumer / Extern) instead of a Select dropdown. Each card has an icon, title, and short description. Clicking selects and auto-advances.
+- Step 2: For "manager" — skip this step entirely (auto-advance to step 3). For "owner" — show owner select dropdown. For "external" — show name input + immediately show the link hint. Auto-advance when selection is made.
+- Step 3: Show voting instructions section. Each TOP row is clickable to expand and show its description. Instructions buttons (Ja/Nein/Enthaltung/Frei) remain as-is.
+- Final: "Vollmacht erteilen" button at the bottom.
+
+**3. Modern type selection cards:**
+Replace the Select dropdown with 3 styled cards:
 ```
-Items not listed = free discretion for the proxy holder.
+[Shield icon]          [Users icon]         [ExternalLink icon]
+Verwalter              Eigentumer            Externe Person
+"Die Verwaltung        "Ein anderer          "Eine Person
+stimmt fur Sie"        Eigentumer im Haus"   außerhalb der WEG"
+```
+Selected card gets a primary border/highlight. Unselected cards are muted.
+
+**4. Clickable TOPs in instructions:**
+Each TOP row gets a chevron toggle. Clicking the TOP title/area expands to show `item.description` below the title, before the vote buttons. Uses a simple open/close state per item.
+
+**5. Step indicator:**
+Small step dots or numbers at the top of the dialog (Step 1 of 3) showing progress.
+
+**6. Reset `proxyStep` to 1** when opening the dialog, and handle the "manager" shortcut (type=manager skips step 2).
+
+### Files to modify
+- `src/pages/weg-owner/Meetings.tsx` — Proxy dialog UI restructure
+
