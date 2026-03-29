@@ -273,12 +273,41 @@ export const MeetingEditor = ({ meetingId, onSaved, onCancel }: MeetingEditorPro
                         </div>
                         <Button className="gap-2" onClick={async () => {
                           const { error } = await supabase.from("etv_meetings").update({ status: "published" }).eq("id", savedMeetingId);
-                          if (error) { toast({ title: "Fehler", description: error.message, variant: "destructive" }); }
-                          else {
-                            toast({ title: "Versammlung freigeschaltet" });
-                            queryClient.invalidateQueries({ queryKey: ["etv-meeting", savedMeetingId] });
-                            queryClient.invalidateQueries({ queryKey: ["etv-meetings"] });
+                          if (error) { toast({ title: "Fehler", description: error.message, variant: "destructive" }); return; }
+                          
+                          // Auto-create attendee records for all owners in this building
+                          if (existingMeeting?.building_id) {
+                            const { data: owners } = await supabase
+                              .from("contact_building_assignments")
+                              .select("id")
+                              .eq("building_id", existingMeeting.building_id)
+                              .eq("role_in_building", "eigentuemer")
+                              .eq("is_active", true);
+                            
+                            if (owners && owners.length > 0) {
+                              const { data: existingAttendees } = await supabase
+                                .from("etv_attendees")
+                                .select("assignment_id")
+                                .eq("meeting_id", savedMeetingId);
+                              
+                              const existingIds = (existingAttendees || []).map((a: any) => a.assignment_id);
+                              const newAttendees = owners
+                                .filter(o => !existingIds.includes(o.id))
+                                .map(o => ({
+                                  meeting_id: savedMeetingId,
+                                  assignment_id: o.id,
+                                  attendance_type: "absent" as const,
+                                }));
+                              
+                              if (newAttendees.length > 0) {
+                                await supabase.from("etv_attendees").insert(newAttendees);
+                              }
+                            }
                           }
+                          
+                          toast({ title: "Versammlung freigeschaltet" });
+                          queryClient.invalidateQueries({ queryKey: ["etv-meeting", savedMeetingId] });
+                          queryClient.invalidateQueries({ queryKey: ["etv-meetings"] });
                         }}>
                           <Globe className="h-4 w-4" /> Freischalten
                         </Button>
