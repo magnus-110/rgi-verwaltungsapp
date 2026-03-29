@@ -701,6 +701,12 @@ export const WegOwnerMeetings = () => {
                 {selectedMeeting.location && <p><strong>Ort:</strong> {selectedMeeting.location}</p>}
                 <Badge variant="secondary">{statusLabels[selectedMeeting.status] || selectedMeeting.status}</Badge>
               </div>
+
+              {/* Live Dashboard for in_progress meetings */}
+              {selectedMeeting.status === "in_progress" && (
+                <OwnerLiveDashboard meetingId={selectedMeeting.id} agendaItems={agendaItems} />
+              )}
+
               <h3 className="font-semibold text-foreground">Tagesordnung</h3>
               {agendaItems.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Noch keine Tagesordnungspunkte.</p>
