@@ -19,7 +19,9 @@ export const VotingPopup = () => {
   const { profile } = useAuth();
   const [votingItem, setVotingItem] = useState<any>(null);
   const [myVotingAssignments, setMyVotingAssignments] = useState<VotingAssignment[]>([]);
-  const [hasVoted, setHasVoted] = useState(false);
+  const [currentUnitIndex, setCurrentUnitIndex] = useState(0);
+  const [selectedVote, setSelectedVote] = useState<string | null>(null);
+  const [allDone, setAllDone] = useState(false);
   const [descOpen, setDescOpen] = useState(false);
 
   const checkVotingForItem = useCallback(async (agendaItem: any) => {
@@ -39,7 +41,6 @@ export const VotingPopup = () => {
       .maybeSingle();
     if (!contact) return;
 
-    // 1. Get user's OWN assignments in this building
     const { data: assignments } = await supabase
       .from("contact_building_assignments")
       .select("id, unit_number, contact_building_shares(share_type, share_value)")
@@ -57,7 +58,6 @@ export const VotingPopup = () => {
           .eq("meeting_id", meeting.id)
           .eq("assignment_id", assignment.id)
           .maybeSingle();
-        // Skip if no attendee or if they GAVE their proxy away
         if (!attendee || attendee.attendance_type === "proxy") continue;
 
         const { data: existingVote } = await supabase
@@ -80,7 +80,7 @@ export const VotingPopup = () => {
       }
     }
 
-    // 2. Get units where this user is the PROXY HOLDER (received proxy)
+    // Proxy-received units
     const { data: proxiedAttendees } = await supabase
       .from("etv_attendees")
       .select("id, assignment_id, attendance_type")
@@ -90,7 +90,6 @@ export const VotingPopup = () => {
 
     if (proxiedAttendees) {
       for (const pa of proxiedAttendees) {
-        // Skip if already in validAssignments (own unit)
         if (validAssignments.some(a => a.id === pa.assignment_id)) continue;
 
         const { data: existingVote } = await supabase
@@ -124,33 +123,30 @@ export const VotingPopup = () => {
 
     setMyVotingAssignments(validAssignments);
     setVotingItem(agendaItem);
-    setHasVoted(false);
+    setCurrentUnitIndex(0);
+    setSelectedVote(null);
+    setAllDone(false);
     setDescOpen(false);
   }, [profile?.user_id]);
 
-  // Initial load: check if there's an active vote right now
+  // Initial load
   useEffect(() => {
     if (!profile?.user_id || profile?.role !== "weg_owner") return;
-
     const checkActiveVotes = async () => {
       const { data: activeItems } = await supabase
         .from("etv_agenda_items")
         .select("*")
         .eq("status", "voting");
-
       if (activeItems && activeItems.length > 0) {
-        // Check the first active voting item
         await checkVotingForItem(activeItems[0]);
       }
     };
-
     checkActiveVotes();
   }, [profile?.user_id, profile?.role, checkVotingForItem]);
 
-  // Realtime listener for voting status changes
+  // Realtime
   useEffect(() => {
     if (!profile?.user_id || profile?.role !== "weg_owner") return;
-
     const channel = supabase
       .channel("global-voting-popup")
       .on(
@@ -173,72 +169,107 @@ export const VotingPopup = () => {
         }
       )
       .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [profile?.user_id, profile?.role, checkVotingForItem, votingItem?.id]);
 
   const castVoteMutation = useMutation({
     mutationFn: async (vote: string) => {
-      if (!votingItem || myVotingAssignments.length === 0) throw new Error("Missing data");
+      const assignment = myVotingAssignments[currentUnitIndex];
+      if (!votingItem || !assignment) throw new Error("Missing data");
 
-      const rows = myVotingAssignments.map(a => ({
-        agenda_item_id: votingItem.id,
-        assignment_id: a.id,
-        vote,
-        mea_weight: a.mea_weight,
-        voted_at: new Date().toISOString(),
-      }));
-
-      for (const row of rows) {
-        const { error } = await supabase.from("etv_votes").upsert(
-          row,
-          { onConflict: "agenda_item_id,assignment_id" }
-        );
-        if (error) throw error;
-      }
+      const { error } = await supabase.from("etv_votes").upsert(
+        {
+          agenda_item_id: votingItem.id,
+          assignment_id: assignment.id,
+          vote,
+          mea_weight: assignment.mea_weight,
+          voted_at: new Date().toISOString(),
+        },
+        { onConflict: "agenda_item_id,assignment_id" }
+      );
+      if (error) throw error;
     },
     onSuccess: () => {
-      setHasVoted(true);
-      setTimeout(() => {
-        setVotingItem(null);
-        setMyVotingAssignments([]);
-        setHasVoted(false);
-      }, 1500);
+      const nextIndex = currentUnitIndex + 1;
+      if (nextIndex < myVotingAssignments.length) {
+        setCurrentUnitIndex(nextIndex);
+        setSelectedVote(null);
+      } else {
+        setAllDone(true);
+        setTimeout(() => {
+          setVotingItem(null);
+          setMyVotingAssignments([]);
+          setAllDone(false);
+          setCurrentUnitIndex(0);
+          setSelectedVote(null);
+        }, 2000);
+      }
     },
   });
 
   if (!votingItem || profile?.role !== "weg_owner") return null;
 
-  const unitLabels = myVotingAssignments
-    .map(a => a.unit_number || "–")
-    .join(", ");
+  const currentAssignment = myVotingAssignments[currentUnitIndex];
+  const totalUnits = myVotingAssignments.length;
+
+  const voteButtons = [
+    { value: "yes", label: "Ja", icon: CheckCircle2, className: "bg-green-600 hover:bg-green-700 text-white" },
+    { value: "no", label: "Nein", icon: XCircle, className: "bg-red-600 hover:bg-red-700 text-white" },
+    { value: "abstain", label: "Enthaltung", icon: MinusCircle, className: "" },
+  ];
 
   return (
     <Dialog open={!!votingItem} onOpenChange={() => {}}>
       <DialogContent
-        className="max-w-md"
+        className="max-w-lg w-[95vw]"
         onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-lg">
-            <Vote className="h-5 w-5 text-primary" />
+          <DialogTitle className="flex items-center gap-2 text-xl">
+            <Vote className="h-6 w-6 text-primary" />
             Abstimmung
           </DialogTitle>
         </DialogHeader>
 
-        {hasVoted ? (
-          <div className="py-8 text-center space-y-3">
-            <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto" />
-            <p className="text-lg font-semibold">Stimme abgegeben!</p>
+        {allDone ? (
+          <div className="py-10 text-center space-y-3">
+            <CheckCircle2 className="h-20 w-20 text-green-500 mx-auto" />
+            <p className="text-xl font-semibold">Alle Stimmen abgegeben!</p>
           </div>
         ) : (
           <div className="space-y-5">
+            {/* Progress indicator */}
+            {totalUnits > 1 && (
+              <div className="flex items-center justify-between">
+                <Badge variant="secondary" className="text-sm px-3 py-1">
+                  Einheit {currentUnitIndex + 1} von {totalUnits}
+                </Badge>
+                <div className="flex gap-1.5">
+                  {Array.from({ length: totalUnits }).map((_, i) => (
+                    <div
+                      key={i}
+                      className={`h-2.5 w-2.5 rounded-full transition-colors ${
+                        i < currentUnitIndex ? "bg-green-500" :
+                        i === currentUnitIndex ? "bg-primary" : "bg-muted-foreground/30"
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Unit label */}
+            {currentAssignment?.unit_number && (
+              <Badge className="bg-primary/10 text-primary border-primary/20 text-base px-4 py-1.5">
+                Einheit {currentAssignment.unit_number}
+              </Badge>
+            )}
+
+            {/* TOP info */}
             <div>
               <p className="text-sm text-muted-foreground mb-1">Tagesordnungspunkt</p>
-              <p className="font-semibold">{votingItem.title}</p>
+              <p className="font-semibold text-lg">{votingItem.title}</p>
             </div>
 
             {votingItem.description && (
@@ -260,52 +291,44 @@ export const VotingPopup = () => {
               </div>
             )}
 
-            <div className="flex items-center gap-2 flex-wrap">
-              <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
-                Abstimmung läuft
-              </Badge>
-              {myVotingAssignments.length > 1 && (
-                <Badge variant="secondary">
-                  {myVotingAssignments.length} Einheiten: {unitLabels}
-                </Badge>
-              )}
-              {myVotingAssignments.length === 1 && myVotingAssignments[0].unit_number && (
-                <Badge variant="secondary">
-                  Einheit {myVotingAssignments[0].unit_number}
-                </Badge>
-              )}
+            <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+              Abstimmung läuft
+            </Badge>
+
+            {/* Vote selection buttons */}
+            <div className="grid grid-cols-3 gap-3">
+              {voteButtons.map(({ value, label, icon: Icon, className }) => (
+                <Button
+                  key={value}
+                  size="lg"
+                  variant={value === "abstain" ? "outline" : "default"}
+                  className={`h-20 flex-col gap-1.5 text-base transition-all ${
+                    value !== "abstain" ? className : ""
+                  } ${
+                    selectedVote === value
+                      ? "ring-4 ring-primary ring-offset-2 scale-105"
+                      : "opacity-80 hover:opacity-100"
+                  }`}
+                  onClick={() => setSelectedVote(value)}
+                  disabled={castVoteMutation.isPending}
+                >
+                  <Icon className="h-7 w-7" />
+                  <span>{label}</span>
+                </Button>
+              ))}
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            {/* Confirm button */}
+            {selectedVote && (
               <Button
                 size="lg"
-                className="h-16 flex-col gap-1 bg-green-600 hover:bg-green-700 text-white"
-                onClick={() => castVoteMutation.mutate("yes")}
+                className="w-full h-14 text-lg font-semibold"
+                onClick={() => castVoteMutation.mutate(selectedVote)}
                 disabled={castVoteMutation.isPending}
               >
-                <CheckCircle2 className="h-6 w-6" />
-                <span className="text-sm">Ja</span>
+                {castVoteMutation.isPending ? "Wird gespeichert…" : "Stimme bestätigen"}
               </Button>
-              <Button
-                size="lg"
-                className="h-16 flex-col gap-1 bg-red-600 hover:bg-red-700 text-white"
-                onClick={() => castVoteMutation.mutate("no")}
-                disabled={castVoteMutation.isPending}
-              >
-                <XCircle className="h-6 w-6" />
-                <span className="text-sm">Nein</span>
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="h-16 flex-col gap-1"
-                onClick={() => castVoteMutation.mutate("abstain")}
-                disabled={castVoteMutation.isPending}
-              >
-                <MinusCircle className="h-6 w-6" />
-                <span className="text-sm">Enthaltung</span>
-              </Button>
-            </div>
+            )}
           </div>
         )}
       </DialogContent>
