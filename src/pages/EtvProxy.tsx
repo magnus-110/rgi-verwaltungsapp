@@ -1,31 +1,146 @@
+import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Shield, Calendar, MapPin, Building2, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  Shield, Calendar, MapPin, Building2, CheckCircle2, AlertTriangle,
+  Vote, XCircle, MinusCircle, ChevronDown,
+} from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 
 export const EtvProxy = () => {
   const { token } = useParams<{ token: string }>();
+  const [votingItem, setVotingItem] = useState<any>(null);
+  const [hasVoted, setHasVoted] = useState(false);
+  const [descOpen, setDescOpen] = useState(false);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["etv-proxy", token],
     queryFn: async () => {
       if (!token) throw new Error("Kein Token angegeben");
-
       const { data: result, error: rpcErr } = await supabase
         .rpc("get_attendee_by_proxy_token", { p_token: token });
-
       if (rpcErr) throw rpcErr;
       if (!result) throw new Error("INVALID_TOKEN");
-
       return result as any;
     },
     enabled: !!token,
     retry: false,
+  });
+
+  const meetingId = (data as any)?.etv_meetings?.id;
+  const assignmentId = (data as any)?.assignment_id;
+
+  // Check for active vote on load
+  useEffect(() => {
+    if (!meetingId) return;
+
+    const checkActive = async () => {
+      const { data: items } = await supabase
+        .from("etv_agenda_items")
+        .select("*")
+        .eq("meeting_id", meetingId)
+        .eq("status", "voting");
+
+      if (items && items.length > 0) {
+        // Check if already voted
+        const { data: existing } = await supabase
+          .from("etv_votes")
+          .select("id")
+          .eq("agenda_item_id", items[0].id)
+          .eq("assignment_id", assignmentId)
+          .maybeSingle();
+        if (!existing) {
+          setVotingItem(items[0]);
+          setHasVoted(false);
+          setDescOpen(false);
+        }
+      }
+    };
+
+    checkActive();
+  }, [meetingId, assignmentId]);
+
+  // Realtime listener for voting
+  useEffect(() => {
+    if (!meetingId) return;
+
+    const channel = supabase
+      .channel(`proxy-voting-${token}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "etv_agenda_items" },
+        async (payload) => {
+          const newItem = payload.new as any;
+          if (newItem.meeting_id !== meetingId) return;
+
+          if (newItem.status === "voting") {
+            const { data: existing } = await supabase
+              .from("etv_votes")
+              .select("id")
+              .eq("agenda_item_id", newItem.id)
+              .eq("assignment_id", assignmentId)
+              .maybeSingle();
+            if (!existing) {
+              setVotingItem(newItem);
+              setHasVoted(false);
+              setDescOpen(false);
+            }
+          } else if (
+            payload.old &&
+            (payload.old as any).status === "voting" &&
+            newItem.status !== "voting"
+          ) {
+            if (votingItem?.id === newItem.id) {
+              setVotingItem(null);
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [meetingId, assignmentId, token, votingItem?.id]);
+
+  const castVoteMutation = useMutation({
+    mutationFn: async (vote: string) => {
+      if (!votingItem || !assignmentId) throw new Error("Missing data");
+
+      // Get MEA weight
+      const { data: shares } = await supabase
+        .from("contact_building_shares")
+        .select("share_value")
+        .eq("assignment_id", assignmentId)
+        .eq("share_type", "mea")
+        .maybeSingle();
+
+      const { error } = await supabase.from("etv_votes").upsert(
+        {
+          agenda_item_id: votingItem.id,
+          assignment_id: assignmentId,
+          vote,
+          mea_weight: shares?.share_value || 0,
+          voted_at: new Date().toISOString(),
+        },
+        { onConflict: "agenda_item_id,assignment_id" }
+      );
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setHasVoted(true);
+      setTimeout(() => {
+        setVotingItem(null);
+        setHasVoted(false);
+      }, 2000);
+    },
   });
 
   if (isLoading) {
@@ -51,8 +166,8 @@ export const EtvProxy = () => {
             </h1>
             <p className="text-sm text-muted-foreground">
               {isInvalid
-                ? "Dieser Vollmacht-Link ist ungültig oder wurde zurückgezogen. Bitte kontaktieren Sie den Eigentümer, der Ihnen die Vollmacht erteilt hat."
-                : "Ein unerwarteter Fehler ist aufgetreten. Bitte versuchen Sie es später erneut."}
+                ? "Dieser Vollmacht-Link ist ungültig oder wurde zurückgezogen."
+                : "Ein unerwarteter Fehler ist aufgetreten."}
             </p>
           </CardContent>
         </Card>
@@ -65,6 +180,90 @@ export const EtvProxy = () => {
   const meetingDate = new Date(meeting.meeting_date);
   const isCompleted = meeting.status === "completed";
   const isActive = meeting.status === "in_progress";
+
+  // Voting overlay for external proxy
+  if (votingItem) {
+    return (
+      <div className="min-h-screen bg-background p-4 flex items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardContent className="p-6 space-y-5">
+            <div className="flex items-center gap-2">
+              <Vote className="h-5 w-5 text-primary" />
+              <h1 className="text-lg font-bold">Abstimmung</h1>
+            </div>
+
+            {hasVoted ? (
+              <div className="py-8 text-center space-y-3">
+                <CheckCircle2 className="h-16 w-16 text-green-500 mx-auto" />
+                <p className="text-lg font-semibold">Stimme abgegeben!</p>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Tagesordnungspunkt</p>
+                  <p className="font-semibold">{votingItem.title}</p>
+                </div>
+
+                {votingItem.description && (
+                  <Collapsible open={descOpen} onOpenChange={setDescOpen}>
+                    <CollapsibleTrigger className="flex items-center gap-1 text-sm text-primary hover:underline">
+                      <ChevronDown className={`h-4 w-4 transition-transform ${descOpen ? "rotate-180" : ""}`} />
+                      Beschreibung anzeigen
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <p className="text-sm bg-muted rounded-lg p-3 mt-2">{votingItem.description}</p>
+                    </CollapsibleContent>
+                  </Collapsible>
+                )}
+
+                {votingItem.resolution_text && (
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">Beschlusstext</p>
+                    <p className="text-sm bg-muted rounded-lg p-3">{votingItem.resolution_text}</p>
+                  </div>
+                )}
+
+                <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                  Abstimmung läuft
+                </Badge>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <Button
+                    size="lg"
+                    className="h-16 flex-col gap-1 bg-green-600 hover:bg-green-700 text-white"
+                    onClick={() => castVoteMutation.mutate("yes")}
+                    disabled={castVoteMutation.isPending}
+                  >
+                    <CheckCircle2 className="h-6 w-6" />
+                    <span className="text-sm">Ja</span>
+                  </Button>
+                  <Button
+                    size="lg"
+                    className="h-16 flex-col gap-1 bg-red-600 hover:bg-red-700 text-white"
+                    onClick={() => castVoteMutation.mutate("no")}
+                    disabled={castVoteMutation.isPending}
+                  >
+                    <XCircle className="h-6 w-6" />
+                    <span className="text-sm">Nein</span>
+                  </Button>
+                  <Button
+                    size="lg"
+                    variant="outline"
+                    className="h-16 flex-col gap-1"
+                    onClick={() => castVoteMutation.mutate("abstain")}
+                    disabled={castVoteMutation.isPending}
+                  >
+                    <MinusCircle className="h-6 w-6" />
+                    <span className="text-sm">Enthaltung</span>
+                  </Button>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background p-4 flex items-start justify-center pt-12">
@@ -116,7 +315,7 @@ export const EtvProxy = () => {
               <div className="space-y-2">
                 <CheckCircle2 className="h-8 w-8 text-green-500 mx-auto" />
                 <p className="text-sm text-muted-foreground">
-                  Die Versammlung läuft. Ihre Vollmacht ist aktiv — die Abstimmung erfolgt über das Versammlungstool der Hausverwaltung.
+                  Die Versammlung läuft. Ihre Vollmacht ist aktiv — sobald eine Abstimmung beginnt, erscheint hier automatisch die Abstimmungsansicht.
                 </p>
               </div>
             ) : isCompleted ? (
@@ -125,7 +324,7 @@ export const EtvProxy = () => {
               </p>
             ) : (
               <p className="text-sm text-muted-foreground">
-                Die Versammlung hat noch nicht begonnen. Sie wurden als Bevollmächtigter benannt und können an der Abstimmung teilnehmen, sobald die Versammlung gestartet wird.
+                Die Versammlung hat noch nicht begonnen. Sobald eine Abstimmung gestartet wird, erscheint hier automatisch die Abstimmungsansicht.
               </p>
             )}
           </CardContent>
