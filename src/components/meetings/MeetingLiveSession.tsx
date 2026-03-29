@@ -69,6 +69,35 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
   const [proceduralTitle, setProceduralTitle] = useState("");
   const [proceduralResolution, setProceduralResolution] = useState("");
   const [proceduralPrinciple, setProceduralPrinciple] = useState("headcount");
+  const [isSecretBallot, setIsSecretBallot] = useState(true);
+
+  // Load meeting for is_secret_ballot
+  const { data: meetingData } = useQuery({
+    queryKey: ["etv-meeting-live", meetingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("etv_meetings")
+        .select("is_secret_ballot")
+        .eq("id", meetingId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  useEffect(() => {
+    if (meetingData) setIsSecretBallot(meetingData.is_secret_ballot ?? true);
+  }, [meetingData]);
+
+  const toggleSecretBallotMutation = useMutation({
+    mutationFn: async (value: boolean) => {
+      const { error } = await supabase.from("etv_meetings").update({ is_secret_ballot: value } as any).eq("id", meetingId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["etv-meeting-live", meetingId] });
+    },
+  });
 
   // Load agenda items
   const { data: agendaItems = [] } = useQuery({
