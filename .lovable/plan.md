@@ -1,48 +1,47 @@
 
 
-## Fix Voting Results, Fullscreen Popup, Owner Live Dashboard, Proxy Badges
+## Realtime Voting Updates, Anonymous/Public Toggle, Proxy Live Dashboard
 
-### Issues Identified
+### Changes
 
-1. **Voting result possibly wrong**: The `computeResult` function in `MeetingLiveSession.tsx` (line 221) is correct for headcount (`yesVotes.length > noVotes.length`), so 2 yes vs 1 no should show "passed". The likely cause: the voting principle is set to **MEA** (not headcount), and the `mea_weight` stored in votes is 0 (because the VotingPopup or pre-vote logic didn't correctly fetch MEA weights). When all MEA weights are 0, `totalVotedMea = 0` → `yesMea > 0/2` is false → "failed". Need to verify and fix MEA weight propagation in VotingPopup's `castVoteMutation`.
+#### 1. Migration: Add `is_secret_ballot` column to `etv_meetings`
+- `ALTER TABLE etv_meetings ADD COLUMN is_secret_ballot boolean NOT NULL DEFAULT true;`
+- Default to secret (anonymous) voting — admin can toggle to public
 
-2. **VotingPopup not fullscreen**: Currently `max-w-lg w-[95vw]` — needs to be truly fullscreen (`fixed inset-0 z-50` or `max-w-none w-screen h-screen`).
+#### 2. Admin UI: Add anonymous/public toggle (`MeetingLiveSession.tsx`)
+- In the overview dashboard area (around line 847), add a Switch labeled "Geheime Abstimmung" that toggles `is_secret_ballot` on the meeting
+- New mutation to update `etv_meetings.is_secret_ballot`
 
-3. **No owner live dashboard**: When owners click into a meeting, they see TOPs and proxy management but no live voting results, quorum status, or attendance stats like the admin cockpit shows.
+#### 3. Realtime for VotingPopup (`VotingPopup.tsx`)
+- Currently uses `refetchInterval: 2000` for votes in admin — replace/supplement with Supabase Realtime channel on `etv_votes` for live updates
+- The VotingPopup already has realtime for `etv_agenda_items` — this is working. Just ensure the realtime subscription triggers immediately (no polling delay)
 
-4. **No proxy badge in admin voting list**: In `MeetingLiveSession.tsx` lines 655-682, the manual vote rows only show the contact name — no unit number badge and no proxy badge (unlike the attendance list at line 880-889).
+#### 4. Show live results to owners in VotingPopup after voting (`VotingPopup.tsx`)
+- After the user has voted for all their units (`allDone` state), instead of auto-closing after 2s, show live voting results (Ja/Nein/Enthaltung counts) with realtime subscription on `etv_votes`
+- If `is_secret_ballot === false` (public), also show who voted what (fetch votes with assignment contact names)
+- Keep showing until the voting item status changes away from "voting" (realtime already handles this)
 
----
+#### 5. Show live results in OwnerLiveDashboard (`OwnerLiveDashboard.tsx`)
+- Already has realtime for votes and agenda items — good
+- If meeting `is_secret_ballot === false`, show per-voter breakdown (who voted what) in addition to counts
+- Fetch the meeting's `is_secret_ballot` flag
 
-### Plan
+#### 6. Add Live Dashboard to EtvProxy page (`EtvProxy.tsx`)
+- When no voting is active, show a simplified live dashboard similar to `OwnerLiveDashboard`:
+  - Quorum status (present count / total)
+  - Active voting item with live results (Ja/Nein/Enthaltung)
+  - If public ballot, show who voted what
+- Use Supabase Realtime on `etv_votes` and `etv_attendees` for the meeting
+- After casting vote, show live results instead of auto-closing
 
-#### 1. Make VotingPopup fullscreen (`VotingPopup.tsx`)
-
-Replace the `DialogContent` with a fullscreen overlay using `fixed inset-0 z-[100]` instead of the centered dialog. Content centered vertically with large buttons. Remove `Dialog` wrapper entirely and use a custom fullscreen div with backdrop.
-
-#### 2. Fix result display — add unit number + proxy badge to admin voting rows (`MeetingLiveSession.tsx`)
-
-In the "Manuelle Stimmabgabe" sections (lines ~655-682 and ~471-503), for each attendee row:
-- Show unit number badge: `E{cba.unit_number}` (like the attendance list)
-- Show proxy badge if `a.proxy_type` is set: blue badge with "v.d. Verwalter/Eigentümer/Extern" (same logic as attendance list lines 882-889)
-
-#### 3. Add live dashboard section to owner meeting view (`src/pages/weg-owner/Meetings.tsx`)
-
-When an owner views a meeting that is `in_progress`:
-- Add a "Live Dashboard" card at the top showing:
-  - Quorum status (present/represented count, MEA quota)
-  - Current TOP being voted on
-  - Live voting results (Ja/Nein/Enthaltung counts) with realtime subscription
-  - Voted TOPs with results (passed/failed badges)
-- Subscribe to `etv_agenda_items` changes via Supabase Realtime
-- Subscribe to `etv_votes` changes for the active voting item
-
-#### 4. Debug MEA weight issue in vote casting
-
-Check that `VotingPopup.tsx`'s `castVoteMutation` correctly passes `mea_weight` from `assignment.mea_weight` — it does (line 185). The issue may be that the `contact_building_shares` query in `checkVotingForItem` isn't returning data due to RLS. Verify the RLS policy on `contact_building_shares` allows `weg_owner` to read their own shares (it does — line-level check shows the SELECT policy exists). If shares are still 0, add a fallback: look up the share server-side or ensure the query returns correctly.
+#### 7. Update `get_attendee_by_proxy_token` RPC
+- Also return `is_secret_ballot` from the meeting in the JSON so the proxy page knows the voting mode
 
 ### Files to modify
-- `src/components/meetings/VotingPopup.tsx` — fullscreen overlay, verify MEA weight
-- `src/components/meetings/MeetingLiveSession.tsx` — add unit number + proxy badges to voting rows
-- `src/pages/weg-owner/Meetings.tsx` — add live dashboard section for in-progress meetings
+- **Migration**: Add `is_secret_ballot` to `etv_meetings`
+- **DB function**: Update `get_attendee_by_proxy_token` to include `is_secret_ballot`
+- `src/components/meetings/MeetingLiveSession.tsx` — add secret ballot toggle
+- `src/components/meetings/VotingPopup.tsx` — show live results after voting, respect public/secret
+- `src/components/meetings/OwnerLiveDashboard.tsx` — show voter names when public
+- `src/pages/EtvProxy.tsx` — add live dashboard, show results after voting
 
