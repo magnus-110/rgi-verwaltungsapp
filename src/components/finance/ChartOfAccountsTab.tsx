@@ -76,7 +76,7 @@ export function ChartOfAccountsTab() {
       } else {
         query = query.is("building_id", null);
       }
-      const { data, error } = await query.order("sort_order", { ascending: true });
+      const { data, error } = await query.order("account_number", { ascending: true });
       if (error) throw error;
       return data;
     },

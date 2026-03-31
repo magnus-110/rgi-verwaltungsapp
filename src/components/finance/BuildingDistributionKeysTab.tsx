@@ -24,6 +24,23 @@ const DISTRIBUTION_KEYS = [
   { value: "qm", label: "Nach Quadratmeter" },
 ];
 
+const SETTLEMENT_SECTIONS = [
+  { value: "none", label: "– Keine –" },
+  { value: "income", label: "Einnahmen" },
+  { value: "operating_distributable", label: "Umlagefähige Ausgaben" },
+  { value: "operating_non_distributable", label: "Nicht umlagefähig" },
+  { value: "accrual", label: "Abgrenzungen" },
+  { value: "reserve", label: "Rücklage (IHR)" },
+  { value: "reserve_withdrawal", label: "RL-Entnahme" },
+  { value: "bank", label: "Bankkonto" },
+];
+
+const SETTLEMENT_35A_TYPES = [
+  { value: "none", label: "– Keine –" },
+  { value: "dienste", label: "Dienstleistungen" },
+  { value: "handwerker", label: "Handwerker" },
+];
+
 interface Props {
   buildingId: string;
 }
@@ -33,7 +50,13 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [newAccount, setNewAccount] = useState({ account_number: "", account_name: "", category: "", default_distribution_key: "mea", is_35a_relevant: false });
+  const [newAccount, setNewAccount] = useState({
+    account_number: "", account_name: "", category: "", default_distribution_key: "mea",
+    is_35a_relevant: false, is_billing_relevant: true, is_heating_relevant: false,
+    carry_forward_balance: false, is_wirtschaftsplan_relevant: true,
+    is_distributable: true, settlement_section: "operating_distributable" as string | null,
+    settlement_35a_type: null as string | null,
+  });
 
   const { data: accounts = [], isLoading } = useQuery({
     queryKey: ["chart-of-accounts-building", buildingId],
@@ -42,7 +65,7 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
         .from("chart_of_accounts")
         .select("*")
         .or(`building_id.is.null,building_id.eq.${buildingId}`)
-        .order("sort_order");
+        .order("account_number", { ascending: true });
       if (error) throw error;
       return data;
     },
@@ -71,8 +94,7 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
   });
 
   const overrideMap = new Map(overrides.map(o => [o.account_id, o]));
-  
-  // Collect custom distribution keys from overrides that aren't in DISTRIBUTION_KEYS
+
   const customDistKeys = [...new Set(
     overrides
       .map(o => o.distribution_key)
@@ -108,22 +130,44 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
     queryClient.invalidateQueries({ queryKey: ["building-account-overrides", buildingId] });
   };
 
+  const updateAccountField = async (accountId: string, field: string, value: any) => {
+    const { error } = await supabase.from("chart_of_accounts").update({ [field]: value }).eq("id", accountId);
+    if (error) { toast.error("Fehler: " + error.message); return; }
+    queryClient.invalidateQueries({ queryKey: ["chart-of-accounts-building", buildingId] });
+  };
+
   const addBuildingAccount = async () => {
     if (!newAccount.account_number || !newAccount.account_name || !newAccount.category) {
       toast.error("Bitte alle Pflichtfelder ausfüllen");
       return;
     }
-    const maxSort = Math.max(0, ...accounts.map(a => a.sort_order ?? 0));
     const { error } = await supabase.from("chart_of_accounts").insert({
-      ...newAccount,
+      account_number: newAccount.account_number,
+      account_name: newAccount.account_name,
+      category: newAccount.category,
+      default_distribution_key: newAccount.default_distribution_key,
+      is_35a_relevant: newAccount.is_35a_relevant,
+      is_billing_relevant: newAccount.is_billing_relevant,
+      is_heating_relevant: newAccount.is_heating_relevant,
+      carry_forward_balance: newAccount.carry_forward_balance,
+      is_wirtschaftsplan_relevant: newAccount.is_wirtschaftsplan_relevant,
+      is_distributable: newAccount.is_distributable,
+      settlement_section: newAccount.settlement_section,
+      settlement_35a_type: newAccount.settlement_35a_type,
       building_id: buildingId,
-      sort_order: maxSort + 1,
+      sort_order: 0,
       is_system_account: false,
     });
     if (error) { toast.error("Fehler: " + error.message); return; }
     toast.success("Liegenschaftskonto hinzugefügt");
     setIsAddOpen(false);
-    setNewAccount({ account_number: "", account_name: "", category: "", default_distribution_key: "mea", is_35a_relevant: false });
+    setNewAccount({
+      account_number: "", account_name: "", category: "", default_distribution_key: "mea",
+      is_35a_relevant: false, is_billing_relevant: true, is_heating_relevant: false,
+      carry_forward_balance: false, is_wirtschaftsplan_relevant: true,
+      is_distributable: true, settlement_section: "operating_distributable",
+      settlement_35a_type: null,
+    });
     queryClient.invalidateQueries({ queryKey: ["chart-of-accounts-building", buildingId] });
   };
 
@@ -136,9 +180,9 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
 
   const [customKeyInput, setCustomKeyInput] = useState<string | null>(null);
   const [customKeyAccountId, setCustomKeyAccountId] = useState<string | null>(null);
-  const [editingDistKey, setEditingDistKey] = useState<{ oldValue: string; newValue: string } | null>(null);
 
   const getKeyLabel = (key: string | null) => allDistKeys.find(k => k.value === key)?.label || key || "–";
+  const getSectionLabel = (s: string | null) => SETTLEMENT_SECTIONS.find(x => x.value === s)?.label || "–";
 
   if (isLoading) return <div className="text-muted-foreground text-sm">Laden...</div>;
 
@@ -162,7 +206,7 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Kontenrahmen, Verteilerschlüssel, Abrechnungsrelevanz und Saldovortrag für diese Liegenschaft.
+            Kontenrahmen mit allen Flags für Abrechnung, Wirtschaftsplan, §35a und Verteilerschlüssel.
           </p>
         </CardHeader>
         <CardContent>
@@ -203,152 +247,188 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
                     <Badge variant="secondary" className="ml-auto text-xs">{catAccounts.length}</Badge>
                   </button>
                   {!collapsed && (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-[100px]">Konto</TableHead>
-                          <TableHead>Bezeichnung</TableHead>
-                          <TableHead className="w-[150px]">Standard</TableHead>
-                          <TableHead className="w-[200px]">Aktuell</TableHead>
-                          <TableHead className="w-[50px] text-center" title="Abrechnungsrelevant">Abr.</TableHead>
-                          <TableHead className="w-[50px] text-center" title="Heizkosten-relevant">HL</TableHead>
-                          <TableHead className="w-[50px] text-center" title="Saldovortrag">Saldo</TableHead>
-                          <TableHead className="w-[50px]"></TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {catAccounts.map(account => {
-                          const override = overrideMap.get(account.id);
-                          const currentKey = override?.distribution_key || account.default_distribution_key;
-                          const isOverridden = !!override;
-                          const isBuildingAccount = (account as any).building_id === buildingId;
-                          return (
-                            <TableRow key={account.id} className={isBuildingAccount ? "bg-accent/10" : isOverridden ? "bg-primary/5" : ""}>
-                              <TableCell className="font-mono text-xs">
-                                {account.account_number}
-                                {isBuildingAccount && (
-                                  <Badge variant="outline" className="ml-1 text-[10px] px-1 py-0">Eigenes</Badge>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-sm">{account.account_name}</TableCell>
-                              <TableCell>
-                                <span className="text-xs text-muted-foreground">{getKeyLabel(account.default_distribution_key)}</span>
-                              </TableCell>
-                              <TableCell>
-                                {customKeyAccountId === account.id ? (
-                                  <div className="flex items-center gap-1">
-                                    <Input
-                                      autoFocus
-                                      placeholder="Schlüssel eingeben"
-                                      value={customKeyInput || ""}
-                                      onChange={e => setCustomKeyInput(e.target.value)}
-                                      onKeyDown={e => {
-                                        if (e.key === "Enter" && customKeyInput) {
-                                          handleOverride(account.id, customKeyInput, account.default_distribution_key);
-                                          setCustomKeyAccountId(null);
-                                          setCustomKeyInput(null);
-                                        }
-                                      }}
-                                      className="h-8 text-xs w-32"
-                                    />
-                                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => {
-                                      if (customKeyInput) {
-                                        handleOverride(account.id, customKeyInput, account.default_distribution_key);
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-[100px]">Konto</TableHead>
+                            <TableHead>Bezeichnung</TableHead>
+                            <TableHead className="w-[150px]">Standard</TableHead>
+                            <TableHead className="w-[180px]">Aktuell</TableHead>
+                            <TableHead className="w-[140px]">Abr.-Sektion</TableHead>
+                            <TableHead className="w-[50px] text-center" title="Verteilungsrelevant">VR</TableHead>
+                            <TableHead className="w-[50px] text-center" title="Abrechnungsrelevant">Abr.</TableHead>
+                            <TableHead className="w-[40px] text-center" title="Heizkosten-relevant">HK</TableHead>
+                            <TableHead className="w-[40px] text-center" title="Wirtschaftsplan-relevant">WP</TableHead>
+                            <TableHead className="w-[40px] text-center" title="Saldovortrag">SV</TableHead>
+                            <TableHead className="w-[40px] text-center" title="§35a relevant">35a</TableHead>
+                            <TableHead className="w-[100px]">§35a Typ</TableHead>
+                            <TableHead className="w-[40px]"></TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {catAccounts.map(account => {
+                            const override = overrideMap.get(account.id);
+                            const currentKey = override?.distribution_key || account.default_distribution_key;
+                            const isOverridden = !!override;
+                            const isBuildingAccount = (account as any).building_id === buildingId;
+                            return (
+                              <TableRow key={account.id} className={isBuildingAccount ? "bg-accent/10" : isOverridden ? "bg-primary/5" : ""}>
+                                <TableCell className="font-mono text-xs">
+                                  {account.account_number}
+                                  {isBuildingAccount && (
+                                    <Badge variant="outline" className="ml-1 text-[10px] px-1 py-0">Eigenes</Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-sm">{account.account_name}</TableCell>
+                                <TableCell>
+                                  <span className="text-xs text-muted-foreground">{getKeyLabel(account.default_distribution_key)}</span>
+                                </TableCell>
+                                <TableCell>
+                                  {customKeyAccountId === account.id ? (
+                                    <div className="flex items-center gap-1">
+                                      <Input
+                                        autoFocus
+                                        placeholder="Schlüssel eingeben"
+                                        value={customKeyInput || ""}
+                                        onChange={e => setCustomKeyInput(e.target.value)}
+                                        onKeyDown={e => {
+                                          if (e.key === "Enter" && customKeyInput) {
+                                            handleOverride(account.id, customKeyInput, account.default_distribution_key);
+                                            setCustomKeyAccountId(null);
+                                            setCustomKeyInput(null);
+                                          }
+                                        }}
+                                        className="h-8 text-xs w-28"
+                                      />
+                                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => {
+                                        if (customKeyInput) handleOverride(account.id, customKeyInput, account.default_distribution_key);
+                                        setCustomKeyAccountId(null);
+                                        setCustomKeyInput(null);
+                                      }}>✓</Button>
+                                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => {
+                                        setCustomKeyAccountId(null);
+                                        setCustomKeyInput(null);
+                                      }}>✕</Button>
+                                    </div>
+                                  ) : (
+                                    <Select value={currentKey || ""} onValueChange={v => {
+                                      if (v === "__add__") {
+                                        setCustomKeyAccountId(account.id);
+                                        setCustomKeyInput("");
+                                      } else {
+                                        handleOverride(account.id, v, account.default_distribution_key);
                                       }
-                                      setCustomKeyAccountId(null);
-                                      setCustomKeyInput(null);
-                                    }}>✓</Button>
-                                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => {
-                                      setCustomKeyAccountId(null);
-                                      setCustomKeyInput(null);
-                                    }}>✕</Button>
-                                  </div>
-                                ) : (
-                                <div className="flex items-center gap-1">
-                                <Select value={currentKey || ""} onValueChange={v => {
-                                  if (v === "__add__") {
-                                    setCustomKeyAccountId(account.id);
-                                    setCustomKeyInput("");
-                                  } else {
-                                    handleOverride(account.id, v, account.default_distribution_key);
-                                  }
-                                }}>
-                                  <SelectTrigger className={`h-8 text-xs ${isOverridden ? "border-primary" : ""}`}>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {DISTRIBUTION_KEYS.map(k => (
-                                      <SelectItem key={k.value} value={k.value}>
-                                        {k.label} {k.value === account.default_distribution_key ? "(Standard)" : ""}
-                                      </SelectItem>
-                                    ))}
-                                    {customDistKeys.length > 0 && (
-                                      <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Eigene</div>
-                                    )}
-                                    {customDistKeys.map(k => (
-                                      <div key={k} className="flex items-center justify-between px-2 py-1 hover:bg-accent rounded-sm group">
-                                        <SelectItem value={k} className="flex-1 p-0">{k}</SelectItem>
-                                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 ml-1">
-                                          <button type="button" className="h-5 w-5 flex items-center justify-center rounded hover:bg-muted" onClick={(e) => { e.stopPropagation(); setEditingDistKey({ oldValue: k, newValue: k }); }}>
-                                            <Pencil className="h-3 w-3 text-muted-foreground" />
-                                          </button>
-                                          <button type="button" className="h-5 w-5 flex items-center justify-center rounded hover:bg-destructive/10" onClick={async (e) => {
-                                            e.stopPropagation();
-                                            await supabase.from("building_account_overrides").delete().eq("building_id", buildingId).eq("distribution_key", k);
-                                            toast.success(`"${k}" entfernt`);
-                                            queryClient.invalidateQueries({ queryKey: ["building-account-overrides", buildingId] });
-                                          }}>
-                                            <X className="h-3 w-3 text-destructive" />
-                                          </button>
-                                        </div>
-                                      </div>
-                                    ))}
-                                    <SelectItem value="__add__" className="text-primary font-medium">+ Hinzufügen</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                                </div>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-center">
-                                <Checkbox
-                                  checked={account.is_billing_relevant}
-                                  onCheckedChange={async (checked) => {
-                                    await supabase.from("chart_of_accounts").update({ is_billing_relevant: !!checked }).eq("id", account.id);
-                                    queryClient.invalidateQueries({ queryKey: ["chart-of-accounts-building", buildingId] });
-                                  }}
-                                />
-                              </TableCell>
-                              <TableCell className="text-center">
-                                <Checkbox
-                                  checked={account.is_heating_relevant}
-                                  onCheckedChange={async (checked) => {
-                                    await supabase.from("chart_of_accounts").update({ is_heating_relevant: !!checked }).eq("id", account.id);
-                                    queryClient.invalidateQueries({ queryKey: ["chart-of-accounts-building", buildingId] });
-                                  }}
-                                />
-                              </TableCell>
-                              <TableCell className="text-center">
-                                <Checkbox
-                                  checked={account.carry_forward_balance}
-                                  onCheckedChange={async (checked) => {
-                                    await supabase.from("chart_of_accounts").update({ carry_forward_balance: !!checked }).eq("id", account.id);
-                                    queryClient.invalidateQueries({ queryKey: ["chart-of-accounts-building", buildingId] });
-                                  }}
-                                />
-                              </TableCell>
-                              <TableCell>
-                                {isBuildingAccount && (
-                                  <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive"
-                                    onClick={() => deleteBuildingAccount(account.id)}>
-                                    <Trash2 className="h-3 w-3" />
-                                  </Button>
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
+                                    }}>
+                                      <SelectTrigger className={`h-8 text-xs ${isOverridden ? "border-primary" : ""}`}>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {DISTRIBUTION_KEYS.map(k => (
+                                          <SelectItem key={k.value} value={k.value}>
+                                            {k.label} {k.value === account.default_distribution_key ? "(Standard)" : ""}
+                                          </SelectItem>
+                                        ))}
+                                        {customDistKeys.length > 0 && (
+                                          <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Eigene</div>
+                                        )}
+                                        {customDistKeys.map(k => (
+                                          <SelectItem key={k} value={k}>{k}</SelectItem>
+                                        ))}
+                                        <SelectItem value="__add__" className="text-primary font-medium">+ Hinzufügen</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  )}
+                                </TableCell>
+                                {/* Settlement Section */}
+                                <TableCell>
+                                  <Select
+                                    value={account.settlement_section || "none"}
+                                    onValueChange={v => updateAccountField(account.id, "settlement_section", v === "none" ? null : v)}
+                                  >
+                                    <SelectTrigger className="h-8 text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {SETTLEMENT_SECTIONS.map(s => (
+                                        <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </TableCell>
+                                {/* VR - Verteilungsrelevant */}
+                                <TableCell className="text-center">
+                                  <Checkbox
+                                    checked={account.is_distributable}
+                                    onCheckedChange={checked => updateAccountField(account.id, "is_distributable", !!checked)}
+                                  />
+                                </TableCell>
+                                {/* Abr. */}
+                                <TableCell className="text-center">
+                                  <Checkbox
+                                    checked={account.is_billing_relevant}
+                                    onCheckedChange={checked => updateAccountField(account.id, "is_billing_relevant", !!checked)}
+                                  />
+                                </TableCell>
+                                {/* HK */}
+                                <TableCell className="text-center">
+                                  <Checkbox
+                                    checked={account.is_heating_relevant}
+                                    onCheckedChange={checked => updateAccountField(account.id, "is_heating_relevant", !!checked)}
+                                  />
+                                </TableCell>
+                                {/* WP */}
+                                <TableCell className="text-center">
+                                  <Checkbox
+                                    checked={account.is_wirtschaftsplan_relevant}
+                                    onCheckedChange={checked => updateAccountField(account.id, "is_wirtschaftsplan_relevant", !!checked)}
+                                  />
+                                </TableCell>
+                                {/* SV - Saldovortrag */}
+                                <TableCell className="text-center">
+                                  <Checkbox
+                                    checked={account.carry_forward_balance}
+                                    onCheckedChange={checked => updateAccountField(account.id, "carry_forward_balance", !!checked)}
+                                  />
+                                </TableCell>
+                                {/* §35a relevant */}
+                                <TableCell className="text-center">
+                                  <Checkbox
+                                    checked={account.is_35a_relevant || false}
+                                    onCheckedChange={checked => updateAccountField(account.id, "is_35a_relevant", !!checked)}
+                                  />
+                                </TableCell>
+                                {/* §35a Typ */}
+                                <TableCell>
+                                  <Select
+                                    value={account.settlement_35a_type || "none"}
+                                    onValueChange={v => updateAccountField(account.id, "settlement_35a_type", v === "none" ? null : v)}
+                                  >
+                                    <SelectTrigger className="h-8 text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {SETTLEMENT_35A_TYPES.map(t => (
+                                        <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </TableCell>
+                                {/* Delete */}
+                                <TableCell>
+                                  {isBuildingAccount && (
+                                    <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive"
+                                      onClick={() => deleteBuildingAccount(account.id)}>
+                                      <Trash2 className="h-3 w-3" />
+                                    </Button>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
                   )}
                 </div>
               );
@@ -357,8 +437,9 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
         </CardContent>
       </Card>
 
+      {/* Add Account Dialog */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Liegenschaftskonto hinzufügen</DialogTitle>
           </DialogHeader>
@@ -392,11 +473,53 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex items-end pb-2">
-                <div className="flex items-center gap-2">
-                  <Checkbox checked={newAccount.is_35a_relevant} onCheckedChange={c => setNewAccount(p => ({ ...p, is_35a_relevant: !!c }))} />
-                  <Label>§35a relevant</Label>
+              <div>
+                <Label>Abrechnungssektion</Label>
+                <Select value={newAccount.settlement_section || "none"} onValueChange={v => setNewAccount(p => ({ ...p, settlement_section: v === "none" ? null : v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {SETTLEMENT_SECTIONS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>§35a Typ</Label>
+                <Select value={newAccount.settlement_35a_type || "none"} onValueChange={v => setNewAccount(p => ({ ...p, settlement_35a_type: v === "none" ? null : v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {SETTLEMENT_35A_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-wrap items-end gap-3 pb-2">
+                <div className="flex items-center gap-1.5">
+                  <Checkbox checked={newAccount.is_distributable} onCheckedChange={c => setNewAccount(p => ({ ...p, is_distributable: !!c }))} />
+                  <Label className="text-xs">VR</Label>
                 </div>
+                <div className="flex items-center gap-1.5">
+                  <Checkbox checked={newAccount.is_billing_relevant} onCheckedChange={c => setNewAccount(p => ({ ...p, is_billing_relevant: !!c }))} />
+                  <Label className="text-xs">Abr.</Label>
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-4">
+              <div className="flex items-center gap-2">
+                <Checkbox checked={newAccount.is_35a_relevant} onCheckedChange={c => setNewAccount(p => ({ ...p, is_35a_relevant: !!c }))} />
+                <Label>§35a</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox checked={newAccount.is_heating_relevant} onCheckedChange={c => setNewAccount(p => ({ ...p, is_heating_relevant: !!c }))} />
+                <Label>HK</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox checked={newAccount.carry_forward_balance} onCheckedChange={c => setNewAccount(p => ({ ...p, carry_forward_balance: !!c }))} />
+                <Label>Saldovortrag</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox checked={newAccount.is_wirtschaftsplan_relevant} onCheckedChange={c => setNewAccount(p => ({ ...p, is_wirtschaftsplan_relevant: !!c }))} />
+                <Label>WP</Label>
               </div>
             </div>
           </div>
