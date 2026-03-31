@@ -99,6 +99,7 @@ export function ChartOfAccountsTab() {
       is_billing_relevant: editBillingRelevant,
       is_heating_relevant: editHeatingRelevant,
       carry_forward_balance: editCarryForward,
+      is_wirtschaftsplan_relevant: editWpRelevant,
     }).eq("id", id);
     if (error) { toast.error("Fehler beim Speichern"); return; }
     toast.success("Konto aktualisiert");
