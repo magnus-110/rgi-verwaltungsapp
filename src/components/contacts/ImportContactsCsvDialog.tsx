@@ -450,9 +450,9 @@ export function ImportContactsCsvDialog({ open, onOpenChange, onImported }: Prop
           {/* Analyzing Step */}
           {step === "analyzing" && (
             <div className="py-12 text-center space-y-4">
-              <Sparkles className="h-12 w-12 mx-auto text-primary animate-pulse" />
-              <p className="text-lg font-medium">KI-Analyse läuft...</p>
-              <p className="text-sm text-muted-foreground">Namen werden geparst, Telefonnummern bereinigt, Duplikate geprüft</p>
+              <Loader2 className="h-12 w-12 mx-auto text-primary animate-spin" />
+              <p className="text-lg font-medium">Daten werden verarbeitet...</p>
+              <p className="text-sm text-muted-foreground">Kontakte werden geparst und auf Duplikate geprüft</p>
               <Progress value={progress} className="max-w-sm mx-auto" />
             </div>
           )}
