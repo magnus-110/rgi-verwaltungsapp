@@ -92,30 +92,49 @@ export function BankStatementsTab() {
     enabled: !!expandedStatement,
   });
 
-  const { data: invoicesList = [] } = useQuery({
-    queryKey: ["invoices-for-assign"],
+  const [showMatchedInvoices, setShowMatchedInvoices] = useState(false);
+
+  const { data: invoicesListRaw = [] } = useQuery({
+    queryKey: ["invoices-for-assign", selectedBuilding],
     queryFn: async () => {
+      if (!selectedBuilding) return [];
       const { data, error } = await supabase
         .from("invoices")
-        .select("id, invoice_number, vendor_name, gross_amount")
+        .select("id, invoice_number, vendor_name, gross_amount, vendor_iban, invoice_date")
         .eq("status", "paid")
+        .eq("building_id", selectedBuilding)
         .order("invoice_date", { ascending: false })
-        .limit(100);
+        .limit(200);
       if (error) throw error;
       return data;
     },
+    enabled: !!selectedBuilding,
   });
 
+  // Filter out invoices already assigned to a bank transaction (unless toggle is on)
+  const invoicesList = useMemo(() => {
+    if (showMatchedInvoices) return invoicesListRaw;
+    const assignedInvoiceIds = new Set(
+      allTransactions
+        .filter((t: any) => t.matched_invoice_id)
+        .map((t: any) => t.matched_invoice_id)
+    );
+    return invoicesListRaw.filter((inv: any) => !assignedInvoiceIds.has(inv.id));
+  }, [invoicesListRaw, showMatchedInvoices, allTransactions]);
+
   const { data: templatesList = [] } = useQuery({
-    queryKey: ["templates-for-assign"],
+    queryKey: ["templates-for-assign", selectedBuilding],
     queryFn: async () => {
+      if (!selectedBuilding) return [];
       const { data, error } = await supabase
         .from("booking_templates")
-        .select("id, name, vendor_name")
+        .select("id, name, vendor_name, vendor_iban, expected_amount")
+        .eq("building_id", selectedBuilding)
         .order("name");
       if (error) throw error;
       return data;
     },
+    enabled: !!selectedBuilding,
   });
 
   // Compute completion status per statement

@@ -318,7 +318,7 @@ Deno.serve(async (req) => {
 
     // Matching phase
     const matchResult = unique.length > 0
-      ? await matchTransactions(supabase, statement.id)
+      ? await matchTransactions(supabase, statement.id, buildingId || null)
       : { matched: 0, total: 0 };
 
     return new Response(
