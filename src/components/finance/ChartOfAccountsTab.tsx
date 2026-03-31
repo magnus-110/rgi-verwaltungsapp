@@ -88,6 +88,7 @@ export function ChartOfAccountsTab() {
     setEditBillingRelevant(account.is_billing_relevant || false);
     setEditHeatingRelevant(account.is_heating_relevant || false);
     setEditCarryForward(account.carry_forward_balance || false);
+    setEditWpRelevant(account.is_wirtschaftsplan_relevant || false);
   };
 
   const saveEdit = async (id: string) => {
