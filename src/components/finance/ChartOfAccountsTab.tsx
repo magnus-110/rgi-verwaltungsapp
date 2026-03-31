@@ -339,8 +339,14 @@ export function ChartOfAccountsTab() {
                   <Checkbox checked={newAccount.is_heating_relevant} onCheckedChange={c => setNewAccount(p => ({ ...p, is_heating_relevant: !!c }))} />
                   <Label>HK-relevant</Label>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox checked={newAccount.carry_forward_balance} onCheckedChange={c => setNewAccount(p => ({ ...p, carry_forward_balance: !!c }))} />
+                 <div className="flex items-center gap-2">
+                   <Checkbox checked={newAccount.carry_forward_balance} onCheckedChange={c => setNewAccount(p => ({ ...p, carry_forward_balance: !!c }))} />
+                   <Label>Saldovortrag</Label>
+                 </div>
+                 <div className="flex items-center gap-2">
+                   <Checkbox checked={newAccount.is_wirtschaftsplan_relevant} onCheckedChange={c => setNewAccount(p => ({ ...p, is_wirtschaftsplan_relevant: !!c }))} />
+                   <Label>WP-relevant</Label>
+                 </div>
                   <Label>Saldovortrag</Label>
                 </div>
               </div>
