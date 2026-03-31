@@ -33,7 +33,7 @@ export function ChartOfAccountsTab() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [selectedBuilding, setSelectedBuilding] = useState<string>("global");
   const [searchTerm, setSearchTerm] = useState("");
-  const [newAccount, setNewAccount] = useState({ account_number: "", account_name: "", category: "", default_distribution_key: "mea", is_35a_relevant: false, is_billing_relevant: false, is_heating_relevant: false, carry_forward_balance: false });
+  const [newAccount, setNewAccount] = useState({ account_number: "", account_name: "", category: "", default_distribution_key: "mea", is_35a_relevant: false, is_billing_relevant: false, is_heating_relevant: false, carry_forward_balance: false, is_wirtschaftsplan_relevant: false });
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance-coa"],
