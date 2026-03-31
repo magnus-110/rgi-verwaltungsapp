@@ -78,6 +78,7 @@ export function ChartOfAccountsTab() {
   const [editBillingRelevant, setEditBillingRelevant] = useState(false);
   const [editHeatingRelevant, setEditHeatingRelevant] = useState(false);
   const [editCarryForward, setEditCarryForward] = useState(false);
+  const [editWpRelevant, setEditWpRelevant] = useState(false);
 
   const startEdit = (account: any) => {
     setEditingId(account.id);
