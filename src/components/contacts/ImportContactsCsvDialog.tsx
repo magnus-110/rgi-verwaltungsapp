@@ -48,7 +48,7 @@ const HEADER_MAP: Record<string, string> = {
   "ort geschäftlich": "ort", "ort": "ort", "stadt": "ort",
   "webseite geschäftlich": "webseite", "webseite": "webseite", "web": "webseite",
   "fax geschäftlich": "fax", "fax": "fax",
-  "e-mail-adresse": "email_0",
+  "e-mail-adresse": "email_1",
   "iban": "iban", "bic": "bic",
   "inhaber": "inhaber", "kontoinhaber": "inhaber",
   "kreditinstitut": "bank", "bank": "bank",
