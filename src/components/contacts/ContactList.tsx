@@ -2,8 +2,9 @@ import React, { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, User, Building2, Users, Wrench } from "lucide-react";
+import { Plus, Search, User, Building2, Users, Wrench, Upload } from "lucide-react";
 import { CreateContactDialog } from "./CreateContactDialog";
+import { ImportContactsCsvDialog } from "./ImportContactsCsvDialog";
 import { supabase } from "@/integrations/supabase/client";
 import type { Contact } from "@/pages/Contacts";
 
@@ -24,6 +25,7 @@ interface ContactListProps {
 export function ContactList({ contacts, selectedId, onSelect, onCreated, loading }: ContactListProps) {
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [primaryPersons, setPrimaryPersons] = useState<Record<string, string>>({});
 
   // Load primary person names for all contacts
@@ -66,9 +68,14 @@ export function ContactList({ contacts, selectedId, onSelect, onCreated, loading
       <div className="p-4 border-b border-border space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Adressen</h2>
-          <Button size="icon" variant="outline" onClick={() => setShowCreate(true)}>
-            <Plus className="h-4 w-4" />
-          </Button>
+          <div className="flex gap-1">
+            <Button size="icon" variant="outline" onClick={() => setShowImport(true)} title="CSV importieren">
+              <Upload className="h-4 w-4" />
+            </Button>
+            <Button size="icon" variant="outline" onClick={() => setShowCreate(true)}>
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -131,6 +138,11 @@ export function ContactList({ contacts, selectedId, onSelect, onCreated, loading
         open={showCreate}
         onOpenChange={setShowCreate}
         onCreated={onCreated}
+      />
+      <ImportContactsCsvDialog
+        open={showImport}
+        onOpenChange={setShowImport}
+        onImported={onCreated}
       />
     </div>
   );
