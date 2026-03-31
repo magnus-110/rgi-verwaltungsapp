@@ -269,18 +269,43 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   // Abrechnungssumme
   const abrechnungssumme = totalOperatingDist + totalOperatingNonDist + totalAccrual + totalReserve - totalReserveWithdrawal;
 
+  // Helper: calculate overlap months between a cost's validity and the billing period
+  function getCostAnnualAmount(cost: any, periodFrom: string, periodTo: string) {
+    const pStart = new Date(periodFrom);
+    const pEnd = new Date(periodTo);
+    const cStart = cost.valid_from ? new Date(cost.valid_from) : pStart;
+    const cEnd = cost.valid_to ? new Date(cost.valid_to) : pEnd;
+    const effStart = cStart > pStart ? cStart : pStart;
+    const effEnd = cEnd < pEnd ? cEnd : pEnd;
+    if (effStart > effEnd) return 0;
+    // Calculate months overlap (day-precise)
+    const totalPeriodDays = (pEnd.getTime() - pStart.getTime()) / (1000 * 60 * 60 * 24) + 1;
+    const overlapDays = (effEnd.getTime() - effStart.getTime()) / (1000 * 60 * 60 * 24) + 1;
+    const overlapMonths = (overlapDays / totalPeriodDays) * 12;
+    const amount = Number(cost.amount);
+    switch (cost.interval) {
+      case "monatlich": return amount * overlapMonths;
+      case "quartal": return amount * (overlapMonths / 3);
+      case "jaehrlich": return amount * (overlapMonths / 12);
+      default: return amount * overlapMonths;
+    }
+  }
+
   // Vorschussverpflichtung (total prepayments from all owners)
   const totalVorschuss = assignments.reduce((s, a: any) => {
     const costs = a.contact_building_costs || [];
+    const timeProp = getTimeProportion(a);
     return s + costs.reduce((cs: number, c: any) => {
-      const amount = Number(c.amount);
-      const timeProp = getTimeProportion(a);
-      switch (c.interval) {
-        case "monatlich": return cs + amount * 12 * timeProp;
-        case "quartal": return cs + amount * 4 * timeProp;
-        case "jaehrlich": return cs + amount * timeProp;
-        default: return cs + amount * 12 * timeProp;
+      if (!period) {
+        const amount = Number(c.amount);
+        switch (c.interval) {
+          case "monatlich": return cs + amount * 12 * timeProp;
+          case "quartal": return cs + amount * 4 * timeProp;
+          case "jaehrlich": return cs + amount * timeProp;
+          default: return cs + amount * 12 * timeProp;
+        }
       }
+      return cs + getCostAnnualAmount(c, period.period_from, period.period_to) * timeProp;
     }, 0);
   }, 0);
 
