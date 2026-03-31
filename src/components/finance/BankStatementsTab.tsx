@@ -301,13 +301,10 @@ export function BankStatementsTab() {
           </div>
         </TableCell>
         <TableCell onClick={(e) => e.stopPropagation()}>
-          {txn.match_status === "unmatched" && (
+          {txn.match_status === "unmatched" && !txn.booked_at && (
             <div className="flex gap-1">
               <Button variant="ghost" size="sm" className="text-xs" onClick={() => { setManualAssignTxn(txn); setManualAssignType("invoice"); setManualAssignId(""); }}>
                 <Link2 className="h-3 w-3 mr-1" />Zuordnen
-              </Button>
-              <Button variant="ghost" size="sm" className="text-xs" onClick={() => updateMatchStatus(txn.id, "ignored")}>
-                <EyeOff className="h-3 w-3 mr-1" />Ignorieren
               </Button>
             </div>
           )}
@@ -320,11 +317,6 @@ export function BankStatementsTab() {
                 Entfernen
               </Button>
             </div>
-          )}
-          {txn.match_status === "ignored" && (
-            <Button variant="ghost" size="sm" className="text-xs" onClick={() => updateMatchStatus(txn.id, "unmatched")}>
-              Wiederherstellen
-            </Button>
           )}
         </TableCell>
       </TableRow>
