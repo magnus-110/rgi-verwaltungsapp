@@ -191,6 +191,7 @@ export function ChartOfAccountsTab() {
                          <TableHead className="w-[50px] text-center" title="Abrechnungsrelevant">Abr.</TableHead>
                          <TableHead className="w-[50px] text-center" title="Heizkosten-relevant">HK</TableHead>
                          <TableHead className="w-[50px] text-center" title="Saldovortrag">Saldo</TableHead>
+                         <TableHead className="w-[50px] text-center" title="Wirtschaftsplan-relevant">WP</TableHead>
                          <TableHead className="w-[80px]"></TableHead>
                       </TableRow>
                     </TableHeader>
