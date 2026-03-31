@@ -6,6 +6,34 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const formatCurrency = (n: number) =>
+  new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
+
+const formatDate = (d: string) => new Date(d).toLocaleDateString("de-DE");
+
+// Distribution key label mapping
+const DIST_KEY_LABELS: Record<string, string> = {
+  mea: "MEA", einheiten: "Einheiten", qm: "Fläche (qm)", personen: "Personen",
+  verbrauch_wasser: "Wasser", verbrauch_warmwasser: "Warmwasser",
+  heizkostenverordnung: "Heizk.Abr.", direkt: "direkt",
+};
+
+const DIST_KEY_TO_SHARE: Record<string, string> = {
+  mea: "mea", einheiten: "einheit", qm: "qm", personen: "personen",
+  verbrauch_wasser: "wasser", verbrauch_warmwasser: "warmwasser",
+  heizkostenverordnung: "heizkosten",
+};
+
+// Section labels for the Gesamtabrechnung
+const SECTION_LABELS: Record<string, string> = {
+  income: "Einnahmen",
+  operating_distributable: "Umlagefähige Ausgaben",
+  operating_non_distributable: "Nicht umlagefähige Ausgaben",
+  accrual: "Abgrenzungen",
+  reserve: "Erhaltungsrücklage",
+  reserve_withdrawal: "Rücklagenentnahme",
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -17,94 +45,81 @@ serve(async (req) => {
 
     const { buildingId, periodId, fiscalYear, ownerId } = await req.json();
 
-    // Fetch building info
-    const { data: building } = await supabase
-      .from("buildings")
-      .select("name, address, manager_name")
-      .eq("id", buildingId)
-      .single();
+    // Fetch all data in parallel
+    const [
+      { data: building },
+      { data: period },
+      { data: accounts },
+      { data: bookings },
+      { data: overrides },
+      { data: assignments },
+      { data: balances },
+      { data: heatingValues },
+      { data: planItems },
+    ] = await Promise.all([
+      supabase.from("buildings").select("name, address, manager_name").eq("id", buildingId).single(),
+      supabase.from("billing_periods").select("*").eq("id", periodId).single(),
+      supabase.from("chart_of_accounts").select("*").or(`building_id.is.null,building_id.eq.${buildingId}`).order("account_number"),
+      supabase.from("bookings").select("account_id, amount, booking_category, is_35a_relevant, description").eq("building_id", buildingId).eq("fiscal_year", fiscalYear).neq("status", "cancelled"),
+      supabase.from("building_account_overrides").select("*").eq("building_id", buildingId),
+      supabase.from("contact_building_assignments").select(`*, contacts(first_name, last_name, company_name, salutation, address_street, address_zip, address_city), contact_building_shares(*), contact_building_costs(*)`).eq("building_id", buildingId).eq("is_active", true).in("role_in_building", ["eigentuemer", "mieter"]),
+      supabase.from("account_balances").select("*, chart_of_accounts(account_number, account_name, category, carry_forward_balance)").eq("building_id", buildingId).eq("fiscal_year", fiscalYear),
+      supabase.from("heating_distribution_values").select("*").eq("building_id", buildingId).eq("billing_period_id", periodId),
+      // Get economic plan items for WP column
+      supabase.from("economic_plans" as any).select("*, economic_plan_items(*)").eq("building_id", buildingId).eq("fiscal_year", fiscalYear).maybeSingle(),
+    ]);
 
-    // Fetch period
-    const { data: period } = await supabase
-      .from("billing_periods")
-      .select("*")
-      .eq("id", periodId)
-      .single();
+    const periodLabel = `${formatDate(period.period_from)} – ${formatDate(period.period_to)}`;
 
-    // Fetch accounts
-    const { data: accounts } = await supabase
-      .from("chart_of_accounts")
-      .select("*")
-      .eq("is_billing_relevant", true)
-      .or(`building_id.is.null,building_id.eq.${buildingId}`)
-      .order("account_number");
-
-    // Fetch bookings
-    const { data: bookings } = await supabase
-      .from("bookings")
-      .select("account_id, amount, booking_category, is_35a_relevant, description")
-      .eq("building_id", buildingId)
-      .eq("fiscal_year", fiscalYear)
-      .neq("status", "cancelled");
-
-    // Fetch overrides
-    const { data: overrides } = await supabase
-      .from("building_account_overrides")
-      .select("*")
-      .eq("building_id", buildingId);
-
-    // Fetch owners
-    const { data: assignments } = await supabase
-      .from("contact_building_assignments")
-      .select(`
-        *,
-        contacts(first_name, last_name, company_name, address_street, address_zip, address_city),
-        contact_building_shares(*),
-        contact_building_costs(*)
-      `)
-      .eq("building_id", buildingId)
-      .eq("is_active", true)
-      .in("role_in_building", ["eigentuemer", "mieter"]);
-
-    // Fetch balances
-    const { data: balances } = await supabase
-      .from("account_balances")
-      .select("*, chart_of_accounts(account_number, account_name, category, carry_forward_balance)")
-      .eq("building_id", buildingId)
-      .eq("fiscal_year", fiscalYear);
-
-    // Distribution key mapping
-    const DIST_KEY_TO_SHARE: Record<string, string> = {
-      mea: "mea", einheiten: "einheit", qm: "qm", personen: "personen",
-      verbrauch_wasser: "wasser", verbrauch_warmwasser: "warmwasser",
-      heizkostenverordnung: "heizkosten",
-    };
-
+    // Helper: get distribution key for an account
     const getDistKey = (accountId: string, defaultKey: string | null) => {
       const override = (overrides || []).find((o: any) => o.account_id === accountId);
       return override?.distribution_key || defaultKey || "mea";
     };
 
-    // Calculate account totals
-    const accountTotals = (accounts || []).map((acc: any) => {
+    // Helper: time proportion for an assignment within the period
+    const getTimeProportion = (assignment: any) => {
+      if (!period) return 1;
+      const periodStart = new Date(period.period_from).getTime();
+      const periodEnd = new Date(period.period_to).getTime();
+      const totalDays = (periodEnd - periodStart) / 86400000 + 1;
+      const validFrom = assignment.valid_from ? new Date(assignment.valid_from).getTime() : periodStart;
+      const validTo = assignment.valid_to ? new Date(assignment.valid_to).getTime() : periodEnd;
+      const effectiveStart = Math.max(periodStart, validFrom);
+      const effectiveEnd = Math.min(periodEnd, validTo);
+      return Math.max(0, (effectiveEnd - effectiveStart) / 86400000 + 1) / totalDays;
+    };
+
+    // Build account totals with section info
+    const billingAccounts = (accounts || []).filter((a: any) => a.is_billing_relevant || a.settlement_section);
+    const accountTotals = billingAccounts.map((acc: any) => {
       const distKey = getDistKey(acc.id, acc.default_distribution_key);
       const total = (bookings || [])
-        .filter((b: any) => b.account_id === acc.id && b.booking_category !== "heating_repost")
-        .reduce((s: number, b: any) => s + Math.abs(Number(b.amount)), 0);
-      return { ...acc, total, distKey };
+        .filter((b: any) => b.account_id === acc.id)
+        .reduce((s: number, b: any) => s + Number(b.amount), 0);
+      const absTotal = Math.abs(total);
+      // Get WP planned amount
+      const wpItem = (planItems as any)?.economic_plan_items?.find((i: any) => i.account_id === acc.id);
+      const wpAmount = wpItem ? Number(wpItem.planned_amount || 0) : 0;
+      return { ...acc, total, absTotal, distKey, wpAmount };
     });
 
-    const totalCosts = accountTotals.reduce((s: number, a: any) => s + a.total, 0);
+    // Group accounts by settlement_section
+    const sectionOrder = ["income", "operating_distributable", "operating_non_distributable", "accrual", "reserve", "reserve_withdrawal"];
+    const sections = sectionOrder.map(sec => ({
+      id: sec,
+      label: SECTION_LABELS[sec] || sec,
+      accounts: accountTotals.filter((a: any) => a.settlement_section === sec && a.absTotal > 0),
+      total: accountTotals.filter((a: any) => a.settlement_section === sec && a.absTotal > 0)
+        .reduce((s: number, a: any) => s + a.absTotal, 0),
+      wpTotal: accountTotals.filter((a: any) => a.settlement_section === sec)
+        .reduce((s: number, a: any) => s + a.wpAmount, 0),
+    })).filter(s => s.accounts.length > 0);
 
-    // Group by distribution key
-    const groupedByKey: Record<string, { accounts: any[]; total: number }> = {};
-    accountTotals.forEach((acc: any) => {
-      if (acc.total === 0) return;
-      if (!groupedByKey[acc.distKey]) groupedByKey[acc.distKey] = { accounts: [], total: 0 };
-      groupedByKey[acc.distKey].accounts.push(acc);
-      groupedByKey[acc.distKey].total += acc.total;
-    });
+    // Distributable accounts for Einzelabrechnung
+    const distributableAccounts = accountTotals.filter((a: any) => a.is_distributable && a.absTotal > 0);
 
+    // Share totals per distribution key
     const getShareTotal = (shareType: string) => {
       const mapped = DIST_KEY_TO_SHARE[shareType] || shareType;
       return (assignments || []).reduce((s: number, a: any) => {
@@ -113,49 +128,104 @@ serve(async (req) => {
       }, 0);
     };
 
-    const getTimeProportion = (assignment: any) => {
-      if (!period) return 1;
-      const periodStart = new Date(period.period_from).getTime();
-      const periodEnd = new Date(period.period_to).getTime();
-      const totalDays = (periodEnd - periodStart) / (1000 * 60 * 60 * 24) + 1;
-      const validFrom = assignment.valid_from ? new Date(assignment.valid_from).getTime() : periodStart;
-      const validTo = assignment.valid_to ? new Date(assignment.valid_to).getTime() : periodEnd;
-      const effectiveStart = Math.max(periodStart, validFrom);
-      const effectiveEnd = Math.min(periodEnd, validTo);
-      const effectiveDays = Math.max(0, (effectiveEnd - effectiveStart) / (1000 * 60 * 60 * 24) + 1);
-      return effectiveDays / totalDays;
-    };
+    // Opening/closing balances
+    const openingGiro = (balances || [])
+      .filter((b: any) => b.chart_of_accounts?.category === "bank")
+      .reduce((s: number, b: any) => s + Number(b.opening_balance), 0);
+    const openingRL = (balances || [])
+      .filter((b: any) => b.chart_of_accounts?.category === "ruecklage")
+      .reduce((s: number, b: any) => s + Number(b.opening_balance), 0);
+    const closingGiro = (balances || [])
+      .filter((b: any) => b.chart_of_accounts?.category === "bank")
+      .reduce((s: number, b: any) => s + Number(b.closing_balance), 0);
+    const closingRL = (balances || [])
+      .filter((b: any) => b.chart_of_accounts?.category === "ruecklage")
+      .reduce((s: number, b: any) => s + Number(b.closing_balance), 0);
 
-    // Calculate owner results
+    // Calculate total distributable costs
+    const totalDistributable = distributableAccounts.reduce((s: number, a: any) => s + a.absTotal, 0);
+
+    // Total income
+    const totalIncome = sections.find(s => s.id === "income")?.total || 0;
+
+    // Total expenses (all non-income sections)
+    const totalExpenses = sections.filter(s => s.id !== "income").reduce((s, sec) => s + sec.total, 0);
+
+    // Abrechnungsspitze (building level)
+    const buildingSpitze = totalIncome - totalExpenses;
+
+    // Calculate per-owner results
     const ownerResults = (assignments || []).map((assignment: any) => {
       const contact = assignment.contacts;
       const name = contact?.company_name || [contact?.first_name, contact?.last_name].filter(Boolean).join(" ") || "Unbekannt";
+      const salutation = contact?.salutation || "";
       const shares = assignment.contact_building_shares || [];
       const costs = assignment.contact_building_costs || [];
       const timeProportion = getTimeProportion(assignment);
 
-      let totalShare = 0;
-      let share35a = 0;
-      Object.entries(groupedByKey).forEach(([distKey, group]) => {
-        const shareType = DIST_KEY_TO_SHARE[distKey] || distKey;
-        const ownerShare = shares.find((s: any) => s.share_type === shareType);
-        const totalShares = getShareTotal(distKey);
-        if (ownerShare && totalShares > 0) {
-          const proportion = (Number(ownerShare.share_value) / totalShares) * timeProportion;
-          totalShare += group.total * proportion;
-          const group35a = group.accounts
-            .filter((acc: any) => (bookings || []).some((b: any) => b.account_id === acc.id && b.is_35a_relevant))
-            .reduce((s: number, acc: any) => {
-              return s + (bookings || [])
-                .filter((b: any) => b.account_id === acc.id && b.is_35a_relevant)
-                .reduce((bs: number, b: any) => bs + Math.abs(Number(b.amount)), 0);
-            }, 0);
-          share35a += group35a * proportion;
+      // Per-account breakdown for Einzelabrechnung
+      const accountBreakdown: any[] = [];
+      let totalOwnerCost = 0;
+      let total35aDienste = 0;
+      let total35aHandwerker = 0;
+
+      distributableAccounts.forEach((acc: any) => {
+        const isHeating = acc.is_heating_relevant;
+        const heatingVal = isHeating
+          ? (heatingValues || []).find((hv: any) => hv.assignment_id === assignment.id)
+          : null;
+
+        let ownerCost: number;
+        let distLabel: string;
+        let totalShares: number;
+        let ownerShareValue: number;
+
+        if (heatingVal) {
+          // Direct heating value from external provider
+          ownerCost = Number(heatingVal.amount);
+          distLabel = "Heizk.Abr.";
+          totalShares = acc.absTotal;
+          ownerShareValue = ownerCost;
+        } else {
+          // Standard distribution
+          const distKey = acc.distKey;
+          const shareType = DIST_KEY_TO_SHARE[distKey] || distKey;
+          const ownerShare = shares.find((s: any) => s.share_type === shareType);
+          totalShares = getShareTotal(distKey);
+          ownerShareValue = ownerShare ? Number(ownerShare.share_value) : 0;
+
+          if (totalShares > 0 && ownerShareValue > 0) {
+            ownerCost = acc.absTotal * (ownerShareValue / totalShares) * timeProportion;
+          } else {
+            ownerCost = 0;
+          }
+          distLabel = DIST_KEY_LABELS[distKey] || distKey;
+        }
+
+        if (ownerCost > 0) {
+          accountBreakdown.push({
+            accountNumber: acc.account_number,
+            accountName: acc.account_name,
+            distributableAmount: acc.absTotal,
+            distLabel,
+            totalShares,
+            ownerShare: ownerShareValue,
+            ownerCost,
+          });
+          totalOwnerCost += ownerCost;
+
+          // §35a calculation
+          if (acc.settlement_35a_type === "dienste") {
+            total35aDienste += ownerCost;
+          } else if (acc.settlement_35a_type === "handwerker") {
+            total35aHandwerker += ownerCost;
+          }
         }
       });
 
-      const annualHausgeld = costs
-        .filter((c: any) => c.cost_type === "hausgeld" || c.cost_type === "nebenkosten")
+      // Annual prepayments from recurring costs
+      const calcAnnual = (types: string[]) => costs
+        .filter((c: any) => types.includes(c.cost_type))
         .reduce((s: number, c: any) => {
           const amount = Number(c.amount);
           switch (c.interval) {
@@ -166,151 +236,249 @@ serve(async (req) => {
           }
         }, 0) * timeProportion;
 
-      const annualReserve = costs
-        .filter((c: any) => c.cost_type === "ruecklage")
-        .reduce((s: number, c: any) => {
-          const amount = Number(c.amount);
-          switch (c.interval) {
-            case "monatlich": return s + amount * 12;
-            case "quartal": return s + amount * 4;
-            case "jaehrlich": return s + amount;
-            default: return s + amount * 12;
-          }
-        }, 0) * timeProportion;
-
+      const annualHausgeld = calcAnnual(["hausgeld", "nebenkosten"]);
+      const annualReserve = calcAnnual(["ruecklage"]);
       const totalPaid = annualHausgeld + annualReserve;
-      const result = totalPaid - totalShare;
+      const result = totalPaid - totalOwnerCost;
 
       return {
         assignmentId: assignment.id,
         name,
-        address: [contact?.address_street, [contact?.address_zip, contact?.address_city].filter(Boolean).join(" ")].filter(Boolean).join(", "),
+        salutation,
+        address: [contact?.address_street, [contact?.address_zip, contact?.address_city].filter(Boolean).join(" ")].filter(Boolean).join("\n"),
         unitNumber: assignment.unit_number || "–",
-        totalShare,
+        accountBreakdown,
+        totalOwnerCost,
         annualHausgeld,
         annualReserve,
         totalPaid,
         result,
-        share35a,
+        total35aDienste,
+        total35aHandwerker,
         timeProportion,
       };
     });
 
-    const formatCurrency = (n: number) =>
-      new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
+    // ─── HTML STYLES (shared) ───
+    const sharedStyles = `
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: Arial, Helvetica, sans-serif; font-size: 10px; color: #1a1a1a; line-height: 1.4; }
+      .page { width: 210mm; min-height: 297mm; padding: 20mm 18mm 15mm 18mm; position: relative; page-break-after: always; }
+      .page:last-child { page-break-after: auto; }
+      .header-line { font-size: 8px; color: #888; border-bottom: 0.5px solid #ccc; padding-bottom: 3px; margin-bottom: 14px; }
+      .recipient { margin-bottom: 16px; font-size: 10px; line-height: 1.5; }
+      h1 { font-size: 15px; font-weight: 700; margin-bottom: 2px; }
+      h2 { font-size: 11px; font-weight: 700; margin: 14px 0 4px 0; color: #333; border-bottom: 1px solid #ddd; padding-bottom: 2px; }
+      .subtitle { font-size: 10px; color: #555; margin-bottom: 12px; }
+      table { width: 100%; border-collapse: collapse; margin: 4px 0 8px 0; font-size: 9.5px; }
+      th { text-align: left; padding: 3px 6px; background: #f2f2f2; font-weight: 600; border-bottom: 1.5px solid #999; font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.3px; }
+      td { padding: 2.5px 6px; border-bottom: 0.5px solid #e0e0e0; }
+      .r { text-align: right; }
+      .mono { font-family: 'Courier New', monospace; font-size: 9px; }
+      .section-total td { font-weight: 700; border-top: 1px solid #999; border-bottom: 1px solid #999; background: #fafafa; }
+      .grand-total td { font-weight: 700; border-top: 2px solid #333; font-size: 10.5px; }
+      .result-box { margin: 12px 0; padding: 10px 14px; border-radius: 4px; font-size: 12px; font-weight: 700; }
+      .result-positive { background: #ecfdf5; border: 1px solid #86efac; color: #166534; }
+      .result-negative { background: #fef2f2; border: 1px solid #fca5a5; color: #991b1b; }
+      .footer { position: absolute; bottom: 12mm; left: 18mm; right: 18mm; font-size: 7.5px; color: #aaa; border-top: 0.5px solid #ddd; padding-top: 3px; }
+      .balance-row td { padding: 2px 6px; }
+      .indent { padding-left: 20px !important; }
+      .kto { width: 50px; font-family: 'Courier New', monospace; font-size: 9px; color: #666; }
+    `;
 
-    const formatDate = (d: string) => new Date(d).toLocaleDateString("de-DE");
+    const footerHtml = `<div class="footer">${building?.manager_name || "Hausverwaltung"} · Erstellt am ${new Date().toLocaleDateString("de-DE")}</div>`;
 
-    // Generate HTML content
-    const generateHtml = (owner?: any) => {
-      const periodLabel = `${formatDate(period.period_from)} – ${formatDate(period.period_to)}`;
-      
-      if (owner) {
-        // Einzelabrechnung
-        const resultLabel = owner.result >= 0 ? "Guthaben" : "Nachzahlung";
-        const steuerbonus = Math.min(owner.share35a * 0.2, 1200);
-        return `<!DOCTYPE html>
-<html><head><meta charset="utf-8">
-<style>
-  body { font-family: Arial, sans-serif; font-size: 11px; margin: 25mm 15mm 20mm 15mm; color: #333; }
-  h1 { font-size: 16px; margin-bottom: 4px; }
-  h2 { font-size: 13px; color: #555; margin-top: 16px; }
-  table { width: 100%; border-collapse: collapse; margin: 8px 0; }
-  th, td { padding: 4px 8px; text-align: left; border-bottom: 1px solid #ddd; }
-  th { background: #f5f5f5; font-weight: 600; }
-  .right { text-align: right; }
-  .mono { font-family: 'Courier New', monospace; }
-  .total { font-weight: bold; border-top: 2px solid #333; }
-  .result { font-size: 14px; padding: 8px; margin: 12px 0; background: ${owner.result >= 0 ? '#f0fdf4' : '#fef2f2'}; border-radius: 4px; }
-  .footer { margin-top: 24px; font-size: 9px; color: #888; }
-</style></head><body>
-  <div style="margin-bottom: 24px;">
-    <div style="font-size: 9px; color: #888;">${building?.manager_name || "Hausverwaltung"} · ${building?.address || ""}</div>
-    <div style="margin-top: 12px;">${owner.name}<br>${owner.address || ""}</div>
-  </div>
-  <h1>Einzelabrechnung ${fiscalYear}</h1>
-  <p>${building?.name || ""} · ${periodLabel}</p>
-  <p>Einheit: ${owner.unitNumber}${owner.timeProportion < 1 ? ` (zeitanteilig: ${Math.round(owner.timeProportion * 100)}%)` : ""}</p>
-  
-  <h2>Kostenübersicht</h2>
-  <table>
-    <tr><th>Position</th><th class="right">Betrag</th></tr>
-    <tr><td>Ihr Kostenanteil (Betriebskosten)</td><td class="right mono">${formatCurrency(owner.totalShare)}</td></tr>
-    <tr><td>./. Hausgeld-Vorauszahlungen</td><td class="right mono">${formatCurrency(-owner.annualHausgeld)}</td></tr>
-    <tr><td>./. Rücklagenzuführung</td><td class="right mono">${formatCurrency(-owner.annualReserve)}</td></tr>
-    <tr class="total"><td><strong>Ergebnis (${resultLabel})</strong></td><td class="right mono"><strong>${formatCurrency(Math.abs(owner.result))}</strong></td></tr>
-  </table>
-  
-  <div class="result">
-    <strong>${resultLabel}:</strong> ${formatCurrency(Math.abs(owner.result))}
-    ${owner.result < 0 ? "<br>Bitte überweisen Sie den Betrag innerhalb von 30 Tagen." : "<br>Das Guthaben wird Ihrem Konto gutgeschrieben."}
-  </div>
+    // ─── GESAMTABRECHNUNG HTML ───
+    const generateGesamtHtml = () => {
+      let sectionRows = "";
 
-  ${owner.share35a > 0 ? `
-  <h2>Bescheinigung gemäß §35a EStG</h2>
-  <p>Anteilige haushaltsnahe Dienstleistungen und Handwerkerleistungen:</p>
-  <table>
-    <tr><td>Ihr Anteil an §35a-relevanten Kosten</td><td class="right mono">${formatCurrency(owner.share35a)}</td></tr>
-    <tr><td>Davon 20% Steuerermäßigung (max. 1.200 €)</td><td class="right mono">${formatCurrency(steuerbonus)}</td></tr>
-  </table>
-  ` : ""}
+      sections.forEach(sec => {
+        // Section header
+        sectionRows += `<tr><td colspan="4" style="font-weight:700; padding-top:8px; font-size:10px;">${sec.label}</td></tr>`;
 
-  <div class="footer">
-    Erstellt am ${new Date().toLocaleDateString("de-DE")} · ${building?.manager_name || "Hausverwaltung"}
-  </div>
-</body></html>`;
-      }
+        sec.accounts.forEach(acc => {
+          sectionRows += `<tr>
+            <td class="kto">${acc.account_number}</td>
+            <td>${acc.account_name}</td>
+            <td class="r mono">${formatCurrency(acc.wpAmount)}</td>
+            <td class="r mono">${formatCurrency(acc.absTotal)}</td>
+          </tr>`;
+        });
 
-      // Gesamtabrechnung
-      const accountRows = accountTotals
-        .filter((a: any) => a.total > 0)
-        .map((a: any) => `<tr><td class="mono" style="font-size:10px">${a.account_number}</td><td>${a.account_name}</td><td class="right mono">${formatCurrency(a.total)}</td></tr>`)
-        .join("");
+        // Section subtotal
+        sectionRows += `<tr class="section-total">
+          <td></td>
+          <td>Summe ${sec.label}</td>
+          <td class="r mono">${formatCurrency(sec.wpTotal)}</td>
+          <td class="r mono">${formatCurrency(sec.total)}</td>
+        </tr>`;
+      });
 
-      const ownerRows = ownerResults
-        .map((o: any) => `<tr><td>${o.unitNumber}</td><td>${o.name}</td><td class="right mono">${formatCurrency(o.totalShare)}</td><td class="right mono">${formatCurrency(o.totalPaid)}</td><td class="right mono" style="color:${o.result >= 0 ? '#16a34a' : '#dc2626'}">${formatCurrency(o.result)}</td></tr>`)
-        .join("");
+      // Owner summary table
+      const ownerRows = ownerResults.map(o =>
+        `<tr>
+          <td>${o.unitNumber}</td>
+          <td>${o.name}</td>
+          <td class="r mono">${formatCurrency(o.totalOwnerCost)}</td>
+          <td class="r mono">${formatCurrency(o.totalPaid)}</td>
+          <td class="r mono" style="color:${o.result >= 0 ? '#166534' : '#991b1b'}">${formatCurrency(o.result)}</td>
+        </tr>`
+      ).join("");
 
-      return `<!DOCTYPE html>
-<html><head><meta charset="utf-8">
-<style>
-  body { font-family: Arial, sans-serif; font-size: 11px; margin: 25mm 15mm 20mm 15mm; color: #333; }
-  h1 { font-size: 18px; }
-  h2 { font-size: 13px; color: #555; margin-top: 20px; }
-  table { width: 100%; border-collapse: collapse; margin: 8px 0; }
-  th, td { padding: 4px 8px; text-align: left; border-bottom: 1px solid #ddd; }
-  th { background: #f5f5f5; font-weight: 600; }
-  .right { text-align: right; }
-  .mono { font-family: 'Courier New', monospace; }
-  .total { font-weight: bold; border-top: 2px solid #333; }
-  .footer { margin-top: 24px; font-size: 9px; color: #888; page-break-before: avoid; }
-</style></head><body>
-  <h1>Gesamtabrechnung ${fiscalYear}</h1>
-  <p><strong>${building?.name || ""}</strong> · ${building?.address || ""}</p>
-  <p>Abrechnungszeitraum: ${periodLabel}</p>
-  <p>Verwalter: ${building?.manager_name || "–"}</p>
+      const totalOwnerCosts = ownerResults.reduce((s, o) => s + o.totalOwnerCost, 0);
+      const totalOwnerPaid = ownerResults.reduce((s, o) => s + o.totalPaid, 0);
+      const totalOwnerResult = ownerResults.reduce((s, o) => s + o.result, 0);
 
-  <h2>Kostenaufstellung</h2>
-  <table>
-    <tr><th style="width:80px">Konto</th><th>Bezeichnung</th><th class="right">Betrag</th></tr>
-    ${accountRows}
-    <tr class="total"><td></td><td><strong>Gesamtkosten</strong></td><td class="right mono"><strong>${formatCurrency(totalCosts)}</strong></td></tr>
-  </table>
+      return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${sharedStyles}</style></head><body>
+        <div class="page">
+          <div class="header-line">${building?.manager_name || "Hausverwaltung"} · ${building?.address || ""}</div>
+          <h1>Gesamtabrechnung ${fiscalYear}</h1>
+          <div class="subtitle">${building?.name || ""} · Abrechnungszeitraum: ${periodLabel}</div>
 
-  <h2>Verteilung auf Eigentümer</h2>
-  <table>
-    <tr><th>Einheit</th><th>Eigentümer</th><th class="right">Kostenanteil</th><th class="right">Vorauszahlungen</th><th class="right">Ergebnis</th></tr>
-    ${ownerRows}
-  </table>
+          <h2>Anfangsbestände</h2>
+          <table>
+            <tr class="balance-row"><td>Girokonto</td><td class="r mono">${formatCurrency(openingGiro)}</td><td></td><td></td></tr>
+            <tr class="balance-row"><td>Erhaltungsrücklage</td><td class="r mono">${formatCurrency(openingRL)}</td><td></td><td></td></tr>
+            <tr class="section-total"><td><strong>Gesamtvermögen Anfang</strong></td><td class="r mono"><strong>${formatCurrency(openingGiro + openingRL)}</strong></td><td></td><td></td></tr>
+          </table>
 
-  <div class="footer">
-    Erstellt am ${new Date().toLocaleDateString("de-DE")} · ${building?.manager_name || "Hausverwaltung"}
-  </div>
-</body></html>`;
+          <h2>Einnahmen und Ausgaben</h2>
+          <table>
+            <tr><th class="kto">Konto</th><th>Bezeichnung</th><th class="r">Wirtschaftsplan</th><th class="r">Ist-Betrag</th></tr>
+            ${sectionRows}
+          </table>
+
+          <h2>Endbestände</h2>
+          <table>
+            <tr class="balance-row"><td>Girokonto</td><td class="r mono">${formatCurrency(closingGiro)}</td><td></td><td></td></tr>
+            <tr class="balance-row"><td>Erhaltungsrücklage</td><td class="r mono">${formatCurrency(closingRL)}</td><td></td><td></td></tr>
+            <tr class="section-total"><td><strong>Gesamtvermögen Ende</strong></td><td class="r mono"><strong>${formatCurrency(closingGiro + closingRL)}</strong></td><td></td><td></td></tr>
+          </table>
+
+          <h2>Verteilung auf Eigentümer</h2>
+          <table>
+            <tr><th>Einheit</th><th>Eigentümer</th><th class="r">Kostenanteil</th><th class="r">Vorauszahlungen</th><th class="r">Ergebnis</th></tr>
+            ${ownerRows}
+            <tr class="grand-total">
+              <td></td><td>Gesamt</td>
+              <td class="r mono">${formatCurrency(totalOwnerCosts)}</td>
+              <td class="r mono">${formatCurrency(totalOwnerPaid)}</td>
+              <td class="r mono">${formatCurrency(totalOwnerResult)}</td>
+            </tr>
+          </table>
+
+          ${footerHtml}
+        </div>
+      </body></html>`;
     };
 
-    // For now, return the HTML as a downloadable response
-    // In production, this would use a PDF library or headless browser
+    // ─── EINZELABRECHNUNG HTML ───
+    const generateEinzelHtml = (owner: any) => {
+      const resultLabel = owner.result >= 0 ? "Guthaben" : "Nachzahlung";
+      const resultClass = owner.result >= 0 ? "result-positive" : "result-negative";
+
+      // Account breakdown rows (7-column)
+      const breakdownRows = owner.accountBreakdown.map((row: any) =>
+        `<tr>
+          <td class="kto">${row.accountNumber}</td>
+          <td>${row.accountName}</td>
+          <td class="r mono">${formatCurrency(row.distributableAmount)}</td>
+          <td style="text-align:center; font-size:8.5px">${row.distLabel}</td>
+          <td class="r mono">${typeof row.totalShares === 'number' ? row.totalShares.toLocaleString("de-DE") : '–'}</td>
+          <td class="r mono">${typeof row.ownerShare === 'number' ? row.ownerShare.toLocaleString("de-DE") : '–'}</td>
+          <td class="r mono">${formatCurrency(row.ownerCost)}</td>
+        </tr>`
+      ).join("");
+
+      // §35a section
+      let para35a = "";
+      if (owner.total35aDienste > 0 || owner.total35aHandwerker > 0) {
+        const diensteBonus = Math.min(owner.total35aDienste * 0.2, 4000);
+        const handwerkerBonus = Math.min(owner.total35aHandwerker * 0.2, 1200);
+        para35a = `
+          <h2>Bescheinigung gemäß §35a EStG</h2>
+          <table>
+            <tr><th>Kategorie</th><th class="r">Anteilige Kosten</th><th class="r">Steuerermäßigung (20%)</th></tr>
+            ${owner.total35aDienste > 0 ? `<tr><td>Haushaltsnahe Dienstleistungen</td><td class="r mono">${formatCurrency(owner.total35aDienste)}</td><td class="r mono">${formatCurrency(diensteBonus)}</td></tr>` : ""}
+            ${owner.total35aHandwerker > 0 ? `<tr><td>Handwerkerleistungen</td><td class="r mono">${formatCurrency(owner.total35aHandwerker)}</td><td class="r mono">${formatCurrency(handwerkerBonus)}</td></tr>` : ""}
+            <tr class="section-total">
+              <td><strong>Gesamt</strong></td>
+              <td class="r mono"><strong>${formatCurrency(owner.total35aDienste + owner.total35aHandwerker)}</strong></td>
+              <td class="r mono"><strong>${formatCurrency(diensteBonus + handwerkerBonus)}</strong></td>
+            </tr>
+          </table>
+          <p style="font-size:8px; color:#666; margin-top:4px;">Die Steuerermäßigung für haushaltsnahe Dienstleistungen beträgt max. 4.000 €, für Handwerkerleistungen max. 1.200 € pro Jahr.</p>
+        `;
+      }
+
+      return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${sharedStyles}</style></head><body>
+        <div class="page">
+          <div class="header-line">${building?.manager_name || "Hausverwaltung"} · ${building?.address || ""}</div>
+          <div class="recipient">
+            ${owner.salutation ? owner.salutation + "<br>" : ""}${owner.name}<br>${(owner.address || "").replace(/\n/g, "<br>")}
+          </div>
+
+          <h1>Einzelabrechnung ${fiscalYear}</h1>
+          <div class="subtitle">
+            ${building?.name || ""} · Einheit ${owner.unitNumber} · ${periodLabel}
+            ${owner.timeProportion < 1 ? ` · Zeitanteilig: ${Math.round(owner.timeProportion * 100)}%` : ""}
+          </div>
+
+          <h2>Kostenverteilung</h2>
+          <table>
+            <tr>
+              <th class="kto">Konto</th>
+              <th>Bezeichnung</th>
+              <th class="r">Gesamt</th>
+              <th style="text-align:center">Verteiler</th>
+              <th class="r">Ges.-Anteil</th>
+              <th class="r">Ihr Anteil</th>
+              <th class="r">Ihre Kosten</th>
+            </tr>
+            ${breakdownRows}
+            <tr class="grand-total">
+              <td></td>
+              <td colspan="5"><strong>Summe Kostenanteil</strong></td>
+              <td class="r mono"><strong>${formatCurrency(owner.totalOwnerCost)}</strong></td>
+            </tr>
+          </table>
+
+          <h2>Abrechnungsergebnis</h2>
+          <table>
+            <tr><td>Ihr Kostenanteil</td><td class="r mono">${formatCurrency(owner.totalOwnerCost)}</td></tr>
+            <tr><td>./. Hausgeld-Vorauszahlungen</td><td class="r mono">- ${formatCurrency(owner.annualHausgeld)}</td></tr>
+            <tr><td>./. Rücklagenzuführung</td><td class="r mono">- ${formatCurrency(owner.annualReserve)}</td></tr>
+            <tr class="grand-total"><td><strong>${resultLabel}</strong></td><td class="r mono"><strong>${formatCurrency(Math.abs(owner.result))}</strong></td></tr>
+          </table>
+
+          <div class="result-box ${resultClass}">
+            ${resultLabel}: ${formatCurrency(Math.abs(owner.result))}
+            ${owner.result < 0
+              ? " — Bitte überweisen Sie den Betrag innerhalb von 30 Tagen."
+              : " — Das Guthaben wird Ihrem Konto gutgeschrieben."}
+          </div>
+
+          ${para35a}
+
+          ${footerHtml}
+        </div>
+      </body></html>`;
+    };
+
+    // ─── RESPONSE ───
+    const storeAndRespond = async (html: string, fileName: string) => {
+      const filePath = `billing-pdfs/${buildingId}/${fiscalYear}/${fileName.replace(/[^a-zA-Z0-9äöüÄÖÜ._-]/g, "_")}`;
+      await supabase.storage
+        .from("building-documents")
+        .upload(filePath, new Blob([html], { type: "text/html" }), { upsert: true });
+      const { data: signedUrl } = await supabase.storage
+        .from("building-documents")
+        .createSignedUrl(filePath, 3600);
+      return new Response(JSON.stringify({ url: signedUrl?.signedUrl, html }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    };
+
     if (ownerId) {
       const owner = ownerResults.find((o: any) => o.assignmentId === ownerId);
       if (!owner) {
@@ -318,41 +486,13 @@ serve(async (req) => {
           status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      const html = generateHtml(owner);
-      
-      // Store as HTML file in storage for now
-      const fileName = `abrechnung_${fiscalYear}_${owner.name.replace(/[^a-zA-Z0-9äöüÄÖÜ]/g, "_")}.html`;
-      const filePath = `billing-pdfs/${buildingId}/${fiscalYear}/${fileName}`;
-      
-      await supabase.storage
-        .from("building-documents")
-        .upload(filePath, new Blob([html], { type: "text/html" }), { upsert: true });
-
-      const { data: signedUrl } = await supabase.storage
-        .from("building-documents")
-        .createSignedUrl(filePath, 3600);
-
-      return new Response(JSON.stringify({ url: signedUrl?.signedUrl, html }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      const html = generateEinzelHtml(owner);
+      return storeAndRespond(html, `Einzelabrechnung_${fiscalYear}_${owner.name}.html`);
     }
 
-    // Gesamtabrechnung
-    const html = generateHtml();
-    const fileName = `Gesamtabrechnung_${fiscalYear}_${building?.name || "Liegenschaft"}.html`;
-    const filePath = `billing-pdfs/${buildingId}/${fiscalYear}/${fileName.replace(/[^a-zA-Z0-9äöüÄÖÜ._-]/g, "_")}`;
-
-    await supabase.storage
-      .from("building-documents")
-      .upload(filePath, new Blob([html], { type: "text/html" }), { upsert: true });
-
-    const { data: signedUrl } = await supabase.storage
-      .from("building-documents")
-      .createSignedUrl(filePath, 3600);
-
-    return new Response(JSON.stringify({ url: signedUrl?.signedUrl, html }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    // If ownerId === "all", generate combined document with all Einzelabrechnungen
+    const html = generateGesamtHtml();
+    return storeAndRespond(html, `Gesamtabrechnung_${fiscalYear}_${building?.name || "Liegenschaft"}.html`);
 
   } catch (error: any) {
     console.error("generate-billing-pdf error:", error);
