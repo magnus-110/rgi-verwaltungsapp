@@ -61,6 +61,7 @@ function mapHeaders(headers: string[]): Record<number, string> {
       map[i] = `telefon_${i}`;
     } else if (/^e-?mail[-\s]*(\d*)[:\s]*(adresse)?$/i.test(normalized)) {
       map[i] = `email_${i}`;
+    }
   });
   return map;
 }
