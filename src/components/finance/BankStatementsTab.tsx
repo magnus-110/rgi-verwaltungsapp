@@ -281,7 +281,6 @@ export function BankStatementsTab() {
     }
   };
 
-  const [bookingSingleId, setBookingSingleId] = useState<string | null>(null);
 
   const handleBookSingle = async (txnId: string) => {
     setBookingSingleId(txnId);
