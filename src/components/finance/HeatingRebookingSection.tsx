@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { ArrowRightLeft, AlertTriangle, Check, RefreshCw, Trash2 } from "lucide-react";
+import { ArrowRightLeft, AlertTriangle, Check, RefreshCw, Trash2, Upload, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -22,6 +23,9 @@ export function HeatingRebookingSection({ buildingId, periodId, fiscalYear }: He
   const queryClient = useQueryClient();
   const [targetAccountId, setTargetAccountId] = useState<string>("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showDistribution, setShowDistribution] = useState(false);
+  const [distributionValues, setDistributionValues] = useState<Record<string, number>>({});
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   // All accounts for this building (target selection)
   const { data: allAccounts = [] } = useQuery({
@@ -83,6 +87,35 @@ export function HeatingRebookingSection({ buildingId, periodId, fiscalYear }: He
     },
   });
 
+  // Owner assignments for distribution
+  const { data: ownerAssignments = [] } = useQuery({
+    queryKey: ["owner-assignments-heating", buildingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("contact_building_assignments")
+        .select(`*, contacts(first_name, last_name, company_name)`)
+        .eq("building_id", buildingId)
+        .eq("is_active", true)
+        .eq("role_in_building", "eigentuemer");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Existing heating distribution values
+  const { data: existingDistValues = [] } = useQuery({
+    queryKey: ["heating-dist-values", buildingId, periodId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("heating_distribution_values")
+        .select("*")
+        .eq("building_id", buildingId)
+        .eq("billing_period_id", periodId);
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const getAccountTotal = (accountId: string) =>
     bookings
       .filter((b) => b.account_id === accountId && b.booking_category !== "heating_repost")
@@ -95,6 +128,92 @@ export function HeatingRebookingSection({ buildingId, periodId, fiscalYear }: He
   const formatCurrency = (n: number) =>
     new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
 
+  const getOwnerName = (assignment: any) => {
+    const c = assignment.contacts;
+    return c?.company_name || [c?.first_name, c?.last_name].filter(Boolean).join(" ") || "Unbekannt";
+  };
+
+  // Distribution values logic
+  const totalDistributed = Object.values(distributionValues).reduce((s, v) => s + (v || 0), 0);
+  const distributionDiff = totalRebooked - totalDistributed;
+  const isDistributionBalanced = Math.abs(distributionDiff) < 0.01 && totalDistributed > 0;
+
+  const initDistributionValues = () => {
+    const values: Record<string, number> = {};
+    ownerAssignments.forEach((a: any) => {
+      const existing = existingDistValues.find((d: any) => d.assignment_id === a.id);
+      values[a.id] = existing ? Number(existing.amount) : 0;
+    });
+    setDistributionValues(values);
+    setShowDistribution(true);
+  };
+
+  const saveDistributionValues = async () => {
+    try {
+      // Upsert all values
+      const rows = Object.entries(distributionValues).map(([assignmentId, amount]) => ({
+        building_id: buildingId,
+        billing_period_id: periodId,
+        assignment_id: assignmentId,
+        amount,
+      }));
+
+      // Delete existing first, then insert
+      await supabase
+        .from("heating_distribution_values")
+        .delete()
+        .eq("building_id", buildingId)
+        .eq("billing_period_id", periodId);
+
+      const { error } = await supabase.from("heating_distribution_values").insert(rows);
+      if (error) throw error;
+
+      toast.success("Heizkosten-Verteilung gespeichert");
+      queryClient.invalidateQueries({ queryKey: ["heating-dist-values"] });
+    } catch (e: any) {
+      toast.error("Fehler: " + e.message);
+    }
+  };
+
+  const handleCsvImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      const lines = text.split("\n").filter(l => l.trim());
+      const newValues = { ...distributionValues };
+      let matched = 0;
+
+      // Skip header line
+      for (let i = 1; i < lines.length; i++) {
+        const parts = lines[i].split(/[;,\t]/).map(p => p.trim());
+        if (parts.length < 2) continue;
+
+        // Try to match by unit_number (first column) or name
+        const identifier = parts[0];
+        const amount = parseFloat(parts[parts.length - 1].replace(",", "."));
+        if (isNaN(amount)) continue;
+
+        const match = ownerAssignments.find((a: any) =>
+          a.unit_number === identifier ||
+          getOwnerName(a).toLowerCase().includes(identifier.toLowerCase())
+        );
+
+        if (match) {
+          newValues[match.id] = amount;
+          matched++;
+        }
+      }
+
+      setDistributionValues(newValues);
+      toast.success(`${matched} von ${lines.length - 1} Zeilen zugeordnet`);
+    };
+    reader.readAsText(file);
+    if (csvInputRef.current) csvInputRef.current.value = "";
+  };
+
   const generateRebookings = async () => {
     if (!targetAccountId) {
       toast.error("Bitte Zielkonto für Umbuchung wählen");
@@ -102,7 +221,6 @@ export function HeatingRebookingSection({ buildingId, periodId, fiscalYear }: He
     }
     setIsGenerating(true);
     try {
-      // Delete existing rebookings first
       if (existingRebookings.length > 0) {
         const { error: delError } = await supabase
           .from("bookings")
@@ -113,7 +231,6 @@ export function HeatingRebookingSection({ buildingId, periodId, fiscalYear }: He
         if (delError) throw delError;
       }
 
-      // Create one rebooking per heating account
       const rebookings = heatingAccounts
         .map((acc) => {
           const total = getAccountTotal(acc.id);
@@ -194,8 +311,8 @@ export function HeatingRebookingSection({ buildingId, periodId, fiscalYear }: He
         </div>
 
         {/* Zielkonto-Auswahl */}
-        <div className="flex items-end gap-3">
-          <div className="flex-1">
+        <div className="flex items-end gap-3 flex-wrap">
+          <div className="flex-1 min-w-[200px]">
             <Label className="text-sm">Zielkonto (Heizkostenkonto)</Label>
             <Select value={targetAccountId} onValueChange={setTargetAccountId}>
               <SelectTrigger>
@@ -263,6 +380,110 @@ export function HeatingRebookingSection({ buildingId, periodId, fiscalYear }: He
           <div className="text-sm text-muted-foreground text-center py-4">
             Wähle ein Zielkonto und klicke "Umbuchungen erstellen", um die HK-Einzelkonten ({formatCurrency(totalHeating)}) umzubuchen.
           </div>
+        )}
+
+        {/* Heizkosten-Verteilungswerte pro Eigentümer */}
+        {existingRebookings.length > 0 && ownerAssignments.length > 0 && (
+          <Card className="border-dashed">
+            <CardHeader className="py-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Users className="h-4 w-4" /> Heizkosten-Verteilung (Heizkostenabrechner)
+                </CardTitle>
+                <div className="flex gap-2">
+                  {!showDistribution ? (
+                    <Button size="sm" variant="outline" onClick={initDistributionValues}>
+                      Verteilungswerte eingeben
+                    </Button>
+                  ) : (
+                    <>
+                      <input
+                        ref={csvInputRef}
+                        type="file"
+                        accept=".csv,.txt"
+                        className="hidden"
+                        onChange={handleCsvImport}
+                      />
+                      <Button size="sm" variant="outline" onClick={() => csvInputRef.current?.click()}>
+                        <Upload className="h-3 w-3 mr-1" /> CSV Import
+                      </Button>
+                      <Button size="sm" onClick={saveDistributionValues} disabled={!isDistributionBalanced}>
+                        <Check className="h-3 w-3 mr-1" /> Speichern
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Euro-Beträge vom Heizkostenabrechner (Brunata/ista) pro Eigentümer. Die Summe muss dem Gesamtbetrag Konto 1400 entsprechen.
+              </p>
+            </CardHeader>
+            {showDistribution && (
+              <CardContent className="pt-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Einheit</TableHead>
+                      <TableHead>Eigentümer</TableHead>
+                      <TableHead className="text-right w-[160px]">Betrag (€)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {ownerAssignments.map((a: any) => (
+                      <TableRow key={a.id}>
+                        <TableCell className="text-sm font-medium">{a.unit_number || "–"}</TableCell>
+                        <TableCell className="text-sm">{getOwnerName(a)}</TableCell>
+                        <TableCell className="text-right">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            className="h-8 w-36 text-right text-sm ml-auto"
+                            value={distributionValues[a.id] || ""}
+                            onChange={(e) => setDistributionValues(prev => ({
+                              ...prev,
+                              [a.id]: parseFloat(e.target.value) || 0
+                            }))}
+                            placeholder="0,00"
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    <TableRow className="font-medium border-t-2">
+                      <TableCell colSpan={2}>
+                        Summe Verteilung
+                        {!isDistributionBalanced && totalDistributed > 0 && (
+                          <Badge className="ml-2 bg-amber-100 text-amber-800">
+                            <AlertTriangle className="h-3 w-3 mr-1" />
+                            Differenz: {formatCurrency(distributionDiff)}
+                          </Badge>
+                        )}
+                        {isDistributionBalanced && (
+                          <Badge className="ml-2 bg-green-100 text-green-800">
+                            <Check className="h-3 w-3 mr-1" /> Ausgeglichen
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        {formatCurrency(totalDistributed)} / {formatCurrency(totalRebooked)}
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+                {existingDistValues.length > 0 && !showDistribution && (
+                  <p className="text-xs text-green-700 mt-2">
+                    ✓ {existingDistValues.length} Verteilungswerte gespeichert
+                  </p>
+                )}
+              </CardContent>
+            )}
+            {!showDistribution && existingDistValues.length > 0 && (
+              <CardContent className="pt-0">
+                <Badge className="bg-green-100 text-green-800">
+                  <Check className="h-3 w-3 mr-1" /> {existingDistValues.length} Verteilungswerte gespeichert
+                </Badge>
+              </CardContent>
+            )}
+          </Card>
         )}
       </CardContent>
     </Card>
