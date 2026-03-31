@@ -127,10 +127,6 @@ export function BankStatementsTab() {
     allBuildingTxns.filter((t: any) => t.match_status === "unmatched"),
     [allBuildingTxns]
   );
-  const ignoredTransactions = useMemo(() =>
-    allBuildingTxns.filter((t: any) => t.match_status === "ignored"),
-    [allBuildingTxns]
-  );
   const bookedTransactions = useMemo(() =>
     allBuildingTxns.filter((t: any) => t.booked_at),
     [allBuildingTxns]
