@@ -146,47 +146,91 @@ export function BankStatementsTab() {
     });
   }, [statements, statementCompletion, showCompleted]);
 
+  const readFileContent = async (file: File): Promise<string> => {
+    let xmlContent = await file.text();
+    const encodingMatch = xmlContent.match(/<\?xml[^?]*encoding=["']([^"']+)["']/i);
+    const declaredEncoding = encodingMatch?.[1]?.toUpperCase();
+    if (declaredEncoding && declaredEncoding !== "UTF-8") {
+      xmlContent = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsText(file, declaredEncoding);
+      });
+    }
+    return xmlContent;
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.name.toLowerCase().endsWith(".xml")) {
-      toast.error("Bitte eine CAMT XML-Datei hochladen");
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const xmlFiles = Array.from(files).filter(f => f.name.toLowerCase().endsWith(".xml"));
+    if (xmlFiles.length === 0) {
+      toast.error("Bitte CAMT XML-Dateien hochladen");
       return;
     }
+
     setUploading(true);
-    try {
-      // Read with UTF-8 first to detect encoding from XML declaration
-      let xmlContent = await file.text();
-      const encodingMatch = xmlContent.match(/<\?xml[^?]*encoding=["']([^"']+)["']/i);
-      const declaredEncoding = encodingMatch?.[1]?.toUpperCase();
-      // Re-read with correct encoding if not UTF-8
-      if (declaredEncoding && declaredEncoding !== "UTF-8") {
-        xmlContent = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = () => reject(reader.error);
-          reader.readAsText(file, declaredEncoding);
+    setUploadProgress(xmlFiles.length > 1 ? { current: 0, total: xmlFiles.length } : null);
+
+    let totalImported = 0;
+    let totalMatched = 0;
+    let totalDuplicates = 0;
+    let errors = 0;
+    let lastStatementId: string | null = null;
+
+    for (let i = 0; i < xmlFiles.length; i++) {
+      const file = xmlFiles[i];
+      if (xmlFiles.length > 1) setUploadProgress({ current: i + 1, total: xmlFiles.length });
+
+      try {
+        const xmlContent = await readFileContent(file);
+        const { data, error } = await supabase.functions.invoke("parse-bank-statement", {
+          body: { xmlContent, buildingId: selectedBuilding !== "all" ? selectedBuilding : null },
         });
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+
+        totalImported += data.totalTransactions || 0;
+        totalMatched += data.matchedCount || 0;
+        totalDuplicates += data.duplicatesSkipped || 0;
+        if (data.statementId) lastStatementId = data.statementId;
+      } catch (err: any) {
+        errors++;
+        console.error(`Fehler bei ${file.name}:`, err);
       }
-      const { data, error } = await supabase.functions.invoke("parse-bank-statement", {
-        body: { xmlContent, buildingId: selectedBuilding !== "all" ? selectedBuilding : null },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      const parts = [];
-      if (data.totalTransactions > 0) parts.push(`${data.totalTransactions} importiert`);
-      if (data.matchedCount > 0) parts.push(`${data.matchedCount} zugeordnet`);
-      if (data.duplicatesSkipped > 0) parts.push(`${data.duplicatesSkipped} Duplikate übersprungen`);
-      if (data.message) { toast.info(data.message); } else { toast.success(parts.join(", ")); }
-      queryClient.invalidateQueries({ queryKey: ["bank-statements"] });
-      queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
-      if (data.statementId) setExpandedStatement(data.statementId);
-    } catch (err: any) {
-      toast.error("Fehler beim Import: " + (err.message || "Unbekannter Fehler"));
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
     }
+
+    // Show summary
+    if (xmlFiles.length === 1) {
+      if (errors > 0) {
+        toast.error("Fehler beim Import");
+      } else if (totalImported === 0 && totalDuplicates > 0) {
+        toast.info(`Alle ${totalDuplicates} Transaktionen waren bereits importiert.`);
+      } else {
+        const parts = [];
+        if (totalImported > 0) parts.push(`${totalImported} importiert`);
+        if (totalMatched > 0) parts.push(`${totalMatched} zugeordnet`);
+        if (totalDuplicates > 0) parts.push(`${totalDuplicates} Duplikate übersprungen`);
+        toast.success(parts.join(", "));
+      }
+    } else {
+      const parts = [`${xmlFiles.length - errors} von ${xmlFiles.length} Dateien verarbeitet`];
+      if (totalImported > 0) parts.push(`${totalImported} Transaktionen importiert`);
+      if (totalMatched > 0) parts.push(`${totalMatched} zugeordnet`);
+      if (totalDuplicates > 0) parts.push(`${totalDuplicates} Duplikate übersprungen`);
+      if (errors > 0) parts.push(`${errors} Fehler`);
+      toast.success(parts.join(", "));
+    }
+
+    queryClient.invalidateQueries({ queryKey: ["bank-statements"] });
+    queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+    if (lastStatementId) setExpandedStatement(lastStatementId);
+
+    setUploading(false);
+    setUploadProgress(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const deleteStatement = async (stmtId: string) => {
