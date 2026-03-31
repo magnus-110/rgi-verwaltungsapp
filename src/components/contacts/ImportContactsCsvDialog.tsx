@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Upload, Sparkles, AlertTriangle, Check, Loader2, FileUp } from "lucide-react";
+import { Upload, Sparkles, AlertTriangle, Check, Loader2, FileUp, ChevronDown, ChevronRight, Phone, Mail, Building2, CreditCard, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -227,6 +227,8 @@ export function ImportContactsCsvDialog({ open, onOpenChange, onImported }: Prop
     }
   }, [contacts, toast, onImported]);
 
+  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+
   const selectedCount = contacts.filter(c => c._selected).length;
   const duplicateCount = contacts.filter(c => c.is_duplicate).length;
   const aiCorrectedCount = contacts.filter(c => c.ai_corrections.length > 0).length;
@@ -331,46 +333,156 @@ export function ImportContactsCsvDialog({ open, onOpenChange, onImported }: Prop
                   </TableHeader>
                   <TableBody>
                     {contacts.map((c, idx) => (
-                      <TableRow
-                        key={idx}
-                        className={`${c.is_duplicate ? "bg-destructive/5" : ""} ${c.ai_corrections.length > 0 ? "bg-amber-50 dark:bg-amber-950/20" : ""}`}
-                      >
-                        <TableCell>
-                          <Checkbox
-                            checked={c._selected}
-                            onCheckedChange={() => toggleContact(idx)}
-                          />
-                        </TableCell>
-                        <TableCell className="text-sm font-medium truncate max-w-[120px]">
-                          {c.short_name || "—"}
-                        </TableCell>
-                        <TableCell className="text-sm truncate max-w-[160px]">
-                          {getDisplayName(c)}
-                          {c.persons.length > 1 && (
-                            <span className="text-xs text-muted-foreground ml-1">+{c.persons.length - 1}</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={c.contact_type === "company" ? "default" : "secondary"} className="text-xs">
-                            {getTypeLabel(c.contact_type)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground truncate max-w-[180px]">
-                          {[c.address_street, c.address_zip, c.address_city].filter(Boolean).join(", ") || "—"}
-                        </TableCell>
-                        <TableCell className="text-center text-sm">{c.phones.length || "—"}</TableCell>
-                        <TableCell className="text-center text-sm">{c.emails.length || "—"}</TableCell>
-                        <TableCell>
-                          {c.is_duplicate && (
-                            <Badge variant="destructive" className="text-xs">Duplikat</Badge>
-                          )}
-                          {c.ai_corrections.length > 0 && (
-                            <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 text-xs" title={c.ai_corrections.join(", ")}>
-                              KI
+                      <React.Fragment key={idx}>
+                        <TableRow
+                          className={`cursor-pointer hover:bg-muted/50 ${c.is_duplicate ? "bg-destructive/5" : ""} ${c.ai_corrections.length > 0 ? "bg-amber-50 dark:bg-amber-950/20" : ""}`}
+                          onClick={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
+                        >
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={c._selected}
+                              onCheckedChange={() => toggleContact(idx)}
+                            />
+                          </TableCell>
+                          <TableCell className="text-sm font-medium truncate max-w-[120px]">
+                            <span className="flex items-center gap-1">
+                              {expandedIdx === idx ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
+                              {c.short_name || "—"}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-sm truncate max-w-[160px]">
+                            {getDisplayName(c)}
+                            {c.persons.length > 1 && (
+                              <span className="text-xs text-muted-foreground ml-1">+{c.persons.length - 1}</span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={c.contact_type === "company" ? "default" : "secondary"} className="text-xs">
+                              {getTypeLabel(c.contact_type)}
                             </Badge>
-                          )}
-                        </TableCell>
-                      </TableRow>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground truncate max-w-[180px]">
+                            {[c.address_street, c.address_zip, c.address_city].filter(Boolean).join(", ") || "—"}
+                          </TableCell>
+                          <TableCell className="text-center text-sm">{c.phones.length || "—"}</TableCell>
+                          <TableCell className="text-center text-sm">{c.emails.length || "—"}</TableCell>
+                          <TableCell>
+                            {c.is_duplicate && (
+                              <Badge variant="destructive" className="text-xs">Duplikat</Badge>
+                            )}
+                            {c.ai_corrections.length > 0 && (
+                              <Badge className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200 text-xs" title={c.ai_corrections.join(", ")}>
+                                KI
+                              </Badge>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                        {expandedIdx === idx && (
+                          <TableRow className="bg-muted/30 hover:bg-muted/30">
+                            <TableCell colSpan={8} className="p-0">
+                              <div className="px-6 py-4 space-y-3 text-sm">
+                                {/* Personen */}
+                                <div>
+                                  <p className="font-medium flex items-center gap-1.5 mb-1.5 text-foreground">
+                                    <User className="h-3.5 w-3.5" /> Personen ({c.persons.length})
+                                  </p>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1 pl-5">
+                                    {c.persons.map((p, pi) => (
+                                      <div key={pi} className="text-muted-foreground">
+                                        {p.salutation && <span className="mr-1">{p.salutation}</span>}
+                                        {p.first_name} {p.last_name}
+                                        {p.is_primary && <Badge variant="outline" className="ml-1.5 text-[10px] py-0">Haupt</Badge>}
+                                      </div>
+                                    ))}
+                                    {c.persons.length === 0 && <span className="text-muted-foreground italic">Keine Personen</span>}
+                                  </div>
+                                </div>
+
+                                {/* Adresse */}
+                                <div>
+                                  <p className="font-medium flex items-center gap-1.5 mb-1 text-foreground">
+                                    <Building2 className="h-3.5 w-3.5" /> Adresse
+                                  </p>
+                                  <p className="pl-5 text-muted-foreground">
+                                    {c.address_street || "—"}, {c.address_zip || "—"} {c.address_city || "—"}
+                                  </p>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  {/* Telefon */}
+                                  <div>
+                                    <p className="font-medium flex items-center gap-1.5 mb-1.5 text-foreground">
+                                      <Phone className="h-3.5 w-3.5" /> Telefon ({c.phones.length})
+                                    </p>
+                                    <div className="space-y-0.5 pl-5">
+                                      {c.phones.map((ph, phi) => (
+                                        <div key={phi} className="text-muted-foreground">
+                                          <span>{ph.phone_number}</span>
+                                          <span className="text-xs ml-1.5 text-muted-foreground/70">{ph.label}</span>
+                                          {ph.note && <span className="text-xs ml-1 italic text-amber-600 dark:text-amber-400">({ph.note})</span>}
+                                        </div>
+                                      ))}
+                                      {c.phones.length === 0 && <span className="text-muted-foreground italic">Keine Telefonnummern</span>}
+                                    </div>
+                                  </div>
+
+                                  {/* E-Mail */}
+                                  <div>
+                                    <p className="font-medium flex items-center gap-1.5 mb-1.5 text-foreground">
+                                      <Mail className="h-3.5 w-3.5" /> E-Mail ({c.emails.length})
+                                    </p>
+                                    <div className="space-y-0.5 pl-5">
+                                      {c.emails.map((em, emi) => (
+                                        <div key={emi} className="text-muted-foreground">
+                                          <span>{em.email}</span>
+                                          <span className="text-xs ml-1.5 text-muted-foreground/70">{em.label}</span>
+                                          {em.note && <span className="text-xs ml-1 italic text-amber-600 dark:text-amber-400">({em.note})</span>}
+                                        </div>
+                                      ))}
+                                      {c.emails.length === 0 && <span className="text-muted-foreground italic">Keine E-Mail-Adressen</span>}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Bank */}
+                                {c.bank && (c.bank.iban || c.bank.account_holder) && (
+                                  <div>
+                                    <p className="font-medium flex items-center gap-1.5 mb-1 text-foreground">
+                                      <CreditCard className="h-3.5 w-3.5" /> Bankverbindung
+                                    </p>
+                                    <div className="pl-5 text-muted-foreground text-xs space-y-0.5">
+                                      {c.bank.account_holder && <p>Inhaber: {c.bank.account_holder}</p>}
+                                      {c.bank.iban && <p>IBAN: {c.bank.iban}</p>}
+                                      {c.bank.bic && <p>BIC: {c.bank.bic}</p>}
+                                      {c.bank.bank_name && <p>Bank: {c.bank.bank_name}</p>}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* KI-Korrekturen */}
+                                {c.ai_corrections.length > 0 && (
+                                  <div>
+                                    <p className="font-medium flex items-center gap-1.5 mb-1 text-amber-700 dark:text-amber-400">
+                                      <Sparkles className="h-3.5 w-3.5" /> KI-Korrekturen
+                                    </p>
+                                    <ul className="pl-5 text-xs text-amber-600 dark:text-amber-400 list-disc list-inside">
+                                      {c.ai_corrections.map((corr, ci) => <li key={ci}>{corr}</li>)}
+                                    </ul>
+                                  </div>
+                                )}
+
+                                {/* Notizen */}
+                                {c.notes && (
+                                  <div>
+                                    <p className="font-medium mb-1 text-foreground">Notizen</p>
+                                    <p className="pl-5 text-xs text-muted-foreground">{c.notes}</p>
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </React.Fragment>
                     ))}
                   </TableBody>
                 </Table>
