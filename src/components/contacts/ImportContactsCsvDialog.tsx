@@ -86,6 +86,9 @@ function mapHeaders(headers: string[]): Record<number, string> {
   return map;
 }
 
+const isValidPhone = (val: string) => /\d{4,}/.test(val);
+const isValidEmail = (val: string) => /@/.test(val);
+
 function parseStructuredRow(row: Record<string, string>): ParsedContact {
   const isCompany = (row.typ || "").toLowerCase() === "company" || (row.anrede || "").toLowerCase() === "firma";
   const isService = (row.typ || "").toLowerCase() === "service_provider";
