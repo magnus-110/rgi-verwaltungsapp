@@ -143,18 +143,27 @@ export function ImportContactsCsvDialog({ open, onOpenChange, onImported }: Prop
           return;
         }
 
-        // Start AI analysis
+        // Start AI analysis - batch in chunks of 100 to avoid body size limits
         setStep("analyzing");
         setProgress(10);
 
         try {
-          const { data, error } = await supabase.functions.invoke("import-contacts-csv", {
-            body: { action: "analyze", rows: csvRows },
-          });
-
-          if (error) throw error;
+          const batchSize = 100;
+          const allContacts: any[] = [];
           
-          const parsed = (data.contacts || []).map((c: any) => ({
+          for (let i = 0; i < csvRows.length; i += batchSize) {
+            const batch = csvRows.slice(i, i + batchSize);
+            const { data, error } = await supabase.functions.invoke("import-contacts-csv", {
+              body: { action: "analyze", rows: batch },
+            });
+
+            if (error) throw error;
+            
+            allContacts.push(...(data.contacts || []));
+            setProgress(10 + Math.round(((i + batch.length) / csvRows.length) * 85));
+          }
+          
+          const parsed = allContacts.map((c: any) => ({
             ...c,
             _selected: !c.is_duplicate,
           }));
