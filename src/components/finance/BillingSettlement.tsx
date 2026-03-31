@@ -103,6 +103,26 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     },
   });
 
+  // IST-payments on person accounts (for SOLL/IST toggle)
+  const { data: istPayments = [] } = useQuery({
+    queryKey: ["ist-payments-settlement", buildingId, fiscalYear],
+    enabled: useIstVorschuss,
+    queryFn: async () => {
+      // Get person accounts (account_number starts with 0000)
+      const personAccounts = accounts.filter(a => a.account_number.startsWith("0000"));
+      if (personAccounts.length === 0) return [];
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("account_id, amount, counter_account_id, description")
+        .eq("building_id", buildingId)
+        .eq("fiscal_year", fiscalYear)
+        .neq("status", "cancelled")
+        .in("account_id", personAccounts.map(a => a.id));
+      if (error) throw error;
+      return data;
+    },
+  });
+
   // Owners with shares and costs
   const { data: assignments = [] } = useQuery({
     queryKey: ["owner-assignments-settlement", buildingId],
