@@ -128,7 +128,7 @@ Deno.serve(async (req) => {
       .from("bank_transactions")
       .select("*")
       .is("booked_at", null)
-      .in("match_status", ["matched_invoice", "matched_template", "manually_matched"]);
+      .in("match_status", ["matched_invoice", "matched_template", "manually_matched", "unmatched"]);
 
     if (!bookAll && statementId) {
       txQuery = txQuery.eq("statement_id", statementId);

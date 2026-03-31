@@ -31,7 +31,6 @@ export function BankStatementsTab() {
   const [booking, setBooking] = useState(false);
   const [bookingAll, setBookingAll] = useState(false);
   const [selectedBuilding, setSelectedBuilding] = useState<string>("");
-  const [showIgnored, setShowIgnored] = useState(false);
   const [showBooked, setShowBooked] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<string | null>(null);
   const [manualAssignTxn, setManualAssignTxn] = useState<any | null>(null);
@@ -128,10 +127,6 @@ export function BankStatementsTab() {
     allBuildingTxns.filter((t: any) => t.match_status === "unmatched"),
     [allBuildingTxns]
   );
-  const ignoredTransactions = useMemo(() =>
-    allBuildingTxns.filter((t: any) => t.match_status === "ignored"),
-    [allBuildingTxns]
-  );
   const bookedTransactions = useMemo(() =>
     allBuildingTxns.filter((t: any) => t.booked_at),
     [allBuildingTxns]
@@ -139,7 +134,7 @@ export function BankStatementsTab() {
 
   const globalBookableCount = useMemo(() => {
     return allTransactions.filter((t: any) =>
-      ["matched_invoice", "matched_template", "manually_matched"].includes(t.match_status) && !t.booked_at
+      ["matched_invoice", "matched_template", "manually_matched", "unmatched"].includes(t.match_status) && !t.booked_at
     ).length;
   }, [allTransactions]);
 
@@ -306,13 +301,10 @@ export function BankStatementsTab() {
           </div>
         </TableCell>
         <TableCell onClick={(e) => e.stopPropagation()}>
-          {txn.match_status === "unmatched" && (
+          {txn.match_status === "unmatched" && !txn.booked_at && (
             <div className="flex gap-1">
               <Button variant="ghost" size="sm" className="text-xs" onClick={() => { setManualAssignTxn(txn); setManualAssignType("invoice"); setManualAssignId(""); }}>
                 <Link2 className="h-3 w-3 mr-1" />Zuordnen
-              </Button>
-              <Button variant="ghost" size="sm" className="text-xs" onClick={() => updateMatchStatus(txn.id, "ignored")}>
-                <EyeOff className="h-3 w-3 mr-1" />Ignorieren
               </Button>
             </div>
           )}
@@ -325,11 +317,6 @@ export function BankStatementsTab() {
                 Entfernen
               </Button>
             </div>
-          )}
-          {txn.match_status === "ignored" && (
-            <Button variant="ghost" size="sm" className="text-xs" onClick={() => updateMatchStatus(txn.id, "unmatched")}>
-              Wiederherstellen
-            </Button>
           )}
         </TableCell>
       </TableRow>
@@ -416,7 +403,7 @@ export function BankStatementsTab() {
                 {unmatchedTransactions.length > 0 && <Badge variant="outline" className="text-xs bg-yellow-50 dark:bg-yellow-950">{unmatchedTransactions.length} offen</Badge>}
                 {matchedTransactions.length > 0 && <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-950">{matchedTransactions.length} zugeordnet</Badge>}
                 {bookedTransactions.length > 0 && <Badge variant="outline" className="text-xs">{bookedTransactions.length} gebucht</Badge>}
-                {ignoredTransactions.length > 0 && <Badge variant="outline" className="text-xs">{ignoredTransactions.length} ignoriert</Badge>}
+                {bookedTransactions.length > 0 && <Badge variant="outline" className="text-xs">{bookedTransactions.length} gebucht</Badge>}
               </div>
 
               {/* Unmatched transactions */}
@@ -425,7 +412,7 @@ export function BankStatementsTab() {
                   <h4 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
                     <FileQuestion className="h-4 w-4 text-yellow-600" />Offene Transaktionen ({unmatchedTransactions.length})
                   </h4>
-                  <p className="text-xs text-muted-foreground mb-2">Diese Transaktionen konnten keiner Rechnung oder Vorlage zugeordnet werden.</p>
+                  <p className="text-xs text-muted-foreground mb-2">Diese Transaktionen konnten keiner Rechnung oder Vorlage zugeordnet werden. Sie werden beim Buchen ohne Zuordnung an Make.com gesendet.</p>
                   <Table>
                     {transactionTableHeader}
                     <TableBody>{unmatchedTransactions.map(renderTransactionRow)}</TableBody>
@@ -446,23 +433,6 @@ export function BankStatementsTab() {
                 </div>
               )}
 
-              {/* Ignored transactions */}
-              {ignoredTransactions.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Switch checked={showIgnored} onCheckedChange={setShowIgnored} id="show-ignored" />
-                    <Label htmlFor="show-ignored" className="text-sm text-muted-foreground cursor-pointer flex items-center gap-2">
-                      <EyeOff className="h-4 w-4" />Ignorierte Transaktionen ({ignoredTransactions.length})
-                    </Label>
-                  </div>
-                  {showIgnored && (
-                    <Table>
-                      {transactionTableHeader}
-                      <TableBody>{ignoredTransactions.map(renderTransactionRow)}</TableBody>
-                    </Table>
-                  )}
-                </div>
-              )}
 
               {/* Booked transactions */}
               {bookedTransactions.length > 0 && (
