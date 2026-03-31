@@ -208,10 +208,18 @@ export function ImportContactsCsvDialog({ open, onOpenChange, onImported }: Prop
           setProgress(30);
 
           const fieldIndices: Record<string, number> = {};
+          let phoneColCount = 0;
+          let emailColCount = 0;
           headerRow.forEach((h, i) => {
             const normalized = h.toLowerCase().trim();
             if (HEADER_MAP[normalized]) {
               fieldIndices[HEADER_MAP[normalized]] = i;
+            } else if (/^(telefon|tel)[\s.\-]*(geschäftlich\s*)?(\d*)$/i.test(normalized) || /^tel\.\s*\d*$/i.test(normalized)) {
+              phoneColCount++;
+              fieldIndices[`telefon_${phoneColCount}`] = i;
+            } else if (/^e-?mail[-\s]*(\d*)[:\s]*(adresse)?$/i.test(normalized)) {
+              emailColCount++;
+              fieldIndices[`email_${emailColCount}`] = i;
             }
           });
 
