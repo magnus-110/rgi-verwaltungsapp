@@ -416,8 +416,8 @@ export function ImportContactsCsvDialog({ open, onOpenChange, onImported }: Prop
             CSV-Kontakte importieren
           </DialogTitle>
           <DialogDescription>
-            {step === "upload" && "Lade eine CSV-Datei aus deinem alten Verwaltungsprogramm hoch (max. 2 MB)."}
-            {step === "analyzing" && "Die KI analysiert die Kontaktdaten..."}
+            {step === "upload" && "Lade eine CSV-Datei hoch (max. 2 MB). Strukturierte CSVs werden direkt geparst."}
+            {step === "analyzing" && "Kontaktdaten werden verarbeitet..."}
             {step === "preview" && `${contacts.length} Kontakte erkannt — ${selectedCount} ausgewählt zum Import`}
             {step === "importing" && "Kontakte werden importiert..."}
             {step === "done" && `Import abgeschlossen: ${importResult?.imported} von ${contacts.length} importiert`}
