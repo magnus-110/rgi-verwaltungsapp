@@ -1,65 +1,77 @@
 
 
-## Fix: CSV-Import setzt keine `person_id` bei Telefon/E-Mail
+## Split-Screen Zuordnungsdialog mit KI-Vorschlägen
 
-### Problem
+### Übersicht
+Der aktuelle Zuordnungsdialog (`max-w-lg`, kleines Select-Dropdown) wird durch einen Fullscreen-ähnlichen Split-Screen-Dialog ersetzt. Links: Transaktionsdetails groß und übersichtlich. Rechts: scrollbare Liste aller verfügbaren Rechnungen/Vorlagen als Karten mit allen relevanten Infos. Zusätzlich eine KI-Funktion, die passende Kandidaten hervorhebt.
 
-Die Edge Function `import-contacts-csv` fügt Telefonnummern und E-Mails nur mit `contact_id` ein, aber **ohne `person_id`**. Die `ContactDetail`-Komponente lädt diese Daten jedoch gefiltert nach `person_id === person.id` (Zeile 98-100). Da `person_id` null ist, werden die Daten nie angezeigt — obwohl sie in der Datenbank existieren.
+### Änderungen
 
-Die Vorschau funktioniert, weil sie rein clientseitig ist und die Daten direkt aus dem geparsten Objekt anzeigt.
+**Datei 1: `src/components/finance/BankStatementsTab.tsx`**
 
-### Lösung
+Den bestehenden Dialog (Zeile 490-563) komplett ersetzen durch:
 
-**Datei: `supabase/functions/import-contacts-csv/index.ts`**
+- **Dialog**: `max-w-6xl w-full h-[80vh]` — nutzt fast den ganzen Bildschirm
+- **Linke Seite (ca. 40%)**: Transaktionsdetails groß dargestellt
+  - Betrag (groß, farbig)
+  - Datum
+  - Name (Auftraggeber/Empfänger)
+  - IBAN
+  - Verwendungszweck (vollständig, nicht abgeschnitten)
+  - BIC, Mandatsreferenz falls vorhanden
+- **Rechte Seite (ca. 60%)**: Scrollbare Liste von Karten
+  - Tab-Umschalter oben: "Rechnungen" / "Vorlagen"
+  - Toggle: "Bereits zugeordnete anzeigen" (nur bei Rechnungen)
+  - Jede Karte zeigt:
+    - **Rechnung**: Rechnungsnummer, Lieferant, Bruttobetrag, IBAN, Rechnungsdatum
+    - **Vorlage**: Name, Lieferant, erwarteter Betrag, IBAN, Intervall
+  - Klick auf Karte = Auswahl (visuell hervorgehoben mit Ring/Border)
+  - Ausgewählte Karte → "Zuordnen"-Button wird aktiv
+- **KI-Badge**: Karten die von der KI als passend erkannt werden, bekommen ein "KI-Vorschlag" Badge und werden oben sortiert
 
-Im `action === "import"` Block (Zeile 324-396): Nach dem Einfügen der Personen (`contact_persons`) die zurückgegebenen IDs abrufen, dann beim Einfügen von Phones, Emails und Bank-Accounts die korrekte `person_id` setzen.
+**Datei 2: Neue Edge Function `supabase/functions/suggest-match/index.ts`**
 
-Konkret:
-1. Persons-Insert mit `.select("id")` erweitern, um die generierten IDs zu erhalten
-2. Die primäre Person (oder erste Person) als Fallback-`person_id` für Phones/Emails/Banks verwenden
-3. Falls mehrere Personen existieren und die Daten zugeordnet werden können (z.B. über Index), die jeweilige `person_id` setzen
+Einfache KI-Funktion die für eine Transaktion die besten Kandidaten ermittelt:
+- Input: Transaktionsdaten (Name, IBAN, Betrag, Verwendungszweck) + Liste der verfügbaren Rechnungen/Vorlagen
+- Verwendet Lovable AI (gemini-3-flash-preview) mit Tool-Calling um structured output zurückzugeben
+- Output: Array von `{ id: string, score: number, reason: string }` — die IDs der passenden Rechnungen/Vorlagen mit Begründung
+- Matching-Kriterien für die KI: IBAN-Übereinstimmung, Betragsähnlichkeit, Namensähnlichkeit, Verwendungszweck-Keywords
+- Wird beim Öffnen des Dialogs automatisch aufgerufen, Ergebnis wird gecacht
 
-```typescript
-// Persons einfügen und IDs zurückbekommen
-const { data: personsData, error: persErr } = await supabase
-  .from("contact_persons")
-  .insert(personInserts)
-  .select("id");
+**Ablauf im Dialog:**
+1. Dialog öffnet sich → linke Seite zeigt Transaktionsdetails
+2. Parallel: KI-Aufruf startet (kleiner Spinner auf rechter Seite)
+3. KI-Ergebnisse kommen → passende Karten bekommen Badge + werden nach oben sortiert
+4. User klickt auf passende Karte → Karte wird selektiert (blauer Rand)
+5. User klickt "Zuordnen" → wie bisher `handleManualAssign`
 
-// Primäre Person-ID ermitteln
-const primaryPersonId = personsData?.[0]?.id || null;
+### Technische Details
 
-// Phones mit person_id einfügen
-const phoneInserts = validPhones.map((p) => ({
-  contact_id: contactId,
-  person_id: primaryPersonId,  // <-- DAS FEHLTE
-  phone_number: p.phone_number.trim(),
-  label: p.label || "Mobil",
-  note: p.note || null,
-}));
-
-// Emails mit person_id einfügen  
-const emailInserts = validEmails.map((e, idx) => ({
-  contact_id: contactId,
-  person_id: primaryPersonId,  // <-- DAS FEHLTE
-  email: e.email.trim(),
-  label: e.label || "Privat",
-  is_primary: idx === 0,
-  note: e.note || null,
-}));
-
-// Bank mit person_id einfügen
-await supabase.from("contact_bank_accounts").insert({
-  contact_id: contactId,
-  person_id: primaryPersonId,  // <-- DAS FEHLTE
-  ...
-});
+```text
+┌──────────────────────────────────────────────────────────┐
+│  Transaktion zuordnen                              [X]  │
+├────────────────────┬─────────────────────────────────────┤
+│                    │  [Rechnungen] [Vorlagen]            │
+│  -1.234,56 €       │  □ Bereits zugeordnete anzeigen    │
+│  15.01.2026        │                                    │
+│                    │  ┌─ KI-Vorschlag ──────────────┐   │
+│  Stadtwerke GmbH   │  │ RE-2026-001                 │   │
+│  DE89 3704 ...     │  │ Stadtwerke GmbH  1.234,56 € │   │
+│                    │  │ DE89 3704 ...   15.01.2026   │   │
+│  Abschlag Strom    │  │ "IBAN + Betrag stimmen"      │   │
+│  Jan 2026          │  └──────────────────────────────┘   │
+│                    │                                    │
+│                    │  ┌──────────────────────────────┐   │
+│                    │  │ RE-2026-005                 │   │
+│                    │  │ Müller AG       890,00 €     │   │
+│                    │  └──────────────────────────────┘   │
+│                    │                                    │
+├────────────────────┴─────────────────────────────────────┤
+│                       [Abbrechen]  [Zuordnen]           │
+└──────────────────────────────────────────────────────────┘
 ```
 
-### Zusätzlich: Adressen bereinigen
-
-Alle Kontakte außer Magnus Göttinger und Cristina van Praag löschen (wie angefordert).
-
 ### Dateien
-1. `supabase/functions/import-contacts-csv/index.ts` — `person_id` bei allen Sub-Inserts setzen
+1. `src/components/finance/BankStatementsTab.tsx` — Dialog-UI komplett umbauen
+2. `supabase/functions/suggest-match/index.ts` — KI-Matching Edge Function (neu)
 
