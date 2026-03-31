@@ -433,23 +433,6 @@ export function BankStatementsTab() {
                 </div>
               )}
 
-              {/* Ignored transactions */}
-              {ignoredTransactions.length > 0 && (
-                <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Switch checked={showIgnored} onCheckedChange={setShowIgnored} id="show-ignored" />
-                    <Label htmlFor="show-ignored" className="text-sm text-muted-foreground cursor-pointer flex items-center gap-2">
-                      <EyeOff className="h-4 w-4" />Ignorierte Transaktionen ({ignoredTransactions.length})
-                    </Label>
-                  </div>
-                  {showIgnored && (
-                    <Table>
-                      {transactionTableHeader}
-                      <TableBody>{ignoredTransactions.map(renderTransactionRow)}</TableBody>
-                    </Table>
-                  )}
-                </div>
-              )}
 
               {/* Booked transactions */}
               {bookedTransactions.length > 0 && (
