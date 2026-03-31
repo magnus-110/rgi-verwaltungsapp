@@ -443,10 +443,19 @@ export function BankStatementsTab() {
                   ))}
                 </SelectContent>
               </Select>
-              <input ref={fileInputRef} type="file" accept=".xml" className="hidden" onChange={handleFileUpload} />
+              <input ref={fileInputRef} type="file" accept=".xml" multiple className="hidden" onChange={handleFileUpload} />
               <Button onClick={() => fileInputRef.current?.click()} disabled={uploading}>
-                {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
-                CAMT importieren
+                {uploading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    {uploadProgress ? `Datei ${uploadProgress.current}/${uploadProgress.total}…` : "Importiere…"}
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4 mr-2" />
+                    CAMT importieren
+                  </>
+                )}
               </Button>
             </div>
           </div>

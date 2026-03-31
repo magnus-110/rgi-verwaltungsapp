@@ -185,6 +185,7 @@ export function ImportContactsCsvDialog({ open, onOpenChange, onImported }: Prop
 
     Papa.parse(file, {
       header: false,
+      delimiter: ";",
       encoding: "UTF-8",
       skipEmptyLines: true,
       complete: async (result) => {
