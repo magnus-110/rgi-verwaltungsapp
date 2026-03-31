@@ -992,9 +992,12 @@ export type Database = {
           id: string
           is_35a_relevant: boolean | null
           is_billing_relevant: boolean
+          is_distributable: boolean
           is_heating_relevant: boolean
           is_system_account: boolean | null
           is_wirtschaftsplan_relevant: boolean
+          settlement_35a_type: string | null
+          settlement_section: string | null
           sort_order: number | null
           updated_at: string
         }
@@ -1009,9 +1012,12 @@ export type Database = {
           id?: string
           is_35a_relevant?: boolean | null
           is_billing_relevant?: boolean
+          is_distributable?: boolean
           is_heating_relevant?: boolean
           is_system_account?: boolean | null
           is_wirtschaftsplan_relevant?: boolean
+          settlement_35a_type?: string | null
+          settlement_section?: string | null
           sort_order?: number | null
           updated_at?: string
         }
@@ -1026,9 +1032,12 @@ export type Database = {
           id?: string
           is_35a_relevant?: boolean | null
           is_billing_relevant?: boolean
+          is_distributable?: boolean
           is_heating_relevant?: boolean
           is_system_account?: boolean | null
           is_wirtschaftsplan_relevant?: boolean
+          settlement_35a_type?: string | null
+          settlement_section?: string | null
           sort_order?: number | null
           updated_at?: string
         }
@@ -2929,6 +2938,61 @@ export type Database = {
             columns: ["invoice_id"]
             isOneToOne: false
             referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      heating_distribution_values: {
+        Row: {
+          amount: number
+          assignment_id: string
+          billing_period_id: string
+          building_id: string
+          created_at: string | null
+          id: string
+          note: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          amount?: number
+          assignment_id: string
+          billing_period_id: string
+          building_id: string
+          created_at?: string | null
+          id?: string
+          note?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          amount?: number
+          assignment_id?: string
+          billing_period_id?: string
+          building_id?: string
+          created_at?: string | null
+          id?: string
+          note?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "heating_distribution_values_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "contact_building_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "heating_distribution_values_billing_period_id_fkey"
+            columns: ["billing_period_id"]
+            isOneToOne: false
+            referencedRelation: "billing_periods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "heating_distribution_values_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
             referencedColumns: ["id"]
           },
         ]
