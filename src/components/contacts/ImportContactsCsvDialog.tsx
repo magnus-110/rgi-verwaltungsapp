@@ -38,6 +38,9 @@ const HEADER_MAP: Record<string, string> = {
   "stichwörter": "stichwort", "stichwort": "stichwort", "kurzname": "stichwort",
   "anrede": "anrede",
   "nachname": "nachname", "name": "nachname", "name1": "nachname",
+  "vorname": "vorname",
+  "firma": "firma",
+  "typ": "typ",
   "name2": "name2", "name 2": "name2",
   "name3": "name3", "name 3": "name3",
   "strasse geschäftlich": "strasse", "straße geschäftlich": "strasse", "strasse": "strasse", "straße": "strasse", "str. geschäftl.": "strasse",
@@ -49,7 +52,24 @@ const HEADER_MAP: Record<string, string> = {
   "iban": "iban", "bic": "bic",
   "inhaber": "inhaber", "kontoinhaber": "inhaber",
   "kreditinstitut": "bank", "bank": "bank",
+  "telefon 1": "telefon_1", "telefon 1 notiz": "telefon_1_notiz",
+  "telefon 2": "telefon_2", "telefon 2 notiz": "telefon_2_notiz",
+  "telefon 3": "telefon_3", "telefon 3 notiz": "telefon_3_notiz",
+  "e-mail 1": "email_1", "e-mail 1 notiz": "email_1_notiz",
+  "e-mail 2": "email_2", "e-mail 2 notiz": "email_2_notiz",
+  "person 2 anrede": "person2_anrede",
+  "person 2 vorname": "person2_vorname",
+  "person 2 nachname": "person2_nachname",
+  "person 3 vorname": "person3_vorname",
+  "person 3 nachname": "person3_nachname",
+  "notizen": "notizen",
 };
+
+// Check if CSV has the new structured format
+function isStructuredFormat(headers: string[]): boolean {
+  const normalized = headers.map(h => h.toLowerCase().trim());
+  return normalized.includes("vorname") && normalized.includes("firma");
+}
 
 function mapHeaders(headers: string[]): Record<number, string> {
   const map: Record<number, string> = {};
@@ -64,6 +84,71 @@ function mapHeaders(headers: string[]): Record<number, string> {
     }
   });
   return map;
+}
+
+function parseStructuredRow(row: Record<string, string>): ParsedContact {
+  const isCompany = (row.typ || "").toLowerCase() === "company" || (row.anrede || "").toLowerCase() === "firma";
+  const isService = (row.typ || "").toLowerCase() === "service_provider";
+  const contactType = isCompany ? "company" : isService ? "service_provider" : "person";
+
+  // Build persons
+  const persons: ParsedContact["persons"] = [];
+  if (!isCompany && (row.vorname || row.nachname)) {
+    persons.push({ salutation: row.anrede || null, first_name: row.vorname || null, last_name: row.nachname || null, is_primary: true });
+  } else if (isCompany && (row.vorname || row.nachname)) {
+    persons.push({ salutation: row.anrede || null, first_name: row.vorname || null, last_name: row.nachname || null, is_primary: true });
+  }
+  if (row.person2_vorname || row.person2_nachname) {
+    persons.push({ salutation: row.person2_anrede || null, first_name: row.person2_vorname || null, last_name: row.person2_nachname || null, is_primary: false });
+  }
+  if (row.person3_vorname || row.person3_nachname) {
+    persons.push({ salutation: null, first_name: row.person3_vorname || null, last_name: row.person3_nachname || null, is_primary: false });
+  }
+
+  // Build phones
+  const phones: ParsedContact["phones"] = [];
+  if (row.telefon_1) phones.push({ phone_number: row.telefon_1, label: "Festnetz", note: row.telefon_1_notiz || null });
+  if (row.telefon_2) phones.push({ phone_number: row.telefon_2, label: "Mobil", note: row.telefon_2_notiz || null });
+  if (row.telefon_3) phones.push({ phone_number: row.telefon_3, label: "Sonstige", note: row.telefon_3_notiz || null });
+  if (row.fax) phones.push({ phone_number: row.fax, label: "Fax", note: null });
+
+  // Build emails
+  const emails: ParsedContact["emails"] = [];
+  if (row.email_1) emails.push({ email: row.email_1, label: "Geschäftlich", note: row.email_1_notiz || null });
+  if (row.email_2) emails.push({ email: row.email_2, label: "Privat", note: row.email_2_notiz || null });
+
+  // Bank
+  const bank = (row.iban || row.bic || row.inhaber || row.bank) ? {
+    iban: row.iban || null,
+    bic: row.bic || null,
+    account_holder: row.inhaber || null,
+    bank_name: row.bank || null,
+  } : null;
+
+  // Notes
+  const noteParts: string[] = [];
+  if (row.notizen) noteParts.push(row.notizen);
+  if (row.webseite) noteParts.push(`Webseite: ${row.webseite}`);
+
+  return {
+    short_name: row.stichwort || null,
+    salutation: row.anrede || null,
+    contact_type: contactType,
+    first_name: isCompany ? null : (row.vorname || null),
+    last_name: isCompany ? null : (row.nachname || null),
+    company_name: isCompany ? (row.firma || row.nachname || null) : (row.firma || null),
+    address_street: row.strasse || null,
+    address_zip: row.plz || null,
+    address_city: row.ort || null,
+    notes: noteParts.length > 0 ? noteParts.join("\n") : null,
+    persons,
+    phones,
+    emails,
+    bank,
+    ai_corrections: [],
+    is_duplicate: false,
+    _selected: true,
+  };
 }
 
 interface Props {
