@@ -347,11 +347,9 @@ export function ChartOfAccountsTab() {
                    <Checkbox checked={newAccount.is_wirtschaftsplan_relevant} onCheckedChange={c => setNewAccount(p => ({ ...p, is_wirtschaftsplan_relevant: !!c }))} />
                    <Label>WP-relevant</Label>
                  </div>
-                  <Label>Saldovortrag</Label>
-                </div>
-              </div>
-            </div>
-          </div>
+               </div>
+             </div>
+           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsAddOpen(false)}>Abbrechen</Button>
             <Button onClick={addAccount}>Hinzufügen</Button>
