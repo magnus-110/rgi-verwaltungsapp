@@ -340,32 +340,40 @@ serve(async (req) => {
 
             // Insert phones
             if (c.phones && c.phones.length > 0) {
-              const phoneInserts = c.phones.map((p: any) => ({
-                contact_id: contactId,
-                phone_number: p.phone_number,
-                label: p.label || "Mobil",
-                note: p.note || null,
-              }));
-              const { error: phoneErr } = await supabase.from("contact_phones").insert(phoneInserts);
-              if (phoneErr) {
-                console.error(`Phones insert error for ${contactId}:`, phoneErr.message);
-                errors.push(`${c.short_name || c.last_name} (Telefon): ${phoneErr.message}`);
+              const validPhones = c.phones.filter((p: any) => p.phone_number && p.phone_number.trim() !== "");
+              if (validPhones.length > 0) {
+                const phoneInserts = validPhones.map((p: any) => ({
+                  contact_id: contactId,
+                  phone_number: p.phone_number.trim(),
+                  label: p.label || "Mobil",
+                  note: p.note || null,
+                }));
+                console.log(`Inserting ${phoneInserts.length} phones for ${c.short_name || c.last_name}:`, JSON.stringify(phoneInserts));
+                const { error: phoneErr } = await supabase.from("contact_phones").insert(phoneInserts);
+                if (phoneErr) {
+                  console.error(`Phones insert error for ${contactId}:`, phoneErr.message, JSON.stringify(phoneInserts));
+                  errors.push(`${c.short_name || c.last_name} (Telefon): ${phoneErr.message}`);
+                }
               }
             }
 
             // Insert emails
             if (c.emails && c.emails.length > 0) {
-              const emailInserts = c.emails.map((e: any, idx: number) => ({
-                contact_id: contactId,
-                email: e.email,
-                label: e.label || "Privat",
-                is_primary: idx === 0,
-                note: e.note || null,
-              }));
-              const { error: emailErr } = await supabase.from("contact_emails").insert(emailInserts);
-              if (emailErr) {
-                console.error(`Emails insert error for ${contactId}:`, emailErr.message);
-                errors.push(`${c.short_name || c.last_name} (E-Mail): ${emailErr.message}`);
+              const validEmails = c.emails.filter((e: any) => e.email && e.email.trim() !== "");
+              if (validEmails.length > 0) {
+                const emailInserts = validEmails.map((e: any, idx: number) => ({
+                  contact_id: contactId,
+                  email: e.email.trim(),
+                  label: e.label || "Privat",
+                  is_primary: idx === 0,
+                  note: e.note || null,
+                }));
+                console.log(`Inserting ${emailInserts.length} emails for ${c.short_name || c.last_name}:`, JSON.stringify(emailInserts));
+                const { error: emailErr } = await supabase.from("contact_emails").insert(emailInserts);
+                if (emailErr) {
+                  console.error(`Emails insert error for ${contactId}:`, emailErr.message, JSON.stringify(emailInserts));
+                  errors.push(`${c.short_name || c.last_name} (E-Mail): ${emailErr.message}`);
+                }
               }
             }
 

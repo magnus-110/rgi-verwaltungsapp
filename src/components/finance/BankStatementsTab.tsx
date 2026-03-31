@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Upload, Loader2, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff, Building2, BookOpen, Link2 } from "lucide-react";
+import { Upload, Loader2, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff, Building2, BookOpen, Link2, Send } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -37,6 +37,7 @@ export function BankStatementsTab() {
   const [manualAssignType, setManualAssignType] = useState<"invoice" | "template">("invoice");
   const [manualAssignId, setManualAssignId] = useState<string>("");
   const [showMatchedInvoices, setShowMatchedInvoices] = useState(false);
+  const [bookingSingleId, setBookingSingleId] = useState<string | null>(null);
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
@@ -134,7 +135,7 @@ export function BankStatementsTab() {
 
   const globalBookableCount = useMemo(() => {
     return allTransactions.filter((t: any) =>
-      ["matched_invoice", "matched_template", "manually_matched", "unmatched"].includes(t.match_status) && !t.booked_at
+      ["matched_invoice", "matched_template", "manually_matched"].includes(t.match_status) && !t.booked_at
     ).length;
   }, [allTransactions]);
 
@@ -280,6 +281,25 @@ export function BankStatementsTab() {
     }
   };
 
+
+  const handleBookSingle = async (txnId: string) => {
+    setBookingSingleId(txnId);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-booking-data", {
+        body: { transactionIds: [txnId] },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success(data.message || "Transaktion gebucht");
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+    } catch (err: any) {
+      toast.error("Fehler beim Buchen: " + (err.message || "Unbekannter Fehler"));
+    } finally {
+      setBookingSingleId(null);
+    }
+  };
+
   const renderTransactionRow = (txn: any) => {
     const config = MATCH_STATUS_CONFIG[txn.match_status] || MATCH_STATUS_CONFIG.unmatched;
     const Icon = config.icon;
@@ -305,6 +325,16 @@ export function BankStatementsTab() {
             <div className="flex gap-1">
               <Button variant="ghost" size="sm" className="text-xs" onClick={() => { setManualAssignTxn(txn); setManualAssignType("invoice"); setManualAssignId(""); }}>
                 <Link2 className="h-3 w-3 mr-1" />Zuordnen
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs"
+                disabled={bookingSingleId === txn.id}
+                onClick={() => handleBookSingle(txn.id)}
+              >
+                {bookingSingleId === txn.id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Send className="h-3 w-3 mr-1" />}
+                Buchen
               </Button>
             </div>
           )}
@@ -403,7 +433,6 @@ export function BankStatementsTab() {
                 {unmatchedTransactions.length > 0 && <Badge variant="outline" className="text-xs bg-yellow-50 dark:bg-yellow-950">{unmatchedTransactions.length} offen</Badge>}
                 {matchedTransactions.length > 0 && <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-950">{matchedTransactions.length} zugeordnet</Badge>}
                 {bookedTransactions.length > 0 && <Badge variant="outline" className="text-xs">{bookedTransactions.length} gebucht</Badge>}
-                {bookedTransactions.length > 0 && <Badge variant="outline" className="text-xs">{bookedTransactions.length} gebucht</Badge>}
               </div>
 
               {/* Unmatched transactions */}
@@ -412,7 +441,7 @@ export function BankStatementsTab() {
                   <h4 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
                     <FileQuestion className="h-4 w-4 text-yellow-600" />Offene Transaktionen ({unmatchedTransactions.length})
                   </h4>
-                  <p className="text-xs text-muted-foreground mb-2">Diese Transaktionen konnten keiner Rechnung oder Vorlage zugeordnet werden. Sie werden beim Buchen ohne Zuordnung an Make.com gesendet.</p>
+                  <p className="text-xs text-muted-foreground mb-2">Diese Transaktionen konnten keiner Rechnung oder Vorlage zugeordnet werden. Sie können einzeln ohne Zuordnung gebucht werden.</p>
                   <Table>
                     {transactionTableHeader}
                     <TableBody>{unmatchedTransactions.map(renderTransactionRow)}</TableBody>

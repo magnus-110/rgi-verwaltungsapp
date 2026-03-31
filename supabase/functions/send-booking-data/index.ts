@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { statementId, bookAll, testMode } = await req.json();
+    const { statementId, bookAll, testMode, transactionIds } = await req.json();
 
     // Test mode: send a fictional dummy transaction without touching DB
     if (testMode) {
@@ -116,8 +116,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!statementId && !bookAll) {
-      return new Response(JSON.stringify({ error: "statementId or bookAll required" }), {
+    if (!statementId && !bookAll && !transactionIds) {
+      return new Response(JSON.stringify({ error: "statementId, bookAll, or transactionIds required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -127,11 +127,18 @@ Deno.serve(async (req) => {
     let txQuery = supabase
       .from("bank_transactions")
       .select("*")
-      .is("booked_at", null)
-      .in("match_status", ["matched_invoice", "matched_template", "manually_matched", "unmatched"]);
+      .is("booked_at", null);
 
-    if (!bookAll && statementId) {
-      txQuery = txQuery.eq("statement_id", statementId);
+    if (transactionIds && Array.isArray(transactionIds) && transactionIds.length > 0) {
+      // Individual booking by specific IDs (includes unmatched)
+      txQuery = txQuery.in("id", transactionIds);
+    } else if (bookAll) {
+      // Bulk booking: only matched transactions (exclude unmatched)
+      txQuery = txQuery.in("match_status", ["matched_invoice", "matched_template", "manually_matched"]);
+    } else if (statementId) {
+      txQuery = txQuery
+        .in("match_status", ["matched_invoice", "matched_template", "manually_matched", "unmatched"])
+        .eq("statement_id", statementId);
     }
 
     const { data: transactions, error: txError } = await txQuery;

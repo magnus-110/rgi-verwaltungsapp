@@ -48,7 +48,7 @@ const HEADER_MAP: Record<string, string> = {
   "ort geschäftlich": "ort", "ort": "ort", "stadt": "ort",
   "webseite geschäftlich": "webseite", "webseite": "webseite", "web": "webseite",
   "fax geschäftlich": "fax", "fax": "fax",
-  "e-mail-adresse": "email_0",
+  "e-mail-adresse": "email_1",
   "iban": "iban", "bic": "bic",
   "inhaber": "inhaber", "kontoinhaber": "inhaber",
   "kreditinstitut": "bank", "bank": "bank",
@@ -208,10 +208,18 @@ export function ImportContactsCsvDialog({ open, onOpenChange, onImported }: Prop
           setProgress(30);
 
           const fieldIndices: Record<string, number> = {};
+          let phoneColCount = 0;
+          let emailColCount = 0;
           headerRow.forEach((h, i) => {
             const normalized = h.toLowerCase().trim();
             if (HEADER_MAP[normalized]) {
               fieldIndices[HEADER_MAP[normalized]] = i;
+            } else if (/^(telefon|tel)[\s.\-]*(geschäftlich\s*)?(\d*)$/i.test(normalized) || /^tel\.\s*\d*$/i.test(normalized)) {
+              phoneColCount++;
+              fieldIndices[`telefon_${phoneColCount}`] = i;
+            } else if (/^e-?mail[-\s]*(\d*)[:\s]*(adresse)?$/i.test(normalized)) {
+              emailColCount++;
+              fieldIndices[`email_${emailColCount}`] = i;
             }
           });
 
