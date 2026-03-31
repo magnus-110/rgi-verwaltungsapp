@@ -15,7 +15,7 @@ import { Upload, Loader2, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff, Bu
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { TransactionDetailSheet } from "./TransactionDetailSheet";
+import { AssignmentDialog } from "./AssignmentDialog";
 
 const MATCH_STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   matched_invoice: { label: "Rechnung", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200", icon: CheckCircle2 },
