@@ -42,6 +42,7 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
     setInternalPeriodId(id);
     onPeriodChange?.(id);
   };
+  const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set(["review"]));
   const [balanceStatus, setBalanceStatus] = useState<"idle" | "done" | "no_data">("idle");
 
   const { data: period } = useQuery({
