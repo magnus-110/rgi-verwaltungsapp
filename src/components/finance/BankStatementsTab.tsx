@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Upload, Loader2, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff, Building2, BookOpen, Link2, Send } from "lucide-react";
+import { Upload, Loader2, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff, Building2, BookOpen, Link2, Send, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { AssignmentDialog } from "./AssignmentDialog";
@@ -21,14 +21,24 @@ const MATCH_STATUS_CONFIG: Record<string, { label: string; color: string; icon: 
   ignored: { label: "Ignoriert", color: "bg-muted text-muted-foreground", icon: EyeOff },
 };
 
-export function BankStatementsTab() {
+interface BankStatementsTabProps {
+  sharedBuildingId?: string | null;
+  onBuildingChange?: (id: string | null) => void;
+}
+
+export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankStatementsTabProps) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [booking, setBooking] = useState(false);
   const [bookingAll, setBookingAll] = useState(false);
-  const [selectedBuilding, setSelectedBuilding] = useState<string>("");
+  const [internalBuilding, setInternalBuilding] = useState<string>("");
+  const selectedBuilding = sharedBuildingId || internalBuilding;
+  const setSelectedBuilding = (id: string) => {
+    setInternalBuilding(id);
+    onBuildingChange?.(id);
+  };
   const [showBooked, setShowBooked] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<string | null>(null);
   const [manualAssignTxn, setManualAssignTxn] = useState<any | null>(null);
@@ -36,6 +46,7 @@ export function BankStatementsTab() {
   const [manualAssignId, setManualAssignId] = useState<string>("");
   const [showMatchedInvoices, setShowMatchedInvoices] = useState(false);
   const [bookingSingleId, setBookingSingleId] = useState<string | null>(null);
+  const [rematching, setRematching] = useState(false);
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
@@ -279,6 +290,27 @@ export function BankStatementsTab() {
     }
   };
 
+  const handleRematch = async () => {
+    if (!selectedBuilding) return;
+    setRematching(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("parse-bank-statement", {
+        body: { rematchBuildingId: selectedBuilding },
+      });
+      if (error) throw error;
+      if (data?.matched > 0) {
+        toast.success(`${data.matched} von ${data.total} Transaktionen neu zugeordnet`);
+      } else {
+        toast.info("Keine neuen Zuordnungen gefunden");
+      }
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+    } catch (err: any) {
+      toast.error("Fehler beim Abgleich: " + (err.message || "Unbekannter Fehler"));
+    } finally {
+      setRematching(false);
+    }
+  };
 
   const handleBookSingle = async (txnId: string) => {
     setBookingSingleId(txnId);
@@ -371,6 +403,12 @@ export function BankStatementsTab() {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <CardTitle className="text-lg">Kontoauszüge</CardTitle>
             <div className="flex items-center gap-2 flex-wrap">
+              {selectedBuilding && unmatchedTransactions.length > 0 && (
+                <Button variant="outline" disabled={rematching} onClick={handleRematch}>
+                  {rematching ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                  Neu abgleichen ({unmatchedTransactions.length})
+                </Button>
+              )}
               {globalBookableCount > 0 && (
                 <Button variant="default" disabled={bookingAll} onClick={handleBookAll}>
                   {bookingAll ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <BookOpen className="h-4 w-4 mr-2" />}
