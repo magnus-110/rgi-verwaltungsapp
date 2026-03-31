@@ -242,7 +242,38 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { xmlContent, buildingId } = await req.json();
+    const { xmlContent, buildingId, rematchBuildingId } = await req.json();
+
+    // Re-match mode: run matching on all unmatched transactions for a building
+    if (rematchBuildingId) {
+      const { data: unmatched } = await supabase
+        .from("bank_transactions")
+        .select("id, statement_id")
+        .eq("building_id", rematchBuildingId)
+        .eq("match_status", "unmatched")
+        .is("booked_at", null);
+
+      if (!unmatched?.length) {
+        return new Response(
+          JSON.stringify({ success: true, matched: 0, total: 0, message: "Keine offenen Transaktionen." }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Get unique statement IDs
+      const stmtIds = [...new Set(unmatched.map((t: any) => t.statement_id))];
+      let totalMatched = 0;
+      for (const sid of stmtIds) {
+        const result = await matchTransactions(supabase, sid, rematchBuildingId);
+        totalMatched += result.matched;
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, matched: totalMatched, total: unmatched.length }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     if (!xmlContent) {
       return new Response(JSON.stringify({ error: "xmlContent required" }), {
         status: 400,

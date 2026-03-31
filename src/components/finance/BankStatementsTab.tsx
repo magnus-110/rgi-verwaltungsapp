@@ -36,6 +36,7 @@ export function BankStatementsTab() {
   const [manualAssignId, setManualAssignId] = useState<string>("");
   const [showMatchedInvoices, setShowMatchedInvoices] = useState(false);
   const [bookingSingleId, setBookingSingleId] = useState<string | null>(null);
+  const [rematching, setRematching] = useState(false);
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
