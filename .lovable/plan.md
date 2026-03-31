@@ -1,12 +1,12 @@
 
-
 ## Restructure Abrechnung & Wirtschaftsplan Tabs
 
 ### Current State
 - **Abrechnung** has 6 steps: Saldenübernahme, Heizkosten, Export, Umbuchungen, Abgrenzungen, Gesamtabrechnung
 - **Wirtschaftsplan** tab only contains the EconomicPlanEditor
-- `chart_of_accounts` has flags: `is_billing_relevant`, `is_heating_relevant`, `is_35a_relevant`, `carry_forward_balance`
-- No `is_wirtschaftsplan_relevant` flag exists yet
+- `chart_of_accounts` has flags: `is_billing_relevant`, `is_heating_relevant`, `is_35a_relevant`, `carry_forward_balance`, `is_wirtschaftsplan_relevant`
+- NEW: `is_distributable`, `settlement_section`, `settlement_35a_type` columns added
+- NEW: `heating_distribution_values` table for external heating provider values
 
 ### Plan
 
@@ -23,7 +23,7 @@
 | 1 | Buchungsprüfung | All confirmed bookings for the period, grouped by account category. Per-account completeness check (e.g. "12/12 Hausgeld E0001", "4/4 Wasser"). Expandable account rows showing individual bookings. |
 | 2 | Heizkosten | HeatingAccountsSection + FuelInventorySection + HeatingRebookingSection (merge current steps 2-4 into one). Default target account 1400. |
 | 3 | Abgrenzungen | AccrualSection — enhanced with auto-detection logic: compare booking `service_period_from`/`service_period_to` against fiscal year boundaries. Flag bookings that span year boundaries. |
-| 4 | Gesamtabrechnung | BillingSettlement (unchanged) — creates total + individual settlements. |
+| 4 | Gesamtabrechnung | BillingSettlement — creates total + individual settlements with professional 3-column layout. |
 
 **Remove** the separate "Export Ablesefirma" step (keep the export button inside the Heizkosten step).
 
@@ -43,54 +43,52 @@
 Rename the third top-level tab from "Wirtschaftsplan" to **"Planung & Berichte"**. Use a sub-tab or accordion layout with 3 sections:
 
 **Section 1: Wirtschaftsplan (Gesamt & Einzel)**
-- Add `is_wirtschaftsplan_relevant` boolean to `chart_of_accounts` (migration)
 - Step 1: Show WP-relevant accounts with editable planned amounts + reserve allocation. AI suggestion button (existing).
 - Step 2: Preview & export (existing EconomicPlanPreview).
 - Mostly reuse existing `EconomicPlanEditor` with filter changed from `is_billing_relevant` to `is_wirtschaftsplan_relevant`.
 
 **Section 2: Vermögensbericht**
-- New component `AssetReportSection.tsx`
-- Pulls data from:
-  - Bank account balances (`account_balances` where account category = Bankkonten)
-  - Accrual/prepayment accounts (1470-1473)
-  - Fuel inventory value (`fuel_inventory` for the period)
-  - Manual additional assets (simple editable list stored in a new `asset_report_items` table or JSON in `billing_periods`)
-- Renders a summary card with totals and an export button
+- Pulls data from bank balances, accrual accounts, fuel inventory
+- Summary card with totals and export
 
 **Section 3: §35a Bescheinigung**
-- New component `Paragraph35aSection.tsx`
-- Query accounts with `is_35a_relevant = true`
+- Query accounts with `settlement_35a_type` = 'dienste' or 'handwerker'
 - Sum bookings per owner (via distribution keys)
-- Show table: Owner | Anteil | Summe §35a
 - Export as PDF per owner
 
 ---
 
-#### C. Database Changes (Migration)
+#### C. Database Changes — COMPLETED ✅
 
 ```sql
 ALTER TABLE chart_of_accounts 
-  ADD COLUMN is_wirtschaftsplan_relevant boolean NOT NULL DEFAULT false;
+  ADD COLUMN is_distributable boolean NOT NULL DEFAULT false,
+  ADD COLUMN settlement_section text,
+  ADD COLUMN settlement_35a_type text;
 
--- Set default: all billing-relevant accounts are also WP-relevant
-UPDATE chart_of_accounts 
-  SET is_wirtschaftsplan_relevant = true 
-  WHERE is_billing_relevant = true;
+CREATE TABLE heating_distribution_values (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  building_id uuid NOT NULL REFERENCES buildings(id) ON DELETE CASCADE,
+  billing_period_id uuid NOT NULL REFERENCES billing_periods(id) ON DELETE CASCADE,
+  assignment_id uuid NOT NULL REFERENCES contact_building_assignments(id) ON DELETE CASCADE,
+  amount numeric NOT NULL DEFAULT 0,
+  note text,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  UNIQUE(billing_period_id, assignment_id)
+);
 ```
 
 ---
 
-### Files to Create
-- `src/components/finance/BookingReviewSection.tsx` — Step 1 booking review with completeness checks
-- `src/components/finance/AssetReportSection.tsx` — Vermögensbericht
-- `src/components/finance/Paragraph35aSection.tsx` — §35a export
+### Completed ✅
+- [x] Migration — `is_distributable`, `settlement_section`, `settlement_35a_type` on chart_of_accounts; `heating_distribution_values` table
+- [x] `ChartOfAccountsTab.tsx` — settlement_section dropdown, is_distributable toggle, §35a type dropdown
+- [x] `HeatingRebookingSection.tsx` — Owner-level heating distribution values with CSV import
+- [x] `BillingSettlement.tsx` — Professional 3-tab layout: Gesamtabrechnung (3-column), Einzelabrechnungen (7-column with drill-down), Vermögensbericht
 
-### Files to Modify
-- **Migration** — add `is_wirtschaftsplan_relevant` column
-- `src/components/finance/BillingTab.tsx` — new 4-step structure, auto balance carry-forward
-- `src/pages/Finance.tsx` — rename tab, add sub-sections for WP/Vermögen/§35a
-- `src/components/finance/EconomicPlanEditor.tsx` — use `is_wirtschaftsplan_relevant` filter
-- `src/components/finance/ChartOfAccountsTab.tsx` — add WP-relevant checkbox
-- `src/components/finance/BuildingDistributionKeysTab.tsx` — add WP-relevant checkbox
-- `src/integrations/supabase/types.ts` — add new column type
-
+### Remaining
+- [ ] `BillingTab.tsx` — Update to new 4-step structure
+- [ ] `generate-billing-pdf/index.ts` — Professional PDF layout matching reference
+- [ ] `EconomicPlanEditor.tsx` — Use `is_wirtschaftsplan_relevant` filter
+- [ ] `Finance.tsx` — Rename tab, add sub-sections
