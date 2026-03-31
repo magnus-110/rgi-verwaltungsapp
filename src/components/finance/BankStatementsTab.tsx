@@ -412,7 +412,7 @@ export function BankStatementsTab() {
                   <h4 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
                     <FileQuestion className="h-4 w-4 text-yellow-600" />Offene Transaktionen ({unmatchedTransactions.length})
                   </h4>
-                  <p className="text-xs text-muted-foreground mb-2">Diese Transaktionen konnten keiner Rechnung oder Vorlage zugeordnet werden.</p>
+                  <p className="text-xs text-muted-foreground mb-2">Diese Transaktionen konnten keiner Rechnung oder Vorlage zugeordnet werden. Sie werden beim Buchen ohne Zuordnung an Make.com gesendet.</p>
                   <Table>
                     {transactionTableHeader}
                     <TableBody>{unmatchedTransactions.map(renderTransactionRow)}</TableBody>
