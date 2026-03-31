@@ -10,12 +10,12 @@ import { EconomicPlanEditor } from "@/components/finance/EconomicPlanEditor";
 import { AssetReportSection } from "@/components/finance/AssetReportSection";
 import { Paragraph35aSection } from "@/components/finance/Paragraph35aSection";
 import { Card, CardContent } from "@/components/ui/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ChevronDown, ChevronRight, FileText, Landmark, Receipt } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Finance = () => {
+  // Shared state across all tabs
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
   const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(null);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["wirtschaftsplan"]));
@@ -75,13 +75,23 @@ export const Finance = () => {
             </TabsList>
             <TabsContent value="invoices"><InvoicesTab /></TabsContent>
             <TabsContent value="templates"><BookingTemplatesTab /></TabsContent>
-            <TabsContent value="statements"><BankStatementsTab /></TabsContent>
+            <TabsContent value="statements">
+              <BankStatementsTab
+                sharedBuildingId={selectedBuildingId}
+                onBuildingChange={setSelectedBuildingId}
+              />
+            </TabsContent>
             <TabsContent value="bookings"><BookingsTab /></TabsContent>
           </Tabs>
         </TabsContent>
 
         <TabsContent value="abrechnung">
-          <BillingTab />
+          <BillingTab
+            sharedBuildingId={selectedBuildingId}
+            onBuildingChange={setSelectedBuildingId}
+            sharedPeriodId={selectedPeriodId}
+            onPeriodChange={setSelectedPeriodId}
+          />
         </TabsContent>
 
         <TabsContent value="planung" className="space-y-4">
