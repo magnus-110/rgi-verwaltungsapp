@@ -130,7 +130,7 @@ export function ChartOfAccountsTab() {
     if (error) { toast.error("Fehler: " + error.message); return; }
     toast.success("Konto hinzugefügt");
     setIsAddOpen(false);
-    setNewAccount({ account_number: "", account_name: "", category: "", default_distribution_key: "mea", is_35a_relevant: false, is_billing_relevant: false, is_heating_relevant: false, carry_forward_balance: false });
+    setNewAccount({ account_number: "", account_name: "", category: "", default_distribution_key: "mea", is_35a_relevant: false, is_billing_relevant: false, is_heating_relevant: false, carry_forward_balance: false, is_wirtschaftsplan_relevant: false });
     queryClient.invalidateQueries({ queryKey: ["chart-of-accounts"] });
   };
 
