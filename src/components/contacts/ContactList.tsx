@@ -139,6 +139,11 @@ export function ContactList({ contacts, selectedId, onSelect, onCreated, loading
         onOpenChange={setShowCreate}
         onCreated={onCreated}
       />
+      <ImportContactsCsvDialog
+        open={showImport}
+        onOpenChange={setShowImport}
+        onImported={onCreated}
+      />
     </div>
   );
 }
