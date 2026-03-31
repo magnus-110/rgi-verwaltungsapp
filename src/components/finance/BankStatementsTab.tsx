@@ -31,7 +31,6 @@ export function BankStatementsTab() {
   const [booking, setBooking] = useState(false);
   const [bookingAll, setBookingAll] = useState(false);
   const [selectedBuilding, setSelectedBuilding] = useState<string>("");
-  const [showIgnored, setShowIgnored] = useState(false);
   const [showBooked, setShowBooked] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<string | null>(null);
   const [manualAssignTxn, setManualAssignTxn] = useState<any | null>(null);
