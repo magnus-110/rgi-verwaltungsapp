@@ -1441,6 +1441,7 @@ export type Database = {
           id: string
           is_primary: boolean | null
           label: string | null
+          note: string | null
           person_id: string | null
         }
         Insert: {
@@ -1450,6 +1451,7 @@ export type Database = {
           id?: string
           is_primary?: boolean | null
           label?: string | null
+          note?: string | null
           person_id?: string | null
         }
         Update: {
@@ -1459,6 +1461,7 @@ export type Database = {
           id?: string
           is_primary?: boolean | null
           label?: string | null
+          note?: string | null
           person_id?: string | null
         }
         Relationships: [
@@ -1540,6 +1543,7 @@ export type Database = {
           created_at: string
           id: string
           label: string | null
+          note: string | null
           person_id: string | null
           phone_number: string
         }
@@ -1548,6 +1552,7 @@ export type Database = {
           created_at?: string
           id?: string
           label?: string | null
+          note?: string | null
           person_id?: string | null
           phone_number: string
         }
@@ -1556,6 +1561,7 @@ export type Database = {
           created_at?: string
           id?: string
           label?: string | null
+          note?: string | null
           person_id?: string | null
           phone_number?: string
         }
