@@ -28,6 +28,7 @@ export function BankStatementsTab() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [booking, setBooking] = useState(false);
   const [bookingAll, setBookingAll] = useState(false);
   const [selectedBuilding, setSelectedBuilding] = useState<string>("");
