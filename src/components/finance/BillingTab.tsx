@@ -1,6 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { BillingPeriodSelector } from "./BillingPeriodSelector";
-import { BalanceCarryForward } from "./BalanceCarryForward";
 import { FuelInventorySection } from "./FuelInventorySection";
 import { HeatingAccountsSection } from "./HeatingAccountsSection";
 import { HeatingExportSection } from "./HeatingExportSection";
@@ -9,26 +8,25 @@ import { AccrualSection } from "./AccrualSection";
 import { BillingSettlement } from "./BillingSettlement";
 import { BillingValidationPanel } from "./BillingValidationPanel";
 import { BillingAiAnalysis } from "./BillingAiAnalysis";
+import { BookingReviewSection } from "./BookingReviewSection";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronRight, Info } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ChevronDown, ChevronRight, Check, AlertTriangle } from "lucide-react";
 
 const STEPS = [
-  { id: "balances", label: "Saldenübernahme", description: "Schlusssalden des Vorjahres als Eröffnungssalden übernehmen" },
-  { id: "heating", label: "Heizkosten & Brennstoff", description: "Heizkonten prüfen und Brennstoffdaten erfassen" },
-  { id: "export", label: "Export Ablesefirma", description: "Daten für die Ablesefirma als CSV exportieren" },
-  { id: "rebooking", label: "Heizkosten-Umbuchungen", description: "Einzelkonten auf das zentrale Heizkonto umbuchen" },
-  { id: "accruals", label: "Abgrenzungsbuchungen", description: "Jahresübergreifende Leistungszeiträume prüfen" },
+  { id: "review", label: "Buchungsprüfung", description: "Buchungen je Konto prüfen und Vollständigkeit kontrollieren" },
+  { id: "heating", label: "Heizkosten", description: "Heizkonten, Brennstoff und Umbuchung auf Heizkostenkonto" },
+  { id: "accruals", label: "Abgrenzungen", description: "Jahresübergreifende Leistungszeiträume prüfen" },
   { id: "settlement", label: "Gesamtabrechnung", description: "Kosten verteilen und Einzelabrechnungen erstellen" },
 ];
 
 export function BillingTab() {
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
   const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(null);
-  const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set(["balances"]));
-  const [showGuide, setShowGuide] = useState(false);
+  const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set(["review"]));
+  const [balanceStatus, setBalanceStatus] = useState<"idle" | "done" | "no_data">("idle");
 
   const { data: period } = useQuery({
     queryKey: ["billing-period-detail", selectedPeriodId],
@@ -44,6 +42,78 @@ export function BillingTab() {
     },
     enabled: !!selectedPeriodId,
   });
+
+  // Auto balance carry-forward when period is selected
+  useEffect(() => {
+    if (!selectedBuildingId || !period) {
+      setBalanceStatus("idle");
+      return;
+    }
+
+    const autoCarryForward = async () => {
+      const fiscalYear = period.fiscal_year;
+      const prevYear = fiscalYear - 1;
+
+      // Get carry-forward accounts
+      const { data: carryAccounts } = await supabase
+        .from("chart_of_accounts")
+        .select("id")
+        .eq("carry_forward_balance", true)
+        .or(`building_id.is.null,building_id.eq.${selectedBuildingId}`);
+
+      if (!carryAccounts?.length) {
+        setBalanceStatus("no_data");
+        return;
+      }
+
+      // Check if already carried forward
+      const { data: existing } = await supabase
+        .from("account_balances")
+        .select("id")
+        .eq("building_id", selectedBuildingId)
+        .eq("fiscal_year", fiscalYear)
+        .eq("is_carried_forward", true)
+        .limit(1);
+
+      if (existing?.length) {
+        setBalanceStatus("done");
+        return;
+      }
+
+      // Get previous year balances
+      const { data: prevBalances } = await supabase
+        .from("account_balances")
+        .select("*")
+        .eq("building_id", selectedBuildingId)
+        .eq("fiscal_year", prevYear);
+
+      if (!prevBalances?.length) {
+        setBalanceStatus("no_data");
+        return;
+      }
+
+      // Upsert balances
+      const upserts = carryAccounts.map(acc => {
+        const prev = prevBalances.find(b => b.account_id === acc.id);
+        return {
+          building_id: selectedBuildingId,
+          account_id: acc.id,
+          fiscal_year: fiscalYear,
+          opening_balance: prev?.closing_balance ?? 0,
+          closing_balance: prev?.closing_balance ?? 0,
+          is_carried_forward: true,
+        };
+      });
+
+      await supabase.from("account_balances").upsert(upserts, {
+        onConflict: "building_id,account_id,fiscal_year",
+      });
+
+      setBalanceStatus("done");
+    };
+
+    autoCarryForward();
+  }, [selectedBuildingId, period]);
 
   const toggleStep = (stepId: string) => {
     setExpandedSteps((prev) => {
@@ -62,34 +132,21 @@ export function BillingTab() {
         onPeriodChange={setSelectedPeriodId}
       />
 
-      {/* Info-Bereich */}
-      <Collapsible open={showGuide} onOpenChange={setShowGuide}>
-        <CollapsibleTrigger className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-full">
-          <Info className="h-4 w-4" />
-          <span>Anleitung: Abrechnung Schritt für Schritt</span>
-          {showGuide ? <ChevronDown className="h-3 w-3 ml-auto" /> : <ChevronRight className="h-3 w-3 ml-auto" />}
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-          <Card className="mt-2">
-            <CardContent className="pt-4">
-              <ol className="space-y-3 text-sm">
-                {STEPS.map((step, i) => (
-                  <li key={step.id} className="flex gap-3">
-                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground">{i + 1}</span>
-                    <div>
-                      <span className="font-medium">{step.label}</span>
-                      <span className="text-muted-foreground ml-1">– {step.description}</span>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-              <p className="text-xs text-muted-foreground mt-4 border-t pt-3">
-                Arbeiten Sie die Schritte der Reihe nach ab. Die Validierungsprüfungen und die KI-Analyse am Ende helfen bei der Qualitätskontrolle.
-              </p>
-            </CardContent>
-          </Card>
-        </CollapsibleContent>
-      </Collapsible>
+      {/* Balance carry-forward status */}
+      {selectedBuildingId && selectedPeriodId && balanceStatus !== "idle" && (
+        <div className="flex items-center gap-2">
+          {balanceStatus === "done" && (
+            <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
+              <Check className="h-3 w-3 mr-1" /> Salden übernommen
+            </Badge>
+          )}
+          {balanceStatus === "no_data" && (
+            <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
+              <AlertTriangle className="h-3 w-3 mr-1" /> Keine Vorjahresdaten
+            </Badge>
+          )}
+        </div>
+      )}
 
       {!selectedBuildingId && (
         <Card>
@@ -132,24 +189,21 @@ export function BillingTab() {
                 {isExpanded && (
                   <div className="px-4 pb-4 border-t">
                     <div className="pt-4">
-                      {step.id === "balances" && (
-                        <BalanceCarryForward
+                      {step.id === "review" && (
+                        <BookingReviewSection
                           buildingId={selectedBuildingId}
                           fiscalYear={period.fiscal_year}
-                          periodId={selectedPeriodId}
+                          periodFrom={period.period_from}
+                          periodTo={period.period_to}
                         />
                       )}
                       {step.id === "heating" && (
                         <div className="space-y-4">
                           <HeatingAccountsSection buildingId={selectedBuildingId} fiscalYear={period.fiscal_year} />
                           <FuelInventorySection buildingId={selectedBuildingId} periodId={selectedPeriodId} fiscalYear={period.fiscal_year} />
+                          <HeatingExportSection buildingId={selectedBuildingId} periodId={selectedPeriodId} fiscalYear={period.fiscal_year} />
+                          <HeatingRebookingSection buildingId={selectedBuildingId} periodId={selectedPeriodId} fiscalYear={period.fiscal_year} />
                         </div>
-                      )}
-                      {step.id === "export" && (
-                        <HeatingExportSection buildingId={selectedBuildingId} periodId={selectedPeriodId} fiscalYear={period.fiscal_year} />
-                      )}
-                      {step.id === "rebooking" && (
-                        <HeatingRebookingSection buildingId={selectedBuildingId} periodId={selectedPeriodId} fiscalYear={period.fiscal_year} />
                       )}
                       {step.id === "accruals" && (
                         <AccrualSection buildingId={selectedBuildingId} fiscalYear={period.fiscal_year} periodFrom={period.period_from} periodTo={period.period_to} />
