@@ -92,30 +92,49 @@ export function BankStatementsTab() {
     enabled: !!expandedStatement,
   });
 
-  const { data: invoicesList = [] } = useQuery({
-    queryKey: ["invoices-for-assign"],
+  const [showMatchedInvoices, setShowMatchedInvoices] = useState(false);
+
+  const { data: invoicesListRaw = [] } = useQuery({
+    queryKey: ["invoices-for-assign", selectedBuilding],
     queryFn: async () => {
+      if (!selectedBuilding) return [];
       const { data, error } = await supabase
         .from("invoices")
-        .select("id, invoice_number, vendor_name, gross_amount")
+        .select("id, invoice_number, vendor_name, gross_amount, vendor_iban, invoice_date")
         .eq("status", "paid")
+        .eq("building_id", selectedBuilding)
         .order("invoice_date", { ascending: false })
-        .limit(100);
+        .limit(200);
       if (error) throw error;
       return data;
     },
+    enabled: !!selectedBuilding,
   });
 
+  // Filter out invoices already assigned to a bank transaction (unless toggle is on)
+  const invoicesList = useMemo(() => {
+    if (showMatchedInvoices) return invoicesListRaw;
+    const assignedInvoiceIds = new Set(
+      allTransactions
+        .filter((t: any) => t.matched_invoice_id)
+        .map((t: any) => t.matched_invoice_id)
+    );
+    return invoicesListRaw.filter((inv: any) => !assignedInvoiceIds.has(inv.id));
+  }, [invoicesListRaw, showMatchedInvoices, allTransactions]);
+
   const { data: templatesList = [] } = useQuery({
-    queryKey: ["templates-for-assign"],
+    queryKey: ["templates-for-assign", selectedBuilding],
     queryFn: async () => {
+      if (!selectedBuilding) return [];
       const { data, error } = await supabase
         .from("booking_templates")
-        .select("id, name, vendor_name")
+        .select("id, name, vendor_name, vendor_iban, expected_amount")
+        .eq("building_id", selectedBuilding)
         .order("name");
       if (error) throw error;
       return data;
     },
+    enabled: !!selectedBuilding,
   });
 
   // Compute completion status per statement
@@ -631,13 +650,21 @@ export function BankStatementsTab() {
       <TransactionDetailSheet transactionId={selectedTransaction} onClose={() => setSelectedTransaction(null)} />
 
       <Dialog open={!!manualAssignTxn} onOpenChange={() => setManualAssignTxn(null)}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>Transaktion manuell zuordnen</DialogTitle></DialogHeader>
           {manualAssignTxn && (
             <div className="space-y-4">
-              <div className="bg-muted p-3 rounded-md text-sm">
-                <p className="font-medium">{manualAssignTxn.amount < 0 ? "" : "+"}{Number(manualAssignTxn.amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €</p>
-                <p className="text-muted-foreground text-xs mt-1">{manualAssignTxn.purpose || "Kein Verwendungszweck"}</p>
+              {/* Transaction details */}
+              <div className="bg-muted p-3 rounded-md text-sm space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="font-semibold text-base">
+                    {manualAssignTxn.amount < 0 ? "" : "+"}{Number(manualAssignTxn.amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
+                  </span>
+                  <span className="text-xs text-muted-foreground">{format(new Date(manualAssignTxn.booking_date), "dd.MM.yyyy")}</span>
+                </div>
+                <p className="text-sm font-medium">{(manualAssignTxn.amount < 0 ? manualAssignTxn.creditor_name : manualAssignTxn.debtor_name) || "–"}</p>
+                <p className="text-xs text-muted-foreground font-mono">{(manualAssignTxn.amount < 0 ? manualAssignTxn.creditor_iban : manualAssignTxn.debtor_iban) || "–"}</p>
+                <p className="text-xs text-muted-foreground">{manualAssignTxn.purpose || "Kein Verwendungszweck"}</p>
               </div>
               <div>
                 <Label>Zuordnungstyp</Label>
@@ -649,6 +676,14 @@ export function BankStatementsTab() {
                   </SelectContent>
                 </Select>
               </div>
+              {manualAssignType === "invoice" && (
+                <div className="flex items-center gap-2">
+                  <Switch checked={showMatchedInvoices} onCheckedChange={setShowMatchedInvoices} id="show-matched" />
+                  <Label htmlFor="show-matched" className="text-xs text-muted-foreground cursor-pointer">
+                    Bereits zugeordnete Rechnungen anzeigen
+                  </Label>
+                </div>
+              )}
               <div>
                 <Label>{manualAssignType === "invoice" ? "Rechnung" : "Vorlage"}</Label>
                 <Select value={manualAssignId} onValueChange={setManualAssignId}>
@@ -657,13 +692,25 @@ export function BankStatementsTab() {
                     {manualAssignType === "invoice" ? (
                       invoicesList.map((inv: any) => (
                         <SelectItem key={inv.id} value={inv.id}>
-                          {inv.invoice_number || "–"} | {inv.vendor_name || "–"} | {inv.gross_amount ? `${Number(inv.gross_amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €` : "–"}
+                          <div className="flex flex-col">
+                            <span className="text-sm">
+                              {inv.invoice_number || "–"} | {inv.vendor_name || "–"} | {inv.gross_amount ? `${Number(inv.gross_amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €` : "–"}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {inv.vendor_iban || "Keine IBAN"} {inv.invoice_date ? `• ${format(new Date(inv.invoice_date), "dd.MM.yyyy")}` : ""}
+                            </span>
+                          </div>
                         </SelectItem>
                       ))
                     ) : (
                       templatesList.map((t: any) => (
                         <SelectItem key={t.id} value={t.id}>
-                          {t.name} {t.vendor_name ? `(${t.vendor_name})` : ""}
+                          <div className="flex flex-col">
+                            <span className="text-sm">{t.name} {t.expected_amount ? `| ${Number(t.expected_amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €` : ""}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {t.vendor_name || "–"} {t.vendor_iban ? `• ${t.vendor_iban}` : ""}
+                            </span>
+                          </div>
                         </SelectItem>
                       ))
                     )}
