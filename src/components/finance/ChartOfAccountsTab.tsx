@@ -33,7 +33,7 @@ export function ChartOfAccountsTab() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [selectedBuilding, setSelectedBuilding] = useState<string>("global");
   const [searchTerm, setSearchTerm] = useState("");
-  const [newAccount, setNewAccount] = useState({ account_number: "", account_name: "", category: "", default_distribution_key: "mea", is_35a_relevant: false, is_billing_relevant: false, is_heating_relevant: false, carry_forward_balance: false });
+  const [newAccount, setNewAccount] = useState({ account_number: "", account_name: "", category: "", default_distribution_key: "mea", is_35a_relevant: false, is_billing_relevant: false, is_heating_relevant: false, carry_forward_balance: false, is_wirtschaftsplan_relevant: false });
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance-coa"],
@@ -78,6 +78,7 @@ export function ChartOfAccountsTab() {
   const [editBillingRelevant, setEditBillingRelevant] = useState(false);
   const [editHeatingRelevant, setEditHeatingRelevant] = useState(false);
   const [editCarryForward, setEditCarryForward] = useState(false);
+  const [editWpRelevant, setEditWpRelevant] = useState(false);
 
   const startEdit = (account: any) => {
     setEditingId(account.id);
@@ -87,6 +88,7 @@ export function ChartOfAccountsTab() {
     setEditBillingRelevant(account.is_billing_relevant || false);
     setEditHeatingRelevant(account.is_heating_relevant || false);
     setEditCarryForward(account.carry_forward_balance || false);
+    setEditWpRelevant(account.is_wirtschaftsplan_relevant || false);
   };
 
   const saveEdit = async (id: string) => {
@@ -97,6 +99,7 @@ export function ChartOfAccountsTab() {
       is_billing_relevant: editBillingRelevant,
       is_heating_relevant: editHeatingRelevant,
       carry_forward_balance: editCarryForward,
+      is_wirtschaftsplan_relevant: editWpRelevant,
     }).eq("id", id);
     if (error) { toast.error("Fehler beim Speichern"); return; }
     toast.success("Konto aktualisiert");
@@ -127,7 +130,7 @@ export function ChartOfAccountsTab() {
     if (error) { toast.error("Fehler: " + error.message); return; }
     toast.success("Konto hinzugefügt");
     setIsAddOpen(false);
-    setNewAccount({ account_number: "", account_name: "", category: "", default_distribution_key: "mea", is_35a_relevant: false, is_billing_relevant: false, is_heating_relevant: false, carry_forward_balance: false });
+    setNewAccount({ account_number: "", account_name: "", category: "", default_distribution_key: "mea", is_35a_relevant: false, is_billing_relevant: false, is_heating_relevant: false, carry_forward_balance: false, is_wirtschaftsplan_relevant: false });
     queryClient.invalidateQueries({ queryKey: ["chart-of-accounts"] });
   };
 
@@ -188,6 +191,7 @@ export function ChartOfAccountsTab() {
                          <TableHead className="w-[50px] text-center" title="Abrechnungsrelevant">Abr.</TableHead>
                          <TableHead className="w-[50px] text-center" title="Heizkosten-relevant">HK</TableHead>
                          <TableHead className="w-[50px] text-center" title="Saldovortrag">Saldo</TableHead>
+                         <TableHead className="w-[50px] text-center" title="Wirtschaftsplan-relevant">WP</TableHead>
                          <TableHead className="w-[80px]"></TableHead>
                       </TableRow>
                     </TableHeader>
@@ -243,6 +247,13 @@ export function ChartOfAccountsTab() {
                                <Checkbox checked={editCarryForward} onCheckedChange={c => setEditCarryForward(!!c)} />
                              ) : (
                                account.carry_forward_balance && <Badge className="text-xs bg-purple-100 text-purple-800 hover:bg-purple-100">SV</Badge>
+                             )}
+                            </TableCell>
+                           <TableCell className="text-center">
+                             {editingId === account.id ? (
+                               <Checkbox checked={editWpRelevant} onCheckedChange={c => setEditWpRelevant(!!c)} />
+                             ) : (
+                               account.is_wirtschaftsplan_relevant && <Badge className="text-xs bg-teal-100 text-teal-800 hover:bg-teal-100">WP</Badge>
                              )}
                            </TableCell>
                           <TableCell>
@@ -328,13 +339,17 @@ export function ChartOfAccountsTab() {
                   <Checkbox checked={newAccount.is_heating_relevant} onCheckedChange={c => setNewAccount(p => ({ ...p, is_heating_relevant: !!c }))} />
                   <Label>HK-relevant</Label>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Checkbox checked={newAccount.carry_forward_balance} onCheckedChange={c => setNewAccount(p => ({ ...p, carry_forward_balance: !!c }))} />
-                  <Label>Saldovortrag</Label>
-                </div>
-              </div>
-            </div>
-          </div>
+                 <div className="flex items-center gap-2">
+                   <Checkbox checked={newAccount.carry_forward_balance} onCheckedChange={c => setNewAccount(p => ({ ...p, carry_forward_balance: !!c }))} />
+                   <Label>Saldovortrag</Label>
+                 </div>
+                 <div className="flex items-center gap-2">
+                   <Checkbox checked={newAccount.is_wirtschaftsplan_relevant} onCheckedChange={c => setNewAccount(p => ({ ...p, is_wirtschaftsplan_relevant: !!c }))} />
+                   <Label>WP-relevant</Label>
+                 </div>
+               </div>
+             </div>
+           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsAddOpen(false)}>Abbrechen</Button>
             <Button onClick={addAccount}>Hinzufügen</Button>

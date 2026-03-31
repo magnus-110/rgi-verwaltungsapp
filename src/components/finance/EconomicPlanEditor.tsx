@@ -63,14 +63,14 @@ export function EconomicPlanEditor({ buildingId, periodId, fiscalYear }: Economi
     },
   });
 
-  // Billing-relevant accounts
+  // WP-relevant accounts
   const { data: accounts = [] } = useQuery({
-    queryKey: ["billing-accounts-plan", buildingId],
+    queryKey: ["wp-accounts-plan", buildingId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("chart_of_accounts")
         .select("*")
-        .eq("is_billing_relevant", true)
+        .eq("is_wirtschaftsplan_relevant", true)
         .or(`building_id.is.null,building_id.eq.${buildingId}`)
         .order("account_number");
       if (error) throw error;
