@@ -134,7 +134,7 @@ export function BankStatementsTab() {
 
   const globalBookableCount = useMemo(() => {
     return allTransactions.filter((t: any) =>
-      ["matched_invoice", "matched_template", "manually_matched"].includes(t.match_status) && !t.booked_at
+      ["matched_invoice", "matched_template", "manually_matched", "unmatched"].includes(t.match_status) && !t.booked_at
     ).length;
   }, [allTransactions]);
 
