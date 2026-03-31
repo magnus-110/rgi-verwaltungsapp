@@ -22,10 +22,26 @@ const STEPS = [
   { id: "settlement", label: "Gesamtabrechnung", description: "Kosten verteilen und Einzelabrechnungen erstellen" },
 ];
 
-export function BillingTab() {
-  const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
-  const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(null);
-  const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set(["review"]));
+interface BillingTabProps {
+  sharedBuildingId?: string | null;
+  onBuildingChange?: (id: string | null) => void;
+  sharedPeriodId?: string | null;
+  onPeriodChange?: (id: string | null) => void;
+}
+
+export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId, onPeriodChange }: BillingTabProps) {
+  const [internalBuildingId, setInternalBuildingId] = useState<string | null>(null);
+  const [internalPeriodId, setInternalPeriodId] = useState<string | null>(null);
+  const selectedBuildingId = sharedBuildingId ?? internalBuildingId;
+  const selectedPeriodId = sharedPeriodId ?? internalPeriodId;
+  const setSelectedBuildingId = (id: string | null) => {
+    setInternalBuildingId(id);
+    onBuildingChange?.(id);
+  };
+  const setSelectedPeriodId = (id: string | null) => {
+    setInternalPeriodId(id);
+    onPeriodChange?.(id);
+  };
   const [balanceStatus, setBalanceStatus] = useState<"idle" | "done" | "no_data">("idle");
 
   const { data: period } = useQuery({

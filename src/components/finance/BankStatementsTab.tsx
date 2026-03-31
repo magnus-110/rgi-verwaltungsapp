@@ -21,14 +21,24 @@ const MATCH_STATUS_CONFIG: Record<string, { label: string; color: string; icon: 
   ignored: { label: "Ignoriert", color: "bg-muted text-muted-foreground", icon: EyeOff },
 };
 
-export function BankStatementsTab() {
+interface BankStatementsTabProps {
+  sharedBuildingId?: string | null;
+  onBuildingChange?: (id: string | null) => void;
+}
+
+export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankStatementsTabProps) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [booking, setBooking] = useState(false);
   const [bookingAll, setBookingAll] = useState(false);
-  const [selectedBuilding, setSelectedBuilding] = useState<string>("");
+  const [internalBuilding, setInternalBuilding] = useState<string>("");
+  const selectedBuilding = sharedBuildingId || internalBuilding;
+  const setSelectedBuilding = (id: string) => {
+    setInternalBuilding(id);
+    onBuildingChange?.(id);
+  };
   const [showBooked, setShowBooked] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<string | null>(null);
   const [manualAssignTxn, setManualAssignTxn] = useState<any | null>(null);
