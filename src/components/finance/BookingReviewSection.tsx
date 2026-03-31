@@ -2,12 +2,14 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronRight, Check, AlertTriangle, CircleDot } from "lucide-react";
+import { ChevronDown, ChevronRight, Check, AlertTriangle, CircleDot, Sparkles, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { useState } from "react";
+import { toast } from "sonner";
 
 interface BookingReviewSectionProps {
   buildingId: string;
@@ -16,8 +18,10 @@ interface BookingReviewSectionProps {
   periodTo?: string;
 }
 
-export function BookingReviewSection({ buildingId, fiscalYear }: BookingReviewSectionProps) {
+export function BookingReviewSection({ buildingId, fiscalYear, periodFrom, periodTo }: BookingReviewSectionProps) {
   const [expandedAccounts, setExpandedAccounts] = useState<Set<string>>(new Set());
+  const [aiChecking, setAiChecking] = useState(false);
+  const [aiResults, setAiResults] = useState<any[] | null>(null);
 
   // All confirmed bookings for this building/year
   const { data: bookings = [], isLoading } = useQuery({
@@ -99,14 +103,69 @@ export function BookingReviewSection({ buildingId, fiscalYear }: BookingReviewSe
   const totalAmount = bookings.reduce((s: number, b: any) => s + Math.abs(Number(b.amount)), 0);
   const categories = [...categoryMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
 
+  const runAiCheck = async () => {
+    setAiChecking(true);
+    try {
+      const accountData = [...categoryMap.entries()].flatMap(([cat, catData]) =>
+        [...catData.accounts.entries()].map(([accId, accData]) => ({
+          accountNumber: accData.account?.account_number,
+          accountName: accData.account?.account_name,
+          category: cat,
+          bookingCount: accData.bookings.length,
+          total: accData.total,
+          expected: (() => {
+            const tmpl = templates.find((t: any) => t.account_id === accId);
+            return tmpl ? { count: tmpl.interval === "monatlich" ? 12 : tmpl.interval === "quartalsweise" ? 4 : tmpl.interval === "halbjährlich" ? 2 : 1, amount: tmpl.expected_amount } : null;
+          })(),
+        }))
+      );
+
+      const { data, error } = await supabase.functions.invoke("analyze-billing", {
+        body: { buildingId, fiscalYear, periodId: "review", mode: "booking_review", accountData },
+      });
+      if (error) throw error;
+      setAiResults(data?.recommendations || []);
+      toast.success("KI-Prüfung abgeschlossen");
+    } catch (e: any) {
+      toast.error("Fehler: " + (e.message || "Unbekannt"));
+    } finally {
+      setAiChecking(false);
+    }
+  };
+
   if (isLoading) return <div className="text-muted-foreground p-4 text-sm">Buchungen werden geladen...</div>;
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-2 mb-2">
+      <div className="flex flex-wrap gap-2 mb-2 items-center">
         <Badge variant="outline">{totalBookings} Buchungen</Badge>
         <Badge variant="outline">Gesamt: {formatCurrency(totalAmount)}</Badge>
+        <Button size="sm" variant="outline" onClick={runAiCheck} disabled={aiChecking} className="ml-auto">
+          {aiChecking ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
+          KI prüfen
+        </Button>
       </div>
+
+      {/* AI results */}
+      {aiResults && aiResults.length > 0 && (
+        <Card className="border-dashed border-primary/30 bg-primary/5">
+          <CardContent className="pt-4 space-y-2">
+            {aiResults.map((r: any, i: number) => (
+              <div key={i} className="flex items-start gap-2 text-sm">
+                <Badge className={`text-xs shrink-0 ${
+                  r.severity === "error" ? "bg-destructive text-destructive-foreground" :
+                  r.severity === "warning" ? "bg-amber-100 text-amber-800" :
+                  r.severity === "success" ? "bg-green-100 text-green-800" : "bg-muted text-muted-foreground"
+                }`}>{r.area || "Info"}</Badge>
+                <div>
+                  <span className="font-medium">{r.title}</span>
+                  {r.suggestion && <span className="text-muted-foreground"> — {r.suggestion}</span>}
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {categories.length === 0 && (
         <p className="text-sm text-muted-foreground text-center py-6">

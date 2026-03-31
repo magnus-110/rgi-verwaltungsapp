@@ -1,11 +1,14 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AlertTriangle, Check } from "lucide-react";
+import { AlertTriangle, Check, Sparkles, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
+import { toast } from "sonner";
 
 interface AccrualSectionProps {
   buildingId: string;
@@ -15,6 +18,8 @@ interface AccrualSectionProps {
 }
 
 export function AccrualSection({ buildingId, fiscalYear, periodFrom, periodTo }: AccrualSectionProps) {
+  const [aiSuggesting, setAiSuggesting] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<any[] | null>(null);
   const yearStart = periodFrom || `${fiscalYear}-01-01`;
   const yearEnd = periodTo || `${fiscalYear}-12-31`;
 
@@ -69,13 +74,45 @@ export function AccrualSection({ buildingId, fiscalYear, periodFrom, periodTo }:
 
   const totalAccruals = accrualBookings.reduce((s: number, b: any) => s + Math.abs(Number(b.amount)), 0);
 
+  const suggestAccruals = async () => {
+    setAiSuggesting(true);
+    try {
+      const accrualData = potentialAccruals.map((b: any) => ({
+        id: b.id,
+        date: b.booking_date,
+        account: b.chart_of_accounts?.account_number + " " + b.chart_of_accounts?.account_name,
+        amount: Number(b.amount),
+        ppFrom: b.performance_period_from,
+        ppTo: b.performance_period_to,
+      }));
+      const { data, error } = await supabase.functions.invoke("analyze-billing", {
+        body: { buildingId, fiscalYear, periodId: "accrual", mode: "accrual_suggestion", accrualData, yearStart, yearEnd },
+      });
+      if (error) throw error;
+      setAiSuggestions(data?.suggestions || data?.recommendations || []);
+      toast.success("KI-Vorschläge erstellt");
+    } catch (e: any) {
+      toast.error("Fehler: " + (e.message || "Unbekannt"));
+    } finally {
+      setAiSuggesting(false);
+    }
+  };
+
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Abgrenzungsbuchungen</CardTitle>
-        <p className="text-sm text-muted-foreground mt-1">
-          Prüfung von Buchungen mit jahresübergreifendem Leistungszeitraum ({format(new Date(yearStart), "dd.MM.yyyy", { locale: de })} – {format(new Date(yearEnd), "dd.MM.yyyy", { locale: de })})
-        </p>
+      <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
+        <div>
+          <CardTitle className="text-base">Abgrenzungsbuchungen</CardTitle>
+          <p className="text-sm text-muted-foreground mt-1">
+            Prüfung von Buchungen mit jahresübergreifendem Leistungszeitraum ({format(new Date(yearStart), "dd.MM.yyyy", { locale: de })} – {format(new Date(yearEnd), "dd.MM.yyyy", { locale: de })})
+          </p>
+        </div>
+        {potentialAccruals.length > 0 && (
+          <Button size="sm" variant="outline" onClick={suggestAccruals} disabled={aiSuggesting}>
+            {aiSuggesting ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
+            KI Abgrenzung vorschlagen
+          </Button>
+        )}
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap gap-2">
@@ -101,6 +138,26 @@ export function AccrualSection({ buildingId, fiscalYear, periodFrom, periodTo }:
             </Badge>
           )}
         </div>
+
+        {/* AI Suggestions */}
+        {aiSuggestions && aiSuggestions.length > 0 && (
+          <Card className="border-dashed border-primary/30 bg-primary/5">
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Sparkles className="h-4 w-4" /> KI-Vorschläge für Abgrenzungsbuchungen
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0 space-y-2">
+              {aiSuggestions.map((s: any, i: number) => (
+                <div key={i} className="text-sm p-2 rounded bg-background border">
+                  <div className="font-medium">{s.title || s.description}</div>
+                  {s.suggestion && <div className="text-muted-foreground mt-1">{s.suggestion}</div>}
+                  {s.amount && <div className="font-mono text-xs mt-1">Betrag: {new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(s.amount)}</div>}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
 
         {potentialAccruals.length > 0 && (
           <div>

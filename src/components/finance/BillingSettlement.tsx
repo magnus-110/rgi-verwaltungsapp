@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { BarChart3, ChevronDown, ChevronRight, Download, Users, PiggyBank, AlertTriangle, Check, FileText, Building2, Loader2, Search } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { BarChart3, ChevronDown, ChevronRight, Download, Users, PiggyBank, AlertTriangle, Check, FileText, Building2, Loader2, Search, Calculator, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 interface BillingSettlementProps {
@@ -42,11 +43,16 @@ const SECTION_LABELS: Record<string, string> = {
 const SECTION_ORDER = ["income", "operating_distributable", "operating_non_distributable", "accrual", "reserve", "reserve_withdrawal"];
 
 export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingSettlementProps) {
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("total");
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [selectedOwner, setSelectedOwner] = useState<string | null>(null);
   const [ownerSearch, setOwnerSearch] = useState("");
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(SECTION_ORDER));
+  const [useIstVorschuss, setUseIstVorschuss] = useState(false);
+  const [calculatingSalden, setCalculatingSalden] = useState(false);
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [generatingAiSummary, setGeneratingAiSummary] = useState(false);
 
   // Period
   const { data: period } = useQuery({
@@ -92,6 +98,26 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
         .eq("building_id", buildingId)
         .eq("fiscal_year", fiscalYear)
         .neq("status", "cancelled");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // IST-payments on person accounts (for SOLL/IST toggle)
+  const { data: istPayments = [] } = useQuery({
+    queryKey: ["ist-payments-settlement", buildingId, fiscalYear],
+    enabled: useIstVorschuss,
+    queryFn: async () => {
+      // Get person accounts (account_number starts with 0000)
+      const personAccounts = accounts.filter(a => a.account_number.startsWith("0000"));
+      if (personAccounts.length === 0) return [];
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("account_id, amount, counter_account_id, description")
+        .eq("building_id", buildingId)
+        .eq("fiscal_year", fiscalYear)
+        .neq("status", "cancelled")
+        .in("account_id", personAccounts.map(a => a.id));
       if (error) throw error;
       return data;
     },
@@ -344,30 +370,75 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       });
     });
 
-    // Vorschussverpflichtung
-    const hausgeld = costs
-      .filter((c: any) => c.cost_type === "hausgeld" || c.cost_type === "nebenkosten")
-      .reduce((s: number, c: any) => {
-        const a = Number(c.amount);
-        switch (c.interval) {
-          case "monatlich": return s + a * 12;
-          case "quartal": return s + a * 4;
-          case "jaehrlich": return s + a;
-          default: return s + a * 12;
-        }
-      }, 0) * timeProp;
+    // Vorschussverpflichtung — SOLL or IST
+    let hausgeld = 0;
+    let reserve = 0;
 
-    const reserve = costs
-      .filter((c: any) => c.cost_type === "ruecklage")
-      .reduce((s: number, c: any) => {
-        const a = Number(c.amount);
-        switch (c.interval) {
-          case "monatlich": return s + a * 12;
-          case "quartal": return s + a * 4;
-          case "jaehrlich": return s + a;
-          default: return s + a * 12;
-        }
-      }, 0) * timeProp;
+    if (useIstVorschuss) {
+      // IST: sum actual payments from person account bookings
+      // Find person account for this contact
+      const personAccount = accounts.find(a => a.account_number.startsWith("0000") && a.building_id === buildingId && a.account_name?.toLowerCase().includes(name.toLowerCase().split(" ")[0]));
+      const contactPersonAccounts = accounts.filter(a => a.account_number.startsWith("0000") && a.building_id === buildingId);
+      // Match by unit number in account name or number
+      const matchedAccount = contactPersonAccounts.find(a => 
+        a.account_number === assignment.unit_number?.padStart(5, "0") || 
+        a.account_name?.includes(assignment.unit_number || "___")
+      ) || personAccount;
+      
+      if (matchedAccount) {
+        const accountPayments = istPayments.filter((p: any) => p.account_id === matchedAccount.id);
+        const totalIst = accountPayments.reduce((s: number, p: any) => s + Math.abs(Number(p.amount)), 0);
+        hausgeld = totalIst; // IST includes everything
+      } else {
+        // Fallback to SOLL
+        hausgeld = costs
+          .filter((c: any) => c.cost_type === "hausgeld" || c.cost_type === "nebenkosten")
+          .reduce((s: number, c: any) => {
+            const a = Number(c.amount);
+            switch (c.interval) {
+              case "monatlich": return s + a * 12;
+              case "quartal": return s + a * 4;
+              case "jaehrlich": return s + a;
+              default: return s + a * 12;
+            }
+          }, 0) * timeProp;
+        reserve = costs
+          .filter((c: any) => c.cost_type === "ruecklage")
+          .reduce((s: number, c: any) => {
+            const a = Number(c.amount);
+            switch (c.interval) {
+              case "monatlich": return s + a * 12;
+              case "quartal": return s + a * 4;
+              case "jaehrlich": return s + a;
+              default: return s + a * 12;
+            }
+          }, 0) * timeProp;
+      }
+    } else {
+      // SOLL: from contact_building_costs
+      hausgeld = costs
+        .filter((c: any) => c.cost_type === "hausgeld" || c.cost_type === "nebenkosten")
+        .reduce((s: number, c: any) => {
+          const a = Number(c.amount);
+          switch (c.interval) {
+            case "monatlich": return s + a * 12;
+            case "quartal": return s + a * 4;
+            case "jaehrlich": return s + a;
+            default: return s + a * 12;
+          }
+        }, 0) * timeProp;
+      reserve = costs
+        .filter((c: any) => c.cost_type === "ruecklage")
+        .reduce((s: number, c: any) => {
+          const a = Number(c.amount);
+          switch (c.interval) {
+            case "monatlich": return s + a * 12;
+            case "quartal": return s + a * 4;
+            case "jaehrlich": return s + a;
+            default: return s + a * 12;
+          }
+        }, 0) * timeProp;
+    }
 
     const totalPaid = hausgeld + reserve;
     const result = totalPaid - totalOwnerCost;
@@ -452,6 +523,70 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     toast.success("CSV exportiert");
   };
 
+  // --- Closing balance calculation ---
+  const calculateClosingBalances = async () => {
+    setCalculatingSalden(true);
+    try {
+      const carryForwardAccounts = accounts.filter(a => a.carry_forward_balance);
+      let updated = 0;
+      
+      for (const acc of carryForwardAccounts) {
+        const accountBookings = bookings.filter(b => b.account_id === acc.id);
+        const bookingSum = accountBookings.reduce((s, b) => s + Number(b.amount), 0);
+        
+        const existingBalance = balances.find((bal: any) => bal.account_id === acc.id);
+        const opening = existingBalance ? Number(existingBalance.opening_balance) : 0;
+        const closing = opening + bookingSum;
+        
+        if (existingBalance) {
+          await supabase.from("account_balances").update({ closing_balance: closing }).eq("id", existingBalance.id);
+        } else {
+          await supabase.from("account_balances").insert({
+            account_id: acc.id,
+            building_id: buildingId,
+            fiscal_year: fiscalYear,
+            opening_balance: 0,
+            closing_balance: closing,
+          });
+        }
+        updated++;
+      }
+      
+      queryClient.invalidateQueries({ queryKey: ["account-balances-settlement"] });
+      toast.success(`${updated} Kontensalden aktualisiert`);
+    } catch (e: any) {
+      toast.error("Fehler: " + (e.message || "Unbekannt"));
+    } finally {
+      setCalculatingSalden(false);
+    }
+  };
+
+  // --- AI Summary ---
+  const generateAiSummary = async () => {
+    setGeneratingAiSummary(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("analyze-billing", {
+        body: { 
+          buildingId, periodId, fiscalYear, 
+          mode: "settlement_summary",
+          settlementData: {
+            totalIncome, totalOperatingDist, totalOperatingNonDist, totalReserve,
+            abrechnungssumme, totalVorschuss, abrechnungsspitze,
+            ownerCount: ownerResults.length,
+            owners: ownerResults.map(o => ({ name: o.name, unit: o.unitNumber, cost: o.totalOwnerCost, paid: o.totalPaid, result: o.result })),
+          }
+        },
+      });
+      if (error) throw error;
+      setAiSummary(data?.summary || data?.text || "Keine Zusammenfassung generiert.");
+      toast.success("KI-Zusammenfassung erstellt");
+    } catch (e: any) {
+      toast.error("Fehler: " + (e.message || "Unbekannt"));
+    } finally {
+      setGeneratingAiSummary(false);
+    }
+  };
+
   // --- Render helper for Gesamtabrechnung section ---
   const renderSection = (section: string) => {
     const accs = sectionAccounts[section] || [];
@@ -521,6 +656,14 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
+          <Button size="sm" variant="outline" onClick={calculateClosingBalances} disabled={calculatingSalden}>
+            {calculatingSalden ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Calculator className="h-4 w-4 mr-1" />}
+            Salden berechnen
+          </Button>
+          <Button size="sm" variant="outline" onClick={generateAiSummary} disabled={generatingAiSummary}>
+            {generatingAiSummary ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
+            KI-Zusammenfassung
+          </Button>
           <Button size="sm" variant="outline" onClick={generatePdfs} disabled={generatingPdf || ownerResults.length === 0}>
             {generatingPdf ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />}
             Alle PDFs
@@ -598,10 +741,36 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                 <span className="font-mono">{formatCurrency(closingTotal)}</span>
               </div>
             </div>
+
+            {/* AI Summary */}
+            {aiSummary && (
+              <Card className="border-dashed border-primary/30 bg-primary/5">
+                <CardHeader className="py-3">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Sparkles className="h-4 w-4" /> KI-Zusammenfassung
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0 text-sm whitespace-pre-wrap">
+                  {aiSummary}
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* ===== TAB 2: EINZELABRECHNUNGEN ===== */}
           <TabsContent value="owners">
+            {/* SOLL/IST Toggle */}
+            <div className="flex items-center gap-3 mb-4 p-3 rounded-lg bg-muted/30">
+              <span className="text-sm text-muted-foreground">Vorschüsse aus:</span>
+              <div className="flex items-center gap-2">
+                <span className={`text-sm font-medium ${!useIstVorschuss ? "text-foreground" : "text-muted-foreground"}`}>SOLL</span>
+                <Switch checked={useIstVorschuss} onCheckedChange={setUseIstVorschuss} />
+                <span className={`text-sm font-medium ${useIstVorschuss ? "text-foreground" : "text-muted-foreground"}`}>IST</span>
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {useIstVorschuss ? "Tatsächliche Zahlungen aus Personenkonten" : "Geplante Beträge aus Kostenzuordnung"}
+              </span>
+            </div>
             {ownerResults.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
                 Keine Eigentümer mit aktiven Zuordnungen gefunden.
