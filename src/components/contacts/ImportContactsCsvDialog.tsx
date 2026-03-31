@@ -38,6 +38,9 @@ const HEADER_MAP: Record<string, string> = {
   "stichwörter": "stichwort", "stichwort": "stichwort", "kurzname": "stichwort",
   "anrede": "anrede",
   "nachname": "nachname", "name": "nachname", "name1": "nachname",
+  "vorname": "vorname",
+  "firma": "firma",
+  "typ": "typ",
   "name2": "name2", "name 2": "name2",
   "name3": "name3", "name 3": "name3",
   "strasse geschäftlich": "strasse", "straße geschäftlich": "strasse", "strasse": "strasse", "straße": "strasse", "str. geschäftl.": "strasse",
@@ -49,7 +52,24 @@ const HEADER_MAP: Record<string, string> = {
   "iban": "iban", "bic": "bic",
   "inhaber": "inhaber", "kontoinhaber": "inhaber",
   "kreditinstitut": "bank", "bank": "bank",
+  "telefon 1": "telefon_1", "telefon 1 notiz": "telefon_1_notiz",
+  "telefon 2": "telefon_2", "telefon 2 notiz": "telefon_2_notiz",
+  "telefon 3": "telefon_3", "telefon 3 notiz": "telefon_3_notiz",
+  "e-mail 1": "email_1", "e-mail 1 notiz": "email_1_notiz",
+  "e-mail 2": "email_2", "e-mail 2 notiz": "email_2_notiz",
+  "person 2 anrede": "person2_anrede",
+  "person 2 vorname": "person2_vorname",
+  "person 2 nachname": "person2_nachname",
+  "person 3 vorname": "person3_vorname",
+  "person 3 nachname": "person3_nachname",
+  "notizen": "notizen",
 };
+
+// Check if CSV has the new structured format
+function isStructuredFormat(headers: string[]): boolean {
+  const normalized = headers.map(h => h.toLowerCase().trim());
+  return normalized.includes("vorname") && normalized.includes("firma");
+}
 
 function mapHeaders(headers: string[]): Record<number, string> {
   const map: Record<number, string> = {};
@@ -64,6 +84,71 @@ function mapHeaders(headers: string[]): Record<number, string> {
     }
   });
   return map;
+}
+
+function parseStructuredRow(row: Record<string, string>): ParsedContact {
+  const isCompany = (row.typ || "").toLowerCase() === "company" || (row.anrede || "").toLowerCase() === "firma";
+  const isService = (row.typ || "").toLowerCase() === "service_provider";
+  const contactType = isCompany ? "company" : isService ? "service_provider" : "person";
+
+  // Build persons
+  const persons: ParsedContact["persons"] = [];
+  if (!isCompany && (row.vorname || row.nachname)) {
+    persons.push({ salutation: row.anrede || null, first_name: row.vorname || null, last_name: row.nachname || null, is_primary: true });
+  } else if (isCompany && (row.vorname || row.nachname)) {
+    persons.push({ salutation: row.anrede || null, first_name: row.vorname || null, last_name: row.nachname || null, is_primary: true });
+  }
+  if (row.person2_vorname || row.person2_nachname) {
+    persons.push({ salutation: row.person2_anrede || null, first_name: row.person2_vorname || null, last_name: row.person2_nachname || null, is_primary: false });
+  }
+  if (row.person3_vorname || row.person3_nachname) {
+    persons.push({ salutation: null, first_name: row.person3_vorname || null, last_name: row.person3_nachname || null, is_primary: false });
+  }
+
+  // Build phones
+  const phones: ParsedContact["phones"] = [];
+  if (row.telefon_1) phones.push({ phone_number: row.telefon_1, label: "Festnetz", note: row.telefon_1_notiz || null });
+  if (row.telefon_2) phones.push({ phone_number: row.telefon_2, label: "Mobil", note: row.telefon_2_notiz || null });
+  if (row.telefon_3) phones.push({ phone_number: row.telefon_3, label: "Sonstige", note: row.telefon_3_notiz || null });
+  if (row.fax) phones.push({ phone_number: row.fax, label: "Fax", note: null });
+
+  // Build emails
+  const emails: ParsedContact["emails"] = [];
+  if (row.email_1) emails.push({ email: row.email_1, label: "Geschäftlich", note: row.email_1_notiz || null });
+  if (row.email_2) emails.push({ email: row.email_2, label: "Privat", note: row.email_2_notiz || null });
+
+  // Bank
+  const bank = (row.iban || row.bic || row.inhaber || row.bank) ? {
+    iban: row.iban || null,
+    bic: row.bic || null,
+    account_holder: row.inhaber || null,
+    bank_name: row.bank || null,
+  } : null;
+
+  // Notes
+  const noteParts: string[] = [];
+  if (row.notizen) noteParts.push(row.notizen);
+  if (row.webseite) noteParts.push(`Webseite: ${row.webseite}`);
+
+  return {
+    short_name: row.stichwort || null,
+    salutation: row.anrede || null,
+    contact_type: contactType,
+    first_name: isCompany ? null : (row.vorname || null),
+    last_name: isCompany ? null : (row.nachname || null),
+    company_name: isCompany ? (row.firma || row.nachname || null) : (row.firma || null),
+    address_street: row.strasse || null,
+    address_zip: row.plz || null,
+    address_city: row.ort || null,
+    notes: noteParts.length > 0 ? noteParts.join("\n") : null,
+    persons,
+    phones,
+    emails,
+    bank,
+    ai_corrections: [],
+    is_duplicate: false,
+    _selected: true,
+  };
 }
 
 interface Props {
@@ -111,8 +196,65 @@ export function ImportContactsCsvDialog({ open, onOpenChange, onImported }: Prop
 
         const headerRow = rawRows[0];
         const headerMapping = mapHeaders(headerRow);
-        
-        // Convert to structured rows
+        const structured = isStructuredFormat(headerRow);
+
+        if (structured) {
+          // Direct parsing — no AI needed
+          setStep("analyzing");
+          setProgress(30);
+
+          const fieldIndices: Record<string, number> = {};
+          headerRow.forEach((h, i) => {
+            const normalized = h.toLowerCase().trim();
+            if (HEADER_MAP[normalized]) {
+              fieldIndices[HEADER_MAP[normalized]] = i;
+            }
+          });
+
+          let existingNames = new Set<string>();
+          try {
+            const { data: existingContacts } = await supabase
+              .from("contacts")
+              .select("short_name, company_name, first_name, last_name");
+            existingNames = new Set(
+              (existingContacts || []).map(c =>
+                (c.short_name || c.company_name || `${c.last_name}_${c.first_name}`).toLowerCase().trim()
+              )
+            );
+          } catch {}
+
+          setProgress(50);
+
+          const parsed: ParsedContact[] = rawRows.slice(1).map(row => {
+            const obj: Record<string, string> = {};
+            for (const [field, colIdx] of Object.entries(fieldIndices)) {
+              const v = row[colIdx]?.trim() || "";
+              if (v) obj[field] = v;
+            }
+            return obj;
+          })
+          .filter(r => r.nachname || r.stichwort || r.strasse || r.firma)
+          .map(row => {
+            const contact = parseStructuredRow(row);
+            const checkName = (contact.short_name || contact.company_name || `${contact.last_name}_${contact.first_name}`).toLowerCase().trim();
+            contact.is_duplicate = existingNames.has(checkName);
+            contact._selected = !contact.is_duplicate;
+            return contact;
+          });
+
+          if (parsed.length === 0) {
+            toast({ title: "Keine Daten", description: "Es konnten keine Kontakte aus der CSV extrahiert werden", variant: "destructive" });
+            setStep("upload");
+            return;
+          }
+
+          setContacts(parsed);
+          setStep("preview");
+          setProgress(100);
+          return;
+        }
+
+        // Legacy: AI analysis
         const csvRows = rawRows.slice(1).map(row => {
           const obj: any = {};
           const phones: string[] = [];
@@ -143,7 +285,6 @@ export function ImportContactsCsvDialog({ open, onOpenChange, onImported }: Prop
           return;
         }
 
-        // Start AI analysis - batch in chunks of 100 to avoid body size limits
         setStep("analyzing");
         setProgress(10);
 
@@ -275,8 +416,8 @@ export function ImportContactsCsvDialog({ open, onOpenChange, onImported }: Prop
             CSV-Kontakte importieren
           </DialogTitle>
           <DialogDescription>
-            {step === "upload" && "Lade eine CSV-Datei aus deinem alten Verwaltungsprogramm hoch (max. 2 MB)."}
-            {step === "analyzing" && "Die KI analysiert die Kontaktdaten..."}
+            {step === "upload" && "Lade eine CSV-Datei hoch (max. 2 MB). Strukturierte CSVs werden direkt geparst."}
+            {step === "analyzing" && "Kontaktdaten werden verarbeitet..."}
             {step === "preview" && `${contacts.length} Kontakte erkannt — ${selectedCount} ausgewählt zum Import`}
             {step === "importing" && "Kontakte werden importiert..."}
             {step === "done" && `Import abgeschlossen: ${importResult?.imported} von ${contacts.length} importiert`}
@@ -309,9 +450,9 @@ export function ImportContactsCsvDialog({ open, onOpenChange, onImported }: Prop
           {/* Analyzing Step */}
           {step === "analyzing" && (
             <div className="py-12 text-center space-y-4">
-              <Sparkles className="h-12 w-12 mx-auto text-primary animate-pulse" />
-              <p className="text-lg font-medium">KI-Analyse läuft...</p>
-              <p className="text-sm text-muted-foreground">Namen werden geparst, Telefonnummern bereinigt, Duplikate geprüft</p>
+              <Loader2 className="h-12 w-12 mx-auto text-primary animate-spin" />
+              <p className="text-lg font-medium">Daten werden verarbeitet...</p>
+              <p className="text-sm text-muted-foreground">Kontakte werden geparst und auf Duplikate geprüft</p>
               <Progress value={progress} className="max-w-sm mx-auto" />
             </div>
           )}
