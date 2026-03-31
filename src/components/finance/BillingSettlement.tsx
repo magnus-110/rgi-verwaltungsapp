@@ -370,30 +370,75 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       });
     });
 
-    // Vorschussverpflichtung
-    const hausgeld = costs
-      .filter((c: any) => c.cost_type === "hausgeld" || c.cost_type === "nebenkosten")
-      .reduce((s: number, c: any) => {
-        const a = Number(c.amount);
-        switch (c.interval) {
-          case "monatlich": return s + a * 12;
-          case "quartal": return s + a * 4;
-          case "jaehrlich": return s + a;
-          default: return s + a * 12;
-        }
-      }, 0) * timeProp;
+    // Vorschussverpflichtung — SOLL or IST
+    let hausgeld = 0;
+    let reserve = 0;
 
-    const reserve = costs
-      .filter((c: any) => c.cost_type === "ruecklage")
-      .reduce((s: number, c: any) => {
-        const a = Number(c.amount);
-        switch (c.interval) {
-          case "monatlich": return s + a * 12;
-          case "quartal": return s + a * 4;
-          case "jaehrlich": return s + a;
-          default: return s + a * 12;
-        }
-      }, 0) * timeProp;
+    if (useIstVorschuss) {
+      // IST: sum actual payments from person account bookings
+      // Find person account for this contact
+      const personAccount = accounts.find(a => a.account_number.startsWith("0000") && a.building_id === buildingId && a.account_name?.toLowerCase().includes(name.toLowerCase().split(" ")[0]));
+      const contactPersonAccounts = accounts.filter(a => a.account_number.startsWith("0000") && a.building_id === buildingId);
+      // Match by unit number in account name or number
+      const matchedAccount = contactPersonAccounts.find(a => 
+        a.account_number === assignment.unit_number?.padStart(5, "0") || 
+        a.account_name?.includes(assignment.unit_number || "___")
+      ) || personAccount;
+      
+      if (matchedAccount) {
+        const accountPayments = istPayments.filter((p: any) => p.account_id === matchedAccount.id);
+        const totalIst = accountPayments.reduce((s: number, p: any) => s + Math.abs(Number(p.amount)), 0);
+        hausgeld = totalIst; // IST includes everything
+      } else {
+        // Fallback to SOLL
+        hausgeld = costs
+          .filter((c: any) => c.cost_type === "hausgeld" || c.cost_type === "nebenkosten")
+          .reduce((s: number, c: any) => {
+            const a = Number(c.amount);
+            switch (c.interval) {
+              case "monatlich": return s + a * 12;
+              case "quartal": return s + a * 4;
+              case "jaehrlich": return s + a;
+              default: return s + a * 12;
+            }
+          }, 0) * timeProp;
+        reserve = costs
+          .filter((c: any) => c.cost_type === "ruecklage")
+          .reduce((s: number, c: any) => {
+            const a = Number(c.amount);
+            switch (c.interval) {
+              case "monatlich": return s + a * 12;
+              case "quartal": return s + a * 4;
+              case "jaehrlich": return s + a;
+              default: return s + a * 12;
+            }
+          }, 0) * timeProp;
+      }
+    } else {
+      // SOLL: from contact_building_costs
+      hausgeld = costs
+        .filter((c: any) => c.cost_type === "hausgeld" || c.cost_type === "nebenkosten")
+        .reduce((s: number, c: any) => {
+          const a = Number(c.amount);
+          switch (c.interval) {
+            case "monatlich": return s + a * 12;
+            case "quartal": return s + a * 4;
+            case "jaehrlich": return s + a;
+            default: return s + a * 12;
+          }
+        }, 0) * timeProp;
+      reserve = costs
+        .filter((c: any) => c.cost_type === "ruecklage")
+        .reduce((s: number, c: any) => {
+          const a = Number(c.amount);
+          switch (c.interval) {
+            case "monatlich": return s + a * 12;
+            case "quartal": return s + a * 4;
+            case "jaehrlich": return s + a;
+            default: return s + a * 12;
+          }
+        }, 0) * timeProp;
+    }
 
     const totalPaid = hausgeld + reserve;
     const result = totalPaid - totalOwnerCost;
