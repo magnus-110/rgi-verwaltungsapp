@@ -108,17 +108,17 @@ function parseStructuredRow(row: Record<string, string>): ParsedContact {
     persons.push({ salutation: null, first_name: row.person3_vorname || null, last_name: row.person3_nachname || null, is_primary: false });
   }
 
-  // Build phones
+  // Build phones with validation
   const phones: ParsedContact["phones"] = [];
-  if (row.telefon_1) phones.push({ phone_number: row.telefon_1, label: "Festnetz", note: row.telefon_1_notiz || null });
-  if (row.telefon_2) phones.push({ phone_number: row.telefon_2, label: "Mobil", note: row.telefon_2_notiz || null });
-  if (row.telefon_3) phones.push({ phone_number: row.telefon_3, label: "Sonstige", note: row.telefon_3_notiz || null });
-  if (row.fax) phones.push({ phone_number: row.fax, label: "Fax", note: null });
+  if (row.telefon_1 && isValidPhone(row.telefon_1)) phones.push({ phone_number: row.telefon_1, label: "Festnetz", note: row.telefon_1_notiz || null });
+  if (row.telefon_2 && isValidPhone(row.telefon_2)) phones.push({ phone_number: row.telefon_2, label: "Mobil", note: row.telefon_2_notiz || null });
+  if (row.telefon_3 && isValidPhone(row.telefon_3)) phones.push({ phone_number: row.telefon_3, label: "Sonstige", note: row.telefon_3_notiz || null });
+  if (row.fax && isValidPhone(row.fax)) phones.push({ phone_number: row.fax, label: "Fax", note: null });
 
-  // Build emails
+  // Build emails with validation
   const emails: ParsedContact["emails"] = [];
-  if (row.email_1) emails.push({ email: row.email_1, label: "Geschäftlich", note: row.email_1_notiz || null });
-  if (row.email_2) emails.push({ email: row.email_2, label: "Privat", note: row.email_2_notiz || null });
+  if (row.email_1 && isValidEmail(row.email_1)) emails.push({ email: row.email_1, label: "Geschäftlich", note: row.email_1_notiz || null });
+  if (row.email_2 && isValidEmail(row.email_2)) emails.push({ email: row.email_2, label: "Privat", note: row.email_2_notiz || null });
 
   // Bank
   const bank = (row.iban || row.bic || row.inhaber || row.bank) ? {
