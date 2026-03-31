@@ -248,6 +248,13 @@ export function ChartOfAccountsTab() {
                              ) : (
                                account.carry_forward_balance && <Badge className="text-xs bg-purple-100 text-purple-800 hover:bg-purple-100">SV</Badge>
                              )}
+                            </TableCell>
+                           <TableCell className="text-center">
+                             {editingId === account.id ? (
+                               <Checkbox checked={editWpRelevant} onCheckedChange={c => setEditWpRelevant(!!c)} />
+                             ) : (
+                               account.is_wirtschaftsplan_relevant && <Badge className="text-xs bg-teal-100 text-teal-800 hover:bg-teal-100">WP</Badge>
+                             )}
                            </TableCell>
                           <TableCell>
                             {editingId === account.id ? (
