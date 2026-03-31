@@ -1,50 +1,45 @@
 
 
-## Unterjährige Hausgeld-Änderungen unterstützen
+## Direktimport ohne KI-Analyse
 
 ### Problem
-Die `contact_building_costs` Tabelle hat bereits `valid_from` und `valid_to` Felder, aber:
-1. Die **UI** zeigt keine Datums-Felder zum Bearbeiten an
-2. Die **Abrechnung** (BillingSettlement) ignoriert die Gültigkeitszeiträume — sie summiert einfach alle Kosten × 12 Monate
+Die CSV hat jetzt das exakte Zielformat (Vorname, Firma, Typ, Telefon 1, Telefon 1 Notiz, E-Mail 1, E-Mail 1 Notiz, Person 2, etc.), aber:
+1. **HEADER_MAP** kennt die neuen Spaltennamen nicht ("Vorname", "Firma", "Typ", "Telefon 1 Notiz", "E-Mail 1 Notiz", "Person 2 Anrede/Vorname/Nachname", "Notizen")
+2. Die Telefon/E-Mail-Regex matcht "Telefon 1 Notiz" als Telefonnummer statt als Notiz
+3. Die KI-Analyse ist bei vorstrukturierten Daten unnötig und verursacht Timeouts bei 700+ Kontakten
 
 ### Lösung
-
-**Ansatz**: Für eine Hausgeld-Änderung legt man zwei Kosten-Einträge an:
-- Hausgeld 400 €, gültig 01.01.–30.06.
-- Hausgeld 420 €, gültig 01.07.–31.12.
-
-Die Abrechnung berechnet dann automatisch den zeitanteiligen Jahresbetrag.
+Direktes Client-seitiges Parsing ohne KI — die CSV enthält bereits alle Felder korrekt getrennt.
 
 ### Änderungen
 
-**Datei 1: `src/components/contacts/BuildingContactsList.tsx`** — Kosten-UI erweitern
-- In der Kosten-Zeile (Zeile 783–866) zwei kompakte Datums-Inputs für `valid_from` und `valid_to` hinzufügen
-- Format: `type="date"`, optional, mit Placeholder "unbegrenzt"
-- `updateCost()` wird bereits für beliebige Felder verwendet, daher kein neuer Handler nötig
+**Datei 1: `src/components/contacts/ImportContactsCsvDialog.tsx`**
 
-**Datei 2: `src/components/finance/BillingSettlement.tsx`** — Zeitanteilige Berechnung
-- Die Hausgeld-/Rücklage-Berechnung (Zeile 418–440) anpassen:
-  - Statt `amount × 12`, den Überlappungszeitraum zwischen `[valid_from, valid_to]` und der Abrechnungsperiode `[period_from, period_to]` berechnen
-  - Formel: `amount × überlappende_monate` (bei monatlichem Intervall)
-  - Kosten ohne `valid_from`/`valid_to` gelten wie bisher für die gesamte Periode
+- **HEADER_MAP erweitern** um alle neuen Spalten:
+  - `vorname` → `vorname`, `firma` → `firma`, `typ` → `typ`
+  - `telefon 1` → `telefon_1`, `telefon 1 notiz` → `telefon_1_notiz`
+  - `telefon 2` → `telefon_2`, `telefon 2 notiz` → `telefon_2_notiz`
+  - `telefon 3` → `telefon_3`, `telefon 3 notiz` → `telefon_3_notiz`
+  - `e-mail 1` → `email_1`, `e-mail 1 notiz` → `email_1_notiz`
+  - `e-mail 2` → `email_2`, `e-mail 2 notiz` → `email_2_notiz`
+  - `person 2 anrede/vorname/nachname` → `person2_anrede/vorname/nachname`
+  - `person 3 vorname/nachname` → `person3_vorname/nachname`
+  - `notizen` → `notizen`
 
-**Datei 3: `src/components/finance/EconomicPlanEditor.tsx`** — Gleiche Logik
-- Die Hausgeld-Summierung (Zeile 200–204) ebenfalls zeitanteilig machen, damit der Wirtschaftsplan konsistent ist
+- **Direktes Parsing** in `parseCsvFile`: Wenn die CSV die neuen strukturierten Header hat (Erkennung: Header enthält "Vorname" UND "Firma"), KI-Analyse überspringen und direkt `ParsedContact[]` bauen:
+  - `contact_type` direkt aus "Typ"-Spalte
+  - Telefone als Array mit zugehörigen Notizen paaren
+  - E-Mails ebenso
+  - Person 2/3 als zusätzliche Personen
+  - Bank aus IBAN/BIC/Kontoinhaber/Bank
+  - Direkt zur Preview springen (kein Edge-Function-Call für Analyse)
 
-### Berechnungslogik (Hilfsfunktion)
+- **Import bleibt gleich**: Der Import-Step sendet weiterhin an die Edge Function in 50er-Batches
 
-```text
-getOverlapMonths(costFrom, costTo, periodFrom, periodTo):
-  start = max(costFrom || periodFrom, periodFrom)
-  end   = min(costTo   || periodTo,   periodTo)
-  if start > end: return 0
-  return differenceInMonths(end, start) (gerundet auf Monate)
+**Datei 2: `supabase/functions/import-contacts-csv/index.ts`** — Keine Änderung nötig, der Import-Teil funktioniert bereits korrekt mit dem `ParsedContact`-Format.
 
-annualAmount = amount × overlapMonths (bei monatlich)
-             = amount × (overlapMonths / 3) (bei quartal)
-             = amount × (overlapMonths / 12) (bei jährlich)
-```
-
-### Kein Schema-Change nötig
-Die Felder `valid_from` und `valid_to` existieren bereits in der Tabelle `contact_building_costs`.
+### Ergebnis
+- CSV mit dem definierten Format wird sofort geparst (keine Wartezeit, kein KI-API-Call)
+- Alte CSVs ohne die neuen Header nutzen weiterhin die KI-Analyse als Fallback
+- 700+ Kontakte werden in Sekunden statt Minuten verarbeitet
 
