@@ -321,7 +321,8 @@ serve(async (req) => {
 
             const contactId = contactData.id;
 
-            // Insert persons
+            // Insert persons and get their IDs back
+            let primaryPersonId: string | null = null;
             if (c.persons && c.persons.length > 0) {
               const personInserts = c.persons.map((p: any, idx: number) => ({
                 contact_id: contactId,
@@ -331,19 +332,28 @@ serve(async (req) => {
                 is_primary: p.is_primary || false,
                 sort_order: idx,
               }));
-              const { error: persErr } = await supabase.from("contact_persons").insert(personInserts);
+              const { data: personsData, error: persErr } = await supabase
+                .from("contact_persons")
+                .insert(personInserts)
+                .select("id, is_primary");
               if (persErr) {
                 console.error(`Persons insert error for ${contactId}:`, persErr.message);
                 errors.push(`${c.short_name || c.last_name} (Personen): ${persErr.message}`);
+              } else if (personsData && personsData.length > 0) {
+                // Use the primary person's ID, or fall back to the first one
+                const primary = personsData.find((p: any) => p.is_primary);
+                primaryPersonId = primary?.id || personsData[0].id;
+                console.log(`Primary person ID for ${c.short_name || c.last_name}: ${primaryPersonId}`);
               }
             }
 
-            // Insert phones
+            // Insert phones with person_id
             if (c.phones && c.phones.length > 0) {
               const validPhones = c.phones.filter((p: any) => p.phone_number && p.phone_number.trim() !== "");
               if (validPhones.length > 0) {
                 const phoneInserts = validPhones.map((p: any) => ({
                   contact_id: contactId,
+                  person_id: primaryPersonId,
                   phone_number: p.phone_number.trim(),
                   label: p.label || "Mobil",
                   note: p.note || null,
@@ -357,12 +367,13 @@ serve(async (req) => {
               }
             }
 
-            // Insert emails
+            // Insert emails with person_id
             if (c.emails && c.emails.length > 0) {
               const validEmails = c.emails.filter((e: any) => e.email && e.email.trim() !== "");
               if (validEmails.length > 0) {
                 const emailInserts = validEmails.map((e: any, idx: number) => ({
                   contact_id: contactId,
+                  person_id: primaryPersonId,
                   email: e.email.trim(),
                   label: e.label || "Privat",
                   is_primary: idx === 0,
@@ -377,10 +388,11 @@ serve(async (req) => {
               }
             }
 
-            // Insert bank account
+            // Insert bank account with person_id
             if (c.bank && (c.bank.iban || c.bank.account_holder)) {
               const { error: bankErr } = await supabase.from("contact_bank_accounts").insert({
                 contact_id: contactId,
+                person_id: primaryPersonId,
                 iban: c.bank.iban || null,
                 bic: c.bank.bic || null,
                 account_holder: c.bank.account_holder || null,
