@@ -280,6 +280,27 @@ export function BankStatementsTab() {
     }
   };
 
+  const handleRematch = async () => {
+    if (!selectedBuilding) return;
+    setRematching(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("parse-bank-statement", {
+        body: { rematchBuildingId: selectedBuilding },
+      });
+      if (error) throw error;
+      if (data?.matched > 0) {
+        toast.success(`${data.matched} von ${data.total} Transaktionen neu zugeordnet`);
+      } else {
+        toast.info("Keine neuen Zuordnungen gefunden");
+      }
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+    } catch (err: any) {
+      toast.error("Fehler beim Abgleich: " + (err.message || "Unbekannter Fehler"));
+    } finally {
+      setRematching(false);
+    }
+  };
 
   const handleBookSingle = async (txnId: string) => {
     setBookingSingleId(txnId);
