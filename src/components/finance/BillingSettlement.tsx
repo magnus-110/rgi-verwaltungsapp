@@ -4,10 +4,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { BarChart3, ChevronDown, ChevronRight, Download, Users, PiggyBank, AlertTriangle, Check, FileText, Building2, Loader2 } from "lucide-react";
+import { BarChart3, ChevronDown, ChevronRight, Download, Users, PiggyBank, AlertTriangle, Check, FileText, Building2, Loader2, Search } from "lucide-react";
 import { toast } from "sonner";
 
 interface BillingSettlementProps {
@@ -17,60 +18,53 @@ interface BillingSettlementProps {
 }
 
 const DIST_KEY_TO_SHARE: Record<string, string> = {
-  mea: "mea",
-  einheiten: "einheit",
-  qm: "qm",
-  personen: "personen",
-  verbrauch_wasser: "wasser",
-  verbrauch_warmwasser: "warmwasser",
+  mea: "mea", einheiten: "einheit", qm: "qm", personen: "personen",
+  verbrauch_wasser: "wasser", verbrauch_warmwasser: "warmwasser",
   heizkostenverordnung: "heizkosten",
 };
 
 const SHARE_LABELS: Record<string, string> = {
-  mea: "MEA (Miteigentumsanteile)",
-  einheit: "Einheiten",
-  qm: "Wohnfläche (m²)",
-  personen: "Personen",
-  wasser: "Wasserverbrauch",
-  warmwasser: "Warmwasserverbrauch",
-  heizkosten: "Heizkostenverordnung",
-  direkt: "Direkte Zuordnung",
+  mea: "Ges.Tausendstel", einheit: "Einheiten", qm: "Wohnfläche (m²)",
+  personen: "Personen", wasser: "Wasserverbr.", warmwasser: "Warmwasserverbr.",
+  heizkosten: "Heizk.Abr.", direkt: "Direkt",
 };
 
-const COST_TYPE_LABELS: Record<string, string> = {
-  hausgeld: "Hausgeld",
-  ruecklage: "Rücklage",
-  miete: "Miete",
-  nebenkosten: "Nebenkosten",
+const SECTION_LABELS: Record<string, string> = {
+  income: "Einnahmen",
+  operating_distributable: "Umlagefähige Bewirtschaftungskosten",
+  operating_non_distributable: "Nicht umlagefähige Kosten",
+  accrual: "Abgrenzungen",
+  reserve: "Instandhaltungsrücklage",
+  reserve_withdrawal: "Entnahme aus Rücklage",
+  bank: "Bankkonten",
 };
+
+const SECTION_ORDER = ["income", "operating_distributable", "operating_non_distributable", "accrual", "reserve", "reserve_withdrawal"];
 
 export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingSettlementProps) {
-  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState("total");
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [selectedOwner, setSelectedOwner] = useState<string | null>(null);
+  const [ownerSearch, setOwnerSearch] = useState("");
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(SECTION_ORDER));
 
-  // Period data
+  // Period
   const { data: period } = useQuery({
     queryKey: ["billing-period-settlement", periodId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("billing_periods")
-        .select("*")
-        .eq("id", periodId)
-        .single();
+      const { data, error } = await supabase.from("billing_periods").select("*").eq("id", periodId).single();
       if (error) throw error;
       return data;
     },
   });
 
-  // Accounts
+  // ALL accounts (not just billing-relevant — we need section-based filtering)
   const { data: accounts = [] } = useQuery({
-    queryKey: ["billing-accounts", buildingId],
+    queryKey: ["settlement-accounts", buildingId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("chart_of_accounts")
         .select("*")
-        .eq("is_billing_relevant", true)
         .or(`building_id.is.null,building_id.eq.${buildingId}`)
         .order("account_number");
       if (error) throw error;
@@ -78,20 +72,17 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     },
   });
 
-  // Account overrides for this building
+  // Account overrides
   const { data: overrides = [] } = useQuery({
     queryKey: ["account-overrides", buildingId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("building_account_overrides")
-        .select("*")
-        .eq("building_id", buildingId);
+      const { data, error } = await supabase.from("building_account_overrides").select("*").eq("building_id", buildingId);
       if (error) throw error;
       return data;
     },
   });
 
-  // Bookings
+  // All bookings for the year
   const { data: bookings = [] } = useQuery({
     queryKey: ["settlement-bookings", buildingId, fiscalYear],
     queryFn: async () => {
@@ -108,16 +99,11 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
 
   // Owners with shares and costs
   const { data: assignments = [] } = useQuery({
-    queryKey: ["owner-assignments", buildingId],
+    queryKey: ["owner-assignments-settlement", buildingId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("contact_building_assignments")
-        .select(`
-          *,
-          contacts(id, first_name, last_name, company_name),
-          contact_building_shares(*),
-          contact_building_costs(*)
-        `)
+        .select(`*, contacts(id, first_name, last_name, company_name), contact_building_shares(*), contact_building_costs(*)`)
         .eq("building_id", buildingId)
         .eq("is_active", true)
         .in("role_in_building", ["eigentuemer", "mieter"]);
@@ -126,9 +112,9 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     },
   });
 
-  // Account balances for Vermögensbericht
+  // Account balances
   const { data: balances = [] } = useQuery({
-    queryKey: ["account-balances-report", buildingId, fiscalYear],
+    queryKey: ["account-balances-settlement", buildingId, fiscalYear],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("account_balances")
@@ -140,9 +126,37 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     },
   });
 
-  // Unpaid invoices for Verbindlichkeiten
+  // Economic plan items for WP column
+  const { data: wpItems = [] } = useQuery({
+    queryKey: ["wp-items-settlement", buildingId, fiscalYear],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("economic_plan_items" as any)
+        .select("account_id, planned_amount")
+        .eq("building_id", buildingId)
+        .eq("fiscal_year", fiscalYear);
+      if (error) return [];
+      return (data as any[]) || [];
+    },
+  });
+
+  // Heating distribution values
+  const { data: heatingDistValues = [] } = useQuery({
+    queryKey: ["heating-dist-values-settlement", buildingId, periodId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("heating_distribution_values")
+        .select("*")
+        .eq("building_id", buildingId)
+        .eq("billing_period_id", periodId);
+      if (error) return [];
+      return data || [];
+    },
+  });
+
+  // Open invoices
   const { data: openInvoices = [] } = useQuery({
-    queryKey: ["open-invoices", buildingId],
+    queryKey: ["open-invoices-settlement", buildingId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("invoices" as any)
@@ -155,42 +169,110 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     },
   });
 
+  // --- Computation helpers ---
+  const formatCurrency = (n: number) =>
+    new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
+  const formatNum = (n: number) =>
+    new Intl.NumberFormat("de-DE", { maximumFractionDigits: 3 }).format(n);
+
   const getDistKey = (accountId: string, defaultKey: string | null) => {
     const override = overrides.find((o) => o.account_id === accountId);
     return override?.distribution_key || defaultKey || "mea";
   };
 
-  // Separate reserve accounts from operating costs
-  const reserveAccounts = accounts.filter((a) => a.category === "ruecklage" || a.account_name.toLowerCase().includes("rücklage"));
-  const operatingAccounts = accounts.filter((a) => !reserveAccounts.includes(a));
-
-  const accountTotals = accounts.map((acc) => {
-    const distKey = getDistKey(acc.id, acc.default_distribution_key);
-    const total = bookings
-      .filter((b) => b.account_id === acc.id && b.booking_category !== "heating_repost")
+  const getAccountBookingTotal = (accountId: string) =>
+    bookings
+      .filter((b) => b.account_id === accountId && b.booking_category !== "heating_repost")
       .reduce((s, b) => s + Math.abs(Number(b.amount)), 0);
-    return { ...acc, total, distKey };
+
+  const getWpAmount = (accountId: string) => {
+    const item = wpItems.find((w: any) => w.account_id === accountId);
+    return item ? Number(item.planned_amount) : 0;
+  };
+
+  // Group accounts by settlement_section
+  const sectionAccounts: Record<string, Array<any & { total: number; wpAmount: number; distKey: string }>> = {};
+  accounts.forEach((acc) => {
+    const section = acc.settlement_section;
+    if (!section) return;
+    const total = getAccountBookingTotal(acc.id);
+    if (total === 0 && section !== "reserve") return; // Show reserve even if 0
+    if (!sectionAccounts[section]) sectionAccounts[section] = [];
+    sectionAccounts[section].push({
+      ...acc,
+      total,
+      wpAmount: getWpAmount(acc.id),
+      distKey: getDistKey(acc.id, acc.default_distribution_key),
+    });
   });
 
-  // §35a relevant bookings
-  const total35a = bookings
-    .filter((b) => b.is_35a_relevant)
-    .reduce((s, b) => s + Math.abs(Number(b.amount)), 0);
+  // Calculate totals per section
+  const getSectionTotal = (section: string) =>
+    (sectionAccounts[section] || []).reduce((s, a) => s + a.total, 0);
 
-  const groupedByKey: Record<string, { accounts: typeof accountTotals; total: number }> = {};
-  accountTotals.forEach((acc) => {
-    if (acc.total === 0) return;
-    if (!groupedByKey[acc.distKey]) groupedByKey[acc.distKey] = { accounts: [], total: 0 };
-    groupedByKey[acc.distKey].accounts.push(acc);
-    groupedByKey[acc.distKey].total += acc.total;
-  });
+  const totalIncome = getSectionTotal("income");
+  const totalOperatingDist = getSectionTotal("operating_distributable");
+  const totalOperatingNonDist = getSectionTotal("operating_non_distributable");
+  const totalAccrual = getSectionTotal("accrual");
+  const totalReserve = getSectionTotal("reserve");
+  const totalReserveWithdrawal = getSectionTotal("reserve_withdrawal");
 
-  const totalCosts = accountTotals.reduce((s, a) => s + a.total, 0);
-  const totalReserveCosts = accountTotals
-    .filter((a) => reserveAccounts.some((r) => r.id === a.id))
-    .reduce((s, a) => s + a.total, 0);
-  const totalOperatingCosts = totalCosts - totalReserveCosts;
+  // Opening balances
+  const openingGiro = balances
+    .filter((b: any) => b.chart_of_accounts?.category !== "ruecklage" && b.chart_of_accounts?.carry_forward_balance)
+    .reduce((s, b) => s + Number(b.opening_balance), 0);
+  const openingReserve = balances
+    .filter((b: any) => b.chart_of_accounts?.category === "ruecklage")
+    .reduce((s, b) => s + Number(b.opening_balance), 0);
+  const openingTotal = openingGiro + openingReserve;
 
+  // Closing balances
+  const closingGiro = balances
+    .filter((b: any) => b.chart_of_accounts?.category !== "ruecklage" && b.chart_of_accounts?.carry_forward_balance)
+    .reduce((s, b) => s + Number(b.closing_balance), 0);
+  const closingReserve = balances
+    .filter((b: any) => b.chart_of_accounts?.category === "ruecklage")
+    .reduce((s, b) => s + Number(b.closing_balance), 0);
+  const closingTotal = closingGiro + closingReserve;
+
+  // Distributable total (for Einzelabrechnung)
+  const totalDistributable = accounts
+    .filter((a) => a.is_distributable)
+    .reduce((s, a) => s + getAccountBookingTotal(a.id), 0);
+
+  // Abrechnungssumme
+  const abrechnungssumme = totalOperatingDist + totalOperatingNonDist + totalAccrual + totalReserve - totalReserveWithdrawal;
+
+  // Vorschussverpflichtung (total prepayments from all owners)
+  const totalVorschuss = assignments.reduce((s, a: any) => {
+    const costs = a.contact_building_costs || [];
+    return s + costs.reduce((cs: number, c: any) => {
+      const amount = Number(c.amount);
+      const timeProp = getTimeProportion(a);
+      switch (c.interval) {
+        case "monatlich": return cs + amount * 12 * timeProp;
+        case "quartal": return cs + amount * 4 * timeProp;
+        case "jaehrlich": return cs + amount * timeProp;
+        default: return cs + amount * 12 * timeProp;
+      }
+    }, 0);
+  }, 0);
+
+  const abrechnungsspitze = totalVorschuss - abrechnungssumme;
+
+  function getTimeProportion(assignment: any) {
+    if (!period) return 1;
+    const pStart = new Date(period.period_from).getTime();
+    const pEnd = new Date(period.period_to).getTime();
+    const totalDays = (pEnd - pStart) / (1000 * 60 * 60 * 24) + 1;
+    const vFrom = assignment.valid_from ? new Date(assignment.valid_from).getTime() : pStart;
+    const vTo = assignment.valid_to ? new Date(assignment.valid_to).getTime() : pEnd;
+    const effStart = Math.max(pStart, vFrom);
+    const effEnd = Math.min(pEnd, vTo);
+    return Math.max(0, (effEnd - effStart) / (1000 * 60 * 60 * 24) + 1) / totalDays;
+  }
+
+  // --- Owner calculation ---
   const getShareTotal = (shareType: string) => {
     const mapped = DIST_KEY_TO_SHARE[shareType] || shareType;
     return assignments.reduce((s, a: any) => {
@@ -199,157 +281,131 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     }, 0);
   };
 
-  // Time-proportional calculation helper
-  const getTimeProportion = (assignment: any) => {
-    if (!period) return 1;
-    const periodStart = new Date(period.period_from).getTime();
-    const periodEnd = new Date(period.period_to).getTime();
-    const totalDays = (periodEnd - periodStart) / (1000 * 60 * 60 * 24) + 1;
-
-    const validFrom = assignment.valid_from ? new Date(assignment.valid_from).getTime() : periodStart;
-    const validTo = assignment.valid_to ? new Date(assignment.valid_to).getTime() : periodEnd;
-
-    const effectiveStart = Math.max(periodStart, validFrom);
-    const effectiveEnd = Math.min(periodEnd, validTo);
-    const effectiveDays = Math.max(0, (effectiveEnd - effectiveStart) / (1000 * 60 * 60 * 24) + 1);
-
-    return effectiveDays / totalDays;
-  };
-
-  const ownerResults = assignments.map((assignment: any) => {
+  const computeOwnerResult = (assignment: any) => {
     const contact = assignment.contacts;
     const name = contact?.company_name || [contact?.first_name, contact?.last_name].filter(Boolean).join(" ") || "Unbekannt";
     const shares = assignment.contact_building_shares || [];
     const costs = assignment.contact_building_costs || [];
-    const timeProportion = getTimeProportion(assignment);
+    const timeProp = getTimeProportion(assignment);
 
-    let totalShare = 0;
-    let share35a = 0;
-    Object.entries(groupedByKey).forEach(([distKey, group]) => {
+    // Per-account breakdown for Einzelabrechnung
+    const accountBreakdown: Array<{
+      accountNumber: string; accountName: string; distributableAmount: number;
+      distKey: string; totalShares: number; ownerShare: number; ownerCost: number;
+      settlement35aType: string | null;
+    }> = [];
+
+    let totalOwnerCost = 0;
+    let owner35aDienste = 0;
+    let owner35aHandwerker = 0;
+
+    // Distributable accounts
+    const distributableAccounts = accounts.filter((a) => a.is_distributable);
+    distributableAccounts.forEach((acc) => {
+      const total = getAccountBookingTotal(acc.id);
+      if (total === 0) return;
+
+      const distKey = getDistKey(acc.id, acc.default_distribution_key);
       const shareType = DIST_KEY_TO_SHARE[distKey] || distKey;
-      const ownerShare = shares.find((s: any) => s.share_type === shareType);
-      const totalShares = getShareTotal(distKey);
-      if (ownerShare && totalShares > 0) {
-        const proportion = (Number(ownerShare.share_value) / totalShares) * timeProportion;
-        totalShare += group.total * proportion;
 
-        // §35a proportional
-        const group35a = group.accounts
-          .filter((acc) => bookings.some((b) => b.account_id === acc.id && b.is_35a_relevant))
-          .reduce((s, acc) => {
-            const accBookings35a = bookings
-              .filter((b) => b.account_id === acc.id && b.is_35a_relevant)
-              .reduce((bs, b) => bs + Math.abs(Number(b.amount)), 0);
-            return s + accBookings35a;
-          }, 0);
-        share35a += group35a * proportion;
+      // Special handling for heating account (1400) — use heating_distribution_values if available
+      const isHeatingAccount = acc.is_heating_relevant && acc.account_number === "1400";
+      let ownerCost = 0;
+      let ownerShareValue = 0;
+      let totalSharesValue = 0;
+
+      if (isHeatingAccount && heatingDistValues.length > 0) {
+        const hdv = heatingDistValues.find((h: any) => h.assignment_id === assignment.id);
+        ownerCost = hdv ? Number(hdv.amount) : 0;
+        ownerShareValue = ownerCost;
+        totalSharesValue = total;
+      } else {
+        const ownerShare = shares.find((s: any) => s.share_type === shareType);
+        totalSharesValue = getShareTotal(distKey);
+        ownerShareValue = ownerShare ? Number(ownerShare.share_value) : 0;
+        ownerCost = totalSharesValue > 0 ? total * (ownerShareValue / totalSharesValue) * timeProp : 0;
       }
+
+      totalOwnerCost += ownerCost;
+
+      // §35a tracking
+      if (acc.settlement_35a_type === "dienste") owner35aDienste += ownerCost;
+      if (acc.settlement_35a_type === "handwerker") owner35aHandwerker += ownerCost;
+
+      accountBreakdown.push({
+        accountNumber: acc.account_number,
+        accountName: acc.account_name,
+        distributableAmount: total,
+        distKey: SHARE_LABELS[distKey] || distKey,
+        totalShares: totalSharesValue,
+        ownerShare: ownerShareValue,
+        ownerCost,
+        settlement35aType: acc.settlement_35a_type,
+      });
     });
 
-    const annualHausgeld = costs
+    // Vorschussverpflichtung
+    const hausgeld = costs
       .filter((c: any) => c.cost_type === "hausgeld" || c.cost_type === "nebenkosten")
       .reduce((s: number, c: any) => {
-        const amount = Number(c.amount);
+        const a = Number(c.amount);
         switch (c.interval) {
-          case "monatlich": return s + amount * 12;
-          case "quartal": return s + amount * 4;
-          case "jaehrlich": return s + amount;
-          default: return s + amount * 12;
+          case "monatlich": return s + a * 12;
+          case "quartal": return s + a * 4;
+          case "jaehrlich": return s + a;
+          default: return s + a * 12;
         }
-      }, 0) * timeProportion;
+      }, 0) * timeProp;
 
-    const annualReserve = costs
+    const reserve = costs
       .filter((c: any) => c.cost_type === "ruecklage")
       .reduce((s: number, c: any) => {
-        const amount = Number(c.amount);
+        const a = Number(c.amount);
         switch (c.interval) {
-          case "monatlich": return s + amount * 12;
-          case "quartal": return s + amount * 4;
-          case "jaehrlich": return s + amount;
-          default: return s + amount * 12;
+          case "monatlich": return s + a * 12;
+          case "quartal": return s + a * 4;
+          case "jaehrlich": return s + a;
+          default: return s + a * 12;
         }
-      }, 0) * timeProportion;
+      }, 0) * timeProp;
 
-    const totalPaid = annualHausgeld + annualReserve;
-    const result = totalPaid - totalShare;
-
-    // §35a calculation
-    const haushaltsnaheDL = Math.min(share35a * 0.5, share35a); // Rough split: 50% household services
-    const handwerkerleistungen = share35a - haushaltsnaheDL;
-    const steuerbonus35a = Math.min(haushaltsnaheDL * 0.2, 4000) + Math.min(handwerkerleistungen * 0.2, 1200);
+    const totalPaid = hausgeld + reserve;
+    const result = totalPaid - totalOwnerCost;
 
     return {
       assignmentId: assignment.id,
       contactId: contact?.id,
       name,
       unitNumber: assignment.unit_number || "–",
-      shares,
-      totalShare,
-      annualHausgeld,
-      annualReserve,
+      totalOwnerCost,
+      hausgeld,
+      reserve,
       totalPaid,
       result,
-      timeProportion,
-      share35a,
-      steuerbonus35a,
+      timeProp,
+      owner35aDienste,
+      owner35aHandwerker,
+      accountBreakdown,
     };
-  });
+  };
+
+  const ownerResults = assignments.map(computeOwnerResult);
+  const filteredOwners = ownerResults.filter(o =>
+    !ownerSearch || o.name.toLowerCase().includes(ownerSearch.toLowerCase()) || o.unitNumber.includes(ownerSearch)
+  );
 
   const totalPaidAll = ownerResults.reduce((s, o) => s + o.totalPaid, 0);
-  const totalShareAll = ownerResults.reduce((s, o) => s + o.totalShare, 0);
+  const totalShareAll = ownerResults.reduce((s, o) => s + o.totalOwnerCost, 0);
 
-  const formatCurrency = (n: number) =>
-    new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
-  const formatNum = (n: number) =>
-    new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(n);
-
-  const toggleKey = (key: string) => {
-    setExpandedKeys((prev) => {
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev => {
       const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
+      next.has(section) ? next.delete(section) : next.add(section);
       return next;
     });
   };
 
-  // Vermögensbericht data
-  const bankBalances = balances.filter((b: any) => b.chart_of_accounts?.carry_forward_balance);
-  const totalBankBalance = bankBalances.reduce((s, b) => s + Number(b.closing_balance), 0);
-  const reserveBalance = balances
-    .filter((b: any) => b.chart_of_accounts?.category === "ruecklage")
-    .reduce((s, b) => s + Number(b.closing_balance), 0);
-  const totalOpenInvoices = openInvoices.reduce((s, inv: any) => s + Number(inv.gross_amount || 0), 0);
-
-  const exportResults = () => {
-    const lines: string[] = [];
-    lines.push(`Gesamtabrechnung ${fiscalYear}`);
-    lines.push("");
-    lines.push("Einheit;Eigentümer;Kostenanteil;Hausgeld gezahlt;Rücklage gezahlt;Gesamt gezahlt;Ergebnis;§35a Anteil");
-    ownerResults.forEach((o) => {
-      const resultLabel = o.result >= 0 ? "Guthaben" : "Nachzahlung";
-      lines.push([
-        o.unitNumber,
-        o.name,
-        o.totalShare.toFixed(2).replace(".", ","),
-        o.annualHausgeld.toFixed(2).replace(".", ","),
-        o.annualReserve.toFixed(2).replace(".", ","),
-        o.totalPaid.toFixed(2).replace(".", ","),
-        `${o.result.toFixed(2).replace(".", ",")} (${resultLabel})`,
-        o.share35a.toFixed(2).replace(".", ","),
-      ].join(";"));
-    });
-    lines.push("");
-    lines.push(`Gesamtkosten;;${totalCosts.toFixed(2).replace(".", ",")}`);
-
-    const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `Abrechnung_${fiscalYear}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast.success("Abrechnung exportiert");
-  };
-
+  // PDF generation
   const generatePdfs = async () => {
     setGeneratingPdf(true);
     try {
@@ -357,15 +413,10 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
         body: { buildingId, periodId, fiscalYear },
       });
       if (error) throw error;
-      if (data?.url) {
-        window.open(data.url, "_blank");
-        toast.success("Gesamtabrechnung PDF erstellt");
-      }
+      if (data?.url) { window.open(data.url, "_blank"); toast.success("PDF erstellt"); }
     } catch (e: any) {
-      toast.error("Fehler bei PDF-Generierung: " + (e.message || "Unbekannter Fehler"));
-    } finally {
-      setGeneratingPdf(false);
-    }
+      toast.error("Fehler: " + (e.message || "Unbekannt"));
+    } finally { setGeneratingPdf(false); }
   };
 
   const generateOwnerPdf = async (ownerId: string, ownerName: string) => {
@@ -375,16 +426,88 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
         body: { buildingId, periodId, fiscalYear, ownerId },
       });
       if (error) throw error;
-      if (data?.url) {
-        window.open(data.url, "_blank");
-        toast.success(`Einzelabrechnung für ${ownerName} erstellt`);
-      }
+      if (data?.url) { window.open(data.url, "_blank"); toast.success(`PDF für ${ownerName} erstellt`); }
     } catch (e: any) {
-      toast.error("Fehler: " + (e.message || "Unbekannter Fehler"));
-    } finally {
-      setGeneratingPdf(false);
-    }
+      toast.error("Fehler: " + (e.message || "Unbekannt"));
+    } finally { setGeneratingPdf(false); }
   };
+
+  const exportCsv = () => {
+    const lines = [`Gesamtabrechnung ${fiscalYear}`, "",
+      "Einheit;Eigentümer;Kostenanteil;Hausgeld;Rücklage;Gesamt;Ergebnis;§35a Dienste;§35a Handwerker"];
+    ownerResults.forEach(o => {
+      lines.push([o.unitNumber, o.name, o.totalOwnerCost.toFixed(2).replace(".", ","),
+        o.hausgeld.toFixed(2).replace(".", ","), o.reserve.toFixed(2).replace(".", ","),
+        o.totalPaid.toFixed(2).replace(".", ","),
+        `${o.result.toFixed(2).replace(".", ",")} (${o.result >= 0 ? "Guthaben" : "Nachzahlung"})`,
+        o.owner35aDienste.toFixed(2).replace(".", ","),
+        o.owner35aHandwerker.toFixed(2).replace(".", ","),
+      ].join(";"));
+    });
+    const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `Abrechnung_${fiscalYear}.csv`; a.click();
+    URL.revokeObjectURL(url);
+    toast.success("CSV exportiert");
+  };
+
+  // --- Render helper for Gesamtabrechnung section ---
+  const renderSection = (section: string) => {
+    const accs = sectionAccounts[section] || [];
+    if (accs.length === 0 && section !== "reserve") return null;
+    const total = getSectionTotal(section);
+    const wpTotal = accs.reduce((s, a) => s + a.wpAmount, 0);
+    const distTotal = accs.filter(a => a.is_distributable).reduce((s, a) => s + a.total, 0);
+    const isExpanded = expandedSections.has(section);
+
+    return (
+      <Collapsible key={section} open={isExpanded} onOpenChange={() => toggleSection(section)}>
+        <CollapsibleTrigger className="w-full flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted text-left">
+          <div className="flex items-center gap-2">
+            {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            <span className="font-medium text-sm">{SECTION_LABELS[section] || section}</span>
+            <Badge variant="outline" className="text-xs">{accs.length}</Badge>
+          </div>
+          <div className="flex gap-4 text-sm font-mono">
+            {wpTotal > 0 && <span className="text-muted-foreground">{formatCurrency(wpTotal)}</span>}
+            <span className="font-medium">{formatCurrency(total)}</span>
+            {distTotal > 0 && distTotal !== total && <span className="text-muted-foreground">{formatCurrency(distTotal)}</span>}
+          </div>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[80px]">Konto</TableHead>
+                <TableHead>Bezeichnung</TableHead>
+                <TableHead className="text-right w-[120px]">Wirtschaftsplan</TableHead>
+                <TableHead className="text-right w-[120px]">Einnahmen/Ausgaben</TableHead>
+                <TableHead className="text-right w-[120px]">Verteilungsrel.</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {accs.map(acc => (
+                <TableRow key={acc.id}>
+                  <TableCell className="font-mono text-xs">{acc.account_number}</TableCell>
+                  <TableCell className="text-sm">{acc.account_name}</TableCell>
+                  <TableCell className="text-right font-mono text-sm text-muted-foreground">
+                    {acc.wpAmount > 0 ? formatCurrency(acc.wpAmount) : "–"}
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-sm">{formatCurrency(acc.total)}</TableCell>
+                  <TableCell className="text-right font-mono text-sm">
+                    {acc.is_distributable ? formatCurrency(acc.total) : "–"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CollapsibleContent>
+      </Collapsible>
+    );
+  };
+
+  const selectedOwnerData = selectedOwner ? ownerResults.find(o => o.assignmentId === selectedOwner) : null;
 
   return (
     <Card>
@@ -394,7 +517,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
             <BarChart3 className="h-5 w-5" /> Gesamtabrechnung {fiscalYear}
           </CardTitle>
           <p className="text-sm text-muted-foreground mt-1">
-            {accounts.length} abrechnungsrelevante Konten — Gesamtkosten: {formatCurrency(totalCosts)}
+            {accounts.filter(a => a.settlement_section).length} Konten in Abrechnungsstruktur
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -402,338 +525,397 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
             {generatingPdf ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />}
             Alle PDFs
           </Button>
-          <Button size="sm" variant="outline" onClick={exportResults} disabled={ownerResults.length === 0}>
+          <Button size="sm" variant="outline" onClick={exportCsv} disabled={ownerResults.length === 0}>
             <Download className="h-4 w-4 mr-1" /> CSV
           </Button>
         </div>
       </CardHeader>
       <CardContent>
-        {accounts.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-8">
-            Keine Konten als abrechnungsrelevant markiert. Aktiviere "Abrechnungsrelevant" im Kontenrahmen.
-          </p>
-        ) : (
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList variant="underline" className="mb-4 flex-wrap h-auto">
-              <TabsTrigger variant="underline" value="overview">Kostenübersicht</TabsTrigger>
-              <TabsTrigger variant="underline" value="owners">
-                <Users className="h-4 w-4 mr-1" /> Eigentümer ({ownerResults.length})
-              </TabsTrigger>
-              <TabsTrigger variant="underline" value="assets">
-                <Building2 className="h-4 w-4 mr-1" /> Vermögensbericht
-              </TabsTrigger>
-            </TabsList>
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList variant="underline" className="mb-4 flex-wrap h-auto">
+            <TabsTrigger variant="underline" value="total">Gesamtabrechnung</TabsTrigger>
+            <TabsTrigger variant="underline" value="owners">
+              <Users className="h-4 w-4 mr-1" /> Einzelabrechnungen ({ownerResults.length})
+            </TabsTrigger>
+            <TabsTrigger variant="underline" value="assets">
+              <Building2 className="h-4 w-4 mr-1" /> Vermögensbericht
+            </TabsTrigger>
+          </TabsList>
 
-            {/* Kostenübersicht nach Verteilerschlüssel */}
-            <TabsContent value="overview" className="space-y-3">
-              {Object.entries(groupedByKey).map(([distKey, group]) => {
-                const isExpanded = expandedKeys.has(distKey);
-                const shareTotal = getShareTotal(distKey);
-                return (
-                  <Collapsible key={distKey} open={isExpanded} onOpenChange={() => toggleKey(distKey)}>
-                    <CollapsibleTrigger className="w-full flex items-center justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted text-left">
-                      <div className="flex items-center gap-2">
-                        {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                        <span className="font-medium text-sm">{SHARE_LABELS[distKey] || distKey}</span>
-                        <Badge variant="outline" className="text-xs">{group.accounts.length} Konten</Badge>
-                        {shareTotal > 0 && (
-                          <Badge variant="outline" className="text-xs">Σ Anteile: {formatNum(shareTotal)}</Badge>
-                        )}
+          {/* ===== TAB 1: GESAMTABRECHNUNG ===== */}
+          <TabsContent value="total" className="space-y-3">
+            {/* Anfangsbestände */}
+            <div className="p-3 rounded-lg bg-muted/30 space-y-1">
+              <div className="text-sm font-medium mb-1">Anfangsbestände zum {period ? new Date(period.period_from).toLocaleDateString("de-DE") : "–"}</div>
+              <div className="flex justify-between text-sm">
+                <span>Girokonto</span>
+                <span className="font-mono">{formatCurrency(openingGiro)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span>Instandhaltungsrücklage</span>
+                <span className="font-mono">{formatCurrency(openingReserve)}</span>
+              </div>
+              <div className="flex justify-between text-sm font-medium border-t pt-1">
+                <span>Gesamt</span>
+                <span className="font-mono">{formatCurrency(openingTotal)}</span>
+              </div>
+            </div>
+
+            {/* Sections */}
+            {SECTION_ORDER.map(section => renderSection(section))}
+
+            {/* Abrechnungssumme */}
+            <div className="space-y-2 mt-4">
+              <div className="flex justify-between p-3 rounded-lg bg-muted/30 text-sm">
+                <span>Abrechnungssumme (Gesamtkosten)</span>
+                <span className="font-mono font-medium">{formatCurrency(abrechnungssumme)}</span>
+              </div>
+              <div className="flex justify-between p-3 rounded-lg bg-muted/30 text-sm">
+                <span>Vorschussverpflichtung (Hausgeld + IHR)</span>
+                <span className="font-mono font-medium">{formatCurrency(totalVorschuss)}</span>
+              </div>
+              <div className={`flex justify-between p-3 rounded-lg border-2 text-sm font-semibold ${
+                abrechnungsspitze >= 0 ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"
+              }`}>
+                <span>Abrechnungsspitze ({abrechnungsspitze >= 0 ? "Guthaben" : "Nachzahlung"})</span>
+                <span className="font-mono">{formatCurrency(Math.abs(abrechnungsspitze))}</span>
+              </div>
+            </div>
+
+            {/* Kontrolle Endbestände */}
+            <div className="p-3 rounded-lg bg-muted/30 space-y-1 mt-2">
+              <div className="text-sm font-medium mb-1">Kontrolle Endbestände zum {period ? new Date(period.period_to).toLocaleDateString("de-DE") : "–"}</div>
+              <div className="flex justify-between text-sm">
+                <span>Girokonto</span>
+                <span className="font-mono">{formatCurrency(closingGiro)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span>Instandhaltungsrücklage</span>
+                <span className="font-mono">{formatCurrency(closingReserve)}</span>
+              </div>
+              <div className="flex justify-between text-sm font-medium border-t pt-1">
+                <span>Gesamt</span>
+                <span className="font-mono">{formatCurrency(closingTotal)}</span>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* ===== TAB 2: EINZELABRECHNUNGEN ===== */}
+          <TabsContent value="owners">
+            {ownerResults.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                Keine Eigentümer mit aktiven Zuordnungen gefunden.
+              </p>
+            ) : selectedOwnerData ? (
+              // Detail view for selected owner
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Button size="sm" variant="ghost" onClick={() => setSelectedOwner(null)} className="mb-1">
+                      ← Zurück zur Übersicht
+                    </Button>
+                    <h3 className="text-lg font-semibold">{selectedOwnerData.name} — Einheit {selectedOwnerData.unitNumber}</h3>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => generateOwnerPdf(selectedOwnerData.assignmentId, selectedOwnerData.name)} disabled={generatingPdf}>
+                    <FileText className="h-4 w-4 mr-1" /> PDF
+                  </Button>
+                </div>
+
+                {/* 7-column detail table */}
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[70px]">Konto</TableHead>
+                        <TableHead>Bezeichnung</TableHead>
+                        <TableHead className="text-right w-[100px]">Verteilungsrel.</TableHead>
+                        <TableHead className="w-[100px]">Verteiler</TableHead>
+                        <TableHead className="text-right w-[80px]">Gesamt</TableHead>
+                        <TableHead className="text-right w-[80px]">Ihr Anteil</TableHead>
+                        <TableHead className="text-right w-[100px]">Ihre Kosten</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {selectedOwnerData.accountBreakdown.map((row, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="font-mono text-xs">{row.accountNumber}</TableCell>
+                          <TableCell className="text-sm">{row.accountName}</TableCell>
+                          <TableCell className="text-right font-mono text-sm">{formatCurrency(row.distributableAmount)}</TableCell>
+                          <TableCell className="text-xs">{row.distKey}</TableCell>
+                          <TableCell className="text-right font-mono text-xs">{formatNum(row.totalShares)}</TableCell>
+                          <TableCell className="text-right font-mono text-xs">{formatNum(row.ownerShare)}</TableCell>
+                          <TableCell className="text-right font-mono text-sm font-medium">{formatCurrency(row.ownerCost)}</TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow className="font-medium border-t-2">
+                        <TableCell colSpan={6}>Abrechnungssumme</TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(selectedOwnerData.totalOwnerCost)}</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-sm">Vorschussverpflichtung (Hausgeld + IHR)</TableCell>
+                        <TableCell className="text-right font-mono text-sm">{formatCurrency(selectedOwnerData.totalPaid)}</TableCell>
+                      </TableRow>
+                      <TableRow className={`font-semibold ${selectedOwnerData.result >= 0 ? "text-green-700" : "text-red-700"}`}>
+                        <TableCell colSpan={6}>
+                          Abrechnungsspitze ({selectedOwnerData.result >= 0 ? "Guthaben" : "Nachzahlung"})
+                        </TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(Math.abs(selectedOwnerData.result))}</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </div>
+
+                {/* §35a */}
+                {(selectedOwnerData.owner35aDienste > 0 || selectedOwnerData.owner35aHandwerker > 0) && (
+                  <Card className="border-dashed">
+                    <CardHeader className="py-3">
+                      <CardTitle className="text-sm">§35a EStG Bescheinigung</CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-0 space-y-2 text-sm">
+                      {selectedOwnerData.owner35aDienste > 0 && (
+                        <div className="flex justify-between">
+                          <span>Haushaltsnahe Dienstleistungen (20%, max. 4.000€)</span>
+                          <span className="font-mono">{formatCurrency(selectedOwnerData.owner35aDienste)}</span>
+                        </div>
+                      )}
+                      {selectedOwnerData.owner35aHandwerker > 0 && (
+                        <div className="flex justify-between">
+                          <span>Handwerkerleistungen (20%, max. 1.200€)</span>
+                          <span className="font-mono">{formatCurrency(selectedOwnerData.owner35aHandwerker)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between font-medium border-t pt-1">
+                        <span>Steuerbonus</span>
+                        <span className="font-mono">
+                          {formatCurrency(
+                            Math.min(selectedOwnerData.owner35aDienste * 0.2, 4000) +
+                            Math.min(selectedOwnerData.owner35aHandwerker * 0.2, 1200)
+                          )}
+                        </span>
                       </div>
-                      <span className="font-mono font-medium text-sm">{formatCurrency(group.total)}</span>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent>
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-[100px]">Konto</TableHead>
-                            <TableHead>Bezeichnung</TableHead>
-                            <TableHead className="text-right">Betrag</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {group.accounts.map((acc) => (
-                            <TableRow key={acc.id}>
-                              <TableCell className="font-mono text-xs">{acc.account_number}</TableCell>
-                              <TableCell className="text-sm">{acc.account_name}</TableCell>
-                              <TableCell className="text-right font-mono text-sm">{formatCurrency(acc.total)}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </CollapsibleContent>
-                  </Collapsible>
-                );
-              })}
-
-              {/* Summary */}
-              <div className="space-y-2 mt-4">
-                <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-                  <span className="text-sm">Betriebskosten</span>
-                  <span className="font-mono text-sm">{formatCurrency(totalOperatingCosts)}</span>
-                </div>
-                {totalReserveCosts > 0 && (
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-                    <span className="text-sm">Rücklagenzuführung</span>
-                    <span className="font-mono text-sm">{formatCurrency(totalReserveCosts)}</span>
-                  </div>
-                )}
-                <div className="flex items-center justify-between p-3 rounded-lg bg-primary/5 border-2 border-primary/20">
-                  <span className="font-semibold text-sm">Gesamtkosten</span>
-                  <span className="font-mono font-bold">{formatCurrency(totalCosts)}</span>
-                </div>
-                {total35a > 0 && (
-                  <div className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-                    <span className="text-sm text-muted-foreground">davon §35a EStG-relevant</span>
-                    <span className="font-mono text-sm text-muted-foreground">{formatCurrency(total35a)}</span>
-                  </div>
+                    </CardContent>
+                  </Card>
                 )}
               </div>
-            </TabsContent>
-
-            {/* Eigentümer-Abrechnung */}
-            <TabsContent value="owners">
-              {ownerResults.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  Keine Eigentümer/Mieter mit aktiven Zuordnungen gefunden. Bitte weise Kontakte mit Anteilen dem Gebäude zu.
-                </p>
-              ) : (
-                <div className="space-y-4">
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="outline">
-                      <PiggyBank className="h-3 w-3 mr-1" />
-                      Hausgeld gesamt: {formatCurrency(totalPaidAll)}
+            ) : (
+              // Owner list view
+              <div className="space-y-4">
+                <div className="flex flex-wrap gap-2 items-center">
+                  <Badge variant="outline">
+                    <PiggyBank className="h-3 w-3 mr-1" /> Vorschüsse: {formatCurrency(totalPaidAll)}
+                  </Badge>
+                  <Badge variant="outline">Kosten: {formatCurrency(totalShareAll)}</Badge>
+                  {Math.abs(totalPaidAll - totalShareAll) > 0.01 && (
+                    <Badge className={totalPaidAll > totalShareAll ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}>
+                      {totalPaidAll > totalShareAll ? "Guthaben" : "Nachzahlung"}: {formatCurrency(Math.abs(totalPaidAll - totalShareAll))}
                     </Badge>
-                    <Badge variant="outline">Kosten verteilt: {formatCurrency(totalShareAll)}</Badge>
-                    {Math.abs(totalPaidAll - totalShareAll) > 0.01 && (
-                      <Badge className={totalPaidAll > totalShareAll ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"}>
-                        {totalPaidAll > totalShareAll ? "Überschuss" : "Fehlbetrag"}: {formatCurrency(Math.abs(totalPaidAll - totalShareAll))}
-                      </Badge>
-                    )}
-                  </div>
-
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Einheit</TableHead>
-                          <TableHead>Eigentümer</TableHead>
-                          <TableHead className="text-right">Kostenanteil</TableHead>
-                          <TableHead className="text-right">Hausgeld</TableHead>
-                          <TableHead className="text-right">Rücklage</TableHead>
-                          <TableHead className="text-right">Ergebnis</TableHead>
-                          {total35a > 0 && <TableHead className="text-right">§35a</TableHead>}
-                          <TableHead className="w-[80px]"></TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {ownerResults.map((owner) => (
-                          <TableRow key={owner.assignmentId}>
-                            <TableCell className="text-sm font-medium">
-                              {owner.unitNumber}
-                              {owner.timeProportion < 1 && (
-                                <Badge variant="outline" className="ml-1 text-[10px]">
-                                  {Math.round(owner.timeProportion * 100)}%
-                                </Badge>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-sm">{owner.name}</TableCell>
-                            <TableCell className="text-right font-mono text-sm">{formatCurrency(owner.totalShare)}</TableCell>
-                            <TableCell className="text-right font-mono text-sm text-muted-foreground">{formatCurrency(owner.annualHausgeld)}</TableCell>
-                            <TableCell className="text-right font-mono text-sm text-muted-foreground">{formatCurrency(owner.annualReserve)}</TableCell>
-                            <TableCell className="text-right font-mono text-sm font-medium">
-                              {owner.result >= 0 ? (
-                                <span className="text-green-700 flex items-center justify-end gap-1">
-                                  <Check className="h-3 w-3" />
-                                  {formatCurrency(owner.result)}
-                                </span>
-                              ) : (
-                                <span className="text-red-700 flex items-center justify-end gap-1">
-                                  <AlertTriangle className="h-3 w-3" />
-                                  {formatCurrency(owner.result)}
-                                </span>
-                              )}
-                            </TableCell>
-                            {total35a > 0 && (
-                              <TableCell className="text-right font-mono text-xs text-muted-foreground">
-                                {formatCurrency(owner.share35a)}
-                              </TableCell>
-                            )}
-                            <TableCell>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-7 px-2"
-                                onClick={() => generateOwnerPdf(owner.assignmentId, owner.name)}
-                                disabled={generatingPdf}
-                              >
-                                <FileText className="h-3.5 w-3.5" />
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                        <TableRow className="font-medium border-t-2">
-                          <TableCell></TableCell>
-                          <TableCell>Gesamt</TableCell>
-                          <TableCell className="text-right font-mono">{formatCurrency(totalShareAll)}</TableCell>
-                          <TableCell className="text-right font-mono text-muted-foreground">
-                            {formatCurrency(ownerResults.reduce((s, o) => s + o.annualHausgeld, 0))}
-                          </TableCell>
-                          <TableCell className="text-right font-mono text-muted-foreground">
-                            {formatCurrency(ownerResults.reduce((s, o) => s + o.annualReserve, 0))}
-                          </TableCell>
-                          <TableCell className="text-right font-mono">
-                            {formatCurrency(ownerResults.reduce((s, o) => s + o.result, 0))}
-                          </TableCell>
-                          {total35a > 0 && (
-                            <TableCell className="text-right font-mono text-xs text-muted-foreground">
-                              {formatCurrency(ownerResults.reduce((s, o) => s + o.share35a, 0))}
-                            </TableCell>
-                          )}
-                          <TableCell></TableCell>
-                        </TableRow>
-                      </TableBody>
-                    </Table>
-                  </div>
+                  )}
                 </div>
-              )}
-            </TabsContent>
 
-            {/* Vermögensbericht (§28 WEG) */}
-            <TabsContent value="assets" className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Gemäß §28 WEG — Darstellung der Vermögenslage der Eigentümergemeinschaft zum Ende des Abrechnungszeitraums.
-              </p>
-
-              {/* Bankkonten */}
-              <Card>
-                <CardHeader className="py-3">
-                  <CardTitle className="text-sm">Bankkonten & Liquidität</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  {bankBalances.length > 0 ? (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Konto</TableHead>
-                          <TableHead>Bezeichnung</TableHead>
-                          <TableHead className="text-right">Saldo</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {bankBalances.map((b: any) => (
-                          <TableRow key={b.id}>
-                            <TableCell className="font-mono text-xs">{b.chart_of_accounts?.account_number}</TableCell>
-                            <TableCell className="text-sm">{b.chart_of_accounts?.account_name}</TableCell>
-                            <TableCell className="text-right font-mono text-sm">{formatCurrency(Number(b.closing_balance))}</TableCell>
-                          </TableRow>
-                        ))}
-                        <TableRow className="font-medium border-t-2">
-                          <TableCell colSpan={2}>Gesamtliquidität</TableCell>
-                          <TableCell className="text-right font-mono">{formatCurrency(totalBankBalance)}</TableCell>
-                        </TableRow>
-                      </TableBody>
-                    </Table>
-                  ) : (
-                    <p className="text-sm text-muted-foreground py-4 text-center">Keine Kontensalden erfasst.</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Rücklagenentwicklung */}
-              <Card>
-                <CardHeader className="py-3">
-                  <CardTitle className="text-sm">Rücklagenentwicklung</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="space-y-2">
-                    {balances
-                      .filter((b: any) => b.chart_of_accounts?.category === "ruecklage")
-                      .map((b: any) => {
-                        const zuführung = totalReserveCosts;
-                        return (
-                          <div key={b.id} className="space-y-1 text-sm">
-                            <div className="flex justify-between">
-                              <span>Anfangsbestand</span>
-                              <span className="font-mono">{formatCurrency(Number(b.opening_balance))}</span>
-                            </div>
-                            <div className="flex justify-between text-green-700">
-                              <span>+ Zuführungen</span>
-                              <span className="font-mono">{formatCurrency(zuführung)}</span>
-                            </div>
-                            <div className="flex justify-between font-medium border-t pt-1">
-                              <span>Endbestand</span>
-                              <span className="font-mono">{formatCurrency(Number(b.closing_balance))}</span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    {balances.filter((b: any) => b.chart_of_accounts?.category === "ruecklage").length === 0 && (
-                      <p className="text-sm text-muted-foreground py-2 text-center">Keine Rücklagenkonten gefunden.</p>
-                    )}
+                {ownerResults.length > 10 && (
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input placeholder="Eigentümer suchen..." value={ownerSearch} onChange={e => setOwnerSearch(e.target.value)} className="pl-9" />
                   </div>
-                </CardContent>
-              </Card>
+                )}
 
-              {/* Verbindlichkeiten */}
-              {openInvoices.length > 0 && (
-                <Card>
-                  <CardHeader className="py-3">
-                    <CardTitle className="text-sm">Offene Verbindlichkeiten</CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-0">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Lieferant</TableHead>
-                          <TableHead>Datum</TableHead>
-                          <TableHead className="text-right">Betrag</TableHead>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Einheit</TableHead>
+                        <TableHead>Eigentümer</TableHead>
+                        <TableHead className="text-right">Kostenanteil</TableHead>
+                        <TableHead className="text-right">Vorschüsse</TableHead>
+                        <TableHead className="text-right">Ergebnis</TableHead>
+                        <TableHead className="w-[80px]"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredOwners.map(owner => (
+                        <TableRow key={owner.assignmentId} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedOwner(owner.assignmentId)}>
+                          <TableCell className="text-sm font-medium">
+                            {owner.unitNumber}
+                            {owner.timeProp < 1 && (
+                              <Badge variant="outline" className="ml-1 text-[10px]">
+                                {Math.round(owner.timeProp * 100)}%
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-sm">{owner.name}</TableCell>
+                          <TableCell className="text-right font-mono text-sm">{formatCurrency(owner.totalOwnerCost)}</TableCell>
+                          <TableCell className="text-right font-mono text-sm text-muted-foreground">{formatCurrency(owner.totalPaid)}</TableCell>
+                          <TableCell className="text-right font-mono text-sm font-medium">
+                            {owner.result >= 0 ? (
+                              <span className="text-green-700 flex items-center justify-end gap-1">
+                                <Check className="h-3 w-3" /> {formatCurrency(owner.result)}
+                              </span>
+                            ) : (
+                              <span className="text-red-700 flex items-center justify-end gap-1">
+                                <AlertTriangle className="h-3 w-3" /> {formatCurrency(owner.result)}
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <Button size="sm" variant="ghost" className="h-7 px-2"
+                              onClick={(e) => { e.stopPropagation(); generateOwnerPdf(owner.assignmentId, owner.name); }}
+                              disabled={generatingPdf}>
+                              <FileText className="h-3.5 w-3.5" />
+                            </Button>
+                          </TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {openInvoices.map((inv: any) => (
-                          <TableRow key={inv.id}>
-                            <TableCell className="text-sm">{inv.vendor_name || "–"}</TableCell>
-                            <TableCell className="text-sm">{inv.invoice_date ? new Date(inv.invoice_date).toLocaleDateString("de-DE") : "–"}</TableCell>
-                            <TableCell className="text-right font-mono text-sm">{formatCurrency(Number(inv.gross_amount || 0))}</TableCell>
-                          </TableRow>
-                        ))}
-                        <TableRow className="font-medium border-t-2">
-                          <TableCell colSpan={2}>Gesamt</TableCell>
-                          <TableCell className="text-right font-mono">{formatCurrency(totalOpenInvoices)}</TableCell>
-                        </TableRow>
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-              )}
+                      ))}
+                      <TableRow className="font-medium border-t-2">
+                        <TableCell></TableCell>
+                        <TableCell>Gesamt</TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(totalShareAll)}</TableCell>
+                        <TableCell className="text-right font-mono text-muted-foreground">{formatCurrency(totalPaidAll)}</TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(ownerResults.reduce((s, o) => s + o.result, 0))}</TableCell>
+                        <TableCell></TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )}
+          </TabsContent>
 
-              {/* Zusammenfassung */}
-              <Card className="border-2 border-primary/20">
-                <CardContent className="pt-4 space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span>Bankkonten</span>
-                    <span className="font-mono font-medium">{formatCurrency(totalBankBalance)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>davon Rücklagen</span>
-                    <span className="font-mono text-muted-foreground">{formatCurrency(reserveBalance)}</span>
-                  </div>
-                  {totalOpenInvoices > 0 && (
-                    <div className="flex justify-between text-red-700">
-                      <span>./. offene Verbindlichkeiten</span>
-                      <span className="font-mono">{formatCurrency(-totalOpenInvoices)}</span>
+          {/* ===== TAB 3: VERMÖGENSBERICHT ===== */}
+          <TabsContent value="assets" className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Gemäß §28 WEG — Vermögenslage zum Ende des Abrechnungszeitraums {fiscalYear}.
+            </p>
+
+            {/* Bankkonten */}
+            <Card>
+              <CardHeader className="py-3">
+                <CardTitle className="text-sm">Bankkonten & Liquidität</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0">
+                {balances.filter((b: any) => b.chart_of_accounts?.carry_forward_balance).length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Konto</TableHead>
+                        <TableHead>Bezeichnung</TableHead>
+                        <TableHead className="text-right">Anfangsbestand</TableHead>
+                        <TableHead className="text-right">Endbestand</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {balances.filter((b: any) => b.chart_of_accounts?.carry_forward_balance).map((b: any) => (
+                        <TableRow key={b.id}>
+                          <TableCell className="font-mono text-xs">{b.chart_of_accounts?.account_number}</TableCell>
+                          <TableCell className="text-sm">{b.chart_of_accounts?.account_name}</TableCell>
+                          <TableCell className="text-right font-mono text-sm text-muted-foreground">{formatCurrency(Number(b.opening_balance))}</TableCell>
+                          <TableCell className="text-right font-mono text-sm">{formatCurrency(Number(b.closing_balance))}</TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow className="font-medium border-t-2">
+                        <TableCell colSpan={2}>Gesamtliquidität</TableCell>
+                        <TableCell className="text-right font-mono text-muted-foreground">{formatCurrency(openingTotal)}</TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(closingTotal)}</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <p className="text-sm text-muted-foreground py-4 text-center">Keine Kontensalden erfasst.</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Rücklagenentwicklung */}
+            <Card>
+              <CardHeader className="py-3">
+                <CardTitle className="text-sm">Rücklagenentwicklung</CardTitle>
+              </CardHeader>
+              <CardContent className="pt-0 space-y-2">
+                {balances.filter((b: any) => b.chart_of_accounts?.category === "ruecklage").map((b: any) => (
+                  <div key={b.id} className="space-y-1 text-sm">
+                    <div className="flex justify-between">
+                      <span>Anfangsbestand</span>
+                      <span className="font-mono">{formatCurrency(Number(b.opening_balance))}</span>
                     </div>
-                  )}
-                  <div className="flex justify-between font-semibold border-t pt-2">
-                    <span>Verfügbare Mittel</span>
-                    <span className="font-mono">{formatCurrency(totalBankBalance - totalOpenInvoices)}</span>
+                    <div className="flex justify-between text-green-700">
+                      <span>+ Zuführungen (Plan)</span>
+                      <span className="font-mono">{formatCurrency(totalReserve)}</span>
+                    </div>
+                    {totalReserveWithdrawal > 0 && (
+                      <div className="flex justify-between text-red-700">
+                        <span>- Entnahmen</span>
+                        <span className="font-mono">{formatCurrency(totalReserveWithdrawal)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-medium border-t pt-1">
+                      <span>Endbestand</span>
+                      <span className="font-mono">{formatCurrency(Number(b.closing_balance))}</span>
+                    </div>
                   </div>
+                ))}
+                {balances.filter((b: any) => b.chart_of_accounts?.category === "ruecklage").length === 0 && (
+                  <p className="text-sm text-muted-foreground py-2 text-center">Keine Rücklagenkonten gefunden.</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Offene Verbindlichkeiten */}
+            {openInvoices.length > 0 && (
+              <Card>
+                <CardHeader className="py-3">
+                  <CardTitle className="text-sm">Offene Verbindlichkeiten</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Lieferant</TableHead>
+                        <TableHead>Datum</TableHead>
+                        <TableHead className="text-right">Betrag</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {openInvoices.map((inv: any) => (
+                        <TableRow key={inv.id}>
+                          <TableCell className="text-sm">{inv.vendor_name || "–"}</TableCell>
+                          <TableCell className="text-sm">{inv.invoice_date ? new Date(inv.invoice_date).toLocaleDateString("de-DE") : "–"}</TableCell>
+                          <TableCell className="text-right font-mono text-sm">{formatCurrency(Number(inv.gross_amount || 0))}</TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow className="font-medium border-t-2">
+                        <TableCell colSpan={2}>Gesamt</TableCell>
+                        <TableCell className="text-right font-mono">{formatCurrency(openInvoices.reduce((s: number, i: any) => s + Number(i.gross_amount || 0), 0))}</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
                 </CardContent>
               </Card>
-            </TabsContent>
-          </Tabs>
-        )}
+            )}
+
+            {/* Zusammenfassung */}
+            <Card className="border-2 border-primary/20">
+              <CardContent className="pt-4 space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span>Bankkonten</span>
+                  <span className="font-mono font-medium">{formatCurrency(closingTotal)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>davon Rücklagen</span>
+                  <span className="font-mono text-muted-foreground">{formatCurrency(closingReserve)}</span>
+                </div>
+                {openInvoices.length > 0 && (
+                  <div className="flex justify-between text-red-700">
+                    <span>./. offene Verbindlichkeiten</span>
+                    <span className="font-mono">{formatCurrency(-openInvoices.reduce((s: number, i: any) => s + Number(i.gross_amount || 0), 0))}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-semibold border-t pt-2">
+                  <span>Verfügbare Mittel</span>
+                  <span className="font-mono">{formatCurrency(closingTotal - openInvoices.reduce((s: number, i: any) => s + Number(i.gross_amount || 0), 0))}</span>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
   );
