@@ -994,6 +994,7 @@ export type Database = {
           is_billing_relevant: boolean
           is_heating_relevant: boolean
           is_system_account: boolean | null
+          is_wirtschaftsplan_relevant: boolean
           sort_order: number | null
           updated_at: string
         }
@@ -1010,6 +1011,7 @@ export type Database = {
           is_billing_relevant?: boolean
           is_heating_relevant?: boolean
           is_system_account?: boolean | null
+          is_wirtschaftsplan_relevant?: boolean
           sort_order?: number | null
           updated_at?: string
         }
@@ -1026,6 +1028,7 @@ export type Database = {
           is_billing_relevant?: boolean
           is_heating_relevant?: boolean
           is_system_account?: boolean | null
+          is_wirtschaftsplan_relevant?: boolean
           sort_order?: number | null
           updated_at?: string
         }
