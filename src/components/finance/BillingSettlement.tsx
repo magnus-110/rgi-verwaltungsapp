@@ -43,11 +43,16 @@ const SECTION_LABELS: Record<string, string> = {
 const SECTION_ORDER = ["income", "operating_distributable", "operating_non_distributable", "accrual", "reserve", "reserve_withdrawal"];
 
 export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingSettlementProps) {
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("total");
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [selectedOwner, setSelectedOwner] = useState<string | null>(null);
   const [ownerSearch, setOwnerSearch] = useState("");
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(SECTION_ORDER));
+  const [useIstVorschuss, setUseIstVorschuss] = useState(false);
+  const [calculatingSalden, setCalculatingSalden] = useState(false);
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [generatingAiSummary, setGeneratingAiSummary] = useState(false);
 
   // Period
   const { data: period } = useQuery({
