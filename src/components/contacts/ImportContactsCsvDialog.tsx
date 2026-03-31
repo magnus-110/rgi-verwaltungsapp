@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Upload, Sparkles, AlertTriangle, Check, Loader2, FileUp } from "lucide-react";
+import { Upload, Sparkles, AlertTriangle, Check, Loader2, FileUp, ChevronDown, ChevronRight, Phone, Mail, Building2, CreditCard, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
