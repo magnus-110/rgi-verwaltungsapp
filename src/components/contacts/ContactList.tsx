@@ -2,8 +2,9 @@ import React, { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, User, Building2, Users, Wrench } from "lucide-react";
+import { Plus, Search, User, Building2, Users, Wrench, Upload } from "lucide-react";
 import { CreateContactDialog } from "./CreateContactDialog";
+import { ImportContactsCsvDialog } from "./ImportContactsCsvDialog";
 import { supabase } from "@/integrations/supabase/client";
 import type { Contact } from "@/pages/Contacts";
 
