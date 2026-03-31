@@ -845,6 +845,22 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                               {INTERVALS.map(i => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}
                             </SelectContent>
                           </Select>
+                          <Input
+                            type="date"
+                            value={c.valid_from || ""}
+                            onChange={(e) => updateCost(c.id, "valid_from", e.target.value || null)}
+                            className="w-[130px] h-8 text-xs"
+                            title="Gültig ab"
+                            placeholder="ab"
+                          />
+                          <Input
+                            type="date"
+                            value={c.valid_to || ""}
+                            onChange={(e) => updateCost(c.id, "valid_to", e.target.value || null)}
+                            className="w-[130px] h-8 text-xs"
+                            title="Gültig bis"
+                            placeholder="bis"
+                          />
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>

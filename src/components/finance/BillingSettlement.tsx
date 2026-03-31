@@ -419,6 +419,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
         hausgeld = costs
           .filter((c: any) => c.cost_type === "hausgeld" || c.cost_type === "nebenkosten")
           .reduce((s: number, c: any) => {
+            if (period) return s + getCostAnnualAmount(c, period.period_from, period.period_to);
             const a = Number(c.amount);
             switch (c.interval) {
               case "monatlich": return s + a * 12;
@@ -430,6 +431,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
         reserve = costs
           .filter((c: any) => c.cost_type === "ruecklage")
           .reduce((s: number, c: any) => {
+            if (period) return s + getCostAnnualAmount(c, period.period_from, period.period_to);
             const a = Number(c.amount);
             switch (c.interval) {
               case "monatlich": return s + a * 12;
@@ -444,6 +446,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       hausgeld = costs
         .filter((c: any) => c.cost_type === "hausgeld" || c.cost_type === "nebenkosten")
         .reduce((s: number, c: any) => {
+          if (period) return s + getCostAnnualAmount(c, period.period_from, period.period_to);
           const a = Number(c.amount);
           switch (c.interval) {
             case "monatlich": return s + a * 12;
@@ -455,6 +458,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       reserve = costs
         .filter((c: any) => c.cost_type === "ruecklage")
         .reduce((s: number, c: any) => {
+          if (period) return s + getCostAnnualAmount(c, period.period_from, period.period_to);
           const a = Number(c.amount);
           switch (c.interval) {
             case "monatlich": return s + a * 12;
