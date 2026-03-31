@@ -113,7 +113,7 @@ async function deduplicateTransactions(supabase: any, transactions: any[]): Prom
   return { unique, duplicateCount: transactions.length - unique.length };
 }
 
-async function matchTransactions(supabase: any, statementId: string) {
+async function matchTransactions(supabase: any, statementId: string, buildingId: string | null) {
   const { data: savedTxns } = await supabase
     .from("bank_transactions")
     .select("*")
@@ -121,14 +121,19 @@ async function matchTransactions(supabase: any, statementId: string) {
 
   if (!savedTxns || savedTxns.length === 0) return { matched: 0, total: 0 };
 
-  const { data: paidInvoices } = await supabase
+  // Only match against building-specific invoices and templates
+  let invoicesQuery = supabase
     .from("invoices")
     .select("id, vendor_iban, gross_amount, invoice_number")
     .eq("status", "paid");
+  if (buildingId) invoicesQuery = invoicesQuery.eq("building_id", buildingId);
+  const { data: paidInvoices } = await invoicesQuery;
 
-  const { data: templates } = await supabase
+  let templatesQuery = supabase
     .from("booking_templates")
     .select("id, vendor_iban, vendor_name, expected_amount");
+  if (buildingId) templatesQuery = templatesQuery.eq("building_id", buildingId);
+  const { data: templates } = await templatesQuery;
 
   let matchedCount = 0;
 
