@@ -25,6 +25,7 @@ interface ContactListProps {
 export function ContactList({ contacts, selectedId, onSelect, onCreated, loading }: ContactListProps) {
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [primaryPersons, setPrimaryPersons] = useState<Record<string, string>>({});
 
   // Load primary person names for all contacts
