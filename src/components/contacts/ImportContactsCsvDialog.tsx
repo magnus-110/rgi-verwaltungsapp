@@ -196,8 +196,65 @@ export function ImportContactsCsvDialog({ open, onOpenChange, onImported }: Prop
 
         const headerRow = rawRows[0];
         const headerMapping = mapHeaders(headerRow);
-        
-        // Convert to structured rows
+        const structured = isStructuredFormat(headerRow);
+
+        if (structured) {
+          // Direct parsing — no AI needed
+          setStep("analyzing");
+          setProgress(30);
+
+          const fieldIndices: Record<string, number> = {};
+          headerRow.forEach((h, i) => {
+            const normalized = h.toLowerCase().trim();
+            if (HEADER_MAP[normalized]) {
+              fieldIndices[HEADER_MAP[normalized]] = i;
+            }
+          });
+
+          let existingNames = new Set<string>();
+          try {
+            const { data: existingContacts } = await supabase
+              .from("contacts")
+              .select("short_name, company_name, first_name, last_name");
+            existingNames = new Set(
+              (existingContacts || []).map(c =>
+                (c.short_name || c.company_name || `${c.last_name}_${c.first_name}`).toLowerCase().trim()
+              )
+            );
+          } catch {}
+
+          setProgress(50);
+
+          const parsed: ParsedContact[] = rawRows.slice(1).map(row => {
+            const obj: Record<string, string> = {};
+            for (const [field, colIdx] of Object.entries(fieldIndices)) {
+              const v = row[colIdx]?.trim() || "";
+              if (v) obj[field] = v;
+            }
+            return obj;
+          })
+          .filter(r => r.nachname || r.stichwort || r.strasse || r.firma)
+          .map(row => {
+            const contact = parseStructuredRow(row);
+            const checkName = (contact.short_name || contact.company_name || `${contact.last_name}_${contact.first_name}`).toLowerCase().trim();
+            contact.is_duplicate = existingNames.has(checkName);
+            contact._selected = !contact.is_duplicate;
+            return contact;
+          });
+
+          if (parsed.length === 0) {
+            toast({ title: "Keine Daten", description: "Es konnten keine Kontakte aus der CSV extrahiert werden", variant: "destructive" });
+            setStep("upload");
+            return;
+          }
+
+          setContacts(parsed);
+          setStep("preview");
+          setProgress(100);
+          return;
+        }
+
+        // Legacy: AI analysis
         const csvRows = rawRows.slice(1).map(row => {
           const obj: any = {};
           const phones: string[] = [];
@@ -228,7 +285,6 @@ export function ImportContactsCsvDialog({ open, onOpenChange, onImported }: Prop
           return;
         }
 
-        // Start AI analysis - batch in chunks of 100 to avoid body size limits
         setStep("analyzing");
         setProgress(10);
 
