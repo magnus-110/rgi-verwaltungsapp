@@ -1,96 +1,44 @@
 
-## Restructure Abrechnung & Wirtschaftsplan Tabs
 
-### Current State
-- **Abrechnung** has 6 steps: Saldenübernahme, Heizkosten, Export, Umbuchungen, Abgrenzungen, Gesamtabrechnung
-- **Wirtschaftsplan** tab only contains the EconomicPlanEditor
-- `chart_of_accounts` has flags: `is_billing_relevant`, `is_heating_relevant`, `is_35a_relevant`, `carry_forward_balance`, `is_wirtschaftsplan_relevant`
-- NEW: `is_distributable`, `settlement_section`, `settlement_35a_type` columns added
-- NEW: `heating_distribution_values` table for external heating provider values
+## Kontenrahmen im Gebäude erweitern + Defaults setzen + Sortierung fixen
 
-### Plan
+### Problem
+1. **BuildingDistributionKeysTab** zeigt nur 4 Spalten (Verteilerschlüssel, Abr., HL, Saldo) — es fehlen: WP-relevant, Verteilungsrelevant (VR), Abr.-Sektion, §35a-Typ, §35a-relevant
+2. **Alle globalen Konten** haben fast alle Flags auf `false`/`null` — keine sinnvollen Defaults gesetzt
+3. **Sortierung** nutzt `sort_order` statt `account_number` — Konten wie 1041, 1470-1473 stehen am Ende (sort_order = 0 oder 115)
 
----
+### Umsetzung
 
-#### A. Abrechnung Tab — Restructure to 4 Steps
+**1. BuildingDistributionKeysTab.tsx erweitern**
+- Neue Spalten in der Tabelle hinzufügen (identisch zu ChartOfAccountsTab): VR, §35a-Typ, Abr.-Sektion, WP, §35a
+- Jede Spalte als direkt editierbares Checkbox/Dropdown (wie bereits bei Abr., HL, Saldo)
+- Add-Dialog erweitern um alle fehlenden Felder
 
-**Remove "Saldenübernahme" as a step.** Instead, auto-trigger balance carry-forward when the billing period is selected (background upsert for accounts with `carry_forward_balance = true`). Show a small status badge ("Salden übernommen" / "Keine Vorjahresdaten") at the top near the period selector.
+**2. Sortierung auf `account_number` umstellen**
+- In beiden Komponenten: `.order("account_number")` statt `.order("sort_order")`
+- Damit werden Konten chronologisch nach Nummer sortiert (00000, 1000, 1010, ..., 4000, ...)
 
-**New step structure:**
+**3. SQL-Update für korrekte Defaults aller globalen Konten**
+Eine Migration die alle ~80 Konten mit sinnvollen Standardwerten befüllt:
 
-| Step | Label | Content |
-|------|-------|---------|
-| 1 | Buchungsprüfung | All confirmed bookings for the period, grouped by account category. Per-account completeness check (e.g. "12/12 Hausgeld E0001", "4/4 Wasser"). Expandable account rows showing individual bookings. |
-| 2 | Heizkosten | HeatingAccountsSection + FuelInventorySection + HeatingRebookingSection (merge current steps 2-4 into one). Default target account 1400. |
-| 3 | Abgrenzungen | AccrualSection — enhanced with auto-detection logic: compare booking `service_period_from`/`service_period_to` against fiscal year boundaries. Flag bookings that span year boundaries. |
-| 4 | Gesamtabrechnung | BillingSettlement — creates total + individual settlements with professional 3-column layout. |
+| Kontenbereich | is_billing_relevant | is_distributable | settlement_section | is_wirtschaftsplan_relevant | settlement_35a_type |
+|---|---|---|---|---|---|
+| 00000 (Personen) | false | false | null | false | null |
+| 1000-1303 (Umlagefähig) | true | true | operating_distributable | true | dienste (bei 1060-1130) |
+| 1400-1461 (Heizung) | true | true | operating_distributable | true | null |
+| 1470-1473 (Vorauszahlungen) | false | false | bank | false | null + carry_forward=true |
+| 1500-1503 (Verwaltung) | true | true | operating_non_distributable | true | null |
+| 1510-1560 (Verw.kosten) | true | true | operating_non_distributable | true | null |
+| 1600-1699 (Instandhaltung) | true | true | operating_non_distributable | true | handwerker |
+| 1700-1720 (Rücklage) | true | true | reserve | true | null + carry_forward=true |
+| 1800-1810 (Bank) | false | false | bank | false | null + carry_forward=true |
+| 1840-1860 (Zinsen/Steuern) | true | true | income / operating_non_distributable | false | null |
+| 1900-1940 (Sonstige/§35a) | varies | varies | varies | false | dienste/handwerker |
+| 4000-4180 (Eröffnung/Abgr.) | false | false | accrual | false | null |
 
-**Remove** the separate "Export Ablesefirma" step (keep the export button inside the Heizkosten step).
+Heating-relevant: Konten 1400-1461 + is_heating_relevant = true
 
-**New component:** `BookingReviewSection.tsx` for Step 1.
-- Query all confirmed bookings for building + fiscal year
-- Group by account category
-- For recurring costs (from `contact_recurring_costs`), calculate expected vs. actual count (e.g. monthly = 12, quarterly = 4)
-- Show progress badges per unit/cost type
-- Expandable rows to inspect individual bookings
+### Betroffene Dateien
+- `src/components/finance/BuildingDistributionKeysTab.tsx` — alle Spalten + Sortierung
+- 1 neue Migration — UPDATE aller Defaults + sort_order = numerisch nach account_number
 
-**Modify:** `BillingTab.tsx` — update STEPS array and rendered content.
-
----
-
-#### B. Wirtschaftsplan Tab — Rename to "Planung & Berichte", Add 3 Sections
-
-Rename the third top-level tab from "Wirtschaftsplan" to **"Planung & Berichte"**. Use a sub-tab or accordion layout with 3 sections:
-
-**Section 1: Wirtschaftsplan (Gesamt & Einzel)**
-- Step 1: Show WP-relevant accounts with editable planned amounts + reserve allocation. AI suggestion button (existing).
-- Step 2: Preview & export (existing EconomicPlanPreview).
-- Mostly reuse existing `EconomicPlanEditor` with filter changed from `is_billing_relevant` to `is_wirtschaftsplan_relevant`.
-
-**Section 2: Vermögensbericht**
-- Pulls data from bank balances, accrual accounts, fuel inventory
-- Summary card with totals and export
-
-**Section 3: §35a Bescheinigung**
-- Query accounts with `settlement_35a_type` = 'dienste' or 'handwerker'
-- Sum bookings per owner (via distribution keys)
-- Export as PDF per owner
-
----
-
-#### C. Database Changes — COMPLETED ✅
-
-```sql
-ALTER TABLE chart_of_accounts 
-  ADD COLUMN is_distributable boolean NOT NULL DEFAULT false,
-  ADD COLUMN settlement_section text,
-  ADD COLUMN settlement_35a_type text;
-
-CREATE TABLE heating_distribution_values (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  building_id uuid NOT NULL REFERENCES buildings(id) ON DELETE CASCADE,
-  billing_period_id uuid NOT NULL REFERENCES billing_periods(id) ON DELETE CASCADE,
-  assignment_id uuid NOT NULL REFERENCES contact_building_assignments(id) ON DELETE CASCADE,
-  amount numeric NOT NULL DEFAULT 0,
-  note text,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now(),
-  UNIQUE(billing_period_id, assignment_id)
-);
-```
-
----
-
-### Completed ✅
-- [x] Migration — `is_distributable`, `settlement_section`, `settlement_35a_type` on chart_of_accounts; `heating_distribution_values` table
-- [x] `ChartOfAccountsTab.tsx` — settlement_section dropdown, is_distributable toggle, §35a type dropdown
-- [x] `HeatingRebookingSection.tsx` — Owner-level heating distribution values with CSV import
-- [x] `BillingSettlement.tsx` — Professional 3-tab layout: Gesamtabrechnung (3-column), Einzelabrechnungen (7-column with drill-down), Vermögensbericht
-
-### Remaining
-- [x] `BillingTab.tsx` — Update to new 4-step structure (already done)
-- [x] `generate-billing-pdf/index.ts` — Professional PDF layout matching reference
-- [x] `EconomicPlanEditor.tsx` — Use `is_wirtschaftsplan_relevant` filter (already done)
-- [x] `Finance.tsx` — Rename tab, add sub-sections (already done)
-
-### ✅ Plan vollständig abgeschlossen
