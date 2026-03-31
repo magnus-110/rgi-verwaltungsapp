@@ -1,45 +1,30 @@
 
 
-## Direktimport ohne KI-Analyse
-
-### Problem
-Die CSV hat jetzt das exakte Zielformat (Vorname, Firma, Typ, Telefon 1, Telefon 1 Notiz, E-Mail 1, E-Mail 1 Notiz, Person 2, etc.), aber:
-1. **HEADER_MAP** kennt die neuen Spaltennamen nicht ("Vorname", "Firma", "Typ", "Telefon 1 Notiz", "E-Mail 1 Notiz", "Person 2 Anrede/Vorname/Nachname", "Notizen")
-2. Die Telefon/E-Mail-Regex matcht "Telefon 1 Notiz" als Telefonnummer statt als Notiz
-3. Die KI-Analyse ist bei vorstrukturierten Daten unnötig und verursacht Timeouts bei 700+ Kontakten
-
-### Lösung
-Direktes Client-seitiges Parsing ohne KI — die CSV enthält bereits alle Felder korrekt getrennt.
+## Liegenschaftsspezifische Zuordnung & bessere Vergleichsansicht
 
 ### Änderungen
 
-**Datei 1: `src/components/contacts/ImportContactsCsvDialog.tsx`**
+**1. Edge Function `parse-bank-statement/index.ts` — Matching nur mit liegenschaftsspezifischen Vorlagen**
 
-- **HEADER_MAP erweitern** um alle neuen Spalten:
-  - `vorname` → `vorname`, `firma` → `firma`, `typ` → `typ`
-  - `telefon 1` → `telefon_1`, `telefon 1 notiz` → `telefon_1_notiz`
-  - `telefon 2` → `telefon_2`, `telefon 2 notiz` → `telefon_2_notiz`
-  - `telefon 3` → `telefon_3`, `telefon 3 notiz` → `telefon_3_notiz`
-  - `e-mail 1` → `email_1`, `e-mail 1 notiz` → `email_1_notiz`
-  - `e-mail 2` → `email_2`, `e-mail 2 notiz` → `email_2_notiz`
-  - `person 2 anrede/vorname/nachname` → `person2_anrede/vorname/nachname`
-  - `person 3 vorname/nachname` → `person3_vorname/nachname`
-  - `notizen` → `notizen`
+In `matchTransactions()` (Zeile ~105): Templates-Query um `.eq("building_id", buildingId)` ergänzen, sodass nur Vorlagen der jeweiligen Liegenschaft zum automatischen Matching herangezogen werden. Rechnungen ebenfalls auf die Liegenschaft filtern.
 
-- **Direktes Parsing** in `parseCsvFile`: Wenn die CSV die neuen strukturierten Header hat (Erkennung: Header enthält "Vorname" UND "Firma"), KI-Analyse überspringen und direkt `ParsedContact[]` bauen:
-  - `contact_type` direkt aus "Typ"-Spalte
-  - Telefone als Array mit zugehörigen Notizen paaren
-  - E-Mails ebenso
-  - Person 2/3 als zusätzliche Personen
-  - Bank aus IBAN/BIC/Kontoinhaber/Bank
-  - Direkt zur Preview springen (kein Edge-Function-Call für Analyse)
+**2. `BankStatementsTab.tsx` — Manuelle Zuordnung: nur liegenschaftsspezifische Daten**
 
-- **Import bleibt gleich**: Der Import-Step sendet weiterhin an die Edge Function in 50er-Batches
+- **Invoices-Query** (Zeile 95-107): Filter auf `building_id = selectedBuilding` hinzufügen. Neuen State `showMatchedInvoices` (default `false`) einführen — standardmäßig nur Rechnungen ohne bestehende Banktransaktions-Zuordnung anzeigen. Toggle-Checkbox "Bereits zugeordnete anzeigen" hinzufügen.
+- **Templates-Query** (Zeile 109-119): Filter auf `building_id = selectedBuilding`.
+- Beide Queries sollen von `selectedBuilding` abhängen.
 
-**Datei 2: `supabase/functions/import-contacts-csv/index.ts`** — Keine Änderung nötig, der Import-Teil funktioniert bereits korrekt mit dem `ParsedContact`-Format.
+**3. `BankStatementsTab.tsx` — Bessere Vergleichsansicht im Zuordnungsdialog (Zeile 633-680)**
 
-### Ergebnis
-- CSV mit dem definierten Format wird sofort geparst (keine Wartezeit, kein KI-API-Call)
-- Alte CSVs ohne die neuen Header nutzen weiterhin die KI-Analyse als Fallback
-- 700+ Kontakte werden in Sekunden statt Minuten verarbeitet
+Den Dialog erweitern:
+- Transaktionsdetails prominent anzeigen: **Betrag, Name (Empfänger/Auftraggeber), IBAN, Verwendungszweck, Datum** — alles auf einen Blick sichtbar
+- Bei Rechnungen im Select: **Rechnungsnummer, Lieferant, Betrag, IBAN, Rechnungsdatum** anzeigen (statt nur Nr/Name/Betrag)
+- Bei Vorlagen: **Name, Lieferant, erwarteter Betrag, IBAN** anzeigen
+- Rechnungs-Query erweitert um `vendor_iban, invoice_date`
+- Templates-Query erweitert um `vendor_iban, expected_amount`
+- Checkbox/Switch: "Bereits zugeordnete Rechnungen anzeigen" (default: aus)
+
+### Dateien
+1. `supabase/functions/parse-bank-statement/index.ts` — matchTransactions liegenschaftsspezifisch
+2. `src/components/finance/BankStatementsTab.tsx` — Queries filtern, Dialog umbauen
 
