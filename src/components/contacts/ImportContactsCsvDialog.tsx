@@ -227,6 +227,8 @@ export function ImportContactsCsvDialog({ open, onOpenChange, onImported }: Prop
     }
   }, [contacts, toast, onImported]);
 
+  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+
   const selectedCount = contacts.filter(c => c._selected).length;
   const duplicateCount = contacts.filter(c => c.is_duplicate).length;
   const aiCorrectedCount = contacts.filter(c => c.ai_corrections.length > 0).length;
