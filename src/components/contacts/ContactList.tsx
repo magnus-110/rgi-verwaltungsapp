@@ -68,9 +68,14 @@ export function ContactList({ contacts, selectedId, onSelect, onCreated, loading
       <div className="p-4 border-b border-border space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Adressen</h2>
-          <Button size="icon" variant="outline" onClick={() => setShowCreate(true)}>
-            <Plus className="h-4 w-4" />
-          </Button>
+          <div className="flex gap-1">
+            <Button size="icon" variant="outline" onClick={() => setShowImport(true)} title="CSV importieren">
+              <Upload className="h-4 w-4" />
+            </Button>
+            <Button size="icon" variant="outline" onClick={() => setShowCreate(true)}>
+              <Plus className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
