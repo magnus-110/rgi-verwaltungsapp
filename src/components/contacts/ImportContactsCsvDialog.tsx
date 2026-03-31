@@ -41,10 +41,11 @@ const HEADER_MAP: Record<string, string> = {
   "name2": "name2", "name 2": "name2",
   "name3": "name3", "name 3": "name3",
   "strasse geschäftlich": "strasse", "straße geschäftlich": "strasse", "strasse": "strasse", "straße": "strasse", "str. geschäftl.": "strasse",
-  "plz geschäftlich": "plz", "plz": "plz",
+  "plz geschäftlich": "plz", "postleitzahl geschäftlich": "plz", "plz": "plz",
   "ort geschäftlich": "ort", "ort": "ort", "stadt": "ort",
   "webseite geschäftlich": "webseite", "webseite": "webseite", "web": "webseite",
   "fax geschäftlich": "fax", "fax": "fax",
+  "e-mail-adresse": "email_0",
   "iban": "iban", "bic": "bic",
   "inhaber": "inhaber", "kontoinhaber": "inhaber",
   "kreditinstitut": "bank", "bank": "bank",
@@ -56,11 +57,10 @@ function mapHeaders(headers: string[]): Record<number, string> {
     const normalized = h.toLowerCase().trim();
     if (HEADER_MAP[normalized]) {
       map[i] = HEADER_MAP[normalized];
-    } else if (/^(telefon|tel)\s*\d*$/i.test(normalized) || /^tel\.\s*\d*$/i.test(normalized)) {
+    } else if (/^(telefon|tel)[\s.\-]*(geschäftlich\s*)?(\d*)$/i.test(normalized) || /^tel\.\s*\d*$/i.test(normalized)) {
       map[i] = `telefon_${i}`;
-    } else if (/^e-?mail\s*\d*$/i.test(normalized)) {
+    } else if (/^e-?mail[-\s]*(\d*)[:\s]*(adresse)?$/i.test(normalized)) {
       map[i] = `email_${i}`;
-    }
   });
   return map;
 }
