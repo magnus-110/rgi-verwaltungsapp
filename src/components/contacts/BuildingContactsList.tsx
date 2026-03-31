@@ -127,7 +127,7 @@ interface ContactAssignment {
   shares: { id: string; share_type: string; share_value: number }[];
   phones: { id: string; phone_number: string; label: string; contact_id: string }[];
   emails: { id: string; email: string; label: string; contact_id: string }[];
-  costs: { id: string; cost_type: string; amount: number; interval: string }[];
+  costs: { id: string; cost_type: string; amount: number; interval: string; valid_from: string | null; valid_to: string | null }[];
   bankAccounts: { id: string; iban: string | null; bic: string | null; bank_name: string | null; account_holder: string | null; sepa_mandate_ref: string | null }[];
 }
 
@@ -845,6 +845,22 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                               {INTERVALS.map(i => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}
                             </SelectContent>
                           </Select>
+                          <Input
+                            type="date"
+                            value={c.valid_from || ""}
+                            onChange={(e) => updateCost(c.id, "valid_from", e.target.value || null)}
+                            className="w-[130px] h-8 text-xs"
+                            title="Gültig ab"
+                            placeholder="ab"
+                          />
+                          <Input
+                            type="date"
+                            value={c.valid_to || ""}
+                            onChange={(e) => updateCost(c.id, "valid_to", e.target.value || null)}
+                            className="w-[130px] h-8 text-xs"
+                            title="Gültig bis"
+                            placeholder="bis"
+                          />
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
