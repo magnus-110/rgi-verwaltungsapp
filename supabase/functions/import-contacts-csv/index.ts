@@ -296,20 +296,20 @@ serve(async (req) => {
         
         for (const c of batch) {
           try {
-            // Insert contact
+            // Insert contact - strip UI-only fields
             const { data: contactData, error: contactError } = await supabase
               .from("contacts")
               .insert({
-                short_name: c.short_name,
-                salutation: c.salutation,
-                contact_type: c.contact_type,
-                first_name: c.first_name,
-                last_name: c.last_name,
-                company_name: c.company_name,
-                address_street: c.address_street,
-                address_zip: c.address_zip,
-                address_city: c.address_city,
-                notes: c.notes,
+                short_name: c.short_name || null,
+                salutation: c.salutation || null,
+                contact_type: c.contact_type || "person",
+                first_name: c.first_name || null,
+                last_name: c.last_name || null,
+                company_name: c.company_name || null,
+                address_street: c.address_street || null,
+                address_zip: c.address_zip || null,
+                address_city: c.address_city || null,
+                notes: c.notes || null,
               })
               .select("id")
               .single();
@@ -322,51 +322,67 @@ serve(async (req) => {
             const contactId = contactData.id;
 
             // Insert persons
-            if (c.persons.length > 0) {
-              const personInserts = c.persons.map((p, idx) => ({
+            if (c.persons && c.persons.length > 0) {
+              const personInserts = c.persons.map((p: any, idx: number) => ({
                 contact_id: contactId,
-                salutation: p.salutation,
-                first_name: p.first_name,
-                last_name: p.last_name,
-                is_primary: p.is_primary,
+                salutation: p.salutation || null,
+                first_name: p.first_name || null,
+                last_name: p.last_name || null,
+                is_primary: p.is_primary || false,
                 sort_order: idx,
               }));
-              await supabase.from("contact_persons").insert(personInserts);
+              const { error: persErr } = await supabase.from("contact_persons").insert(personInserts);
+              if (persErr) {
+                console.error(`Persons insert error for ${contactId}:`, persErr.message);
+                errors.push(`${c.short_name || c.last_name} (Personen): ${persErr.message}`);
+              }
             }
 
             // Insert phones
-            if (c.phones.length > 0) {
-              const phoneInserts = c.phones.map(p => ({
+            if (c.phones && c.phones.length > 0) {
+              const phoneInserts = c.phones.map((p: any) => ({
                 contact_id: contactId,
                 phone_number: p.phone_number,
-                label: p.label,
-                note: p.note,
+                label: p.label || "Mobil",
+                note: p.note || null,
               }));
-              await supabase.from("contact_phones").insert(phoneInserts);
+              const { error: phoneErr } = await supabase.from("contact_phones").insert(phoneInserts);
+              if (phoneErr) {
+                console.error(`Phones insert error for ${contactId}:`, phoneErr.message);
+                errors.push(`${c.short_name || c.last_name} (Telefon): ${phoneErr.message}`);
+              }
             }
 
             // Insert emails
-            if (c.emails.length > 0) {
-              const emailInserts = c.emails.map((e, idx) => ({
+            if (c.emails && c.emails.length > 0) {
+              const emailInserts = c.emails.map((e: any, idx: number) => ({
                 contact_id: contactId,
                 email: e.email,
-                label: e.label,
+                label: e.label || "Privat",
                 is_primary: idx === 0,
-                note: e.note,
+                note: e.note || null,
               }));
-              await supabase.from("contact_emails").insert(emailInserts);
+              const { error: emailErr } = await supabase.from("contact_emails").insert(emailInserts);
+              if (emailErr) {
+                console.error(`Emails insert error for ${contactId}:`, emailErr.message);
+                errors.push(`${c.short_name || c.last_name} (E-Mail): ${emailErr.message}`);
+              }
             }
 
             // Insert bank account
             if (c.bank && (c.bank.iban || c.bank.account_holder)) {
-              await supabase.from("contact_bank_accounts").insert({
+              const { error: bankErr } = await supabase.from("contact_bank_accounts").insert({
                 contact_id: contactId,
-                iban: c.bank.iban,
-                bic: c.bank.bic,
-                account_holder: c.bank.account_holder,
-                bank_name: c.bank.bank_name,
+                iban: c.bank.iban || null,
+                bic: c.bank.bic || null,
+                account_holder: c.bank.account_holder || null,
+                bank_name: c.bank.bank_name || null,
                 is_default: true,
               });
+              if (bankErr) {
+                console.error(`Bank insert error for ${contactId}:`, bankErr.message);
+                errors.push(`${c.short_name || c.last_name} (Bank): ${bankErr.message}`);
+              }
             }
 
             imported++;

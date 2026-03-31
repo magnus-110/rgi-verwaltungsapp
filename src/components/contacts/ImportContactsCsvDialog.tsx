@@ -218,16 +218,28 @@ export function ImportContactsCsvDialog({ open, onOpenChange, onImported }: Prop
     setProgress(0);
 
     try {
-      const { data, error } = await supabase.functions.invoke("import-contacts-csv", {
-        body: { action: "import", rows: selected },
-      });
+      const batchSize = 50;
+      let totalImported = 0;
+      const allErrors: string[] = [];
 
-      if (error) throw error;
+      for (let i = 0; i < selected.length; i += batchSize) {
+        const batch = selected.slice(i, i + batchSize).map(({ _selected, ...rest }) => rest);
+        
+        const { data, error } = await supabase.functions.invoke("import-contacts-csv", {
+          body: { action: "import", rows: batch },
+        });
 
-      setImportResult({ imported: data.imported, errors: data.errors || [] });
+        if (error) throw error;
+
+        totalImported += data.imported || 0;
+        if (data.errors?.length) allErrors.push(...data.errors);
+        setProgress(Math.round(((i + batch.length) / selected.length) * 100));
+      }
+
+      setImportResult({ imported: totalImported, errors: allErrors });
       setStep("done");
       
-      if (data.imported > 0) {
+      if (totalImported > 0) {
         onImported();
       }
     } catch (err: any) {
