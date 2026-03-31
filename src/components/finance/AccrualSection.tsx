@@ -18,6 +18,8 @@ interface AccrualSectionProps {
 }
 
 export function AccrualSection({ buildingId, fiscalYear, periodFrom, periodTo }: AccrualSectionProps) {
+  const [aiSuggesting, setAiSuggesting] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<any[] | null>(null);
   const yearStart = periodFrom || `${fiscalYear}-01-01`;
   const yearEnd = periodTo || `${fiscalYear}-12-31`;
 
