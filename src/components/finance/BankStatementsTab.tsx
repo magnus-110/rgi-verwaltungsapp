@@ -326,6 +326,16 @@ export function BankStatementsTab() {
               <Button variant="ghost" size="sm" className="text-xs" onClick={() => { setManualAssignTxn(txn); setManualAssignType("invoice"); setManualAssignId(""); }}>
                 <Link2 className="h-3 w-3 mr-1" />Zuordnen
               </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs"
+                disabled={bookingSingleId === txn.id}
+                onClick={() => handleBookSingle(txn.id)}
+              >
+                {bookingSingleId === txn.id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Send className="h-3 w-3 mr-1" />}
+                Buchen
+              </Button>
             </div>
           )}
           {["matched_invoice", "matched_template", "manually_matched"].includes(txn.match_status) && !txn.booked_at && (
