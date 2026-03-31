@@ -88,7 +88,9 @@ CREATE TABLE heating_distribution_values (
 - [x] `BillingSettlement.tsx` — Professional 3-tab layout: Gesamtabrechnung (3-column), Einzelabrechnungen (7-column with drill-down), Vermögensbericht
 
 ### Remaining
-- [ ] `BillingTab.tsx` — Update to new 4-step structure
-- [ ] `generate-billing-pdf/index.ts` — Professional PDF layout matching reference
-- [ ] `EconomicPlanEditor.tsx` — Use `is_wirtschaftsplan_relevant` filter
-- [ ] `Finance.tsx` — Rename tab, add sub-sections
+- [x] `BillingTab.tsx` — Update to new 4-step structure (already done)
+- [x] `generate-billing-pdf/index.ts` — Professional PDF layout matching reference
+- [x] `EconomicPlanEditor.tsx` — Use `is_wirtschaftsplan_relevant` filter (already done)
+- [x] `Finance.tsx` — Rename tab, add sub-sections (already done)
+
+### ✅ Plan vollständig abgeschlossen
