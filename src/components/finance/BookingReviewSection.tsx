@@ -18,8 +18,10 @@ interface BookingReviewSectionProps {
   periodTo?: string;
 }
 
-export function BookingReviewSection({ buildingId, fiscalYear }: BookingReviewSectionProps) {
+export function BookingReviewSection({ buildingId, fiscalYear, periodFrom, periodTo }: BookingReviewSectionProps) {
   const [expandedAccounts, setExpandedAccounts] = useState<Set<string>>(new Set());
+  const [aiChecking, setAiChecking] = useState(false);
+  const [aiResults, setAiResults] = useState<any[] | null>(null);
 
   // All confirmed bookings for this building/year
   const { data: bookings = [], isLoading } = useQuery({
