@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { statementId, bookAll, testMode } = await req.json();
+    const { statementId, bookAll, testMode, transactionIds } = await req.json();
 
     // Test mode: send a fictional dummy transaction without touching DB
     if (testMode) {
