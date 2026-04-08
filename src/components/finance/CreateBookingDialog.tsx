@@ -127,7 +127,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
       toast.error("Bitte alle Pflichtfelder ausfüllen");
       return;
     }
-    const { error } = await supabase.from("bookings").insert({
+    const { data: insertedData, error } = await supabase.from("bookings").insert({
       building_id: form.building_id,
       account_id: form.account_id,
       counter_account_id: form.counter_account_id || null,
@@ -146,9 +146,12 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
       vat_rate: parseFloat(form.vat_rate),
       vat_amount: parseFloat(computedVat),
       is_35a_relevant: form.is_35a_relevant,
-    } as any);
+    } as any).select("id").single();
     if (error) { toast.error("Fehler: " + error.message); return; }
     toast.success("Buchung angelegt");
+    if (insertedData?.id && onBookingCreated) {
+      onBookingCreated(insertedData.id);
+    }
     onOpenChange(false);
     resetForm();
     queryClient.invalidateQueries({ queryKey: ["bookings"] });
