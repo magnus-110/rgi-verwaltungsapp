@@ -9,7 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
-import { Loader2, Sparkles, Calendar, CreditCard, Hash, ArrowRightLeft, CheckCircle2, Lightbulb, BookOpen, X, Plus, ChevronDown, LayoutTemplate, Save } from "lucide-react";
+import { Loader2, Sparkles, Calendar, CreditCard, Hash, ArrowRightLeft, CheckCircle2, Lightbulb, BookOpen, Plus, ChevronDown, LayoutTemplate, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -60,7 +60,7 @@ interface AssignmentDialogProps {
   showMatchedInvoices: boolean;
   setShowMatchedInvoices: (v: boolean) => void;
   onAssign: (type: "invoice" | "template", id: string) => Promise<void>;
-  onCreateBookings?: (hint: BookingHint, transaction: any) => void;
+  onOpenBookingDialog?: (prefill: any) => void;
   onCreateTemplate?: (template: any, transaction: any) => Promise<void>;
 }
 
@@ -73,7 +73,7 @@ export function AssignmentDialog({
   showMatchedInvoices,
   setShowMatchedInvoices,
   onAssign,
-  onCreateBookings,
+  onOpenBookingDialog,
   onCreateTemplate,
 }: AssignmentDialogProps) {
   const [tab, setTab] = useState<"invoice" | "template">("invoice");
@@ -84,13 +84,12 @@ export function AssignmentDialog({
   const [aiLoading, setAiLoading] = useState(false);
   const [assigning, setAssigning] = useState(false);
 
-  // Editable states
-  const [editableBookings, setEditableBookings] = useState<SuggestedBooking[]>([]);
+  // Editable template state
   const [editableTemplate, setEditableTemplate] = useState<TemplateSuggestion | null>(null);
-  const [creatingBookings, setCreatingBookings] = useState(false);
+  const [showTemplateForm, setShowTemplateForm] = useState(false);
   const [creatingTemplate, setCreatingTemplate] = useState(false);
 
-  // Fetch accounts for combobox
+  // Fetch accounts for template combobox
   const { data: accounts = [] } = useQuery({
     queryKey: ["chart-of-accounts-all"],
     queryFn: async () => {
@@ -111,23 +110,17 @@ export function AssignmentDialog({
       setAiMatches([]);
       setBookingHint(null);
       setTemplateSuggestion(null);
-      setEditableBookings([]);
       setEditableTemplate(null);
+      setShowTemplateForm(false);
       fetchAiSuggestions();
     }
   }, [transaction?.id]);
-
-  // Sync editable bookings from hint
-  useEffect(() => {
-    if (bookingHint?.suggested_bookings) {
-      setEditableBookings([...bookingHint.suggested_bookings]);
-    }
-  }, [bookingHint]);
 
   // Sync editable template from suggestion
   useEffect(() => {
     if (templateSuggestion) {
       setEditableTemplate({ ...templateSuggestion });
+      setShowTemplateForm(true);
     }
   }, [templateSuggestion]);
 
@@ -218,32 +211,32 @@ export function AssignmentDialog({
     setAssigning(false);
   };
 
-  const updateEditableBooking = (index: number, field: keyof SuggestedBooking, value: any) => {
-    setEditableBookings(prev => {
-      const next = [...prev];
-      next[index] = { ...next[index], [field]: value };
-      return next;
+  const handleOpenBooking = (sb: SuggestedBooking) => {
+    if (!onOpenBookingDialog || !transaction) return;
+    // Find account_id from account_number
+    const acc = sb.account_number ? accounts.find(a => a.account_number === sb.account_number) : null;
+    onOpenBookingDialog({
+      account_id: sb.account_id || acc?.id || "",
+      amount: sb.amount,
+      booking_type: sb.booking_type,
+      description: sb.description,
+      booking_date: transaction.booking_date,
     });
   };
 
-  const removeEditableBooking = (index: number) => {
-    setEditableBookings(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const handleCreateSingleBooking = async (booking: SuggestedBooking) => {
-    if (!onCreateBookings || !transaction) return;
-    setCreatingBookings(true);
-    await onCreateBookings({ ...bookingHint!, suggested_bookings: [booking] }, transaction);
-    // Remove from list
-    setEditableBookings(prev => prev.filter(b => b !== booking));
-    setCreatingBookings(false);
-  };
-
-  const handleCreateAllBookings = async () => {
-    if (!onCreateBookings || !transaction || editableBookings.length === 0) return;
-    setCreatingBookings(true);
-    await onCreateBookings({ ...bookingHint!, suggested_bookings: editableBookings }, transaction);
-    setCreatingBookings(false);
+  const handleInitTemplateForm = () => {
+    if (!transaction) return;
+    const txnName = transaction.amount < 0 ? transaction.creditor_name : transaction.debtor_name;
+    const txnIban = transaction.amount < 0 ? transaction.creditor_iban : transaction.debtor_iban;
+    setEditableTemplate({
+      name: txnName || "",
+      vendor_name: txnName || "",
+      vendor_iban: txnIban || "",
+      expected_amount: Math.abs(transaction.amount),
+      interval: "monatlich",
+      description: transaction.purpose || "",
+    });
+    setShowTemplateForm(true);
   };
 
   const handleCreateTemplate = async () => {
@@ -252,7 +245,7 @@ export function AssignmentDialog({
     await onCreateTemplate(editableTemplate, transaction);
     setCreatingTemplate(false);
     setEditableTemplate(null);
-    setTemplateSuggestion(null);
+    setShowTemplateForm(false);
   };
 
   if (!transaction) return null;
@@ -349,8 +342,8 @@ export function AssignmentDialog({
                   </div>
                 )}
 
-                {/* KI Booking Hint Panel - EDITABLE */}
-                {bookingHint && !aiLoading && editableBookings.length > 0 && (
+                {/* KI Booking Hint Panel */}
+                {bookingHint && !aiLoading && (
                   <div className={cn("rounded-lg border p-4 space-y-3", hintTypeColor[bookingHint.type] || "bg-muted/30 border-border")}>
                     <div className="flex items-center gap-2">
                       <Lightbulb className="h-4 w-4 text-amber-600 dark:text-amber-400" />
@@ -362,56 +355,58 @@ export function AssignmentDialog({
 
                     <p className="text-sm leading-relaxed">{bookingHint.explanation}</p>
 
-                    <div className="space-y-3">
-                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Buchungsvorschläge (editierbar)</p>
-                      {editableBookings.map((sb, idx) => (
-                        <EditableBookingCard
-                          key={idx}
-                          booking={sb}
-                          accounts={accounts}
-                          onChange={(field, value) => updateEditableBooking(idx, field, value)}
-                          onRemove={() => removeEditableBooking(idx)}
-                          onCreateSingle={() => handleCreateSingleBooking(sb)}
-                          creating={creatingBookings}
-                        />
-                      ))}
-                    </div>
-
-                    {onCreateBookings && editableBookings.length > 1 && (
-                      <Button
-                        size="sm"
-                        className="w-full gap-2"
-                        disabled={creatingBookings}
-                        onClick={handleCreateAllBookings}
-                      >
-                        {creatingBookings ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookOpen className="h-4 w-4" />}
-                        Alle {editableBookings.length} Buchungen anlegen
-                      </Button>
+                    {bookingHint.suggested_bookings.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Vorgeschlagene Buchungen</p>
+                        {bookingHint.suggested_bookings.map((sb, idx) => (
+                          <div key={idx} className="bg-background rounded-md border p-3 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Badge variant={sb.booking_type === "income" ? "default" : "destructive"} className="text-[10px]">
+                                  {sb.booking_type === "income" ? "Einnahme" : "Ausgabe"}
+                                </Badge>
+                                {sb.account_number && (
+                                  <span className="font-mono text-xs text-muted-foreground">{sb.account_number} {sb.account_name}</span>
+                                )}
+                              </div>
+                              <span className={cn(
+                                "font-mono font-semibold text-sm",
+                                sb.booking_type === "income" ? "text-green-600 dark:text-green-400" : "text-destructive"
+                              )}>
+                                {sb.booking_type === "income" ? "+" : "-"}{Number(sb.amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
+                              </span>
+                            </div>
+                            <p className="text-sm">{sb.description}</p>
+                            {onOpenBookingDialog && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="w-full gap-1 text-xs h-7"
+                                onClick={() => handleOpenBooking(sb)}
+                              >
+                                <BookOpen className="h-3 w-3" />
+                                Als Buchung anlegen
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     )}
                   </div>
                 )}
 
-                {/* Booking hint explanation only (no bookings left) */}
-                {bookingHint && !aiLoading && editableBookings.length === 0 && (
-                  <div className={cn("rounded-lg border p-4 space-y-2", hintTypeColor[bookingHint.type] || "bg-muted/30 border-border")}>
-                    <div className="flex items-center gap-2">
-                      <Lightbulb className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                      <span className="text-sm font-semibold">KI-Buchungshinweis</span>
-                    </div>
-                    <p className="text-sm leading-relaxed">{bookingHint.explanation}</p>
-                  </div>
-                )}
-
-                {/* Template Suggestion - EDITABLE */}
-                {editableTemplate && !aiLoading && (
+                {/* Template Form */}
+                {showTemplateForm && editableTemplate && !aiLoading && (
                   <div className="rounded-lg border p-4 space-y-3 bg-violet-50 dark:bg-violet-950/30 border-violet-200 dark:border-violet-800">
                     <div className="flex items-center gap-2">
                       <LayoutTemplate className="h-4 w-4 text-violet-600 dark:text-violet-400" />
                       <span className="text-sm font-semibold">Vorlage erstellen</span>
-                      <Badge variant="outline" className="text-[10px]">KI-Vorschlag</Badge>
+                      {templateSuggestion && <Badge variant="outline" className="text-[10px]">KI-Vorschlag</Badge>}
                     </div>
 
-                    <p className="text-xs text-muted-foreground">{editableTemplate.description}</p>
+                    {editableTemplate.description && (
+                      <p className="text-xs text-muted-foreground">{editableTemplate.description}</p>
+                    )}
 
                     <div className="space-y-2">
                       <div>
@@ -479,11 +474,24 @@ export function AssignmentDialog({
                         disabled={creatingTemplate || !editableTemplate.name}
                         onClick={handleCreateTemplate}
                       >
-                        {creatingTemplate ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                        {creatingTemplate ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                         Vorlage erstellen & zuordnen
                       </Button>
                     )}
                   </div>
+                )}
+
+                {/* Always-visible "Create Template" button when no AI suggestion */}
+                {!showTemplateForm && !aiLoading && onCreateTemplate && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full gap-2"
+                    onClick={handleInitTemplateForm}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Neue Vorlage aus Transaktion erstellen
+                  </Button>
                 )}
               </div>
             </ScrollArea>
@@ -617,7 +625,7 @@ export function AssignmentDialog({
   );
 }
 
-// ---- Sub-components ----
+// ---- Sub-component for template account selection ----
 
 function AccountCombobox({ accounts, value, onChange }: {
   accounts: any[];
@@ -657,64 +665,5 @@ function AccountCombobox({ accounts, value, onChange }: {
         </Command>
       </PopoverContent>
     </Popover>
-  );
-}
-
-function EditableBookingCard({ booking, accounts, onChange, onRemove, onCreateSingle, creating }: {
-  booking: SuggestedBooking;
-  accounts: any[];
-  onChange: (field: keyof SuggestedBooking, value: any) => void;
-  onRemove: () => void;
-  onCreateSingle: () => void;
-  creating: boolean;
-}) {
-  return (
-    <div className="bg-background rounded-md border p-3 space-y-2">
-      <div className="flex items-center justify-between">
-        <Badge variant={booking.booking_type === "income" ? "default" : "destructive"} className="text-[10px] cursor-pointer" onClick={() => onChange("booking_type", booking.booking_type === "income" ? "expense" : "income")}>
-          {booking.booking_type === "income" ? "Einnahme" : "Ausgabe"}
-        </Badge>
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive" onClick={onRemove}>
-            <X className="h-3 w-3" />
-          </Button>
-        </div>
-      </div>
-
-      <div>
-        <Label className="text-xs">Beschreibung</Label>
-        <Input
-          value={booking.description}
-          onChange={(e) => onChange("description", e.target.value)}
-          className="h-8 text-sm"
-        />
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <Label className="text-xs">Betrag (€)</Label>
-          <Input
-            type="number"
-            step="0.01"
-            value={booking.amount}
-            onChange={(e) => onChange("amount", parseFloat(e.target.value) || 0)}
-            className="h-8 text-sm font-mono"
-          />
-        </div>
-        <div>
-          <Label className="text-xs">Konto</Label>
-          <AccountCombobox
-            accounts={accounts}
-            value={booking.account_number}
-            onChange={(accNum, accName) => { onChange("account_number", accNum); onChange("account_name", accName); }}
-          />
-        </div>
-      </div>
-
-      <Button size="sm" variant="outline" className="w-full gap-1 text-xs h-7" onClick={onCreateSingle} disabled={creating}>
-        {creating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
-        Diese Buchung anlegen
-      </Button>
-    </div>
   );
 }
