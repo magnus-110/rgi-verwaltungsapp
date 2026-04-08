@@ -4,13 +4,18 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Sparkles, Calendar, CreditCard, Hash, ArrowRightLeft, CheckCircle2, Lightbulb, BookOpen } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
+import { Loader2, Sparkles, Calendar, CreditCard, Hash, ArrowRightLeft, CheckCircle2, Lightbulb, BookOpen, X, Plus, ChevronDown, LayoutTemplate, Save } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface AiMatch {
   id: string;
@@ -35,6 +40,17 @@ interface BookingHint {
   suggested_bookings: SuggestedBooking[];
 }
 
+interface TemplateSuggestion {
+  name: string;
+  vendor_name: string;
+  vendor_iban?: string;
+  expected_amount: number;
+  interval?: string;
+  account_number?: string;
+  account_name?: string;
+  description: string;
+}
+
 interface AssignmentDialogProps {
   transaction: any | null;
   onClose: () => void;
@@ -45,6 +61,7 @@ interface AssignmentDialogProps {
   setShowMatchedInvoices: (v: boolean) => void;
   onAssign: (type: "invoice" | "template", id: string) => Promise<void>;
   onCreateBookings?: (hint: BookingHint, transaction: any) => void;
+  onCreateTemplate?: (template: any, transaction: any) => Promise<void>;
 }
 
 export function AssignmentDialog({
@@ -57,13 +74,34 @@ export function AssignmentDialog({
   setShowMatchedInvoices,
   onAssign,
   onCreateBookings,
+  onCreateTemplate,
 }: AssignmentDialogProps) {
   const [tab, setTab] = useState<"invoice" | "template">("invoice");
   const [selectedId, setSelectedId] = useState<string>("");
   const [aiMatches, setAiMatches] = useState<AiMatch[]>([]);
   const [bookingHint, setBookingHint] = useState<BookingHint | null>(null);
+  const [templateSuggestion, setTemplateSuggestion] = useState<TemplateSuggestion | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [assigning, setAssigning] = useState(false);
+
+  // Editable states
+  const [editableBookings, setEditableBookings] = useState<SuggestedBooking[]>([]);
+  const [editableTemplate, setEditableTemplate] = useState<TemplateSuggestion | null>(null);
+  const [creatingBookings, setCreatingBookings] = useState(false);
+  const [creatingTemplate, setCreatingTemplate] = useState(false);
+
+  // Fetch accounts for combobox
+  const { data: accounts = [] } = useQuery({
+    queryKey: ["chart-of-accounts-all"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("chart_of_accounts")
+        .select("id, account_number, account_name, category")
+        .order("account_number");
+      if (error) throw error;
+      return data;
+    },
+  });
 
   // Reset state when transaction changes
   useEffect(() => {
@@ -72,9 +110,26 @@ export function AssignmentDialog({
       setTab("invoice");
       setAiMatches([]);
       setBookingHint(null);
+      setTemplateSuggestion(null);
+      setEditableBookings([]);
+      setEditableTemplate(null);
       fetchAiSuggestions();
     }
   }, [transaction?.id]);
+
+  // Sync editable bookings from hint
+  useEffect(() => {
+    if (bookingHint?.suggested_bookings) {
+      setEditableBookings([...bookingHint.suggested_bookings]);
+    }
+  }, [bookingHint]);
+
+  // Sync editable template from suggestion
+  useEffect(() => {
+    if (templateSuggestion) {
+      setEditableTemplate({ ...templateSuggestion });
+    }
+  }, [templateSuggestion]);
 
   const fetchAiSuggestions = useCallback(async () => {
     if (!transaction || (invoicesList.length === 0 && templatesList.length === 0)) return;
@@ -124,12 +179,9 @@ export function AssignmentDialog({
             })),
         },
       });
-      if (data?.matches) {
-        setAiMatches(data.matches);
-      }
-      if (data?.booking_hint) {
-        setBookingHint(data.booking_hint);
-      }
+      if (data?.matches) setAiMatches(data.matches);
+      if (data?.booking_hint) setBookingHint(data.booking_hint);
+      if (data?.template_suggestion) setTemplateSuggestion(data.template_suggestion);
     } catch (err) {
       console.error("AI suggest error:", err);
     } finally {
@@ -164,6 +216,43 @@ export function AssignmentDialog({
     setAssigning(true);
     await onAssign(tab, selectedId);
     setAssigning(false);
+  };
+
+  const updateEditableBooking = (index: number, field: keyof SuggestedBooking, value: any) => {
+    setEditableBookings(prev => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
+  };
+
+  const removeEditableBooking = (index: number) => {
+    setEditableBookings(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleCreateSingleBooking = async (booking: SuggestedBooking) => {
+    if (!onCreateBookings || !transaction) return;
+    setCreatingBookings(true);
+    await onCreateBookings({ ...bookingHint!, suggested_bookings: [booking] }, transaction);
+    // Remove from list
+    setEditableBookings(prev => prev.filter(b => b !== booking));
+    setCreatingBookings(false);
+  };
+
+  const handleCreateAllBookings = async () => {
+    if (!onCreateBookings || !transaction || editableBookings.length === 0) return;
+    setCreatingBookings(true);
+    await onCreateBookings({ ...bookingHint!, suggested_bookings: editableBookings }, transaction);
+    setCreatingBookings(false);
+  };
+
+  const handleCreateTemplate = async () => {
+    if (!onCreateTemplate || !editableTemplate || !transaction) return;
+    setCreatingTemplate(true);
+    await onCreateTemplate(editableTemplate, transaction);
+    setCreatingTemplate(false);
+    setEditableTemplate(null);
+    setTemplateSuggestion(null);
   };
 
   if (!transaction) return null;
@@ -251,7 +340,7 @@ export function AssignmentDialog({
                   </div>
                 )}
 
-                {/* KI Booking Hint Panel */}
+                {/* KI Loading */}
                 {aiLoading && (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground py-3 px-4 bg-muted/50 rounded-lg">
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -260,7 +349,8 @@ export function AssignmentDialog({
                   </div>
                 )}
 
-                {bookingHint && !aiLoading && (
+                {/* KI Booking Hint Panel - EDITABLE */}
+                {bookingHint && !aiLoading && editableBookings.length > 0 && (
                   <div className={cn("rounded-lg border p-4 space-y-3", hintTypeColor[bookingHint.type] || "bg-muted/30 border-border")}>
                     <div className="flex items-center gap-2">
                       <Lightbulb className="h-4 w-4 text-amber-600 dark:text-amber-400" />
@@ -272,38 +362,125 @@ export function AssignmentDialog({
 
                     <p className="text-sm leading-relaxed">{bookingHint.explanation}</p>
 
-                    {bookingHint.suggested_bookings.length > 0 && (
-                      <div className="space-y-2">
-                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Vorgeschlagene Buchungen</p>
-                        {bookingHint.suggested_bookings.map((sb, idx) => (
-                          <div key={idx} className="flex items-center justify-between bg-background rounded-md border p-3 text-sm">
-                            <div className="min-w-0 flex-1">
-                              {sb.account_number && (
-                                <p className="font-mono text-xs text-muted-foreground">{sb.account_number} {sb.account_name}</p>
-                              )}
-                              <p className="truncate">{sb.description}</p>
-                            </div>
-                            <span className={cn(
-                              "font-mono font-semibold ml-3 whitespace-nowrap",
-                              sb.booking_type === "income" ? "text-green-600 dark:text-green-400" : "text-destructive"
-                            )}>
-                              {sb.booking_type === "income" ? "+" : "-"}{Number(sb.amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    <div className="space-y-3">
+                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Buchungsvorschläge (editierbar)</p>
+                      {editableBookings.map((sb, idx) => (
+                        <EditableBookingCard
+                          key={idx}
+                          booking={sb}
+                          accounts={accounts}
+                          onChange={(field, value) => updateEditableBooking(idx, field, value)}
+                          onRemove={() => removeEditableBooking(idx)}
+                          onCreateSingle={() => handleCreateSingleBooking(sb)}
+                          creating={creatingBookings}
+                        />
+                      ))}
+                    </div>
 
-                    {onCreateBookings && bookingHint.suggested_bookings.length > 0 && (
+                    {onCreateBookings && editableBookings.length > 1 && (
                       <Button
                         size="sm"
                         className="w-full gap-2"
-                        onClick={() => onCreateBookings(bookingHint, transaction)}
+                        disabled={creatingBookings}
+                        onClick={handleCreateAllBookings}
                       >
-                        <BookOpen className="h-4 w-4" />
-                        {bookingHint.suggested_bookings.length === 1
-                          ? "Als manuelle Buchung anlegen"
-                          : `${bookingHint.suggested_bookings.length} Buchungen anlegen`}
+                        {creatingBookings ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookOpen className="h-4 w-4" />}
+                        Alle {editableBookings.length} Buchungen anlegen
+                      </Button>
+                    )}
+                  </div>
+                )}
+
+                {/* Booking hint explanation only (no bookings left) */}
+                {bookingHint && !aiLoading && editableBookings.length === 0 && (
+                  <div className={cn("rounded-lg border p-4 space-y-2", hintTypeColor[bookingHint.type] || "bg-muted/30 border-border")}>
+                    <div className="flex items-center gap-2">
+                      <Lightbulb className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                      <span className="text-sm font-semibold">KI-Buchungshinweis</span>
+                    </div>
+                    <p className="text-sm leading-relaxed">{bookingHint.explanation}</p>
+                  </div>
+                )}
+
+                {/* Template Suggestion - EDITABLE */}
+                {editableTemplate && !aiLoading && (
+                  <div className="rounded-lg border p-4 space-y-3 bg-violet-50 dark:bg-violet-950/30 border-violet-200 dark:border-violet-800">
+                    <div className="flex items-center gap-2">
+                      <LayoutTemplate className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                      <span className="text-sm font-semibold">Vorlage erstellen</span>
+                      <Badge variant="outline" className="text-[10px]">KI-Vorschlag</Badge>
+                    </div>
+
+                    <p className="text-xs text-muted-foreground">{editableTemplate.description}</p>
+
+                    <div className="space-y-2">
+                      <div>
+                        <Label className="text-xs">Name</Label>
+                        <Input
+                          value={editableTemplate.name}
+                          onChange={(e) => setEditableTemplate(prev => prev ? { ...prev, name: e.target.value } : null)}
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-xs">Lieferant</Label>
+                          <Input
+                            value={editableTemplate.vendor_name}
+                            onChange={(e) => setEditableTemplate(prev => prev ? { ...prev, vendor_name: e.target.value } : null)}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">IBAN</Label>
+                          <Input
+                            value={editableTemplate.vendor_iban || ""}
+                            onChange={(e) => setEditableTemplate(prev => prev ? { ...prev, vendor_iban: e.target.value } : null)}
+                            className="h-8 text-sm font-mono"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <Label className="text-xs">Betrag (€)</Label>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={editableTemplate.expected_amount}
+                            onChange={(e) => setEditableTemplate(prev => prev ? { ...prev, expected_amount: parseFloat(e.target.value) || 0 } : null)}
+                            className="h-8 text-sm font-mono"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Intervall</Label>
+                          <Input
+                            value={editableTemplate.interval || ""}
+                            onChange={(e) => setEditableTemplate(prev => prev ? { ...prev, interval: e.target.value } : null)}
+                            className="h-8 text-sm"
+                            placeholder="monatlich"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Konto</Label>
+                        <AccountCombobox
+                          accounts={accounts}
+                          value={editableTemplate.account_number}
+                          onChange={(accNum, accName) => setEditableTemplate(prev => prev ? { ...prev, account_number: accNum, account_name: accName } : null)}
+                        />
+                      </div>
+                    </div>
+
+                    {onCreateTemplate && (
+                      <Button
+                        size="sm"
+                        className="w-full gap-2"
+                        variant="default"
+                        disabled={creatingTemplate || !editableTemplate.name}
+                        onClick={handleCreateTemplate}
+                      >
+                        {creatingTemplate ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                        Vorlage erstellen & zuordnen
                       </Button>
                     )}
                   </div>
@@ -437,5 +614,107 @@ export function AssignmentDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ---- Sub-components ----
+
+function AccountCombobox({ accounts, value, onChange }: {
+  accounts: any[];
+  value?: string;
+  onChange: (accountNumber: string, accountName: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selected = accounts.find(a => a.account_number === value);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="w-full justify-between h-8 text-xs font-normal">
+          {selected ? `${selected.account_number} ${selected.account_name}` : "Konto wählen…"}
+          <ChevronDown className="h-3 w-3 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[300px] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Konto suchen…" className="h-8 text-xs" />
+          <CommandList>
+            <CommandEmpty>Kein Konto gefunden</CommandEmpty>
+            <CommandGroup>
+              {accounts.map(acc => (
+                <CommandItem
+                  key={acc.id}
+                  value={`${acc.account_number} ${acc.account_name}`}
+                  onSelect={() => { onChange(acc.account_number, acc.account_name); setOpen(false); }}
+                  className="text-xs"
+                >
+                  <span className="font-mono mr-2">{acc.account_number}</span>
+                  {acc.account_name}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function EditableBookingCard({ booking, accounts, onChange, onRemove, onCreateSingle, creating }: {
+  booking: SuggestedBooking;
+  accounts: any[];
+  onChange: (field: keyof SuggestedBooking, value: any) => void;
+  onRemove: () => void;
+  onCreateSingle: () => void;
+  creating: boolean;
+}) {
+  return (
+    <div className="bg-background rounded-md border p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <Badge variant={booking.booking_type === "income" ? "default" : "destructive"} className="text-[10px] cursor-pointer" onClick={() => onChange("booking_type", booking.booking_type === "income" ? "expense" : "income")}>
+          {booking.booking_type === "income" ? "Einnahme" : "Ausgabe"}
+        </Badge>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive" onClick={onRemove}>
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+      </div>
+
+      <div>
+        <Label className="text-xs">Beschreibung</Label>
+        <Input
+          value={booking.description}
+          onChange={(e) => onChange("description", e.target.value)}
+          className="h-8 text-sm"
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <Label className="text-xs">Betrag (€)</Label>
+          <Input
+            type="number"
+            step="0.01"
+            value={booking.amount}
+            onChange={(e) => onChange("amount", parseFloat(e.target.value) || 0)}
+            className="h-8 text-sm font-mono"
+          />
+        </div>
+        <div>
+          <Label className="text-xs">Konto</Label>
+          <AccountCombobox
+            accounts={accounts}
+            value={booking.account_number}
+            onChange={(accNum, accName) => { onChange("account_number", accNum); onChange("account_name", accName); }}
+          />
+        </div>
+      </div>
+
+      <Button size="sm" variant="outline" className="w-full gap-1 text-xs h-7" onClick={onCreateSingle} disabled={creating}>
+        {creating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Save className="h-3 w-3" />}
+        Diese Buchung anlegen
+      </Button>
+    </div>
   );
 }

@@ -555,7 +555,6 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
           }
         }}
         onCreateBookings={async (hint, txn) => {
-          // Insert all suggested bookings as pending
           const bookings = hint.suggested_bookings.map((sb: any) => ({
             building_id: selectedBuilding,
             account_id: sb.account_id || null,
@@ -577,7 +576,6 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
           }
 
           if (successCount > 0) {
-            // Mark transaction as booked
             await supabase.from("bank_transactions").update({
               booked_at: new Date().toISOString(),
               match_status: "manually_matched",
@@ -591,6 +589,46 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
           } else {
             toast.error("Fehler beim Anlegen der Buchungen");
           }
+        }}
+        onCreateTemplate={async (template, txn) => {
+          // Find account_id from account_number
+          let accountId = null;
+          if (template.account_number) {
+            const { data: accData } = await supabase
+              .from("chart_of_accounts")
+              .select("id")
+              .eq("account_number", template.account_number)
+              .limit(1)
+              .maybeSingle();
+            if (accData) accountId = accData.id;
+          }
+
+          const { data: newTemplate, error } = await supabase.from("booking_templates").insert({
+            name: template.name,
+            vendor_name: template.vendor_name,
+            vendor_iban: template.vendor_iban || null,
+            expected_amount: template.expected_amount,
+            interval: template.interval || null,
+            account_id: accountId,
+            building_id: selectedBuilding,
+          } as any).select("id").single();
+
+          if (error) {
+            toast.error("Fehler beim Erstellen der Vorlage");
+            return;
+          }
+
+          // Assign transaction to new template
+          await supabase.from("bank_transactions").update({
+            matched_template_id: newTemplate.id,
+            match_status: "manually_matched",
+          }).eq("id", txn.id);
+
+          toast.success("Vorlage erstellt & Transaktion zugeordnet");
+          setManualAssignTxn(null);
+          queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
+          queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+          queryClient.invalidateQueries({ queryKey: ["templates-for-assign"] });
         }}
       />
 
