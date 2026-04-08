@@ -13,8 +13,19 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { ChevronDown, Search, ArrowDownLeft, ArrowUpRight, X } from "lucide-react";
+import { ChevronDown, Search, ArrowDownLeft, ArrowUpRight, X, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+interface BookingPrefill {
+  account_id?: string;
+  counter_account_id?: string;
+  amount?: number;
+  description?: string;
+  booking_date?: string;
+  booking_type?: "income" | "expense";
+  receipt_number?: string;
+  booking_reference?: string;
+}
 
 interface Props {
   open: boolean;
@@ -22,6 +33,9 @@ interface Props {
   buildings: { id: string; name: string; building_code: string }[];
   preselectedBuildingId?: string;
   preselectedYear?: string;
+  prefill?: BookingPrefill | null;
+  linkedTransactionId?: string | null;
+  onBookingCreated?: (bookingId: string) => void;
 }
 
 const VAT_RATES = [
@@ -30,7 +44,7 @@ const VAT_RATES = [
   { value: "19", label: "19 %" },
 ];
 
-export function CreateBookingDialog({ open, onOpenChange, buildings, preselectedBuildingId, preselectedYear }: Props) {
+export function CreateBookingDialog({ open, onOpenChange, buildings, preselectedBuildingId, preselectedYear, prefill, linkedTransactionId, onBookingCreated }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [form, setForm] = useState({
@@ -55,16 +69,26 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
   const [accountOpen, setAccountOpen] = useState(false);
   const [counterOpen, setCounterOpen] = useState(false);
 
-  // Sync preselected values when dialog opens
+  // Sync preselected values and prefill when dialog opens
   useEffect(() => {
     if (open) {
       setForm(prev => ({
         ...prev,
         building_id: preselectedBuildingId || prev.building_id,
         fiscal_year: preselectedYear || prev.fiscal_year,
+        ...(prefill ? {
+          account_id: prefill.account_id || prev.account_id,
+          counter_account_id: prefill.counter_account_id || prev.counter_account_id,
+          amount: prefill.amount != null ? String(prefill.amount) : prev.amount,
+          description: prefill.description || prev.description,
+          booking_date: prefill.booking_date || prev.booking_date,
+          booking_type: prefill.booking_type || prev.booking_type,
+          receipt_number: prefill.receipt_number || prev.receipt_number,
+          booking_reference: prefill.booking_reference || prev.booking_reference,
+        } : {}),
       }));
     }
-  }, [open, preselectedBuildingId, preselectedYear]);
+  }, [open, preselectedBuildingId, preselectedYear, prefill]);
 
   const { data: accounts = [] } = useQuery({
     queryKey: ["chart-of-accounts"],
@@ -103,7 +127,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
       toast.error("Bitte alle Pflichtfelder ausfüllen");
       return;
     }
-    const { error } = await supabase.from("bookings").insert({
+    const { data: insertedData, error } = await supabase.from("bookings").insert({
       building_id: form.building_id,
       account_id: form.account_id,
       counter_account_id: form.counter_account_id || null,
@@ -122,9 +146,12 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
       vat_rate: parseFloat(form.vat_rate),
       vat_amount: parseFloat(computedVat),
       is_35a_relevant: form.is_35a_relevant,
-    } as any);
+    } as any).select("id").single();
     if (error) { toast.error("Fehler: " + error.message); return; }
     toast.success("Buchung angelegt");
+    if (insertedData?.id && onBookingCreated) {
+      onBookingCreated(insertedData.id);
+    }
     onOpenChange(false);
     resetForm();
     queryClient.invalidateQueries({ queryKey: ["bookings"] });
@@ -236,6 +263,12 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
         </DialogHeader>
 
         <div className="space-y-6 py-2">
+          {prefill && (
+            <div className="flex items-center gap-2 text-sm bg-primary/10 text-primary border border-primary/20 rounded-lg px-4 py-3">
+              <Sparkles className="h-4 w-4 shrink-0" />
+              Felder basierend auf KI-Analyse vorausgefüllt. Bitte prüfen und bei Bedarf anpassen.
+            </div>
+          )}
           {/* Row 1: Buchung – Konto, Typ, Betrag */}
           <div className="rounded-xl border p-6 space-y-5">
             <p className="text-base font-semibold text-foreground">Buchung</p>
