@@ -499,6 +499,19 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
             </div>
           ) : (
             <div className="space-y-6">
+              {/* Bank account info */}
+              {bankAccounts.length > 0 && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  {bankAccounts.map((ba: any, i: number) => (
+                    <div key={i} className="flex items-center gap-2 text-sm bg-muted/50 rounded-lg px-3 py-2 border">
+                      <Landmark className="h-4 w-4 text-primary shrink-0" />
+                      <span className="font-mono text-xs">{ba.account_iban?.replace(/(.{4})/g, '$1 ').trim()}</span>
+                      {ba.account_name && <span className="text-muted-foreground">— {ba.account_name}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* Summary badges */}
               <div className="flex items-center gap-2 flex-wrap">
                 <Badge variant="outline" className="text-xs">{allBuildingTxns.length} Transaktionen gesamt</Badge>
