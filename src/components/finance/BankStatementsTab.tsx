@@ -123,11 +123,15 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
       if (!selectedBuilding) return [];
       const { data, error } = await supabase
         .from("booking_templates")
-        .select("id, name, vendor_name, vendor_iban, expected_amount")
+        .select("id, name, vendor_name, vendor_iban, expected_amount, account_id, chart_of_accounts(account_number, account_name)")
         .eq("building_id", selectedBuilding)
         .order("name");
       if (error) throw error;
-      return data;
+      return data.map((t: any) => ({
+        ...t,
+        account_number: t.chart_of_accounts?.account_number,
+        account_name: t.chart_of_accounts?.account_name,
+      }));
     },
     enabled: !!selectedBuilding,
   });
