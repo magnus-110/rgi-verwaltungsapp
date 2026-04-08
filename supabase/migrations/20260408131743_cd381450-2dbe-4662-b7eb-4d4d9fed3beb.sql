@@ -1,0 +1,1 @@
+ALTER TABLE bank_statements ADD COLUMN IF NOT EXISTS account_name text;
