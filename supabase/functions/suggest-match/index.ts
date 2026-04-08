@@ -10,7 +10,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { transaction, invoices, templates } = await req.json();
+    const { transaction, invoices, templates, allTransactions } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
@@ -20,10 +20,25 @@ serve(async (req) => {
 
     const candidatesSummary = [
       ...invoices.map((inv: any) => `INVOICE id=${inv.id} number="${inv.invoice_number || ""}" vendor="${inv.vendor_name || ""}" amount=${inv.gross_amount || 0} iban="${inv.vendor_iban || ""}" date="${inv.invoice_date || ""}"`),
-      ...templates.map((t: any) => `TEMPLATE id=${t.id} name="${t.name}" vendor="${t.vendor_name || ""}" amount=${t.expected_amount || 0} iban="${t.vendor_iban || ""}" interval="${t.interval || ""}"`),
+      ...templates.map((t: any) => `TEMPLATE id=${t.id} name="${t.name}" vendor="${t.vendor_name || ""}" amount=${t.expected_amount || 0} iban="${t.vendor_iban || ""}" interval="${t.interval || ""}" account_number="${t.account_number || ""}" account_name="${t.account_name || ""}" account_id="${t.account_id || ""}"`),
     ].join("\n");
 
-    const systemPrompt = `Du bist ein Buchhaltungs-Assistent. Du analysierst eine Banktransaktion und findest die am besten passenden Rechnungen oder Vorlagen aus einer Kandidatenliste.
+    // Build context for other unmatched transactions
+    let otherTxnContext = "";
+    if (allTransactions && allTransactions.length > 0) {
+      const otherTxns = allTransactions
+        .filter((t: any) => t.id !== transaction.id)
+        .slice(0, 30)
+        .map((t: any) => {
+          const name = t.amount < 0 ? t.creditor_name : t.debtor_name;
+          return `TXN amount=${t.amount} name="${name || ""}" purpose="${t.purpose || ""}" date="${t.booking_date}" status="${t.match_status}"`;
+        });
+      if (otherTxns.length > 0) {
+        otherTxnContext = `\n\nAndere Transaktionen derselben Liegenschaft (für Kontext, z.B. Teilzahlungserkennung):\n${otherTxns.join("\n")}`;
+      }
+    }
+
+    const systemPrompt = `Du bist ein Buchhaltungs-Assistent für WEG-Hausverwaltungen. Du analysierst eine Banktransaktion und findest die am besten passenden Rechnungen oder Vorlagen aus einer Kandidatenliste.
 
 Matching-Kriterien (nach Wichtigkeit):
 1. IBAN-Übereinstimmung (stärkster Indikator)
@@ -31,7 +46,13 @@ Matching-Kriterien (nach Wichtigkeit):
 3. Namensähnlichkeit (Auftraggeber/Empfänger vs. Lieferant)
 4. Schlüsselwörter im Verwendungszweck
 
-Gib die besten 1-5 Kandidaten zurück, sortiert nach Relevanz.`;
+Erweiterte Analyse:
+- Prüfe ob der Transaktionsbetrag der SUMME mehrerer Vorlagen entspricht (z.B. Sammeleingänge wie Hausgeld)
+- Prüfe ob der Betrag ein TEILBETRAG einer Rechnung ist
+- Prüfe ob andere offene Transaktionen zusammen den vollen Rechnungsbetrag ergeben
+- Bei Sammelzahlungen: Identifiziere alle Vorlagen, die in der Summe enthalten sein könnten
+
+Gib die besten 1-5 Kandidaten zurück UND einen booking_hint wenn du eine komplexe Zuordnung erkennst.`;
 
     const userPrompt = `Transaktion:
 - Betrag: ${transaction.amount} €
@@ -41,7 +62,7 @@ Gib die besten 1-5 Kandidaten zurück, sortiert nach Relevanz.`;
 - Datum: ${transaction.booking_date}
 
 Kandidaten:
-${candidatesSummary}`;
+${candidatesSummary}${otherTxnContext}`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -60,7 +81,7 @@ ${candidatesSummary}`;
             type: "function",
             function: {
               name: "suggest_matches",
-              description: "Return the best matching candidates for the bank transaction",
+              description: "Return the best matching candidates and an optional booking hint for complex transactions",
               parameters: {
                 type: "object",
                 properties: {
@@ -76,6 +97,42 @@ ${candidatesSummary}`;
                       required: ["id", "score", "reason"],
                       additionalProperties: false,
                     },
+                  },
+                  booking_hint: {
+                    type: "object",
+                    description: "Optional hint for complex transactions (splits, partial payments). Only set if the transaction requires special handling.",
+                    properties: {
+                      type: {
+                        type: "string",
+                        enum: ["split", "partial", "simple"],
+                        description: "split = Sammelbuchung (Betrag = Summe mehrerer Vorlagen), partial = Teilzahlung einer Rechnung, simple = einfache 1:1 Zuordnung",
+                      },
+                      explanation: {
+                        type: "string",
+                        description: "Detailed German explanation for the user about the booking situation",
+                      },
+                      suggested_bookings: {
+                        type: "array",
+                        description: "Pre-filled booking suggestions for the user",
+                        items: {
+                          type: "object",
+                          properties: {
+                            account_number: { type: "string", description: "Target account number" },
+                            account_name: { type: "string", description: "Target account name" },
+                            account_id: { type: "string", description: "Target account ID if known from template" },
+                            amount: { type: "number", description: "Booking amount (positive)" },
+                            booking_type: { type: "string", enum: ["income", "expense"], description: "income for Zugang, expense for Abgang" },
+                            description: { type: "string", description: "Suggested booking text" },
+                            related_template_id: { type: "string", description: "Related template ID if applicable" },
+                            related_invoice_id: { type: "string", description: "Related invoice ID if applicable" },
+                          },
+                          required: ["amount", "booking_type", "description"],
+                          additionalProperties: false,
+                        },
+                      },
+                    },
+                    required: ["type", "explanation", "suggested_bookings"],
+                    additionalProperties: false,
                   },
                 },
                 required: ["matches"],

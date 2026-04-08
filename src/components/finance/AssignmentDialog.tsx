@@ -6,7 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, Sparkles, Calendar, CreditCard, Hash, ArrowRightLeft, CheckCircle2 } from "lucide-react";
+import { Loader2, Sparkles, Calendar, CreditCard, Hash, ArrowRightLeft, CheckCircle2, Lightbulb, BookOpen } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -18,14 +18,33 @@ interface AiMatch {
   reason: string;
 }
 
+interface SuggestedBooking {
+  account_number?: string;
+  account_name?: string;
+  account_id?: string;
+  amount: number;
+  booking_type: "income" | "expense";
+  description: string;
+  related_template_id?: string;
+  related_invoice_id?: string;
+}
+
+interface BookingHint {
+  type: "split" | "partial" | "simple";
+  explanation: string;
+  suggested_bookings: SuggestedBooking[];
+}
+
 interface AssignmentDialogProps {
   transaction: any | null;
   onClose: () => void;
   invoicesList: any[];
   templatesList: any[];
+  allTransactions?: any[];
   showMatchedInvoices: boolean;
   setShowMatchedInvoices: (v: boolean) => void;
   onAssign: (type: "invoice" | "template", id: string) => Promise<void>;
+  onCreateBookings?: (hint: BookingHint, transaction: any) => void;
 }
 
 export function AssignmentDialog({
@@ -33,13 +52,16 @@ export function AssignmentDialog({
   onClose,
   invoicesList,
   templatesList,
+  allTransactions,
   showMatchedInvoices,
   setShowMatchedInvoices,
   onAssign,
+  onCreateBookings,
 }: AssignmentDialogProps) {
   const [tab, setTab] = useState<"invoice" | "template">("invoice");
   const [selectedId, setSelectedId] = useState<string>("");
   const [aiMatches, setAiMatches] = useState<AiMatch[]>([]);
+  const [bookingHint, setBookingHint] = useState<BookingHint | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [assigning, setAssigning] = useState(false);
 
@@ -49,6 +71,7 @@ export function AssignmentDialog({
       setSelectedId("");
       setTab("invoice");
       setAiMatches([]);
+      setBookingHint(null);
       fetchAiSuggestions();
     }
   }, [transaction?.id]);
@@ -83,18 +106,36 @@ export function AssignmentDialog({
             expected_amount: t.expected_amount,
             vendor_iban: t.vendor_iban,
             interval: t.interval,
+            account_id: t.account_id,
+            account_number: t.account_number,
+            account_name: t.account_name,
           })),
+          allTransactions: (allTransactions || [])
+            .filter((t: any) => !t.booked_at && t.match_status === "unmatched")
+            .slice(0, 30)
+            .map((t: any) => ({
+              id: t.id,
+              amount: t.amount,
+              creditor_name: t.creditor_name,
+              debtor_name: t.debtor_name,
+              purpose: t.purpose,
+              booking_date: t.booking_date,
+              match_status: t.match_status,
+            })),
         },
       });
       if (data?.matches) {
         setAiMatches(data.matches);
+      }
+      if (data?.booking_hint) {
+        setBookingHint(data.booking_hint);
       }
     } catch (err) {
       console.error("AI suggest error:", err);
     } finally {
       setAiLoading(false);
     }
-  }, [transaction, invoicesList, templatesList]);
+  }, [transaction, invoicesList, templatesList, allTransactions]);
 
   const aiMatchMap = useMemo(() => {
     const map = new Map<string, AiMatch>();
@@ -131,6 +172,18 @@ export function AssignmentDialog({
   const txnIban = transaction.amount < 0 ? transaction.creditor_iban : transaction.debtor_iban;
   const candidates = tab === "invoice" ? sortedInvoices : sortedTemplates;
 
+  const hintTypeLabel: Record<string, string> = {
+    split: "Sammelbuchung",
+    partial: "Teilzahlung",
+    simple: "Einfache Zuordnung",
+  };
+
+  const hintTypeColor: Record<string, string> = {
+    split: "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800",
+    partial: "bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800",
+    simple: "bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800",
+  };
+
   return (
     <Dialog open={!!transaction} onOpenChange={() => onClose()}>
       <DialogContent className="max-w-6xl w-full h-[80vh] flex flex-col p-0 gap-0">
@@ -142,59 +195,121 @@ export function AssignmentDialog({
         </DialogHeader>
 
         <div className="flex-1 flex min-h-0">
-          {/* LEFT: Transaction details */}
-          <div className="w-[40%] border-r p-6 flex flex-col gap-4 bg-muted/30">
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Betrag</p>
-              <p className={cn("text-3xl font-bold font-mono", transaction.amount < 0 ? "text-destructive" : "text-green-600 dark:text-green-400")}>
-                {transaction.amount < 0 ? "" : "+"}{Number(transaction.amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium flex items-center gap-1">
-                  <Calendar className="h-3 w-3" /> Buchungsdatum
-                </p>
-                <p className="text-sm font-medium">{format(new Date(transaction.booking_date), "dd. MMMM yyyy", { locale: de })}</p>
-              </div>
-              {transaction.value_date && (
+          {/* LEFT: Transaction details + KI hint */}
+          <div className="w-[40%] border-r flex flex-col min-h-0">
+            <ScrollArea className="flex-1">
+              <div className="p-6 space-y-4">
                 <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Wertstellung</p>
-                  <p className="text-sm font-medium">{format(new Date(transaction.value_date), "dd.MM.yyyy")}</p>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Betrag</p>
+                  <p className={cn("text-3xl font-bold font-mono", transaction.amount < 0 ? "text-destructive" : "text-green-600 dark:text-green-400")}>
+                    {transaction.amount < 0 ? "" : "+"}{Number(transaction.amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
+                  </p>
                 </div>
-              )}
-            </div>
 
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">
-                {transaction.amount < 0 ? "Empfänger" : "Auftraggeber"}
-              </p>
-              <p className="text-base font-semibold">{txnName || "–"}</p>
-            </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium flex items-center gap-1">
+                      <Calendar className="h-3 w-3" /> Buchungsdatum
+                    </p>
+                    <p className="text-sm font-medium">{format(new Date(transaction.booking_date), "dd. MMMM yyyy", { locale: de })}</p>
+                  </div>
+                  {transaction.value_date && (
+                    <div className="space-y-1">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Wertstellung</p>
+                      <p className="text-sm font-medium">{format(new Date(transaction.value_date), "dd.MM.yyyy")}</p>
+                    </div>
+                  )}
+                </div>
 
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium flex items-center gap-1">
-                <CreditCard className="h-3 w-3" /> IBAN
-              </p>
-              <p className="text-sm font-mono">{txnIban || "–"}</p>
-            </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">
+                    {transaction.amount < 0 ? "Empfänger" : "Auftraggeber"}
+                  </p>
+                  <p className="text-base font-semibold">{txnName || "–"}</p>
+                </div>
 
-            <div className="space-y-1 flex-1">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium flex items-center gap-1">
-                <Hash className="h-3 w-3" /> Verwendungszweck
-              </p>
-              <p className="text-sm leading-relaxed bg-background p-3 rounded-md border">
-                {transaction.purpose || "Kein Verwendungszweck"}
-              </p>
-            </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium flex items-center gap-1">
+                    <CreditCard className="h-3 w-3" /> IBAN
+                  </p>
+                  <p className="text-sm font-mono">{txnIban || "–"}</p>
+                </div>
 
-            {transaction.end_to_end_ref && (
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Ende-zu-Ende-Referenz</p>
-                <p className="text-xs font-mono">{transaction.end_to_end_ref}</p>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium flex items-center gap-1">
+                    <Hash className="h-3 w-3" /> Verwendungszweck
+                  </p>
+                  <p className="text-sm leading-relaxed bg-background p-3 rounded-md border">
+                    {transaction.purpose || "Kein Verwendungszweck"}
+                  </p>
+                </div>
+
+                {transaction.end_to_end_ref && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">Ende-zu-Ende-Referenz</p>
+                    <p className="text-xs font-mono">{transaction.end_to_end_ref}</p>
+                  </div>
+                )}
+
+                {/* KI Booking Hint Panel */}
+                {aiLoading && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground py-3 px-4 bg-muted/50 rounded-lg">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Sparkles className="h-4 w-4" />
+                    KI analysiert Buchungskontext…
+                  </div>
+                )}
+
+                {bookingHint && !aiLoading && (
+                  <div className={cn("rounded-lg border p-4 space-y-3", hintTypeColor[bookingHint.type] || "bg-muted/30 border-border")}>
+                    <div className="flex items-center gap-2">
+                      <Lightbulb className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                      <span className="text-sm font-semibold">KI-Buchungshinweis</span>
+                      <Badge variant="outline" className="text-[10px]">
+                        {hintTypeLabel[bookingHint.type] || bookingHint.type}
+                      </Badge>
+                    </div>
+
+                    <p className="text-sm leading-relaxed">{bookingHint.explanation}</p>
+
+                    {bookingHint.suggested_bookings.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Vorgeschlagene Buchungen</p>
+                        {bookingHint.suggested_bookings.map((sb, idx) => (
+                          <div key={idx} className="flex items-center justify-between bg-background rounded-md border p-3 text-sm">
+                            <div className="min-w-0 flex-1">
+                              {sb.account_number && (
+                                <p className="font-mono text-xs text-muted-foreground">{sb.account_number} {sb.account_name}</p>
+                              )}
+                              <p className="truncate">{sb.description}</p>
+                            </div>
+                            <span className={cn(
+                              "font-mono font-semibold ml-3 whitespace-nowrap",
+                              sb.booking_type === "income" ? "text-green-600 dark:text-green-400" : "text-destructive"
+                            )}>
+                              {sb.booking_type === "income" ? "+" : "-"}{Number(sb.amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {onCreateBookings && bookingHint.suggested_bookings.length > 0 && (
+                      <Button
+                        size="sm"
+                        className="w-full gap-2"
+                        onClick={() => onCreateBookings(bookingHint, transaction)}
+                      >
+                        <BookOpen className="h-4 w-4" />
+                        {bookingHint.suggested_bookings.length === 1
+                          ? "Als manuelle Buchung anlegen"
+                          : `${bookingHint.suggested_bookings.length} Buchungen anlegen`}
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
-            )}
+            </ScrollArea>
           </div>
 
           {/* RIGHT: Candidates */}
