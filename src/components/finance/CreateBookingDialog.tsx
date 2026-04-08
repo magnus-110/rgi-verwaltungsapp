@@ -16,12 +16,26 @@ import { useAuth } from "@/hooks/useAuth";
 import { ChevronDown, Search, ArrowDownLeft, ArrowUpRight, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+interface BookingPrefill {
+  account_id?: string;
+  counter_account_id?: string;
+  amount?: number;
+  description?: string;
+  booking_date?: string;
+  booking_type?: "income" | "expense";
+  receipt_number?: string;
+  booking_reference?: string;
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   buildings: { id: string; name: string; building_code: string }[];
   preselectedBuildingId?: string;
   preselectedYear?: string;
+  prefill?: BookingPrefill | null;
+  linkedTransactionId?: string | null;
+  onBookingCreated?: (bookingId: string) => void;
 }
 
 const VAT_RATES = [
