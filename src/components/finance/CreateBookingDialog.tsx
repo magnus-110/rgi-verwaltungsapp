@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { ChevronDown, Search, ArrowDownLeft, ArrowUpRight, X } from "lucide-react";
+import { ChevronDown, Search, ArrowDownLeft, ArrowUpRight, X, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface BookingPrefill {
