@@ -263,6 +263,12 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
         </DialogHeader>
 
         <div className="space-y-6 py-2">
+          {prefill && (
+            <div className="flex items-center gap-2 text-sm bg-primary/10 text-primary border border-primary/20 rounded-lg px-4 py-3">
+              <Sparkles className="h-4 w-4 shrink-0" />
+              Felder basierend auf KI-Analyse vorausgefüllt. Bitte prüfen und bei Bedarf anpassen.
+            </div>
+          )}
           {/* Row 1: Buchung – Konto, Typ, Betrag */}
           <div className="rounded-xl border p-6 space-y-5">
             <p className="text-base font-semibold text-foreground">Buchung</p>
