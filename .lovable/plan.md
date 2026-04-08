@@ -1,71 +1,40 @@
 
 
-## Inline-Bearbeitung der Buchungsvorschläge + Vorlagen-Erstellung im AssignmentDialog
+## Zwei Probleme: Konten-Trennung + Bankkonto-Anzeige
 
-### Problem
-1. Die vorgeschlagenen Buchungen im KI-Hinweis sind statisch — man kann sie nicht bearbeiten, bevor sie angelegt werden
-2. Wenn die KI erkennt, dass eine Vorlage erstellt werden sollte (wie im Screenshot: "sollte hierfür eine neue Vorlage erstellt werden"), gibt es keine Möglichkeit das direkt zu tun
+### Problem 1: Personenkonten werden gebäudeübergreifend angezeigt
 
-### Lösung
+**Ursache**: Die Kontenabfragen in `CreateBookingDialog`, `EditBookingDialog`, `BookingReviewSection` und `AssignmentDialog` laden ALLE Konten aus `chart_of_accounts` ohne Filterung nach `building_id`. Da Personenkonten (0001, 0002, 0003) pro Gebäude existieren, aber verschiedene `building_id`s haben, werden z.B. die Konten von Beispielgebäude in Birkenweg-6-Buchungen referenziert.
 
-**1. Inline-editierbare Buchungsvorschläge** (`AssignmentDialog.tsx`)
+**Bestätigter Datenbankbefund**: 4 Buchungen in Birkenweg 6 (`f5fa943b`) verweisen auf Konten von Beispielgebäude (`44899d2f`) — konkret "Hausgeld van Praag" und "Hausgeld Göttinger".
 
-Die statischen Buchungskarten werden durch editierbare Felder ersetzt:
-- Jede `suggested_booking` wird als editierbarer Block dargestellt
-- Felder: Beschreibung (Input), Betrag (Input), Buchungstyp (Toggle income/expense)
-- Konto-Auswahl per Combobox (wie in CreateBookingDialog)
-- State: `editableBookings` Array im Dialog, initialisiert aus `bookingHint.suggested_bookings`
-- "Buchung anlegen" Button pro Einzelbuchung + "Alle anlegen" Button
-- Einzelne Buchungen können entfernt werden (X-Button)
+**Lösung**: Überall wo Konten geladen werden, muss gefiltert werden:
+- Globale Konten (`building_id IS NULL`) immer anzeigen
+- Gebäudespezifische Konten nur für die gewählte Liegenschaft (`building_id = selectedBuildingId`)
 
-**2. Vorlagen-Vorschlag von der KI** (`suggest-match/index.ts`)
+Betroffene Dateien:
+1. **`CreateBookingDialog.tsx`** — Query `chart_of_accounts` nach `building_id` filtern (NULL oder ausgewählte Liegenschaft)
+2. **`EditBookingDialog.tsx`** — Selbe Filterung
+3. **`AssignmentDialog.tsx`** — Account-Combobox ebenfalls filtern
+4. **`BookingReviewSection.tsx`** — Ist bereits korrekt nach `building_id` in bookings gefiltert, aber die fehlerhaften Buchungen existieren bereits in der DB
 
-Erweiterung des AI Tool-Schemas um ein neues optionales Feld `template_suggestion`:
-```
-template_suggestion: {
-  name: string,           // z.B. "Abschlagszahlung Strom"
-  vendor_name: string,    
-  vendor_iban: string,
-  expected_amount: number,
-  interval: string,       // "monatlich", "quartalsweise", etc.
-  account_number: string, // Vorgeschlagenes Konto
-  account_name: string,
-  description: string
-}
-```
+**Datenbereinigung**: Migration, die die 4 fehlerhaften Buchungen korrigiert — die `account_id` auf die korrekten Birkenweg-6-Konten umbiegt (Matching über `account_number`).
 
-Im System-Prompt wird die KI angewiesen: Wenn keine passende Vorlage existiert und es sich um eine wiederkehrende Zahlung handelt (erkennbar an Verwendungszweck-Keywords wie "Abschlag", "monatlich", Kundennummer), soll sie einen `template_suggestion` zurückgeben.
+### Problem 2: Bankkonto (IBAN) bei Kontoauszügen anzeigen
 
-**3. Vorlagen-Erstellungs-UI im AssignmentDialog** (`AssignmentDialog.tsx`)
+**Ist-Zustand**: Die Transaktionsliste zeigt kein Bankkonto. Die IBAN ist in `bank_statements.account_iban` gespeichert.
 
-Wenn `template_suggestion` vorhanden:
-- Neuer Block unter dem KI-Hinweis: "Vorlage erstellen"
-- Inline-Formular mit editierbaren Feldern (Name, Lieferant, IBAN, Betrag, Intervall, Konto)
-- Button: "Vorlage erstellen & zuordnen"
-- Nach Klick: Insert in `booking_templates`, dann automatisch Zuordnung der Transaktion zur neuen Vorlage
-- `queryClient.invalidateQueries` für booking-templates
-
-### Technische Details
-
-**AssignmentDialog.tsx Änderungen:**
-- Neuer State: `editableBookings: SuggestedBooking[]` — wird aus `bookingHint.suggested_bookings` initialisiert wenn hint kommt
-- Neuer State: `templateSuggestion` — aus AI-Response
-- Neuer State: `editableTemplate` — editierbare Version des Vorschlags
-- Konten-Query laden (chart_of_accounts) für die Konto-Combobox
-- Pro Buchung: Inline-Inputs für description, amount; Combobox für account
-- Pro Buchung: eigener "Anlegen"-Button
-- Template-Block: Inline-Formular mit allen Vorlage-Feldern, "Erstellen"-Button
-
-**suggest-match/index.ts Änderungen:**
-- Neues `template_suggestion` Feld im Tool-Schema
-- System-Prompt Ergänzung: "Wenn keine passende Vorlage existiert und die Transaktion auf eine wiederkehrende Zahlung hindeutet, schlage eine neue Vorlage vor"
-
-**BankStatementsTab.tsx Änderungen:**
-- Neue Prop `onCreateTemplate` an AssignmentDialog durchreichen
-- Handler: Insert in booking_templates + Transaktion zuordnen + Queries invalidieren
+**Lösung**: 
+- In `BankStatementsTab.tsx` die `bank_statements`-Daten für den gewählten Liegenschaft laden
+- Über dem Transaktionsbereich die Konto-IBAN als Info-Banner anzeigen (z.B. "Konto: DE48 7335 0000 0514 8409 82 — Giro Business WEG Birkenweg 6")
+- Optional: Neues DB-Feld `account_name` in `bank_statements` speichern (aus CAMT-XML `<Nm>`-Element unter `<Acct>`)
 
 ### Dateien
-1. `supabase/functions/suggest-match/index.ts` — template_suggestion im Tool-Schema
-2. `src/components/finance/AssignmentDialog.tsx` — Editierbare Buchungen + Template-Erstellung
-3. `src/components/finance/BankStatementsTab.tsx` — onCreateTemplate Handler
+
+1. `src/components/finance/CreateBookingDialog.tsx` — Konten nach building_id filtern
+2. `src/components/finance/EditBookingDialog.tsx` — Konten nach building_id filtern  
+3. `src/components/finance/AssignmentDialog.tsx` — Account-Combobox filtern
+4. `src/components/finance/BankStatementsTab.tsx` — Bankkonto-Info anzeigen
+5. Migration: Fehlerhafte account_ids in bookings korrigieren + `account_name` Spalte zu `bank_statements` hinzufügen
+6. `supabase/functions/parse-bank-statement/index.ts` — Kontoname aus CAMT-XML extrahieren und speichern
 
