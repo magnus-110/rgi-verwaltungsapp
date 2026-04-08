@@ -23,7 +23,6 @@ serve(async (req) => {
       ...templates.map((t: any) => `TEMPLATE id=${t.id} name="${t.name}" vendor="${t.vendor_name || ""}" amount=${t.expected_amount || 0} iban="${t.vendor_iban || ""}" interval="${t.interval || ""}" account_number="${t.account_number || ""}" account_name="${t.account_name || ""}" account_id="${t.account_id || ""}"`),
     ].join("\n");
 
-    // Build context for other unmatched transactions
     let otherTxnContext = "";
     if (allTransactions && allTransactions.length > 0) {
       const otherTxns = allTransactions
@@ -52,7 +51,11 @@ Erweiterte Analyse:
 - Prüfe ob andere offene Transaktionen zusammen den vollen Rechnungsbetrag ergeben
 - Bei Sammelzahlungen: Identifiziere alle Vorlagen, die in der Summe enthalten sein könnten
 
-Gib die besten 1-5 Kandidaten zurück UND einen booking_hint wenn du eine komplexe Zuordnung erkennst.`;
+Vorlagen-Erkennung:
+- Wenn KEINE passende Vorlage existiert und die Transaktion auf eine WIEDERKEHRENDE Zahlung hindeutet (z.B. "Abschlag", "monatlich", Kundennummer, regelmäßiger Lieferant wie Strom/Gas/Wasser/Versicherung), schlage eine neue Vorlage vor im template_suggestion Feld.
+- Erkennbare Muster: Abschlagszahlungen, Versicherungsbeiträge, Wartungsverträge, Mietzahlungen, Hausgeld.
+
+Gib die besten 1-5 Kandidaten zurück UND einen booking_hint wenn du eine komplexe Zuordnung erkennst UND einen template_suggestion wenn eine neue Vorlage erstellt werden sollte.`;
 
     const userPrompt = `Transaktion:
 - Betrag: ${transaction.amount} €
@@ -81,7 +84,7 @@ ${candidatesSummary}${otherTxnContext}`;
             type: "function",
             function: {
               name: "suggest_matches",
-              description: "Return the best matching candidates and an optional booking hint for complex transactions",
+              description: "Return the best matching candidates, an optional booking hint, and an optional template suggestion",
               parameters: {
                 type: "object",
                 properties: {
@@ -132,6 +135,22 @@ ${candidatesSummary}${otherTxnContext}`;
                       },
                     },
                     required: ["type", "explanation", "suggested_bookings"],
+                    additionalProperties: false,
+                  },
+                  template_suggestion: {
+                    type: "object",
+                    description: "Optional suggestion to create a new booking template. Only set if no matching template exists and the transaction looks like a recurring payment.",
+                    properties: {
+                      name: { type: "string", description: "Template name, e.g. 'Abschlagszahlung Strom EON'" },
+                      vendor_name: { type: "string", description: "Vendor/supplier name" },
+                      vendor_iban: { type: "string", description: "Vendor IBAN" },
+                      expected_amount: { type: "number", description: "Expected recurring amount (positive)" },
+                      interval: { type: "string", description: "Payment interval: monatlich, quartalsweise, halbjährlich, jährlich" },
+                      account_number: { type: "string", description: "Suggested account number from chart of accounts" },
+                      account_name: { type: "string", description: "Suggested account name" },
+                      description: { type: "string", description: "Description/reason for the template suggestion" },
+                    },
+                    required: ["name", "vendor_name", "expected_amount", "description"],
                     additionalProperties: false,
                   },
                 },
