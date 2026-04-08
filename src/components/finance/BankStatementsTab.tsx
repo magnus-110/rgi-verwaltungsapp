@@ -536,6 +536,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
         onClose={() => setManualAssignTxn(null)}
         invoicesList={invoicesList}
         templatesList={templatesList}
+        allTransactions={allBuildingTxns}
         showMatchedInvoices={showMatchedInvoices}
         setShowMatchedInvoices={setShowMatchedInvoices}
         onAssign={async (type, id) => {
@@ -552,6 +553,72 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
             queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
             queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
           }
+        }}
+        onCreateBookings={async (hint, txn) => {
+          // Insert all suggested bookings as pending
+          const bookings = hint.suggested_bookings.map((sb: any) => ({
+            building_id: selectedBuilding,
+            account_id: sb.account_id || null,
+            amount: sb.amount,
+            booking_type: sb.booking_type,
+            description: sb.description,
+            booking_date: txn.booking_date,
+            fiscal_year: new Date(txn.booking_date).getFullYear(),
+            source: "manual",
+            status: "pending",
+            matched_template_id: sb.related_template_id || null,
+            invoice_id: sb.related_invoice_id || null,
+          }));
+
+          let successCount = 0;
+          for (const b of bookings) {
+            const { error } = await supabase.from("bookings").insert(b as any);
+            if (!error) successCount++;
+          }
+
+          if (successCount > 0) {
+            // Mark transaction as booked
+            await supabase.from("bank_transactions").update({
+              booked_at: new Date().toISOString(),
+              match_status: "manually_matched",
+            }).eq("id", txn.id);
+
+            toast.success(`${successCount} Buchung(en) angelegt`);
+            setManualAssignTxn(null);
+            queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
+            queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+            queryClient.invalidateQueries({ queryKey: ["bookings"] });
+          } else {
+            toast.error("Fehler beim Anlegen der Buchungen");
+          }
+        }}
+      />
+
+      <CreateBookingDialog
+        open={createBookingOpen}
+        onOpenChange={(open) => {
+          setCreateBookingOpen(open);
+          if (!open) {
+            setBookingPrefill(null);
+            setLinkedTransactionId(null);
+          }
+        }}
+        buildings={buildings}
+        preselectedBuildingId={selectedBuilding}
+        preselectedYear={String(new Date().getFullYear())}
+        prefill={bookingPrefill}
+        linkedTransactionId={linkedTransactionId}
+        onBookingCreated={async (bookingId) => {
+          if (linkedTransactionId) {
+            await supabase.from("bank_transactions").update({
+              booked_at: new Date().toISOString(),
+              booking_id: bookingId,
+              match_status: "manually_matched",
+            }).eq("id", linkedTransactionId);
+          }
+          queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
+          queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+          queryClient.invalidateQueries({ queryKey: ["bookings"] });
         }}
       />
     </div>
