@@ -77,6 +77,34 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     enabled: !!selectedBuilding,
   });
 
+  // Fetch bank statements for IBAN display
+  const { data: bankStatements = [] } = useQuery({
+    queryKey: ["bank-statements-info", selectedBuilding],
+    queryFn: async () => {
+      if (!selectedBuilding) return [];
+      const { data, error } = await supabase
+        .from("bank_statements")
+        .select("account_iban, account_name")
+        .eq("building_id", selectedBuilding)
+        .not("account_iban", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!selectedBuilding,
+  });
+
+  // Get unique bank accounts
+  const bankAccounts = useMemo(() => {
+    const seen = new Set<string>();
+    return bankStatements.filter((s: any) => {
+      if (!s.account_iban || seen.has(s.account_iban)) return false;
+      seen.add(s.account_iban);
+      return true;
+    });
+  }, [bankStatements]);
+
   // Global bookable count (across all buildings)
   const { data: allTransactions = [] } = useQuery({
     queryKey: ["bank-transactions-all"],
