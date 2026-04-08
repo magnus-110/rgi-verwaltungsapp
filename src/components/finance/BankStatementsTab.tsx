@@ -554,41 +554,11 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
             queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
           }
         }}
-        onCreateBookings={async (hint, txn) => {
-          const bookings = hint.suggested_bookings.map((sb: any) => ({
-            building_id: selectedBuilding,
-            account_id: sb.account_id || null,
-            amount: sb.amount,
-            booking_type: sb.booking_type,
-            description: sb.description,
-            booking_date: txn.booking_date,
-            fiscal_year: new Date(txn.booking_date).getFullYear(),
-            source: "manual",
-            status: "pending",
-            matched_template_id: sb.related_template_id || null,
-            invoice_id: sb.related_invoice_id || null,
-          }));
-
-          let successCount = 0;
-          for (const b of bookings) {
-            const { error } = await supabase.from("bookings").insert(b as any);
-            if (!error) successCount++;
-          }
-
-          if (successCount > 0) {
-            await supabase.from("bank_transactions").update({
-              booked_at: new Date().toISOString(),
-              match_status: "manually_matched",
-            }).eq("id", txn.id);
-
-            toast.success(`${successCount} Buchung(en) angelegt`);
-            setManualAssignTxn(null);
-            queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
-            queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
-            queryClient.invalidateQueries({ queryKey: ["bookings"] });
-          } else {
-            toast.error("Fehler beim Anlegen der Buchungen");
-          }
+        onOpenBookingDialog={(prefill) => {
+          setBookingPrefill(prefill);
+          setLinkedTransactionId(manualAssignTxn?.id || null);
+          setCreateBookingOpen(true);
+          setManualAssignTxn(null);
         }}
         onCreateTemplate={async (template, txn) => {
           // Find account_id from account_number
