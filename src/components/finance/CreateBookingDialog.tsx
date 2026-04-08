@@ -69,16 +69,26 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
   const [accountOpen, setAccountOpen] = useState(false);
   const [counterOpen, setCounterOpen] = useState(false);
 
-  // Sync preselected values when dialog opens
+  // Sync preselected values and prefill when dialog opens
   useEffect(() => {
     if (open) {
       setForm(prev => ({
         ...prev,
         building_id: preselectedBuildingId || prev.building_id,
         fiscal_year: preselectedYear || prev.fiscal_year,
+        ...(prefill ? {
+          account_id: prefill.account_id || prev.account_id,
+          counter_account_id: prefill.counter_account_id || prev.counter_account_id,
+          amount: prefill.amount != null ? String(prefill.amount) : prev.amount,
+          description: prefill.description || prev.description,
+          booking_date: prefill.booking_date || prev.booking_date,
+          booking_type: prefill.booking_type || prev.booking_type,
+          receipt_number: prefill.receipt_number || prev.receipt_number,
+          booking_reference: prefill.booking_reference || prev.booking_reference,
+        } : {}),
       }));
     }
-  }, [open, preselectedBuildingId, preselectedYear]);
+  }, [open, preselectedBuildingId, preselectedYear, prefill]);
 
   const { data: accounts = [] } = useQuery({
     queryKey: ["chart-of-accounts"],
