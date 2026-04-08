@@ -305,6 +305,7 @@ Deno.serve(async (req) => {
         building_id: buildingId || null,
         file_name: "CAMT XML Import",
         account_iban: accountIban || null,
+        account_name: accountName || null,
         statement_date_from: frDt,
         statement_date_to: toDt,
         created_by: user.id,
