@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Upload, Loader2, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff, Building2, BookOpen, Link2, Send, RefreshCw } from "lucide-react";
+import { Upload, Loader2, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff, Building2, BookOpen, Link2, Send, RefreshCw, Landmark } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { AssignmentDialog } from "./AssignmentDialog";
@@ -76,6 +76,34 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     },
     enabled: !!selectedBuilding,
   });
+
+  // Fetch bank statements for IBAN display
+  const { data: bankStatements = [] } = useQuery({
+    queryKey: ["bank-statements-info", selectedBuilding],
+    queryFn: async () => {
+      if (!selectedBuilding) return [];
+      const { data, error } = await supabase
+        .from("bank_statements")
+        .select("account_iban, account_name")
+        .eq("building_id", selectedBuilding)
+        .not("account_iban", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!selectedBuilding,
+  });
+
+  // Get unique bank accounts
+  const bankAccounts = useMemo(() => {
+    const seen = new Set<string>();
+    return bankStatements.filter((s: any) => {
+      if (!s.account_iban || seen.has(s.account_iban)) return false;
+      seen.add(s.account_iban);
+      return true;
+    });
+  }, [bankStatements]);
 
   // Global bookable count (across all buildings)
   const { data: allTransactions = [] } = useQuery({
@@ -471,6 +499,19 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
             </div>
           ) : (
             <div className="space-y-6">
+              {/* Bank account info */}
+              {bankAccounts.length > 0 && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  {bankAccounts.map((ba: any, i: number) => (
+                    <div key={i} className="flex items-center gap-2 text-sm bg-muted/50 rounded-lg px-3 py-2 border">
+                      <Landmark className="h-4 w-4 text-primary shrink-0" />
+                      <span className="font-mono text-xs">{ba.account_iban?.replace(/(.{4})/g, '$1 ').trim()}</span>
+                      {ba.account_name && <span className="text-muted-foreground">— {ba.account_name}</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* Summary badges */}
               <div className="flex items-center gap-2 flex-wrap">
                 <Badge variant="outline" className="text-xs">{allBuildingTxns.length} Transaktionen gesamt</Badge>

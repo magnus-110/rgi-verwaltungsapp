@@ -89,14 +89,18 @@ export function AssignmentDialog({
   const [showTemplateForm, setShowTemplateForm] = useState(false);
   const [creatingTemplate, setCreatingTemplate] = useState(false);
 
-  // Fetch accounts for template combobox
+  // Fetch accounts for template combobox - filtered by building
+  const txnBuildingId = transaction?.building_id;
   const { data: accounts = [] } = useQuery({
-    queryKey: ["chart-of-accounts-all"],
+    queryKey: ["chart-of-accounts-assign", txnBuildingId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("chart_of_accounts")
-        .select("id, account_number, account_name, category")
-        .order("account_number");
+        .select("id, account_number, account_name, category");
+      if (txnBuildingId) {
+        query = query.or(`building_id.is.null,building_id.eq.${txnBuildingId}`);
+      }
+      const { data, error } = await query.order("account_number");
       if (error) throw error;
       return data;
     },

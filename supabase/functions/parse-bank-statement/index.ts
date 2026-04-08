@@ -290,6 +290,7 @@ Deno.serve(async (req) => {
     console.log("XML length:", cleanXml.length, "Stmt/Rpt length:", stmt.length);
 
     const accountIban = getTag(getTag(getTag(stmt, "Acct"), "Id"), "IBAN");
+    const accountName = getTag(getTag(stmt, "Acct"), "Nm");
 
     const frToDt = getTag(stmt, "FrToDt");
     const frDt = getTag(getTag(frToDt, "FrDtTm"), "").substring(0, 10) ||
@@ -304,6 +305,7 @@ Deno.serve(async (req) => {
         building_id: buildingId || null,
         file_name: "CAMT XML Import",
         account_iban: accountIban || null,
+        account_name: accountName || null,
         statement_date_from: frDt,
         statement_date_to: toDt,
         created_by: user.id,

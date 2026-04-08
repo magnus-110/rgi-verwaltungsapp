@@ -91,9 +91,13 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
   }, [open, preselectedBuildingId, preselectedYear, prefill]);
 
   const { data: accounts = [] } = useQuery({
-    queryKey: ["chart-of-accounts"],
+    queryKey: ["chart-of-accounts", form.building_id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("chart_of_accounts").select("*").order("sort_order");
+      let query = supabase.from("chart_of_accounts").select("*");
+      if (form.building_id) {
+        query = query.or(`building_id.is.null,building_id.eq.${form.building_id}`);
+      }
+      const { data, error } = await query.order("sort_order");
       if (error) throw error;
       return data;
     },

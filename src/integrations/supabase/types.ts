@@ -68,6 +68,7 @@ export type Database = {
       bank_statements: {
         Row: {
           account_iban: string | null
+          account_name: string | null
           building_id: string | null
           created_at: string
           created_by: string | null
@@ -80,6 +81,7 @@ export type Database = {
         }
         Insert: {
           account_iban?: string | null
+          account_name?: string | null
           building_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -92,6 +94,7 @@ export type Database = {
         }
         Update: {
           account_iban?: string | null
+          account_name?: string | null
           building_id?: string | null
           created_at?: string
           created_by?: string | null
