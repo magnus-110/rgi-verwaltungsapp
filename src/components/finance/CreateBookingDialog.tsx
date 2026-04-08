@@ -44,7 +44,7 @@ const VAT_RATES = [
   { value: "19", label: "19 %" },
 ];
 
-export function CreateBookingDialog({ open, onOpenChange, buildings, preselectedBuildingId, preselectedYear }: Props) {
+export function CreateBookingDialog({ open, onOpenChange, buildings, preselectedBuildingId, preselectedYear, prefill, linkedTransactionId, onBookingCreated }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [form, setForm] = useState({
