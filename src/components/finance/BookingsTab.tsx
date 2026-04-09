@@ -15,6 +15,7 @@ import { Pagination, PaginationContent, PaginationItem, PaginationLink, Paginati
 import { CreateBookingDialog } from "./CreateBookingDialog";
 import { EditBookingDialog } from "./EditBookingDialog";
 import { PdfViewerModal } from "@/components/documents/PdfViewerModal";
+import { BookingReviewMode } from "./BookingReviewMode";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -35,6 +36,7 @@ export function BookingsTab() {
   const [confirmedOpen, setConfirmedOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [templateDetail, setTemplateDetail] = useState<any>(null);
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
@@ -315,9 +317,16 @@ export function BookingsTab() {
                 <Badge variant="secondary" className="ml-2">{filteredPending.length}</Badge>
               )}
             </CardTitle>
-            <Button onClick={() => setIsCreateOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" /> Neue Buchung
-            </Button>
+            <div className="flex items-center gap-2">
+              {filteredPending.length > 0 && (
+                <Button variant="outline" onClick={() => setIsReviewOpen(true)}>
+                  <ClipboardCheck className="h-4 w-4 mr-2" /> Prüfmodus
+                </Button>
+              )}
+              <Button onClick={() => setIsCreateOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" /> Neue Buchung
+              </Button>
+            </div>
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
