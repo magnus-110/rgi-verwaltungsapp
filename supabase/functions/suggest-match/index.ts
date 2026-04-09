@@ -44,6 +44,11 @@ Matching-Kriterien (nach Wichtigkeit):
 2. Betragsübereinstimmung oder -ähnlichkeit
 3. Namensähnlichkeit (Auftraggeber/Empfänger vs. Lieferant)
 4. Schlüsselwörter im Verwendungszweck
+5. Zeitliche Gültigkeit: Vorlagen mit valid_from/valid_to nur vorschlagen, wenn das Transaktionsdatum im Gültigkeitszeitraum liegt. Vorlagen ohne Datumseinschränkung gelten immer.
+1. IBAN-Übereinstimmung (stärkster Indikator)
+2. Betragsübereinstimmung oder -ähnlichkeit
+3. Namensähnlichkeit (Auftraggeber/Empfänger vs. Lieferant)
+4. Schlüsselwörter im Verwendungszweck
 
 Erweiterte Analyse:
 - Prüfe ob der Transaktionsbetrag der SUMME mehrerer Vorlagen entspricht (z.B. Sammeleingänge wie Hausgeld)
