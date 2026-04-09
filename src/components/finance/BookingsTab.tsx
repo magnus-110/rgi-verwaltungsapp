@@ -9,12 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Plus, BookOpen, AlertTriangle, FileText, ChevronDown, ChevronRight, Search, Building2, LayoutTemplate } from "lucide-react";
+import { Plus, BookOpen, AlertTriangle, FileText, ChevronDown, ChevronRight, Search, Building2, LayoutTemplate, ClipboardCheck } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { CreateBookingDialog } from "./CreateBookingDialog";
 import { EditBookingDialog } from "./EditBookingDialog";
 import { PdfViewerModal } from "@/components/documents/PdfViewerModal";
+import { BookingReviewMode } from "./BookingReviewMode";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -35,6 +36,7 @@ export function BookingsTab() {
   const [confirmedOpen, setConfirmedOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [templateDetail, setTemplateDetail] = useState<any>(null);
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
@@ -315,9 +317,16 @@ export function BookingsTab() {
                 <Badge variant="secondary" className="ml-2">{filteredPending.length}</Badge>
               )}
             </CardTitle>
-            <Button onClick={() => setIsCreateOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" /> Neue Buchung
-            </Button>
+            <div className="flex items-center gap-2">
+              {filteredPending.length > 0 && (
+                <Button variant="outline" onClick={() => setIsReviewOpen(true)}>
+                  <ClipboardCheck className="h-4 w-4 mr-2" /> Prüfmodus
+                </Button>
+              )}
+              <Button onClick={() => setIsCreateOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" /> Neue Buchung
+              </Button>
+            </div>
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
@@ -547,6 +556,11 @@ export function BookingsTab() {
           )}
         </DialogContent>
       </Dialog>
+      <BookingReviewMode
+        open={isReviewOpen}
+        onOpenChange={setIsReviewOpen}
+        fiscalYear={filterYear}
+      />
     </div>
   );
 }
