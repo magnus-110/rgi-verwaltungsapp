@@ -25,6 +25,7 @@ interface BookingPrefill {
   booking_type?: "income" | "expense";
   receipt_number?: string;
   booking_reference?: string;
+  related_template_id?: string;
 }
 
 interface Props {
@@ -62,12 +63,15 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
     booking_reference: "",
     vat_rate: "19",
     is_35a_relevant: false,
+    matched_template_id: "",
   });
   const [accountSearch, setAccountSearch] = useState("");
   const [counterSearch, setCounterSearch] = useState("");
   const [showPeriod, setShowPeriod] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [counterOpen, setCounterOpen] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
+  const [templateSearch, setTemplateSearch] = useState("");
 
   // Sync preselected values and prefill when dialog opens
   useEffect(() => {
@@ -85,6 +89,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
           booking_type: prefill.booking_type || prev.booking_type,
           receipt_number: prefill.receipt_number || prev.receipt_number,
           booking_reference: prefill.booking_reference || prev.booking_reference,
+          matched_template_id: prefill.related_template_id || prev.matched_template_id,
         } : {}),
       }));
     }
