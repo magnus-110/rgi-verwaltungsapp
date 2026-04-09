@@ -26,6 +26,24 @@ export function InvoiceDropZone({ buildings }: Props) {
     setUploading(prev => [...prev, fileName]);
 
     try {
+      // Duplicate check: same file_name already exists?
+      const { data: existing } = await supabase
+        .from("invoices")
+        .select("id, file_name, vendor_name, invoice_date, gross_amount")
+        .eq("file_name", fileName)
+        .limit(1);
+
+      if (existing && existing.length > 0) {
+        const dup = existing[0];
+        const details = [
+          dup.vendor_name,
+          dup.invoice_date,
+          dup.gross_amount != null ? `${Number(dup.gross_amount).toFixed(2)} €` : null,
+        ].filter(Boolean).join(" · ");
+        toast.error(`Duplikat: "${fileName}" existiert bereits${details ? ` (${details})` : ""}`, { duration: 6000 });
+        return;
+      }
+
       // Use building folder or "unassigned" if none selected
       const folderPrefix = selectedBuilding || "unassigned";
       const filePath = `${folderPrefix}/${Date.now()}_${fileName}`;
