@@ -156,6 +156,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
       vat_rate: parseFloat(form.vat_rate),
       vat_amount: parseFloat(computedVat),
       is_35a_relevant: form.is_35a_relevant,
+      fiscal_year: parseInt(form.fiscal_year),
     }).eq("id", booking.id);
     if (error) { toast.error("Fehler: " + error.message); return; }
     toast.success("Buchung gespeichert");
@@ -187,6 +188,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
       vat_rate: parseFloat(form.vat_rate),
       vat_amount: parseFloat(computedVat),
       is_35a_relevant: form.is_35a_relevant,
+      fiscal_year: parseInt(form.fiscal_year),
       status: "confirmed",
       confirmed_by: user?.id,
       confirmed_at: new Date().toISOString(),
