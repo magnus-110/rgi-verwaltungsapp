@@ -556,6 +556,11 @@ export function BookingsTab() {
           )}
         </DialogContent>
       </Dialog>
+      <BookingReviewMode
+        open={isReviewOpen}
+        onOpenChange={setIsReviewOpen}
+        fiscalYear={filterYear}
+      />
     </div>
   );
 }
