@@ -1,40 +1,50 @@
 
 
-## Zwei Probleme: Konten-Trennung + Bankkonto-Anzeige
+## Vier Verbesserungen für den Bankabgleich-Dialog
 
-### Problem 1: Personenkonten werden gebäudeübergreifend angezeigt
+### 1. "Ignorieren"-Button wieder einführen
+- In `BankStatementsTab.tsx` bei unmatched-Transaktionen einen "Ignorieren"-Button neben "Zuordnen" und "Buchen" hinzufügen
+- Setzt `match_status` auf `"ignored"` via `updateMatchStatus(txn.id, "ignored")`
+- Ignorierte Transaktionen werden in einer eigenen Sektion (ähnlich wie gebuchte) mit Toggle angezeigt
+- `MATCH_STATUS_CONFIG` hat bereits `ignored` definiert mit `EyeOff`-Icon
 
-**Ursache**: Die Kontenabfragen in `CreateBookingDialog`, `EditBookingDialog`, `BookingReviewSection` und `AssignmentDialog` laden ALLE Konten aus `chart_of_accounts` ohne Filterung nach `building_id`. Da Personenkonten (0001, 0002, 0003) pro Gebäude existieren, aber verschiedene `building_id`s haben, werden z.B. die Konten von Beispielgebäude in Birkenweg-6-Buchungen referenziert.
+### 2. Erledigte KI-Vorschläge aus der Liste entfernen
+- In `AssignmentDialog.tsx` einen neuen State `dismissedHintIndices` (Set<number>) einführen
+- Wenn `onOpenBookingDialog` für einen Vorschlag aufgerufen wird, den Index zum Set hinzufügen
+- Die `suggested_bookings`-Liste im Render filtert nach `!dismissedHintIndices.has(idx)`
+- Bei `onBookingCreated` im `BankStatementsTab` den `bookingPrefill` zurücksetzen, aber den Dialog offen lassen — die Logik dafür existiert bereits ("Don't close the assignment dialog")
+- Zusätzlich: Callback von `CreateBookingDialog` → `AssignmentDialog` weiterleiten, damit der Index entfernt wird
 
-**Bestätigter Datenbankbefund**: 4 Buchungen in Birkenweg 6 (`f5fa943b`) verweisen auf Konten von Beispielgebäude (`44899d2f`) — konkret "Hausgeld van Praag" und "Hausgeld Göttinger".
+Konkreter Ablauf:
+- `AssignmentDialog` bekommt neue Prop `onBookingCreatedFromHint?: (index: number) => void`
+- `handleOpenBooking` übergibt den Index mit an `onOpenBookingDialog`
+- `BankStatementsTab` speichert den aktuellen Hint-Index und ruft nach `onBookingCreated` den Callback auf
+- `AssignmentDialog` fügt den Index zu `dismissedHintIndices` hinzu
 
-**Lösung**: Überall wo Konten geladen werden, muss gefiltert werden:
-- Globale Konten (`building_id IS NULL`) immer anzeigen
-- Gebäudespezifische Konten nur für die gewählte Liegenschaft (`building_id = selectedBuildingId`)
-
-Betroffene Dateien:
-1. **`CreateBookingDialog.tsx`** — Query `chart_of_accounts` nach `building_id` filtern (NULL oder ausgewählte Liegenschaft)
-2. **`EditBookingDialog.tsx`** — Selbe Filterung
-3. **`AssignmentDialog.tsx`** — Account-Combobox ebenfalls filtern
-4. **`BookingReviewSection.tsx`** — Ist bereits korrekt nach `building_id` in bookings gefiltert, aber die fehlerhaften Buchungen existieren bereits in der DB
-
-**Datenbereinigung**: Migration, die die 4 fehlerhaften Buchungen korrigiert — die `account_id` auf die korrekten Birkenweg-6-Konten umbiegt (Matching über `account_number`).
-
-### Problem 2: Bankkonto (IBAN) bei Kontoauszügen anzeigen
-
-**Ist-Zustand**: Die Transaktionsliste zeigt kein Bankkonto. Die IBAN ist in `bank_statements.account_iban` gespeichert.
-
-**Lösung**: 
-- In `BankStatementsTab.tsx` die `bank_statements`-Daten für den gewählten Liegenschaft laden
-- Über dem Transaktionsbereich die Konto-IBAN als Info-Banner anzeigen (z.B. "Konto: DE48 7335 0000 0514 8409 82 — Giro Business WEG Birkenweg 6")
-- Optional: Neues DB-Feld `account_name` in `bank_statements` speichern (aus CAMT-XML `<Nm>`-Element unter `<Acct>`)
+### 3. Vorlage pro Buchung zuordnen
+- In `CreateBookingDialog.tsx` ein optionales "Vorlage verknüpfen"-Dropdown hinzufügen
+- Neues Feld `matched_template_id` im Formular-State
+- Beim Insert in `bookings` wird `matched_template_id` mitgespeichert
+- Dropdown lädt `booking_templates` für die gewählte Liegenschaft (ähnlich wie im AssignmentDialog)
+- Searchable Combobox mit Vorlagenname + Lieferant
 
 ### Dateien
 
-1. `src/components/finance/CreateBookingDialog.tsx` — Konten nach building_id filtern
-2. `src/components/finance/EditBookingDialog.tsx` — Konten nach building_id filtern  
-3. `src/components/finance/AssignmentDialog.tsx` — Account-Combobox filtern
-4. `src/components/finance/BankStatementsTab.tsx` — Bankkonto-Info anzeigen
-5. Migration: Fehlerhafte account_ids in bookings korrigieren + `account_name` Spalte zu `bank_statements` hinzufügen
-6. `supabase/functions/parse-bank-statement/index.ts` — Kontoname aus CAMT-XML extrahieren und speichern
+1. **`src/components/finance/AssignmentDialog.tsx`**
+   - State `dismissedHintIndices: Set<number>` 
+   - Filter suggested_bookings im Render
+   - Neue Prop `onBookingCreatedFromHint`
+   - Index an `onOpenBookingDialog` übergeben
+
+2. **`src/components/finance/BankStatementsTab.tsx`**
+   - "Ignorieren"-Button bei unmatched-Transaktionen
+   - Ignorierte Transaktionen als eigene Sektion mit Toggle
+   - `currentHintIndex`-State für Hint-Tracking
+   - Callback-Weiterleitung für erledigte Hints
+
+3. **`src/components/finance/CreateBookingDialog.tsx`**
+   - Neues Feld `matched_template_id` im Formular
+   - Query für `booking_templates` der Liegenschaft
+   - Searchable Popover/Combobox für Vorlagenauswahl
+   - Insert mit `matched_template_id`
 
