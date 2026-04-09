@@ -3015,6 +3015,7 @@ export type Database = {
           created_by: string | null
           description: string | null
           due_date: string | null
+          duplicate_of: string | null
           file_name: string | null
           file_path: string | null
           gross_amount: number | null
@@ -3051,6 +3052,7 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           due_date?: string | null
+          duplicate_of?: string | null
           file_name?: string | null
           file_path?: string | null
           gross_amount?: number | null
@@ -3087,6 +3089,7 @@ export type Database = {
           created_by?: string | null
           description?: string | null
           due_date?: string | null
+          duplicate_of?: string | null
           file_name?: string | null
           file_path?: string | null
           gross_amount?: number | null
@@ -3121,6 +3124,13 @@ export type Database = {
             columns: ["building_id"]
             isOneToOne: false
             referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_duplicate_of_fkey"
+            columns: ["duplicate_of"]
+            isOneToOne: false
+            referencedRelation: "invoices"
             referencedColumns: ["id"]
           },
           {

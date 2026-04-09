@@ -1,0 +1,1 @@
+ALTER TABLE public.invoices ADD COLUMN duplicate_of uuid REFERENCES public.invoices(id) ON DELETE SET NULL;
