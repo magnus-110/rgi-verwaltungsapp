@@ -1,52 +1,22 @@
 
 
-## Globaler Liegenschafts-/Perioden-Selektor in der Finanzen-Seite
+## Wirtschaftsjahr automatisch aus Buchungsdatum ableiten
 
-### Analyse: Wo wird was gebraucht?
-
-| Tab | Liegenschaft | Wirtschaftsjahr |
-|-----|:---:|:---:|
-| Rechnungen | ja (hat eigenen Filter) | nein |
-| Vorlagen | ja (hat eigenen Filter) | nein |
-| Kontoauszüge | ja (nutzt bereits shared) | nein |
-| Buchungen | optional (kein Filter aktuell) | nein |
-| Abrechnung | ja (nutzt bereits shared) | ja (nutzt bereits shared) |
-| Planung & Berichte | ja (nutzt bereits shared) | ja (nutzt bereits shared) |
+### Problem
+`CreateBookingDialog` setzt `fiscal_year` immer auf das aktuelle Kalenderjahr (2026). Bei Buchungen aus Kontoauszuegen mit Datum in 2025 wird das Wirtschaftsjahr nicht angepasst — die Buchung landet im falschen Jahr.
 
 ### Loesung
 
-Den `BillingPeriodSelector` aus den einzelnen Tabs herausnehmen und **einmalig oben** in `Finance.tsx` anzeigen — direkt unter dem Seitentitel. Das Wirtschaftsjahr-Dropdown wird nur angezeigt, wenn der aktive Tab es braucht (Abrechnung oder Planung).
+**`src/components/finance/CreateBookingDialog.tsx`**
 
-### Aenderungen
+1. Im `useEffect` (Prefill-Sync): Wenn `prefill.booking_date` vorhanden, `fiscal_year` automatisch aus dem Jahr des Buchungsdatums ableiten statt den Default zu behalten
+2. Zusaetzlich: Wenn der Nutzer das `booking_date` manuell aendert, das `fiscal_year` ebenfalls automatisch aktualisieren (onChange-Handler des Datumsfelds)
+3. Das Feld `fiscal_year` bleibt weiterhin manuell editierbar fuer Sonderfaelle (verschobenes Wirtschaftsjahr)
 
-**1. `Finance.tsx`**
-- Tab-State von `defaultValue` auf controlled `value` umstellen (neuer State `activeTab`)
-- `BillingPeriodSelector` **ueber** die Tabs verschieben
-- Periode-Dropdown nur anzeigen wenn `activeTab` in `["abrechnung", "planung"]`
-- Shared building/period an alle Sub-Tabs weitergeben
+Konkret:
+- Zeile ~88: `fiscal_year` aus `prefill.booking_date` extrahieren: `String(new Date(prefill.booking_date).getFullYear())`
+- onChange des `booking_date`-Inputs: `setForm(prev => ({ ...prev, booking_date: val, fiscal_year: String(new Date(val).getFullYear()) }))`
 
-**2. `InvoicesTab.tsx`**
-- Neue Props: `sharedBuildingId?: string | null`, `onBuildingChange?: (id: string | null) => void`
-- Wenn `sharedBuildingId` gesetzt: eigenen Gebäude-Filter ausblenden und stattdessen `sharedBuildingId` nutzen
-- Fallback auf internen State wenn keine Props
-
-**3. `BookingTemplatesTab.tsx`**
-- Neue Props: `sharedBuildingId?: string | null`, `onBuildingChange?: (id: string | null) => void`
-- Wenn `sharedBuildingId` gesetzt: eigenen Gebäude-Selektor ausblenden und `sharedBuildingId` als `filterBuildingId` nutzen
-- Fallback auf internen State wenn keine Props
-
-**4. `BookingsTab.tsx`**
-- Keine Aenderung noetig — zeigt alle Buchungen aller Gebaeude, kein eigener Building-Filter
-
-**5. `BillingTab.tsx`**
-- `BillingPeriodSelector` aus dem eigenen Render entfernen (wird jetzt oben angezeigt)
-- Props bleiben gleich, nur der Selektor faellt weg
-
-**6. Planung-Tab in `Finance.tsx`**
-- `BillingPeriodSelector` Render dort entfernen (ist jetzt global oben)
-
-### Ergebnis
-- Nutzer waehlt oben einmal die Liegenschaft → alle Tabs filtern automatisch
-- Wirtschaftsjahr erscheint nur bei Abrechnung/Planung
-- Jeder Tab kann die Auswahl weiterhin aendern (Sync zurueck nach oben)
+### Bestehende fehlerhafte Daten
+- Die bereits falsch gebuchten Eintraege (fiscal_year 2026 mit booking_date in 2025) muessen manuell oder per Update korrigiert werden
 
