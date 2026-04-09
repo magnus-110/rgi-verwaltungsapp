@@ -580,6 +580,15 @@ export function AssignmentDialog({
                                   </span>
                                   <span>{item.vendor_iban || "Keine IBAN"}</span>
                                   {item.invoice_date && <span>{format(new Date(item.invoice_date), "dd.MM.yyyy")}</span>}
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0 ml-auto shrink-0"
+                                    onClick={(e) => { e.stopPropagation(); setPreviewInvoiceId(item.id); }}
+                                    title="Rechnung anzeigen"
+                                  >
+                                    <Eye className="h-3.5 w-3.5" />
+                                  </Button>
                                 </div>
                               </>
                             ) : (
