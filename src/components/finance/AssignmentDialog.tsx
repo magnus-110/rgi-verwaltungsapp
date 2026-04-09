@@ -273,6 +273,7 @@ export function AssignmentDialog({
   };
 
   return (
+    <>
     <Dialog open={!!transaction} onOpenChange={() => onClose()}>
       <DialogContent className="max-w-6xl w-full h-[80vh] flex flex-col p-0 gap-0">
         <DialogHeader className="px-6 pt-6 pb-4 border-b">
