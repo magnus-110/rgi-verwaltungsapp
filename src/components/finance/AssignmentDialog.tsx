@@ -89,6 +89,7 @@ export function AssignmentDialog({
   const [editableTemplate, setEditableTemplate] = useState<TemplateSuggestion | null>(null);
   const [showTemplateForm, setShowTemplateForm] = useState(false);
   const [creatingTemplate, setCreatingTemplate] = useState(false);
+  const [previewInvoiceId, setPreviewInvoiceId] = useState<string | null>(null);
 
   // Fetch accounts for template combobox - filtered by building
   const txnBuildingId = transaction?.building_id;
