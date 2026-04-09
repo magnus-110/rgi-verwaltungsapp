@@ -696,7 +696,7 @@ ${context}`;
     { role: 'user', content: question }
   ];
 
-  const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
+  const response = await fetchWithRetry('https://api.mistral.ai/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${MISTRAL_API_KEY}`,
@@ -706,7 +706,7 @@ ${context}`;
       model: settings.model,
       messages,
       temperature: settings.temperature,
-      max_tokens: useDeepResearch ? 4000 : settings.maxTokens, // More tokens for deep research
+      max_tokens: useDeepResearch ? 4000 : settings.maxTokens,
     }),
   });
 
