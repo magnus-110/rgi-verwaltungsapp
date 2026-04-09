@@ -374,7 +374,9 @@ export function AssignmentDialog({
                     {bookingHint.suggested_bookings.length > 0 && (
                       <div className="space-y-2">
                         <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Vorgeschlagene Buchungen</p>
-                        {bookingHint.suggested_bookings.map((sb, idx) => (
+                        {bookingHint.suggested_bookings.map((sb, idx) => {
+                          if (dismissedHintIndices.has(idx)) return null;
+                          return (
                           <div key={idx} className="bg-background rounded-md border p-3 space-y-2">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
@@ -398,14 +400,15 @@ export function AssignmentDialog({
                                 size="sm"
                                 variant="outline"
                                 className="w-full gap-1 text-xs h-7"
-                                onClick={() => handleOpenBooking(sb)}
+                                onClick={() => handleOpenBooking(sb, idx)}
                               >
                                 <BookOpen className="h-3 w-3" />
                                 Als Buchung anlegen
                               </Button>
                             )}
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
