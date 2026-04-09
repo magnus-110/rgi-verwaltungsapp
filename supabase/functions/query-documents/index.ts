@@ -107,9 +107,26 @@ interface DocumentInfo {
   signedUrl?: string;
 }
 
+// Retry helper for transient API errors
+async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2): Promise<Response> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const response = await fetch(url, options);
+    if (response.ok || attempt === maxRetries) return response;
+    const errorText = await response.text();
+    const isTransient = response.status >= 500 || errorText.includes('overflow') || errorText.includes('reset');
+    if (!isTransient) {
+      // Non-transient error, don't retry
+      return new Response(errorText, { status: response.status, statusText: response.statusText });
+    }
+    console.log(`Retry ${attempt + 1}/${maxRetries} after transient error: ${response.status}`);
+    await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+  }
+  throw new Error('Unreachable');
+}
+
 // Generate embedding for the question
 async function generateQuestionEmbedding(question: string): Promise<number[]> {
-  const response = await fetch('https://api.mistral.ai/v1/embeddings', {
+  const response = await fetchWithRetry('https://api.mistral.ai/v1/embeddings', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${MISTRAL_API_KEY}`,
@@ -679,7 +696,7 @@ ${context}`;
     { role: 'user', content: question }
   ];
 
-  const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
+  const response = await fetchWithRetry('https://api.mistral.ai/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${MISTRAL_API_KEY}`,
@@ -689,7 +706,7 @@ ${context}`;
       model: settings.model,
       messages,
       temperature: settings.temperature,
-      max_tokens: useDeepResearch ? 4000 : settings.maxTokens, // More tokens for deep research
+      max_tokens: useDeepResearch ? 4000 : settings.maxTokens,
     }),
   });
 
