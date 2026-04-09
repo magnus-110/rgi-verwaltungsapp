@@ -1,31 +1,52 @@
 
 
-## Zeiträume für Buchungsvorlagen (valid_from / valid_to)
+## Globaler Liegenschafts-/Perioden-Selektor in der Finanzen-Seite
 
-### Problem
-Wenn sich z.B. das Hausgeld eines Eigentümers ändert (Wirtschaftsplan-Anpassung), braucht man pro Zeitraum eine eigene Vorlage mit anderem Betrag, aber demselben Konto. Aktuell gibt es keine Datumsfelder in `booking_templates`.
+### Analyse: Wo wird was gebraucht?
+
+| Tab | Liegenschaft | Wirtschaftsjahr |
+|-----|:---:|:---:|
+| Rechnungen | ja (hat eigenen Filter) | nein |
+| Vorlagen | ja (hat eigenen Filter) | nein |
+| Kontoauszüge | ja (nutzt bereits shared) | nein |
+| Buchungen | optional (kein Filter aktuell) | nein |
+| Abrechnung | ja (nutzt bereits shared) | ja (nutzt bereits shared) |
+| Planung & Berichte | ja (nutzt bereits shared) | ja (nutzt bereits shared) |
 
 ### Loesung
 
-**1. Migration: `valid_from` und `valid_to` Spalten hinzufuegen**
-- `valid_from DATE` (nullable) und `valid_to DATE` (nullable) zu `booking_templates`
-- Beide optional: ohne Angabe gilt die Vorlage unbegrenzt
+Den `BillingPeriodSelector` aus den einzelnen Tabs herausnehmen und **einmalig oben** in `Finance.tsx` anzeigen — direkt unter dem Seitentitel. Das Wirtschaftsjahr-Dropdown wird nur angezeigt, wenn der aktive Tab es braucht (Abrechnung oder Planung).
 
-**2. UI: Zwei Datumsfelder im Vorlagen-Dialog**
-- In `BookingTemplatesTab.tsx` zwei neue Input-Felder (`type="date"`) fuer "Gueltig ab" und "Gueltig bis" im Formular
-- `TemplateForm` erhaelt `valid_from: string` und `valid_to: string`
-- Payload-Erstellung und Edit-Prefill werden entsprechend erweitert
+### Aenderungen
 
-**3. Tabellen-Anzeige erweitern**
-- Neue Spalte "Zeitraum" in der Vorlagen-Tabelle
-- Formatiert als "01.01.2025 – 30.06.2025" oder "ab 01.07.2025" oder "–" bei keiner Einschraenkung
+**1. `Finance.tsx`**
+- Tab-State von `defaultValue` auf controlled `value` umstellen (neuer State `activeTab`)
+- `BillingPeriodSelector` **ueber** die Tabs verschieben
+- Periode-Dropdown nur anzeigen wenn `activeTab` in `["abrechnung", "planung"]`
+- Shared building/period an alle Sub-Tabs weitergeben
 
-**4. Matching-Logik beruecksichtigen**
-- In `suggest-match` Edge Function: Beim Template-Matching das `booking_date` der Transaktion gegen `valid_from`/`valid_to` pruefen, damit nur zeitlich passende Vorlagen vorgeschlagen werden
+**2. `InvoicesTab.tsx`**
+- Neue Props: `sharedBuildingId?: string | null`, `onBuildingChange?: (id: string | null) => void`
+- Wenn `sharedBuildingId` gesetzt: eigenen Gebäude-Filter ausblenden und stattdessen `sharedBuildingId` nutzen
+- Fallback auf internen State wenn keine Props
 
-### Dateien
-1. **Migration** — `valid_from` + `valid_to` auf `booking_templates`
-2. **`src/components/finance/BookingTemplatesTab.tsx`** — Formular + Tabelle erweitern
-3. **`src/integrations/supabase/types.ts`** — Typen regenerieren
-4. **`supabase/functions/suggest-match/index.ts`** — Zeitraum-Filter beim Matching
+**3. `BookingTemplatesTab.tsx`**
+- Neue Props: `sharedBuildingId?: string | null`, `onBuildingChange?: (id: string | null) => void`
+- Wenn `sharedBuildingId` gesetzt: eigenen Gebäude-Selektor ausblenden und `sharedBuildingId` als `filterBuildingId` nutzen
+- Fallback auf internen State wenn keine Props
+
+**4. `BookingsTab.tsx`**
+- Keine Aenderung noetig — zeigt alle Buchungen aller Gebaeude, kein eigener Building-Filter
+
+**5. `BillingTab.tsx`**
+- `BillingPeriodSelector` aus dem eigenen Render entfernen (wird jetzt oben angezeigt)
+- Props bleiben gleich, nur der Selektor faellt weg
+
+**6. Planung-Tab in `Finance.tsx`**
+- `BillingPeriodSelector` Render dort entfernen (ist jetzt global oben)
+
+### Ergebnis
+- Nutzer waehlt oben einmal die Liegenschaft → alle Tabs filtern automatisch
+- Wirtschaftsjahr erscheint nur bei Abrechnung/Planung
+- Jeder Tab kann die Auswahl weiterhin aendern (Sync zurueck nach oben)
 
