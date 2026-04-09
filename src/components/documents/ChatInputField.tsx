@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowUp, Loader2, Mic, MicOff, Plus, Globe, Check, Star, X, FileText, ChevronLeft, SearchCheck, Pencil, ChevronRight, GripVertical, Wand2, FileSearch, Camera } from "lucide-react";
+import { ArrowUp, Loader2, Mic, MicOff, Plus, Globe, Check, Star, X, FileText, ChevronLeft, SearchCheck, Pencil, ChevronRight, GripVertical, Wand2, FileSearch } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -634,29 +634,12 @@ export function ChatInputField({
                   {/* Document Analysis */}
                   <button
                     onClick={() => {
-                      if (fileInputRef.current) {
-                        fileInputRef.current.accept = ".pdf";
-                        fileInputRef.current.click();
-                      }
+                      fileInputRef.current?.click();
                     }}
                     className="flex items-center gap-3 w-full px-3 py-2.5 rounded-md hover:bg-muted transition-colors"
                   >
                     <FileSearch className="h-4 w-4" />
                     <span className="text-sm flex-1 text-left">Dokument analysieren</span>
-                  </button>
-
-                  {/* Screenshot / Image Upload */}
-                  <button
-                    onClick={() => {
-                      if (fileInputRef.current) {
-                        fileInputRef.current.accept = "image/jpeg,image/png,image/webp,image/heic";
-                        fileInputRef.current.click();
-                      }
-                    }}
-                    className="flex items-center gap-3 w-full px-3 py-2.5 rounded-md hover:bg-muted transition-colors"
-                  >
-                    <Camera className="h-4 w-4" />
-                    <span className="text-sm flex-1 text-left">Screenshot / Bild hochladen</span>
                   </button>
 
                   {/* Prompts Menu Item */}
