@@ -47,7 +47,12 @@ const emptyForm: TemplateForm = {
   valid_to: "",
 };
 
-export function BookingTemplatesTab() {
+interface BookingTemplatesTabProps {
+  sharedBuildingId?: string | null;
+  onBuildingChange?: (id: string | null) => void;
+}
+
+export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: BookingTemplatesTabProps) {
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -56,7 +61,14 @@ export function BookingTemplatesTab() {
   const [buildingOpen, setBuildingOpen] = useState(false);
   const [buildingSearch, setBuildingSearch] = useState("");
   const [accountSearch, setAccountSearch] = useState("");
-  const [filterBuildingId, setFilterBuildingId] = useState<string>("");
+  const [internalFilterBuildingId, setInternalFilterBuildingId] = useState<string>("");
+
+  const filterBuildingId = sharedBuildingId || internalFilterBuildingId;
+
+  const handleFilterBuildingChange = (v: string) => {
+    setInternalFilterBuildingId(v);
+    onBuildingChange?.(v || null);
+  };
 
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ["booking-templates", filterBuildingId],
