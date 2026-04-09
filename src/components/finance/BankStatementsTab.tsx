@@ -41,6 +41,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     onBuildingChange?.(id);
   };
   const [showBooked, setShowBooked] = useState(false);
+  const [showIgnored, setShowIgnored] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<string | null>(null);
   const [manualAssignTxn, setManualAssignTxn] = useState<any | null>(null);
   const [manualAssignType, setManualAssignType] = useState<"invoice" | "template">("invoice");
@@ -51,6 +52,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
   const [createBookingOpen, setCreateBookingOpen] = useState(false);
   const [bookingPrefill, setBookingPrefill] = useState<any>(null);
   const [linkedTransactionId, setLinkedTransactionId] = useState<string | null>(null);
+  const [currentHintIndex, setCurrentHintIndex] = useState<number | null>(null);
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
@@ -171,6 +173,10 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
   );
   const unmatchedTransactions = useMemo(() =>
     allBuildingTxns.filter((t: any) => t.match_status === "unmatched"),
+    [allBuildingTxns]
+  );
+  const ignoredTransactions = useMemo(() =>
+    allBuildingTxns.filter((t: any) => t.match_status === "ignored" && !t.booked_at),
     [allBuildingTxns]
   );
   const bookedTransactions = useMemo(() =>
@@ -402,6 +408,14 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
                 {bookingSingleId === txn.id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Send className="h-3 w-3 mr-1" />}
                 Buchen
               </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs text-muted-foreground"
+                onClick={() => updateMatchStatus(txn.id, "ignored")}
+              >
+                <EyeOff className="h-3 w-3 mr-1" />Ignorieren
+              </Button>
             </div>
           )}
           {["matched_invoice", "matched_template", "manually_matched"].includes(txn.match_status) && !txn.booked_at && (
@@ -517,6 +531,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
                 <Badge variant="outline" className="text-xs">{allBuildingTxns.length} Transaktionen gesamt</Badge>
                 {unmatchedTransactions.length > 0 && <Badge variant="outline" className="text-xs bg-yellow-50 dark:bg-yellow-950">{unmatchedTransactions.length} offen</Badge>}
                 {matchedTransactions.length > 0 && <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-950">{matchedTransactions.length} zugeordnet</Badge>}
+                {ignoredTransactions.length > 0 && <Badge variant="outline" className="text-xs bg-muted">{ignoredTransactions.length} ignoriert</Badge>}
                 {bookedTransactions.length > 0 && <Badge variant="outline" className="text-xs">{bookedTransactions.length} gebucht</Badge>}
               </div>
 
@@ -547,6 +562,24 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
                 </div>
               )}
 
+
+              {/* Ignored transactions */}
+              {ignoredTransactions.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 mb-2">
+                    <Switch checked={showIgnored} onCheckedChange={setShowIgnored} id="show-ignored" />
+                    <Label htmlFor="show-ignored" className="text-sm text-muted-foreground cursor-pointer flex items-center gap-2">
+                      <EyeOff className="h-4 w-4" />Ignorierte Transaktionen ({ignoredTransactions.length})
+                    </Label>
+                  </div>
+                  {showIgnored && (
+                    <Table>
+                      {transactionTableHeader}
+                      <TableBody>{ignoredTransactions.map(renderTransactionRow)}</TableBody>
+                    </Table>
+                  )}
+                </div>
+              )}
 
               {/* Booked transactions */}
               {bookedTransactions.length > 0 && (
@@ -595,12 +628,11 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
             queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
           }
         }}
-        onOpenBookingDialog={(prefill) => {
+        onOpenBookingDialog={(prefill, hintIndex) => {
           setBookingPrefill(prefill);
           setLinkedTransactionId(manualAssignTxn?.id || null);
+          setCurrentHintIndex(hintIndex ?? null);
           setCreateBookingOpen(true);
-          // Don't close the assignment dialog so user can create more bookings from hints
-          // setManualAssignTxn(null);
         }}
         onCreateTemplate={async (template, txn) => {
           // Find account_id from account_number
@@ -660,13 +692,17 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
         linkedTransactionId={linkedTransactionId}
         onBookingCreated={async (bookingId) => {
           // Link the booking to the transaction but do NOT mark as booked yet.
-          // The user should confirm via "Buchen" button to mark booked_at.
           if (linkedTransactionId) {
             await supabase.from("bank_transactions").update({
               booking_id: bookingId,
               match_status: "manually_matched",
             }).eq("id", linkedTransactionId);
           }
+          // Notify AssignmentDialog to dismiss this hint
+          if (currentHintIndex !== null && manualAssignTxn) {
+            setManualAssignTxn((prev: any) => prev ? { ...prev, _dismissHintIndex: currentHintIndex } : prev);
+          }
+          setCurrentHintIndex(null);
           queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
           queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
           queryClient.invalidateQueries({ queryKey: ["bookings"] });
