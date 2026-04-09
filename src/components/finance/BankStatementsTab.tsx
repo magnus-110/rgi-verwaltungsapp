@@ -418,6 +418,11 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
               </Button>
             </div>
           )}
+          {txn.match_status === "ignored" && !txn.booked_at && (
+            <Button variant="ghost" size="sm" className="text-xs" onClick={() => updateMatchStatus(txn.id, "unmatched")}>
+              Wiederherstellen
+            </Button>
+          )}
           {["matched_invoice", "matched_template", "manually_matched"].includes(txn.match_status) && !txn.booked_at && (
             <div className="flex gap-1">
               <Button variant="ghost" size="sm" className="text-xs" onClick={() => { setManualAssignTxn(txn); setManualAssignType("invoice"); setManualAssignId(""); }}>
