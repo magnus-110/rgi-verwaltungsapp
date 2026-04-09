@@ -108,6 +108,22 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
     },
   });
 
+  // Fetch booking templates for the selected building
+  const { data: bookingTemplates = [] } = useQuery({
+    queryKey: ["booking-templates-for-dialog", form.building_id],
+    queryFn: async () => {
+      if (!form.building_id) return [];
+      const { data, error } = await supabase
+        .from("booking_templates")
+        .select("id, name, vendor_name, expected_amount")
+        .eq("building_id", form.building_id)
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!form.building_id,
+  });
+
   const filterAccounts = (list: typeof accounts, query: string) => {
     const q = query.toLowerCase().trim();
     return q ? list.filter(a => a.account_number.includes(q) || a.account_name.toLowerCase().includes(q)) : list;
@@ -155,6 +171,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
       vat_rate: parseFloat(form.vat_rate),
       vat_amount: parseFloat(computedVat),
       is_35a_relevant: form.is_35a_relevant,
+      matched_template_id: form.matched_template_id || null,
     } as any).select("id").single();
     if (error) { toast.error("Fehler: " + error.message); return; }
     toast.success("Buchung angelegt");
@@ -173,10 +190,11 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
       amount: "", description: "", fiscal_year: preselectedYear || String(new Date().getFullYear()),
       performance_period_from: "", performance_period_to: "",
       booking_type: "expense", receipt_number: "", booking_reference: "",
-      vat_rate: "19", is_35a_relevant: false,
+      vat_rate: "19", is_35a_relevant: false, matched_template_id: "",
     });
     setAccountSearch("");
     setCounterSearch("");
+    setTemplateSearch("");
     setShowPeriod(false);
   };
 
