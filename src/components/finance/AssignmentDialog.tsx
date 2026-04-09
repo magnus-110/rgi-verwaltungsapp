@@ -637,6 +637,13 @@ export function AssignmentDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <InvoiceDetailSheet
+      invoiceId={previewInvoiceId}
+      onClose={() => setPreviewInvoiceId(null)}
+      buildings={[]}
+    />
+  </>
   );
 }
 
