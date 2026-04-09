@@ -461,6 +461,37 @@ export function ChatInputField({
     }
   };
 
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    const imageFiles: File[] = [];
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          // Give pasted screenshots a meaningful name
+          const ext = file.type.split('/')[1] || 'png';
+          const namedFile = new File([file], `Screenshot_${new Date().toISOString().slice(0, 19).replace(/[:-]/g, '')}.${ext}`, { type: file.type });
+          imageFiles.push(namedFile);
+        }
+      }
+    }
+
+    if (imageFiles.length > 0) {
+      e.preventDefault();
+      if (attachedFiles.length + imageFiles.length > 5) {
+        toast({
+          title: "Zu viele Dateien",
+          description: "Maximal 5 Dateien gleichzeitig.",
+          variant: "destructive",
+        });
+        return;
+      }
+      setAttachedFiles(prev => [...prev, ...imageFiles]);
+    }
+  };
+
   // Prompt Enhancer handlers
   const handleEnhancePrompt = async () => {
     if (!value.trim() || isEnhancing) return;
