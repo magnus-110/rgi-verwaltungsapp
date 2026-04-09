@@ -23,11 +23,19 @@ const OCR_STATUS: Record<string, { label: string; className: string }> = {
   error: { label: "Fehler", className: "text-destructive" },
 };
 
-export function InvoicesTab() {
+interface InvoicesTabProps {
+  sharedBuildingId?: string | null;
+  onBuildingChange?: (id: string | null) => void;
+}
+
+export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabProps) {
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [filterBuilding, setFilterBuilding] = useState<string>("all");
+  const [internalFilterBuilding, setInternalFilterBuilding] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+
+  // Use shared building if provided, otherwise use internal filter
+  const filterBuilding = sharedBuildingId ? sharedBuildingId : internalFilterBuilding;
   const [page, setPage] = useState(0);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
 
@@ -73,7 +81,13 @@ export function InvoicesTab() {
   const formatCurrency = (amount: number | null) =>
     amount != null ? new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(amount) : "–";
 
-  const handleFilterBuilding = (v: string) => { setFilterBuilding(v); setPage(0); };
+  const handleFilterBuilding = (v: string) => {
+    setInternalFilterBuilding(v);
+    if (v !== "all" && v !== "unassigned") {
+      onBuildingChange?.(v);
+    }
+    setPage(0);
+  };
   const handleFilterStatus = (v: string) => { setFilterStatus(v); setPage(0); };
 
   return (

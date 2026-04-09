@@ -142,12 +142,7 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
 
   return (
     <div className="space-y-4">
-      <BillingPeriodSelector
-        selectedBuildingId={selectedBuildingId}
-        onBuildingChange={setSelectedBuildingId}
-        selectedPeriodId={selectedPeriodId}
-        onPeriodChange={setSelectedPeriodId}
-      />
+      {/* BillingPeriodSelector is now rendered globally in Finance.tsx */}
 
       {/* Balance carry-forward status */}
       {selectedBuildingId && selectedPeriodId && balanceStatus !== "idle" && (

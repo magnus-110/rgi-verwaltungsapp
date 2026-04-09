@@ -24,6 +24,7 @@ interface BillingPeriodSelectorProps {
   onBuildingChange: (id: string | null) => void;
   selectedPeriodId: string | null;
   onPeriodChange: (id: string | null) => void;
+  showPeriod?: boolean;
 }
 
 export function BillingPeriodSelector({
@@ -31,6 +32,7 @@ export function BillingPeriodSelector({
   onBuildingChange,
   selectedPeriodId,
   onPeriodChange,
+  showPeriod = true,
 }: BillingPeriodSelectorProps) {
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);

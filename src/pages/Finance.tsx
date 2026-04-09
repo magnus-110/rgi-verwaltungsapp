@@ -14,11 +14,16 @@ import { ChevronDown, ChevronRight, FileText, Landmark, Receipt } from "lucide-r
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
+const NEEDS_PERIOD = ["abrechnung", "planung"];
+
 export const Finance = () => {
-  // Shared state across all tabs
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
   const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("buchen");
+  const [activeSubTab, setActiveSubTab] = useState("invoices");
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["wirtschaftsplan"]));
+
+  const showPeriod = NEEDS_PERIOD.includes(activeTab);
 
   const { data: period } = useQuery({
     queryKey: ["billing-period-detail", selectedPeriodId],
@@ -58,7 +63,16 @@ export const Finance = () => {
         </p>
       </div>
 
-      <Tabs defaultValue="buchen" className="space-y-4">
+      {/* Global building (+ optional period) selector */}
+      <BillingPeriodSelector
+        selectedBuildingId={selectedBuildingId}
+        onBuildingChange={(id) => { setSelectedBuildingId(id); setSelectedPeriodId(null); }}
+        selectedPeriodId={selectedPeriodId}
+        onPeriodChange={setSelectedPeriodId}
+        showPeriod={showPeriod}
+      />
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList variant="segment" className="grid w-full grid-cols-3">
           <TabsTrigger variant="segment" value="buchen">Buchen</TabsTrigger>
           <TabsTrigger variant="segment" value="abrechnung">Abrechnung</TabsTrigger>
@@ -66,15 +80,25 @@ export const Finance = () => {
         </TabsList>
 
         <TabsContent value="buchen">
-          <Tabs defaultValue="invoices" className="space-y-4">
+          <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="space-y-4">
             <TabsList variant="pill" className="grid w-full grid-cols-4">
               <TabsTrigger variant="pill" value="invoices">Rechnungen</TabsTrigger>
               <TabsTrigger variant="pill" value="templates">Vorlagen</TabsTrigger>
               <TabsTrigger variant="pill" value="statements">Kontoauszüge</TabsTrigger>
               <TabsTrigger variant="pill" value="bookings">Buchungen</TabsTrigger>
             </TabsList>
-            <TabsContent value="invoices"><InvoicesTab /></TabsContent>
-            <TabsContent value="templates"><BookingTemplatesTab /></TabsContent>
+            <TabsContent value="invoices">
+              <InvoicesTab
+                sharedBuildingId={selectedBuildingId}
+                onBuildingChange={setSelectedBuildingId}
+              />
+            </TabsContent>
+            <TabsContent value="templates">
+              <BookingTemplatesTab
+                sharedBuildingId={selectedBuildingId}
+                onBuildingChange={setSelectedBuildingId}
+              />
+            </TabsContent>
             <TabsContent value="statements">
               <BankStatementsTab
                 sharedBuildingId={selectedBuildingId}
@@ -95,13 +119,6 @@ export const Finance = () => {
         </TabsContent>
 
         <TabsContent value="planung" className="space-y-4">
-          <BillingPeriodSelector
-            selectedBuildingId={selectedBuildingId}
-            onBuildingChange={setSelectedBuildingId}
-            selectedPeriodId={selectedPeriodId}
-            onPeriodChange={setSelectedPeriodId}
-          />
-
           {!selectedBuildingId && (
             <Card>
               <CardContent className="py-12 text-center text-muted-foreground">
