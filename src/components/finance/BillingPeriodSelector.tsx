@@ -24,6 +24,7 @@ interface BillingPeriodSelectorProps {
   onBuildingChange: (id: string | null) => void;
   selectedPeriodId: string | null;
   onPeriodChange: (id: string | null) => void;
+  showPeriod?: boolean;
 }
 
 export function BillingPeriodSelector({
@@ -31,6 +32,7 @@ export function BillingPeriodSelector({
   onBuildingChange,
   selectedPeriodId,
   onPeriodChange,
+  showPeriod = true,
 }: BillingPeriodSelectorProps) {
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -140,7 +142,7 @@ export function BillingPeriodSelector({
         </SelectContent>
       </Select>
 
-      {selectedBuildingId && (
+      {showPeriod && selectedBuildingId && (
         <Select value={selectedPeriodId || ""} onValueChange={(v) => onPeriodChange(v || null)}>
           <SelectTrigger className="w-full md:w-56">
             <SelectValue placeholder="Zeitraum wählen..." />
@@ -155,7 +157,7 @@ export function BillingPeriodSelector({
         </Select>
       )}
 
-      {selectedBuildingId && (
+      {showPeriod && selectedBuildingId && (
         <Button size="sm" variant="outline" onClick={openCreateDialog}>
           <Plus className="h-4 w-4 mr-1" /> Neues Jahr
         </Button>
