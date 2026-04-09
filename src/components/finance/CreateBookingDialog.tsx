@@ -86,6 +86,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
           amount: prefill.amount != null ? String(prefill.amount) : prev.amount,
           description: prefill.description || prev.description,
           booking_date: prefill.booking_date || prev.booking_date,
+          fiscal_year: prefill.booking_date ? String(new Date(prefill.booking_date).getFullYear()) : prev.fiscal_year,
           booking_type: prefill.booking_type || prev.booking_type,
           receipt_number: prefill.receipt_number || prev.receipt_number,
           booking_reference: prefill.booking_reference || prev.booking_reference,
@@ -376,7 +377,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
               </div>
               <div>
                 <Label className="text-sm mb-1.5 block">Belegdatum *</Label>
-                <Input type="date" value={form.booking_date} onChange={e => set("booking_date", e.target.value)}
+                <Input type="date" value={form.booking_date} onChange={e => { const val = e.target.value; setForm(prev => ({ ...prev, booking_date: val, fiscal_year: val ? String(new Date(val).getFullYear()) : prev.fiscal_year })); }}
                   className="h-11" />
               </div>
             </div>
