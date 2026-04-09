@@ -366,6 +366,42 @@ Bestimme auch den utility_type wenn es sich um Gas, Strom, Wasser oder Fernwärm
       }
     }
 
+    // Post-OCR duplicate check: same invoice_number + vendor_name already exists?
+    if (extracted.invoice_number && extracted.vendor_name) {
+      let dupQuery = supabase
+        .from("invoices")
+        .select("id, file_name")
+        .eq("invoice_number", extracted.invoice_number)
+        .ilike("vendor_name", extracted.vendor_name)
+        .neq("id", invoiceId)
+        .limit(1);
+
+      const { data: duplicates } = await dupQuery;
+      if (duplicates && duplicates.length > 0) {
+        console.log(`Duplicate detected: invoice_number=${extracted.invoice_number}, vendor=${extracted.vendor_name}, existing=${duplicates[0].id}`);
+        await supabase.from("invoices").update({
+          ocr_status: "done",
+          ocr_error: null,
+          ocr_raw_data: { text: extractedText },
+          ocr_extracted_data: extracted,
+          duplicate_of: duplicates[0].id,
+          vendor_name: extracted.vendor_name,
+          invoice_number: extracted.invoice_number,
+          invoice_date: extracted.invoice_date || null,
+          gross_amount: extracted.gross_amount || null,
+          description: `⚠️ Mögliches Duplikat von ${duplicates[0].file_name || duplicates[0].id}`,
+        }).eq("id", invoiceId);
+
+        return new Response(JSON.stringify({ 
+          success: true, 
+          warning: "duplicate_detected",
+          duplicate_of: duplicates[0].id 
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     // Update invoice with extracted data
     const updateData: Record<string, any> = {
       ocr_status: "done",
