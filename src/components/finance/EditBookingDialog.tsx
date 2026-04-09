@@ -70,6 +70,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
     booking_reference: "",
     vat_rate: "19",
     is_35a_relevant: false,
+    fiscal_year: String(new Date().getFullYear()),
   });
   const [accountSearch, setAccountSearch] = useState("");
   const [counterSearch, setCounterSearch] = useState("");
@@ -92,6 +93,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
         booking_reference: booking.booking_reference || "",
         vat_rate: String(booking.vat_rate ?? 19),
         is_35a_relevant: booking.is_35a_relevant ?? false,
+        fiscal_year: String(booking.fiscal_year),
       });
       setShowPeriod(!!(booking.performance_period_from || booking.performance_period_to));
     }
@@ -154,6 +156,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
       vat_rate: parseFloat(form.vat_rate),
       vat_amount: parseFloat(computedVat),
       is_35a_relevant: form.is_35a_relevant,
+      fiscal_year: parseInt(form.fiscal_year),
     }).eq("id", booking.id);
     if (error) { toast.error("Fehler: " + error.message); return; }
     toast.success("Buchung gespeichert");
@@ -185,6 +188,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
       vat_rate: parseFloat(form.vat_rate),
       vat_amount: parseFloat(computedVat),
       is_35a_relevant: form.is_35a_relevant,
+      fiscal_year: parseInt(form.fiscal_year),
       status: "confirmed",
       confirmed_by: user?.id,
       confirmed_at: new Date().toISOString(),
@@ -345,7 +349,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
           {/* Beleg section */}
           <div className="rounded-xl border p-6 space-y-5">
             <p className="text-base font-semibold text-foreground">Beleg</p>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-4 gap-4">
               <div>
                 <Label className="text-sm mb-1.5 block">Buchungskürzel</Label>
                 <Input value={form.booking_reference} onChange={e => set("booking_reference", e.target.value)} className="h-11" placeholder="z.B. HG" />
@@ -356,7 +360,14 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
               </div>
               <div>
                 <Label className="text-sm mb-1.5 block">Belegdatum *</Label>
-                <Input type="date" value={form.booking_date} onChange={e => set("booking_date", e.target.value)} className="h-11" />
+                <Input type="date" value={form.booking_date} onChange={e => {
+                  const val = e.target.value;
+                  setForm(prev => ({ ...prev, booking_date: val, fiscal_year: val ? String(new Date(val).getFullYear()) : prev.fiscal_year }));
+                }} className="h-11" />
+              </div>
+              <div>
+                <Label className="text-sm mb-1.5 block">Wirtschaftsjahr</Label>
+                <Input type="number" value={form.fiscal_year} onChange={e => set("fiscal_year", e.target.value)} className="h-11" />
               </div>
             </div>
             <div>
