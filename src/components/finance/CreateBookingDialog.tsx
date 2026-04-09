@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { ChevronDown, Search, ArrowDownLeft, ArrowUpRight, X, Sparkles } from "lucide-react";
+import { ChevronDown, Search, ArrowDownLeft, ArrowUpRight, X, Sparkles, LayoutTemplate } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface BookingPrefill {
@@ -25,6 +25,7 @@ interface BookingPrefill {
   booking_type?: "income" | "expense";
   receipt_number?: string;
   booking_reference?: string;
+  related_template_id?: string;
 }
 
 interface Props {
@@ -62,12 +63,15 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
     booking_reference: "",
     vat_rate: "19",
     is_35a_relevant: false,
+    matched_template_id: "",
   });
   const [accountSearch, setAccountSearch] = useState("");
   const [counterSearch, setCounterSearch] = useState("");
   const [showPeriod, setShowPeriod] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [counterOpen, setCounterOpen] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
+  const [templateSearch, setTemplateSearch] = useState("");
 
   // Sync preselected values and prefill when dialog opens
   useEffect(() => {
@@ -85,6 +89,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
           booking_type: prefill.booking_type || prev.booking_type,
           receipt_number: prefill.receipt_number || prev.receipt_number,
           booking_reference: prefill.booking_reference || prev.booking_reference,
+          matched_template_id: prefill.related_template_id || prev.matched_template_id,
         } : {}),
       }));
     }
@@ -101,6 +106,22 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
       if (error) throw error;
       return data;
     },
+  });
+
+  // Fetch booking templates for the selected building
+  const { data: bookingTemplates = [] } = useQuery({
+    queryKey: ["booking-templates-for-dialog", form.building_id],
+    queryFn: async () => {
+      if (!form.building_id) return [];
+      const { data, error } = await supabase
+        .from("booking_templates")
+        .select("id, name, vendor_name, expected_amount")
+        .eq("building_id", form.building_id)
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!form.building_id,
   });
 
   const filterAccounts = (list: typeof accounts, query: string) => {
@@ -150,6 +171,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
       vat_rate: parseFloat(form.vat_rate),
       vat_amount: parseFloat(computedVat),
       is_35a_relevant: form.is_35a_relevant,
+      matched_template_id: form.matched_template_id || null,
     } as any).select("id").single();
     if (error) { toast.error("Fehler: " + error.message); return; }
     toast.success("Buchung angelegt");
@@ -168,10 +190,11 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
       amount: "", description: "", fiscal_year: preselectedYear || String(new Date().getFullYear()),
       performance_period_from: "", performance_period_to: "",
       booking_type: "expense", receipt_number: "", booking_reference: "",
-      vat_rate: "19", is_35a_relevant: false,
+      vat_rate: "19", is_35a_relevant: false, matched_template_id: "",
     });
     setAccountSearch("");
     setCounterSearch("");
+    setTemplateSearch("");
     setShowPeriod(false);
   };
 
@@ -397,6 +420,83 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
               </div>
             </div>
           </div>
+
+          {/* Row 3b: Vorlage verknüpfen */}
+          {bookingTemplates.length > 0 && (
+            <div className="rounded-xl border p-6 space-y-5">
+              <p className="text-base font-semibold text-foreground flex items-center gap-2">
+                <LayoutTemplate className="h-4 w-4" />
+                Vorlage verknüpfen
+              </p>
+              <Popover open={templateOpen} onOpenChange={setTemplateOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    className={cn(
+                      "w-full h-11 justify-between text-left font-normal",
+                      !form.matched_template_id && "text-muted-foreground"
+                    )}
+                  >
+                    <span className="truncate">
+                      {form.matched_template_id
+                        ? (() => {
+                            const t = bookingTemplates.find((t: any) => t.id === form.matched_template_id);
+                            return t ? `${t.name}${t.vendor_name ? ` – ${t.vendor_name}` : ''}` : "Vorlage wählen…";
+                          })()
+                        : "Vorlage wählen (optional)…"}
+                    </span>
+                    {form.matched_template_id ? (
+                      <X className="h-4 w-4 shrink-0 opacity-50 hover:opacity-100"
+                        onClick={(e) => { e.stopPropagation(); set("matched_template_id", ""); }} />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[460px] p-0" align="start">
+                  <div className="p-3 border-b">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        value={templateSearch}
+                        onChange={e => setTemplateSearch(e.target.value)}
+                        placeholder="Vorlage suchen…"
+                        className="pl-9 h-10"
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+                  <div className="max-h-[300px] overflow-y-auto p-1">
+                    {bookingTemplates
+                      .filter((t: any) => {
+                        const q = templateSearch.toLowerCase().trim();
+                        if (!q) return true;
+                        return (t.name || "").toLowerCase().includes(q) || (t.vendor_name || "").toLowerCase().includes(q);
+                      })
+                      .map((t: any) => (
+                        <button
+                          key={t.id}
+                          onClick={() => { set("matched_template_id", t.id); setTemplateOpen(false); setTemplateSearch(""); }}
+                          className={cn(
+                            "w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-md hover:bg-accent transition-colors",
+                            form.matched_template_id === t.id && "bg-accent"
+                          )}
+                        >
+                          <LayoutTemplate className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{t.name}</p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {t.vendor_name || "–"}{t.expected_amount ? ` · ${Number(t.expected_amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €` : ""}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+          )}
 
           {/* Row 4: Leistungszeitraum (collapsible) */}
           <Collapsible open={showPeriod} onOpenChange={setShowPeriod}>

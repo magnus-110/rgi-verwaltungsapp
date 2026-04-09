@@ -61,7 +61,7 @@ interface AssignmentDialogProps {
   showMatchedInvoices: boolean;
   setShowMatchedInvoices: (v: boolean) => void;
   onAssign: (type: "invoice" | "template", id: string) => Promise<void>;
-  onOpenBookingDialog?: (prefill: any) => void;
+  onOpenBookingDialog?: (prefill: any, hintIndex?: number) => void;
   onCreateTemplate?: (template: any, transaction: any) => Promise<void>;
 }
 
@@ -90,6 +90,7 @@ export function AssignmentDialog({
   const [showTemplateForm, setShowTemplateForm] = useState(false);
   const [creatingTemplate, setCreatingTemplate] = useState(false);
   const [previewInvoiceId, setPreviewInvoiceId] = useState<string | null>(null);
+  const [dismissedHintIndices, setDismissedHintIndices] = useState<Set<number>>(new Set());
 
   // Fetch accounts for template combobox - filtered by building
   const txnBuildingId = transaction?.building_id;
@@ -118,9 +119,17 @@ export function AssignmentDialog({
       setTemplateSuggestion(null);
       setEditableTemplate(null);
       setShowTemplateForm(false);
+      setDismissedHintIndices(new Set());
       fetchAiSuggestions();
     }
   }, [transaction?.id]);
+
+  // Handle dismissed hint from parent (via _dismissHintIndex flag)
+  useEffect(() => {
+    if (transaction?._dismissHintIndex !== undefined && transaction._dismissHintIndex !== null) {
+      setDismissedHintIndices(prev => new Set(prev).add(transaction._dismissHintIndex));
+    }
+  }, [transaction?._dismissHintIndex]);
 
   // Sync editable template from suggestion
   useEffect(() => {
@@ -217,9 +226,8 @@ export function AssignmentDialog({
     setAssigning(false);
   };
 
-  const handleOpenBooking = (sb: SuggestedBooking) => {
+  const handleOpenBooking = (sb: SuggestedBooking, hintIndex: number) => {
     if (!onOpenBookingDialog || !transaction) return;
-    // Find account_id from account_number
     const acc = sb.account_number ? accounts.find(a => a.account_number === sb.account_number) : null;
     onOpenBookingDialog({
       account_id: sb.account_id || acc?.id || "",
@@ -227,7 +235,8 @@ export function AssignmentDialog({
       booking_type: sb.booking_type,
       description: sb.description,
       booking_date: transaction.booking_date,
-    });
+      related_template_id: sb.related_template_id,
+    }, hintIndex);
   };
 
   const handleInitTemplateForm = () => {
@@ -365,7 +374,9 @@ export function AssignmentDialog({
                     {bookingHint.suggested_bookings.length > 0 && (
                       <div className="space-y-2">
                         <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Vorgeschlagene Buchungen</p>
-                        {bookingHint.suggested_bookings.map((sb, idx) => (
+                        {bookingHint.suggested_bookings.map((sb, idx) => {
+                          if (dismissedHintIndices.has(idx)) return null;
+                          return (
                           <div key={idx} className="bg-background rounded-md border p-3 space-y-2">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
@@ -389,14 +400,15 @@ export function AssignmentDialog({
                                 size="sm"
                                 variant="outline"
                                 className="w-full gap-1 text-xs h-7"
-                                onClick={() => handleOpenBooking(sb)}
+                                onClick={() => handleOpenBooking(sb, idx)}
                               >
                                 <BookOpen className="h-3 w-3" />
                                 Als Buchung anlegen
                               </Button>
                             )}
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
