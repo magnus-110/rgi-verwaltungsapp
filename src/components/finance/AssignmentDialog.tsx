@@ -9,13 +9,14 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
-import { Loader2, Sparkles, Calendar, CreditCard, Hash, ArrowRightLeft, CheckCircle2, Lightbulb, BookOpen, Plus, ChevronDown, LayoutTemplate, Save } from "lucide-react";
+import { Loader2, Sparkles, Calendar, CreditCard, Hash, ArrowRightLeft, CheckCircle2, Lightbulb, BookOpen, Plus, ChevronDown, LayoutTemplate, Save, Eye } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { InvoiceDetailSheet } from "./InvoiceDetailSheet";
 
 interface AiMatch {
   id: string;
@@ -88,6 +89,7 @@ export function AssignmentDialog({
   const [editableTemplate, setEditableTemplate] = useState<TemplateSuggestion | null>(null);
   const [showTemplateForm, setShowTemplateForm] = useState(false);
   const [creatingTemplate, setCreatingTemplate] = useState(false);
+  const [previewInvoiceId, setPreviewInvoiceId] = useState<string | null>(null);
 
   // Fetch accounts for template combobox - filtered by building
   const txnBuildingId = transaction?.building_id;
@@ -271,6 +273,7 @@ export function AssignmentDialog({
   };
 
   return (
+    <>
     <Dialog open={!!transaction} onOpenChange={() => onClose()}>
       <DialogContent className="max-w-6xl w-full h-[80vh] flex flex-col p-0 gap-0">
         <DialogHeader className="px-6 pt-6 pb-4 border-b">
@@ -578,6 +581,15 @@ export function AssignmentDialog({
                                   </span>
                                   <span>{item.vendor_iban || "Keine IBAN"}</span>
                                   {item.invoice_date && <span>{format(new Date(item.invoice_date), "dd.MM.yyyy")}</span>}
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-6 w-6 p-0 ml-auto shrink-0"
+                                    onClick={(e) => { e.stopPropagation(); setPreviewInvoiceId(item.id); }}
+                                    title="Rechnung anzeigen"
+                                  >
+                                    <Eye className="h-3.5 w-3.5" />
+                                  </Button>
                                 </div>
                               </>
                             ) : (
@@ -626,6 +638,13 @@ export function AssignmentDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <InvoiceDetailSheet
+      invoiceId={previewInvoiceId}
+      onClose={() => setPreviewInvoiceId(null)}
+      buildings={[]}
+    />
+  </>
   );
 }
 
