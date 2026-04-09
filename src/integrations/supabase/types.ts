@@ -330,6 +330,8 @@ export type Database = {
           is_35a_relevant: boolean | null
           name: string
           updated_at: string
+          valid_from: string | null
+          valid_to: string | null
           vat_rate: number | null
           vendor_iban: string | null
           vendor_name: string | null
@@ -346,6 +348,8 @@ export type Database = {
           is_35a_relevant?: boolean | null
           name: string
           updated_at?: string
+          valid_from?: string | null
+          valid_to?: string | null
           vat_rate?: number | null
           vendor_iban?: string | null
           vendor_name?: string | null
@@ -362,6 +366,8 @@ export type Database = {
           is_35a_relevant?: boolean | null
           name?: string
           updated_at?: string
+          valid_from?: string | null
+          valid_to?: string | null
           vat_rate?: number | null
           vendor_iban?: string | null
           vendor_name?: string | null

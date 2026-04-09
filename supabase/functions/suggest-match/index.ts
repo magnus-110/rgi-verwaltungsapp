@@ -20,7 +20,7 @@ serve(async (req) => {
 
     const candidatesSummary = [
       ...invoices.map((inv: any) => `INVOICE id=${inv.id} number="${inv.invoice_number || ""}" vendor="${inv.vendor_name || ""}" amount=${inv.gross_amount || 0} iban="${inv.vendor_iban || ""}" date="${inv.invoice_date || ""}"`),
-      ...templates.map((t: any) => `TEMPLATE id=${t.id} name="${t.name}" vendor="${t.vendor_name || ""}" amount=${t.expected_amount || 0} iban="${t.vendor_iban || ""}" interval="${t.interval || ""}" account_number="${t.account_number || ""}" account_name="${t.account_name || ""}" account_id="${t.account_id || ""}"`),
+      ...templates.map((t: any) => `TEMPLATE id=${t.id} name="${t.name}" vendor="${t.vendor_name || ""}" amount=${t.expected_amount || 0} iban="${t.vendor_iban || ""}" interval="${t.interval || ""}" account_number="${t.account_number || ""}" account_name="${t.account_name || ""}" account_id="${t.account_id || ""}" valid_from="${t.valid_from || ""}" valid_to="${t.valid_to || ""}"`),
     ].join("\n");
 
     let otherTxnContext = "";
@@ -40,6 +40,11 @@ serve(async (req) => {
     const systemPrompt = `Du bist ein Buchhaltungs-Assistent für WEG-Hausverwaltungen. Du analysierst eine Banktransaktion und findest die am besten passenden Rechnungen oder Vorlagen aus einer Kandidatenliste.
 
 Matching-Kriterien (nach Wichtigkeit):
+1. IBAN-Übereinstimmung (stärkster Indikator)
+2. Betragsübereinstimmung oder -ähnlichkeit
+3. Namensähnlichkeit (Auftraggeber/Empfänger vs. Lieferant)
+4. Schlüsselwörter im Verwendungszweck
+5. Zeitliche Gültigkeit: Vorlagen mit valid_from/valid_to nur vorschlagen, wenn das Transaktionsdatum im Gültigkeitszeitraum liegt. Vorlagen ohne Datumseinschränkung gelten immer.
 1. IBAN-Übereinstimmung (stärkster Indikator)
 2. Betragsübereinstimmung oder -ähnlichkeit
 3. Namensähnlichkeit (Auftraggeber/Empfänger vs. Lieferant)
