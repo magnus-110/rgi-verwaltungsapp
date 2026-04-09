@@ -599,7 +599,8 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
           setBookingPrefill(prefill);
           setLinkedTransactionId(manualAssignTxn?.id || null);
           setCreateBookingOpen(true);
-          setManualAssignTxn(null);
+          // Don't close the assignment dialog so user can create more bookings from hints
+          // setManualAssignTxn(null);
         }}
         onCreateTemplate={async (template, txn) => {
           // Find account_id from account_number

@@ -40,7 +40,7 @@ export function InvoiceDropZone({ buildings }: Props) {
           dup.invoice_date,
           dup.gross_amount != null ? `${Number(dup.gross_amount).toFixed(2)} €` : null,
         ].filter(Boolean).join(" · ");
-        toast.error(`Duplikat: "${fileName}" existiert bereits${details ? ` (${details})` : ""}`, { duration: 6000 });
+        toast.warning(`Duplikat erkannt: "${fileName}" existiert bereits${details ? ` (${details})` : ""} – wird übersprungen`, { duration: 6000 });
         return;
       }
 
