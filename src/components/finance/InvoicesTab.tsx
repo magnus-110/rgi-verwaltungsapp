@@ -110,16 +110,18 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
             )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <Select value={filterBuilding} onValueChange={handleFilterBuilding}>
-              <SelectTrigger className="w-48 h-9 text-sm">
-                <SelectValue placeholder="Alle Liegenschaften" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Alle Liegenschaften</SelectItem>
-                <SelectItem value="unassigned">⚠ Nicht zugeordnet</SelectItem>
-                {buildings.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            {!sharedBuildingId && (
+              <Select value={internalFilterBuilding} onValueChange={handleFilterBuilding}>
+                <SelectTrigger className="w-48 h-9 text-sm">
+                  <SelectValue placeholder="Alle Liegenschaften" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Alle Liegenschaften</SelectItem>
+                  <SelectItem value="unassigned">⚠ Nicht zugeordnet</SelectItem>
+                  {buildings.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            )}
             <Select value={filterStatus} onValueChange={handleFilterStatus}>
               <SelectTrigger className="w-40 h-9 text-sm">
                 <SelectValue placeholder="Alle Status" />
