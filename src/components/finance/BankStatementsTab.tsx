@@ -659,9 +659,10 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
         prefill={bookingPrefill}
         linkedTransactionId={linkedTransactionId}
         onBookingCreated={async (bookingId) => {
+          // Link the booking to the transaction but do NOT mark as booked yet.
+          // The user should confirm via "Buchen" button to mark booked_at.
           if (linkedTransactionId) {
             await supabase.from("bank_transactions").update({
-              booked_at: new Date().toISOString(),
               booking_id: bookingId,
               match_status: "manually_matched",
             }).eq("id", linkedTransactionId);
