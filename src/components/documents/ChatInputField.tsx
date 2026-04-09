@@ -893,6 +893,7 @@ export function ChatInputField({
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             placeholder="Stellen Sie eine Frage..."
             disabled={isLoading || disabled}
             rows={1}
