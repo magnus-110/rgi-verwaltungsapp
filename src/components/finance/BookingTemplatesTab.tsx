@@ -27,6 +27,8 @@ interface TemplateForm {
   category: string;
   description: string;
   vat_rate: string;
+  valid_from: string;
+  valid_to: string;
 }
 
 const emptyForm: TemplateForm = {
@@ -41,6 +43,8 @@ const emptyForm: TemplateForm = {
   category: "",
   description: "",
   vat_rate: "",
+  valid_from: "",
+  valid_to: "",
 };
 
 export function BookingTemplatesTab() {
@@ -109,6 +113,8 @@ export function BookingTemplatesTab() {
       category: t.category || "",
       description: t.description || "",
       vat_rate: t.vat_rate?.toString() || "",
+      valid_from: t.valid_from || "",
+      valid_to: t.valid_to || "",
     });
     setIsDialogOpen(true);
   };
@@ -135,6 +141,8 @@ export function BookingTemplatesTab() {
       category: form.category || null,
       description: form.description || null,
       vat_rate: form.vat_rate ? parseFloat(form.vat_rate) : null,
+      valid_from: form.valid_from || null,
+      valid_to: form.valid_to || null,
     };
 
     if (editingId) {
@@ -208,9 +216,10 @@ export function BookingTemplatesTab() {
                   <TableHead>IBAN</TableHead>
                   <TableHead className="text-right">Betrag</TableHead>
                   <TableHead>Konto</TableHead>
-                  <TableHead>MwSt</TableHead>
-                  <TableHead>Intervall</TableHead>
-                  <TableHead></TableHead>
+                   <TableHead>MwSt</TableHead>
+                   <TableHead>Intervall</TableHead>
+                   <TableHead>Zeitraum</TableHead>
+                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -227,6 +236,11 @@ export function BookingTemplatesTab() {
                     </TableCell>
                     <TableCell className="text-sm">{t.vat_rate != null ? `${t.vat_rate}%` : "–"}</TableCell>
                     <TableCell className="text-sm capitalize">{t.interval || "–"}</TableCell>
+                    <TableCell className="text-sm">
+                      {t.valid_from || t.valid_to
+                        ? `${t.valid_from ? new Date(t.valid_from).toLocaleDateString("de-DE") : "–"} – ${t.valid_to ? new Date(t.valid_to).toLocaleDateString("de-DE") : "offen"}`
+                        : "–"}
+                    </TableCell>
                     <TableCell>
                       <div className="flex gap-1">
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEdit(t)}>
@@ -341,6 +355,16 @@ export function BookingTemplatesTab() {
             <div className="flex items-center gap-2">
               <Switch checked={form.is_35a_relevant} onCheckedChange={(c) => setForm({ ...form, is_35a_relevant: c })} />
               <Label>§35a relevant</Label>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Gültig ab</Label>
+                <Input type="date" value={form.valid_from} onChange={(e) => setForm({ ...form, valid_from: e.target.value })} />
+              </div>
+              <div>
+                <Label>Gültig bis</Label>
+                <Input type="date" value={form.valid_to} onChange={(e) => setForm({ ...form, valid_to: e.target.value })} />
+              </div>
             </div>
             <div>
               <Label>MwSt-Satz (%)</Label>
