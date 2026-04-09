@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowUp, Loader2, Mic, MicOff, Plus, Globe, Check, Star, X, FileText, ChevronLeft, SearchCheck, Pencil, ChevronRight, GripVertical, Wand2, FileSearch, Camera } from "lucide-react";
+import { ArrowUp, Loader2, Mic, MicOff, Plus, Globe, Check, Star, X, FileText, ChevronLeft, SearchCheck, Pencil, ChevronRight, GripVertical, Wand2, FileSearch } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -461,6 +461,37 @@ export function ChatInputField({
     }
   };
 
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    const imageFiles: File[] = [];
+    for (const item of Array.from(items)) {
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          // Give pasted screenshots a meaningful name
+          const ext = file.type.split('/')[1] || 'png';
+          const namedFile = new File([file], `Screenshot_${new Date().toISOString().slice(0, 19).replace(/[:-]/g, '')}.${ext}`, { type: file.type });
+          imageFiles.push(namedFile);
+        }
+      }
+    }
+
+    if (imageFiles.length > 0) {
+      e.preventDefault();
+      if (attachedFiles.length + imageFiles.length > 5) {
+        toast({
+          title: "Zu viele Dateien",
+          description: "Maximal 5 Dateien gleichzeitig.",
+          variant: "destructive",
+        });
+        return;
+      }
+      setAttachedFiles(prev => [...prev, ...imageFiles]);
+    }
+  };
+
   // Prompt Enhancer handlers
   const handleEnhancePrompt = async () => {
     if (!value.trim() || isEnhancing) return;
@@ -634,29 +665,12 @@ export function ChatInputField({
                   {/* Document Analysis */}
                   <button
                     onClick={() => {
-                      if (fileInputRef.current) {
-                        fileInputRef.current.accept = ".pdf";
-                        fileInputRef.current.click();
-                      }
+                      fileInputRef.current?.click();
                     }}
                     className="flex items-center gap-3 w-full px-3 py-2.5 rounded-md hover:bg-muted transition-colors"
                   >
                     <FileSearch className="h-4 w-4" />
                     <span className="text-sm flex-1 text-left">Dokument analysieren</span>
-                  </button>
-
-                  {/* Screenshot / Image Upload */}
-                  <button
-                    onClick={() => {
-                      if (fileInputRef.current) {
-                        fileInputRef.current.accept = "image/jpeg,image/png,image/webp,image/heic";
-                        fileInputRef.current.click();
-                      }
-                    }}
-                    className="flex items-center gap-3 w-full px-3 py-2.5 rounded-md hover:bg-muted transition-colors"
-                  >
-                    <Camera className="h-4 w-4" />
-                    <span className="text-sm flex-1 text-left">Screenshot / Bild hochladen</span>
                   </button>
 
                   {/* Prompts Menu Item */}
@@ -879,6 +893,7 @@ export function ChatInputField({
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             placeholder="Stellen Sie eine Frage..."
             disabled={isLoading || disabled}
             rows={1}
