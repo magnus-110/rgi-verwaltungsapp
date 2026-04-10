@@ -672,6 +672,127 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Preset Management Dialog */}
+      <Dialog open={presetDialogOpen} onOpenChange={setPresetDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editingPresetId ? "Muster bearbeiten" : "Neues Muster"}</DialogTitle>
+            <DialogDescription>
+              Muster dienen als Vorlage beim Anlegen neuer Buchungsvorlagen. Sie füllen Felder automatisch vor.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Name *</Label>
+              <Input value={presetForm.name} onChange={(e) => setPresetForm({ ...presetForm, name: e.target.value })} placeholder="z.B. Stromabschlag" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Standard-Kreditor</Label>
+                <Input value={presetForm.vendor_name} onChange={(e) => setPresetForm({ ...presetForm, vendor_name: e.target.value })} placeholder="z.B. Gemeinde" />
+              </div>
+              <div>
+                <Label>Kategorie</Label>
+                <Input value={presetForm.category} onChange={(e) => setPresetForm({ ...presetForm, category: e.target.value })} placeholder="z.B. Betriebskosten" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Intervall</Label>
+                <Select value={presetForm.interval} onValueChange={(v) => setPresetForm({ ...presetForm, interval: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="monatlich">Monatlich</SelectItem>
+                    <SelectItem value="quartalsweise">Quartalsweise</SelectItem>
+                    <SelectItem value="halbjährlich">Halbjährlich</SelectItem>
+                    <SelectItem value="jährlich">Jährlich</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>MwSt-Satz (%)</Label>
+                <Select value={presetForm.vat_rate || "__none__"} onValueChange={(v) => setPresetForm({ ...presetForm, vat_rate: v === "__none__" ? "" : v })}>
+                  <SelectTrigger><SelectValue placeholder="Keine" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Keine</SelectItem>
+                    <SelectItem value="0">0%</SelectItem>
+                    <SelectItem value="7">7%</SelectItem>
+                    <SelectItem value="19">19%</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={presetForm.is_35a_relevant} onCheckedChange={(v) => setPresetForm({ ...presetForm, is_35a_relevant: v })} />
+              <Label className="text-sm">§35a relevant</Label>
+            </div>
+            <div>
+              <Label>Beschreibung</Label>
+              <Input value={presetForm.description} onChange={(e) => setPresetForm({ ...presetForm, description: e.target.value })} placeholder="Kurzbeschreibung" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPresetDialogOpen(false)}>Abbrechen</Button>
+            <Button onClick={handleSavePreset}>{editingPresetId ? "Speichern" : "Erstellen"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Preset List Management (accessible from main card) */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Zap className="h-5 w-5" />
+              Vorlagen-Muster
+            </CardTitle>
+            <Button variant="outline" size="sm" onClick={openPresetCreate}>
+              <Plus className="h-4 w-4 mr-2" />Neues Muster
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">Vorgefertigte Muster für häufige Buchungsvorlagen. Diese werden beim Erstellen neuer Vorlagen als Dropdown angeboten.</p>
+        </CardHeader>
+        <CardContent>
+          {presets.length === 0 ? (
+            <p className="text-center text-muted-foreground py-6 text-sm">Keine Muster vorhanden</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Kategorie</TableHead>
+                  <TableHead>Intervall</TableHead>
+                  <TableHead>MwSt</TableHead>
+                  <TableHead>§35a</TableHead>
+                  <TableHead></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {presets.map((p: any) => (
+                  <TableRow key={p.id}>
+                    <TableCell className="font-medium text-sm">{p.name}</TableCell>
+                    <TableCell className="text-sm">{p.category || "–"}</TableCell>
+                    <TableCell className="text-sm capitalize">{p.interval || "–"}</TableCell>
+                    <TableCell className="text-sm">{p.vat_rate != null ? `${p.vat_rate}%` : "–"}</TableCell>
+                    <TableCell className="text-sm">{p.is_35a_relevant ? "Ja" : "–"}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openPresetEdit(p)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeletePreset(p.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
