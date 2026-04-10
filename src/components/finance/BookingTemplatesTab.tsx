@@ -319,110 +319,195 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
       </Card>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{editingId ? "Vorlage bearbeiten" : "Neue Buchungsvorlage"}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <LayoutTemplate className="h-5 w-5" />
+              {editingId ? "Vorlage bearbeiten" : "Neue Buchungsvorlage"}
+            </DialogTitle>
+            <DialogDescription>
+              Vorlagen werden beim Kontoauszug-Import automatisch mit Transaktionen abgeglichen.
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>Name *</Label>
-              <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="z.B. Hausgeld Eingang" />
+
+          <div className="space-y-6">
+            {/* === Section 1: Grunddaten === */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <Settings2 className="h-4 w-4 text-muted-foreground" />
+                Grunddaten
+              </div>
+              <div>
+                <Label>Vorlagenname *</Label>
+                <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="z.B. Abschlag Gaslieferant, Kontoführungsgebühr" />
+              </div>
+              <div>
+                <Label>Liegenschaft *</Label>
+                <Popover open={buildingOpen} onOpenChange={setBuildingOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" aria-expanded={buildingOpen} className="w-full justify-between font-normal">
+                      {form.building_id ? buildings.find(b => b.id === form.building_id)?.name || "Liegenschaft wählen" : "Liegenschaft wählen"}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command>
+                      <CommandInput placeholder="Liegenschaft suchen..." value={buildingSearch} onValueChange={setBuildingSearch} />
+                      <CommandList>
+                        <CommandEmpty>Keine Liegenschaft gefunden.</CommandEmpty>
+                        <CommandGroup>
+                          {buildings.map((b) => (
+                            <CommandItem key={b.id} value={b.name} onSelect={() => { setForm({ ...form, building_id: b.id }); setBuildingOpen(false); }}>
+                              <Check className={cn("mr-2 h-4 w-4", form.building_id === b.id ? "opacity-100" : "opacity-0")} />
+                              {b.name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Kreditor/Name</Label>
-                <Input value={form.vendor_name} onChange={(e) => setForm({ ...form, vendor_name: e.target.value })} />
+
+            <Separator />
+
+            {/* === Section 2: Kreditor === */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <CreditCard className="h-4 w-4 text-muted-foreground" />
+                Kreditor / Zahlungsempfänger
               </div>
-              <div>
-                <Label>IBAN</Label>
-                <Input value={form.vendor_iban} onChange={(e) => setForm({ ...form, vendor_iban: e.target.value })} placeholder="DE..." />
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <Label>Erwarteter Betrag</Label>
-                <Input type="number" step="0.01" value={form.expected_amount} onChange={(e) => setForm({ ...form, expected_amount: e.target.value })} />
-              </div>
-              <div>
-                <Label>Toleranz (±€)</Label>
-                <Input type="number" step="0.01" value={form.amount_tolerance} onChange={(e) => setForm({ ...form, amount_tolerance: e.target.value })} placeholder="z.B. 4" />
-              </div>
-              <div>
-                <Label>Intervall</Label>
-                <Select value={form.interval} onValueChange={(v) => setForm({ ...form, interval: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="monatlich">Monatlich</SelectItem>
-                    <SelectItem value="quartalsweise">Quartalsweise</SelectItem>
-                    <SelectItem value="halbjaehrlich">Halbjährlich</SelectItem>
-                    <SelectItem value="jaehrlich">Jährlich</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Name</Label>
+                  <Input value={form.vendor_name} onChange={(e) => setForm({ ...form, vendor_name: e.target.value })} placeholder="z.B. Stadtwerke Pfronten" />
+                </div>
+                <div>
+                  <Label>IBAN</Label>
+                  <Input value={form.vendor_iban} onChange={(e) => setForm({ ...form, vendor_iban: e.target.value })} placeholder="DE89 3704 0044 ..." />
+                </div>
               </div>
             </div>
-            {form.expected_amount && form.amount_tolerance && (
-              <p className="text-xs text-muted-foreground -mt-2">
-                Matching-Bereich: {formatCurrency(parseFloat(form.expected_amount) - parseFloat(form.amount_tolerance))} – {formatCurrency(parseFloat(form.expected_amount) + parseFloat(form.amount_tolerance))}
+
+            <Separator />
+
+            {/* === Section 3: Betrag & Buchung === */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <Receipt className="h-4 w-4 text-muted-foreground" />
+                Betrag & Buchung
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Erwarteter Betrag (€)</Label>
+                  <Input type="number" step="0.01" value={form.expected_amount} onChange={(e) => setForm({ ...form, expected_amount: e.target.value })} placeholder="0,00" />
+                </div>
+                <div>
+                  <Label>Toleranz ±€</Label>
+                  <Input type="number" step="0.01" value={form.amount_tolerance} onChange={(e) => setForm({ ...form, amount_tolerance: e.target.value })} placeholder="z.B. 4,00" />
+                </div>
+              </div>
+              {form.expected_amount && form.amount_tolerance && (
+                <div className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                  Automatisches Matching bei Beträgen zwischen{" "}
+                  <span className="font-medium text-foreground">{formatCurrency(parseFloat(form.expected_amount) - parseFloat(form.amount_tolerance))}</span>
+                  {" "}und{" "}
+                  <span className="font-medium text-foreground">{formatCurrency(parseFloat(form.expected_amount) + parseFloat(form.amount_tolerance))}</span>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Buchungskonto</Label>
+                  <Popover open={accountOpen} onOpenChange={setAccountOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" role="combobox" aria-expanded={accountOpen} className="w-full justify-between font-normal">
+                        {form.account_id
+                          ? (() => { const a = accounts.find((a: any) => a.id === form.account_id); return a ? `${a.account_number} – ${a.account_name}` : "Konto wählen"; })()
+                          : "Konto wählen"}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Konto suchen..." value={accountSearch} onValueChange={setAccountSearch} />
+                        <CommandList>
+                          <CommandEmpty>Kein Konto gefunden.</CommandEmpty>
+                          <CommandGroup>
+                            {accounts.map((a: any) => (
+                              <CommandItem key={a.id} value={`${a.account_number} ${a.account_name}`} onSelect={() => { setForm({ ...form, account_id: a.id }); setAccountOpen(false); }}>
+                                <Check className={cn("mr-2 h-4 w-4", form.account_id === a.id ? "opacity-100" : "opacity-0")} />
+                                {a.account_number} – {a.account_name}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div>
+                  <Label>MwSt-Satz</Label>
+                  <Select value={form.vat_rate} onValueChange={(v) => setForm({ ...form, vat_rate: v })}>
+                    <SelectTrigger><SelectValue placeholder="MwSt wählen" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">0%</SelectItem>
+                      <SelectItem value="7">7%</SelectItem>
+                      <SelectItem value="19">19%</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Switch checked={form.is_35a_relevant} onCheckedChange={(c) => setForm({ ...form, is_35a_relevant: c })} />
+                <Label className="cursor-pointer">§35a relevant</Label>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* === Section 4: Zeitraum & Intervall === */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                Zeitraum & Intervall
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <Label>Intervall</Label>
+                  <Select value={form.interval} onValueChange={(v) => setForm({ ...form, interval: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="monatlich">Monatlich</SelectItem>
+                      <SelectItem value="quartalsweise">Quartalsweise</SelectItem>
+                      <SelectItem value="halbjaehrlich">Halbjährlich</SelectItem>
+                      <SelectItem value="jaehrlich">Jährlich</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Gültig ab</Label>
+                  <Input type="date" value={form.valid_from} onChange={(e) => setForm({ ...form, valid_from: e.target.value })} />
+                </div>
+                <div>
+                  <Label>Gültig bis</Label>
+                  <Input type="date" value={form.valid_to} onChange={(e) => setForm({ ...form, valid_to: e.target.value })} />
+                </div>
+              </div>
+            </div>
+
+            <Separator />
+
+            {/* === Section 5: Verknüpfte Rechnung === */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                Verknüpfte Rechnung
+                <span className="text-xs font-normal text-muted-foreground">(optional)</span>
+              </div>
+              <p className="text-xs text-muted-foreground -mt-1">
+                z.B. Abschlagsbescheid des Gaslieferanten als Nachweis für die monatlichen Zahlungen
               </p>
-            )}
-            <div>
-              <Label>Liegenschaft *</Label>
-              <Popover open={buildingOpen} onOpenChange={setBuildingOpen}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" role="combobox" aria-expanded={buildingOpen} className="w-full justify-between font-normal">
-                    {form.building_id ? buildings.find(b => b.id === form.building_id)?.name || "Liegenschaft wählen" : "Liegenschaft wählen"}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                  <Command>
-                    <CommandInput placeholder="Liegenschaft suchen..." value={buildingSearch} onValueChange={setBuildingSearch} />
-                    <CommandList>
-                      <CommandEmpty>Keine Liegenschaft gefunden.</CommandEmpty>
-                      <CommandGroup>
-                        {buildings.map((b) => (
-                          <CommandItem key={b.id} value={b.name} onSelect={() => { setForm({ ...form, building_id: b.id }); setBuildingOpen(false); }}>
-                            <Check className={cn("mr-2 h-4 w-4", form.building_id === b.id ? "opacity-100" : "opacity-0")} />
-                            {b.name}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div>
-              <Label>Buchungskonto</Label>
-              <Popover open={accountOpen} onOpenChange={setAccountOpen}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" role="combobox" aria-expanded={accountOpen} className="w-full justify-between font-normal">
-                    {form.account_id
-                      ? (() => { const a = accounts.find((a: any) => a.id === form.account_id); return a ? `${a.account_number} – ${a.account_name}` : "Konto wählen"; })()
-                      : "Konto wählen"}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                  <Command>
-                    <CommandInput placeholder="Konto suchen (Nr. oder Name)..." value={accountSearch} onValueChange={setAccountSearch} />
-                    <CommandList>
-                      <CommandEmpty>Kein Konto gefunden.</CommandEmpty>
-                      <CommandGroup>
-                        {accounts.map((a: any) => (
-                          <CommandItem key={a.id} value={`${a.account_number} ${a.account_name}`} onSelect={() => { setForm({ ...form, account_id: a.id }); setAccountOpen(false); }}>
-                            <Check className={cn("mr-2 h-4 w-4", form.account_id === a.id ? "opacity-100" : "opacity-0")} />
-                            {a.account_number} – {a.account_name}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
-            </div>
-            <div>
-              <Label>Verknüpfte Rechnung</Label>
               <Popover open={invoiceOpen} onOpenChange={setInvoiceOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" role="combobox" aria-expanded={invoiceOpen} className="w-full justify-between font-normal">
@@ -467,33 +552,9 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
                 </PopoverContent>
               </Popover>
             </div>
-            <div className="flex items-center gap-2">
-              <Switch checked={form.is_35a_relevant} onCheckedChange={(c) => setForm({ ...form, is_35a_relevant: c })} />
-              <Label>§35a relevant</Label>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Gültig ab</Label>
-                <Input type="date" value={form.valid_from} onChange={(e) => setForm({ ...form, valid_from: e.target.value })} />
-              </div>
-              <div>
-                <Label>Gültig bis</Label>
-                <Input type="date" value={form.valid_to} onChange={(e) => setForm({ ...form, valid_to: e.target.value })} />
-              </div>
-            </div>
-            <div>
-              <Label>MwSt-Satz (%)</Label>
-              <Select value={form.vat_rate} onValueChange={(v) => setForm({ ...form, vat_rate: v })}>
-                <SelectTrigger><SelectValue placeholder="MwSt wählen" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="0">0%</SelectItem>
-                  <SelectItem value="7">7%</SelectItem>
-                  <SelectItem value="19">19%</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
           </div>
-          <DialogFooter>
+
+          <DialogFooter className="mt-6">
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Abbrechen</Button>
             <Button onClick={handleSave}>{editingId ? "Speichern" : "Erstellen"}</Button>
           </DialogFooter>
