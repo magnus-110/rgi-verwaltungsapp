@@ -1,55 +1,64 @@
 
 
-## Plan: Vorlagen mit Rechnungen verknüpfen + Betrags-Toleranz
+## Plan: Intelligente Unterscheidung — "Rechnung fehlt" vs. "Vorlage erstellen"
 
-### Überblick
-Zwei Erweiterungen für Buchungsvorlagen:
-1. **Rechnungsverknüpfung**: Eine Vorlage kann mit einer Rechnung verknüpft werden (z.B. Abschlagsbescheid Gas), die als Beleg/Nachweis dient
-2. **Betrags-Toleranz**: Statt eines fixen Betrags kann ein Toleranzbereich definiert werden (z.B. 12€ ±4€), sodass Transaktionen von 8-16€ automatisch zugeordnet werden
+### Das Problem
+Aktuell schlägt die KI bei jeder unzugeordneten wiederkehrenden Transaktion eine neue Vorlage vor (`template_suggestion`). Das ist falsch für Fälle, wo es historisch Rechnungen gab (z.B. Gas-Abschlag mit Jahresrechnung) — dort fehlt einfach die aktuelle Rechnung.
 
-### 1. Datenbank-Migration
+### Die Lösung: Historische Buchungsdaten als KI-Kontext
 
-Zwei neue Spalten in `booking_templates`:
-```sql
-ALTER TABLE public.booking_templates 
-  ADD COLUMN linked_invoice_id uuid REFERENCES invoices(id) ON DELETE SET NULL,
-  ADD COLUMN amount_tolerance numeric DEFAULT NULL;
+**Kernidee:** Beim Aufruf von `suggest-match` zusätzlich die historischen Buchungen desselben Kreditors (IBAN/Name) mitliefern — inklusive der Info, ob diese mit Rechnungen verknüpft waren. Die KI entscheidet dann:
+
+1. **Historisch MIT Rechnungen** → Neues Feld `missing_invoice_hint` statt `template_suggestion`. Markiert die Transaktion als "Rechnung fehlt noch" mit Erklärung
+2. **Historisch OHNE Rechnungen** → Wie bisher `template_suggestion` für neue Vorlage
+
+### Änderungen
+
+**1. Edge Function `suggest-match/index.ts`**
+
+- Neuer optionaler Input: `historicalBookings` — Array mit vergangenen Buchungen desselben Kreditors inkl. `has_invoice: boolean`
+- System-Prompt erweitern um die Regel:
+  > "Wenn historische Buchungen desselben Kreditors ÜBERWIEGEND mit Rechnungen verknüpft waren, erstelle KEINE template_suggestion sondern setze missing_invoice_hint mit einer Erklärung, dass die Rechnung noch fehlt."
+- Neues Tool-Output-Feld `missing_invoice_hint`:
+  ```
+  { vendor_name, expected_invoice_description, last_invoice_date, explanation }
+  ```
+
+**2. Frontend `AssignmentDialog.tsx`**
+
+- Vor dem KI-Aufruf: Query auf `bookings` WHERE gleicher Kreditor (IBAN oder Name) + gleiches Gebäude, aus den letzten 2 Jahren. Pro Buchung: `{ amount, date, has_invoice: !!invoice_id }`
+- Diese als `historicalBookings` an die Edge Function mitgeben
+- Neuer State `missingInvoiceHint` — zeigt ein gelbes Banner: "⚠️ Rechnung fehlt — In der Vergangenheit gab es für [Kreditor] regelmäßig Rechnungen. Bitte Rechnung anfordern/hochladen."
+
+**3. Kontoauszug-Ansicht (BankStatementsTab)**
+
+- Transaktionen, die vom KI als "Rechnung fehlt" markiert wurden, bekommen ein oranges Badge/Icon (z.B. `FileWarning`) in der Liste
+- Optional: Neuer `match_status`-Wert `invoice_pending` in der `bank_transactions`-Tabelle, damit man filtern kann
+
+### Technische Details
+
+```text
+Frontend (AssignmentDialog)
+  │
+  ├─ Query: historische Buchungen des Kreditors (letzte 2 Jahre)
+  │   → SELECT amount, booking_date, invoice_id IS NOT NULL as has_invoice
+  │     FROM bookings WHERE building_id = X 
+  │     AND (description ILIKE '%vendor%' OR invoice_id IN (SELECT id FROM invoices WHERE vendor_iban = Y))
+  │
+  └─ suggest-match Edge Function
+      │
+      ├─ Historisch mit Rechnungen? → missing_invoice_hint
+      └─ Historisch ohne Rechnungen? → template_suggestion (wie bisher)
 ```
-
-- `linked_invoice_id`: Referenz auf die verknüpfte Rechnung (z.B. Abschlagsbescheid)
-- `amount_tolerance`: Toleranz in € (z.B. 4 bedeutet ±4€ vom expected_amount)
-
-### 2. UI: BookingTemplatesTab erweitern
-
-Im Template-Dialog zwei neue Felder:
-- **Betrags-Toleranz (±)**: Nummerisches Feld neben dem Erwarteten Betrag. Wird angezeigt als "12,00 € ±4,00" in der Tabelle
-- **Verknüpfte Rechnung**: Combobox/Select, das Rechnungen des gleichen Gebäudes lädt (gefiltert auf `vendor_name` der Vorlage). Zeigt Rechnungsnr. + Datum + Betrag. Mit Button zum PDF-Öffnen
-
-In der Tabellenansicht: Betragsspalte zeigt "12,00 € ±4,00" wenn Toleranz gesetzt, und ein kleines Rechnungs-Icon wenn eine Rechnung verknüpft ist.
-
-### 3. Matching-Logik anpassen (BookingReviewMode)
-
-Aktuell prüft Zeile 162:
-```typescript
-if (tmpl.expected_amount != null) result.amount = Math.abs(currentBooking.amount) === Math.abs(tmpl.expected_amount);
-```
-
-Änderung zu:
-```typescript
-if (tmpl.expected_amount != null) {
-  const tolerance = tmpl.amount_tolerance || 0;
-  const diff = Math.abs(Math.abs(currentBooking.amount) - Math.abs(tmpl.expected_amount));
-  result.amount = diff <= tolerance;
-}
-```
-
-### 4. TypeScript-Typen
-
-`linked_invoice_id` und `amount_tolerance` in `types.ts` ergänzen.
 
 ### Dateien
-- Neue Migration: `linked_invoice_id` + `amount_tolerance`
-- `src/components/finance/BookingTemplatesTab.tsx` – Formular + Tabelle erweitern
-- `src/components/finance/BookingReviewMode.tsx` – Toleranz-Matching
-- `src/integrations/supabase/types.ts` – Neue Felder
+- `supabase/functions/suggest-match/index.ts` — Prompt + neues Output-Feld
+- `src/components/finance/AssignmentDialog.tsx` — Historische Daten laden + Banner anzeigen
+- `src/components/finance/BankStatementsTab.tsx` — Badge für "Rechnung fehlt"
+- Migration: neuer `match_status`-Wert `invoice_pending` (falls als Enum gespeichert, sonst nur Textfeld)
+
+### Kein Overengineering
+- Keine automatische Vorlage bei fehlender Rechnung
+- Kein neues UI-Element nötig — nur ein Banner im AssignmentDialog + Badge in der Liste
+- Die KI macht die Entscheidung, der Nutzer sieht nur das Ergebnis
 
