@@ -125,6 +125,7 @@ export function AssignmentDialog({
       setAiMatches([]);
       setBookingHint(null);
       setTemplateSuggestion(null);
+      setMissingInvoiceHint(null);
       setEditableTemplate(null);
       setShowTemplateForm(false);
       setDismissedHintIndices(new Set());
