@@ -173,7 +173,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     [allBuildingTxns]
   );
   const unmatchedTransactions = useMemo(() =>
-    allBuildingTxns.filter((t: any) => t.match_status === "unmatched"),
+    allBuildingTxns.filter((t: any) => t.match_status === "unmatched" || t.match_status === "invoice_pending"),
     [allBuildingTxns]
   );
   const ignoredTransactions = useMemo(() =>
