@@ -70,6 +70,9 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
   const [accountSearch, setAccountSearch] = useState("");
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [internalFilterBuildingId, setInternalFilterBuildingId] = useState<string>("");
+  const [presetDialogOpen, setPresetDialogOpen] = useState(false);
+  const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
+  const [presetForm, setPresetForm] = useState({ name: "", vendor_name: "", category: "", interval: "monatlich", vat_rate: "", is_35a_relevant: false, description: "" });
 
   const filterBuildingId = sharedBuildingId || internalFilterBuildingId;
 
