@@ -12,10 +12,11 @@ import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import {
   ArrowLeft, ArrowRight, CheckCircle, SkipForward, Edit, X,
-  FileText, LayoutTemplate, AlertTriangle, Building2, Keyboard
+  FileText, LayoutTemplate, AlertTriangle, Building2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EditBookingDialog } from "./EditBookingDialog";
+import { VendorHistorySection } from "./VendorHistorySection";
 
 interface BookingReviewModeProps {
   open: boolean;
@@ -195,9 +196,16 @@ export function BookingReviewMode({ open, onOpenChange, fiscalYear, buildingId }
             </div>
             <div className="flex items-center gap-4">
               <Progress value={progressPercent} className="w-40 h-2" />
-              <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                <Keyboard className="h-3.5 w-3.5" />
-                <span>Shift=✓ | ←→=Nav | E=Bearb.</span>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">Shift</kbd>
+                <span className="text-[11px]">Bestätigen</span>
+                <span className="mx-1 text-border">|</span>
+                <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">←</kbd>
+                <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">→</kbd>
+                <span className="text-[11px]">Nav</span>
+                <span className="mx-1 text-border">|</span>
+                <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">E</kbd>
+                <span className="text-[11px]">Bearb.</span>
               </div>
             </div>
           </div>
@@ -280,10 +288,11 @@ export function BookingReviewMode({ open, onOpenChange, fiscalYear, buildingId }
                   />
                 )}
 
-                <div className="pt-4">
+                <div className="pt-4 space-y-4">
                   <Button variant="outline" size="sm" onClick={() => setEditBooking(currentBooking)}>
                     <Edit className="h-4 w-4 mr-2" /> Bearbeiten (E)
                   </Button>
+                  <VendorHistorySection booking={currentBooking} />
                 </div>
               </div>
 
