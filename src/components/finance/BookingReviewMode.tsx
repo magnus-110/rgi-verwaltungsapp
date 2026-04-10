@@ -159,7 +159,11 @@ export function BookingReviewMode({ open, onOpenChange, fiscalYear, buildingId }
       }
     }
     if (tmpl) {
-      if (tmpl.expected_amount != null) result.amount = Math.abs(currentBooking.amount) === Math.abs(tmpl.expected_amount);
+      if (tmpl.expected_amount != null) {
+        const tolerance = tmpl.amount_tolerance || 0;
+        const diff = Math.abs(Math.abs(currentBooking.amount) - Math.abs(tmpl.expected_amount));
+        result.amount = diff <= tolerance;
+      }
       if (tmpl.vat_rate != null && currentBooking.vat_rate != null) result.vat = currentBooking.vat_rate === tmpl.vat_rate;
       if (tmpl.vendor_name && currentBooking.description) {
         result.vendor = currentBooking.description.toLowerCase().includes(tmpl.vendor_name.toLowerCase());
@@ -340,7 +344,15 @@ export function BookingReviewMode({ open, onOpenChange, fiscalYear, buildingId }
                         <DetailField label="Lieferant" value={currentBooking.booking_templates.vendor_name} highlight={matches.vendor} />
                       )}
                       {currentBooking.booking_templates.expected_amount != null && (
-                        <DetailField label="Erwarteter Betrag" value={formatCurrency(currentBooking.booking_templates.expected_amount)} highlight={matches.amount} />
+                        <DetailField 
+                          label="Erwarteter Betrag" 
+                          value={
+                            currentBooking.booking_templates.amount_tolerance 
+                              ? `${formatCurrency(currentBooking.booking_templates.expected_amount)} ±${formatCurrency(currentBooking.booking_templates.amount_tolerance)}`
+                              : formatCurrency(currentBooking.booking_templates.expected_amount)
+                          } 
+                          highlight={matches.amount} 
+                        />
                       )}
                       {currentBooking.booking_templates.vat_rate != null && (
                         <DetailField label="MwSt-Satz" value={`${currentBooking.booking_templates.vat_rate}%`} highlight={matches.vat} />
