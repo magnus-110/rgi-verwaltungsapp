@@ -17,35 +17,6 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 
-interface TemplatePreset {
-  name: string;
-  vendor_name: string;
-  category: string;
-  interval: string;
-  vat_rate: string;
-  is_35a_relevant: boolean;
-  description: string;
-}
-
-const TEMPLATE_PRESETS: TemplatePreset[] = [
-  { name: "Stromabschlag", vendor_name: "", category: "Betriebskosten", interval: "monatlich", vat_rate: "19", is_35a_relevant: false, description: "Monatliche Abschlagszahlung Strom" },
-  { name: "Gasabschlag", vendor_name: "", category: "Betriebskosten", interval: "monatlich", vat_rate: "19", is_35a_relevant: false, description: "Monatliche Abschlagszahlung Gas/Heizung" },
-  { name: "Wasserabschlag", vendor_name: "", category: "Betriebskosten", interval: "monatlich", vat_rate: "7", is_35a_relevant: false, description: "Monatliche Abschlagszahlung Wasser/Abwasser" },
-  { name: "Grundsteuer", vendor_name: "Gemeinde", category: "Betriebskosten", interval: "quartalsweise", vat_rate: "", is_35a_relevant: false, description: "Quartalsweise Grundsteuer an die Gemeinde" },
-  { name: "Müllabfuhr", vendor_name: "", category: "Betriebskosten", interval: "quartalsweise", vat_rate: "", is_35a_relevant: false, description: "Müllgebühren" },
-  { name: "Gebäudeversicherung", vendor_name: "", category: "Versicherung", interval: "jährlich", vat_rate: "19", is_35a_relevant: false, description: "Gebäudeversicherung (Feuer, Sturm, Wasser)" },
-  { name: "Haftpflichtversicherung", vendor_name: "", category: "Versicherung", interval: "jährlich", vat_rate: "19", is_35a_relevant: false, description: "Haus- und Grundbesitzer-Haftpflicht" },
-  { name: "Hausmeisterservice", vendor_name: "", category: "Dienstleistung", interval: "monatlich", vat_rate: "19", is_35a_relevant: true, description: "Hausmeister/Hauswart" },
-  { name: "Treppenhausreinigung", vendor_name: "", category: "Dienstleistung", interval: "monatlich", vat_rate: "19", is_35a_relevant: true, description: "Reinigung Treppenhaus/Gemeinschaftsflächen" },
-  { name: "Winterdienst", vendor_name: "", category: "Dienstleistung", interval: "monatlich", vat_rate: "19", is_35a_relevant: true, description: "Winterdienst/Schneeräumung" },
-  { name: "Aufzugswartung", vendor_name: "", category: "Wartung", interval: "quartalsweise", vat_rate: "19", is_35a_relevant: true, description: "Wartung und Prüfung Aufzug" },
-  { name: "Kontoführungsgebühr", vendor_name: "", category: "Verwaltung", interval: "monatlich", vat_rate: "", is_35a_relevant: false, description: "Bankgebühren für das Hausgeldkonto" },
-  { name: "Schornsteinfeger", vendor_name: "", category: "Dienstleistung", interval: "jährlich", vat_rate: "19", is_35a_relevant: true, description: "Schornsteinfeger / Abgasmessung" },
-  { name: "Kabelanschluss/Internet", vendor_name: "", category: "Betriebskosten", interval: "monatlich", vat_rate: "19", is_35a_relevant: false, description: "Kabelanschluss / Glasfaser / Internet" },
-  { name: "Verwaltergebühr", vendor_name: "", category: "Verwaltung", interval: "monatlich", vat_rate: "19", is_35a_relevant: false, description: "Hausverwaltungsgebühr" },
-  { name: "Gartenpflege", vendor_name: "", category: "Dienstleistung", interval: "monatlich", vat_rate: "19", is_35a_relevant: true, description: "Gartenpflege / Grünanlagen" },
-];
-
 interface TemplateForm {
   name: string;
   vendor_name: string;
@@ -99,6 +70,9 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
   const [accountSearch, setAccountSearch] = useState("");
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [internalFilterBuildingId, setInternalFilterBuildingId] = useState<string>("");
+  const [presetDialogOpen, setPresetDialogOpen] = useState(false);
+  const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
+  const [presetForm, setPresetForm] = useState({ name: "", vendor_name: "", category: "", interval: "monatlich", vat_rate: "", is_35a_relevant: false, description: "" });
 
   const filterBuildingId = sharedBuildingId || internalFilterBuildingId;
 
@@ -142,6 +116,19 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
     },
   });
 
+  // Load presets
+  const { data: presets = [] } = useQuery({
+    queryKey: ["booking-template-presets"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("booking_template_presets")
+        .select("*")
+        .order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   // Load invoices for the selected building (for linking)
   const { data: invoices = [] } = useQuery({
     queryKey: ["invoices-for-linking", form.building_id],
@@ -158,6 +145,73 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
     },
     enabled: isDialogOpen && !!form.building_id,
   });
+
+  const applyPreset = (presetId: string) => {
+    const preset = presets.find((p: any) => p.id === presetId);
+    if (!preset) return;
+    setForm(prev => ({
+      ...prev,
+      name: preset.name,
+      vendor_name: preset.vendor_name || prev.vendor_name,
+      category: preset.category || prev.category,
+      interval: preset.interval || prev.interval,
+      vat_rate: preset.vat_rate != null ? String(preset.vat_rate) : prev.vat_rate,
+      is_35a_relevant: preset.is_35a_relevant ?? prev.is_35a_relevant,
+      description: preset.description || prev.description,
+    }));
+  };
+
+  const openPresetEdit = (preset: any) => {
+    setEditingPresetId(preset.id);
+    setPresetForm({
+      name: preset.name || "",
+      vendor_name: preset.vendor_name || "",
+      category: preset.category || "",
+      interval: preset.interval || "monatlich",
+      vat_rate: preset.vat_rate != null ? String(preset.vat_rate) : "",
+      is_35a_relevant: preset.is_35a_relevant ?? false,
+      description: preset.description || "",
+    });
+    setPresetDialogOpen(true);
+  };
+
+  const openPresetCreate = () => {
+    setEditingPresetId(null);
+    setPresetForm({ name: "", vendor_name: "", category: "", interval: "monatlich", vat_rate: "", is_35a_relevant: false, description: "" });
+    setPresetDialogOpen(true);
+  };
+
+  const handleSavePreset = async () => {
+    if (!presetForm.name.trim()) { toast.error("Name ist erforderlich"); return; }
+    const payload = {
+      name: presetForm.name,
+      vendor_name: presetForm.vendor_name || null,
+      category: presetForm.category || null,
+      interval: presetForm.interval || "monatlich",
+      vat_rate: presetForm.vat_rate ? parseFloat(presetForm.vat_rate) : null,
+      is_35a_relevant: presetForm.is_35a_relevant,
+      description: presetForm.description || null,
+    };
+    if (editingPresetId) {
+      const { error } = await supabase.from("booking_template_presets").update(payload).eq("id", editingPresetId);
+      if (error) { toast.error("Fehler beim Speichern"); return; }
+      toast.success("Muster aktualisiert");
+    } else {
+      const maxSort = presets.length > 0 ? Math.max(...presets.map((p: any) => p.sort_order || 0)) : 0;
+      const { error } = await supabase.from("booking_template_presets").insert({ ...payload, sort_order: maxSort + 1 } as any);
+      if (error) { toast.error("Fehler beim Erstellen"); return; }
+      toast.success("Muster erstellt");
+    }
+    setPresetDialogOpen(false);
+    queryClient.invalidateQueries({ queryKey: ["booking-template-presets"] });
+  };
+
+  const handleDeletePreset = async (id: string) => {
+    const { error } = await supabase.from("booking_template_presets").delete().eq("id", id);
+    if (error) { toast.error("Fehler beim Löschen"); return; }
+    toast.success("Muster gelöscht");
+    queryClient.invalidateQueries({ queryKey: ["booking-template-presets"] });
+  };
 
   const openCreate = () => {
     setEditingId(null);
@@ -362,39 +416,29 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
 
           <div className="space-y-6">
             {/* === Preset Selector (only for new templates) === */}
-            {!editingId && (
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                  <Zap className="h-4 w-4 text-muted-foreground" />
-                  Schnellauswahl
+            {!editingId && presets.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm">Vorlage aus Muster erstellen</Label>
+                  <Button variant="ghost" size="sm" className="text-xs h-7 gap-1" onClick={openPresetCreate}>
+                    <Plus className="h-3 w-3" /> Neues Muster
+                  </Button>
                 </div>
-                <p className="text-xs text-muted-foreground">Vorgefertigte Vorlage als Basis verwenden – Felder werden vorausgefüllt und können angepasst werden.</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {TEMPLATE_PRESETS.map((preset) => (
-                    <button
-                      key={preset.name}
-                      type="button"
-                      onClick={() => setForm(prev => ({
-                        ...prev,
-                        name: preset.name,
-                        vendor_name: preset.vendor_name || prev.vendor_name,
-                        category: preset.category,
-                        interval: preset.interval,
-                        vat_rate: preset.vat_rate || prev.vat_rate,
-                        is_35a_relevant: preset.is_35a_relevant,
-                        description: preset.description,
-                      }))}
-                      className={cn(
-                        "px-2.5 py-1 rounded-md border text-xs transition-colors",
-                        form.name === preset.name
-                          ? "border-primary bg-primary/10 text-primary font-medium"
-                          : "border-border hover:border-primary/40 hover:bg-accent/50 text-foreground"
-                      )}
-                    >
-                      {preset.name}
-                    </button>
-                  ))}
-                </div>
+                <Select onValueChange={applyPreset}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Muster auswählen…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {presets.map((p: any) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        <div className="flex items-center gap-2">
+                          <span>{p.name}</span>
+                          {p.category && <span className="text-xs text-muted-foreground">({p.category})</span>}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Separator />
               </div>
             )}
@@ -628,6 +672,127 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Preset Management Dialog */}
+      <Dialog open={presetDialogOpen} onOpenChange={setPresetDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editingPresetId ? "Muster bearbeiten" : "Neues Muster"}</DialogTitle>
+            <DialogDescription>
+              Muster dienen als Vorlage beim Anlegen neuer Buchungsvorlagen. Sie füllen Felder automatisch vor.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Name *</Label>
+              <Input value={presetForm.name} onChange={(e) => setPresetForm({ ...presetForm, name: e.target.value })} placeholder="z.B. Stromabschlag" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Standard-Kreditor</Label>
+                <Input value={presetForm.vendor_name} onChange={(e) => setPresetForm({ ...presetForm, vendor_name: e.target.value })} placeholder="z.B. Gemeinde" />
+              </div>
+              <div>
+                <Label>Kategorie</Label>
+                <Input value={presetForm.category} onChange={(e) => setPresetForm({ ...presetForm, category: e.target.value })} placeholder="z.B. Betriebskosten" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Intervall</Label>
+                <Select value={presetForm.interval} onValueChange={(v) => setPresetForm({ ...presetForm, interval: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="monatlich">Monatlich</SelectItem>
+                    <SelectItem value="quartalsweise">Quartalsweise</SelectItem>
+                    <SelectItem value="halbjährlich">Halbjährlich</SelectItem>
+                    <SelectItem value="jährlich">Jährlich</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>MwSt-Satz (%)</Label>
+                <Select value={presetForm.vat_rate || "__none__"} onValueChange={(v) => setPresetForm({ ...presetForm, vat_rate: v === "__none__" ? "" : v })}>
+                  <SelectTrigger><SelectValue placeholder="Keine" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Keine</SelectItem>
+                    <SelectItem value="0">0%</SelectItem>
+                    <SelectItem value="7">7%</SelectItem>
+                    <SelectItem value="19">19%</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={presetForm.is_35a_relevant} onCheckedChange={(v) => setPresetForm({ ...presetForm, is_35a_relevant: v })} />
+              <Label className="text-sm">§35a relevant</Label>
+            </div>
+            <div>
+              <Label>Beschreibung</Label>
+              <Input value={presetForm.description} onChange={(e) => setPresetForm({ ...presetForm, description: e.target.value })} placeholder="Kurzbeschreibung" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPresetDialogOpen(false)}>Abbrechen</Button>
+            <Button onClick={handleSavePreset}>{editingPresetId ? "Speichern" : "Erstellen"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Preset List Management (accessible from main card) */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Zap className="h-5 w-5" />
+              Vorlagen-Muster
+            </CardTitle>
+            <Button variant="outline" size="sm" onClick={openPresetCreate}>
+              <Plus className="h-4 w-4 mr-2" />Neues Muster
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground mt-1">Vorgefertigte Muster für häufige Buchungsvorlagen. Diese werden beim Erstellen neuer Vorlagen als Dropdown angeboten.</p>
+        </CardHeader>
+        <CardContent>
+          {presets.length === 0 ? (
+            <p className="text-center text-muted-foreground py-6 text-sm">Keine Muster vorhanden</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Kategorie</TableHead>
+                  <TableHead>Intervall</TableHead>
+                  <TableHead>MwSt</TableHead>
+                  <TableHead>§35a</TableHead>
+                  <TableHead></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {presets.map((p: any) => (
+                  <TableRow key={p.id}>
+                    <TableCell className="font-medium text-sm">{p.name}</TableCell>
+                    <TableCell className="text-sm">{p.category || "–"}</TableCell>
+                    <TableCell className="text-sm capitalize">{p.interval || "–"}</TableCell>
+                    <TableCell className="text-sm">{p.vat_rate != null ? `${p.vat_rate}%` : "–"}</TableCell>
+                    <TableCell className="text-sm">{p.is_35a_relevant ? "Ja" : "–"}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openPresetEdit(p)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeletePreset(p.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
