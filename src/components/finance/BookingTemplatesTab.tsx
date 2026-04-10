@@ -116,6 +116,19 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
     },
   });
 
+  // Load presets
+  const { data: presets = [] } = useQuery({
+    queryKey: ["booking-template-presets"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("booking_template_presets")
+        .select("*")
+        .order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   // Load invoices for the selected building (for linking)
   const { data: invoices = [] } = useQuery({
     queryKey: ["invoices-for-linking", form.building_id],
@@ -132,6 +145,73 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
     },
     enabled: isDialogOpen && !!form.building_id,
   });
+
+  const applyPreset = (presetId: string) => {
+    const preset = presets.find((p: any) => p.id === presetId);
+    if (!preset) return;
+    setForm(prev => ({
+      ...prev,
+      name: preset.name,
+      vendor_name: preset.vendor_name || prev.vendor_name,
+      category: preset.category || prev.category,
+      interval: preset.interval || prev.interval,
+      vat_rate: preset.vat_rate != null ? String(preset.vat_rate) : prev.vat_rate,
+      is_35a_relevant: preset.is_35a_relevant ?? prev.is_35a_relevant,
+      description: preset.description || prev.description,
+    }));
+  };
+
+  const openPresetEdit = (preset: any) => {
+    setEditingPresetId(preset.id);
+    setPresetForm({
+      name: preset.name || "",
+      vendor_name: preset.vendor_name || "",
+      category: preset.category || "",
+      interval: preset.interval || "monatlich",
+      vat_rate: preset.vat_rate != null ? String(preset.vat_rate) : "",
+      is_35a_relevant: preset.is_35a_relevant ?? false,
+      description: preset.description || "",
+    });
+    setPresetDialogOpen(true);
+  };
+
+  const openPresetCreate = () => {
+    setEditingPresetId(null);
+    setPresetForm({ name: "", vendor_name: "", category: "", interval: "monatlich", vat_rate: "", is_35a_relevant: false, description: "" });
+    setPresetDialogOpen(true);
+  };
+
+  const handleSavePreset = async () => {
+    if (!presetForm.name.trim()) { toast.error("Name ist erforderlich"); return; }
+    const payload = {
+      name: presetForm.name,
+      vendor_name: presetForm.vendor_name || null,
+      category: presetForm.category || null,
+      interval: presetForm.interval || "monatlich",
+      vat_rate: presetForm.vat_rate ? parseFloat(presetForm.vat_rate) : null,
+      is_35a_relevant: presetForm.is_35a_relevant,
+      description: presetForm.description || null,
+    };
+    if (editingPresetId) {
+      const { error } = await supabase.from("booking_template_presets").update(payload).eq("id", editingPresetId);
+      if (error) { toast.error("Fehler beim Speichern"); return; }
+      toast.success("Muster aktualisiert");
+    } else {
+      const maxSort = presets.length > 0 ? Math.max(...presets.map((p: any) => p.sort_order || 0)) : 0;
+      const { error } = await supabase.from("booking_template_presets").insert({ ...payload, sort_order: maxSort + 1 } as any);
+      if (error) { toast.error("Fehler beim Erstellen"); return; }
+      toast.success("Muster erstellt");
+    }
+    setPresetDialogOpen(false);
+    queryClient.invalidateQueries({ queryKey: ["booking-template-presets"] });
+  };
+
+  const handleDeletePreset = async (id: string) => {
+    const { error } = await supabase.from("booking_template_presets").delete().eq("id", id);
+    if (error) { toast.error("Fehler beim Löschen"); return; }
+    toast.success("Muster gelöscht");
+    queryClient.invalidateQueries({ queryKey: ["booking-template-presets"] });
+  };
 
   const openCreate = () => {
     setEditingId(null);
