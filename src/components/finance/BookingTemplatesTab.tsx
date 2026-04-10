@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Plus, Pencil, Trash2, LayoutTemplate, Loader2, Check, ChevronsUpDown } from "lucide-react";
+import { Plus, Pencil, Trash2, LayoutTemplate, Loader2, Check, ChevronsUpDown, FileText, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +20,7 @@ interface TemplateForm {
   vendor_name: string;
   vendor_iban: string;
   expected_amount: string;
+  amount_tolerance: string;
   account_id: string;
   building_id: string;
   is_35a_relevant: boolean;
@@ -29,6 +30,7 @@ interface TemplateForm {
   vat_rate: string;
   valid_from: string;
   valid_to: string;
+  linked_invoice_id: string;
 }
 
 const emptyForm: TemplateForm = {
@@ -36,6 +38,7 @@ const emptyForm: TemplateForm = {
   vendor_name: "",
   vendor_iban: "",
   expected_amount: "",
+  amount_tolerance: "",
   account_id: "",
   building_id: "",
   is_35a_relevant: false,
@@ -45,6 +48,7 @@ const emptyForm: TemplateForm = {
   vat_rate: "",
   valid_from: "",
   valid_to: "",
+  linked_invoice_id: "",
 };
 
 interface BookingTemplatesTabProps {
@@ -59,8 +63,10 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
   const [form, setForm] = useState<TemplateForm>(emptyForm);
   const [accountOpen, setAccountOpen] = useState(false);
   const [buildingOpen, setBuildingOpen] = useState(false);
+  const [invoiceOpen, setInvoiceOpen] = useState(false);
   const [buildingSearch, setBuildingSearch] = useState("");
   const [accountSearch, setAccountSearch] = useState("");
+  const [invoiceSearch, setInvoiceSearch] = useState("");
   const [internalFilterBuildingId, setInternalFilterBuildingId] = useState<string>("");
 
   const filterBuildingId = sharedBuildingId || internalFilterBuildingId;
@@ -76,7 +82,7 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
       if (!filterBuildingId) return [];
       const { data, error } = await supabase
         .from("booking_templates")
-        .select("*, buildings(name), chart_of_accounts(account_number, account_name)")
+        .select("*, buildings(name), chart_of_accounts(account_number, account_name), invoices(id, invoice_number, vendor_name, invoice_date, gross_amount)")
         .eq("building_id", filterBuildingId)
         .order("name");
       if (error) throw error;
@@ -105,6 +111,23 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
     },
   });
 
+  // Load invoices for the selected building (for linking)
+  const { data: invoices = [] } = useQuery({
+    queryKey: ["invoices-for-linking", form.building_id],
+    queryFn: async () => {
+      if (!form.building_id) return [];
+      const { data, error } = await supabase
+        .from("invoices")
+        .select("id, invoice_number, vendor_name, invoice_date, gross_amount")
+        .eq("building_id", form.building_id)
+        .order("invoice_date", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return data;
+    },
+    enabled: isDialogOpen && !!form.building_id,
+  });
+
   const openCreate = () => {
     setEditingId(null);
     setForm({ ...emptyForm, building_id: filterBuildingId });
@@ -118,6 +141,7 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
       vendor_name: t.vendor_name || "",
       vendor_iban: t.vendor_iban || "",
       expected_amount: t.expected_amount?.toString() || "",
+      amount_tolerance: t.amount_tolerance?.toString() || "",
       account_id: t.account_id || "",
       building_id: t.building_id || "",
       is_35a_relevant: t.is_35a_relevant || false,
@@ -127,6 +151,7 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
       vat_rate: t.vat_rate?.toString() || "",
       valid_from: t.valid_from || "",
       valid_to: t.valid_to || "",
+      linked_invoice_id: t.linked_invoice_id || "",
     });
     setIsDialogOpen(true);
   };
@@ -146,6 +171,7 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
       vendor_name: form.vendor_name || null,
       vendor_iban: form.vendor_iban || null,
       expected_amount: form.expected_amount ? parseFloat(form.expected_amount) : null,
+      amount_tolerance: form.amount_tolerance ? parseFloat(form.amount_tolerance) : null,
       account_id: form.account_id || null,
       building_id: form.building_id || null,
       is_35a_relevant: form.is_35a_relevant,
@@ -155,6 +181,7 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
       vat_rate: form.vat_rate ? parseFloat(form.vat_rate) : null,
       valid_from: form.valid_from || null,
       valid_to: form.valid_to || null,
+      linked_invoice_id: form.linked_invoice_id || null,
     };
 
     if (editingId) {
@@ -177,6 +204,9 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
     toast.success("Vorlage gelöscht");
     queryClient.invalidateQueries({ queryKey: ["booking-templates"] });
   };
+
+  const formatCurrency = (val: number) =>
+    `${Number(val).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €`;
 
   return (
     <div className="space-y-4">
@@ -230,20 +260,34 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
                   <TableHead>IBAN</TableHead>
                   <TableHead className="text-right">Betrag</TableHead>
                   <TableHead>Konto</TableHead>
-                   <TableHead>MwSt</TableHead>
-                   <TableHead>Intervall</TableHead>
-                   <TableHead>Zeitraum</TableHead>
-                   <TableHead></TableHead>
+                  <TableHead>MwSt</TableHead>
+                  <TableHead>Intervall</TableHead>
+                  <TableHead>Zeitraum</TableHead>
+                  <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {templates.map((t: any) => (
                   <TableRow key={t.id}>
-                    <TableCell className="font-medium text-sm">{t.name}</TableCell>
+                    <TableCell className="font-medium text-sm">
+                      <div className="flex items-center gap-1.5">
+                        {t.name}
+                        {t.linked_invoice_id && (
+                          <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-sm">{t.vendor_name || "–"}</TableCell>
                     <TableCell className="text-sm font-mono text-xs">{t.vendor_iban || "–"}</TableCell>
                     <TableCell className="text-sm text-right font-mono">
-                      {t.expected_amount ? `${Number(t.expected_amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €` : "–"}
+                      {t.expected_amount != null ? (
+                        <span>
+                          {formatCurrency(t.expected_amount)}
+                          {t.amount_tolerance != null && t.amount_tolerance > 0 && (
+                            <span className="text-muted-foreground text-xs ml-1">±{formatCurrency(t.amount_tolerance)}</span>
+                          )}
+                        </span>
+                      ) : "–"}
                     </TableCell>
                     <TableCell className="text-sm">
                       {t.chart_of_accounts ? `${t.chart_of_accounts.account_number} ${t.chart_of_accounts.account_name}` : "–"}
@@ -274,7 +318,7 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
       </Card>
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingId ? "Vorlage bearbeiten" : "Neue Buchungsvorlage"}</DialogTitle>
           </DialogHeader>
@@ -293,10 +337,14 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
                 <Input value={form.vendor_iban} onChange={(e) => setForm({ ...form, vendor_iban: e.target.value })} placeholder="DE..." />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div>
                 <Label>Erwarteter Betrag</Label>
                 <Input type="number" step="0.01" value={form.expected_amount} onChange={(e) => setForm({ ...form, expected_amount: e.target.value })} />
+              </div>
+              <div>
+                <Label>Toleranz (±€)</Label>
+                <Input type="number" step="0.01" value={form.amount_tolerance} onChange={(e) => setForm({ ...form, amount_tolerance: e.target.value })} placeholder="z.B. 4" />
               </div>
               <div>
                 <Label>Intervall</Label>
@@ -305,11 +353,17 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
                   <SelectContent>
                     <SelectItem value="monatlich">Monatlich</SelectItem>
                     <SelectItem value="quartalsweise">Quartalsweise</SelectItem>
+                    <SelectItem value="halbjaehrlich">Halbjährlich</SelectItem>
                     <SelectItem value="jaehrlich">Jährlich</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
+            {form.expected_amount && form.amount_tolerance && (
+              <p className="text-xs text-muted-foreground -mt-2">
+                Matching-Bereich: {formatCurrency(parseFloat(form.expected_amount) - parseFloat(form.amount_tolerance))} – {formatCurrency(parseFloat(form.expected_amount) + parseFloat(form.amount_tolerance))}
+              </p>
+            )}
             <div>
               <Label>Liegenschaft *</Label>
               <Popover open={buildingOpen} onOpenChange={setBuildingOpen}>
@@ -358,6 +412,52 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
                           <CommandItem key={a.id} value={`${a.account_number} ${a.account_name}`} onSelect={() => { setForm({ ...form, account_id: a.id }); setAccountOpen(false); }}>
                             <Check className={cn("mr-2 h-4 w-4", form.account_id === a.id ? "opacity-100" : "opacity-0")} />
                             {a.account_number} – {a.account_name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div>
+              <Label>Verknüpfte Rechnung</Label>
+              <Popover open={invoiceOpen} onOpenChange={setInvoiceOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" role="combobox" aria-expanded={invoiceOpen} className="w-full justify-between font-normal">
+                    {form.linked_invoice_id
+                      ? (() => {
+                          const inv = invoices.find((i: any) => i.id === form.linked_invoice_id);
+                          return inv ? `${inv.invoice_number || "Ohne Nr."} – ${inv.vendor_name || ""}` : "Rechnung wählen";
+                        })()
+                      : "Keine Rechnung verknüpft"}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Rechnung suchen..." value={invoiceSearch} onValueChange={setInvoiceSearch} />
+                    <CommandList>
+                      <CommandEmpty>Keine Rechnung gefunden.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem value="__none__" onSelect={() => { setForm({ ...form, linked_invoice_id: "" }); setInvoiceOpen(false); }}>
+                          <Check className={cn("mr-2 h-4 w-4", !form.linked_invoice_id ? "opacity-100" : "opacity-0")} />
+                          <span className="text-muted-foreground">Keine Verknüpfung</span>
+                        </CommandItem>
+                        {invoices.map((inv: any) => (
+                          <CommandItem
+                            key={inv.id}
+                            value={`${inv.invoice_number || ""} ${inv.vendor_name || ""}`}
+                            onSelect={() => { setForm({ ...form, linked_invoice_id: inv.id }); setInvoiceOpen(false); }}
+                          >
+                            <Check className={cn("mr-2 h-4 w-4", form.linked_invoice_id === inv.id ? "opacity-100" : "opacity-0")} />
+                            <div className="flex flex-col">
+                              <span className="text-sm">{inv.invoice_number || "Ohne Nr."} – {inv.vendor_name || "Unbekannt"}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {inv.invoice_date ? new Date(inv.invoice_date).toLocaleDateString("de-DE") : ""} 
+                                {inv.gross_amount != null ? ` · ${formatCurrency(inv.gross_amount)}` : ""}
+                              </span>
+                            </div>
                           </CommandItem>
                         ))}
                       </CommandGroup>
