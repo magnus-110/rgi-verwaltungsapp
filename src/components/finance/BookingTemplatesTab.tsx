@@ -73,6 +73,8 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
   const [presetDialogOpen, setPresetDialogOpen] = useState(false);
   const [editingPresetId, setEditingPresetId] = useState<string | null>(null);
   const [presetForm, setPresetForm] = useState({ name: "", vendor_name: "", category: "", interval: "monatlich", vat_rate: "", is_35a_relevant: false, description: "" });
+  const [presetPickerOpen, setPresetPickerOpen] = useState(false);
+  const [selectedPresetId, setSelectedPresetId] = useState<string>("");
 
   const filterBuildingId = sharedBuildingId || internalFilterBuildingId;
 
@@ -129,6 +131,8 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
     },
   });
 
+  const selectedPreset = presets.find((preset: any) => preset.id === selectedPresetId);
+
   // Load invoices for the selected building (for linking)
   const { data: invoices = [] } = useQuery({
     queryKey: ["invoices-for-linking", form.building_id],
@@ -149,6 +153,10 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
   const applyPreset = (presetId: string) => {
     const preset = presets.find((p: any) => p.id === presetId);
     if (!preset) return;
+
+    setSelectedPresetId(presetId);
+    setPresetPickerOpen(false);
+
     setForm(prev => ({
       ...prev,
       name: preset.name,
@@ -162,6 +170,7 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
   };
 
   const openPresetEdit = (preset: any) => {
+    setPresetPickerOpen(false);
     setEditingPresetId(preset.id);
     setPresetForm({
       name: preset.name || "",
@@ -176,6 +185,7 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
   };
 
   const openPresetCreate = () => {
+    setPresetPickerOpen(false);
     setEditingPresetId(null);
     setPresetForm({ name: "", vendor_name: "", category: "", interval: "monatlich", vat_rate: "", is_35a_relevant: false, description: "" });
     setPresetDialogOpen(true);
@@ -209,12 +219,16 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
   const handleDeletePreset = async (id: string) => {
     const { error } = await supabase.from("booking_template_presets").delete().eq("id", id);
     if (error) { toast.error("Fehler beim Löschen"); return; }
+    if (selectedPresetId === id) {
+      setSelectedPresetId("");
+    }
     toast.success("Muster gelöscht");
     queryClient.invalidateQueries({ queryKey: ["booking-template-presets"] });
   };
 
   const openCreate = () => {
     setEditingId(null);
+    setSelectedPresetId("");
     setForm({ ...emptyForm, building_id: filterBuildingId });
     setIsDialogOpen(true);
   };
@@ -424,21 +438,88 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
                     <Plus className="h-3 w-3" /> Neues Muster
                   </Button>
                 </div>
-                <Select onValueChange={applyPreset}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Muster auswählen…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {presets.map((p: any) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        <div className="flex items-center gap-2">
-                          <span>{p.name}</span>
-                          {p.category && <span className="text-xs text-muted-foreground">({p.category})</span>}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={presetPickerOpen} onOpenChange={setPresetPickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" aria-expanded={presetPickerOpen} className="w-full justify-between font-normal">
+                      <div className="flex min-w-0 items-center gap-2 overflow-hidden">
+                        <span className={cn("truncate", !selectedPreset && "text-muted-foreground")}>
+                          {selectedPreset ? selectedPreset.name : "Muster auswählen…"}
+                        </span>
+                        {selectedPreset?.category && (
+                          <span className="truncate text-xs text-muted-foreground">
+                            ({selectedPreset.category})
+                          </span>
+                        )}
+                      </div>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-2" align="start">
+                    <div className="max-h-72 space-y-1 overflow-y-auto">
+                      {presets.map((p: any) => {
+                        const isSelected = selectedPresetId === p.id;
+
+                        return (
+                          <div
+                            key={p.id}
+                            className={cn(
+                              "flex items-center gap-2 rounded-md border border-border/60 bg-background p-1",
+                              isSelected && "border-primary/40 bg-muted/40"
+                            )}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => applyPreset(p.id)}
+                              className="flex flex-1 items-center justify-between gap-3 rounded-sm px-3 py-2 text-left transition-colors hover:bg-muted/60"
+                            >
+                              <div className="min-w-0">
+                                <div className="truncate text-sm font-medium text-foreground">{p.name}</div>
+                                {p.category && (
+                                  <div className="truncate text-xs text-muted-foreground">{p.category}</div>
+                                )}
+                              </div>
+                              {isSelected && <Check className="h-4 w-4 shrink-0 text-primary" />}
+                            </button>
+
+                            <div className="flex items-center gap-1 pr-1">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8"
+                                title="Muster bearbeiten"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  openPresetEdit(p);
+                                }}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-destructive"
+                                title="Muster löschen"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+
+                                  if (window.confirm(`Muster „${p.name}“ wirklich löschen?`)) {
+                                    void handleDeletePreset(p.id);
+                                  }
+                                }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </PopoverContent>
+                </Popover>
                 <Separator />
               </div>
             )}
