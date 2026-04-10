@@ -361,6 +361,44 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
           </DialogHeader>
 
           <div className="space-y-6">
+            {/* === Preset Selector (only for new templates) === */}
+            {!editingId && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <Zap className="h-4 w-4 text-muted-foreground" />
+                  Schnellauswahl
+                </div>
+                <p className="text-xs text-muted-foreground">Vorgefertigte Vorlage als Basis verwenden – Felder werden vorausgefüllt und können angepasst werden.</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {TEMPLATE_PRESETS.map((preset) => (
+                    <button
+                      key={preset.name}
+                      type="button"
+                      onClick={() => setForm(prev => ({
+                        ...prev,
+                        name: preset.name,
+                        vendor_name: preset.vendor_name || prev.vendor_name,
+                        category: preset.category,
+                        interval: preset.interval,
+                        vat_rate: preset.vat_rate || prev.vat_rate,
+                        is_35a_relevant: preset.is_35a_relevant,
+                        description: preset.description,
+                      }))}
+                      className={cn(
+                        "px-2.5 py-1 rounded-md border text-xs transition-colors",
+                        form.name === preset.name
+                          ? "border-primary bg-primary/10 text-primary font-medium"
+                          : "border-border hover:border-primary/40 hover:bg-accent/50 text-foreground"
+                      )}
+                    >
+                      {preset.name}
+                    </button>
+                  ))}
+                </div>
+                <Separator />
+              </div>
+            )}
+
             {/* === Section 1: Grunddaten === */}
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
