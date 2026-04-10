@@ -1004,6 +1004,7 @@ export type Database = {
           category: string
           created_at: string
           default_distribution_key: string | null
+          default_vat_rate: number | null
           id: string
           is_35a_relevant: boolean | null
           is_billing_relevant: boolean
@@ -1024,6 +1025,7 @@ export type Database = {
           category: string
           created_at?: string
           default_distribution_key?: string | null
+          default_vat_rate?: number | null
           id?: string
           is_35a_relevant?: boolean | null
           is_billing_relevant?: boolean
@@ -1044,6 +1046,7 @@ export type Database = {
           category?: string
           created_at?: string
           default_distribution_key?: string | null
+          default_vat_rate?: number | null
           id?: string
           is_35a_relevant?: boolean | null
           is_billing_relevant?: boolean
