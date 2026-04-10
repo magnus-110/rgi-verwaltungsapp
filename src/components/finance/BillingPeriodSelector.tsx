@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useManagementMode } from "@/hooks/useManagementMode";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +36,7 @@ export function BillingPeriodSelector({
   showPeriod = true,
 }: BillingPeriodSelectorProps) {
   const queryClient = useQueryClient();
+  const { managementMode } = useManagementMode();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newYear, setNewYear] = useState(new Date().getFullYear().toString());
   const [newPeriodFrom, setNewPeriodFrom] = useState("");
@@ -42,9 +44,13 @@ export function BillingPeriodSelector({
   const [newProvider, setNewProvider] = useState("");
 
   const { data: buildings = [] } = useQuery({
-    queryKey: ["buildings-billing"],
+    queryKey: ["buildings-billing", managementMode],
     queryFn: async () => {
-      const { data, error } = await supabase.from("buildings").select("id, name, building_code").order("name");
+      const { data, error } = await supabase
+        .from("buildings")
+        .select("id, name, building_code")
+        .eq("management_mode", managementMode)
+        .order("name");
       if (error) throw error;
       return data;
     },
