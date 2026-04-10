@@ -457,6 +457,27 @@ export function AssignmentDialog({
                   </div>
                 )}
 
+                {/* Missing Invoice Hint Banner */}
+                {missingInvoiceHint && !aiLoading && (
+                  <div className="rounded-lg border p-4 space-y-2 bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800">
+                    <div className="flex items-center gap-2">
+                      <FileWarning className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                      <span className="text-sm font-semibold">Rechnung fehlt</span>
+                    </div>
+                    <p className="text-sm leading-relaxed">{missingInvoiceHint.explanation}</p>
+                    {missingInvoiceHint.expected_invoice_description && (
+                      <p className="text-xs text-muted-foreground">
+                        Erwartet: <span className="font-medium">{missingInvoiceHint.expected_invoice_description}</span>
+                      </p>
+                    )}
+                    {missingInvoiceHint.last_invoice_date && (
+                      <p className="text-xs text-muted-foreground">
+                        Letzte Rechnung: {missingInvoiceHint.last_invoice_date}
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {/* Template Form */}
                 {showTemplateForm && editableTemplate && !aiLoading && (
                   <div className="rounded-lg border p-4 space-y-3 bg-violet-50 dark:bg-violet-950/30 border-violet-200 dark:border-violet-800">
