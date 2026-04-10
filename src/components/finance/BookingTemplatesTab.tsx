@@ -12,9 +12,39 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Plus, Pencil, Trash2, LayoutTemplate, Loader2, Check, ChevronsUpDown, FileText, Building2, CreditCard, Receipt, CalendarDays, Settings2 } from "lucide-react";
+import { Plus, Pencil, Trash2, LayoutTemplate, Loader2, Check, ChevronsUpDown, FileText, Building2, CreditCard, Receipt, CalendarDays, Settings2, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+
+interface TemplatePreset {
+  name: string;
+  vendor_name: string;
+  category: string;
+  interval: string;
+  vat_rate: string;
+  is_35a_relevant: boolean;
+  description: string;
+}
+
+const TEMPLATE_PRESETS: TemplatePreset[] = [
+  { name: "Stromabschlag", vendor_name: "", category: "Betriebskosten", interval: "monatlich", vat_rate: "19", is_35a_relevant: false, description: "Monatliche Abschlagszahlung Strom" },
+  { name: "Gasabschlag", vendor_name: "", category: "Betriebskosten", interval: "monatlich", vat_rate: "19", is_35a_relevant: false, description: "Monatliche Abschlagszahlung Gas/Heizung" },
+  { name: "Wasserabschlag", vendor_name: "", category: "Betriebskosten", interval: "monatlich", vat_rate: "7", is_35a_relevant: false, description: "Monatliche Abschlagszahlung Wasser/Abwasser" },
+  { name: "Grundsteuer", vendor_name: "Gemeinde", category: "Betriebskosten", interval: "quartalsweise", vat_rate: "", is_35a_relevant: false, description: "Quartalsweise Grundsteuer an die Gemeinde" },
+  { name: "Müllabfuhr", vendor_name: "", category: "Betriebskosten", interval: "quartalsweise", vat_rate: "", is_35a_relevant: false, description: "Müllgebühren" },
+  { name: "Gebäudeversicherung", vendor_name: "", category: "Versicherung", interval: "jährlich", vat_rate: "19", is_35a_relevant: false, description: "Gebäudeversicherung (Feuer, Sturm, Wasser)" },
+  { name: "Haftpflichtversicherung", vendor_name: "", category: "Versicherung", interval: "jährlich", vat_rate: "19", is_35a_relevant: false, description: "Haus- und Grundbesitzer-Haftpflicht" },
+  { name: "Hausmeisterservice", vendor_name: "", category: "Dienstleistung", interval: "monatlich", vat_rate: "19", is_35a_relevant: true, description: "Hausmeister/Hauswart" },
+  { name: "Treppenhausreinigung", vendor_name: "", category: "Dienstleistung", interval: "monatlich", vat_rate: "19", is_35a_relevant: true, description: "Reinigung Treppenhaus/Gemeinschaftsflächen" },
+  { name: "Winterdienst", vendor_name: "", category: "Dienstleistung", interval: "monatlich", vat_rate: "19", is_35a_relevant: true, description: "Winterdienst/Schneeräumung" },
+  { name: "Aufzugswartung", vendor_name: "", category: "Wartung", interval: "quartalsweise", vat_rate: "19", is_35a_relevant: true, description: "Wartung und Prüfung Aufzug" },
+  { name: "Kontoführungsgebühr", vendor_name: "", category: "Verwaltung", interval: "monatlich", vat_rate: "", is_35a_relevant: false, description: "Bankgebühren für das Hausgeldkonto" },
+  { name: "Schornsteinfeger", vendor_name: "", category: "Dienstleistung", interval: "jährlich", vat_rate: "19", is_35a_relevant: true, description: "Schornsteinfeger / Abgasmessung" },
+  { name: "Kabelanschluss/Internet", vendor_name: "", category: "Betriebskosten", interval: "monatlich", vat_rate: "19", is_35a_relevant: false, description: "Kabelanschluss / Glasfaser / Internet" },
+  { name: "Verwaltergebühr", vendor_name: "", category: "Verwaltung", interval: "monatlich", vat_rate: "19", is_35a_relevant: false, description: "Hausverwaltungsgebühr" },
+  { name: "Gartenpflege", vendor_name: "", category: "Dienstleistung", interval: "monatlich", vat_rate: "19", is_35a_relevant: true, description: "Gartenpflege / Grünanlagen" },
+];
 
 interface TemplateForm {
   name: string;
