@@ -9,7 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
-import { Loader2, Sparkles, Calendar, CreditCard, Hash, ArrowRightLeft, CheckCircle2, Lightbulb, BookOpen, Plus, ChevronDown, LayoutTemplate, Save, Eye } from "lucide-react";
+import { Loader2, Sparkles, Calendar, CreditCard, Hash, ArrowRightLeft, CheckCircle2, Lightbulb, BookOpen, Plus, ChevronDown, LayoutTemplate, Save, Eye, FileWarning } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
