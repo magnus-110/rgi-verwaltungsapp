@@ -1,70 +1,62 @@
 
 
-## Buchungskontrolle: Split-View mit Schnellbestätigung
+## Plan: Standard-Steuersatz pro Konto + Einstellungs-Dialog
 
-### Konzept
+### 1. Datenbank: Neue Spalte `default_vat_rate`
 
-Eine neue Vollbild-Ansicht ("Prüfmodus") speziell für die schnelle Kontrolle von offenen Buchungen. Statt Dialog-basiert wird eine dedizierte Seite/Overlay mit Split-Layout genutzt:
+Migration: `ALTER TABLE public.chart_of_accounts ADD COLUMN default_vat_rate numeric DEFAULT 19;`
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│  ◀ Zurück   Buchung 3 / 47   ████████░░░░░░   [Shift] ✓   │
-├────────────────────────────┬────────────────────────────────┤
-│                            │                               │
-│   BUCHUNG                  │   RECHNUNG / VORLAGE          │
-│                            │                               │
-│   Konto: 4100 Heizkosten  │   PDF-Vorschau (iframe)       │
-│   Betrag: 1.234,56 €  ✓   │   oder                        │
-│   Datum: 15.03.2025        │   Vorlage-Details:            │
-│   Buchungstext: Abschlag   │     Name: Heizöl Abschlag     │
-│   Beleg-Nr: RE-2025-042   │     Erw. Betrag: 1.234,56 € ✓│
-│   MwSt: 19%               │     Intervall: monatlich      │
-│   §35a: Ja                 │     Lieferant: Stadtwerke     │
-│   Kürzel: KI               │                               │
-│                            │                               │
-│   [Bearbeiten]             │                               │
-├────────────────────────────┴────────────────────────────────┤
-│  ← Zurück (Pfeil)    [Shift] Bestätigen & Weiter →        │
-│                       [S] Überspringen                      │
-└─────────────────────────────────────────────────────────────┘
-```
+Danach ein UPDATE-Statement, das sinnvolle Defaults setzt:
+- Personenkonten (0001-0999): 0%
+- Bankkonten (1800, 1810 etc.): 0%
+- Vorauszahlungskonten (1470-1473): 0%
+- Versicherungen: 19% (Versicherungssteuer)
+- Handwerker/Instandhaltung: 19%
+- Heizkosten/Energie: 19%
+- Rücklagen: 0%
 
-### Kernfeatures
+### 2. ChartOfAccountsTab: Tabelle verschlanken + Einstellungs-Popover
 
-1. **Split-View**: Links Buchungsdetails (read-only), rechts die verknüpfte Rechnung (PDF-Embed) oder Vorlage (Detailansicht). Wenn weder Rechnung noch Vorlage vorhanden: Hinweis "Keine Referenz verknüpft"
+Die aktuelle Tabelle zeigt viele Spalten (VR, Abr., HK, WP, SV, 35a, §35a Typ, Abr.-Sektion). Diese werden ersetzt durch:
 
-2. **Match-Highlighting**: Felder die zwischen Buchung und Referenz übereinstimmen werden grün markiert (z.B. Betrag Buchung = Bruttobetrag Rechnung, oder Betrag = expected_amount der Vorlage)
+**Neue schlanke Tabellenansicht:**
+| Konto-Nr. | Bezeichnung | Verteilerschlüssel | MwSt | ⋯ (Aktionen) |
 
-3. **Keyboard-Navigation**:
-   - `Shift` → Bestätigen & nächste Buchung
-   - `→` Pfeil → Überspringen (nächste ohne Bestätigung)
-   - `←` Pfeil → Zurück zur vorherigen
-   - `E` → Edit-Dialog öffnen für Korrekturen
+Die Spalte "⋯" öffnet einen **Popover/Dialog** mit allen Einstellungen:
+- Abrechnungssektion (Dropdown)
+- §35a Typ (Dropdown)
+- Standard-MwSt (Dropdown: 0%, 7%, 19%)
+- Verteilungsrelevant (VR) - mit Info-Icon: "Wird in der Einzelabrechnung auf die Eigentümer verteilt"
+- Abrechnungsrelevant (Abr.) - Info: "Erscheint in der Gesamtabrechnung"
+- Heizkosten-relevant (HK) - Info: "Wird über die Heizkostenverordnung abgerechnet"
+- Wirtschaftsplan-relevant (WP) - Info: "Erscheint im Wirtschaftsplan/Budget"
+- Saldovortrag (SV) - Info: "Saldo wird ins nächste Geschäftsjahr übertragen (z.B. Bankkonten, Vorauszahlungen)"
+- §35a relevant - Info: "Enthält haushaltsnahe Dienstleistungen oder Handwerkerleistungen nach §35a EStG"
 
-4. **Fortschrittsanzeige**: Progress-Bar oben mit "X / Y geprüft"
+Jedes Feld bekommt ein kleines Info-Icon (ℹ️) mit Tooltip/Erläuterung + Beispiel.
 
-5. **Auto-Advance**: Nach Bestätigung rutscht automatisch die nächste offene Buchung nach
+### 3. BuildingDistributionKeysTab: Gleiche Anpassung
 
-### Aenderungen
+Auch hier werden die vielen Inline-Spalten (VR, Abr., HK, WP, SV, 35a, §35a Typ) in ein "⋯"-Popover verschoben. Standard-MwSt wird ebenfalls angezeigt und überschreibbar.
 
-**1. Neue Komponente `src/components/finance/BookingReviewMode.tsx`**
-- Props: `buildingId`, `fiscalYear`, `onClose`
-- Lädt alle pending Buchungen mit Joins auf `invoices` und `booking_templates`
-- State: `currentIndex`, navigiert durch die Liste
-- Linke Seite: Readonly-Darstellung aller Buchungsfelder
-- Rechte Seite: Wenn `invoice_id` → PDF via signedUrl in iframe. Wenn `matched_template_id` → Template-Detailkarte. Sonst Platzhalter
-- Match-Logik: Vergleicht `amount` vs `invoice.gross_amount` oder `template.expected_amount`, markiert Übereinstimmungen grün
-- Keyboard-Handler auf dem Container-Element
+### 4. CreateBookingDialog: MwSt aus Konto vorbelegen
 
-**2. `src/components/finance/BookingsTab.tsx`**
-- Neuer Button "Prüfmodus starten" neben "Neue Buchung"
-- Öffnet `BookingReviewMode` als Fullscreen-Overlay (Dialog mit `max-w-[95vw] max-h-[95vh]`)
-- Nur sichtbar wenn pending Buchungen > 0
+Wenn der User ein Konto auswählt, wird `vat_rate` automatisch auf den `default_vat_rate` des Kontos gesetzt (bleibt aber änderbar).
 
-**3. Keine DB-Änderung nötig** — nutzt bestehende `bookings`, `invoices`, `booking_templates` Tabellen und den bestehenden Confirm-Flow
+### 5. Supabase Types aktualisieren
 
-### Praxis-Optimierungen
-- Buchungen werden nach Liegenschaft gruppiert, damit man zusammenhängende Buchungen am Stück prüft
-- Bereits bestätigte werden übersprungen und der Zähler aktualisiert sich live
-- Bei Bedarf kann man per "E" in den Edit-Dialog springen, Änderungen vornehmen, und kehrt danach automatisch zurück
+`default_vat_rate` in die TypeScript-Typen aufnehmen (Regeneration oder manueller Eintrag).
+
+---
+
+### Technische Details
+
+**Dateien die geändert werden:**
+- Neue Migration: `default_vat_rate` Spalte + UPDATE für Standardwerte
+- `src/components/finance/ChartOfAccountsTab.tsx` - Tabelle verschlanken, Einstellungs-Popover pro Zeile
+- `src/components/finance/BuildingDistributionKeysTab.tsx` - Gleiche Umstrukturierung
+- `src/components/finance/CreateBookingDialog.tsx` - MwSt-Prefill bei Kontoauswahl
+- `src/integrations/supabase/types.ts` - Neues Feld
+
+**Neuer UI-Komponenten-Ansatz:** Ein `AccountSettingsPopover` (oder inline Dialog), der via "⋯"-Button geöffnet wird und alle Flags + Dropdowns + MwSt + Info-Tooltips enthält.
 
