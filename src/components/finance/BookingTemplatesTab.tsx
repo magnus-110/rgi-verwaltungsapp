@@ -273,7 +273,7 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
                       <div className="flex items-center gap-1.5">
                         {t.name}
                         {t.linked_invoice_id && (
-                          <FileText className="h-3.5 w-3.5 text-primary shrink-0" title="Rechnung verknüpft" />
+                          <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
                         )}
                       </div>
                     </TableCell>
