@@ -378,7 +378,13 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     const Icon = config.icon;
     const name = txn.amount < 0 ? txn.creditor_name : txn.debtor_name;
     return (
-      <TableRow key={txn.id} className="cursor-pointer hover:bg-accent/50" onClick={() => setSelectedTransaction(txn.id)}>
+      <TableRow key={txn.id} className="cursor-pointer hover:bg-accent/50" onClick={() => {
+        if ((txn.match_status === "unmatched" || txn.match_status === "invoice_pending") && !txn.booked_at) {
+          setManualAssignTxn(txn); setManualAssignType("invoice"); setManualAssignId("");
+        } else {
+          setSelectedTransaction(txn.id);
+        }
+      }}>
         <TableCell className="text-sm whitespace-nowrap">{format(new Date(txn.booking_date), "dd.MM.yyyy")}</TableCell>
         <TableCell className="text-sm max-w-[150px] truncate">{name || "–"}</TableCell>
         <TableCell className="text-sm max-w-[200px] truncate">{txn.purpose || "–"}</TableCell>
@@ -396,9 +402,6 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
         <TableCell onClick={(e) => e.stopPropagation()}>
           {txn.match_status === "unmatched" && !txn.booked_at && (
             <div className="flex gap-1">
-              <Button variant="ghost" size="sm" className="text-xs" onClick={() => { setManualAssignTxn(txn); setManualAssignType("invoice"); setManualAssignId(""); }}>
-                <Link2 className="h-3 w-3 mr-1" />Zuordnen
-              </Button>
               <Button
                 variant="ghost"
                 size="sm"
