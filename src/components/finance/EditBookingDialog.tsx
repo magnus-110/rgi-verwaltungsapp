@@ -317,6 +317,9 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                 set("account_id", v);
                 const acc = accounts.find(a => a.id === v);
                 if (acc?.is_35a_relevant) set("is_35a_relevant", true);
+                if (acc && (acc as any).default_vat_rate != null) {
+                  set("vat_rate", String((acc as any).default_vat_rate));
+                }
               }} search={accountSearch} onSearchChange={setAccountSearch}
                 isOpen={accountOpen} onOpenChange={setAccountOpen} placeholder="Konto suchen..." />
             </div>
