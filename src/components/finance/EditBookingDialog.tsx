@@ -404,6 +404,23 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                 <Label htmlFor="edit_is_35a" className="text-sm cursor-pointer whitespace-nowrap font-medium">§35a relevant</Label>
               </div>
             </div>
+            {form.is_35a_relevant && (
+              <div className="pt-2">
+                <Label className="text-sm mb-1.5 block">§35a-Anteil (Arbeitskosten netto, €)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={form.amount_35a}
+                  onChange={e => set("amount_35a", e.target.value)}
+                  className="h-11 w-[200px] text-right font-medium"
+                  placeholder="0,00"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Nur der §35a-relevante Arbeitsanteil (netto) dieser Buchung.
+                </p>
+              </div>
+            )}
+            </div>
           </div>
 
           {/* Leistungszeitraum */}
