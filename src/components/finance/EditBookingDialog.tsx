@@ -420,7 +420,6 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                 </p>
               </div>
             )}
-            </div>
           </div>
 
           {/* Leistungszeitraum */}
