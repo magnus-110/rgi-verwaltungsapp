@@ -71,6 +71,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
     vat_rate: "19",
     is_35a_relevant: false,
     fiscal_year: String(new Date().getFullYear()),
+    amount_35a: "",
   });
   const [accountSearch, setAccountSearch] = useState("");
   const [counterSearch, setCounterSearch] = useState("");
@@ -94,6 +95,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
         vat_rate: String(booking.vat_rate ?? 19),
         is_35a_relevant: booking.is_35a_relevant ?? false,
         fiscal_year: String(booking.fiscal_year),
+        amount_35a: (booking as any).amount_35a != null ? String((booking as any).amount_35a) : "",
       });
       setShowPeriod(!!(booking.performance_period_from || booking.performance_period_to));
     }
@@ -157,6 +159,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
       vat_amount: parseFloat(computedVat),
       is_35a_relevant: form.is_35a_relevant,
       fiscal_year: parseInt(form.fiscal_year),
+      amount_35a: form.amount_35a ? parseFloat(form.amount_35a) : null,
     }).eq("id", booking.id);
     if (error) { toast.error("Fehler: " + error.message); return; }
     toast.success("Buchung gespeichert");
@@ -189,6 +192,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
       vat_amount: parseFloat(computedVat),
       is_35a_relevant: form.is_35a_relevant,
       fiscal_year: parseInt(form.fiscal_year),
+      amount_35a: form.amount_35a ? parseFloat(form.amount_35a) : null,
       status: "confirmed",
       confirmed_by: user?.id,
       confirmed_at: new Date().toISOString(),
@@ -400,6 +404,22 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                 <Label htmlFor="edit_is_35a" className="text-sm cursor-pointer whitespace-nowrap font-medium">§35a relevant</Label>
               </div>
             </div>
+            {form.is_35a_relevant && (
+              <div className="pt-2">
+                <Label className="text-sm mb-1.5 block">§35a-Anteil (Arbeitskosten netto, €)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={form.amount_35a}
+                  onChange={e => set("amount_35a", e.target.value)}
+                  className="h-11 w-[200px] text-right font-medium"
+                  placeholder="0,00"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Nur der §35a-relevante Arbeitsanteil (netto) dieser Buchung.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Leistungszeitraum */}

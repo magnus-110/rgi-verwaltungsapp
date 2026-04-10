@@ -264,6 +264,12 @@ export function BookingReviewMode({ open, onOpenChange, fiscalYear, buildingId }
                   <DetailField label="Beleg-Nr." value={currentBooking.receipt_number || "–"} />
                   <DetailField label="Kürzel" value={currentBooking.booking_reference || "–"} />
                   <DetailField label="§35a-relevant" value={currentBooking.is_35a_relevant ? "Ja" : "Nein"} />
+                  {currentBooking.is_35a_relevant && currentBooking.amount_35a != null && (
+                    <DetailField
+                      label="§35a-Anteil"
+                      value={<span className="font-bold">{formatCurrency(currentBooking.amount_35a)}</span>}
+                    />
+                  )}
                   <DetailField label="Quelle" value={currentBooking.source === "manual" ? "Manuell" : currentBooking.source === "bank_import" ? "Kontoauszug" : currentBooking.source} />
                 </div>
 

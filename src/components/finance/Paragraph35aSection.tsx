@@ -36,7 +36,7 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bookings")
-        .select("account_id, amount, is_35a_relevant")
+        .select("account_id, amount, amount_35a, is_35a_relevant")
         .eq("building_id", buildingId)
         .eq("fiscal_year", fiscalYear)
         .eq("is_35a_relevant", true)
@@ -65,8 +65,11 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
     },
   });
 
-  // Calculate total §35a amount
-  const total35a = bookings35a.reduce((s: number, b: any) => s + Math.abs(Number(b.amount)), 0);
+  // Calculate total §35a amount – prefer amount_35a (new consolidated model) over amount (legacy split)
+  const total35a = bookings35a.reduce((s: number, b: any) => {
+    const relevant = b.amount_35a != null ? Math.abs(Number(b.amount_35a)) : Math.abs(Number(b.amount));
+    return s + relevant;
+  }, 0);
 
   // Get total MEA shares
   const totalMea = owners.reduce((s: number, o: any) => {

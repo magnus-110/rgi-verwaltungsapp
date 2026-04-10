@@ -394,6 +394,7 @@ export type Database = {
           account_id: string | null
           ai_warning: string | null
           amount: number
+          amount_35a: number | null
           booking_category: string | null
           booking_date: string
           booking_reference: string | null
@@ -409,6 +410,7 @@ export type Database = {
           id: string
           invoice_id: string | null
           is_35a_relevant: boolean | null
+          line_items_detail: Json | null
           matched_template_id: string | null
           performance_period_from: string | null
           performance_period_to: string | null
@@ -426,6 +428,7 @@ export type Database = {
           account_id?: string | null
           ai_warning?: string | null
           amount: number
+          amount_35a?: number | null
           booking_category?: string | null
           booking_date: string
           booking_reference?: string | null
@@ -441,6 +444,7 @@ export type Database = {
           id?: string
           invoice_id?: string | null
           is_35a_relevant?: boolean | null
+          line_items_detail?: Json | null
           matched_template_id?: string | null
           performance_period_from?: string | null
           performance_period_to?: string | null
@@ -458,6 +462,7 @@ export type Database = {
           account_id?: string | null
           ai_warning?: string | null
           amount?: number
+          amount_35a?: number | null
           booking_category?: string | null
           booking_date?: string
           booking_reference?: string | null
@@ -473,6 +478,7 @@ export type Database = {
           id?: string
           invoice_id?: string | null
           is_35a_relevant?: boolean | null
+          line_items_detail?: Json | null
           matched_template_id?: string | null
           performance_period_from?: string | null
           performance_period_to?: string | null
