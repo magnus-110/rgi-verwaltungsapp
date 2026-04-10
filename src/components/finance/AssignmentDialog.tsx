@@ -152,6 +152,38 @@ export function AssignmentDialog({
     if (!transaction || (invoicesList.length === 0 && templatesList.length === 0)) return;
     setAiLoading(true);
     try {
+      // Query historical bookings for the same creditor
+      const txnName = transaction.amount < 0 ? transaction.creditor_name : transaction.debtor_name;
+      const txnIban = transaction.amount < 0 ? transaction.creditor_iban : transaction.debtor_iban;
+      let historicalBookings: { amount: number; date: string; has_invoice: boolean }[] = [];
+
+      if (transaction.building_id && (txnName || txnIban)) {
+        const twoYearsAgo = new Date();
+        twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+
+        let query = supabase
+          .from("bookings")
+          .select("amount, booking_date, invoice_id")
+          .eq("building_id", transaction.building_id)
+          .gte("booking_date", twoYearsAgo.toISOString().split("T")[0])
+          .order("booking_date", { ascending: false })
+          .limit(20);
+
+        // Filter by vendor: use description ILIKE for name match
+        if (txnName) {
+          query = query.ilike("description", `%${txnName}%`);
+        }
+
+        const { data: histData } = await query;
+        if (histData && histData.length > 0) {
+          historicalBookings = histData.map((b: any) => ({
+            amount: b.amount,
+            date: b.booking_date,
+            has_invoice: !!b.invoice_id,
+          }));
+        }
+      }
+
       const { data, error } = await supabase.functions.invoke("suggest-match", {
         body: {
           transaction: {
@@ -194,11 +226,13 @@ export function AssignmentDialog({
               booking_date: t.booking_date,
               match_status: t.match_status,
             })),
+          historicalBookings: historicalBookings.length > 0 ? historicalBookings : undefined,
         },
       });
       if (data?.matches) setAiMatches(data.matches);
       if (data?.booking_hint) setBookingHint(data.booking_hint);
       if (data?.template_suggestion) setTemplateSuggestion(data.template_suggestion);
+      if (data?.missing_invoice_hint) setMissingInvoiceHint(data.missing_invoice_hint);
     } catch (err) {
       console.error("AI suggest error:", err);
     } finally {
