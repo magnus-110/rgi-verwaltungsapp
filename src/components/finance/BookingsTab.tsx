@@ -263,7 +263,9 @@ export function BookingsTab() {
             </TooltipProvider>
           )}
           {b.is_35a_relevant && (
-            <Badge className="text-[10px] bg-amber-100 text-amber-800 hover:bg-amber-100">§35a</Badge>
+            <Badge className="text-[10px] bg-amber-100 text-amber-800 hover:bg-amber-100">
+              §35a{b.amount_35a != null ? ` ${formatCurrency(b.amount_35a)}` : ""}
+            </Badge>
           )}
           {b.invoice_id && (
             <Button size="sm" variant="ghost" className="h-6 w-6 p-0"
