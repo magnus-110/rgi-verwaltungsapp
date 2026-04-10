@@ -320,6 +320,7 @@ export type Database = {
       booking_templates: {
         Row: {
           account_id: string | null
+          amount_tolerance: number | null
           building_id: string | null
           category: string | null
           created_at: string
@@ -328,6 +329,7 @@ export type Database = {
           id: string
           interval: string | null
           is_35a_relevant: boolean | null
+          linked_invoice_id: string | null
           name: string
           updated_at: string
           valid_from: string | null
@@ -338,6 +340,7 @@ export type Database = {
         }
         Insert: {
           account_id?: string | null
+          amount_tolerance?: number | null
           building_id?: string | null
           category?: string | null
           created_at?: string
@@ -346,6 +349,7 @@ export type Database = {
           id?: string
           interval?: string | null
           is_35a_relevant?: boolean | null
+          linked_invoice_id?: string | null
           name: string
           updated_at?: string
           valid_from?: string | null
@@ -356,6 +360,7 @@ export type Database = {
         }
         Update: {
           account_id?: string | null
+          amount_tolerance?: number | null
           building_id?: string | null
           category?: string | null
           created_at?: string
@@ -364,6 +369,7 @@ export type Database = {
           id?: string
           interval?: string | null
           is_35a_relevant?: boolean | null
+          linked_invoice_id?: string | null
           name?: string
           updated_at?: string
           valid_from?: string | null
@@ -385,6 +391,13 @@ export type Database = {
             columns: ["building_id"]
             isOneToOne: false
             referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_templates_linked_invoice_id_fkey"
+            columns: ["linked_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
             referencedColumns: ["id"]
           },
         ]
