@@ -78,6 +78,8 @@ Deno.serve(async (req) => {
           account_name: "Gaskosten",
           template_name: "Stadtwerke Gas Abschlag",
           is_35a_relevant: false,
+          amount_35a: null,
+          line_items_detail: [],
           category: "versorgung",
           utility_type: "gas",
           prepayment_account_number: "1590",
