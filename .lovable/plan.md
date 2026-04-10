@@ -1,33 +1,55 @@
 
 
-## Plan: Shortcut-Anzeige fixen + Kreditor-Historien-Sektion im Prüfmodus
+## Plan: Vorlagen mit Rechnungen verknüpfen + Betrags-Toleranz
 
-### Problem 1: Shortcuts werden abgeschnitten
-Die Shortcut-Leiste (Zeile 198-201) nutzt Unicode-Pfeile `←→` die schlecht rendern. Lösung: Styled `<kbd>` Tags verwenden und die Darstellung verbessern.
+### Überblick
+Zwei Erweiterungen für Buchungsvorlagen:
+1. **Rechnungsverknüpfung**: Eine Vorlage kann mit einer Rechnung verknüpft werden (z.B. Abschlagsbescheid Gas), die als Beleg/Nachweis dient
+2. **Betrags-Toleranz**: Statt eines fixen Betrags kann ein Toleranzbereich definiert werden (z.B. 12€ ±4€), sodass Transaktionen von 8-16€ automatisch zugeordnet werden
 
-### Problem 2: Kreditor-Historie fehlt
-Unterhalb der Buchungsdetails (linke Seite) soll eine aufklappbare Sektion "Kreditor-Historie" erscheinen, die alle Buchungen desselben Kreditors/Lieferanten anzeigt (basierend auf `description`-Matching oder `invoices.vendor_name`). Filterbar nach Wirtschaftsjahr.
+### 1. Datenbank-Migration
 
-### Änderungen
+Zwei neue Spalten in `booking_templates`:
+```sql
+ALTER TABLE public.booking_templates 
+  ADD COLUMN linked_invoice_id uuid REFERENCES invoices(id) ON DELETE SET NULL,
+  ADD COLUMN amount_tolerance numeric DEFAULT NULL;
+```
 
-**Datei: `src/components/finance/BookingReviewMode.tsx`**
+- `linked_invoice_id`: Referenz auf die verknüpfte Rechnung (z.B. Abschlagsbescheid)
+- `amount_tolerance`: Toleranz in € (z.B. 4 bedeutet ±4€ vom expected_amount)
 
-1. **Shortcut-Bar (Zeile 196-202)**: Ersetze die Textzeile durch gestylte `<kbd>`-Elemente:
-   - `Shift` → ✓ Bestätigen
-   - `← →` → Navigation  
-   - `E` → Bearbeiten
+### 2. UI: BookingTemplatesTab erweitern
 
-2. **Kreditor-Historie (neue Sektion in der linken Spalte, nach dem "Bearbeiten"-Button)**:
-   - Collapsible-Sektion mit Titel "Buchungen dieses Kreditors"
-   - Ermittlung des Kreditor-Namens aus `invoices.vendor_name` oder aus dem `description`-Feld
-   - Neuer `useQuery` der alle Buchungen mit gleichem Vendor/Description für dasselbe Gebäude lädt
-   - Dropdown-Filter für Wirtschaftsjahr (alle Jahre + aktuelles vorgewählt)
-   - Kompakte Tabelle: Datum | Betrag | Konto | Status
-   - Summenzeile am Ende
+Im Template-Dialog zwei neue Felder:
+- **Betrags-Toleranz (±)**: Nummerisches Feld neben dem Erwarteten Betrag. Wird angezeigt als "12,00 € ±4,00" in der Tabelle
+- **Verknüpfte Rechnung**: Combobox/Select, das Rechnungen des gleichen Gebäudes lädt (gefiltert auf `vendor_name` der Vorlage). Zeigt Rechnungsnr. + Datum + Betrag. Mit Button zum PDF-Öffnen
 
-### Technische Details
-- Kreditor-Matching: Zuerst `invoices.vendor_name` prüfen, Fallback auf erstes Wort/Phrase aus `description`
-- Query: `bookings` mit JOIN auf `invoices` WHERE `invoices.vendor_name = X` OR `description ILIKE '%vendor%'`, gefiltert auf `building_id`
-- Collapsible via Radix `Collapsible` (bereits im Projekt vorhanden)
-- Wirtschaftsjahr-Filter als kleines `<Select>` neben dem Sektions-Titel
+In der Tabellenansicht: Betragsspalte zeigt "12,00 € ±4,00" wenn Toleranz gesetzt, und ein kleines Rechnungs-Icon wenn eine Rechnung verknüpft ist.
+
+### 3. Matching-Logik anpassen (BookingReviewMode)
+
+Aktuell prüft Zeile 162:
+```typescript
+if (tmpl.expected_amount != null) result.amount = Math.abs(currentBooking.amount) === Math.abs(tmpl.expected_amount);
+```
+
+Änderung zu:
+```typescript
+if (tmpl.expected_amount != null) {
+  const tolerance = tmpl.amount_tolerance || 0;
+  const diff = Math.abs(Math.abs(currentBooking.amount) - Math.abs(tmpl.expected_amount));
+  result.amount = diff <= tolerance;
+}
+```
+
+### 4. TypeScript-Typen
+
+`linked_invoice_id` und `amount_tolerance` in `types.ts` ergänzen.
+
+### Dateien
+- Neue Migration: `linked_invoice_id` + `amount_tolerance`
+- `src/components/finance/BookingTemplatesTab.tsx` – Formular + Tabelle erweitern
+- `src/components/finance/BookingReviewMode.tsx` – Toleranz-Matching
+- `src/integrations/supabase/types.ts` – Neue Felder
 
