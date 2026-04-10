@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Upload, Loader2, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff, Building2, BookOpen, Link2, Send, RefreshCw, Landmark } from "lucide-react";
+import { Upload, Loader2, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff, Building2, BookOpen, Link2, Send, RefreshCw, Landmark, FileWarning } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { AssignmentDialog } from "./AssignmentDialog";
@@ -18,6 +18,7 @@ const MATCH_STATUS_CONFIG: Record<string, { label: string; color: string; icon: 
   matched_invoice: { label: "Rechnung", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200", icon: CheckCircle2 },
   matched_template: { label: "Vorlage", color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200", icon: LayoutTemplate },
   manually_matched: { label: "Manuell", color: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200", icon: CheckCircle2 },
+  invoice_pending: { label: "Rechnung fehlt", color: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200", icon: FileWarning },
   unmatched: { label: "Unbekannt", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200", icon: FileQuestion },
   ignored: { label: "Ignoriert", color: "bg-muted text-muted-foreground", icon: EyeOff },
 };
@@ -172,7 +173,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     [allBuildingTxns]
   );
   const unmatchedTransactions = useMemo(() =>
-    allBuildingTxns.filter((t: any) => t.match_status === "unmatched"),
+    allBuildingTxns.filter((t: any) => t.match_status === "unmatched" || t.match_status === "invoice_pending"),
     [allBuildingTxns]
   );
   const ignoredTransactions = useMemo(() =>

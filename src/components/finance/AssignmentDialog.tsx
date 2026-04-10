@@ -9,7 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
-import { Loader2, Sparkles, Calendar, CreditCard, Hash, ArrowRightLeft, CheckCircle2, Lightbulb, BookOpen, Plus, ChevronDown, LayoutTemplate, Save, Eye } from "lucide-react";
+import { Loader2, Sparkles, Calendar, CreditCard, Hash, ArrowRightLeft, CheckCircle2, Lightbulb, BookOpen, Plus, ChevronDown, LayoutTemplate, Save, Eye, FileWarning } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -52,6 +52,13 @@ interface TemplateSuggestion {
   description: string;
 }
 
+interface MissingInvoiceHint {
+  vendor_name: string;
+  expected_invoice_description?: string;
+  last_invoice_date?: string;
+  explanation: string;
+}
+
 interface AssignmentDialogProps {
   transaction: any | null;
   onClose: () => void;
@@ -91,6 +98,7 @@ export function AssignmentDialog({
   const [creatingTemplate, setCreatingTemplate] = useState(false);
   const [previewInvoiceId, setPreviewInvoiceId] = useState<string | null>(null);
   const [dismissedHintIndices, setDismissedHintIndices] = useState<Set<number>>(new Set());
+  const [missingInvoiceHint, setMissingInvoiceHint] = useState<MissingInvoiceHint | null>(null);
 
   // Fetch accounts for template combobox - filtered by building
   const txnBuildingId = transaction?.building_id;
@@ -117,6 +125,7 @@ export function AssignmentDialog({
       setAiMatches([]);
       setBookingHint(null);
       setTemplateSuggestion(null);
+      setMissingInvoiceHint(null);
       setEditableTemplate(null);
       setShowTemplateForm(false);
       setDismissedHintIndices(new Set());
@@ -143,6 +152,38 @@ export function AssignmentDialog({
     if (!transaction || (invoicesList.length === 0 && templatesList.length === 0)) return;
     setAiLoading(true);
     try {
+      // Query historical bookings for the same creditor
+      const txnName = transaction.amount < 0 ? transaction.creditor_name : transaction.debtor_name;
+      const txnIban = transaction.amount < 0 ? transaction.creditor_iban : transaction.debtor_iban;
+      let historicalBookings: { amount: number; date: string; has_invoice: boolean }[] = [];
+
+      if (transaction.building_id && (txnName || txnIban)) {
+        const twoYearsAgo = new Date();
+        twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+
+        let query = supabase
+          .from("bookings")
+          .select("amount, booking_date, invoice_id")
+          .eq("building_id", transaction.building_id)
+          .gte("booking_date", twoYearsAgo.toISOString().split("T")[0])
+          .order("booking_date", { ascending: false })
+          .limit(20);
+
+        // Filter by vendor: use description ILIKE for name match
+        if (txnName) {
+          query = query.ilike("description", `%${txnName}%`);
+        }
+
+        const { data: histData } = await query;
+        if (histData && histData.length > 0) {
+          historicalBookings = histData.map((b: any) => ({
+            amount: b.amount,
+            date: b.booking_date,
+            has_invoice: !!b.invoice_id,
+          }));
+        }
+      }
+
       const { data, error } = await supabase.functions.invoke("suggest-match", {
         body: {
           transaction: {
@@ -185,11 +226,13 @@ export function AssignmentDialog({
               booking_date: t.booking_date,
               match_status: t.match_status,
             })),
+          historicalBookings: historicalBookings.length > 0 ? historicalBookings : undefined,
         },
       });
       if (data?.matches) setAiMatches(data.matches);
       if (data?.booking_hint) setBookingHint(data.booking_hint);
       if (data?.template_suggestion) setTemplateSuggestion(data.template_suggestion);
+      if (data?.missing_invoice_hint) setMissingInvoiceHint(data.missing_invoice_hint);
     } catch (err) {
       console.error("AI suggest error:", err);
     } finally {
@@ -410,6 +453,27 @@ export function AssignmentDialog({
                           );
                         })}
                       </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Missing Invoice Hint Banner */}
+                {missingInvoiceHint && !aiLoading && (
+                  <div className="rounded-lg border p-4 space-y-2 bg-orange-50 dark:bg-orange-950/30 border-orange-200 dark:border-orange-800">
+                    <div className="flex items-center gap-2">
+                      <FileWarning className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                      <span className="text-sm font-semibold">Rechnung fehlt</span>
+                    </div>
+                    <p className="text-sm leading-relaxed">{missingInvoiceHint.explanation}</p>
+                    {missingInvoiceHint.expected_invoice_description && (
+                      <p className="text-xs text-muted-foreground">
+                        Erwartet: <span className="font-medium">{missingInvoiceHint.expected_invoice_description}</span>
+                      </p>
+                    )}
+                    {missingInvoiceHint.last_invoice_date && (
+                      <p className="text-xs text-muted-foreground">
+                        Letzte Rechnung: {missingInvoiceHint.last_invoice_date}
+                      </p>
                     )}
                   </div>
                 )}
