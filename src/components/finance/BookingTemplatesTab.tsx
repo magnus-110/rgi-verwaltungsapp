@@ -12,9 +12,39 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Plus, Pencil, Trash2, LayoutTemplate, Loader2, Check, ChevronsUpDown, FileText, Building2, CreditCard, Receipt, CalendarDays, Settings2 } from "lucide-react";
+import { Plus, Pencil, Trash2, LayoutTemplate, Loader2, Check, ChevronsUpDown, FileText, Building2, CreditCard, Receipt, CalendarDays, Settings2, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+
+interface TemplatePreset {
+  name: string;
+  vendor_name: string;
+  category: string;
+  interval: string;
+  vat_rate: string;
+  is_35a_relevant: boolean;
+  description: string;
+}
+
+const TEMPLATE_PRESETS: TemplatePreset[] = [
+  { name: "Stromabschlag", vendor_name: "", category: "Betriebskosten", interval: "monatlich", vat_rate: "19", is_35a_relevant: false, description: "Monatliche Abschlagszahlung Strom" },
+  { name: "Gasabschlag", vendor_name: "", category: "Betriebskosten", interval: "monatlich", vat_rate: "19", is_35a_relevant: false, description: "Monatliche Abschlagszahlung Gas/Heizung" },
+  { name: "Wasserabschlag", vendor_name: "", category: "Betriebskosten", interval: "monatlich", vat_rate: "7", is_35a_relevant: false, description: "Monatliche Abschlagszahlung Wasser/Abwasser" },
+  { name: "Grundsteuer", vendor_name: "Gemeinde", category: "Betriebskosten", interval: "quartalsweise", vat_rate: "", is_35a_relevant: false, description: "Quartalsweise Grundsteuer an die Gemeinde" },
+  { name: "Müllabfuhr", vendor_name: "", category: "Betriebskosten", interval: "quartalsweise", vat_rate: "", is_35a_relevant: false, description: "Müllgebühren" },
+  { name: "Gebäudeversicherung", vendor_name: "", category: "Versicherung", interval: "jährlich", vat_rate: "19", is_35a_relevant: false, description: "Gebäudeversicherung (Feuer, Sturm, Wasser)" },
+  { name: "Haftpflichtversicherung", vendor_name: "", category: "Versicherung", interval: "jährlich", vat_rate: "19", is_35a_relevant: false, description: "Haus- und Grundbesitzer-Haftpflicht" },
+  { name: "Hausmeisterservice", vendor_name: "", category: "Dienstleistung", interval: "monatlich", vat_rate: "19", is_35a_relevant: true, description: "Hausmeister/Hauswart" },
+  { name: "Treppenhausreinigung", vendor_name: "", category: "Dienstleistung", interval: "monatlich", vat_rate: "19", is_35a_relevant: true, description: "Reinigung Treppenhaus/Gemeinschaftsflächen" },
+  { name: "Winterdienst", vendor_name: "", category: "Dienstleistung", interval: "monatlich", vat_rate: "19", is_35a_relevant: true, description: "Winterdienst/Schneeräumung" },
+  { name: "Aufzugswartung", vendor_name: "", category: "Wartung", interval: "quartalsweise", vat_rate: "19", is_35a_relevant: true, description: "Wartung und Prüfung Aufzug" },
+  { name: "Kontoführungsgebühr", vendor_name: "", category: "Verwaltung", interval: "monatlich", vat_rate: "", is_35a_relevant: false, description: "Bankgebühren für das Hausgeldkonto" },
+  { name: "Schornsteinfeger", vendor_name: "", category: "Dienstleistung", interval: "jährlich", vat_rate: "19", is_35a_relevant: true, description: "Schornsteinfeger / Abgasmessung" },
+  { name: "Kabelanschluss/Internet", vendor_name: "", category: "Betriebskosten", interval: "monatlich", vat_rate: "19", is_35a_relevant: false, description: "Kabelanschluss / Glasfaser / Internet" },
+  { name: "Verwaltergebühr", vendor_name: "", category: "Verwaltung", interval: "monatlich", vat_rate: "19", is_35a_relevant: false, description: "Hausverwaltungsgebühr" },
+  { name: "Gartenpflege", vendor_name: "", category: "Dienstleistung", interval: "monatlich", vat_rate: "19", is_35a_relevant: true, description: "Gartenpflege / Grünanlagen" },
+];
 
 interface TemplateForm {
   name: string;
@@ -331,6 +361,44 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
           </DialogHeader>
 
           <div className="space-y-6">
+            {/* === Preset Selector (only for new templates) === */}
+            {!editingId && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <Zap className="h-4 w-4 text-muted-foreground" />
+                  Schnellauswahl
+                </div>
+                <p className="text-xs text-muted-foreground">Vorgefertigte Vorlage als Basis verwenden – Felder werden vorausgefüllt und können angepasst werden.</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {TEMPLATE_PRESETS.map((preset) => (
+                    <button
+                      key={preset.name}
+                      type="button"
+                      onClick={() => setForm(prev => ({
+                        ...prev,
+                        name: preset.name,
+                        vendor_name: preset.vendor_name || prev.vendor_name,
+                        category: preset.category,
+                        interval: preset.interval,
+                        vat_rate: preset.vat_rate || prev.vat_rate,
+                        is_35a_relevant: preset.is_35a_relevant,
+                        description: preset.description,
+                      }))}
+                      className={cn(
+                        "px-2.5 py-1 rounded-md border text-xs transition-colors",
+                        form.name === preset.name
+                          ? "border-primary bg-primary/10 text-primary font-medium"
+                          : "border-border hover:border-primary/40 hover:bg-accent/50 text-foreground"
+                      )}
+                    >
+                      {preset.name}
+                    </button>
+                  ))}
+                </div>
+                <Separator />
+              </div>
+            )}
+
             {/* === Section 1: Grunddaten === */}
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
