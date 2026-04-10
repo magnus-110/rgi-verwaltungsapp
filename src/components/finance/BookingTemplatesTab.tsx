@@ -820,60 +820,6 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
         </DialogContent>
       </Dialog>
 
-      {/* Preset List Management (accessible from main card) */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Zap className="h-5 w-5" />
-              Vorlagen-Muster
-            </CardTitle>
-            <Button variant="outline" size="sm" onClick={openPresetCreate}>
-              <Plus className="h-4 w-4 mr-2" />Neues Muster
-            </Button>
-          </div>
-          <p className="text-sm text-muted-foreground mt-1">Vorgefertigte Muster für häufige Buchungsvorlagen. Diese werden beim Erstellen neuer Vorlagen als Dropdown angeboten.</p>
-        </CardHeader>
-        <CardContent>
-          {presets.length === 0 ? (
-            <p className="text-center text-muted-foreground py-6 text-sm">Keine Muster vorhanden</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Kategorie</TableHead>
-                  <TableHead>Intervall</TableHead>
-                  <TableHead>MwSt</TableHead>
-                  <TableHead>§35a</TableHead>
-                  <TableHead></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {presets.map((p: any) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="font-medium text-sm">{p.name}</TableCell>
-                    <TableCell className="text-sm">{p.category || "–"}</TableCell>
-                    <TableCell className="text-sm capitalize">{p.interval || "–"}</TableCell>
-                    <TableCell className="text-sm">{p.vat_rate != null ? `${p.vat_rate}%` : "–"}</TableCell>
-                    <TableCell className="text-sm">{p.is_35a_relevant ? "Ja" : "–"}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openPresetEdit(p)}>
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeletePreset(p.id)}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }
