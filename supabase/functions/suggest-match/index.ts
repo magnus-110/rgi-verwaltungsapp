@@ -10,7 +10,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { transaction, invoices, templates, allTransactions } = await req.json();
+    const { transaction, invoices, templates, allTransactions, historicalBookings } = await req.json();
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
@@ -37,6 +37,14 @@ serve(async (req) => {
       }
     }
 
+    let historicalContext = "";
+    if (historicalBookings && historicalBookings.length > 0) {
+      const lines = historicalBookings.map((b: any) =>
+        `HIST amount=${b.amount} date="${b.date}" has_invoice=${b.has_invoice}`
+      );
+      historicalContext = `\n\nHistorische Buchungen desselben Kreditors (letzte 2 Jahre):\n${lines.join("\n")}`;
+    }
+
     const systemPrompt = `Du bist ein Buchhaltungs-Assistent für WEG-Hausverwaltungen. Du analysierst eine Banktransaktion und findest die am besten passenden Rechnungen oder Vorlagen aus einer Kandidatenliste.
 
 Matching-Kriterien (nach Wichtigkeit):
@@ -45,10 +53,6 @@ Matching-Kriterien (nach Wichtigkeit):
 3. Namensähnlichkeit (Auftraggeber/Empfänger vs. Lieferant)
 4. Schlüsselwörter im Verwendungszweck
 5. Zeitliche Gültigkeit: Vorlagen mit valid_from/valid_to nur vorschlagen, wenn das Transaktionsdatum im Gültigkeitszeitraum liegt. Vorlagen ohne Datumseinschränkung gelten immer.
-1. IBAN-Übereinstimmung (stärkster Indikator)
-2. Betragsübereinstimmung oder -ähnlichkeit
-3. Namensähnlichkeit (Auftraggeber/Empfänger vs. Lieferant)
-4. Schlüsselwörter im Verwendungszweck
 
 Erweiterte Analyse:
 - Prüfe ob der Transaktionsbetrag der SUMME mehrerer Vorlagen entspricht (z.B. Sammeleingänge wie Hausgeld)
@@ -56,11 +60,17 @@ Erweiterte Analyse:
 - Prüfe ob andere offene Transaktionen zusammen den vollen Rechnungsbetrag ergeben
 - Bei Sammelzahlungen: Identifiziere alle Vorlagen, die in der Summe enthalten sein könnten
 
+Vorlagen vs. fehlende Rechnung (WICHTIG!):
+- Wenn historische Buchungen desselben Kreditors vorhanden sind, prüfe ob diese ÜBERWIEGEND mit Rechnungen verknüpft waren (has_invoice=true).
+- Wenn ja: Erstelle KEINE template_suggestion, sondern setze missing_invoice_hint. Das bedeutet: der Kreditor liefert normalerweise Rechnungen, aber die aktuelle fehlt noch.
+- Wenn nein (historisch keine/wenige Rechnungen): Erstelle wie bisher eine template_suggestion für eine neue Vorlage.
+- Wenn KEINE historischen Daten vorhanden sind: Nutze dein Urteilsvermögen basierend auf dem Transaktionstyp (z.B. Abschlagszahlungen deuten auf Rechnungen hin).
+
 Vorlagen-Erkennung:
-- Wenn KEINE passende Vorlage existiert und die Transaktion auf eine WIEDERKEHRENDE Zahlung hindeutet (z.B. "Abschlag", "monatlich", Kundennummer, regelmäßiger Lieferant wie Strom/Gas/Wasser/Versicherung), schlage eine neue Vorlage vor im template_suggestion Feld.
+- Wenn KEINE passende Vorlage existiert und die Transaktion auf eine WIEDERKEHRENDE Zahlung hindeutet (z.B. "Abschlag", "monatlich", Kundennummer, regelmäßiger Lieferant wie Strom/Gas/Wasser/Versicherung), schlage eine neue Vorlage vor im template_suggestion Feld — ABER NUR wenn historisch keine Rechnungen vorhanden waren.
 - Erkennbare Muster: Abschlagszahlungen, Versicherungsbeiträge, Wartungsverträge, Mietzahlungen, Hausgeld.
 
-Gib die besten 1-5 Kandidaten zurück UND einen booking_hint wenn du eine komplexe Zuordnung erkennst UND einen template_suggestion wenn eine neue Vorlage erstellt werden sollte.`;
+Gib die besten 1-5 Kandidaten zurück UND einen booking_hint wenn du eine komplexe Zuordnung erkennst UND einen template_suggestion ODER missing_invoice_hint wenn angemessen.`;
 
     const userPrompt = `Transaktion:
 - Betrag: ${transaction.amount} €
@@ -70,7 +80,7 @@ Gib die besten 1-5 Kandidaten zurück UND einen booking_hint wenn du eine komple
 - Datum: ${transaction.booking_date}
 
 Kandidaten:
-${candidatesSummary}${otherTxnContext}`;
+${candidatesSummary}${otherTxnContext}${historicalContext}`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -89,7 +99,7 @@ ${candidatesSummary}${otherTxnContext}`;
             type: "function",
             function: {
               name: "suggest_matches",
-              description: "Return the best matching candidates, an optional booking hint, and an optional template suggestion",
+              description: "Return the best matching candidates, an optional booking hint, an optional template suggestion, and an optional missing invoice hint",
               parameters: {
                 type: "object",
                 properties: {
@@ -144,7 +154,7 @@ ${candidatesSummary}${otherTxnContext}`;
                   },
                   template_suggestion: {
                     type: "object",
-                    description: "Optional suggestion to create a new booking template. Only set if no matching template exists and the transaction looks like a recurring payment.",
+                    description: "Optional suggestion to create a new booking template. Only set if no matching template exists, the transaction looks like a recurring payment, AND historical bookings did NOT predominantly have invoices.",
                     properties: {
                       name: { type: "string", description: "Template name, e.g. 'Abschlagszahlung Strom EON'" },
                       vendor_name: { type: "string", description: "Vendor/supplier name" },
@@ -156,6 +166,18 @@ ${candidatesSummary}${otherTxnContext}`;
                       description: { type: "string", description: "Description/reason for the template suggestion" },
                     },
                     required: ["name", "vendor_name", "expected_amount", "description"],
+                    additionalProperties: false,
+                  },
+                  missing_invoice_hint: {
+                    type: "object",
+                    description: "Set this when the creditor historically had invoices but no matching invoice was found for this transaction. This signals that the invoice is missing/not yet uploaded rather than that a new template should be created.",
+                    properties: {
+                      vendor_name: { type: "string", description: "Name of the vendor/creditor" },
+                      expected_invoice_description: { type: "string", description: "What kind of invoice is expected, e.g. 'Jahresabrechnung Gas' or 'Abschlagsbescheid Strom'" },
+                      last_invoice_date: { type: "string", description: "Date of the last known invoice from this vendor (if available from historical data)" },
+                      explanation: { type: "string", description: "German explanation for the user about why the invoice is expected and what to do" },
+                    },
+                    required: ["vendor_name", "explanation"],
                     additionalProperties: false,
                   },
                 },
