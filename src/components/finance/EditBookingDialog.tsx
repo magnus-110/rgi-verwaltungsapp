@@ -71,6 +71,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
     vat_rate: "19",
     is_35a_relevant: false,
     fiscal_year: String(new Date().getFullYear()),
+    amount_35a: "",
   });
   const [accountSearch, setAccountSearch] = useState("");
   const [counterSearch, setCounterSearch] = useState("");
@@ -94,6 +95,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
         vat_rate: String(booking.vat_rate ?? 19),
         is_35a_relevant: booking.is_35a_relevant ?? false,
         fiscal_year: String(booking.fiscal_year),
+        amount_35a: (booking as any).amount_35a != null ? String((booking as any).amount_35a) : "",
       });
       setShowPeriod(!!(booking.performance_period_from || booking.performance_period_to));
     }
