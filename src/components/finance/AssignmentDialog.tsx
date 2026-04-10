@@ -98,6 +98,8 @@ export function AssignmentDialog({
   const [creatingTemplate, setCreatingTemplate] = useState(false);
   const [previewInvoiceId, setPreviewInvoiceId] = useState<string | null>(null);
   const [dismissedHintIndices, setDismissedHintIndices] = useState<Set<number>>(new Set());
+  const [missingInvoiceHint, setMissingInvoiceHint] = useState<MissingInvoiceHint | null>(null);
+  const [dismissedHintIndices, setDismissedHintIndices] = useState<Set<number>>(new Set());
 
   // Fetch accounts for template combobox - filtered by building
   const txnBuildingId = transaction?.building_id;
