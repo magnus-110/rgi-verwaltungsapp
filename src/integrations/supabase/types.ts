@@ -317,6 +317,48 @@ export type Database = {
           },
         ]
       }
+      booking_template_presets: {
+        Row: {
+          category: string | null
+          created_at: string
+          description: string | null
+          id: string
+          interval: string | null
+          is_35a_relevant: boolean | null
+          name: string
+          sort_order: number | null
+          updated_at: string
+          vat_rate: number | null
+          vendor_name: string | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          interval?: string | null
+          is_35a_relevant?: boolean | null
+          name: string
+          sort_order?: number | null
+          updated_at?: string
+          vat_rate?: number | null
+          vendor_name?: string | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          interval?: string | null
+          is_35a_relevant?: boolean | null
+          name?: string
+          sort_order?: number | null
+          updated_at?: string
+          vat_rate?: number | null
+          vendor_name?: string | null
+        }
+        Relationships: []
+      }
       booking_templates: {
         Row: {
           account_id: string | null
