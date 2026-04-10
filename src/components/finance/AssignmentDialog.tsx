@@ -52,6 +52,13 @@ interface TemplateSuggestion {
   description: string;
 }
 
+interface MissingInvoiceHint {
+  vendor_name: string;
+  expected_invoice_description?: string;
+  last_invoice_date?: string;
+  explanation: string;
+}
+
 interface AssignmentDialogProps {
   transaction: any | null;
   onClose: () => void;
