@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { AccountSettingsPopover } from "./AccountSettingsPopover";
 
 const DISTRIBUTION_KEYS = [
   { value: "mea", label: "MEA" },
@@ -45,7 +46,6 @@ export function ChartOfAccountsTab() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editDistKey, setEditDistKey] = useState("");
-  const [edit35a, setEdit35a] = useState(false);
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [selectedBuilding, setSelectedBuilding] = useState<string>("global");
@@ -55,7 +55,7 @@ export function ChartOfAccountsTab() {
     is_35a_relevant: false, is_billing_relevant: false, is_heating_relevant: false,
     carry_forward_balance: false, is_wirtschaftsplan_relevant: false,
     is_distributable: false, settlement_section: null as string | null,
-    settlement_35a_type: null as string | null,
+    settlement_35a_type: null as string | null, default_vat_rate: 19,
   });
 
   const { data: buildings = [] } = useQuery({
@@ -98,44 +98,26 @@ export function ChartOfAccountsTab() {
     });
   };
 
-  const [editBillingRelevant, setEditBillingRelevant] = useState(false);
-  const [editHeatingRelevant, setEditHeatingRelevant] = useState(false);
-  const [editCarryForward, setEditCarryForward] = useState(false);
-  const [editWpRelevant, setEditWpRelevant] = useState(false);
-  const [editDistributable, setEditDistributable] = useState(false);
-  const [editSettlementSection, setEditSettlementSection] = useState<string>("none");
-  const [editSettlement35aType, setEditSettlement35aType] = useState<string>("none");
-
   const startEdit = (account: any) => {
     setEditingId(account.id);
     setEditName(account.account_name);
     setEditDistKey(account.default_distribution_key || "mea");
-    setEdit35a(account.is_35a_relevant || false);
-    setEditBillingRelevant(account.is_billing_relevant || false);
-    setEditHeatingRelevant(account.is_heating_relevant || false);
-    setEditCarryForward(account.carry_forward_balance || false);
-    setEditWpRelevant(account.is_wirtschaftsplan_relevant || false);
-    setEditDistributable(account.is_distributable || false);
-    setEditSettlementSection(account.settlement_section || "none");
-    setEditSettlement35aType(account.settlement_35a_type || "none");
   };
 
   const saveEdit = async (id: string) => {
     const { error } = await supabase.from("chart_of_accounts").update({
       account_name: editName,
       default_distribution_key: editDistKey,
-      is_35a_relevant: edit35a,
-      is_billing_relevant: editBillingRelevant,
-      is_heating_relevant: editHeatingRelevant,
-      carry_forward_balance: editCarryForward,
-      is_wirtschaftsplan_relevant: editWpRelevant,
-      is_distributable: editDistributable,
-      settlement_section: editSettlementSection === "none" ? null : editSettlementSection,
-      settlement_35a_type: editSettlement35aType === "none" ? null : editSettlement35aType,
     }).eq("id", id);
     if (error) { toast.error("Fehler beim Speichern"); return; }
     toast.success("Konto aktualisiert");
     setEditingId(null);
+    queryClient.invalidateQueries({ queryKey: ["chart-of-accounts"] });
+  };
+
+  const updateAccountField = async (id: string, field: string, value: any) => {
+    const { error } = await supabase.from("chart_of_accounts").update({ [field]: value }).eq("id", id);
+    if (error) { toast.error("Fehler: " + error.message); return; }
     queryClient.invalidateQueries({ queryKey: ["chart-of-accounts"] });
   };
 
@@ -166,10 +148,11 @@ export function ChartOfAccountsTab() {
       is_distributable: newAccount.is_distributable,
       settlement_section: newAccount.settlement_section,
       settlement_35a_type: newAccount.settlement_35a_type,
+      default_vat_rate: newAccount.default_vat_rate,
       building_id: buildingId,
       sort_order: maxSort + 1,
       is_system_account: false,
-    });
+    } as any);
     if (error) { toast.error("Fehler: " + error.message); return; }
     toast.success("Konto hinzugefügt");
     setIsAddOpen(false);
@@ -177,14 +160,12 @@ export function ChartOfAccountsTab() {
       account_number: "", account_name: "", category: "", default_distribution_key: "mea",
       is_35a_relevant: false, is_billing_relevant: false, is_heating_relevant: false,
       carry_forward_balance: false, is_wirtschaftsplan_relevant: false,
-      is_distributable: false, settlement_section: null, settlement_35a_type: null,
+      is_distributable: false, settlement_section: null, settlement_35a_type: null, default_vat_rate: 19,
     });
     queryClient.invalidateQueries({ queryKey: ["chart-of-accounts"] });
   };
 
   const getKeyLabel = (key: string | null) => DISTRIBUTION_KEYS.find(k => k.value === key)?.label || key || "–";
-  const getSectionLabel = (section: string | null) => SETTLEMENT_SECTIONS.find(s => s.value === section)?.label || "–";
-  const get35aTypeLabel = (type: string | null) => SETTLEMENT_35A_TYPES.find(t => t.value === type)?.label || "–";
 
   if (isLoading) return <div className="text-muted-foreground p-4">Laden...</div>;
 
@@ -238,14 +219,8 @@ export function ChartOfAccountsTab() {
                           <TableHead className="w-[100px]">Konto-Nr.</TableHead>
                           <TableHead>Bezeichnung</TableHead>
                           <TableHead className="w-[160px]">Verteilerschlüssel</TableHead>
-                          <TableHead className="w-[160px]">Abr.-Sektion</TableHead>
-                          <TableHead className="w-[50px] text-center" title="Verteilungsrelevant">VR</TableHead>
-                          <TableHead className="w-[50px] text-center" title="§35a Typ">§35a</TableHead>
-                          <TableHead className="w-[50px] text-center" title="Abrechnungsrelevant">Abr.</TableHead>
-                          <TableHead className="w-[40px] text-center" title="Heizkosten-relevant">HK</TableHead>
-                          <TableHead className="w-[40px] text-center" title="Saldovortrag">SV</TableHead>
-                          <TableHead className="w-[40px] text-center" title="Wirtschaftsplan-relevant">WP</TableHead>
-                          <TableHead className="w-[80px]"></TableHead>
+                          <TableHead className="w-[70px] text-center">MwSt</TableHead>
+                          <TableHead className="w-[100px]"></TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -274,98 +249,38 @@ export function ChartOfAccountsTab() {
                                 <Badge variant="outline" className="text-xs">{getKeyLabel(account.default_distribution_key)}</Badge>
                               )}
                             </TableCell>
-                            <TableCell>
-                              {editingId === account.id ? (
-                                <Select value={editSettlementSection} onValueChange={setEditSettlementSection}>
-                                  <SelectTrigger className="h-7 text-xs">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {SETTLEMENT_SECTIONS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-                                  </SelectContent>
-                                </Select>
-                              ) : (
-                                account.settlement_section && (
-                                  <Badge variant="outline" className="text-xs">{getSectionLabel(account.settlement_section)}</Badge>
-                                )
-                              )}
-                            </TableCell>
                             <TableCell className="text-center">
-                              {editingId === account.id ? (
-                                <Checkbox checked={editDistributable} onCheckedChange={c => setEditDistributable(!!c)} />
-                              ) : (
-                                account.is_distributable && <Badge className="text-xs bg-green-100 text-green-800 hover:bg-green-100">VR</Badge>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-center">
-                              {editingId === account.id ? (
-                                <Select value={editSettlement35aType} onValueChange={setEditSettlement35aType}>
-                                  <SelectTrigger className="h-7 text-xs w-20">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {SETTLEMENT_35A_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-                                  </SelectContent>
-                                </Select>
-                              ) : (
-                                account.settlement_35a_type && (
-                                  <Badge className="text-xs bg-amber-100 text-amber-800 hover:bg-amber-100">
-                                    {account.settlement_35a_type === "dienste" ? "DL" : "HW"}
-                                  </Badge>
-                                )
-                              )}
-                            </TableCell>
-                            <TableCell className="text-center">
-                              {editingId === account.id ? (
-                                <Checkbox checked={editBillingRelevant} onCheckedChange={c => setEditBillingRelevant(!!c)} />
-                              ) : (
-                                account.is_billing_relevant && <Badge className="text-xs bg-blue-100 text-blue-800 hover:bg-blue-100">Abr.</Badge>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-center">
-                              {editingId === account.id ? (
-                                <Checkbox checked={editHeatingRelevant} onCheckedChange={c => setEditHeatingRelevant(!!c)} />
-                              ) : (
-                                account.is_heating_relevant && <Badge className="text-xs bg-orange-100 text-orange-800 hover:bg-orange-100">HK</Badge>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-center">
-                              {editingId === account.id ? (
-                                <Checkbox checked={editCarryForward} onCheckedChange={c => setEditCarryForward(!!c)} />
-                              ) : (
-                                account.carry_forward_balance && <Badge className="text-xs bg-purple-100 text-purple-800 hover:bg-purple-100">SV</Badge>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-center">
-                              {editingId === account.id ? (
-                                <Checkbox checked={editWpRelevant} onCheckedChange={c => setEditWpRelevant(!!c)} />
-                              ) : (
-                                account.is_wirtschaftsplan_relevant && <Badge className="text-xs bg-teal-100 text-teal-800 hover:bg-teal-100">WP</Badge>
-                              )}
+                              <span className="text-xs text-muted-foreground">{(account as any).default_vat_rate ?? 19} %</span>
                             </TableCell>
                             <TableCell>
-                              {editingId === account.id ? (
-                                <div className="flex items-center gap-1">
-                                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => saveEdit(account.id)}>
-                                    <Check className="h-3 w-3" />
-                                  </Button>
-                                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingId(null)}>
-                                    <X className="h-3 w-3" />
-                                  </Button>
-                                </div>
-                              ) : (
-                                <div className="flex items-center gap-1">
-                                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(account)}>
-                                    <Pencil className="h-3 w-3" />
-                                  </Button>
-                                  {!account.is_system_account && (
-                                    <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive"
-                                      onClick={() => deleteAccount(account.id)}>
-                                      <Trash2 className="h-3 w-3" />
+                              <div className="flex items-center gap-1">
+                                {editingId === account.id ? (
+                                  <>
+                                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => saveEdit(account.id)}>
+                                      <Check className="h-3 w-3" />
                                     </Button>
-                                  )}
-                                </div>
-                              )}
+                                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setEditingId(null)}>
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(account)}>
+                                      <Pencil className="h-3 w-3" />
+                                    </Button>
+                                    <AccountSettingsPopover
+                                      account={account as any}
+                                      onUpdate={(field, value) => updateAccountField(account.id, field, value)}
+                                    />
+                                    {!account.is_system_account && (
+                                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive"
+                                        onClick={() => deleteAccount(account.id)}>
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    )}
+                                  </>
+                                )}
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -415,6 +330,19 @@ export function ChartOfAccountsTab() {
                 </Select>
               </div>
               <div>
+                <Label>Standard-MwSt</Label>
+                <Select value={String(newAccount.default_vat_rate)} onValueChange={v => setNewAccount(p => ({ ...p, default_vat_rate: parseFloat(v) }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">0 %</SelectItem>
+                    <SelectItem value="7">7 %</SelectItem>
+                    <SelectItem value="19">19 %</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
                 <Label>Abrechnungssektion</Label>
                 <Select value={newAccount.settlement_section || "none"} onValueChange={v => setNewAccount(p => ({ ...p, settlement_section: v === "none" ? null : v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -423,8 +351,6 @@ export function ChartOfAccountsTab() {
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>§35a Typ</Label>
                 <Select value={newAccount.settlement_35a_type || "none"} onValueChange={v => setNewAccount(p => ({ ...p, settlement_35a_type: v === "none" ? null : v }))}>
@@ -434,33 +360,31 @@ export function ChartOfAccountsTab() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex flex-wrap items-end gap-3 pb-2">
-                <div className="flex items-center gap-1.5">
-                  <Checkbox checked={newAccount.is_distributable} onCheckedChange={c => setNewAccount(p => ({ ...p, is_distributable: !!c }))} />
-                  <Label className="text-xs">Verteilungsrel.</Label>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Checkbox checked={newAccount.is_billing_relevant} onCheckedChange={c => setNewAccount(p => ({ ...p, is_billing_relevant: !!c }))} />
-                  <Label className="text-xs">Abrechnung</Label>
-                </div>
-              </div>
             </div>
             <div className="flex flex-wrap gap-4">
               <div className="flex items-center gap-2">
+                <Checkbox checked={newAccount.is_distributable} onCheckedChange={c => setNewAccount(p => ({ ...p, is_distributable: !!c }))} />
+                <Label className="text-xs">Verteilungsrel.</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox checked={newAccount.is_billing_relevant} onCheckedChange={c => setNewAccount(p => ({ ...p, is_billing_relevant: !!c }))} />
+                <Label className="text-xs">Abrechnung</Label>
+              </div>
+              <div className="flex items-center gap-2">
                 <Checkbox checked={newAccount.is_35a_relevant} onCheckedChange={c => setNewAccount(p => ({ ...p, is_35a_relevant: !!c }))} />
-                <Label>§35a</Label>
+                <Label className="text-xs">§35a</Label>
               </div>
               <div className="flex items-center gap-2">
                 <Checkbox checked={newAccount.is_heating_relevant} onCheckedChange={c => setNewAccount(p => ({ ...p, is_heating_relevant: !!c }))} />
-                <Label>HK-relevant</Label>
+                <Label className="text-xs">HK</Label>
               </div>
               <div className="flex items-center gap-2">
                 <Checkbox checked={newAccount.carry_forward_balance} onCheckedChange={c => setNewAccount(p => ({ ...p, carry_forward_balance: !!c }))} />
-                <Label>Saldovortrag</Label>
+                <Label className="text-xs">Saldovortrag</Label>
               </div>
               <div className="flex items-center gap-2">
                 <Checkbox checked={newAccount.is_wirtschaftsplan_relevant} onCheckedChange={c => setNewAccount(p => ({ ...p, is_wirtschaftsplan_relevant: !!c }))} />
-                <Label>WP-relevant</Label>
+                <Label className="text-xs">WP</Label>
               </div>
             </div>
           </div>

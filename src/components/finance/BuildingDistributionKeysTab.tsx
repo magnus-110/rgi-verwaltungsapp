@@ -12,7 +12,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { ChevronDown, ChevronRight, Plus, Search, Trash2, Pencil, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Search, Trash2 } from "lucide-react";
+import { AccountSettingsPopover } from "./AccountSettingsPopover";
 
 const DISTRIBUTION_KEYS = [
   { value: "mea", label: "MEA" },
@@ -55,7 +56,7 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
     is_35a_relevant: false, is_billing_relevant: true, is_heating_relevant: false,
     carry_forward_balance: false, is_wirtschaftsplan_relevant: true,
     is_distributable: true, settlement_section: "operating_distributable" as string | null,
-    settlement_35a_type: null as string | null,
+    settlement_35a_type: null as string | null, default_vat_rate: 19,
   });
 
   const { data: accounts = [], isLoading } = useQuery({
@@ -154,10 +155,11 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
       is_distributable: newAccount.is_distributable,
       settlement_section: newAccount.settlement_section,
       settlement_35a_type: newAccount.settlement_35a_type,
+      default_vat_rate: newAccount.default_vat_rate,
       building_id: buildingId,
       sort_order: 0,
       is_system_account: false,
-    });
+    } as any);
     if (error) { toast.error("Fehler: " + error.message); return; }
     toast.success("Liegenschaftskonto hinzugefügt");
     setIsAddOpen(false);
@@ -166,7 +168,7 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
       is_35a_relevant: false, is_billing_relevant: true, is_heating_relevant: false,
       carry_forward_balance: false, is_wirtschaftsplan_relevant: true,
       is_distributable: true, settlement_section: "operating_distributable",
-      settlement_35a_type: null,
+      settlement_35a_type: null, default_vat_rate: 19,
     });
     queryClient.invalidateQueries({ queryKey: ["chart-of-accounts-building", buildingId] });
   };
@@ -182,7 +184,6 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
   const [customKeyAccountId, setCustomKeyAccountId] = useState<string | null>(null);
 
   const getKeyLabel = (key: string | null) => allDistKeys.find(k => k.value === key)?.label || key || "–";
-  const getSectionLabel = (s: string | null) => SETTLEMENT_SECTIONS.find(x => x.value === s)?.label || "–";
 
   if (isLoading) return <div className="text-muted-foreground text-sm">Laden...</div>;
 
@@ -206,18 +207,13 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Kontenrahmen mit allen Flags für Abrechnung, Wirtschaftsplan, §35a und Verteilerschlüssel.
+            Kontenrahmen mit Verteilerschlüssel. Klicke auf ⋯ für alle Einstellungen (Flags, MwSt, §35a).
           </p>
         </CardHeader>
         <CardContent>
           <div className="relative mb-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Konto suchen..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="pl-9"
-            />
+            <Input placeholder="Konto suchen..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-9" />
           </div>
           <div className="space-y-2">
             {categories.map(cat => {
@@ -255,15 +251,8 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
                             <TableHead>Bezeichnung</TableHead>
                             <TableHead className="w-[150px]">Standard</TableHead>
                             <TableHead className="w-[180px]">Aktuell</TableHead>
-                            <TableHead className="w-[140px]">Abr.-Sektion</TableHead>
-                            <TableHead className="w-[50px] text-center" title="Verteilungsrelevant">VR</TableHead>
-                            <TableHead className="w-[50px] text-center" title="Abrechnungsrelevant">Abr.</TableHead>
-                            <TableHead className="w-[40px] text-center" title="Heizkosten-relevant">HK</TableHead>
-                            <TableHead className="w-[40px] text-center" title="Wirtschaftsplan-relevant">WP</TableHead>
-                            <TableHead className="w-[40px] text-center" title="Saldovortrag">SV</TableHead>
-                            <TableHead className="w-[40px] text-center" title="§35a relevant">35a</TableHead>
-                            <TableHead className="w-[100px]">§35a Typ</TableHead>
-                            <TableHead className="w-[40px]"></TableHead>
+                            <TableHead className="w-[70px] text-center">MwSt</TableHead>
+                            <TableHead className="w-[60px]"></TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -288,8 +277,7 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
                                   {customKeyAccountId === account.id ? (
                                     <div className="flex items-center gap-1">
                                       <Input
-                                        autoFocus
-                                        placeholder="Schlüssel eingeben"
+                                        autoFocus placeholder="Schlüssel eingeben"
                                         value={customKeyInput || ""}
                                         onChange={e => setCustomKeyInput(e.target.value)}
                                         onKeyDown={e => {
@@ -340,88 +328,22 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
                                     </Select>
                                   )}
                                 </TableCell>
-                                {/* Settlement Section */}
+                                <TableCell className="text-center">
+                                  <span className="text-xs text-muted-foreground">{(account as any).default_vat_rate ?? 19} %</span>
+                                </TableCell>
                                 <TableCell>
-                                  <Select
-                                    value={account.settlement_section || "none"}
-                                    onValueChange={v => updateAccountField(account.id, "settlement_section", v === "none" ? null : v)}
-                                  >
-                                    <SelectTrigger className="h-8 text-xs">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {SETTLEMENT_SECTIONS.map(s => (
-                                        <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </TableCell>
-                                {/* VR - Verteilungsrelevant */}
-                                <TableCell className="text-center">
-                                  <Checkbox
-                                    checked={account.is_distributable}
-                                    onCheckedChange={checked => updateAccountField(account.id, "is_distributable", !!checked)}
-                                  />
-                                </TableCell>
-                                {/* Abr. */}
-                                <TableCell className="text-center">
-                                  <Checkbox
-                                    checked={account.is_billing_relevant}
-                                    onCheckedChange={checked => updateAccountField(account.id, "is_billing_relevant", !!checked)}
-                                  />
-                                </TableCell>
-                                {/* HK */}
-                                <TableCell className="text-center">
-                                  <Checkbox
-                                    checked={account.is_heating_relevant}
-                                    onCheckedChange={checked => updateAccountField(account.id, "is_heating_relevant", !!checked)}
-                                  />
-                                </TableCell>
-                                {/* WP */}
-                                <TableCell className="text-center">
-                                  <Checkbox
-                                    checked={account.is_wirtschaftsplan_relevant}
-                                    onCheckedChange={checked => updateAccountField(account.id, "is_wirtschaftsplan_relevant", !!checked)}
-                                  />
-                                </TableCell>
-                                {/* SV - Saldovortrag */}
-                                <TableCell className="text-center">
-                                  <Checkbox
-                                    checked={account.carry_forward_balance}
-                                    onCheckedChange={checked => updateAccountField(account.id, "carry_forward_balance", !!checked)}
-                                  />
-                                </TableCell>
-                                {/* §35a relevant */}
-                                <TableCell className="text-center">
-                                  <Checkbox
-                                    checked={account.is_35a_relevant || false}
-                                    onCheckedChange={checked => updateAccountField(account.id, "is_35a_relevant", !!checked)}
-                                  />
-                                </TableCell>
-                                {/* §35a Typ */}
-                                <TableCell>
-                                  <Select
-                                    value={account.settlement_35a_type || "none"}
-                                    onValueChange={v => updateAccountField(account.id, "settlement_35a_type", v === "none" ? null : v)}
-                                  >
-                                    <SelectTrigger className="h-8 text-xs">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {SETTLEMENT_35A_TYPES.map(t => (
-                                        <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </TableCell>
-                                {/* Delete */}
-                                <TableCell>
-                                  {isBuildingAccount && (
-                                    <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive"
-                                      onClick={() => deleteBuildingAccount(account.id)}>
-                                      <Trash2 className="h-3 w-3" />
-                                    </Button>
-                                  )}
+                                  <div className="flex items-center gap-1">
+                                    <AccountSettingsPopover
+                                      account={account as any}
+                                      onUpdate={(field, value) => updateAccountField(account.id, field, value)}
+                                    />
+                                    {isBuildingAccount && (
+                                      <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive hover:text-destructive"
+                                        onClick={() => deleteBuildingAccount(account.id)}>
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    )}
+                                  </div>
                                 </TableCell>
                               </TableRow>
                             );
@@ -474,6 +396,19 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
                 </Select>
               </div>
               <div>
+                <Label>Standard-MwSt</Label>
+                <Select value={String(newAccount.default_vat_rate)} onValueChange={v => setNewAccount(p => ({ ...p, default_vat_rate: parseFloat(v) }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">0 %</SelectItem>
+                    <SelectItem value="7">7 %</SelectItem>
+                    <SelectItem value="19">19 %</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
                 <Label>Abrechnungssektion</Label>
                 <Select value={newAccount.settlement_section || "none"} onValueChange={v => setNewAccount(p => ({ ...p, settlement_section: v === "none" ? null : v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -482,8 +417,6 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>§35a Typ</Label>
                 <Select value={newAccount.settlement_35a_type || "none"} onValueChange={v => setNewAccount(p => ({ ...p, settlement_35a_type: v === "none" ? null : v }))}>
@@ -493,33 +426,31 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex flex-wrap items-end gap-3 pb-2">
-                <div className="flex items-center gap-1.5">
-                  <Checkbox checked={newAccount.is_distributable} onCheckedChange={c => setNewAccount(p => ({ ...p, is_distributable: !!c }))} />
-                  <Label className="text-xs">VR</Label>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Checkbox checked={newAccount.is_billing_relevant} onCheckedChange={c => setNewAccount(p => ({ ...p, is_billing_relevant: !!c }))} />
-                  <Label className="text-xs">Abr.</Label>
-                </div>
-              </div>
             </div>
             <div className="flex flex-wrap gap-4">
               <div className="flex items-center gap-2">
+                <Checkbox checked={newAccount.is_distributable} onCheckedChange={c => setNewAccount(p => ({ ...p, is_distributable: !!c }))} />
+                <Label className="text-xs">VR</Label>
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox checked={newAccount.is_billing_relevant} onCheckedChange={c => setNewAccount(p => ({ ...p, is_billing_relevant: !!c }))} />
+                <Label className="text-xs">Abr.</Label>
+              </div>
+              <div className="flex items-center gap-2">
                 <Checkbox checked={newAccount.is_35a_relevant} onCheckedChange={c => setNewAccount(p => ({ ...p, is_35a_relevant: !!c }))} />
-                <Label>§35a</Label>
+                <Label className="text-xs">§35a</Label>
               </div>
               <div className="flex items-center gap-2">
                 <Checkbox checked={newAccount.is_heating_relevant} onCheckedChange={c => setNewAccount(p => ({ ...p, is_heating_relevant: !!c }))} />
-                <Label>HK</Label>
+                <Label className="text-xs">HK</Label>
               </div>
               <div className="flex items-center gap-2">
                 <Checkbox checked={newAccount.carry_forward_balance} onCheckedChange={c => setNewAccount(p => ({ ...p, carry_forward_balance: !!c }))} />
-                <Label>Saldovortrag</Label>
+                <Label className="text-xs">Saldovortrag</Label>
               </div>
               <div className="flex items-center gap-2">
                 <Checkbox checked={newAccount.is_wirtschaftsplan_relevant} onCheckedChange={c => setNewAccount(p => ({ ...p, is_wirtschaftsplan_relevant: !!c }))} />
-                <Label>WP</Label>
+                <Label className="text-xs">WP</Label>
               </div>
             </div>
           </div>
