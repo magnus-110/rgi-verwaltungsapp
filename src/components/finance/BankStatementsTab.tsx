@@ -581,10 +581,6 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
                     <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
                       <CheckCircle2 className="h-4 w-4 text-green-600" />Zugeordnete Transaktionen ({matchedTransactions.length})
                     </h4>
-                    <Button variant="outline" size="sm" onClick={() => setReviewModeOpen(true)}>
-                      <ScanSearch className="h-4 w-4 mr-2" />
-                      Prüfmodus
-                    </Button>
                   </div>
                   <Table>
                     {transactionTableHeader}
@@ -757,7 +753,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
       <TransactionReviewMode
         open={reviewModeOpen}
         onOpenChange={setReviewModeOpen}
-        transactions={matchedTransactions}
+        transactions={allUnbookedForReview}
         buildingId={selectedBuilding}
       />
     </div>
