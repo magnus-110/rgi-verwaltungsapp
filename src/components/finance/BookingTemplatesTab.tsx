@@ -81,6 +81,7 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
   const [aiSuggestions, setAiSuggestions] = useState<any[]>([]);
   const [selectedSuggestions, setSelectedSuggestions] = useState<Set<number>>(new Set());
   const [savingSuggestions, setSavingSuggestions] = useState(false);
+  const [editingSuggestionIdx, setEditingSuggestionIdx] = useState<number | null>(null);
 
   const filterBuildingId = sharedBuildingId || internalFilterBuildingId;
 
