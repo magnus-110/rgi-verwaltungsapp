@@ -196,6 +196,13 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     [allBuildingTxns]
   );
 
+  // All unbooked transactions for review mode (matched first, then unmatched)
+  const allUnbookedForReview = useMemo(() => {
+    const matched = allBuildingTxns.filter((t: any) => ["matched_invoice", "matched_template", "manually_matched"].includes(t.match_status) && !t.booked_at);
+    const unmatched = allBuildingTxns.filter((t: any) => (t.match_status === "unmatched" || t.match_status === "invoice_pending") && !t.booked_at);
+    return [...matched, ...unmatched];
+  }, [allBuildingTxns]);
+
   const globalBookableCount = useMemo(() => {
     return allTransactions.filter((t: any) =>
       ["matched_invoice", "matched_template", "manually_matched"].includes(t.match_status) && !t.booked_at
