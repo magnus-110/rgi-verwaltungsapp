@@ -895,6 +895,78 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
         </DialogContent>
       </Dialog>
 
+      {/* AI Suggestions Dialog */}
+      <Dialog open={aiSuggestOpen} onOpenChange={setAiSuggestOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5" />
+              KI-Vorlagenvorschläge
+            </DialogTitle>
+            <DialogDescription>
+              Basierend auf Ihren Kontoauszügen wurden folgende wiederkehrende Muster erkannt.
+            </DialogDescription>
+          </DialogHeader>
+
+          {aiSuggesting ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-3">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">Analysiere Kontoauszüge...</p>
+            </div>
+          ) : aiSuggestions.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>Keine neuen Muster erkannt.</p>
+              <p className="text-sm mt-1">Importieren Sie zunächst mehr Kontoauszüge.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">{selectedSuggestions.size} von {aiSuggestions.length} ausgewählt</span>
+                <Button variant="ghost" size="sm" onClick={() => {
+                  if (selectedSuggestions.size === aiSuggestions.length) setSelectedSuggestions(new Set());
+                  else setSelectedSuggestions(new Set(aiSuggestions.map((_: any, i: number) => i)));
+                }}>
+                  {selectedSuggestions.size === aiSuggestions.length ? "Keine auswählen" : "Alle auswählen"}
+                </Button>
+              </div>
+              {aiSuggestions.map((s: any, idx: number) => (
+                <div key={idx} className={cn("border rounded-lg p-4 space-y-2 cursor-pointer transition-colors", selectedSuggestions.has(idx) ? "border-primary bg-primary/5" : "hover:bg-accent/50")} onClick={() => toggleSuggestion(idx)}>
+                  <div className="flex items-start gap-3">
+                    <Checkbox checked={selectedSuggestions.has(idx)} onCheckedChange={() => toggleSuggestion(idx)} className="mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-sm">{s.name}</span>
+                        <Badge variant="outline" className="text-xs capitalize">{s.interval}</Badge>
+                        {s.confidence === "high" && <Badge className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" variant="outline">Hohe Sicherheit</Badge>}
+                        {s.transaction_count && <Badge variant="secondary" className="text-xs">{s.transaction_count} Transaktionen</Badge>}
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 mt-2 text-sm">
+                        <div><span className="text-muted-foreground text-xs">Kreditor:</span> <span className="text-xs">{s.vendor_name || "–"}</span></div>
+                        <div><span className="text-muted-foreground text-xs">Betrag:</span> <span className="text-xs font-mono">{s.expected_amount != null ? `${Number(s.expected_amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €` : "–"}{s.amount_tolerance > 0 ? ` ±${Number(s.amount_tolerance).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €` : ""}</span></div>
+                        <div><span className="text-muted-foreground text-xs">Konto:</span> <span className="text-xs">{s.account_number ? `${s.account_number} ${s.account_name || ""}` : "–"}</span></div>
+                        {s.vendor_iban && <div><span className="text-muted-foreground text-xs">IBAN:</span> <span className="text-xs font-mono">{s.vendor_iban}</span></div>}
+                        {s.vat_rate != null && <div><span className="text-muted-foreground text-xs">MwSt:</span> <span className="text-xs">{s.vat_rate}%</span></div>}
+                        {s.description && <div className="col-span-2"><span className="text-muted-foreground text-xs">Info:</span> <span className="text-xs">{s.description}</span></div>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {aiSuggestions.length > 0 && (
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAiSuggestOpen(false)}>Abbrechen</Button>
+              <Button onClick={handleSaveSuggestions} disabled={selectedSuggestions.size === 0 || savingSuggestions}>
+                {savingSuggestions ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+                {selectedSuggestions.size} Vorlage(n) erstellen
+              </Button>
+            </DialogFooter>
+          )}
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }
