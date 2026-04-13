@@ -76,6 +76,11 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
   const [presetForm, setPresetForm] = useState({ name: "", vendor_name: "", category: "", interval: "monatlich", vat_rate: "", is_35a_relevant: false, description: "" });
   const [presetPickerOpen, setPresetPickerOpen] = useState(false);
   const [selectedPresetId, setSelectedPresetId] = useState<string>("");
+  const [aiSuggestOpen, setAiSuggestOpen] = useState(false);
+  const [aiSuggesting, setAiSuggesting] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<any[]>([]);
+  const [selectedSuggestions, setSelectedSuggestions] = useState<Set<number>>(new Set());
+  const [savingSuggestions, setSavingSuggestions] = useState(false);
 
   const filterBuildingId = sharedBuildingId || internalFilterBuildingId;
 
