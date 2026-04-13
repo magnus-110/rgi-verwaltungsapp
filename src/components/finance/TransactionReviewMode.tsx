@@ -15,7 +15,7 @@ import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import {
   ArrowLeft, ArrowRight, CheckCircle, X,
-  FileText, LayoutTemplate, Building2, Loader2, Sparkles
+  FileText, LayoutTemplate, Loader2, Sparkles
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
