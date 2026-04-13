@@ -117,6 +117,7 @@ export type Database = {
       }
       bank_transactions: {
         Row: {
+          ai_suggestion: Json | null
           amount: number
           booked_at: string | null
           booking_date: string
@@ -139,6 +140,7 @@ export type Database = {
           value_date: string | null
         }
         Insert: {
+          ai_suggestion?: Json | null
           amount: number
           booked_at?: string | null
           booking_date: string
@@ -161,6 +163,7 @@ export type Database = {
           value_date?: string | null
         }
         Update: {
+          ai_suggestion?: Json | null
           amount?: number
           booked_at?: string | null
           booking_date?: string
