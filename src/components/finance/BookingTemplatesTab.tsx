@@ -382,10 +382,16 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">Buchungsvorlagen</CardTitle>
-            <Button onClick={openCreate} disabled={!filterBuildingId}>
-              <Plus className="h-4 w-4 mr-2" />
-              Neue Vorlage
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={handleAiSuggest} disabled={!filterBuildingId || aiSuggesting}>
+                {aiSuggesting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                KI-Vorlagen vorschlagen
+              </Button>
+              <Button onClick={openCreate} disabled={!filterBuildingId}>
+                <Plus className="h-4 w-4 mr-2" />
+                Neue Vorlage
+              </Button>
+            </div>
           </div>
           {!sharedBuildingId && (
             <div className="mt-3">
