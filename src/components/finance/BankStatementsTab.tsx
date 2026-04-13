@@ -553,13 +553,25 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
                 </div>
               )}
 
-              {/* Summary badges */}
+              {/* Summary badges + AI prefetch indicator */}
               <div className="flex items-center gap-2 flex-wrap">
                 <Badge variant="outline" className="text-xs">{allBuildingTxns.length} Transaktionen gesamt</Badge>
                 {unmatchedTransactions.length > 0 && <Badge variant="outline" className="text-xs bg-yellow-50 dark:bg-yellow-950">{unmatchedTransactions.length} offen</Badge>}
                 {matchedTransactions.length > 0 && <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-950">{matchedTransactions.length} zugeordnet</Badge>}
                 {ignoredTransactions.length > 0 && <Badge variant="outline" className="text-xs bg-muted">{ignoredTransactions.length} ignoriert</Badge>}
                 {bookedTransactions.length > 0 && <Badge variant="outline" className="text-xs">{bookedTransactions.length} gebucht</Badge>}
+                {aiPrefetchState.running && (
+                  <Badge variant="outline" className="text-xs bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 gap-1">
+                    <Sparkles className="h-3 w-3 animate-pulse" />
+                    KI analysiert {aiPrefetchState.completed}/{aiPrefetchState.total}
+                  </Badge>
+                )}
+                {!aiPrefetchState.running && aiPrefetchState.completed > 0 && (
+                  <Badge variant="outline" className="text-xs bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300">
+                    <Sparkles className="h-3 w-3 mr-1" />
+                    {aiPrefetchState.completed} KI-Vorschläge
+                  </Badge>
+                )}
               </div>
 
               {/* Matched (not yet booked) transactions - ABOVE unmatched */}
