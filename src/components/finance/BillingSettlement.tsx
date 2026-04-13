@@ -89,7 +89,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   });
 
   // All bookings for the year
-  const { data: bookings = [] } = useQuery({
+  const { data: rawBookings = [] } = useQuery({
     queryKey: ["settlement-bookings", buildingId, fiscalYear],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -102,6 +102,10 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       return data;
     },
   });
+
+  // Defense-in-depth: filter out bookings referencing accounts from other buildings
+  const validAccountIds = new Set(accounts.map(a => a.id));
+  const bookings = rawBookings.filter(b => !b.account_id || validAccountIds.has(b.account_id));
 
   // IST-payments on person accounts (for SOLL/IST toggle)
   const { data: istPayments = [] } = useQuery({
