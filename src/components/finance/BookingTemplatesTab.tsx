@@ -1045,7 +1045,7 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
             </div>
           )}
 
-          {aiSuggestions.length > 0 && (
+          {aiSuggestions.length > 0 && editingSuggestionIdx === null && (
             <DialogFooter>
               <Button variant="outline" onClick={() => setAiSuggestOpen(false)}>Abbrechen</Button>
               <Button onClick={handleSaveSuggestions} disabled={selectedSuggestions.size === 0 || savingSuggestions}>
