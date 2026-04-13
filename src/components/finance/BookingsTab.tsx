@@ -24,7 +24,6 @@ const PAGE_SIZE = 25;
 export function BookingsTab() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [filterYear, setFilterYear] = useState<string>(String(new Date().getFullYear()));
   const [searchQuery, setSearchQuery] = useState("");
   const [editBooking, setEditBooking] = useState<any>(null);
@@ -34,7 +33,6 @@ export function BookingsTab() {
   const [confirmedOpen, setConfirmedOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [templateDetail, setTemplateDetail] = useState<any>(null);
-  const [isReviewOpen, setIsReviewOpen] = useState(false);
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
