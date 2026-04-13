@@ -138,14 +138,14 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     const absAmount = Math.abs(currentTxn.amount);
     const isIncome = currentTxn.amount > 0;
 
-    // Find bank account (1800 Bankkonto as default counter account)
+    // Find bank account (1800 Bankkonto as default MAIN account - "von diesem Konto")
     const bankAccount = accounts.find(a => a.account_number === "1800") || accounts.find(a => a.account_number === "1200") || accounts.find(a => a.category === "Bankkonto");
-    const defaultCounterAccountId = bankAccount?.id || "";
+    const defaultBankAccountId = bankAccount?.id || "";
 
-    // Start with defaults
+    // Start with defaults: Konto = 1800 (Bank), Gegenkonto = leer (wird befüllt)
     let newForm = {
-      account_id: "",
-      counter_account_id: defaultCounterAccountId,
+      account_id: defaultBankAccountId,
+      counter_account_id: "",
       amount: absAmount.toFixed(2),
       vat_rate: "19",
       vat_amount: "",
@@ -163,7 +163,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
     // Auto-fill from TEMPLATE (deterministic, no AI)
     if (templateDetail) {
-      if (templateDetail.account_id) newForm.account_id = templateDetail.account_id;
+      if (templateDetail.account_id) newForm.counter_account_id = templateDetail.account_id;
       if (templateDetail.vat_rate != null) newForm.vat_rate = String(templateDetail.vat_rate);
       if (templateDetail.is_35a_relevant) newForm.is_35a_relevant = true;
       newForm.description = templateDetail.name || "";
@@ -179,7 +179,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
     // Auto-fill from INVOICE (deterministic, no AI)
     if (invoiceDetail) {
-      if (invoiceDetail.suggested_account_id) newForm.account_id = invoiceDetail.suggested_account_id;
+      if (invoiceDetail.suggested_account_id) newForm.counter_account_id = invoiceDetail.suggested_account_id;
       if (invoiceDetail.vat_amount != null) newForm.vat_amount = String(Math.abs(invoiceDetail.vat_amount));
       if (invoiceDetail.invoice_number) newForm.receipt_number = invoiceDetail.invoice_number;
       newForm.description = [invoiceDetail.vendor_name, invoiceDetail.invoice_number].filter(Boolean).join(" ");
@@ -197,23 +197,23 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       const suggestion = currentTxn.ai_suggestion;
       if (suggestion.booking_hint?.suggested_bookings?.[0]) {
         const sb = suggestion.booking_hint.suggested_bookings[0];
-        if (sb.account_id) newForm.account_id = sb.account_id;
+        if (sb.account_id) newForm.counter_account_id = sb.account_id;
         if (sb.account_number) {
           const acc = accounts.find(a => a.account_number === sb.account_number);
-          if (acc) newForm.account_id = acc.id;
+          if (acc) newForm.counter_account_id = acc.id;
         }
         if (sb.description) newForm.description = sb.description;
         if (sb.booking_type) newForm.booking_type = sb.booking_type;
       }
     }
 
-    // Set VAT rate-based account defaults
-    if (newForm.account_id) {
-      const selectedAccount = accounts.find(a => a.id === newForm.account_id);
-      if (selectedAccount?.default_vat_rate != null && !invoiceDetail && !templateDetail) {
-        newForm.vat_rate = String(selectedAccount.default_vat_rate);
+    // Set VAT rate-based defaults from counter account
+    if (newForm.counter_account_id) {
+      const selectedCounterAcc = accounts.find(a => a.id === newForm.counter_account_id);
+      if (selectedCounterAcc?.default_vat_rate != null && !invoiceDetail && !templateDetail) {
+        newForm.vat_rate = String(selectedCounterAcc.default_vat_rate);
       }
-      if (selectedAccount?.is_35a_relevant) {
+      if (selectedCounterAcc?.is_35a_relevant) {
         newForm.is_35a_relevant = true;
       }
     }
@@ -401,17 +401,16 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                 {bookedCount} gebucht
               </Badge>
             )}
+            <Separator orientation="vertical" className="h-6" />
+            <Progress value={progressPercent} className="w-32 h-2" />
           </div>
-          <div className="flex items-center gap-4">
-            <Progress value={progressPercent} className="w-40 h-2" />
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">Enter</kbd>
-              <span className="text-[11px]">Nächstes Feld</span>
-              <span className="mx-1 text-border">|</span>
-              <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">←</kbd>
-              <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">→</kbd>
-              <span className="text-[11px]">Nav</span>
-            </div>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">Enter</kbd>
+            <span className="text-[11px]">Nächstes Feld</span>
+            <span className="mx-1 text-border">|</span>
+            <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">←</kbd>
+            <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">→</kbd>
+            <span className="text-[11px]">Nav</span>
           </div>
         </div>
 
