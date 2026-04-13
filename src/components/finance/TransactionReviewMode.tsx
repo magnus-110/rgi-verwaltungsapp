@@ -599,7 +599,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                 </div>
 
                 {/* §35a - only shown when relevant */}
-                {(formData.is_35a_relevant || (selectedAccount?.is_35a_relevant)) && (
+                {(formData.is_35a_relevant || (selectedCounterAccount?.is_35a_relevant)) && (
                   <div className="p-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 space-y-2">
                     <div className="flex items-center gap-3">
                       <Checkbox
