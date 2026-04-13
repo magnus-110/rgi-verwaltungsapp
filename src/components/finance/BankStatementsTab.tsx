@@ -59,13 +59,6 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
   const [currentHintIndex, setCurrentHintIndex] = useState<number | null>(null);
   const [reviewModeOpen, setReviewModeOpen] = useState(false);
 
-  // AI prefetch for unmatched transactions
-  const aiPrefetchState = useTransactionAiPrefetch(
-    selectedBuilding || null,
-    allBuildingTxns,
-    !!selectedBuilding && allBuildingTxns.length > 0
-  );
-
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
     queryFn: async () => {
