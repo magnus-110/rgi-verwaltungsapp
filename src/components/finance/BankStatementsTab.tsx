@@ -546,6 +546,25 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
                 {bookedTransactions.length > 0 && <Badge variant="outline" className="text-xs">{bookedTransactions.length} gebucht</Badge>}
               </div>
 
+              {/* Matched (not yet booked) transactions - ABOVE unmatched */}
+              {matchedTransactions.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-green-600" />Zugeordnete Transaktionen ({matchedTransactions.length})
+                    </h4>
+                    <Button variant="outline" size="sm" onClick={() => setReviewModeOpen(true)}>
+                      <ScanSearch className="h-4 w-4 mr-2" />
+                      Prüfmodus
+                    </Button>
+                  </div>
+                  <Table>
+                    {transactionTableHeader}
+                    <TableBody>{matchedTransactions.map(renderTransactionRow)}</TableBody>
+                  </Table>
+                </div>
+              )}
+
               {/* Unmatched transactions */}
               {unmatchedTransactions.length > 0 && (
                 <div>
@@ -556,19 +575,6 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
                   <Table>
                     {transactionTableHeader}
                     <TableBody>{unmatchedTransactions.map(renderTransactionRow)}</TableBody>
-                  </Table>
-                </div>
-              )}
-
-              {/* Matched (not yet booked) transactions */}
-              {matchedTransactions.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-green-600" />Zugeordnete Transaktionen ({matchedTransactions.length})
-                  </h4>
-                  <Table>
-                    {transactionTableHeader}
-                    <TableBody>{matchedTransactions.map(renderTransactionRow)}</TableBody>
                   </Table>
                 </div>
               )}
