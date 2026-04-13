@@ -81,6 +81,7 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
   const [aiSuggestions, setAiSuggestions] = useState<any[]>([]);
   const [selectedSuggestions, setSelectedSuggestions] = useState<Set<number>>(new Set());
   const [savingSuggestions, setSavingSuggestions] = useState(false);
+  const [editingSuggestionIdx, setEditingSuggestionIdx] = useState<number | null>(null);
 
   const filterBuildingId = sharedBuildingId || internalFilterBuildingId;
 
@@ -920,42 +921,131 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
             </div>
           ) : (
             <div className="space-y-3">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">{selectedSuggestions.size} von {aiSuggestions.length} ausgewählt</span>
-                <Button variant="ghost" size="sm" onClick={() => {
-                  if (selectedSuggestions.size === aiSuggestions.length) setSelectedSuggestions(new Set());
-                  else setSelectedSuggestions(new Set(aiSuggestions.map((_: any, i: number) => i)));
-                }}>
-                  {selectedSuggestions.size === aiSuggestions.length ? "Keine auswählen" : "Alle auswählen"}
-                </Button>
-              </div>
-              {aiSuggestions.map((s: any, idx: number) => (
-                <div key={idx} className={cn("border rounded-lg p-4 space-y-2 cursor-pointer transition-colors", selectedSuggestions.has(idx) ? "border-primary bg-primary/5" : "hover:bg-accent/50")} onClick={() => toggleSuggestion(idx)}>
-                  <div className="flex items-start gap-3">
-                    <Checkbox checked={selectedSuggestions.has(idx)} onCheckedChange={() => toggleSuggestion(idx)} className="mt-0.5" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium text-sm">{s.name}</span>
-                        <Badge variant="outline" className="text-xs capitalize">{s.interval}</Badge>
-                        {s.confidence === "high" && <Badge className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" variant="outline">Hohe Sicherheit</Badge>}
-                        {s.transaction_count && <Badge variant="secondary" className="text-xs">{s.transaction_count} Transaktionen</Badge>}
+              {editingSuggestionIdx !== null ? (() => {
+                const s = aiSuggestions[editingSuggestionIdx];
+                if (!s) return null;
+                return (
+                  <div className="space-y-3 py-2">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium text-sm">Vorschlag bearbeiten</h4>
+                      <Button variant="ghost" size="sm" onClick={() => setEditingSuggestionIdx(null)}>Zurück zur Übersicht</Button>
+                    </div>
+                    <Separator />
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs">Name</Label>
+                        <Input value={s.name || ""} onChange={(e) => { const arr = [...aiSuggestions]; arr[editingSuggestionIdx] = { ...arr[editingSuggestionIdx], name: e.target.value }; setAiSuggestions(arr); }} />
                       </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 mt-2 text-sm">
-                        <div><span className="text-muted-foreground text-xs">Kreditor:</span> <span className="text-xs">{s.vendor_name || "–"}</span></div>
-                        <div><span className="text-muted-foreground text-xs">Betrag:</span> <span className="text-xs font-mono">{s.expected_amount != null ? `${Number(s.expected_amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €` : "–"}{s.amount_tolerance > 0 ? ` ±${Number(s.amount_tolerance).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €` : ""}</span></div>
-                        <div><span className="text-muted-foreground text-xs">Konto:</span> <span className="text-xs">{s.account_number ? `${s.account_number} ${s.account_name || ""}` : "–"}</span></div>
-                        {s.vendor_iban && <div><span className="text-muted-foreground text-xs">IBAN:</span> <span className="text-xs font-mono">{s.vendor_iban}</span></div>}
-                        {s.vat_rate != null && <div><span className="text-muted-foreground text-xs">MwSt:</span> <span className="text-xs">{s.vat_rate}%</span></div>}
-                        {s.description && <div className="col-span-2"><span className="text-muted-foreground text-xs">Info:</span> <span className="text-xs">{s.description}</span></div>}
+                      <div>
+                        <Label className="text-xs">Kreditor</Label>
+                        <Input value={s.vendor_name || ""} onChange={(e) => { const arr = [...aiSuggestions]; arr[editingSuggestionIdx] = { ...arr[editingSuggestionIdx], vendor_name: e.target.value }; setAiSuggestions(arr); }} />
                       </div>
                     </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs">IBAN</Label>
+                        <Input value={s.vendor_iban || ""} onChange={(e) => { const arr = [...aiSuggestions]; arr[editingSuggestionIdx] = { ...arr[editingSuggestionIdx], vendor_iban: e.target.value }; setAiSuggestions(arr); }} />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Intervall</Label>
+                        <Select value={s.interval || "monatlich"} onValueChange={(v) => { const arr = [...aiSuggestions]; arr[editingSuggestionIdx] = { ...arr[editingSuggestionIdx], interval: v }; setAiSuggestions(arr); }}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="monatlich">Monatlich</SelectItem>
+                            <SelectItem value="quartalsweise">Quartalsweise</SelectItem>
+                            <SelectItem value="halbjährlich">Halbjährlich</SelectItem>
+                            <SelectItem value="jährlich">Jährlich</SelectItem>
+                            <SelectItem value="einmalig">Einmalig</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <Label className="text-xs">Betrag (€)</Label>
+                        <Input type="number" step="0.01" value={s.expected_amount ?? ""} onChange={(e) => { const arr = [...aiSuggestions]; arr[editingSuggestionIdx] = { ...arr[editingSuggestionIdx], expected_amount: e.target.value ? parseFloat(e.target.value) : null }; setAiSuggestions(arr); }} />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Toleranz (€)</Label>
+                        <Input type="number" step="0.01" value={s.amount_tolerance ?? ""} onChange={(e) => { const arr = [...aiSuggestions]; arr[editingSuggestionIdx] = { ...arr[editingSuggestionIdx], amount_tolerance: e.target.value ? parseFloat(e.target.value) : null }; setAiSuggestions(arr); }} />
+                      </div>
+                      <div>
+                        <Label className="text-xs">MwSt (%)</Label>
+                        <Select value={s.vat_rate != null ? String(s.vat_rate) : "__none__"} onValueChange={(v) => { const arr = [...aiSuggestions]; arr[editingSuggestionIdx] = { ...arr[editingSuggestionIdx], vat_rate: v === "__none__" ? null : parseFloat(v) }; setAiSuggestions(arr); }}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">Keine</SelectItem>
+                            <SelectItem value="0">0%</SelectItem>
+                            <SelectItem value="7">7%</SelectItem>
+                            <SelectItem value="19">19%</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div>
+                      <Label className="text-xs">Kategorie</Label>
+                      <Input value={s.category || ""} onChange={(e) => { const arr = [...aiSuggestions]; arr[editingSuggestionIdx] = { ...arr[editingSuggestionIdx], category: e.target.value }; setAiSuggestions(arr); }} />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Beschreibung</Label>
+                      <Input value={s.description || ""} onChange={(e) => { const arr = [...aiSuggestions]; arr[editingSuggestionIdx] = { ...arr[editingSuggestionIdx], description: e.target.value }; setAiSuggestions(arr); }} />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Switch checked={s.is_35a_relevant || false} onCheckedChange={(v) => { const arr = [...aiSuggestions]; arr[editingSuggestionIdx] = { ...arr[editingSuggestionIdx], is_35a_relevant: v }; setAiSuggestions(arr); }} />
+                      <Label className="text-sm">§35a relevant</Label>
+                    </div>
+                    <Separator />
+                    <div className="flex justify-end">
+                      <Button onClick={() => setEditingSuggestionIdx(null)}>
+                        <Check className="h-4 w-4 mr-2" />
+                        Übernehmen
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })() : (
+                <>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">{selectedSuggestions.size} von {aiSuggestions.length} ausgewählt</span>
+                    <Button variant="ghost" size="sm" onClick={() => {
+                      if (selectedSuggestions.size === aiSuggestions.length) setSelectedSuggestions(new Set());
+                      else setSelectedSuggestions(new Set(aiSuggestions.map((_: any, i: number) => i)));
+                    }}>
+                      {selectedSuggestions.size === aiSuggestions.length ? "Keine auswählen" : "Alle auswählen"}
+                    </Button>
+                  </div>
+                  {aiSuggestions.map((s: any, idx: number) => (
+                    <div key={idx} className={cn("border rounded-lg p-4 space-y-2 cursor-pointer transition-colors", selectedSuggestions.has(idx) ? "border-primary bg-primary/5" : "hover:bg-accent/50")} onClick={() => toggleSuggestion(idx)}>
+                      <div className="flex items-start gap-3">
+                        <Checkbox checked={selectedSuggestions.has(idx)} onCheckedChange={() => toggleSuggestion(idx)} className="mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium text-sm">{s.name}</span>
+                            <Badge variant="outline" className="text-xs capitalize">{s.interval}</Badge>
+                            {s.confidence === "high" && <Badge className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" variant="outline">Hohe Sicherheit</Badge>}
+                            {s.transaction_count && <Badge variant="secondary" className="text-xs">{s.transaction_count} Transaktionen</Badge>}
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 mt-2 text-sm">
+                            <div><span className="text-muted-foreground text-xs">Kreditor:</span> <span className="text-xs">{s.vendor_name || "–"}</span></div>
+                            <div><span className="text-muted-foreground text-xs">Betrag:</span> <span className="text-xs font-mono">{s.expected_amount != null ? `${Number(s.expected_amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €` : "–"}{s.amount_tolerance > 0 ? ` ±${Number(s.amount_tolerance).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €` : ""}</span></div>
+                            <div><span className="text-muted-foreground text-xs">Konto:</span> <span className="text-xs">{s.account_number ? `${s.account_number} ${s.account_name || ""}` : "–"}</span></div>
+                            {s.vendor_iban && <div><span className="text-muted-foreground text-xs">IBAN:</span> <span className="text-xs font-mono">{s.vendor_iban}</span></div>}
+                            {s.vat_rate != null && <div><span className="text-muted-foreground text-xs">MwSt:</span> <span className="text-xs">{s.vat_rate}%</span></div>}
+                            {s.description && <div className="col-span-2"><span className="text-muted-foreground text-xs">Info:</span> <span className="text-xs">{s.description}</span></div>}
+                          </div>
+                        </div>
+                        <Button variant="ghost" size="icon" className="shrink-0 h-8 w-8" onClick={(e) => { e.stopPropagation(); setEditingSuggestionIdx(idx); }}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
           )}
 
-          {aiSuggestions.length > 0 && (
+          {aiSuggestions.length > 0 && editingSuggestionIdx === null && (
             <DialogFooter>
               <Button variant="outline" onClick={() => setAiSuggestOpen(false)}>Abbrechen</Button>
               <Button onClick={handleSaveSuggestions} disabled={selectedSuggestions.size === 0 || savingSuggestions}>
