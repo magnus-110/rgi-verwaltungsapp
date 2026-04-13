@@ -232,6 +232,69 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
     queryClient.invalidateQueries({ queryKey: ["booking-template-presets"] });
   };
 
+  const handleAiSuggest = async () => {
+    if (!filterBuildingId) return;
+    setAiSuggestOpen(true);
+    setAiSuggesting(true);
+    setAiSuggestions([]);
+    setSelectedSuggestions(new Set());
+    try {
+      const { data, error } = await supabase.functions.invoke("suggest-templates", {
+        body: { buildingId: filterBuildingId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setAiSuggestions(data.suggestions || []);
+      if ((data.suggestions || []).length === 0) {
+        toast.info("Keine neuen Vorlagen-Muster erkannt");
+      } else {
+        // Select all by default
+        setSelectedSuggestions(new Set((data.suggestions || []).map((_: any, i: number) => i)));
+      }
+    } catch (err: any) {
+      toast.error("KI-Fehler: " + (err.message || "Unbekannt"));
+    } finally {
+      setAiSuggesting(false);
+    }
+  };
+
+  const handleSaveSuggestions = async () => {
+    if (selectedSuggestions.size === 0) return;
+    setSavingSuggestions(true);
+    let saved = 0;
+    for (const idx of selectedSuggestions) {
+      const s = aiSuggestions[idx];
+      if (!s) continue;
+      const { error } = await supabase.from("booking_templates").insert({
+        name: s.name,
+        vendor_name: s.vendor_name || null,
+        vendor_iban: s.vendor_iban || null,
+        expected_amount: s.expected_amount || null,
+        amount_tolerance: s.amount_tolerance || null,
+        account_id: s.account_id || null,
+        building_id: filterBuildingId,
+        is_35a_relevant: s.is_35a_relevant || false,
+        interval: s.interval || "monatlich",
+        category: s.category || null,
+        description: s.description || null,
+        vat_rate: s.vat_rate || null,
+      });
+      if (!error) saved++;
+    }
+    toast.success(`${saved} Vorlage(n) erstellt`);
+    setSavingSuggestions(false);
+    setAiSuggestOpen(false);
+    queryClient.invalidateQueries({ queryKey: ["booking-templates"] });
+  };
+
+  const toggleSuggestion = (idx: number) => {
+    setSelectedSuggestions(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  };
+
   const openCreate = () => {
     setEditingId(null);
     setSelectedPresetId("");
