@@ -478,14 +478,6 @@ export function BookingsTab() {
         </Card>
       </Collapsible>
 
-      <CreateBookingDialog
-        open={isCreateOpen}
-        onOpenChange={setIsCreateOpen}
-        buildings={buildings}
-        preselectedBuildingId=""
-        preselectedYear={filterYear}
-      />
-
       <EditBookingDialog
         open={!!editBooking}
         onOpenChange={(open) => { if (!open) setEditBooking(null); }}
@@ -546,11 +538,6 @@ export function BookingsTab() {
           )}
         </DialogContent>
       </Dialog>
-      <BookingReviewMode
-        open={isReviewOpen}
-        onOpenChange={setIsReviewOpen}
-        fiscalYear={filterYear}
-      />
     </div>
   );
 }
