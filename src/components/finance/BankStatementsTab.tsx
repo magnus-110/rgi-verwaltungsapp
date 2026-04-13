@@ -55,6 +55,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
   const [bookingPrefill, setBookingPrefill] = useState<any>(null);
   const [linkedTransactionId, setLinkedTransactionId] = useState<string | null>(null);
   const [currentHintIndex, setCurrentHintIndex] = useState<number | null>(null);
+  const [reviewModeOpen, setReviewModeOpen] = useState(false);
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
