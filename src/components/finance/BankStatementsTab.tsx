@@ -480,16 +480,16 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <CardTitle className="text-lg">Kontoauszüge</CardTitle>
             <div className="flex items-center gap-2 flex-wrap">
+              {selectedBuilding && allUnbookedForReview.length > 0 && (
+                <Button variant="default" onClick={() => setReviewModeOpen(true)}>
+                  <ScanSearch className="h-4 w-4 mr-2" />
+                  Prüfmodus ({allUnbookedForReview.length})
+                </Button>
+              )}
               {selectedBuilding && unmatchedTransactions.length > 0 && (
                 <Button variant="outline" disabled={rematching} onClick={handleRematch}>
                   {rematching ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                   Neu abgleichen ({unmatchedTransactions.length})
-                </Button>
-              )}
-              {globalBookableCount > 0 && (
-                <Button variant="default" disabled={bookingAll} onClick={handleBookAll}>
-                  {bookingAll ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <BookOpen className="h-4 w-4 mr-2" />}
-                  Alle buchen ({globalBookableCount})
                 </Button>
               )}
 
