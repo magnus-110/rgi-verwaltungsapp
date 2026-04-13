@@ -58,6 +58,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
   const [linkedTransactionId, setLinkedTransactionId] = useState<string | null>(null);
   const [currentHintIndex, setCurrentHintIndex] = useState<number | null>(null);
   const [reviewModeOpen, setReviewModeOpen] = useState(false);
+  const [reviewInitialIndex, setReviewInitialIndex] = useState(0);
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
@@ -391,13 +392,22 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     }
   };
 
+  const openReviewAtTransaction = (txn: any) => {
+    const idx = allUnbookedForReview.findIndex((t: any) => t.id === txn.id);
+    setReviewInitialIndex(idx >= 0 ? idx : 0);
+    setReviewModeOpen(true);
+  };
+
   const renderTransactionRow = (txn: any) => {
     const config = MATCH_STATUS_CONFIG[txn.match_status] || MATCH_STATUS_CONFIG.unmatched;
     const Icon = config.icon;
     const name = txn.amount < 0 ? txn.creditor_name : txn.debtor_name;
+    const isMatchedUnbooked = ["matched_invoice", "matched_template", "manually_matched"].includes(txn.match_status) && !txn.booked_at;
     return (
       <TableRow key={txn.id} className="cursor-pointer hover:bg-accent/50" onClick={() => {
-        if ((txn.match_status === "unmatched" || txn.match_status === "invoice_pending") && !txn.booked_at) {
+        if (isMatchedUnbooked) {
+          openReviewAtTransaction(txn);
+        } else if ((txn.match_status === "unmatched" || txn.match_status === "invoice_pending") && !txn.booked_at) {
           setManualAssignTxn(txn); setManualAssignType("invoice"); setManualAssignId("");
         } else {
           setSelectedTransaction(txn.id);
@@ -445,12 +455,12 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
               Wiederherstellen
             </Button>
           )}
-          {["matched_invoice", "matched_template", "manually_matched"].includes(txn.match_status) && !txn.booked_at && (
+          {isMatchedUnbooked && (
             <div className="flex gap-1">
-              <Button variant="ghost" size="sm" className="text-xs" onClick={() => { setManualAssignTxn(txn); setManualAssignType("invoice"); setManualAssignId(""); }}>
+              <Button variant="ghost" size="sm" className="text-xs" onClick={(e) => { e.stopPropagation(); setManualAssignTxn(txn); setManualAssignType("invoice"); setManualAssignId(""); }}>
                 <Link2 className="h-3 w-3 mr-1" />Ändern
               </Button>
-              <Button variant="ghost" size="sm" className="text-xs text-destructive" onClick={() => removeAssignment(txn.id)}>
+              <Button variant="ghost" size="sm" className="text-xs text-destructive" onClick={(e) => { e.stopPropagation(); removeAssignment(txn.id); }}>
                 Entfernen
               </Button>
             </div>
@@ -480,30 +490,17 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <CardTitle className="text-lg">Kontoauszüge</CardTitle>
             <div className="flex items-center gap-2 flex-wrap">
-              {selectedBuilding && allUnbookedForReview.length > 0 && (
-                <Button variant="default" onClick={() => setReviewModeOpen(true)}>
-                  <ScanSearch className="h-4 w-4 mr-2" />
-                  Prüfmodus ({allUnbookedForReview.length})
-                </Button>
-              )}
               {selectedBuilding && unmatchedTransactions.length > 0 && (
-                <Button variant="outline" disabled={rematching} onClick={handleRematch}>
-                  {rematching ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                  Neu abgleichen ({unmatchedTransactions.length})
+                <Button variant="outline" size="icon" disabled={rematching} onClick={handleRematch} title="Neu abgleichen">
+                  {rematching ? <Loader2 className="h-4 w-4 animate-spin" /> : (
+                    <div className="relative">
+                      <RefreshCw className="h-4 w-4" />
+                      <span className="absolute -top-2 -right-2 text-[10px] font-bold bg-primary text-primary-foreground rounded-full h-4 w-4 flex items-center justify-center">{unmatchedTransactions.length}</span>
+                    </div>
+                  )}
                 </Button>
               )}
 
-              <Select value={selectedBuilding} onValueChange={setSelectedBuilding}>
-                <SelectTrigger className="w-[220px]">
-                  <Building2 className="h-4 w-4 mr-2 text-muted-foreground" />
-                  <SelectValue placeholder="Liegenschaft wählen…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {buildings.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
               <input ref={fileInputRef} type="file" accept=".xml" multiple className="hidden" onChange={handleFileUpload} />
               <Button onClick={() => fileInputRef.current?.click()} disabled={uploading}>
                 {uploading ? (
@@ -514,7 +511,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
                 ) : (
                   <>
                     <Upload className="h-4 w-4 mr-2" />
-                    CAMT importieren
+                    Kontoauszug importieren
                   </>
                 )}
               </Button>
@@ -755,6 +752,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
         onOpenChange={setReviewModeOpen}
         transactions={allUnbookedForReview}
         buildingId={selectedBuilding}
+        initialIndex={reviewInitialIndex}
       />
     </div>
   );

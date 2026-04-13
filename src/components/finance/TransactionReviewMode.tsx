@@ -24,6 +24,7 @@ interface TransactionReviewModeProps {
   onOpenChange: (open: boolean) => void;
   transactions: any[];
   buildingId: string;
+  initialIndex?: number;
 }
 
 const formatCurrency = (amount: number | null) =>
@@ -35,7 +36,7 @@ const FIELD_ORDER = [
   "booking_reference", "booking_date", "receipt_number", "vat_rate"
 ];
 
-export function TransactionReviewMode({ open, onOpenChange, transactions, buildingId }: TransactionReviewModeProps) {
+export function TransactionReviewMode({ open, onOpenChange, transactions, buildingId, initialIndex }: TransactionReviewModeProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -137,8 +138,8 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     const absAmount = Math.abs(currentTxn.amount);
     const isIncome = currentTxn.amount > 0;
 
-    // Find bank account (1200 or similar)
-    const bankAccount = accounts.find(a => a.account_number === "1200") || accounts.find(a => a.category === "Bankkonto");
+    // Find bank account (1800 Bankkonto as default counter account)
+    const bankAccount = accounts.find(a => a.account_number === "1800") || accounts.find(a => a.account_number === "1200") || accounts.find(a => a.category === "Bankkonto");
     const defaultCounterAccountId = bankAccount?.id || "";
 
     // Start with defaults
@@ -364,7 +365,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     ? ((bookedCount) / (bookedCount + transactions.length)) * 100
     : 100;
 
-  useEffect(() => { setCurrentIndex(0); setBookedCount(0); }, [open]);
+  useEffect(() => { setCurrentIndex(initialIndex ?? 0); setBookedCount(0); }, [open, initialIndex]);
 
   // Determine source type for current transaction
   const sourceType = useMemo(() => {
@@ -426,17 +427,20 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
             {/* Left: Transaction details + Booking mask */}
             <div className="w-1/2 border-r overflow-y-auto">
               {/* Transaction summary (compact) */}
-              <div className="p-4 bg-muted/20 border-b space-y-2">
+              <div className="p-4 bg-muted/20 border-b space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Building2 className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm font-medium">
+                    <span className="text-sm text-muted-foreground">
                       {format(new Date(currentTxn.booking_date), "dd.MM.yyyy", { locale: de })}
                     </span>
-                    <span className={cn("text-lg font-bold", currentTxn.amount < 0 ? "text-destructive" : "text-green-600")}>
-                      {currentTxn.amount < 0 ? "" : "+"}{formatCurrency(currentTxn.amount)}
-                    </span>
                     {amountMatch && <Badge variant="outline" className="text-xs bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300">✓ Betrag</Badge>}
+                    {sourceType !== "manual" && (
+                      <Badge variant="outline" className={cn("text-xs", sourceType === "invoice" ? "bg-green-50 text-green-700" : sourceType === "template" ? "bg-blue-50 text-blue-700" : "bg-purple-50 text-purple-700")}>
+                        {sourceType === "invoice" && <><FileText className="h-3 w-3 mr-1" />Rechnung</>}
+                        {sourceType === "template" && <><LayoutTemplate className="h-3 w-3 mr-1" />Vorlage</>}
+                        {sourceType === "ai" && <><Sparkles className="h-3 w-3 mr-1" />KI-Vorschlag</>}
+                      </Badge>
+                    )}
                   </div>
                   <div className="flex gap-1">
                     <Button variant="outline" size="sm" disabled={currentIndex === 0} onClick={handlePrev}>
@@ -447,27 +451,10 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                     </Button>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-                  <div>
-                    <span className="text-xs text-muted-foreground">{currentTxn.amount < 0 ? "Empfänger" : "Auftraggeber"}</span>
-                    <p className="font-medium truncate">{currentTxn.amount < 0 ? currentTxn.creditor_name : currentTxn.debtor_name || "–"}</p>
-                  </div>
-                  <div>
-                    <span className="text-xs text-muted-foreground">IBAN</span>
-                    <p className="font-mono text-xs truncate">{(currentTxn.amount < 0 ? currentTxn.creditor_iban : currentTxn.debtor_iban) || "–"}</p>
-                  </div>
-                  <div className="col-span-2">
-                    <span className="text-xs text-muted-foreground">Verwendungszweck</span>
-                    <p className="text-xs truncate">{currentTxn.purpose || "–"}</p>
-                  </div>
+                <div className={cn("text-2xl font-bold", currentTxn.amount < 0 ? "text-destructive" : "text-green-600")}>
+                  {currentTxn.amount < 0 ? "" : "+"}{formatCurrency(currentTxn.amount)}
                 </div>
-                {sourceType !== "manual" && (
-                  <Badge variant="outline" className={cn("text-xs", sourceType === "invoice" ? "bg-green-50 text-green-700" : sourceType === "template" ? "bg-blue-50 text-blue-700" : "bg-purple-50 text-purple-700")}>
-                    {sourceType === "invoice" && <><FileText className="h-3 w-3 mr-1" />Rechnung</>}
-                    {sourceType === "template" && <><LayoutTemplate className="h-3 w-3 mr-1" />Vorlage</>}
-                    {sourceType === "ai" && <><Sparkles className="h-3 w-3 mr-1" />KI-Vorschlag</>}
-                  </Badge>
-                )}
+                <p className="text-sm">{currentTxn.purpose || "–"}</p>
               </div>
 
               {/* Booking mask */}
@@ -492,35 +479,42 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                   </Select>
                 </div>
 
-                {/* Amount + VAT */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Betrag (€)</label>
-                    <Input
-                      ref={el => fieldRefs.current["amount"] = el}
-                      className="h-11 text-lg font-bold"
-                      value={formData.amount}
-                      onChange={e => handleFieldChange("amount", e.target.value)}
-                      onKeyDown={e => handleEnterNavigation(e, "amount")}
-                    />
-                    {parseFloat(formData.vat_amount) > 0 && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        davon MwSt: {formatCurrency(parseFloat(formData.vat_amount))} ({formData.vat_rate}%)
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Buchungstyp</label>
-                    <Select value={formData.booking_type} onValueChange={v => handleFieldChange("booking_type", v)}>
-                      <SelectTrigger className="h-11">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="expense">Ausgabe</SelectItem>
-                        <SelectItem value="income">Einnahme</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                {/* Booking type buttons + Amount */}
+                <div className="flex items-center gap-2 mb-1">
+                  <label className="text-xs font-medium text-muted-foreground">Typ</label>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={formData.booking_type === "expense" ? "default" : "outline"}
+                    className={cn("h-8 px-3 font-bold", formData.booking_type === "expense" && "bg-destructive hover:bg-destructive/90 text-destructive-foreground")}
+                    onClick={() => handleFieldChange("booking_type", "expense")}
+                  >
+                    − Ausgabe
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={formData.booking_type === "income" ? "default" : "outline"}
+                    className={cn("h-8 px-3 font-bold", formData.booking_type === "income" && "bg-green-600 hover:bg-green-700 text-white")}
+                    onClick={() => handleFieldChange("booking_type", "income")}
+                  >
+                    + Einnahme
+                  </Button>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Betrag (€)</label>
+                  <Input
+                    ref={el => fieldRefs.current["amount"] = el}
+                    className={cn("h-11 text-lg font-bold", formData.booking_type === "income" ? "text-green-600" : "text-destructive")}
+                    value={formData.amount}
+                    onChange={e => handleFieldChange("amount", e.target.value)}
+                    onKeyDown={e => handleEnterNavigation(e, "amount")}
+                  />
+                  {parseFloat(formData.vat_amount) > 0 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      davon MwSt: {formatCurrency(parseFloat(formData.vat_amount))} ({formData.vat_rate}%)
+                    </p>
+                  )}
                 </div>
 
                 {/* Counter account (prominent) */}
@@ -605,22 +599,29 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                   </div>
                 </div>
 
-                {/* §35a */}
-                <div className="flex items-center gap-3 py-1">
-                  <Checkbox
-                    checked={formData.is_35a_relevant}
-                    onCheckedChange={v => handleFieldChange("is_35a_relevant", !!v)}
-                  />
-                  <label className="text-sm">§35a-relevant</label>
-                  {formData.is_35a_relevant && (
-                    <Input
-                      className="h-8 w-32 text-sm"
-                      placeholder="Lohnanteil €"
-                      value={formData.amount_35a}
-                      onChange={e => handleFieldChange("amount_35a", e.target.value)}
-                    />
-                  )}
-                </div>
+                {/* §35a - only shown when relevant */}
+                {(formData.is_35a_relevant || (selectedAccount?.is_35a_relevant)) && (
+                  <div className="p-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 space-y-2">
+                    <div className="flex items-center gap-3">
+                      <Checkbox
+                        checked={formData.is_35a_relevant}
+                        onCheckedChange={v => handleFieldChange("is_35a_relevant", !!v)}
+                      />
+                      <label className="text-sm font-medium">§35a-relevant</label>
+                    </div>
+                    {formData.is_35a_relevant && (
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground mb-1 block">Lohnanteil (€)</label>
+                        <Input
+                          className="h-9 w-40 text-sm"
+                          placeholder="0,00"
+                          value={formData.amount_35a}
+                          onChange={e => handleFieldChange("amount_35a", e.target.value)}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Action buttons */}
                 <div className="flex items-center gap-2 pt-2">
