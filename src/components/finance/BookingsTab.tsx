@@ -316,14 +316,6 @@ export function BookingsTab() {
               )}
             </CardTitle>
             <div className="flex items-center gap-2">
-              {filteredPending.length > 0 && (
-                <Button variant="outline" onClick={() => setIsReviewOpen(true)}>
-                  <ClipboardCheck className="h-4 w-4 mr-2" /> Prüfmodus
-                </Button>
-              )}
-              <Button onClick={() => setIsCreateOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" /> Neue Buchung
-              </Button>
             </div>
           </div>
 
