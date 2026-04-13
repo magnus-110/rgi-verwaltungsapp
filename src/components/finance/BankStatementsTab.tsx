@@ -8,13 +8,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Upload, Loader2, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff, Building2, BookOpen, Link2, Send, RefreshCw, Landmark, FileWarning, ScanSearch } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Upload, Loader2, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff, Building2, BookOpen, Link2, Send, RefreshCw, Landmark, FileWarning, ScanSearch, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { AssignmentDialog } from "./AssignmentDialog";
 import { TransactionDetailSheet } from "./TransactionDetailSheet";
 import { CreateBookingDialog } from "./CreateBookingDialog";
 import { TransactionReviewMode } from "./TransactionReviewMode";
+import { useTransactionAiPrefetch } from "@/hooks/useTransactionAiPrefetch";
 const MATCH_STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   matched_invoice: { label: "Rechnung", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200", icon: CheckCircle2 },
   matched_template: { label: "Vorlage", color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200", icon: LayoutTemplate },
@@ -81,6 +83,13 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     },
     enabled: !!selectedBuilding,
   });
+
+  // AI prefetch for unmatched transactions
+  const aiPrefetchState = useTransactionAiPrefetch(
+    selectedBuilding || null,
+    allBuildingTxns,
+    !!selectedBuilding && allBuildingTxns.length > 0
+  );
 
   // Fetch bank statements for IBAN display
   const { data: bankStatements = [] } = useQuery({
@@ -186,6 +195,13 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     allBuildingTxns.filter((t: any) => t.booked_at),
     [allBuildingTxns]
   );
+
+  // All unbooked transactions for review mode (matched first, then unmatched)
+  const allUnbookedForReview = useMemo(() => {
+    const matched = allBuildingTxns.filter((t: any) => ["matched_invoice", "matched_template", "manually_matched"].includes(t.match_status) && !t.booked_at);
+    const unmatched = allBuildingTxns.filter((t: any) => (t.match_status === "unmatched" || t.match_status === "invoice_pending") && !t.booked_at);
+    return [...matched, ...unmatched];
+  }, [allBuildingTxns]);
 
   const globalBookableCount = useMemo(() => {
     return allTransactions.filter((t: any) =>
@@ -464,16 +480,16 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <CardTitle className="text-lg">Kontoauszüge</CardTitle>
             <div className="flex items-center gap-2 flex-wrap">
+              {selectedBuilding && allUnbookedForReview.length > 0 && (
+                <Button variant="default" onClick={() => setReviewModeOpen(true)}>
+                  <ScanSearch className="h-4 w-4 mr-2" />
+                  Prüfmodus ({allUnbookedForReview.length})
+                </Button>
+              )}
               {selectedBuilding && unmatchedTransactions.length > 0 && (
                 <Button variant="outline" disabled={rematching} onClick={handleRematch}>
                   {rematching ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
                   Neu abgleichen ({unmatchedTransactions.length})
-                </Button>
-              )}
-              {globalBookableCount > 0 && (
-                <Button variant="default" disabled={bookingAll} onClick={handleBookAll}>
-                  {bookingAll ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <BookOpen className="h-4 w-4 mr-2" />}
-                  Alle buchen ({globalBookableCount})
                 </Button>
               )}
 
@@ -537,13 +553,25 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
                 </div>
               )}
 
-              {/* Summary badges */}
+              {/* Summary badges + AI prefetch indicator */}
               <div className="flex items-center gap-2 flex-wrap">
                 <Badge variant="outline" className="text-xs">{allBuildingTxns.length} Transaktionen gesamt</Badge>
                 {unmatchedTransactions.length > 0 && <Badge variant="outline" className="text-xs bg-yellow-50 dark:bg-yellow-950">{unmatchedTransactions.length} offen</Badge>}
                 {matchedTransactions.length > 0 && <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-950">{matchedTransactions.length} zugeordnet</Badge>}
                 {ignoredTransactions.length > 0 && <Badge variant="outline" className="text-xs bg-muted">{ignoredTransactions.length} ignoriert</Badge>}
                 {bookedTransactions.length > 0 && <Badge variant="outline" className="text-xs">{bookedTransactions.length} gebucht</Badge>}
+                {aiPrefetchState.running && (
+                  <Badge variant="outline" className="text-xs bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 gap-1">
+                    <Sparkles className="h-3 w-3 animate-pulse" />
+                    KI analysiert {aiPrefetchState.completed}/{aiPrefetchState.total}
+                  </Badge>
+                )}
+                {!aiPrefetchState.running && aiPrefetchState.completed > 0 && (
+                  <Badge variant="outline" className="text-xs bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300">
+                    <Sparkles className="h-3 w-3 mr-1" />
+                    {aiPrefetchState.completed} KI-Vorschläge
+                  </Badge>
+                )}
               </div>
 
               {/* Matched (not yet booked) transactions - ABOVE unmatched */}
@@ -553,10 +581,6 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
                     <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
                       <CheckCircle2 className="h-4 w-4 text-green-600" />Zugeordnete Transaktionen ({matchedTransactions.length})
                     </h4>
-                    <Button variant="outline" size="sm" onClick={() => setReviewModeOpen(true)}>
-                      <ScanSearch className="h-4 w-4 mr-2" />
-                      Prüfmodus
-                    </Button>
                   </div>
                   <Table>
                     {transactionTableHeader}
@@ -729,7 +753,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
       <TransactionReviewMode
         open={reviewModeOpen}
         onOpenChange={setReviewModeOpen}
-        transactions={matchedTransactions}
+        transactions={allUnbookedForReview}
         buildingId={selectedBuilding}
       />
     </div>
