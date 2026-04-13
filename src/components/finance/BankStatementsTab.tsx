@@ -84,6 +84,13 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     enabled: !!selectedBuilding,
   });
 
+  // AI prefetch for unmatched transactions
+  const aiPrefetchState = useTransactionAiPrefetch(
+    selectedBuilding || null,
+    allBuildingTxns,
+    !!selectedBuilding && allBuildingTxns.length > 0
+  );
+
   // Fetch bank statements for IBAN display
   const { data: bankStatements = [] } = useQuery({
     queryKey: ["bank-statements-info", selectedBuilding],
