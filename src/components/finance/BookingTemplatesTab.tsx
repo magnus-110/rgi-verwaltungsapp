@@ -12,7 +12,8 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Plus, Pencil, Trash2, LayoutTemplate, Loader2, Check, ChevronsUpDown, FileText, Building2, CreditCard, Receipt, CalendarDays, Settings2, Zap } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Plus, Pencil, Trash2, LayoutTemplate, Loader2, Check, ChevronsUpDown, FileText, Building2, CreditCard, Receipt, CalendarDays, Settings2, Zap, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -75,6 +76,11 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
   const [presetForm, setPresetForm] = useState({ name: "", vendor_name: "", category: "", interval: "monatlich", vat_rate: "", is_35a_relevant: false, description: "" });
   const [presetPickerOpen, setPresetPickerOpen] = useState(false);
   const [selectedPresetId, setSelectedPresetId] = useState<string>("");
+  const [aiSuggestOpen, setAiSuggestOpen] = useState(false);
+  const [aiSuggesting, setAiSuggesting] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<any[]>([]);
+  const [selectedSuggestions, setSelectedSuggestions] = useState<Set<number>>(new Set());
+  const [savingSuggestions, setSavingSuggestions] = useState(false);
 
   const filterBuildingId = sharedBuildingId || internalFilterBuildingId;
 
@@ -226,6 +232,69 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
     queryClient.invalidateQueries({ queryKey: ["booking-template-presets"] });
   };
 
+  const handleAiSuggest = async () => {
+    if (!filterBuildingId) return;
+    setAiSuggestOpen(true);
+    setAiSuggesting(true);
+    setAiSuggestions([]);
+    setSelectedSuggestions(new Set());
+    try {
+      const { data, error } = await supabase.functions.invoke("suggest-templates", {
+        body: { buildingId: filterBuildingId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setAiSuggestions(data.suggestions || []);
+      if ((data.suggestions || []).length === 0) {
+        toast.info("Keine neuen Vorlagen-Muster erkannt");
+      } else {
+        // Select all by default
+        setSelectedSuggestions(new Set((data.suggestions || []).map((_: any, i: number) => i)));
+      }
+    } catch (err: any) {
+      toast.error("KI-Fehler: " + (err.message || "Unbekannt"));
+    } finally {
+      setAiSuggesting(false);
+    }
+  };
+
+  const handleSaveSuggestions = async () => {
+    if (selectedSuggestions.size === 0) return;
+    setSavingSuggestions(true);
+    let saved = 0;
+    for (const idx of selectedSuggestions) {
+      const s = aiSuggestions[idx];
+      if (!s) continue;
+      const { error } = await supabase.from("booking_templates").insert({
+        name: s.name,
+        vendor_name: s.vendor_name || null,
+        vendor_iban: s.vendor_iban || null,
+        expected_amount: s.expected_amount || null,
+        amount_tolerance: s.amount_tolerance || null,
+        account_id: s.account_id || null,
+        building_id: filterBuildingId,
+        is_35a_relevant: s.is_35a_relevant || false,
+        interval: s.interval || "monatlich",
+        category: s.category || null,
+        description: s.description || null,
+        vat_rate: s.vat_rate || null,
+      });
+      if (!error) saved++;
+    }
+    toast.success(`${saved} Vorlage(n) erstellt`);
+    setSavingSuggestions(false);
+    setAiSuggestOpen(false);
+    queryClient.invalidateQueries({ queryKey: ["booking-templates"] });
+  };
+
+  const toggleSuggestion = (idx: number) => {
+    setSelectedSuggestions(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  };
+
   const openCreate = () => {
     setEditingId(null);
     setSelectedPresetId("");
@@ -313,10 +382,16 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">Buchungsvorlagen</CardTitle>
-            <Button onClick={openCreate} disabled={!filterBuildingId}>
-              <Plus className="h-4 w-4 mr-2" />
-              Neue Vorlage
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={handleAiSuggest} disabled={!filterBuildingId || aiSuggesting}>
+                {aiSuggesting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                KI-Vorlagen vorschlagen
+              </Button>
+              <Button onClick={openCreate} disabled={!filterBuildingId}>
+                <Plus className="h-4 w-4 mr-2" />
+                Neue Vorlage
+              </Button>
+            </div>
           </div>
           {!sharedBuildingId && (
             <div className="mt-3">
@@ -817,6 +892,78 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
             <Button variant="outline" onClick={() => setPresetDialogOpen(false)}>Abbrechen</Button>
             <Button onClick={handleSavePreset}>{editingPresetId ? "Speichern" : "Erstellen"}</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* AI Suggestions Dialog */}
+      <Dialog open={aiSuggestOpen} onOpenChange={setAiSuggestOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5" />
+              KI-Vorlagenvorschläge
+            </DialogTitle>
+            <DialogDescription>
+              Basierend auf Ihren Kontoauszügen wurden folgende wiederkehrende Muster erkannt.
+            </DialogDescription>
+          </DialogHeader>
+
+          {aiSuggesting ? (
+            <div className="flex flex-col items-center justify-center py-12 gap-3">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">Analysiere Kontoauszüge...</p>
+            </div>
+          ) : aiSuggestions.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>Keine neuen Muster erkannt.</p>
+              <p className="text-sm mt-1">Importieren Sie zunächst mehr Kontoauszüge.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">{selectedSuggestions.size} von {aiSuggestions.length} ausgewählt</span>
+                <Button variant="ghost" size="sm" onClick={() => {
+                  if (selectedSuggestions.size === aiSuggestions.length) setSelectedSuggestions(new Set());
+                  else setSelectedSuggestions(new Set(aiSuggestions.map((_: any, i: number) => i)));
+                }}>
+                  {selectedSuggestions.size === aiSuggestions.length ? "Keine auswählen" : "Alle auswählen"}
+                </Button>
+              </div>
+              {aiSuggestions.map((s: any, idx: number) => (
+                <div key={idx} className={cn("border rounded-lg p-4 space-y-2 cursor-pointer transition-colors", selectedSuggestions.has(idx) ? "border-primary bg-primary/5" : "hover:bg-accent/50")} onClick={() => toggleSuggestion(idx)}>
+                  <div className="flex items-start gap-3">
+                    <Checkbox checked={selectedSuggestions.has(idx)} onCheckedChange={() => toggleSuggestion(idx)} className="mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-sm">{s.name}</span>
+                        <Badge variant="outline" className="text-xs capitalize">{s.interval}</Badge>
+                        {s.confidence === "high" && <Badge className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" variant="outline">Hohe Sicherheit</Badge>}
+                        {s.transaction_count && <Badge variant="secondary" className="text-xs">{s.transaction_count} Transaktionen</Badge>}
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 mt-2 text-sm">
+                        <div><span className="text-muted-foreground text-xs">Kreditor:</span> <span className="text-xs">{s.vendor_name || "–"}</span></div>
+                        <div><span className="text-muted-foreground text-xs">Betrag:</span> <span className="text-xs font-mono">{s.expected_amount != null ? `${Number(s.expected_amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €` : "–"}{s.amount_tolerance > 0 ? ` ±${Number(s.amount_tolerance).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €` : ""}</span></div>
+                        <div><span className="text-muted-foreground text-xs">Konto:</span> <span className="text-xs">{s.account_number ? `${s.account_number} ${s.account_name || ""}` : "–"}</span></div>
+                        {s.vendor_iban && <div><span className="text-muted-foreground text-xs">IBAN:</span> <span className="text-xs font-mono">{s.vendor_iban}</span></div>}
+                        {s.vat_rate != null && <div><span className="text-muted-foreground text-xs">MwSt:</span> <span className="text-xs">{s.vat_rate}%</span></div>}
+                        {s.description && <div className="col-span-2"><span className="text-muted-foreground text-xs">Info:</span> <span className="text-xs">{s.description}</span></div>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {aiSuggestions.length > 0 && (
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAiSuggestOpen(false)}>Abbrechen</Button>
+              <Button onClick={handleSaveSuggestions} disabled={selectedSuggestions.size === 0 || savingSuggestions}>
+                {savingSuggestions ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+                {selectedSuggestions.size} Vorlage(n) erstellen
+              </Button>
+            </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
 

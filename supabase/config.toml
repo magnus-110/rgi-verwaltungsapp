@@ -96,3 +96,6 @@ verify_jwt = false
 [functions.suggest-match]
 verify_jwt = false
 
+[functions.suggest-templates]
+verify_jwt = false
+

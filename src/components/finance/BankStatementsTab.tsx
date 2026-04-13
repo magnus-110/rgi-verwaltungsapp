@@ -8,12 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Upload, Loader2, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff, Building2, BookOpen, Link2, Send, RefreshCw, Landmark, FileWarning } from "lucide-react";
+import { Upload, Loader2, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff, Building2, BookOpen, Link2, Send, RefreshCw, Landmark, FileWarning, ScanSearch } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { AssignmentDialog } from "./AssignmentDialog";
 import { TransactionDetailSheet } from "./TransactionDetailSheet";
 import { CreateBookingDialog } from "./CreateBookingDialog";
+import { TransactionReviewMode } from "./TransactionReviewMode";
 const MATCH_STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   matched_invoice: { label: "Rechnung", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200", icon: CheckCircle2 },
   matched_template: { label: "Vorlage", color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200", icon: LayoutTemplate },
@@ -54,6 +55,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
   const [bookingPrefill, setBookingPrefill] = useState<any>(null);
   const [linkedTransactionId, setLinkedTransactionId] = useState<string | null>(null);
   const [currentHintIndex, setCurrentHintIndex] = useState<number | null>(null);
+  const [reviewModeOpen, setReviewModeOpen] = useState(false);
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
@@ -544,6 +546,25 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
                 {bookedTransactions.length > 0 && <Badge variant="outline" className="text-xs">{bookedTransactions.length} gebucht</Badge>}
               </div>
 
+              {/* Matched (not yet booked) transactions - ABOVE unmatched */}
+              {matchedTransactions.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-green-600" />Zugeordnete Transaktionen ({matchedTransactions.length})
+                    </h4>
+                    <Button variant="outline" size="sm" onClick={() => setReviewModeOpen(true)}>
+                      <ScanSearch className="h-4 w-4 mr-2" />
+                      Prüfmodus
+                    </Button>
+                  </div>
+                  <Table>
+                    {transactionTableHeader}
+                    <TableBody>{matchedTransactions.map(renderTransactionRow)}</TableBody>
+                  </Table>
+                </div>
+              )}
+
               {/* Unmatched transactions */}
               {unmatchedTransactions.length > 0 && (
                 <div>
@@ -554,19 +575,6 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
                   <Table>
                     {transactionTableHeader}
                     <TableBody>{unmatchedTransactions.map(renderTransactionRow)}</TableBody>
-                  </Table>
-                </div>
-              )}
-
-              {/* Matched (not yet booked) transactions */}
-              {matchedTransactions.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-green-600" />Zugeordnete Transaktionen ({matchedTransactions.length})
-                  </h4>
-                  <Table>
-                    {transactionTableHeader}
-                    <TableBody>{matchedTransactions.map(renderTransactionRow)}</TableBody>
                   </Table>
                 </div>
               )}
@@ -716,6 +724,13 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
           queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
           queryClient.invalidateQueries({ queryKey: ["bookings"] });
         }}
+      />
+
+      <TransactionReviewMode
+        open={reviewModeOpen}
+        onOpenChange={setReviewModeOpen}
+        transactions={matchedTransactions}
+        buildingId={selectedBuilding}
       />
     </div>
   );
