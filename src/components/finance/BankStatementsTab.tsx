@@ -8,13 +8,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Upload, Loader2, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff, Building2, BookOpen, Link2, Send, RefreshCw, Landmark, FileWarning, ScanSearch } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Upload, Loader2, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff, Building2, BookOpen, Link2, Send, RefreshCw, Landmark, FileWarning, ScanSearch, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { AssignmentDialog } from "./AssignmentDialog";
 import { TransactionDetailSheet } from "./TransactionDetailSheet";
 import { CreateBookingDialog } from "./CreateBookingDialog";
 import { TransactionReviewMode } from "./TransactionReviewMode";
+import { useTransactionAiPrefetch } from "@/hooks/useTransactionAiPrefetch";
 const MATCH_STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
   matched_invoice: { label: "Rechnung", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200", icon: CheckCircle2 },
   matched_template: { label: "Vorlage", color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200", icon: LayoutTemplate },
