@@ -49,7 +49,7 @@ function BufferedNumberInput({ value: externalValue, onSave, className, ...props
       value={local}
       onChange={(e) => setLocal(e.target.value)}
       onBlur={() => {
-        const num = local === "" ? 0 : parseFloat(local);
+        const num = local === "" ? 0 : parseFloat(local.replace(",", "."));
         const val = isNaN(num) ? 0 : num;
         if (val !== savedRef.current) { savedRef.current = val; onSave(val); }
       }}
