@@ -725,6 +725,13 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
           queryClient.invalidateQueries({ queryKey: ["bookings"] });
         }}
       />
+
+      <TransactionReviewMode
+        open={reviewModeOpen}
+        onOpenChange={setReviewModeOpen}
+        transactions={matchedTransactions}
+        buildingId={selectedBuilding}
+      />
     </div>
   );
 }
