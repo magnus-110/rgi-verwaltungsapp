@@ -49,7 +49,7 @@ const formatCurrency = (val: number | null) => {
   return new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
 };
 
-const generatePurpose = (inv: Invoice) => {
+const fallbackPurpose = (inv: Invoice) => {
   const parts: string[] = [];
   if (inv.invoice_number) parts.push(`Re. Nr. ${inv.invoice_number}`);
   if (inv.description) {
