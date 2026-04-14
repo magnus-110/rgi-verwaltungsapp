@@ -60,7 +60,9 @@ export function Transfers() {
     return isPast(new Date(dueDate)) && !isToday(new Date(dueDate));
   };
 
-  const generatePurpose = (inv: any) => {
+  const getPurpose = (inv: any) => {
+    if (inv.payment_purpose) return inv.payment_purpose;
+    // Fallback until AI generates it
     const parts: string[] = [];
     if (inv.invoice_number) parts.push(`Re. Nr. ${inv.invoice_number}`);
     if (inv.description) {
