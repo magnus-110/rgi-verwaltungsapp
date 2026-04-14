@@ -2,15 +2,12 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, isPast, isToday } from "date-fns";
-import { CreditCard, AlertTriangle, Play, StickyNote, Eye, EyeOff } from "lucide-react";
+import { CreditCard, AlertTriangle, Play, StickyNote } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { toast } from "sonner";
 import { TransferReviewMode } from "@/components/transfers/TransferReviewMode";
 import { InvoiceDropZone } from "@/components/finance/InvoiceDropZone";
 
@@ -18,8 +15,7 @@ export function Transfers() {
   const [buildingFilter, setBuildingFilter] = useState<string>("all");
   const [reviewMode, setReviewMode] = useState(false);
   const [reviewIndex, setReviewIndex] = useState(0);
-  const [editingNote, setEditingNote] = useState<string | null>(null);
-  const [noteText, setNoteText] = useState("");
+  const [reviewInvoices, setReviewInvoices] = useState<any[]>([]);
   const [showPaid, setShowPaid] = useState(false);
 
   const { data: buildings = [] } = useQuery({
@@ -64,24 +60,35 @@ export function Transfers() {
     return isPast(new Date(dueDate)) && !isToday(new Date(dueDate));
   };
 
-  const handleSaveNote = async (invoiceId: string) => {
-    const { error } = await supabase
-      .from("invoices")
-      .update({ payment_notes: noteText } as any)
-      .eq("id", invoiceId);
-    if (error) {
-      toast.error("Fehler beim Speichern");
-    } else {
-      toast.success("Notiz gespeichert");
-      refetch();
+  const generatePurpose = (inv: any) => {
+    const parts: string[] = [];
+    if (inv.invoice_number) parts.push(`Re. Nr. ${inv.invoice_number}`);
+    if (inv.description) {
+      const short = inv.description.split(/\s+/).slice(0, 3).join(" ");
+      parts.push(short);
     }
-    setEditingNote(null);
+    return parts.join(", ") || "–";
   };
 
-  if (reviewMode && unpaidInvoices.length > 0) {
+  const openReviewForInvoice = (inv: any) => {
+    // For paid invoices, open single-invoice review (read-only)
+    // For unpaid, open in the unpaid list context
+    const isPaid = inv.status === "paid";
+    if (isPaid) {
+      setReviewInvoices([inv]);
+      setReviewIndex(0);
+    } else {
+      setReviewInvoices(unpaidInvoices);
+      const idx = unpaidInvoices.findIndex(u => u.id === inv.id);
+      setReviewIndex(idx >= 0 ? idx : 0);
+    }
+    setReviewMode(true);
+  };
+
+  if (reviewMode && reviewInvoices.length > 0) {
     return (
       <TransferReviewMode
-        invoices={unpaidInvoices}
+        invoices={reviewInvoices}
         initialIndex={reviewIndex}
         onClose={() => { setReviewMode(false); refetch(); }}
         onRefetch={refetch}
@@ -122,7 +129,7 @@ export function Transfers() {
             </SelectContent>
           </Select>
           {unpaidInvoices.length > 0 && (
-            <Button onClick={() => { setReviewIndex(0); setReviewMode(true); }}>
+            <Button onClick={() => { setReviewInvoices(unpaidInvoices); setReviewIndex(0); setReviewMode(true); }}>
               <Play className="h-4 w-4 mr-2" />
               Prüfmodus starten
             </Button>
@@ -130,7 +137,6 @@ export function Transfers() {
         </div>
       </div>
 
-      {/* Drag & Drop upload zone */}
       <InvoiceDropZone buildings={buildings} />
 
       <div className="border rounded-lg">
@@ -139,93 +145,66 @@ export function Transfers() {
             <TableRow>
               <TableHead>Fällig am</TableHead>
               <TableHead>Lieferant</TableHead>
-              <TableHead>Re.-Nr.</TableHead>
+              <TableHead>Verwendungszweck</TableHead>
               <TableHead>IBAN</TableHead>
               <TableHead className="text-right">Betrag</TableHead>
               <TableHead>Liegenschaft</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead className="w-10"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {invoices.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                   {showPaid ? "Keine Rechnungen vorhanden" : "Keine offenen Rechnungen vorhanden"}
                 </TableCell>
               </TableRow>
             )}
-            {invoices.map((inv, idx) => {
+            {invoices.map((inv) => {
               const overdue = inv.status !== "paid" && isOverdue(inv.due_date);
               const isPaid = inv.status === "paid";
+              const hasNote = !!(inv as any).payment_notes;
               return (
-                <TableRow
-                  key={inv.id}
-                  className={`cursor-pointer hover:bg-muted/50 ${overdue ? "bg-destructive/5" : ""} ${isPaid ? "opacity-60" : ""}`}
-                  onClick={() => {
-                    if (!isPaid) {
-                      const unpaidIdx = unpaidInvoices.findIndex(u => u.id === inv.id);
-                      setReviewIndex(unpaidIdx >= 0 ? unpaidIdx : 0);
-                      setReviewMode(true);
-                    }
-                  }}
-                >
-                  <TableCell className={overdue ? "text-destructive font-medium" : ""}>
-                    <div className="flex items-center gap-1.5">
-                      {overdue && <AlertTriangle className="h-3.5 w-3.5 text-destructive" />}
-                      {inv.due_date ? format(new Date(inv.due_date), "dd.MM.yyyy") : "–"}
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-medium">{inv.vendor_name || "–"}</TableCell>
-                  <TableCell className="text-muted-foreground">{inv.invoice_number || "–"}</TableCell>
-                  <TableCell className="font-mono text-xs">{inv.vendor_iban || "–"}</TableCell>
-                  <TableCell className="text-right font-semibold">{formatCurrency(inv.gross_amount)}</TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
-                    {(inv as any).buildings?.building_code || "–"}
-                  </TableCell>
-                  <TableCell>
-                    {isPaid ? (
-                      <Badge variant="secondary" className="text-xs">Bezahlt</Badge>
-                    ) : inv.review_status === "verified" ? (
-                      <Badge variant="default" className="text-xs">Geprüft</Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-xs">Offen</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell onClick={(e) => e.stopPropagation()}>
-                    <Popover
-                      open={editingNote === inv.id}
-                      onOpenChange={(open) => {
-                        if (open) {
-                          setEditingNote(inv.id);
-                          setNoteText((inv as any).payment_notes || "");
-                        } else {
-                          setEditingNote(null);
-                        }
-                      }}
-                    >
-                      <PopoverTrigger asChild>
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                          <StickyNote className={`h-3.5 w-3.5 ${(inv as any).payment_notes ? "text-primary" : "text-muted-foreground"}`} />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-64" align="end">
-                        <div className="space-y-2">
-                          <p className="text-sm font-medium">Notiz</p>
-                          <Textarea
-                            value={noteText}
-                            onChange={(e) => setNoteText(e.target.value)}
-                            placeholder="Zahlungsnotiz..."
-                            rows={3}
-                          />
-                          <Button size="sm" className="w-full" onClick={() => handleSaveNote(inv.id)}>
-                            Speichern
-                          </Button>
+                <>
+                  <TableRow
+                    key={inv.id}
+                    className={`cursor-pointer hover:bg-muted/50 ${overdue ? "bg-destructive/5" : ""} ${isPaid ? "opacity-60" : ""}`}
+                    onClick={() => openReviewForInvoice(inv)}
+                  >
+                    <TableCell className={overdue ? "text-destructive font-medium" : ""}>
+                      <div className="flex items-center gap-1.5">
+                        {overdue && <AlertTriangle className="h-3.5 w-3.5 text-destructive" />}
+                        {inv.due_date ? format(new Date(inv.due_date), "dd.MM.yyyy") : "–"}
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-medium">{inv.vendor_name || "–"}</TableCell>
+                    <TableCell className="text-muted-foreground text-sm">{generatePurpose(inv)}</TableCell>
+                    <TableCell className="font-mono text-xs">{inv.vendor_iban || "–"}</TableCell>
+                    <TableCell className="text-right font-semibold">{formatCurrency(inv.gross_amount)}</TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {(inv as any).buildings?.name || "–"}
+                    </TableCell>
+                    <TableCell>
+                      {isPaid ? (
+                        <Badge variant="secondary" className="text-xs">Bezahlt</Badge>
+                      ) : inv.review_status === "verified" ? (
+                        <Badge variant="default" className="text-xs">Geprüft</Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs">Offen</Badge>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                  {hasNote && (
+                    <TableRow key={`${inv.id}-note`} className={`border-b-0 ${isPaid ? "opacity-60" : ""}`}>
+                      <TableCell colSpan={7} className="pt-0 pb-2 pl-8">
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <StickyNote className="h-3 w-3 text-primary" />
+                          {(inv as any).payment_notes}
                         </div>
-                      </PopoverContent>
-                    </Popover>
-                  </TableCell>
-                </TableRow>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </>
               );
             })}
           </TableBody>

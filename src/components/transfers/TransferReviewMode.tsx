@@ -16,11 +16,16 @@ interface Invoice {
   vendor_name: string | null;
   vendor_iban: string | null;
   invoice_number: string | null;
+  description: string | null;
   due_date: string | null;
+  invoice_date: string | null;
   gross_amount: number | null;
+  net_amount: number | null;
+  vat_amount: number | null;
   file_path: string | null;
   status: string;
   review_status: string;
+  paid_at?: string | null;
   payment_notes?: string;
   buildings?: { name: string; building_code: string } | null;
 }
@@ -40,8 +45,8 @@ const formatCurrency = (val: number | null) => {
 const generatePurpose = (inv: Invoice) => {
   const parts: string[] = [];
   if (inv.invoice_number) parts.push(`Re. Nr. ${inv.invoice_number}`);
-  if (inv.vendor_name) {
-    const short = inv.vendor_name.split(/\s+/).slice(0, 2).join(" ");
+  if (inv.description) {
+    const short = inv.description.split(/\s+/).slice(0, 3).join(" ");
     parts.push(short);
   }
   return parts.join(", ") || "–";
@@ -78,6 +83,15 @@ function CopyField({ label, value, mono }: { label: string; value: string; mono?
   );
 }
 
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <span>{value}</span>
+    </div>
+  );
+}
+
 export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch }: Props) {
   const [index, setIndex] = useState(initialIndex);
   const [notes, setNotes] = useState("");
@@ -86,10 +100,10 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
   const [loadingPdf, setLoadingPdf] = useState(false);
 
   const invoice = invoices[index];
+  const isPaid = invoice?.status === "paid";
 
   const isOverdue = invoice?.due_date && isPast(new Date(invoice.due_date)) && !isToday(new Date(invoice.due_date));
 
-  // Load notes when invoice changes
   useEffect(() => {
     if (!invoice) return;
     setNotes((invoice as any).payment_notes || "");
@@ -153,7 +167,6 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
     toast.success("Rechnung als bezahlt markiert");
     onRefetch();
     setSaving(false);
-    // Invoice will disappear from list on refetch
     if (index >= invoices.length - 1 && index > 0) {
       setIndex(i => i - 1);
     }
@@ -169,7 +182,10 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
           <Button variant="ghost" size="sm" onClick={onClose}>
             <X className="h-4 w-4" />
           </Button>
-          <h2 className="font-semibold">Prüfmodus — Überweisungen</h2>
+          <h2 className="font-semibold">
+            {isPaid ? "Rechnungsdetails" : "Prüfmodus — Überweisungen"}
+          </h2>
+          {isPaid && <Badge variant="secondary">Bezahlt</Badge>}
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" disabled={index === 0} onClick={() => setIndex(i => i - 1)}>
@@ -189,13 +205,15 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
         {/* Left: Transfer data */}
         <div className="w-1/2 border-r overflow-y-auto p-6 space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-bold">Überweisungsdaten</h3>
+            <h3 className="text-lg font-bold">
+              {isPaid ? "Rechnungsinformationen" : "Überweisungsdaten"}
+            </h3>
             {invoice.review_status === "verified" && (
               <Badge variant="default">Geprüft</Badge>
             )}
           </div>
 
-          {isOverdue && (
+          {!isPaid && isOverdue && (
             <div className="flex items-center gap-2 text-sm bg-destructive/10 text-destructive rounded-md px-3 py-2">
               <AlertTriangle className="h-4 w-4" />
               Überfällig seit {invoice.due_date ? format(new Date(invoice.due_date), "dd.MM.yyyy") : ""}
@@ -215,16 +233,21 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
           </div>
 
           <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Fällig am</span>
-              <span className={isOverdue ? "text-destructive font-medium" : ""}>
-                {invoice.due_date ? format(new Date(invoice.due_date), "dd.MM.yyyy") : "–"}
-              </span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Liegenschaft</span>
-              <span>{(invoice as any).buildings?.building_code || "–"}</span>
-            </div>
+            <InfoRow label="Fällig am" value={invoice.due_date ? format(new Date(invoice.due_date), "dd.MM.yyyy") : "–"} />
+            <InfoRow label="Rechnungsdatum" value={invoice.invoice_date ? format(new Date(invoice.invoice_date), "dd.MM.yyyy") : "–"} />
+            <InfoRow label="Liegenschaft" value={(invoice as any).buildings?.name || "–"} />
+            {invoice.net_amount != null && (
+              <InfoRow label="Netto" value={`${formatCurrency(invoice.net_amount)} €`} />
+            )}
+            {invoice.vat_amount != null && (
+              <InfoRow label="MwSt." value={`${formatCurrency(invoice.vat_amount)} €`} />
+            )}
+            {invoice.description && (
+              <InfoRow label="Beschreibung" value={invoice.description} />
+            )}
+            {isPaid && invoice.paid_at && (
+              <InfoRow label="Bezahlt am" value={format(new Date(invoice.paid_at as string), "dd.MM.yyyy")} />
+            )}
           </div>
 
           <Separator />
@@ -240,28 +263,31 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
             />
           </div>
 
-          <Separator />
-
-          <div className="flex gap-2">
-            <Button
-              onClick={handleVerify}
-              disabled={saving}
-              className="flex-1"
-              variant={invoice.review_status === "verified" ? "secondary" : "default"}
-            >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
-              Geprüft & Weiter
-            </Button>
-            <Button
-              onClick={handleMarkPaid}
-              disabled={saving}
-              variant="outline"
-              className="flex-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-            >
-              <CreditCard className="h-4 w-4 mr-2" />
-              Als bezahlt markieren
-            </Button>
-          </div>
+          {!isPaid && (
+            <>
+              <Separator />
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleVerify}
+                  disabled={saving}
+                  className="flex-1"
+                  variant={invoice.review_status === "verified" ? "secondary" : "default"}
+                >
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
+                  Geprüft & Weiter
+                </Button>
+                <Button
+                  onClick={handleMarkPaid}
+                  disabled={saving}
+                  variant="outline"
+                  className="flex-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                >
+                  <CreditCard className="h-4 w-4 mr-2" />
+                  Als bezahlt markieren
+                </Button>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Right: PDF preview */}
