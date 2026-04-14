@@ -25,6 +25,7 @@ interface Invoice {
   file_path: string | null;
   status: string;
   review_status: string;
+  paid_at?: string | null;
   payment_notes?: string;
   buildings?: { name: string; building_code: string } | null;
 }
