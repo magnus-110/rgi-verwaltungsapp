@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BankStatementsTab } from "@/components/finance/BankStatementsTab";
-import { BankStatementsTab } from "@/components/finance/BankStatementsTab";
 import { BookingTemplatesTab } from "@/components/finance/BookingTemplatesTab";
 import { BookingsTab } from "@/components/finance/BookingsTab";
 import { BillingTab } from "@/components/finance/BillingTab";
