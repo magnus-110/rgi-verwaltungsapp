@@ -384,7 +384,9 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
                 <Separator />
                 <CopyField label="Betrag" value={invoice.gross_amount != null ? formatCurrency(invoice.gross_amount) : "–"} />
                 <Separator />
-                <CopyField label="Verwendungszweck" value={purpose} />
+                <div className="relative">
+                  <CopyField label={`Verwendungszweck${generatingPurpose ? " (KI generiert…)" : ""}`} value={purpose} />
+                </div>
                 <Separator />
                 <CopyField label="Rechnungsnummer" value={invoice.invoice_number || "–"} />
               </div>
