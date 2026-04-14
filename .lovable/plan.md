@@ -1,106 +1,46 @@
 
 
-## Plan: Integrierter Buchungsworkflow im Prüfmodus
+## Plan: Drei Verbesserungen am Buchungsworkflow
 
-### Zusammenfassung
+### 1. Mistral AI statt Lovable AI Gateway
 
-Der Prüfmodus (`TransactionReviewMode`) wird zum zentralen Buchungstool umgebaut. Statt Transaktionen an Make.com zu senden, werden Buchungen direkt in der App erstellt. Für zugeordnete Transaktionen (Vorlage/Rechnung) wird der Buchungsvorschlag deterministisch aus den vorhandenen Daten generiert — keine KI-Latenz. Für nicht-zugeordnete Transaktionen wird die existierende KI-Analyse (`suggest-match`) im Hintergrund vorgeladen und als Entwurf gespeichert.
+Die Edge Function `suggest-match` nutzt aktuell die Lovable AI Gateway. Diese wird auf die Mistral API umgestellt (`mistral-large-latest`), da der User DSGVO-Konformität und besseres Kontextverständnis bevorzugt. Ebenso wird der `useTransactionAiPrefetch` Hook angepasst.
 
----
+**Datei:** `supabase/functions/suggest-match/index.ts`
+- URL ändern: `https://api.mistral.ai/v1/chat/completions`
+- Auth: `Bearer ${MISTRAL_API_KEY}` statt `LOVABLE_API_KEY`
+- Model: `mistral-large-latest`
+- Rest der Logik (Prompt, Tool-Schema) bleibt identisch
 
-### Architekturentscheidungen
+### 2. Betragswarnung bei Vorlage-Zuordnungen
 
-**Kein KI-Modell nötig für zugeordnete Transaktionen**: Wenn eine Vorlage mit Konto, Betrag, MwSt hinterlegt ist, kann die Buchung 1:1 daraus abgeleitet werden. Ebenso bei Rechnungen mit `suggested_account_id`. Das spart Latenz und Kosten.
+Im `TransactionReviewMode` existiert bereits `amountMatch` (Zeile 352-362), das prüft ob der Betrag zur Vorlage/Rechnung passt. Problem: Bei Vorlage-Zuordnungen mit Betragsabweichung gibt es keine sichtbare Warnung.
 
-**Hintergrund-Prefetching für unzugeordnete**: Beim Laden der Kontoauszugsseite wird für alle `unmatched`-Transaktionen parallel `suggest-match` (Mistral Large) aufgerufen. Ergebnisse werden in `bank_transactions.ai_suggestion` (neues JSONB-Feld) gespeichert. Beim Erreichen im Prüfmodus sind die Vorschläge sofort da.
+**Datei:** `src/components/finance/TransactionReviewMode.tsx`
+- Neue `amountMismatchWarning`-Logik: Wenn eine Vorlage zugeordnet ist und `!amountMatch`, eine gelbe Warnung anzeigen mit dem erwarteten vs. tatsächlichen Betrag
+- Warnung im Buchungsbereich (links) zwischen Transaktionsdetails und Buchungsmaske einblenden
+- Text: "⚠ Betrag weicht ab: Erwartet X €, tatsächlich Y € — möglicherweise Sammelzahlung"
 
-**Buchungen-Tab wird Read-Only Auditlog**: Kein Entfernen, aber keine Buchungserstellung mehr dort. Nur Anzeige + Bearbeitung bestehender Buchungen.
+### 3. Unzugeordnete Transaktionen im Prüfmodus statt AssignmentDialog
 
-**Rechnungen bleiben im Finanzen-Tab**: Verschiebung in eigenen Sidebar-Punkt für späteren Zeitpunkt — jetzt fokussieren wir auf den Buchungsworkflow.
+Aktuell öffnet ein Klick auf eine unzugeordnete Transaktion den `AssignmentDialog` (Zeile 410-411). Stattdessen soll derselbe `TransactionReviewMode` geöffnet werden — rechts dann mit KI-Analyse und potenziellen Zuordnungen, unten mit dem Buchungsvorschlag.
 
----
+**Datei:** `src/components/finance/BankStatementsTab.tsx`
+- Zeile 410-411: Klick auf unzugeordnete Transaktionen öffnet jetzt `openReviewAtTransaction(txn)` statt den AssignmentDialog
+- Der AssignmentDialog bleibt über die "Ändern"-Buttons erreichbar
 
-### Änderungen im Detail
-
-#### 1. Datenbank: JSONB-Feld für KI-Vorschläge
-
-```sql
-ALTER TABLE bank_transactions ADD COLUMN ai_suggestion jsonb;
-```
-
-Speichert vorberechnete Buchungsvorschläge (Konto, Betrag, MwSt, Buchungstext) als Entwurf.
-
-#### 2. TransactionReviewMode komplett überarbeiten
-
-**Neuer Aufbau — Zwei-Spalten-Layout:**
-
-Links: Transaktionsdetails + **Buchungsmaske** (inline, nicht als separater Dialog)
-Rechts: PDF-Vorschau (bei Rechnung) oder Vorlagendetails
-
-**Buchungsmaske (links, unterhalb der Transaktionsdetails):**
-
-```text
-┌─────────────────────────────────────┐
-│ Konto          [4200 - Gaskosten ▼] │  ← Groß, prominent
-│ Betrag         [250,00 €]           │
-│   davon MwSt   39,92 € (19%)       │  ← Klein darunter
-│ Gegenkonto     [1200 - Bank    ▼]   │  ← Groß, prominent  
-│ Buchungstext   [Abschlag Gas Dez]   │  ← Mittelgroß
-│─────────────────────────────────────│
-│ Kürzel [KI]  Beleg-Dat [15.12.25]  │  ← Kompakt
-│ Beleg-Nr [RE-2025-042]  MwSt [19%] │
-│ §35a [ ]                            │
-└─────────────────────────────────────┘
-  [← Zurück]  [Buchen & Weiter ⇧]
-```
-
-**Enter-Navigation**: Jedes Feld springt mit Enter zum nächsten. Tab funktioniert ebenfalls. Am letzten Feld löst Enter die Buchung aus.
-
-**1-Click-Edit**: Alle Felder sind sofort editierbar — kein separater Edit-Modus nötig. Die Buchungsmaske IST die Bearbeitungsansicht.
-
-**Auto-Fill-Logik (deterministisch, ohne KI):**
-- **Vorlage zugeordnet**: Konto aus `booking_templates.account_id`, Betrag aus Transaktion, MwSt aus Vorlage, Buchungstext aus Vorlagenname
-- **Rechnung zugeordnet**: Konto aus `invoices.suggested_account_id`, Betrag/MwSt aus Rechnung, Buchungstext aus Vendor + Rechnungsnummer
-- **Unzugeordnet + KI-Vorschlag vorhanden**: Felder aus `bank_transactions.ai_suggestion` vorausfüllen
-- **Unzugeordnet ohne Vorschlag**: Leere Maske, KI-Analyse-Button
-
-**Buchungs-Aktion**: Erstellt direkt einen `bookings`-Eintrag in Supabase (status: 'confirmed') und setzt `bank_transactions.booked_at`. Kein Make.com-Webhook mehr.
-
-#### 3. Hintergrund-KI-Prefetching
-
-Neuer Hook `useTransactionAiPrefetch`:
-- Wird beim Laden des `BankStatementsTab` getriggert
-- Filtert `unmatched`-Transaktionen ohne `ai_suggestion`
-- Ruft `suggest-match` parallel für alle auf (Batch von 5 gleichzeitig, um Rate Limits zu vermeiden)
-- Speichert Ergebnisse in `bank_transactions.ai_suggestion`
-- Visueller Indikator: "KI analysiert 12/45 Transaktionen..." in der UI
-
-#### 4. Prüfmodus-Reihenfolge
-
-Der Prüfmodus zeigt Transaktionen in dieser Reihenfolge:
-1. **Zugeordnete** (Vorlage/Rechnung) — sofort buchbar
-2. **Unzugeordnete mit KI-Vorschlag** — prüfen & buchen
-3. **Unzugeordnete ohne Vorschlag** — manuell zuordnen
-
-#### 5. BankStatementsTab: Prüfmodus öffnet alle Transaktionen
-
-Der "Prüfmodus"-Button öffnet den neuen Modus mit ALLEN unbuchten Transaktionen (zugeordnete + unzugeordnete), nicht nur den zugeordneten.
-
-#### 6. BookingsTab: Read-Only umbauen
-
-- "Neue Buchung" Button und `CreateBookingDialog` entfernen
-- `BookingReviewMode` entfernen (wird durch TransactionReviewMode ersetzt)
-- Nur noch: Buchungen anzeigen, filtern, bearbeiten (`EditBookingDialog` bleibt)
+**Datei:** `src/components/finance/TransactionReviewMode.tsx`
+- Rechte Seite: Für Transaktionen ohne Zuordnung (`sourceType === "manual"`) statt der leeren Ansicht die KI-Analyse anzeigen (wie bei `sourceType === "ai"`, aber auch Zuordnungsoptionen einblenden)
+- Potenzielle Zuordnungen aus `ai_suggestion.matches` als klickbare Karten darstellen mit Button "Zuordnen"
+- Bei Klick auf "Zuordnen": Transaktion direkt zuordnen (`match_status` + `matched_invoice_id`/`matched_template_id` updaten), Formular neu befüllen
 
 ---
 
-### Dateien
+### Zusammenfassung der Dateien
 
-| Datei | Aktion |
-|-------|--------|
-| Migration | `ai_suggestion JSONB` Feld zu `bank_transactions` |
-| `TransactionReviewMode.tsx` | Komplett überarbeiten: Inline-Buchungsmaske mit Enter-Navigation |
-| `BankStatementsTab.tsx` | Prüfmodus öffnet alle Transaktionen, KI-Prefetch-Indikator |
-| `BookingsTab.tsx` | Read-Only: Buchungserstellung + ReviewMode entfernen |
-| `useTransactionAiPrefetch.ts` | Neuer Hook für Hintergrund-KI-Analyse |
+| Datei | Änderung |
+|-------|----------|
+| `supabase/functions/suggest-match/index.ts` | Lovable AI → Mistral API |
+| `src/components/finance/TransactionReviewMode.tsx` | Betragswarnung + KI-Zuordnungs-UI für unzugeordnete |
+| `src/components/finance/BankStatementsTab.tsx` | Klick auf unzugeordnete → Prüfmodus statt AssignmentDialog |
 
