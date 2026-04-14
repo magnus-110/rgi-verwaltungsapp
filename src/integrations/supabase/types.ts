@@ -3106,6 +3106,7 @@ export type Database = {
           ocr_status: string
           paid_at: string | null
           paid_installments_total: number | null
+          payment_notes: string | null
           review_status: string
           settlement_difference: number | null
           status: string
@@ -3143,6 +3144,7 @@ export type Database = {
           ocr_status?: string
           paid_at?: string | null
           paid_installments_total?: number | null
+          payment_notes?: string | null
           review_status?: string
           settlement_difference?: number | null
           status?: string
@@ -3180,6 +3182,7 @@ export type Database = {
           ocr_status?: string
           paid_at?: string | null
           paid_installments_total?: number | null
+          payment_notes?: string | null
           review_status?: string
           settlement_difference?: number | null
           status?: string
