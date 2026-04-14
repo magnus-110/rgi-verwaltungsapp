@@ -129,6 +129,32 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
     setNotes(invoice.payment_notes || "");
     setEditing(false);
     setPdfUrl(null);
+
+    // Set purpose: use cached, or generate via AI
+    if (invoice.payment_purpose) {
+      setPurpose(invoice.payment_purpose);
+      setGeneratingPurpose(false);
+    } else if (invoice.description) {
+      setPurpose(fallbackPurpose(invoice));
+      setGeneratingPurpose(true);
+      supabase.functions.invoke("generate-payment-purpose", {
+        body: {
+          invoice_id: invoice.id,
+          description: invoice.description,
+          vendor_name: invoice.vendor_name,
+          invoice_number: invoice.invoice_number,
+        },
+      }).then(({ data, error }) => {
+        if (!error && data?.purpose) {
+          setPurpose(data.purpose);
+        }
+        setGeneratingPurpose(false);
+      });
+    } else {
+      setPurpose(fallbackPurpose(invoice));
+      setGeneratingPurpose(false);
+    }
+
     if (invoice.file_path) {
       setLoadingPdf(true);
       supabase.storage
