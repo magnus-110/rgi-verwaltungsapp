@@ -7,7 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { toast } from "sonner";
 import { TransferReviewMode } from "@/components/transfers/TransferReviewMode";
 import { InvoiceDropZone } from "@/components/finance/InvoiceDropZone";
 
@@ -17,6 +20,8 @@ export function Transfers() {
   const [reviewIndex, setReviewIndex] = useState(0);
   const [reviewInvoices, setReviewInvoices] = useState<any[]>([]);
   const [showPaid, setShowPaid] = useState(false);
+  const [editingNote, setEditingNote] = useState<string | null>(null);
+  const [noteText, setNoteText] = useState("");
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list"],
@@ -49,6 +54,7 @@ export function Transfers() {
   });
 
   const unpaidInvoices = useMemo(() => invoices.filter(i => i.status !== "paid"), [invoices]);
+  const unreviewedInvoices = useMemo(() => invoices.filter(i => i.status !== "paid" && i.review_status !== "verified"), [invoices]);
 
   const formatCurrency = (val: number | null) => {
     if (val == null) return "–";
@@ -62,7 +68,6 @@ export function Transfers() {
 
   const getPurpose = (inv: any) => {
     if (inv.payment_purpose) return inv.payment_purpose;
-    // Fallback until AI generates it
     const parts: string[] = [];
     if (inv.invoice_number) parts.push(`Re. Nr. ${inv.invoice_number}`);
     if (inv.description) {
@@ -72,9 +77,21 @@ export function Transfers() {
     return parts.join(", ") || "–";
   };
 
+  const handleSaveNote = async (invoiceId: string) => {
+    const { error } = await supabase
+      .from("invoices")
+      .update({ payment_notes: noteText } as any)
+      .eq("id", invoiceId);
+    if (error) {
+      toast.error("Fehler beim Speichern");
+    } else {
+      toast.success("Notiz gespeichert");
+      refetch();
+    }
+    setEditingNote(null);
+  };
+
   const openReviewForInvoice = (inv: any) => {
-    // For paid invoices, open single-invoice review (read-only)
-    // For unpaid, open in the unpaid list context
     const isPaid = inv.status === "paid";
     if (isPaid) {
       setReviewInvoices([inv]);
@@ -108,6 +125,7 @@ export function Transfers() {
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             {unpaidInvoices.length} offene Rechnung{unpaidInvoices.length !== 1 ? "en" : ""} zur Zahlung
+            {unreviewedInvoices.length > 0 && ` · ${unreviewedInvoices.length} ungeprüft`}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -130,10 +148,10 @@ export function Transfers() {
               ))}
             </SelectContent>
           </Select>
-          {unpaidInvoices.length > 0 && (
-            <Button onClick={() => { setReviewInvoices(unpaidInvoices); setReviewIndex(0); setReviewMode(true); }}>
+          {unreviewedInvoices.length > 0 && (
+            <Button onClick={() => { setReviewInvoices(unreviewedInvoices); setReviewIndex(0); setReviewMode(true); }}>
               <Play className="h-4 w-4 mr-2" />
-              Prüfmodus starten
+              Prüfmodus ({unreviewedInvoices.length})
             </Button>
           )}
         </div>
@@ -152,12 +170,13 @@ export function Transfers() {
               <TableHead className="text-right">Betrag</TableHead>
               <TableHead>Liegenschaft</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead className="w-10"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {invoices.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
                   {showPaid ? "Keine Rechnungen vorhanden" : "Keine offenen Rechnungen vorhanden"}
                 </TableCell>
               </TableRow>
@@ -195,10 +214,43 @@ export function Transfers() {
                         <Badge variant="outline" className="text-xs">Offen</Badge>
                       )}
                     </TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <Popover
+                        open={editingNote === inv.id}
+                        onOpenChange={(open) => {
+                          if (open) {
+                            setEditingNote(inv.id);
+                            setNoteText((inv as any).payment_notes || "");
+                          } else {
+                            setEditingNote(null);
+                          }
+                        }}
+                      >
+                        <PopoverTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                            <StickyNote className={`h-3.5 w-3.5 ${hasNote ? "text-primary" : "text-muted-foreground"}`} />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-64" align="end">
+                          <div className="space-y-2">
+                            <p className="text-sm font-medium">Notiz</p>
+                            <Textarea
+                              value={noteText}
+                              onChange={(e) => setNoteText(e.target.value)}
+                              placeholder="Zahlungsnotiz..."
+                              rows={3}
+                            />
+                            <Button size="sm" className="w-full" onClick={() => handleSaveNote(inv.id)}>
+                              Speichern
+                            </Button>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    </TableCell>
                   </TableRow>
                   {hasNote && (
                     <TableRow key={`${inv.id}-note`} className={`border-b-0 ${isPaid ? "opacity-60" : ""}`}>
-                      <TableCell colSpan={7} className="pt-0 pb-2 pl-8">
+                      <TableCell colSpan={8} className="pt-0 pb-2 pl-8">
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                           <StickyNote className="h-3 w-3 text-primary" />
                           {(inv as any).payment_notes}
