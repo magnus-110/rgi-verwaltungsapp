@@ -105,6 +105,8 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
   const [saving, setSaving] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [loadingPdf, setLoadingPdf] = useState(false);
+  const [purpose, setPurpose] = useState<string>("–");
+  const [generatingPurpose, setGeneratingPurpose] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({
     vendor_name: "",
