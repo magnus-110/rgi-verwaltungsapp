@@ -42,7 +42,7 @@ const menuItems = [
   { title: "Gebäude", url: "/buildings", icon: Castle },
   { title: "Adressen", url: "/contacts", icon: BookUser },
   { title: "Versammlungen", url: "/versammlungen", icon: Users },
-  { title: "Finanzen", url: "/finanzen", icon: Landmark },
+  { title: "Buchhaltung", url: "/finanzen", icon: Landmark },
   { title: "Überweisungen", url: "/ueberweisungen", icon: CreditCard },
   { title: "Einstellungen", url: "/settings", icon: Settings, adminOnly: true },
 ];

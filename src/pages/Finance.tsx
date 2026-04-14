@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { InvoicesTab } from "@/components/finance/InvoicesTab";
 import { BankStatementsTab } from "@/components/finance/BankStatementsTab";
 import { BookingTemplatesTab } from "@/components/finance/BookingTemplatesTab";
 import { BookingsTab } from "@/components/finance/BookingsTab";
@@ -57,9 +56,9 @@ export const Finance = () => {
   return (
     <div className="p-4 md:p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Finanzen</h1>
+        <h1 className="text-2xl font-bold">Buchhaltung</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Rechnungen, Abrechnungen und Wirtschaftspläne verwalten
+          Kontoauszüge, Buchungen, Abrechnungen und Wirtschaftspläne verwalten
         </p>
       </div>
 
@@ -81,18 +80,11 @@ export const Finance = () => {
 
         <TabsContent value="buchen">
           <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="space-y-4">
-            <TabsList variant="pill" className="grid w-full grid-cols-4">
-              <TabsTrigger variant="pill" value="invoices">Rechnungen</TabsTrigger>
+            <TabsList variant="pill" className="grid w-full grid-cols-3">
               <TabsTrigger variant="pill" value="templates">Vorlagen</TabsTrigger>
               <TabsTrigger variant="pill" value="statements">Kontoauszüge</TabsTrigger>
               <TabsTrigger variant="pill" value="bookings">Buchungen</TabsTrigger>
             </TabsList>
-            <TabsContent value="invoices">
-              <InvoicesTab
-                sharedBuildingId={selectedBuildingId}
-                onBuildingChange={setSelectedBuildingId}
-              />
-            </TabsContent>
             <TabsContent value="templates">
               <BookingTemplatesTab
                 sharedBuildingId={selectedBuildingId}

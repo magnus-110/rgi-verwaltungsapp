@@ -2,16 +2,17 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, isPast, isToday } from "date-fns";
-import { de } from "date-fns/locale";
-import { CreditCard, AlertTriangle, Play, StickyNote } from "lucide-react";
+import { CreditCard, AlertTriangle, Play, StickyNote, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { TransferReviewMode } from "@/components/transfers/TransferReviewMode";
+import { InvoiceDropZone } from "@/components/finance/InvoiceDropZone";
 
 export function Transfers() {
   const [buildingFilter, setBuildingFilter] = useState<string>("all");
@@ -19,6 +20,7 @@ export function Transfers() {
   const [reviewIndex, setReviewIndex] = useState(0);
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
+  const [showPaid, setShowPaid] = useState(false);
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list"],
@@ -29,13 +31,16 @@ export function Transfers() {
   });
 
   const { data: invoices = [], refetch } = useQuery({
-    queryKey: ["transfer-invoices", buildingFilter],
+    queryKey: ["transfer-invoices", buildingFilter, showPaid],
     queryFn: async () => {
       let query = supabase
         .from("invoices")
         .select("*, buildings(name, building_code)")
-        .neq("status", "paid")
         .order("due_date", { ascending: true, nullsFirst: false });
+
+      if (!showPaid) {
+        query = query.neq("status", "paid");
+      }
 
       if (buildingFilter !== "all") {
         query = query.eq("building_id", buildingFilter);
@@ -46,6 +51,8 @@ export function Transfers() {
       return data || [];
     },
   });
+
+  const unpaidInvoices = useMemo(() => invoices.filter(i => i.status !== "paid"), [invoices]);
 
   const formatCurrency = (val: number | null) => {
     if (val == null) return "–";
@@ -71,10 +78,10 @@ export function Transfers() {
     setEditingNote(null);
   };
 
-  if (reviewMode && invoices.length > 0) {
+  if (reviewMode && unpaidInvoices.length > 0) {
     return (
       <TransferReviewMode
-        invoices={invoices}
+        invoices={unpaidInvoices}
         initialIndex={reviewIndex}
         onClose={() => { setReviewMode(false); refetch(); }}
         onRefetch={refetch}
@@ -91,10 +98,16 @@ export function Transfers() {
             Überweisungen
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {invoices.length} offene Rechnung{invoices.length !== 1 ? "en" : ""} zur Zahlung
+            {unpaidInvoices.length} offene Rechnung{unpaidInvoices.length !== 1 ? "en" : ""} zur Zahlung
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Switch checked={showPaid} onCheckedChange={setShowPaid} id="show-paid" />
+            <label htmlFor="show-paid" className="text-sm text-muted-foreground cursor-pointer">
+              Bezahlte anzeigen
+            </label>
+          </div>
           <Select value={buildingFilter} onValueChange={setBuildingFilter}>
             <SelectTrigger className="w-[220px]">
               <SelectValue placeholder="Alle Gebäude" />
@@ -108,7 +121,7 @@ export function Transfers() {
               ))}
             </SelectContent>
           </Select>
-          {invoices.length > 0 && (
+          {unpaidInvoices.length > 0 && (
             <Button onClick={() => { setReviewIndex(0); setReviewMode(true); }}>
               <Play className="h-4 w-4 mr-2" />
               Prüfmodus starten
@@ -116,6 +129,9 @@ export function Transfers() {
           )}
         </div>
       </div>
+
+      {/* Drag & Drop upload zone */}
+      <InvoiceDropZone buildings={buildings} />
 
       <div className="border rounded-lg">
         <Table>
@@ -135,17 +151,24 @@ export function Transfers() {
             {invoices.length === 0 && (
               <TableRow>
                 <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
-                  Keine offenen Rechnungen vorhanden
+                  {showPaid ? "Keine Rechnungen vorhanden" : "Keine offenen Rechnungen vorhanden"}
                 </TableCell>
               </TableRow>
             )}
             {invoices.map((inv, idx) => {
-              const overdue = isOverdue(inv.due_date);
+              const overdue = inv.status !== "paid" && isOverdue(inv.due_date);
+              const isPaid = inv.status === "paid";
               return (
                 <TableRow
                   key={inv.id}
-                  className={`cursor-pointer hover:bg-muted/50 ${overdue ? "bg-destructive/5" : ""}`}
-                  onClick={() => { setReviewIndex(idx); setReviewMode(true); }}
+                  className={`cursor-pointer hover:bg-muted/50 ${overdue ? "bg-destructive/5" : ""} ${isPaid ? "opacity-60" : ""}`}
+                  onClick={() => {
+                    if (!isPaid) {
+                      const unpaidIdx = unpaidInvoices.findIndex(u => u.id === inv.id);
+                      setReviewIndex(unpaidIdx >= 0 ? unpaidIdx : 0);
+                      setReviewMode(true);
+                    }
+                  }}
                 >
                   <TableCell className={overdue ? "text-destructive font-medium" : ""}>
                     <div className="flex items-center gap-1.5">
@@ -161,7 +184,9 @@ export function Transfers() {
                     {(inv as any).buildings?.building_code || "–"}
                   </TableCell>
                   <TableCell>
-                    {inv.review_status === "verified" ? (
+                    {isPaid ? (
+                      <Badge variant="secondary" className="text-xs">Bezahlt</Badge>
+                    ) : inv.review_status === "verified" ? (
                       <Badge variant="default" className="text-xs">Geprüft</Badge>
                     ) : (
                       <Badge variant="outline" className="text-xs">Offen</Badge>
