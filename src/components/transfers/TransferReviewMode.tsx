@@ -250,7 +250,7 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
     }
   };
 
-  const purpose = generatePurpose(invoice);
+  // purpose is managed via state
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
