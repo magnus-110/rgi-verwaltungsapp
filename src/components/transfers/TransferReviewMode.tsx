@@ -33,6 +33,7 @@ interface Invoice {
   review_status: string;
   paid_at?: string | null;
   payment_notes?: string;
+  payment_purpose?: string | null;
   buildings?: { name: string; building_code: string } | null;
 }
 
@@ -48,7 +49,7 @@ const formatCurrency = (val: number | null) => {
   return new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
 };
 
-const generatePurpose = (inv: Invoice) => {
+const fallbackPurpose = (inv: Invoice) => {
   const parts: string[] = [];
   if (inv.invoice_number) parts.push(`Re. Nr. ${inv.invoice_number}`);
   if (inv.description) {
@@ -104,6 +105,8 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
   const [saving, setSaving] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [loadingPdf, setLoadingPdf] = useState(false);
+  const [purpose, setPurpose] = useState<string>("–");
+  const [generatingPurpose, setGeneratingPurpose] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState({
     vendor_name: "",
@@ -126,6 +129,32 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
     setNotes(invoice.payment_notes || "");
     setEditing(false);
     setPdfUrl(null);
+
+    // Set purpose: use cached, or generate via AI
+    if (invoice.payment_purpose) {
+      setPurpose(invoice.payment_purpose);
+      setGeneratingPurpose(false);
+    } else if (invoice.description) {
+      setPurpose(fallbackPurpose(invoice));
+      setGeneratingPurpose(true);
+      supabase.functions.invoke("generate-payment-purpose", {
+        body: {
+          invoice_id: invoice.id,
+          description: invoice.description,
+          vendor_name: invoice.vendor_name,
+          invoice_number: invoice.invoice_number,
+        },
+      }).then(({ data, error }) => {
+        if (!error && data?.purpose) {
+          setPurpose(data.purpose);
+        }
+        setGeneratingPurpose(false);
+      });
+    } else {
+      setPurpose(fallbackPurpose(invoice));
+      setGeneratingPurpose(false);
+    }
+
     if (invoice.file_path) {
       setLoadingPdf(true);
       supabase.storage
@@ -247,7 +276,7 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
     }
   };
 
-  const purpose = generatePurpose(invoice);
+  // purpose is managed via state
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
@@ -355,7 +384,9 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
                 <Separator />
                 <CopyField label="Betrag" value={invoice.gross_amount != null ? formatCurrency(invoice.gross_amount) : "–"} />
                 <Separator />
-                <CopyField label="Verwendungszweck" value={purpose} />
+                <div className="relative">
+                  <CopyField label={`Verwendungszweck${generatingPurpose ? " (KI generiert…)" : ""}`} value={purpose} />
+                </div>
                 <Separator />
                 <CopyField label="Rechnungsnummer" value={invoice.invoice_number || "–"} />
               </div>

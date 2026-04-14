@@ -60,7 +60,9 @@ export function Transfers() {
     return isPast(new Date(dueDate)) && !isToday(new Date(dueDate));
   };
 
-  const generatePurpose = (inv: any) => {
+  const getPurpose = (inv: any) => {
+    if (inv.payment_purpose) return inv.payment_purpose;
+    // Fallback until AI generates it
     const parts: string[] = [];
     if (inv.invoice_number) parts.push(`Re. Nr. ${inv.invoice_number}`);
     if (inv.description) {
@@ -178,7 +180,7 @@ export function Transfers() {
                       </div>
                     </TableCell>
                     <TableCell className="font-medium">{inv.vendor_name || "–"}</TableCell>
-                    <TableCell className="text-muted-foreground text-sm">{generatePurpose(inv)}</TableCell>
+                    <TableCell className="text-muted-foreground text-sm">{getPurpose(inv)}</TableCell>
                     <TableCell className="font-mono text-xs">{inv.vendor_iban || "–"}</TableCell>
                     <TableCell className="text-right font-semibold">{formatCurrency(inv.gross_amount)}</TableCell>
                     <TableCell className="text-muted-foreground text-sm">
