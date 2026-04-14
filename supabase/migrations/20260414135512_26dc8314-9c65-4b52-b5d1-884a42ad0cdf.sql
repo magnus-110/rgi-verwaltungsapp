@@ -1,0 +1,1 @@
+ALTER TABLE public.invoices ADD COLUMN payment_notes text;

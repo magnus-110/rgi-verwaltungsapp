@@ -14,6 +14,7 @@ import {
   Landmark,
   Mail,
   Users,
+  CreditCard,
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -42,6 +43,7 @@ const menuItems = [
   { title: "Adressen", url: "/contacts", icon: BookUser },
   { title: "Versammlungen", url: "/versammlungen", icon: Users },
   { title: "Finanzen", url: "/finanzen", icon: Landmark },
+  { title: "Überweisungen", url: "/ueberweisungen", icon: CreditCard },
   { title: "Einstellungen", url: "/settings", icon: Settings, adminOnly: true },
 ];
 
