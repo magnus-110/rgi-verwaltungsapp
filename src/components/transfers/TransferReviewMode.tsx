@@ -33,6 +33,7 @@ interface Invoice {
   review_status: string;
   paid_at?: string | null;
   payment_notes?: string;
+  payment_purpose?: string | null;
   buildings?: { name: string; building_code: string } | null;
 }
 
