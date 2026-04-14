@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   X, ChevronLeft, ChevronRight, Copy, CheckCircle, CreditCard,
-  AlertTriangle, FileText, Loader2, Pencil, Trash2, Save
+  AlertTriangle, FileText, Loader2, Trash2, Save
 } from "lucide-react";
 
 interface Invoice {
@@ -90,6 +90,57 @@ function CopyField({ label, value, mono }: { label: string; value: string; mono?
   );
 }
 
+function InlineEditField({ label, value, onSave, type = "text", mono }: {
+  label: string;
+  value: string;
+  onSave: (val: string) => void;
+  type?: string;
+  mono?: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [editVal, setEditVal] = useState(value);
+
+  if (editing) {
+    return (
+      <div className="py-2">
+        <p className="text-xs text-muted-foreground mb-1">{label}</p>
+        <div className="flex items-center gap-2">
+          <Input
+            type={type}
+            value={editVal}
+            onChange={e => setEditVal(e.target.value)}
+            step={type === "number" ? "0.01" : undefined}
+            className="h-8 text-sm"
+            autoFocus
+            onKeyDown={e => {
+              if (e.key === "Escape") { setEditing(false); setEditVal(value); }
+            }}
+          />
+          <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => { onSave(editVal); setEditing(false); }}>
+            <Save className="h-3.5 w-3.5" />
+          </Button>
+          <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => { setEditing(false); setEditVal(value); }}>
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="py-2 cursor-pointer rounded px-1 -mx-1 hover:bg-muted/80 transition-colors"
+      onClick={() => { setEditVal(value); setEditing(true); }}
+      title="Klicken zum Bearbeiten"
+    >
+      <p className="text-xs text-muted-foreground mb-0.5">{label}</p>
+      <p className={`text-sm font-medium break-all ${mono ? "font-mono" : ""}`}>
+        {value || "–"}
+      </p>
+    </div>
+  );
+}
+
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between text-sm">
@@ -107,18 +158,7 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [purpose, setPurpose] = useState<string>("–");
   const [generatingPurpose, setGeneratingPurpose] = useState(false);
-  const [editing, setEditing] = useState(false);
-  const [editForm, setEditForm] = useState({
-    vendor_name: "",
-    vendor_iban: "",
-    invoice_number: "",
-    description: "",
-    gross_amount: "",
-    net_amount: "",
-    vat_amount: "",
-    due_date: "",
-    invoice_date: "",
-  });
+  const [hasUnsavedEdits, setHasUnsavedEdits] = useState(false);
 
   const invoice = invoices[index];
   const isPaid = invoice?.status === "paid";
@@ -127,10 +167,9 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
   useEffect(() => {
     if (!invoice) return;
     setNotes(invoice.payment_notes || "");
-    setEditing(false);
+    setHasUnsavedEdits(false);
     setPdfUrl(null);
 
-    // Set purpose: use cached, or generate via AI
     if (invoice.payment_purpose) {
       setPurpose(invoice.payment_purpose);
       setGeneratingPurpose(false);
@@ -168,11 +207,19 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
   }, [invoice?.id]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (editing) return;
+    const target = e.target as HTMLElement;
+    const isInput = target.tagName === "INPUT" || target.tagName === "TEXTAREA";
+    if (isInput) return;
+
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleVerify();
+      return;
+    }
     if (e.key === "ArrowLeft" && index > 0) setIndex(i => i - 1);
     if (e.key === "ArrowRight" && index < invoices.length - 1) setIndex(i => i + 1);
     if (e.key === "Escape") onClose();
-  }, [index, invoices.length, onClose, editing]);
+  }, [index, invoices.length, onClose]);
 
   useEffect(() => {
     window.addEventListener("keydown", handleKeyDown);
@@ -181,45 +228,21 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
 
   if (!invoice) return null;
 
-  const startEditing = () => {
-    setEditForm({
-      vendor_name: invoice.vendor_name || "",
-      vendor_iban: invoice.vendor_iban || "",
-      invoice_number: invoice.invoice_number || "",
-      description: invoice.description || "",
-      gross_amount: invoice.gross_amount != null ? String(invoice.gross_amount) : "",
-      net_amount: invoice.net_amount != null ? String(invoice.net_amount) : "",
-      vat_amount: invoice.vat_amount != null ? String(invoice.vat_amount) : "",
-      due_date: invoice.due_date || "",
-      invoice_date: invoice.invoice_date || "",
-    });
-    setEditing(true);
-  };
-
-  const handleSaveEdit = async () => {
-    setSaving(true);
+  const saveField = async (field: string, value: string) => {
+    let parsed: any = value || null;
+    if (["gross_amount", "net_amount", "vat_amount"].includes(field)) {
+      parsed = value ? parseFloat(value) : null;
+    }
     const { error } = await supabase
       .from("invoices")
-      .update({
-        vendor_name: editForm.vendor_name || null,
-        vendor_iban: editForm.vendor_iban || null,
-        invoice_number: editForm.invoice_number || null,
-        description: editForm.description || null,
-        gross_amount: editForm.gross_amount ? parseFloat(editForm.gross_amount) : null,
-        net_amount: editForm.net_amount ? parseFloat(editForm.net_amount) : null,
-        vat_amount: editForm.vat_amount ? parseFloat(editForm.vat_amount) : null,
-        due_date: editForm.due_date || null,
-        invoice_date: editForm.invoice_date || null,
-      })
+      .update({ [field]: parsed })
       .eq("id", invoice.id);
     if (error) {
       toast.error("Fehler beim Speichern");
     } else {
-      toast.success("Rechnung aktualisiert");
+      toast.success("Gespeichert");
       onRefetch();
     }
-    setEditing(false);
-    setSaving(false);
   };
 
   const handleDelete = async () => {
@@ -276,8 +299,6 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
     }
   };
 
-  // purpose is managed via state
-
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
       {/* Header */}
@@ -290,6 +311,11 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
             {isPaid ? "Rechnungsdetails" : "Prüfmodus — Überweisungen"}
           </h2>
           {isPaid && <Badge variant="secondary">Bezahlt</Badge>}
+          {!isPaid && (
+            <span className="text-xs text-muted-foreground">
+              Enter = Geprüft & Weiter
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" disabled={index === 0} onClick={() => setIndex(i => i - 1)}>
@@ -316,12 +342,6 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
               {invoice.review_status === "verified" && (
                 <Badge variant="default">Geprüft</Badge>
               )}
-              {!editing && (
-                <Button variant="outline" size="sm" onClick={startEditing}>
-                  <Pencil className="h-3.5 w-3.5 mr-1.5" />
-                  Bearbeiten
-                </Button>
-              )}
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
@@ -346,70 +366,46 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
             </div>
           </div>
 
-          {!isPaid && isOverdue && !editing && (
+          {!isPaid && isOverdue && (
             <div className="flex items-center gap-2 text-sm bg-destructive/10 text-destructive rounded-md px-3 py-2">
               <AlertTriangle className="h-4 w-4" />
               Überfällig seit {invoice.due_date ? format(new Date(invoice.due_date), "dd.MM.yyyy") : ""}
             </div>
           )}
 
-          {editing ? (
-            <div className="space-y-3">
-              <EditField label="Empfänger" value={editForm.vendor_name} onChange={v => setEditForm(f => ({ ...f, vendor_name: v }))} />
-              <EditField label="IBAN" value={editForm.vendor_iban} onChange={v => setEditForm(f => ({ ...f, vendor_iban: v }))} />
-              <EditField label="Bruttobetrag" value={editForm.gross_amount} onChange={v => setEditForm(f => ({ ...f, gross_amount: v }))} type="number" />
-              <EditField label="Nettobetrag" value={editForm.net_amount} onChange={v => setEditForm(f => ({ ...f, net_amount: v }))} type="number" />
-              <EditField label="MwSt." value={editForm.vat_amount} onChange={v => setEditForm(f => ({ ...f, vat_amount: v }))} type="number" />
-              <EditField label="Rechnungsnummer" value={editForm.invoice_number} onChange={v => setEditForm(f => ({ ...f, invoice_number: v }))} />
-              <EditField label="Beschreibung" value={editForm.description} onChange={v => setEditForm(f => ({ ...f, description: v }))} />
-              <EditField label="Fälligkeitsdatum" value={editForm.due_date} onChange={v => setEditForm(f => ({ ...f, due_date: v }))} type="date" />
-              <EditField label="Rechnungsdatum" value={editForm.invoice_date} onChange={v => setEditForm(f => ({ ...f, invoice_date: v }))} type="date" />
+          {/* Copy fields for bank transfer */}
+          <div className="bg-muted/50 rounded-lg p-4 space-y-1">
+            <CopyField label="Empfänger" value={invoice.vendor_name || "–"} />
+            <Separator />
+            <CopyField label="IBAN" value={invoice.vendor_iban || "–"} mono />
+            <Separator />
+            <CopyField label="Betrag" value={invoice.gross_amount != null ? formatCurrency(invoice.gross_amount) : "–"} />
+            <Separator />
+            <CopyField label={`Verwendungszweck${generatingPurpose ? " (KI generiert…)" : ""}`} value={purpose} />
+            <Separator />
+            <CopyField label="Rechnungsnummer" value={invoice.invoice_number || "–"} />
+          </div>
 
-              <div className="flex gap-2 pt-2">
-                <Button onClick={handleSaveEdit} disabled={saving} className="flex-1">
-                  <Save className="h-4 w-4 mr-2" />
-                  Speichern
-                </Button>
-                <Button variant="outline" onClick={() => setEditing(false)} className="flex-1">
-                  Abbrechen
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="bg-muted/50 rounded-lg p-4 space-y-1">
-                <CopyField label="Empfänger" value={invoice.vendor_name || "–"} />
-                <Separator />
-                <CopyField label="IBAN" value={invoice.vendor_iban || "–"} mono />
-                <Separator />
-                <CopyField label="Betrag" value={invoice.gross_amount != null ? formatCurrency(invoice.gross_amount) : "–"} />
-                <Separator />
-                <div className="relative">
-                  <CopyField label={`Verwendungszweck${generatingPurpose ? " (KI generiert…)" : ""}`} value={purpose} />
-                </div>
-                <Separator />
-                <CopyField label="Rechnungsnummer" value={invoice.invoice_number || "–"} />
-              </div>
+          {/* Inline editable fields */}
+          <div className="space-y-0.5">
+            <p className="text-xs text-muted-foreground mb-2 font-medium uppercase tracking-wide">Details · Klicken zum Bearbeiten</p>
+            <InlineEditField label="Empfänger" value={invoice.vendor_name || ""} onSave={v => saveField("vendor_name", v)} />
+            <InlineEditField label="IBAN" value={invoice.vendor_iban || ""} onSave={v => saveField("vendor_iban", v)} mono />
+            <InlineEditField label="Bruttobetrag" value={invoice.gross_amount != null ? String(invoice.gross_amount) : ""} onSave={v => saveField("gross_amount", v)} type="number" />
+            <InlineEditField label="Nettobetrag" value={invoice.net_amount != null ? String(invoice.net_amount) : ""} onSave={v => saveField("net_amount", v)} type="number" />
+            <InlineEditField label="MwSt." value={invoice.vat_amount != null ? String(invoice.vat_amount) : ""} onSave={v => saveField("vat_amount", v)} type="number" />
+            <InlineEditField label="Rechnungsnummer" value={invoice.invoice_number || ""} onSave={v => saveField("invoice_number", v)} />
+            <InlineEditField label="Beschreibung" value={invoice.description || ""} onSave={v => saveField("description", v)} />
+            <InlineEditField label="Fälligkeitsdatum" value={invoice.due_date || ""} onSave={v => saveField("due_date", v)} type="date" />
+            <InlineEditField label="Rechnungsdatum" value={invoice.invoice_date || ""} onSave={v => saveField("invoice_date", v)} type="date" />
+          </div>
 
-              <div className="space-y-1.5">
-                <InfoRow label="Fällig am" value={invoice.due_date ? format(new Date(invoice.due_date), "dd.MM.yyyy") : "–"} />
-                <InfoRow label="Rechnungsdatum" value={invoice.invoice_date ? format(new Date(invoice.invoice_date), "dd.MM.yyyy") : "–"} />
-                <InfoRow label="Liegenschaft" value={(invoice as any).buildings?.name || "–"} />
-                {invoice.net_amount != null && (
-                  <InfoRow label="Netto" value={`${formatCurrency(invoice.net_amount)} €`} />
-                )}
-                {invoice.vat_amount != null && (
-                  <InfoRow label="MwSt." value={`${formatCurrency(invoice.vat_amount)} €`} />
-                )}
-                {invoice.description && (
-                  <InfoRow label="Beschreibung" value={invoice.description} />
-                )}
-                {isPaid && invoice.paid_at && (
-                  <InfoRow label="Bezahlt am" value={format(new Date(invoice.paid_at as string), "dd.MM.yyyy")} />
-                )}
-              </div>
-            </>
-          )}
+          <div className="space-y-1.5">
+            <InfoRow label="Liegenschaft" value={(invoice as any).buildings?.name || "–"} />
+            {isPaid && invoice.paid_at && (
+              <InfoRow label="Bezahlt am" value={format(new Date(invoice.paid_at as string), "dd.MM.yyyy")} />
+            )}
+          </div>
 
           <Separator />
 
@@ -424,7 +420,7 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
             />
           </div>
 
-          {!isPaid && !editing && (
+          {!isPaid && (
             <>
               <Separator />
               <div className="flex gap-2">
@@ -472,20 +468,6 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-function EditField({ label, value, onChange, type = "text" }: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  type?: string;
-}) {
-  return (
-    <div className="space-y-1">
-      <label className="text-xs text-muted-foreground">{label}</label>
-      <Input type={type} value={value} onChange={e => onChange(e.target.value)} step={type === "number" ? "0.01" : undefined} />
     </div>
   );
 }
