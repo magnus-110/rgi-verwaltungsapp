@@ -456,6 +456,16 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                 <p className="text-sm">{currentTxn.purpose || "–"}</p>
               </div>
 
+              {/* Amount mismatch warning */}
+              {(templateDetail || invoiceDetail) && !amountMatch && (
+                <div className="mx-4 mt-3 p-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 text-sm flex items-start gap-2">
+                  <span className="text-amber-600 dark:text-amber-400 font-medium shrink-0">⚠</span>
+                  <span className="text-amber-800 dark:text-amber-200">
+                    Betrag weicht ab: Erwartet {formatCurrency(invoiceDetail?.gross_amount ?? templateDetail?.expected_amount ?? 0)}, tatsächlich {formatCurrency(Math.abs(currentTxn.amount))} — möglicherweise Sammelzahlung
+                  </span>
+                </div>
+              )}
+
               {/* Booking mask */}
               <div className="p-4 space-y-3">
                 <h4 className="text-sm font-semibold text-foreground">Buchung</h4>
