@@ -31,6 +31,7 @@ import { EconomicPlan } from "./pages/EconomicPlan";
 import { Inbox } from "./pages/Inbox";
 import { Meetings } from "./pages/Meetings";
 import { EtvProxy } from "./pages/EtvProxy";
+import { Transfers } from "./pages/Transfers";
 import { AdminLayout } from "./components/AdminLayout";
 import { WegOwnerLayout } from "./components/WegOwnerLayout";
 import { WegOwnerDashboard } from "./pages/weg-owner/Dashboard";
@@ -89,6 +90,7 @@ const App = () => (
               <Route path="/finanzen/wirtschaftsplan" element={<AdminLayout><EconomicPlan /></AdminLayout>} />
               <Route path="/postfach" element={<AdminLayout><Inbox /></AdminLayout>} />
               <Route path="/versammlungen" element={<AdminLayout><Meetings /></AdminLayout>} />
+              <Route path="/ueberweisungen" element={<AdminLayout><Transfers /></AdminLayout>} />
               
               {/* Legacy admin routes for compatibility */}
               <Route path="/admin" element={<AdminLayout><Dashboard /></AdminLayout>} />
