@@ -12,8 +12,8 @@ serve(async (req) => {
   try {
     const { transaction, invoices, templates, allTransactions, historicalBookings } = await req.json();
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    const MISTRAL_API_KEY = Deno.env.get("MISTRAL_API_KEY");
+    if (!MISTRAL_API_KEY) throw new Error("MISTRAL_API_KEY not configured");
 
     const txnName = transaction.amount < 0 ? transaction.creditor_name : transaction.debtor_name;
     const txnIban = transaction.amount < 0 ? transaction.creditor_iban : transaction.debtor_iban;
@@ -82,14 +82,14 @@ Gib die besten 1-5 Kandidaten zurück UND einen booking_hint wenn du eine komple
 Kandidaten:
 ${candidatesSummary}${otherTxnContext}${historicalContext}`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        Authorization: `Bearer ${MISTRAL_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "mistral-large-latest",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },

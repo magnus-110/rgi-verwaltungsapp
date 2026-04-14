@@ -408,7 +408,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
         if (isMatchedUnbooked) {
           openReviewAtTransaction(txn);
         } else if ((txn.match_status === "unmatched" || txn.match_status === "invoice_pending") && !txn.booked_at) {
-          setManualAssignTxn(txn); setManualAssignType("invoice"); setManualAssignId("");
+          openReviewAtTransaction(txn);
         } else {
           setSelectedTransaction(txn.id);
         }
