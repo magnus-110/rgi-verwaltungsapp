@@ -86,12 +86,12 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
   const [loadingPdf, setLoadingPdf] = useState(false);
 
   const invoice = invoices[index];
-  if (!invoice) return null;
 
-  const isOverdue = invoice.due_date && isPast(new Date(invoice.due_date)) && !isToday(new Date(invoice.due_date));
+  const isOverdue = invoice?.due_date && isPast(new Date(invoice.due_date)) && !isToday(new Date(invoice.due_date));
 
   // Load notes when invoice changes
   useEffect(() => {
+    if (!invoice) return;
     setNotes((invoice as any).payment_notes || "");
     setPdfUrl(null);
     if (invoice.file_path) {
@@ -104,7 +104,7 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
           setLoadingPdf(false);
         });
     }
-  }, [invoice.id]);
+  }, [invoice?.id]);
 
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (e.key === "ArrowLeft" && index > 0) setIndex(i => i - 1);
@@ -116,6 +116,8 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
+
+  if (!invoice) return null;
 
   const saveNotes = async () => {
     await supabase
