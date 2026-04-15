@@ -735,7 +735,10 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
             <div className="w-1/2 flex flex-col overflow-hidden">
               <Tabs value={activeRightTab} onValueChange={setActiveRightTab} className="flex flex-col flex-1 overflow-hidden">
                 <TabsList variant="underline" className="shrink-0 px-4 pt-1">
-                  <TabsTrigger variant="underline" value="analyse">Analyse</TabsTrigger>
+                  <TabsTrigger variant="underline" value="analyse">
+                    <Sparkles className="h-3.5 w-3.5 mr-1" />
+                    Analyse
+                  </TabsTrigger>
                   <TabsTrigger variant="underline" value="zuordnung">
                     <Link2 className="h-3.5 w-3.5 mr-1" />
                     Zuordnung
