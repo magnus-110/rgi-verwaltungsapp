@@ -1754,15 +1754,22 @@ function AssignmentTabContent({
   }, [txnIban, txnName, txnAmount, templateMatches]);
 
   // Sort: AI matches first, then smart matches, then rest
+  const filteredInvoices = useMemo(() => {
+    return allInvoices.filter((inv: any) => {
+      if (invoiceFilter === "assigned") return inv.status === "paid";
+      return inv.status !== "paid";
+    });
+  }, [allInvoices, invoiceFilter]);
+
   const sortedInvoices = useMemo(() => {
-    return [...allInvoices].sort((a, b) => {
+    return [...filteredInvoices].sort((a, b) => {
       const aiA = invoiceMatches.get(a.id)?.score || 0;
       const aiB = invoiceMatches.get(b.id)?.score || 0;
       const smartA = getInvoiceMatchReason(a) ? 0.5 : 0;
       const smartB = getInvoiceMatchReason(b) ? 0.5 : 0;
       return (aiB + smartB) - (aiA + smartA);
     });
-  }, [allInvoices, invoiceMatches, getInvoiceMatchReason]);
+  }, [filteredInvoices, invoiceMatches, getInvoiceMatchReason]);
 
   const sortedTemplates = useMemo(() => {
     return [...allTemplates].sort((a, b) => {
