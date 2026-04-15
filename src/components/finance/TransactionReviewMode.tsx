@@ -827,8 +827,6 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                         currentTxn={currentTxn}
                         allInvoices={allInvoices}
                         allTemplates={allTemplates}
-                        showAssignedInvoices={showAssignedInvoices}
-                        onToggleShowAssigned={setShowAssignedInvoices}
                         accounts={accounts}
                         formRows={formRows}
                         expandedRowId={expandedRowId}
@@ -1813,11 +1811,13 @@ function AssignmentTabContent({
 
         {/* ── Rechnungen ── */}
         <TabsContent value="rechnungen" className="flex-1 overflow-y-auto mt-2">
-          <div className="flex items-center justify-end mb-2">
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-muted-foreground">Bezahlte anzeigen</span>
-              <Switch checked={showAssignedInvoices} onCheckedChange={onToggleShowAssigned} className="scale-75" />
-            </div>
+          <div className="flex items-center justify-end mb-2 gap-1">
+            <Button variant={invoiceFilter === "unassigned" ? "default" : "outline"} size="sm" className="h-6 text-[11px] px-2" onClick={() => setInvoiceFilter("unassigned")}>
+              Nicht zugeordnet
+            </Button>
+            <Button variant={invoiceFilter === "assigned" ? "default" : "outline"} size="sm" className="h-6 text-[11px] px-2" onClick={() => setInvoiceFilter("assigned")}>
+              Zugeordnet
+            </Button>
           </div>
 
           {sortedInvoices.length === 0 ? (
