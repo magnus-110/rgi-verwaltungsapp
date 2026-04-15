@@ -546,7 +546,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         .eq("id", currentTxn.id);
 
       // Load fresh template + invoice data
-      const [{ data: templates }, { data: invoices }] = await Promise.all([
+      const [{ data: templates }, { data: invoices }, { data: billingPeriods }] = await Promise.all([
         supabase.from("booking_templates")
           .select("id, name, vendor_name, vendor_iban, expected_amount, amount_tolerance, interval, account_id, vat_rate, valid_from, valid_to, chart_of_accounts(account_number, account_name)")
           .eq("building_id", buildingId),
@@ -555,6 +555,11 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           .eq("building_id", buildingId)
           .eq("status", "paid")
           .limit(200),
+        supabase.from("billing_periods")
+          .select("fiscal_year, period_from, period_to")
+          .eq("building_id", buildingId)
+          .order("fiscal_year", { ascending: false })
+          .limit(5),
       ]);
 
       const templateData = (templates || []).map((t: any) => ({
@@ -572,7 +577,15 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       }));
 
       const { data, error } = await supabase.functions.invoke("suggest-match", {
-        body: { transaction: currentTxn, invoices: invoiceData, templates: templateData, allTransactions: transactions.slice(0, 30) },
+        body: {
+          transaction: currentTxn,
+          invoices: invoiceData,
+          templates: templateData,
+          allTransactions: transactions.slice(0, 30),
+          billingPeriods: (billingPeriods || []).map((bp: any) => ({
+            fiscal_year: bp.fiscal_year, period_from: bp.period_from, period_to: bp.period_to,
+          })),
+        },
       });
 
       if (!error && data && !data.error) {
