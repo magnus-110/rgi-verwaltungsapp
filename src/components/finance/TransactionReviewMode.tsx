@@ -965,21 +965,19 @@ function BookingRowCard({
             </div>
 
             {/* §35a */}
-            {(row.is_35a_relevant || selectedCounterAccount?.is_35a_relevant) && (
-              <div className="p-2 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 space-y-2">
-                <div className="flex items-center gap-3">
-                  <Checkbox checked={row.is_35a_relevant} onCheckedChange={v => onUpdateField("is_35a_relevant", !!v)} />
-                  <label className="text-xs font-medium">§35a-relevant</label>
-                </div>
-                {row.is_35a_relevant && (
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Lohnanteil (€)</label>
-                    <Input className="h-8 w-32 text-xs" placeholder="0,00" value={row.amount_35a}
-                      onChange={e => onUpdateField("amount_35a", e.target.value)} />
-                  </div>
-                )}
+            <div className="p-2 rounded-lg border bg-muted/30 space-y-2">
+              <div className="flex items-center gap-3">
+                <Checkbox id={`35a-${index}`} checked={row.is_35a_relevant} onCheckedChange={v => onUpdateField("is_35a_relevant", !!v)} />
+                <label htmlFor={`35a-${index}`} className="text-xs font-medium">§35a-relevant</label>
               </div>
-            )}
+              {row.is_35a_relevant && (
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Lohnanteil (€)</label>
+                  <Input className="h-8 w-32 text-xs" placeholder="0,00" value={row.amount_35a}
+                    onChange={e => onUpdateField("amount_35a", e.target.value)} />
+                </div>
+              )}
+            </div>
 
             {/* Book button */}
             <Button onClick={onBook} disabled={isBooking || !row.account_id} className="w-full h-9 text-sm">
