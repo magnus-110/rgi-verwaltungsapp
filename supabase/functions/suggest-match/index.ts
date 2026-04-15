@@ -83,6 +83,11 @@ Wichtig bei fehlenden Metadaten:
 - Beispiel: Verwendungszweck "Abrechnung" + Betrag ~12€ → Vorlage "Bankgebühren / Kontoführung" mit Toleranz ±5€
 - Bevorzuge IMMER eine existierende Vorlage gegenüber dem Vorschlag einer neuen Vorlage.
 
+WICHTIG zur Score-Vergabe:
+- Gib NUR Kandidaten mit einem Score über 0.5 zurück. Keine Beispiele für falsche oder unwahrscheinliche Zuordnungen.
+- Wenn du dir nicht sicher bist, dass ein Kandidat passt (Score < 0.5), lass ihn weg.
+- Lieber weniger aber dafür präzise Vorschläge als viele unsichere.
+
 Gib die besten 1-5 Kandidaten zurück UND einen booking_hint wenn du eine komplexe Zuordnung erkennst UND einen template_suggestion ODER missing_invoice_hint wenn angemessen UND einen fiscal_year_hint wenn das Wirtschaftsjahr nicht trivial ist.`;
 
     const userPrompt = `Transaktion:
