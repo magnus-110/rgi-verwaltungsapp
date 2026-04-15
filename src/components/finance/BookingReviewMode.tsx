@@ -184,9 +184,17 @@ export function BookingReviewMode({ open, onOpenChange, fiscalYear, buildingId }
         <DialogContent className="max-w-[96vw] max-h-[94vh] w-full h-[94vh] p-0 flex flex-col overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30 shrink-0">
             <div className="flex items-center gap-3">
-              <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
-                <X className="h-4 w-4 mr-1" /> Schließen
-              </Button>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">Shift</kbd>
+                <span className="text-[11px]">Bestätigen</span>
+                <span className="mx-1 text-border">|</span>
+                <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">←</kbd>
+                <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">→</kbd>
+                <span className="text-[11px]">Nav</span>
+                <span className="mx-1 text-border">|</span>
+                <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">E</kbd>
+                <span className="text-[11px]">Bearb.</span>
+              </div>
               <Separator orientation="vertical" className="h-6" />
               <span className="text-sm font-medium">
                 Buchung {bookings.length > 0 ? currentIndex + 1 : 0} / {bookings.length}
@@ -200,17 +208,9 @@ export function BookingReviewMode({ open, onOpenChange, fiscalYear, buildingId }
             </div>
             <div className="flex items-center gap-4">
               <Progress value={progressPercent} className="w-40 h-2" />
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">Shift</kbd>
-                <span className="text-[11px]">Bestätigen</span>
-                <span className="mx-1 text-border">|</span>
-                <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">←</kbd>
-                <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">→</kbd>
-                <span className="text-[11px]">Nav</span>
-                <span className="mx-1 text-border">|</span>
-                <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">E</kbd>
-                <span className="text-[11px]">Bearb.</span>
-              </div>
+              <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+                <X className="h-4 w-4" />
+              </Button>
             </div>
           </div>
 
