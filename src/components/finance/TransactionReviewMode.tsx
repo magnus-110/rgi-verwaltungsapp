@@ -17,7 +17,7 @@ import { de } from "date-fns/locale";
 import {
   ArrowLeft, ArrowRight, CheckCircle, X,
   FileText, LayoutTemplate, Loader2, Sparkles,
-  ChevronDown, ChevronRight, Plus, Trash2, User, PackagePlus
+  ChevronDown, ChevronRight, Plus, Trash2, User, PackagePlus, AlertTriangle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -963,6 +963,33 @@ function BookingRowCard({
                 </Select>
               </div>
             </div>
+
+            {/* Wirtschaftsjahr */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Wirtschaftsjahr</label>
+                <Input className="h-8 text-xs font-mono" type="number" value={row.fiscal_year}
+                  onChange={e => onUpdateField("fiscal_year", e.target.value)} />
+              </div>
+            </div>
+
+            {/* Accrual hint from AI */}
+            {row.accrualHint && (
+              <div className="p-2.5 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 space-y-1">
+                <div className="flex items-center gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <p className="text-xs font-medium text-amber-800 dark:text-amber-200">
+                    {row.accrualHint.needs_accrual ? "Abgrenzungsbuchung empfohlen" : "Wirtschaftsjahr-Hinweis"}
+                  </p>
+                </div>
+                <p className="text-[11px] text-amber-700 dark:text-amber-300 leading-relaxed">{row.accrualHint.accrual_explanation}</p>
+                {row.accrualHint.service_period_from && row.accrualHint.service_period_to && (
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                    Leistungszeitraum: {row.accrualHint.service_period_from} – {row.accrualHint.service_period_to}
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* §35a */}
             <div className="p-2 rounded-lg border bg-muted/30 space-y-2">
