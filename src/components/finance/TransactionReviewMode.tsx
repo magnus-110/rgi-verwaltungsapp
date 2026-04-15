@@ -538,8 +538,6 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     return false;
   }, [currentTxn, invoiceDetail, templateDetail]);
 
-  const [rerunningAi, setRerunningAi] = useState(false);
-  const [bulkResetting, setBulkResetting] = useState(false);
 
   const rerunAiAnalysis = useCallback(async () => {
     if (!currentTxn || rerunningAi) return;
