@@ -1063,6 +1063,17 @@ function BookingRowCard({
           </div>
         </CollapsibleContent>
       </div>
+      {/* Create account dialog */}
+      <CreateAccountInlineDialog
+        open={createAccountOpen}
+        onOpenChange={setCreateAccountOpen}
+        buildingId={buildingId}
+        onCreated={(newAccountId) => {
+          onUpdateField(createAccountTarget, newAccountId);
+          onAccountCreated();
+          setCreateAccountOpen(false);
+        }}
+      />
     </Collapsible>
   );
 }
