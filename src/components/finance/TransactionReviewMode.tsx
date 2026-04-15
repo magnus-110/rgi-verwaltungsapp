@@ -78,6 +78,8 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
   const [showAssignedInvoices, setShowAssignedInvoices] = useState(false);
+  const [rerunningAi, setRerunningAi] = useState(false);
+  const [bulkResetting, setBulkResetting] = useState(false);
   const fieldRefs = useRef<Record<string, HTMLElement | null>>({});
 
   // Multi-row booking state
