@@ -249,7 +249,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
   // Create a default booking row
   const createDefaultRow = useCallback((overrides?: Partial<BookingRowData>): BookingRowData => {
     const txnDate = currentTxn?.booking_date || "";
-    const fiscalYear = txnDate ? new Date(txnDate).getFullYear() : new Date().getFullYear();
+    const fiscalYear = getFiscalYearForDate(txnDate);
     const absAmount = Math.abs(currentTxn?.amount || 0);
     const isIncome = (currentTxn?.amount || 0) > 0;
     const bankAccount = accounts.find(a => a.account_number === "1800") || accounts.find(a => a.account_number === "1200") || accounts.find(a => a.category === "Bankkonto");
