@@ -77,7 +77,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
   const [bookingSingle, setBookingSingle] = useState<string | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
-  const [showAssignedInvoices, setShowAssignedInvoices] = useState(false);
+  
   const [rerunningAi, setRerunningAi] = useState(false);
   const [bulkResetting, setBulkResetting] = useState(false);
   const [zuordnungOpen, setZuordnungOpen] = useState(false);
@@ -179,18 +179,14 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
   // All invoices for the building (for Zuordnung tab)
   const { data: allInvoices = [] } = useQuery({
-    queryKey: ["all-invoices-building", buildingId, showAssignedInvoices],
+    queryKey: ["all-invoices-building", buildingId],
     queryFn: async () => {
-      let query = supabase
+      const { data } = await supabase
         .from("invoices")
         .select("id, invoice_number, vendor_name, gross_amount, invoice_date, status, vendor_iban, file_path")
         .eq("building_id", buildingId)
         .order("invoice_date", { ascending: false })
         .limit(300);
-      if (!showAssignedInvoices) {
-        query = query.neq("status", "paid");
-      }
-      const { data } = await query;
       return data || [];
     },
     enabled: open && !!buildingId,
@@ -831,8 +827,6 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                         currentTxn={currentTxn}
                         allInvoices={allInvoices}
                         allTemplates={allTemplates}
-                        showAssignedInvoices={showAssignedInvoices}
-                        onToggleShowAssigned={setShowAssignedInvoices}
                         accounts={accounts}
                         formRows={formRows}
                         expandedRowId={expandedRowId}
@@ -1657,14 +1651,12 @@ function CreateAccountInlineDialog({
 // ─── Assignment Tab Content ────────────────────────────────────────────────────
 
 function AssignmentTabContent({
-  currentTxn, allInvoices, allTemplates, showAssignedInvoices, onToggleShowAssigned,
+  currentTxn, allInvoices, allTemplates,
   accounts, formRows, expandedRowId, onAssignInvoice, onAssignTemplate, formatCurrency,
 }: {
   currentTxn: any;
   allInvoices: any[];
   allTemplates: any[];
-  showAssignedInvoices: boolean;
-  onToggleShowAssigned: (v: boolean) => void;
   accounts: any[];
   formRows: BookingRowData[];
   expandedRowId: string | null;
@@ -1672,6 +1664,7 @@ function AssignmentTabContent({
   onAssignTemplate: (tpl: any) => void;
   formatCurrency: (amount: number | null) => string;
 }) {
+  const [invoiceFilter, setInvoiceFilter] = useState<"unassigned" | "assigned">("unassigned");
   const aiMatches = currentTxn?.ai_suggestion?.matches || [];
 
   // Extract transaction metadata for smart matching
@@ -1761,15 +1754,22 @@ function AssignmentTabContent({
   }, [txnIban, txnName, txnAmount, templateMatches]);
 
   // Sort: AI matches first, then smart matches, then rest
+  const filteredInvoices = useMemo(() => {
+    return allInvoices.filter((inv: any) => {
+      if (invoiceFilter === "assigned") return inv.status === "paid";
+      return inv.status !== "paid";
+    });
+  }, [allInvoices, invoiceFilter]);
+
   const sortedInvoices = useMemo(() => {
-    return [...allInvoices].sort((a, b) => {
+    return [...filteredInvoices].sort((a, b) => {
       const aiA = invoiceMatches.get(a.id)?.score || 0;
       const aiB = invoiceMatches.get(b.id)?.score || 0;
       const smartA = getInvoiceMatchReason(a) ? 0.5 : 0;
       const smartB = getInvoiceMatchReason(b) ? 0.5 : 0;
       return (aiB + smartB) - (aiA + smartA);
     });
-  }, [allInvoices, invoiceMatches, getInvoiceMatchReason]);
+  }, [filteredInvoices, invoiceMatches, getInvoiceMatchReason]);
 
   const sortedTemplates = useMemo(() => {
     return [...allTemplates].sort((a, b) => {
@@ -1818,11 +1818,13 @@ function AssignmentTabContent({
 
         {/* ── Rechnungen ── */}
         <TabsContent value="rechnungen" className="flex-1 overflow-y-auto mt-2">
-          <div className="flex items-center justify-end mb-2">
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-muted-foreground">Bezahlte anzeigen</span>
-              <Switch checked={showAssignedInvoices} onCheckedChange={onToggleShowAssigned} className="scale-75" />
-            </div>
+          <div className="flex items-center justify-end mb-2 gap-1">
+            <Button variant={invoiceFilter === "unassigned" ? "default" : "outline"} size="sm" className="h-6 text-[11px] px-2" onClick={() => setInvoiceFilter("unassigned")}>
+              Nicht zugeordnet
+            </Button>
+            <Button variant={invoiceFilter === "assigned" ? "default" : "outline"} size="sm" className="h-6 text-[11px] px-2" onClick={() => setInvoiceFilter("assigned")}>
+              Zugeordnet
+            </Button>
           </div>
 
           {sortedInvoices.length === 0 ? (
