@@ -20,7 +20,7 @@ serve(async (req) => {
 
     const candidatesSummary = [
       ...invoices.map((inv: any) => `INVOICE id=${inv.id} number="${inv.invoice_number || ""}" vendor="${inv.vendor_name || ""}" amount=${inv.gross_amount || 0} iban="${inv.vendor_iban || ""}" date="${inv.invoice_date || ""}"`),
-      ...templates.map((t: any) => `TEMPLATE id=${t.id} name="${t.name}" vendor="${t.vendor_name || ""}" amount=${t.expected_amount || 0} iban="${t.vendor_iban || ""}" interval="${t.interval || ""}" account_number="${t.account_number || ""}" account_name="${t.account_name || ""}" account_id="${t.account_id || ""}" valid_from="${t.valid_from || ""}" valid_to="${t.valid_to || ""}"`),
+      ...templates.map((t: any) => `TEMPLATE id=${t.id} name="${t.name}" vendor="${t.vendor_name || ""}" amount=${t.expected_amount || 0} tolerance=${t.amount_tolerance ?? "none"} iban="${t.vendor_iban || ""}" interval="${t.interval || ""}" account_number="${t.account_number || ""}" account_name="${t.account_name || ""}" account_id="${t.account_id || ""}" valid_from="${t.valid_from || ""}" valid_to="${t.valid_to || ""}"`),
     ].join("\n");
 
     let otherTxnContext = "";
@@ -96,7 +96,7 @@ ${candidatesSummary}${otherTxnContext}${historicalContext}`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "mistral-small-latest",
+        model: "mistral-large-latest",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
