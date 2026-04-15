@@ -814,7 +814,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 // ─── Collapsible Booking Row Card ──────────────────────────────────────────────
 
 function BookingRowCard({
-  row, index, isExpanded, onToggle, accounts, onUpdateField, onBook, onRemove,
+  row, index, isExpanded, onToggle, accounts, buildingId, onAccountCreated, onUpdateField, onBook, onRemove,
   isBooking, fieldRefs, handleEnterNavigation, formatCurrency,
 }: {
   row: BookingRowData;
@@ -822,6 +822,8 @@ function BookingRowCard({
   isExpanded: boolean;
   onToggle: () => void;
   accounts: any[];
+  buildingId: string;
+  onAccountCreated: () => void;
   onUpdateField: (field: string, value: string | boolean | number) => void;
   onBook: () => void;
   onRemove?: () => void;
