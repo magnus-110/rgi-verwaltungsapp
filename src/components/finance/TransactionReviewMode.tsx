@@ -834,6 +834,8 @@ function BookingRowCard({
 }) {
   const counterAccount = accounts.find((a: any) => a.id === row.counter_account_id);
   const selectedCounterAccount = counterAccount;
+  const [createAccountOpen, setCreateAccountOpen] = useState(false);
+  const [createAccountTarget, setCreateAccountTarget] = useState<"account_id" | "counter_account_id">("counter_account_id");
 
   // Auto-calculate VAT when amount/rate changes
   useEffect(() => {
