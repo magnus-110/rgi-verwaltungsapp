@@ -670,6 +670,8 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                     isExpanded={expandedRowId === row.id}
                     onToggle={() => setExpandedRowId(expandedRowId === row.id ? null : row.id)}
                     accounts={accounts}
+                    buildingId={buildingId}
+                    onAccountCreated={() => queryClient.invalidateQueries({ queryKey: ["chart-of-accounts-review", buildingId] })}
                     onUpdateField={(field, value) => updateRow(row.id, field, value)}
                     onBook={() => handleBookRow(row.id)}
                     onRemove={formRows.length > 1 ? () => removeRow(row.id) : undefined}
