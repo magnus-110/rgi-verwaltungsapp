@@ -141,7 +141,7 @@ function InlineEditField({ label, value, onSave, type = "text", mono }: {
   );
 }
 
-function PurposeEditCopyField({ label, value, onSave }: { label: string; value: string; onSave: (val: string) => void }) {
+function PurposeEditCopyField({ label, value, onSave, mono }: { label: string; value: string; onSave: (val: string) => void; mono?: boolean }) {
   const [editing, setEditing] = useState(false);
   const [editVal, setEditVal] = useState(value);
   const [copied, setCopied] = useState(false);
@@ -188,7 +188,7 @@ function PurposeEditCopyField({ label, value, onSave }: { label: string; value: 
         title="Klicken zum Bearbeiten"
       >
         <p className="text-xs text-muted-foreground mb-0.5">{label}</p>
-        <p className="text-lg font-semibold break-all">{value || "–"}</p>
+        <p className={`text-lg font-semibold break-all ${mono ? "font-mono text-base" : ""}`}>{value || "–"}</p>
       </div>
       {value && value !== "–" && (
         <Button variant="ghost" size="sm" className="shrink-0 h-8 w-8 p-0 mt-3" onClick={handleCopy}>
@@ -434,11 +434,35 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
 
           {/* Copy fields for bank transfer */}
           <div className="bg-muted/50 rounded-lg p-4 space-y-1">
-            <CopyField label="Empfänger" value={invoice.vendor_name || "–"} />
+            <PurposeEditCopyField
+              label="Empfänger"
+              value={invoice.vendor_name || "–"}
+              onSave={async (val) => {
+                await saveField("vendor_name", val);
+              }}
+            />
             <Separator />
-            <CopyField label="IBAN" value={invoice.vendor_iban || "–"} mono />
+            <PurposeEditCopyField
+              label="IBAN"
+              value={invoice.vendor_iban || "–"}
+              onSave={async (val) => {
+                await saveField("vendor_iban", val);
+              }}
+              mono
+            />
             <Separator />
-            <CopyField label="Betrag" value={invoice.gross_amount != null ? formatCurrency(invoice.gross_amount) : "–"} />
+            <PurposeEditCopyField
+              label="Betrag"
+              value={invoice.gross_amount != null ? formatCurrency(invoice.gross_amount) : "–"}
+              onSave={async (val) => {
+                const num = parseFloat(val.replace(/[^\d,.-]/g, "").replace(",", "."));
+                if (!isNaN(num)) {
+                  await saveField("gross_amount", String(num));
+                } else {
+                  toast.error("Ungültiger Betrag");
+                }
+              }}
+            />
             <Separator />
             <PurposeEditCopyField
               label={`Verwendungszweck${generatingPurpose ? " (KI generiert…)" : ""}`}
@@ -453,7 +477,13 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
               }}
             />
             <Separator />
-            <CopyField label="Rechnungsnummer" value={invoice.invoice_number || "–"} />
+            <PurposeEditCopyField
+              label="Rechnungsnummer"
+              value={invoice.invoice_number || "–"}
+              onSave={async (val) => {
+                await saveField("invoice_number", val);
+              }}
+            />
           </div>
 
           {/* Inline editable fields */}
