@@ -859,10 +859,6 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                       </div>
                     ) : currentTxn.ai_suggestion ? (
                       <div className="p-4 space-y-3">
-                        <div className="flex items-center gap-2">
-                          <Sparkles className="h-5 w-5 text-purple-500" />
-                          <h3 className="font-semibold text-sm">KI-Analyse</h3>
-                        </div>
                         {currentTxn.ai_suggestion.matches?.length > 0 && (
                           <div className="space-y-2">
                             <p className="text-xs text-muted-foreground font-medium">Mögliche Zuordnungen:</p>

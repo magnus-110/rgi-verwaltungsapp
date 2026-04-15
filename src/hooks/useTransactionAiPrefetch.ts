@@ -53,7 +53,7 @@ export function useTransactionAiPrefetch(
       // Load templates and invoices for context
       const [{ data: templates }, { data: invoices }] = await Promise.all([
         supabase.from("booking_templates")
-          .select("id, name, vendor_name, vendor_iban, expected_amount, interval, account_id, vat_rate, valid_from, valid_to, chart_of_accounts(account_number, account_name)")
+          .select("id, name, vendor_name, vendor_iban, expected_amount, amount_tolerance, interval, account_id, vat_rate, valid_from, valid_to, chart_of_accounts(account_number, account_name)")
           .eq("building_id", buildingId),
         supabase.from("invoices")
           .select("id, invoice_number, vendor_name, gross_amount, vendor_iban, invoice_date")
@@ -67,6 +67,7 @@ export function useTransactionAiPrefetch(
         name: t.name,
         vendor_name: t.vendor_name,
         expected_amount: t.expected_amount,
+        amount_tolerance: t.amount_tolerance,
         vendor_iban: t.vendor_iban,
         interval: t.interval,
         account_number: t.chart_of_accounts?.account_number,
