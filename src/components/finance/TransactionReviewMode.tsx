@@ -206,8 +206,35 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     enabled: open && !!buildingId,
   });
 
+  // Billing periods for fiscal year detection
+  const { data: billingPeriods = [] } = useQuery({
+    queryKey: ["billing-periods-fiscal", buildingId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("billing_periods")
+        .select("fiscal_year, period_from, period_to")
+        .eq("building_id", buildingId)
+        .order("fiscal_year", { ascending: false })
+        .limit(10);
+      return data || [];
+    },
+    enabled: open && !!buildingId,
+  });
 
-  useEffect(() => {
+  // Helper: determine fiscal year from billing periods or fallback to calendar year
+  const getFiscalYearForDate = useCallback((dateStr: string): number => {
+    if (!dateStr) return new Date().getFullYear();
+    const date = new Date(dateStr);
+    for (const bp of billingPeriods) {
+      const from = new Date(bp.period_from);
+      const to = new Date(bp.period_to);
+      if (date >= from && date <= to) {
+        return bp.fiscal_year;
+      }
+    }
+    return date.getFullYear();
+  }, [billingPeriods]);
+
     setPdfUrl(null);
     if (!invoiceDetail?.file_path) return;
     const loadPdf = async () => {
