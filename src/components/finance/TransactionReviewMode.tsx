@@ -568,9 +568,6 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
               <div className="p-4 bg-muted/20 border-b space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">
-                      {format(new Date(currentTxn.booking_date), "dd.MM.yyyy", { locale: de })}
-                    </span>
                     {amountMatch && <Badge variant="outline" className="text-xs bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300">✓ Betrag</Badge>}
                     {sourceType !== "manual" && (
                       <Badge variant="outline" className={cn("text-xs", sourceType === "invoice" ? "bg-green-50 text-green-700" : sourceType === "template" ? "bg-blue-50 text-blue-700" : "bg-purple-50 text-purple-700")}>
@@ -591,6 +588,14 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                 </div>
                 <div className={cn("text-2xl font-bold", currentTxn.amount < 0 ? "text-destructive" : "text-green-600")}>
                   {currentTxn.amount < 0 ? "" : "+"}{formatCurrency(currentTxn.amount)}
+                </div>
+
+                {/* Date & Time */}
+                <div className="text-sm text-muted-foreground">
+                  <span>{format(new Date(currentTxn.booking_date), "dd.MM.yyyy", { locale: de })}</span>
+                  {currentTxn.value_date && currentTxn.value_date !== currentTxn.booking_date && (
+                    <span className="ml-2">· Wertstellung: {format(new Date(currentTxn.value_date), "dd.MM.yyyy", { locale: de })}</span>
+                  )}
                 </div>
 
                 {/* Sender/Recipient with IBAN mapping */}
@@ -619,7 +624,13 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                   </div>
                 )}
 
-                <p className="text-sm">{currentTxn.purpose || "–"}</p>
+                {/* Verwendungszweck */}
+                {currentTxn.purpose && (
+                  <div className="text-sm bg-muted/40 rounded-md p-2 border">
+                    <p className="text-[11px] font-medium text-muted-foreground mb-0.5">Verwendungszweck</p>
+                    <p className="text-foreground leading-relaxed">{currentTxn.purpose}</p>
+                  </div>
+                )}
               </div>
 
               {/* Sum validation for multi-row */}
@@ -659,6 +670,8 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                     isExpanded={expandedRowId === row.id}
                     onToggle={() => setExpandedRowId(expandedRowId === row.id ? null : row.id)}
                     accounts={accounts}
+                    buildingId={buildingId}
+                    onAccountCreated={() => queryClient.invalidateQueries({ queryKey: ["chart-of-accounts-review", buildingId] })}
                     onUpdateField={(field, value) => updateRow(row.id, field, value)}
                     onBook={() => handleBookRow(row.id)}
                     onRemove={formRows.length > 1 ? () => removeRow(row.id) : undefined}
@@ -801,7 +814,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 // ─── Collapsible Booking Row Card ──────────────────────────────────────────────
 
 function BookingRowCard({
-  row, index, isExpanded, onToggle, accounts, onUpdateField, onBook, onRemove,
+  row, index, isExpanded, onToggle, accounts, buildingId, onAccountCreated, onUpdateField, onBook, onRemove,
   isBooking, fieldRefs, handleEnterNavigation, formatCurrency,
 }: {
   row: BookingRowData;
@@ -809,6 +822,8 @@ function BookingRowCard({
   isExpanded: boolean;
   onToggle: () => void;
   accounts: any[];
+  buildingId: string;
+  onAccountCreated: () => void;
   onUpdateField: (field: string, value: string | boolean | number) => void;
   onBook: () => void;
   onRemove?: () => void;
@@ -819,6 +834,8 @@ function BookingRowCard({
 }) {
   const counterAccount = accounts.find((a: any) => a.id === row.counter_account_id);
   const selectedCounterAccount = counterAccount;
+  const [createAccountOpen, setCreateAccountOpen] = useState(false);
+  const [createAccountTarget, setCreateAccountTarget] = useState<"account_id" | "counter_account_id">("counter_account_id");
 
   // Auto-calculate VAT when amount/rate changes
   useEffect(() => {
@@ -883,18 +900,26 @@ function BookingRowCard({
             {/* Account */}
             <div ref={el => fieldRefs.current["account_id"] = el}>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Konto</label>
-              <Select value={row.account_id} onValueChange={v => onUpdateField("account_id", v)}>
-                <SelectTrigger className="h-9 text-sm" onKeyDown={e => handleEnterNavigation(e, "account_id")}>
-                  <SelectValue placeholder="Konto wählen…" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[300px]">
-                  {accounts.filter((a: any) => a.category !== "Bankkonto").map((a: any) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      <span className="font-mono mr-2">{a.account_number}</span>{a.account_name}
+              <div className="flex gap-1.5">
+                <Select value={row.account_id} onValueChange={v => {
+                  if (v === "__create__") { setCreateAccountTarget("account_id"); setCreateAccountOpen(true); }
+                  else onUpdateField("account_id", v);
+                }}>
+                  <SelectTrigger className="h-9 text-sm flex-1" onKeyDown={e => handleEnterNavigation(e, "account_id")}>
+                    <SelectValue placeholder="Konto wählen…" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    {accounts.filter((a: any) => a.category !== "Bankkonto").map((a: any) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        <span className="font-mono mr-2">{a.account_number}</span>{a.account_name}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="__create__" className="text-primary font-medium">
+                      <span className="flex items-center gap-1"><Plus className="h-3 w-3" /> Neues Konto anlegen</span>
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Type + Amount */}
@@ -921,7 +946,10 @@ function BookingRowCard({
             {/* Counter account */}
             <div ref={el => fieldRefs.current["counter_account_id"] = el}>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Gegenkonto</label>
-              <Select value={row.counter_account_id} onValueChange={v => onUpdateField("counter_account_id", v)}>
+              <Select value={row.counter_account_id} onValueChange={v => {
+                if (v === "__create__") { setCreateAccountTarget("counter_account_id"); setCreateAccountOpen(true); }
+                else onUpdateField("counter_account_id", v);
+              }}>
                 <SelectTrigger className="h-9 text-sm" onKeyDown={e => handleEnterNavigation(e, "counter_account_id")}>
                   <SelectValue placeholder="Gegenkonto wählen…" />
                 </SelectTrigger>
@@ -931,6 +959,9 @@ function BookingRowCard({
                       <span className="font-mono mr-2">{a.account_number}</span>{a.account_name}
                     </SelectItem>
                   ))}
+                  <SelectItem value="__create__" className="text-primary font-medium">
+                    <span className="flex items-center gap-1"><Plus className="h-3 w-3" /> Neues Konto anlegen</span>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1032,6 +1063,17 @@ function BookingRowCard({
           </div>
         </CollapsibleContent>
       </div>
+      {/* Create account dialog */}
+      <CreateAccountInlineDialog
+        open={createAccountOpen}
+        onOpenChange={setCreateAccountOpen}
+        buildingId={buildingId}
+        onCreated={(newAccountId) => {
+          onUpdateField(createAccountTarget, newAccountId);
+          onAccountCreated();
+          setCreateAccountOpen(false);
+        }}
+      />
     </Collapsible>
   );
 }
@@ -1202,5 +1244,215 @@ function TemplateSuggestionCard({
         {created ? "Vorlage erstellt" : "Vorlage erstellen"}
       </Button>
     </div>
+  );
+}
+
+// ─── Create Account Inline Dialog ──────────────────────────────────────────────
+
+function CreateAccountInlineDialog({
+  open, onOpenChange, buildingId, onCreated,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  buildingId: string;
+  onCreated: (accountId: string) => void;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    account_number: "",
+    account_name: "",
+    category: "Ausgabe",
+    scope: "building" as "building" | "global",
+    default_vat_rate: "19",
+    is_billing_relevant: true,
+    is_distributable: false,
+    is_heating_relevant: false,
+    is_wirtschaftsplan_relevant: false,
+    is_35a_relevant: false,
+    settlement_35a_type: "" as string,
+    default_distribution_key: "",
+    carry_forward_balance: false,
+  });
+
+  const updateField = (field: string, value: any) => setForm(f => ({ ...f, [field]: value }));
+
+  const handleSave = async () => {
+    if (!form.account_number || !form.account_name) {
+      toast.error("Kontonummer und -name sind Pflichtfelder");
+      return;
+    }
+    setSaving(true);
+    try {
+      const { data, error } = await supabase.from("chart_of_accounts").insert({
+        account_number: form.account_number,
+        account_name: form.account_name,
+        category: form.category,
+        building_id: form.scope === "building" ? buildingId : null,
+        default_vat_rate: parseFloat(form.default_vat_rate) || 0,
+        is_billing_relevant: form.is_billing_relevant,
+        is_distributable: form.is_distributable,
+        is_heating_relevant: form.is_heating_relevant,
+        is_wirtschaftsplan_relevant: form.is_wirtschaftsplan_relevant,
+        is_35a_relevant: form.is_35a_relevant,
+        settlement_35a_type: form.settlement_35a_type || null,
+        default_distribution_key: form.default_distribution_key || null,
+        carry_forward_balance: form.carry_forward_balance,
+      }).select("id").single();
+
+      if (error) throw error;
+      toast.success("Konto erstellt ✓");
+      onCreated(data.id);
+    } catch (err: any) {
+      toast.error("Fehler: " + (err.message || "Unbekannt"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Reset form when dialog opens
+  useEffect(() => {
+    if (open) {
+      setForm({
+        account_number: "", account_name: "", category: "Ausgabe", scope: "building",
+        default_vat_rate: "19", is_billing_relevant: true, is_distributable: false,
+        is_heating_relevant: false, is_wirtschaftsplan_relevant: false, is_35a_relevant: false,
+        settlement_35a_type: "", default_distribution_key: "", carry_forward_balance: false,
+      });
+    }
+  }, [open]);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold">Neues Konto anlegen</h3>
+
+          {/* Scope */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-2 block">Geltungsbereich</label>
+            <div className="flex gap-2">
+              <Button type="button" size="sm" variant={form.scope === "building" ? "default" : "outline"}
+                className="flex-1 h-8 text-xs" onClick={() => updateField("scope", "building")}>
+                Nur diese Liegenschaft
+              </Button>
+              <Button type="button" size="sm" variant={form.scope === "global" ? "default" : "outline"}
+                className="flex-1 h-8 text-xs" onClick={() => updateField("scope", "global")}>
+                Alle Liegenschaften
+              </Button>
+            </div>
+          </div>
+
+          {/* Number + Name */}
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Kontonummer</label>
+              <Input className="h-9 text-sm font-mono" value={form.account_number}
+                onChange={e => updateField("account_number", e.target.value)} placeholder="z.B. 4100" />
+            </div>
+            <div className="col-span-2">
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Kontoname</label>
+              <Input className="h-9 text-sm" value={form.account_name}
+                onChange={e => updateField("account_name", e.target.value)} placeholder="z.B. Reparaturen" />
+            </div>
+          </div>
+
+          {/* Category + VAT */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Kategorie</label>
+              <Select value={form.category} onValueChange={v => updateField("category", v)}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Ausgabe">Ausgabe</SelectItem>
+                  <SelectItem value="Einnahme">Einnahme</SelectItem>
+                  <SelectItem value="Bankkonto">Bankkonto</SelectItem>
+                  <SelectItem value="Rücklage">Rücklage</SelectItem>
+                  <SelectItem value="Sonstiges">Sonstiges</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">MwSt-Satz (%)</label>
+              <Select value={form.default_vat_rate} onValueChange={v => updateField("default_vat_rate", v)}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">0%</SelectItem>
+                  <SelectItem value="7">7%</SelectItem>
+                  <SelectItem value="19">19%</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Distribution key */}
+          <div>
+            <label className="text-xs font-medium text-muted-foreground mb-1 block">Verteilerschlüssel</label>
+            <Select value={form.default_distribution_key} onValueChange={v => updateField("default_distribution_key", v)}>
+              <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Optional" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="mea">MEA</SelectItem>
+                <SelectItem value="flaeche">Fläche</SelectItem>
+                <SelectItem value="einheiten">Einheiten</SelectItem>
+                <SelectItem value="personen">Personen</SelectItem>
+                <SelectItem value="direkt">Direkt</SelectItem>
+                <SelectItem value="verbrauch">Verbrauch</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Checkboxes */}
+          <div className="grid grid-cols-2 gap-2">
+            <label className="flex items-center gap-2 text-xs">
+              <Checkbox checked={form.is_billing_relevant} onCheckedChange={v => updateField("is_billing_relevant", !!v)} />
+              Abrechnungsrelevant
+            </label>
+            <label className="flex items-center gap-2 text-xs">
+              <Checkbox checked={form.is_distributable} onCheckedChange={v => updateField("is_distributable", !!v)} />
+              Umlagefähig
+            </label>
+            <label className="flex items-center gap-2 text-xs">
+              <Checkbox checked={form.is_wirtschaftsplan_relevant} onCheckedChange={v => updateField("is_wirtschaftsplan_relevant", !!v)} />
+              Wirtschaftsplan-relevant
+            </label>
+            <label className="flex items-center gap-2 text-xs">
+              <Checkbox checked={form.is_heating_relevant} onCheckedChange={v => updateField("is_heating_relevant", !!v)} />
+              Heizungsrelevant
+            </label>
+            <label className="flex items-center gap-2 text-xs">
+              <Checkbox checked={form.carry_forward_balance} onCheckedChange={v => updateField("carry_forward_balance", !!v)} />
+              Saldovortrag
+            </label>
+            <label className="flex items-center gap-2 text-xs">
+              <Checkbox checked={form.is_35a_relevant} onCheckedChange={v => updateField("is_35a_relevant", !!v)} />
+              §35a-relevant
+            </label>
+          </div>
+
+          {/* §35a type */}
+          {form.is_35a_relevant && (
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">§35a Typ</label>
+              <Select value={form.settlement_35a_type} onValueChange={v => updateField("settlement_35a_type", v)}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Typ wählen…" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="haushaltsnahe_dienstleistung">Haushaltsnahe Dienstleistung</SelectItem>
+                  <SelectItem value="handwerkerleistung">Handwerkerleistung</SelectItem>
+                  <SelectItem value="geringfuegige_beschaeftigung">Geringfügige Beschäftigung</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Abbrechen</Button>
+            <Button size="sm" onClick={handleSave} disabled={saving || !form.account_number || !form.account_name}>
+              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
+              Konto erstellen
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
