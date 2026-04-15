@@ -1089,14 +1089,14 @@ function BookingRowCard({
         <CollapsibleContent>
           <div className="px-3 pb-3 space-y-3 border-t pt-3">
             {/* Account */}
-            <div ref={el => fieldRefs.current["account_id"] = el}>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Konto</label>
+            <div ref={el => fieldRefs.current["account_id"] = el} className="rounded-lg border-2 border-primary/20 bg-primary/5 p-2.5">
+              <label className="text-xs font-semibold text-primary mb-1.5 block">Konto</label>
               <div className="flex gap-1.5">
                 <Select value={row.account_id} onValueChange={v => {
                   if (v === "__create__") { setCreateAccountTarget("account_id"); setCreateAccountOpen(true); }
                   else onUpdateField("account_id", v);
                 }}>
-                  <SelectTrigger className="h-9 text-sm flex-1" onKeyDown={e => handleEnterNavigation(e, "account_id")}>
+                  <SelectTrigger className="h-10 text-sm font-medium flex-1 bg-background" onKeyDown={e => handleEnterNavigation(e, "account_id")}>
                     <SelectValue placeholder="Konto wählen…" />
                   </SelectTrigger>
                   <SelectContent className="max-h-[300px]">
@@ -1135,13 +1135,13 @@ function BookingRowCard({
             </div>
 
             {/* Counter account */}
-            <div ref={el => fieldRefs.current["counter_account_id"] = el}>
-              <label className="text-xs font-medium text-muted-foreground mb-1 block">Gegenkonto</label>
+            <div ref={el => fieldRefs.current["counter_account_id"] = el} className="rounded-lg border-2 border-primary/20 bg-primary/5 p-2.5">
+              <label className="text-xs font-semibold text-primary mb-1.5 block">Gegenkonto</label>
               <Select value={row.counter_account_id} onValueChange={v => {
                 if (v === "__create__") { setCreateAccountTarget("counter_account_id"); setCreateAccountOpen(true); }
                 else onUpdateField("counter_account_id", v);
               }}>
-                <SelectTrigger className="h-9 text-sm" onKeyDown={e => handleEnterNavigation(e, "counter_account_id")}>
+                <SelectTrigger className="h-10 text-sm font-medium bg-background" onKeyDown={e => handleEnterNavigation(e, "counter_account_id")}>
                   <SelectValue placeholder="Gegenkonto wählen…" />
                 </SelectTrigger>
                 <SelectContent className="max-h-[300px]">
