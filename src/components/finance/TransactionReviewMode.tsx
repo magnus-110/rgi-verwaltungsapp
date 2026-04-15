@@ -382,16 +382,24 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       }
     }
 
-    // Fiscal year hint from AI
+    // Fiscal year hint from AI - only show when fiscal year differs or accrual needed
     if (aiSuggestion?.fiscal_year_hint) {
       const hint = aiSuggestion.fiscal_year_hint;
+      const defaultFiscalYear = getFiscalYearForDate(currentTxn.booking_date);
+      const hintFiscalYear = hint.fiscal_year || defaultFiscalYear;
+      
       if (hint.fiscal_year) row.fiscal_year = hint.fiscal_year;
-      row.accrualHint = {
-        needs_accrual: hint.needs_accrual || false,
-        accrual_explanation: hint.accrual_explanation || "",
-        service_period_from: hint.service_period_from,
-        service_period_to: hint.service_period_to,
-      };
+      
+      // Only show accrual hint if fiscal year differs or accrual is actually needed
+      const fiscalYearDiffers = hintFiscalYear !== defaultFiscalYear;
+      if (fiscalYearDiffers || hint.needs_accrual) {
+        row.accrualHint = {
+          needs_accrual: hint.needs_accrual || false,
+          accrual_explanation: hint.accrual_explanation || "",
+          service_period_from: hint.service_period_from,
+          service_period_to: hint.service_period_to,
+        };
+      }
     }
 
     // VAT defaults from counter account
