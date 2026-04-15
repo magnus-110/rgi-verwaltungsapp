@@ -434,11 +434,35 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
 
           {/* Copy fields for bank transfer */}
           <div className="bg-muted/50 rounded-lg p-4 space-y-1">
-            <CopyField label="Empfänger" value={invoice.vendor_name || "–"} />
+            <PurposeEditCopyField
+              label="Empfänger"
+              value={invoice.vendor_name || "–"}
+              onSave={async (val) => {
+                await saveField("vendor_name", val);
+              }}
+            />
             <Separator />
-            <CopyField label="IBAN" value={invoice.vendor_iban || "–"} mono />
+            <PurposeEditCopyField
+              label="IBAN"
+              value={invoice.vendor_iban || "–"}
+              onSave={async (val) => {
+                await saveField("vendor_iban", val);
+              }}
+              mono
+            />
             <Separator />
-            <CopyField label="Betrag" value={invoice.gross_amount != null ? formatCurrency(invoice.gross_amount) : "–"} />
+            <PurposeEditCopyField
+              label="Betrag"
+              value={invoice.gross_amount != null ? formatCurrency(invoice.gross_amount) : "–"}
+              onSave={async (val) => {
+                const num = parseFloat(val.replace(/[^\d,.-]/g, "").replace(",", "."));
+                if (!isNaN(num)) {
+                  await saveField("gross_amount", String(num));
+                } else {
+                  toast.error("Ungültiger Betrag");
+                }
+              }}
+            />
             <Separator />
             <PurposeEditCopyField
               label={`Verwendungszweck${generatingPurpose ? " (KI generiert…)" : ""}`}
@@ -453,7 +477,13 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
               }}
             />
             <Separator />
-            <CopyField label="Rechnungsnummer" value={invoice.invoice_number || "–"} />
+            <PurposeEditCopyField
+              label="Rechnungsnummer"
+              value={invoice.invoice_number || "–"}
+              onSave={async (val) => {
+                await saveField("invoice_number", val);
+              }}
+            />
           </div>
 
           {/* Inline editable fields */}
