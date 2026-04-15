@@ -205,25 +205,27 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
               )}
 
               {/* Navigation */}
-              <nav className="flex-1 p-4">
-                <div className="space-y-2">
-                  {navigationItems.map((item) => (
-                    <Button
-                      key={item.path}
-                      variant={item.active ? "default" : "ghost"}
-                      className={`w-full justify-start gap-3 h-12 ${
-                        item.active 
-                          ? 'bg-primary text-primary-foreground' 
-                          : 'hover:bg-muted text-muted-foreground hover:text-foreground'
-                      }`}
-                      onClick={() => handleNavigation(item.path)}
-                    >
-                      <item.icon className="w-5 h-5" />
-                      {item.label}
-                    </Button>
-                  ))}
-                </div>
-              </nav>
+              <ScrollArea className="flex-1">
+                <nav className="p-4">
+                  <div className="space-y-2">
+                    {navigationItems.map((item) => (
+                      <Button
+                        key={item.path}
+                        variant={item.active ? "default" : "ghost"}
+                        className={`w-full justify-start gap-3 h-12 ${
+                          item.active 
+                            ? 'bg-primary text-primary-foreground' 
+                            : 'hover:bg-muted text-muted-foreground hover:text-foreground'
+                        }`}
+                        onClick={() => handleNavigation(item.path)}
+                      >
+                        <item.icon className="w-5 h-5" />
+                        {item.label}
+                      </Button>
+                    ))}
+                  </div>
+                </nav>
+              </ScrollArea>
 
               {/* Footer Actions */}
               <div className="p-4 border-t space-y-2">
