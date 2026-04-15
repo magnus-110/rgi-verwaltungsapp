@@ -1694,13 +1694,13 @@ function AssignmentTabContent({
 
   const invoiceMatches = useMemo(() => {
     const matchMap = new Map<string, any>();
-    aiMatches.filter((m: any) => m.id && invoiceIdSet.has(m.id)).forEach((m: any) => matchMap.set(m.id, m));
+    aiMatches.filter((m: any) => m.id && m.score > 0.5 && invoiceIdSet.has(m.id)).forEach((m: any) => matchMap.set(m.id, m));
     return matchMap;
   }, [aiMatches, invoiceIdSet]);
 
   const templateMatches = useMemo(() => {
     const matchMap = new Map<string, any>();
-    aiMatches.filter((m: any) => m.id && templateIdSet.has(m.id)).forEach((m: any) => matchMap.set(m.id, m));
+    aiMatches.filter((m: any) => m.id && m.score > 0.5 && templateIdSet.has(m.id)).forEach((m: any) => matchMap.set(m.id, m));
     return matchMap;
   }, [aiMatches, templateIdSet]);
 
