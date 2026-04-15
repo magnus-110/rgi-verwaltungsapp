@@ -665,9 +665,15 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
             <Separator orientation="vertical" className="h-6" />
             <Progress value={progressPercent} className="w-32 h-2" />
           </div>
-          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
-            <X className="h-4 w-4 mr-1" /> Schließen
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+              <X className="h-4 w-4 mr-1" /> Schließen
+            </Button>
+            <Button variant="outline" size="sm" onClick={bulkResetAiSuggestions} disabled={bulkResetting} title="Alle KI-Analysen zurücksetzen">
+              {bulkResetting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+              <span className="ml-1 text-xs">KI Reset</span>
+            </Button>
+          </div>
         </div>
 
         {transactions.length === 0 ? (
@@ -868,13 +874,18 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
               {/* ── Analyse Section (Bottom, collapsible) ── */}
               <Collapsible defaultOpen={true}>
                 <div className="border-t">
-                  <CollapsibleTrigger asChild>
-                    <button className="w-full px-4 py-2 border-b bg-muted/20 flex items-center gap-2 hover:bg-muted/40 transition-colors">
-                      <Sparkles className="h-4 w-4 text-primary" />
-                      <span className="text-sm font-semibold">Analyse</span>
-                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground ml-auto" />
-                    </button>
-                  </CollapsibleTrigger>
+                  <div className="flex items-center">
+                    <CollapsibleTrigger asChild>
+                      <button className="flex-1 px-4 py-2 bg-muted/20 flex items-center gap-2 hover:bg-muted/40 transition-colors">
+                        <Sparkles className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-semibold">Analyse</span>
+                        <ChevronDown className="h-3.5 w-3.5 text-muted-foreground ml-auto" />
+                      </button>
+                    </CollapsibleTrigger>
+                    <Button variant="ghost" size="sm" onClick={rerunAiAnalysis} disabled={rerunningAi} title="KI-Analyse erneut starten" className="mr-2 h-7">
+                      {rerunningAi ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                    </Button>
+                  </div>
                   <CollapsibleContent>
                     {invoiceDetail ? (
                       <div>
