@@ -17,7 +17,7 @@ import { de } from "date-fns/locale";
 import {
   ArrowLeft, ArrowRight, CheckCircle, X,
   FileText, LayoutTemplate, Loader2, Sparkles,
-  ChevronDown, ChevronRight, Plus, Trash2
+  ChevronDown, ChevronRight, Plus, Trash2, User
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -115,6 +115,53 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       return data;
     },
     enabled: open && !!currentTxn?.matched_template_id,
+  });
+
+  // IBAN lookup: match debtor/creditor IBAN against contact_bank_accounts
+  const ibanToMatch = currentTxn?.amount > 0 ? currentTxn?.debtor_iban : currentTxn?.creditor_iban;
+  const counterpartyName = currentTxn?.amount > 0 ? currentTxn?.debtor_name : currentTxn?.creditor_name;
+  const counterpartyLabel = currentTxn?.amount > 0 ? "Absender" : "Empfänger";
+
+  const { data: ibanMatch } = useQuery({
+    queryKey: ["iban-match", ibanToMatch, buildingId],
+    queryFn: async () => {
+      if (!ibanToMatch) return null;
+      const normalizedIban = ibanToMatch.replace(/\s/g, "").toUpperCase();
+      const { data: bankAccounts } = await supabase
+        .from("contact_bank_accounts")
+        .select("id, iban, account_holder, contact_id")
+        .ilike("iban", normalizedIban);
+      if (!bankAccounts || bankAccounts.length === 0) return null;
+
+      const contactId = bankAccounts[0].contact_id;
+
+      // Get contact name
+      const { data: contact } = await supabase
+        .from("contacts")
+        .select("id, first_name, last_name, company_name, contact_type")
+        .eq("id", contactId)
+        .maybeSingle();
+
+      // Get building assignment for unit info
+      const { data: assignment } = await supabase
+        .from("contact_building_assignments")
+        .select("unit_number, role_in_building, floor_location")
+        .eq("contact_id", contactId)
+        .eq("building_id", buildingId)
+        .maybeSingle();
+
+      const displayName = contact?.company_name
+        ? contact.company_name
+        : [contact?.first_name, contact?.last_name].filter(Boolean).join(" ") || bankAccounts[0].account_holder || "Unbekannt";
+
+      return {
+        contactName: displayName,
+        unitNumber: assignment?.unit_number || null,
+        role: assignment?.role_in_building || null,
+        iban: normalizedIban,
+      };
+    },
+    enabled: open && !!ibanToMatch,
   });
 
   useEffect(() => {
@@ -518,6 +565,33 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                 <div className={cn("text-2xl font-bold", currentTxn.amount < 0 ? "text-destructive" : "text-green-600")}>
                   {currentTxn.amount < 0 ? "" : "+"}{formatCurrency(currentTxn.amount)}
                 </div>
+
+                {/* Sender/Recipient with IBAN mapping */}
+                {(counterpartyName || ibanToMatch) && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="text-muted-foreground">{counterpartyLabel}:</span>
+                    {ibanMatch ? (
+                      <div className="flex items-center gap-1.5">
+                        <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300 text-xs">
+                          {ibanMatch.contactName}
+                          {ibanMatch.unitNumber && ` · Whg. ${ibanMatch.unitNumber}`}
+                        </Badge>
+                        {ibanMatch.role && (
+                          <span className="text-xs text-muted-foreground">
+                            ({ibanMatch.role === "eigentuemer" ? "Eigentümer" : ibanMatch.role === "mieter" ? "Mieter" : ibanMatch.role})
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-foreground">
+                        {counterpartyName || "–"}
+                        {ibanToMatch && <span className="text-muted-foreground ml-1 font-mono text-xs">({ibanToMatch})</span>}
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 <p className="text-sm">{currentTxn.purpose || "–"}</p>
               </div>
 
