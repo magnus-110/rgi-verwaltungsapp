@@ -1023,6 +1023,7 @@ function TemplateSuggestionCard({
     expected_amount: suggestion.expected_amount?.toString() || "",
     interval: suggestion.interval || "",
     account_number: suggestion.account_number || "",
+    amount_tolerance: suggestion.amount_tolerance?.toString() || "5",
   });
 
   const handleCreate = async () => {
