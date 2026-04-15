@@ -209,6 +209,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
   });
 
 
+  useEffect(() => {
     setPdfUrl(null);
     if (!invoiceDetail?.file_path) return;
     const loadPdf = async () => {
