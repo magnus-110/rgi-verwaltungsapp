@@ -70,7 +70,14 @@ Vorlagen-Erkennung:
 - Wenn KEINE passende Vorlage existiert und die Transaktion auf eine WIEDERKEHRENDE Zahlung hindeutet (z.B. "Abschlag", "monatlich", Kundennummer, regelmäßiger Lieferant wie Strom/Gas/Wasser/Versicherung), schlage eine neue Vorlage vor im template_suggestion Feld — ABER NUR wenn historisch keine Rechnungen vorhanden waren.
 - Erkennbare Muster: Abschlagszahlungen, Versicherungsbeiträge, Wartungsverträge, Mietzahlungen, Hausgeld.
 
-Gib die besten 1-5 Kandidaten zurück UND einen booking_hint wenn du eine komplexe Zuordnung erkennst UND einen template_suggestion ODER missing_invoice_hint wenn angemessen.`;
+Wirtschaftsjahr & Abgrenzung:
+- Standardmäßig ist das Wirtschaftsjahr = Jahr des Kontoauszugsdatums (booking_date).
+- Prüfe ob Verwendungszweck, Rechnungsdatum oder erkennbare Leistungszeiträume auf ein ANDERES Wirtschaftsjahr hindeuten.
+- Wenn Rechnungsdatum in einem anderen Jahr als das Kontoauszugsdatum liegt → Abgrenzung empfehlen.
+- Wenn ein Leistungszeitraum Jahresgrenzen übergreift (z.B. Versicherung 07/2024–06/2025) → Abgrenzung empfehlen.
+- Setze fiscal_year_hint mit dem empfohlenen Wirtschaftsjahr, ob eine Abgrenzungsbuchung nötig ist, und einer Begründung.
+
+Gib die besten 1-5 Kandidaten zurück UND einen booking_hint wenn du eine komplexe Zuordnung erkennst UND einen template_suggestion ODER missing_invoice_hint wenn angemessen UND einen fiscal_year_hint wenn das Wirtschaftsjahr nicht trivial ist.`;
 
     const userPrompt = `Transaktion:
 - Betrag: ${transaction.amount} €
@@ -170,14 +177,27 @@ ${candidatesSummary}${otherTxnContext}${historicalContext}`;
                   },
                   missing_invoice_hint: {
                     type: "object",
-                    description: "Set this when the creditor historically had invoices but no matching invoice was found for this transaction. This signals that the invoice is missing/not yet uploaded rather than that a new template should be created.",
+                    description: "Set this when the creditor historically had invoices but no matching invoice was found for this transaction.",
                     properties: {
                       vendor_name: { type: "string", description: "Name of the vendor/creditor" },
-                      expected_invoice_description: { type: "string", description: "What kind of invoice is expected, e.g. 'Jahresabrechnung Gas' or 'Abschlagsbescheid Strom'" },
-                      last_invoice_date: { type: "string", description: "Date of the last known invoice from this vendor (if available from historical data)" },
-                      explanation: { type: "string", description: "German explanation for the user about why the invoice is expected and what to do" },
+                      expected_invoice_description: { type: "string", description: "What kind of invoice is expected" },
+                      last_invoice_date: { type: "string", description: "Date of the last known invoice from this vendor" },
+                      explanation: { type: "string", description: "German explanation for the user" },
                     },
                     required: ["vendor_name", "explanation"],
+                    additionalProperties: false,
+                  },
+                  fiscal_year_hint: {
+                    type: "object",
+                    description: "Set this when the fiscal year is not simply the year of the booking_date, or when an accrual booking (Abgrenzungsbuchung) is recommended. Always set fiscal_year to the recommended year.",
+                    properties: {
+                      fiscal_year: { type: "number", description: "Recommended fiscal year for this booking" },
+                      needs_accrual: { type: "boolean", description: "True if an accrual booking (Abgrenzungsbuchung) is recommended" },
+                      accrual_explanation: { type: "string", description: "German explanation why accrual is needed or why a different fiscal year is recommended" },
+                      service_period_from: { type: "string", description: "Start of the service/performance period if identifiable (ISO date)" },
+                      service_period_to: { type: "string", description: "End of the service/performance period if identifiable (ISO date)" },
+                    },
+                    required: ["fiscal_year", "needs_accrual", "accrual_explanation"],
                     additionalProperties: false,
                   },
                 },

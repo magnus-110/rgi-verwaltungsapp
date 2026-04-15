@@ -142,9 +142,18 @@ export function useTransactionAiPrefetch(
               }
             }
 
+            // Attach matched invoice date if available
+            const enrichedTxn = { ...txn };
+            if (txn.matched_invoice_id) {
+              const matchedInv = invoiceData.find((inv: any) => inv.id === txn.matched_invoice_id);
+              if (matchedInv) {
+                enrichedTxn.matched_invoice_date = matchedInv.invoice_date;
+              }
+            }
+
             const { data, error } = await supabase.functions.invoke("suggest-match", {
               body: {
-                transaction: txn,
+                transaction: enrichedTxn,
                 invoices: invoiceData,
                 templates: templateData,
                 allTransactions: transactions.slice(0, 30),
