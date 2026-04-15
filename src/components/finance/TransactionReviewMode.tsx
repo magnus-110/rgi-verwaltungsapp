@@ -628,6 +628,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     : 100;
 
   useEffect(() => { setCurrentIndex(initialIndex ?? 0); setBookedCount(0); }, [open, initialIndex]);
+  useEffect(() => { setZuordnungOpen(false); }, [currentTxn?.id]);
 
   const sourceType = useMemo(() => {
     if (!currentTxn) return "none";
@@ -812,7 +813,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
             {/* Right: Zuordnung (top) + Analyse (bottom, collapsible) */}
             <div className="w-1/2 flex flex-col overflow-y-auto">
               {/* ── Zuordnung Section (collapsible, default closed unless AI has matches) ── */}
-              <Collapsible defaultOpen={!!(currentTxn?.ai_suggestion?.matches?.length > 0)}>
+              <Collapsible open={zuordnungOpen} onOpenChange={setZuordnungOpen}>
                 <div className="shrink-0">
                   <CollapsibleTrigger asChild>
                     <button className="w-full px-4 py-2 border-b bg-muted/20 flex items-center gap-2 hover:bg-muted/40 transition-colors">
