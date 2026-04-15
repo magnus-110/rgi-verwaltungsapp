@@ -1583,18 +1583,21 @@ function AssignmentTabContent({
   const txnPurpose = (currentTxn?.purpose || "").toLowerCase();
   const txnAmount = Math.abs(currentTxn?.amount || 0);
 
-  // Separate AI matches by type
+  // Cross-reference AI match IDs against actual invoice/template lists to determine type
+  const invoiceIdSet = useMemo(() => new Set(allInvoices.map((i: any) => i.id)), [allInvoices]);
+  const templateIdSet = useMemo(() => new Set(allTemplates.map((t: any) => t.id)), [allTemplates]);
+
   const invoiceMatches = useMemo(() => {
     const matchMap = new Map<string, any>();
-    aiMatches.filter((m: any) => m.type === "invoice" && m.id).forEach((m: any) => matchMap.set(m.id, m));
+    aiMatches.filter((m: any) => m.id && invoiceIdSet.has(m.id)).forEach((m: any) => matchMap.set(m.id, m));
     return matchMap;
-  }, [aiMatches]);
+  }, [aiMatches, invoiceIdSet]);
 
   const templateMatches = useMemo(() => {
     const matchMap = new Map<string, any>();
-    aiMatches.filter((m: any) => m.type === "template" && m.id).forEach((m: any) => matchMap.set(m.id, m));
+    aiMatches.filter((m: any) => m.id && templateIdSet.has(m.id)).forEach((m: any) => matchMap.set(m.id, m));
     return matchMap;
-  }, [aiMatches]);
+  }, [aiMatches, templateIdSet]);
 
   // Smart matching: check IBAN, vendor name, invoice number in purpose, amount
   const getInvoiceMatchReason = useCallback((inv: any): string | null => {
