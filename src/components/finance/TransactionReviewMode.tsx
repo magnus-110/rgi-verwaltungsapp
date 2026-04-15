@@ -809,7 +809,7 @@ function BookingRowCard({
   isExpanded: boolean;
   onToggle: () => void;
   accounts: any[];
-  onUpdateField: (field: string, value: string | boolean) => void;
+  onUpdateField: (field: string, value: string | boolean | number) => void;
   onBook: () => void;
   onRemove?: () => void;
   isBooking: boolean;
