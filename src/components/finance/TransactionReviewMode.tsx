@@ -77,7 +77,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
   const [bookingSingle, setBookingSingle] = useState<string | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
-  const [showAssignedInvoices, setShowAssignedInvoices] = useState(false);
+  
   const [rerunningAi, setRerunningAi] = useState(false);
   const [bulkResetting, setBulkResetting] = useState(false);
   const [zuordnungOpen, setZuordnungOpen] = useState(false);
