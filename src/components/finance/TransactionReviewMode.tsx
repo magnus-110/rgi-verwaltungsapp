@@ -536,6 +536,85 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     return false;
   }, [currentTxn, invoiceDetail, templateDetail]);
 
+  const [rerunningAi, setRerunningAi] = useState(false);
+  const [bulkResetting, setBulkResetting] = useState(false);
+
+  const rerunAiAnalysis = useCallback(async () => {
+    if (!currentTxn || rerunningAi) return;
+    setRerunningAi(true);
+    try {
+      // Clear stale suggestion
+      await supabase.from("bank_transactions")
+        .update({ ai_suggestion: null } as any)
+        .eq("id", currentTxn.id);
+
+      // Load fresh template + invoice data
+      const [{ data: templates }, { data: invoices }] = await Promise.all([
+        supabase.from("booking_templates")
+          .select("id, name, vendor_name, vendor_iban, expected_amount, amount_tolerance, interval, account_id, vat_rate, valid_from, valid_to, chart_of_accounts(account_number, account_name)")
+          .eq("building_id", buildingId),
+        supabase.from("invoices")
+          .select("id, invoice_number, vendor_name, gross_amount, vendor_iban, invoice_date")
+          .eq("building_id", buildingId)
+          .eq("status", "paid")
+          .limit(200),
+      ]);
+
+      const templateData = (templates || []).map((t: any) => ({
+        id: t.id, name: t.name, vendor_name: t.vendor_name,
+        expected_amount: t.expected_amount, amount_tolerance: t.amount_tolerance,
+        vendor_iban: t.vendor_iban, interval: t.interval,
+        account_number: t.chart_of_accounts?.account_number,
+        account_name: t.chart_of_accounts?.account_name,
+        account_id: t.account_id, valid_from: t.valid_from, valid_to: t.valid_to,
+      }));
+
+      const invoiceData = (invoices || []).map((inv: any) => ({
+        id: inv.id, invoice_number: inv.invoice_number, vendor_name: inv.vendor_name,
+        gross_amount: inv.gross_amount, vendor_iban: inv.vendor_iban, invoice_date: inv.invoice_date,
+      }));
+
+      const { data, error } = await supabase.functions.invoke("suggest-match", {
+        body: { transaction: currentTxn, invoices: invoiceData, templates: templateData, allTransactions: transactions.slice(0, 30) },
+      });
+
+      if (!error && data && !data.error) {
+        await supabase.from("bank_transactions")
+          .update({ ai_suggestion: data } as any)
+          .eq("id", currentTxn.id);
+        toast.success("KI-Analyse aktualisiert");
+      } else {
+        toast.error("KI-Analyse fehlgeschlagen");
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+    } catch (err: any) {
+      toast.error("Fehler: " + (err.message || "Unbekannt"));
+    } finally {
+      setRerunningAi(false);
+    }
+  }, [currentTxn, rerunningAi, buildingId, transactions, queryClient]);
+
+  const bulkResetAiSuggestions = useCallback(async () => {
+    if (bulkResetting) return;
+    setBulkResetting(true);
+    try {
+      const { error } = await supabase.from("bank_transactions")
+        .update({ ai_suggestion: null } as any)
+        .is("booked_at", null)
+        .eq("building_id", buildingId);
+      if (error) throw error;
+      toast.success("Alle KI-Analysen zurückgesetzt – werden neu berechnet");
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+    } catch (err: any) {
+      toast.error("Fehler: " + (err.message || "Unbekannt"));
+    } finally {
+      setBulkResetting(false);
+    }
+  }, [bulkResetting, buildingId, queryClient]);
+
   // Sum validation for split bookings
   const currentTotal = useMemo(() => {
     return formRows.reduce((sum, row) => sum + (parseFloat(row.amount) || 0), 0);
