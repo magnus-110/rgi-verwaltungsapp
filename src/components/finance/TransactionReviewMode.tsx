@@ -665,15 +665,9 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
             <Separator orientation="vertical" className="h-6" />
             <Progress value={progressPercent} className="w-32 h-2" />
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
-              <X className="h-4 w-4 mr-1" /> Schließen
-            </Button>
-            <Button variant="outline" size="sm" onClick={bulkResetAiSuggestions} disabled={bulkResetting} title="Alle KI-Analysen zurücksetzen">
-              {bulkResetting ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
-              <span className="ml-1 text-xs">KI Reset</span>
-            </Button>
-          </div>
+          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+            <X className="h-4 w-4 mr-1" /> Schließen
+          </Button>
         </div>
 
         {transactions.length === 0 ? (
