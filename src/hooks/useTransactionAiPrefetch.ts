@@ -170,6 +170,7 @@ export function useTransactionAiPrefetch(
                 templates: templateData,
                 allTransactions: transactions.slice(0, 30),
                 historicalBookings,
+                billingPeriods: billingPeriodData,
               },
             });
 
