@@ -1676,7 +1676,6 @@ function AssignmentTabContent({
   onAssignTemplate: (tpl: any) => void;
   formatCurrency: (amount: number | null) => string;
 }) {
-  const [assignTab, setAssignTab] = useState<string>("rechnungen");
   const aiMatches = currentTxn?.ai_suggestion?.matches || [];
 
   // Extract transaction metadata for smart matching
@@ -1688,6 +1687,21 @@ function AssignmentTabContent({
   // Cross-reference AI match IDs against actual invoice/template lists to determine type
   const invoiceIdSet = useMemo(() => new Set(allInvoices.map((i: any) => i.id)), [allInvoices]);
   const templateIdSet = useMemo(() => new Set(allTemplates.map((t: any) => t.id)), [allTemplates]);
+
+  // Determine default tab based on AI matches
+  const defaultTab = useMemo(() => {
+    const hasTemplateMatch = aiMatches.some((m: any) => m.id && templateIdSet.has(m.id));
+    const hasInvoiceMatch = aiMatches.some((m: any) => m.id && invoiceIdSet.has(m.id));
+    if (hasTemplateMatch && !hasInvoiceMatch) return "vorlagen";
+    return "rechnungen";
+  }, [aiMatches, invoiceIdSet, templateIdSet]);
+
+  const [assignTab, setAssignTab] = useState<string>(defaultTab);
+
+  // Update tab when transaction changes and default changes
+  useEffect(() => {
+    setAssignTab(defaultTab);
+  }, [currentTxn?.id, defaultTab]);
 
   const invoiceMatches = useMemo(() => {
     const matchMap = new Map<string, any>();
