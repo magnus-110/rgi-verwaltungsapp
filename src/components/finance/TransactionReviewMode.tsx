@@ -9,13 +9,15 @@ import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import {
   ArrowLeft, ArrowRight, CheckCircle, X,
-  FileText, LayoutTemplate, Loader2, Sparkles
+  FileText, LayoutTemplate, Loader2, Sparkles,
+  ChevronDown, ChevronRight, Plus, Trash2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -27,52 +29,52 @@ interface TransactionReviewModeProps {
   initialIndex?: number;
 }
 
+interface BookingRowData {
+  id: string;
+  account_id: string;
+  counter_account_id: string;
+  amount: string;
+  vat_rate: string;
+  vat_amount: string;
+  description: string;
+  booking_reference: string;
+  booking_date: string;
+  receipt_number: string;
+  booking_type: string;
+  is_35a_relevant: boolean;
+  amount_35a: string;
+  fiscal_year: number;
+  invoice_id: string | null;
+  matched_template_id: string | null;
+  booked: boolean;
+}
+
 const formatCurrency = (amount: number | null) =>
   amount != null ? new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(amount) : "–";
 
-// Field order for Enter navigation
 const FIELD_ORDER = [
   "account_id", "amount", "counter_account_id", "description",
   "booking_reference", "booking_date", "receipt_number", "vat_rate"
 ];
+
+let rowIdCounter = 0;
+const nextRowId = () => `row-${++rowIdCounter}`;
 
 export function TransactionReviewMode({ open, onOpenChange, transactions, buildingId, initialIndex }: TransactionReviewModeProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [bookedCount, setBookedCount] = useState(0);
-  const [bookingSingle, setBookingSingle] = useState(false);
+  const [bookingSingle, setBookingSingle] = useState<string | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
   const fieldRefs = useRef<Record<string, HTMLElement | null>>({});
 
-  // Booking form state
-  const [formData, setFormData] = useState<{
-    account_id: string;
-    counter_account_id: string;
-    amount: string;
-    vat_rate: string;
-    vat_amount: string;
-    description: string;
-    booking_reference: string;
-    booking_date: string;
-    receipt_number: string;
-    booking_type: string;
-    is_35a_relevant: boolean;
-    amount_35a: string;
-    fiscal_year: number;
-    invoice_id: string | null;
-    matched_template_id: string | null;
-  }>({
-    account_id: "", counter_account_id: "", amount: "", vat_rate: "19",
-    vat_amount: "", description: "", booking_reference: "KI", booking_date: "",
-    receipt_number: "", booking_type: "expense", is_35a_relevant: false,
-    amount_35a: "", fiscal_year: new Date().getFullYear(),
-    invoice_id: null, matched_template_id: null,
-  });
+  // Multi-row booking state
+  const [formRows, setFormRows] = useState<BookingRowData[]>([]);
 
   const currentTxn = transactions[currentIndex];
 
-  // Load chart of accounts for the building
   const { data: accounts = [] } = useQuery({
     queryKey: ["chart-of-accounts-review", buildingId],
     queryFn: async () => {
@@ -87,7 +89,6 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     enabled: open && !!buildingId,
   });
 
-  // Load invoice details
   const { data: invoiceDetail } = useQuery({
     queryKey: ["txn-review-invoice", currentTxn?.matched_invoice_id],
     queryFn: async () => {
@@ -102,7 +103,6 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     enabled: open && !!currentTxn?.matched_invoice_id,
   });
 
-  // Load template details
   const { data: templateDetail } = useQuery({
     queryKey: ["txn-review-template", currentTxn?.matched_template_id],
     queryFn: async () => {
@@ -117,7 +117,6 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     enabled: open && !!currentTxn?.matched_template_id,
   });
 
-  // Load PDF for invoice
   useEffect(() => {
     setPdfUrl(null);
     if (!invoiceDetail?.file_path) return;
@@ -129,110 +128,161 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     loadPdf();
   }, [invoiceDetail?.file_path]);
 
-  // Auto-fill form when transaction changes
-  useEffect(() => {
-    if (!currentTxn) return;
-    
-    const txnDate = currentTxn.booking_date;
+  // Create a default booking row
+  const createDefaultRow = useCallback((overrides?: Partial<BookingRowData>): BookingRowData => {
+    const txnDate = currentTxn?.booking_date || "";
     const fiscalYear = txnDate ? new Date(txnDate).getFullYear() : new Date().getFullYear();
-    const absAmount = Math.abs(currentTxn.amount);
-    const isIncome = currentTxn.amount > 0;
-
-    // Find bank account (1800 Bankkonto as default MAIN account - "von diesem Konto")
+    const absAmount = Math.abs(currentTxn?.amount || 0);
+    const isIncome = (currentTxn?.amount || 0) > 0;
     const bankAccount = accounts.find(a => a.account_number === "1800") || accounts.find(a => a.account_number === "1200") || accounts.find(a => a.category === "Bankkonto");
-    const defaultBankAccountId = bankAccount?.id || "";
 
-    // Start with defaults: Konto = 1800 (Bank), Gegenkonto = leer (wird befüllt)
-    let newForm = {
-      account_id: defaultBankAccountId,
+    return {
+      id: nextRowId(),
+      account_id: bankAccount?.id || "",
       counter_account_id: "",
       amount: absAmount.toFixed(2),
       vat_rate: "19",
       vat_amount: "",
       description: "",
       booking_reference: "KI",
-      booking_date: txnDate || "",
+      booking_date: txnDate,
       receipt_number: "",
       booking_type: isIncome ? "income" : "expense",
       is_35a_relevant: false,
       amount_35a: "",
       fiscal_year: fiscalYear,
-      invoice_id: currentTxn.matched_invoice_id || null,
-      matched_template_id: currentTxn.matched_template_id || null,
+      invoice_id: currentTxn?.matched_invoice_id || null,
+      matched_template_id: currentTxn?.matched_template_id || null,
+      booked: false,
+      ...overrides,
     };
+  }, [currentTxn, accounts]);
 
-    // Auto-fill from TEMPLATE (deterministic, no AI)
+  // Auto-fill form rows when transaction changes
+  useEffect(() => {
+    if (!currentTxn || accounts.length === 0) return;
+
+    const txnDate = currentTxn.booking_date;
+    const fiscalYear = txnDate ? new Date(txnDate).getFullYear() : new Date().getFullYear();
+    const absAmount = Math.abs(currentTxn.amount);
+    const isIncome = currentTxn.amount > 0;
+    const bankAccount = accounts.find(a => a.account_number === "1800") || accounts.find(a => a.account_number === "1200") || accounts.find(a => a.category === "Bankkonto");
+    const defaultBankAccountId = bankAccount?.id || "";
+
+    // Check for AI split suggestion
+    const aiSuggestion = currentTxn.ai_suggestion;
+    const suggestedBookings = aiSuggestion?.booking_hint?.suggested_bookings;
+    const isSplit = aiSuggestion?.booking_hint?.type === "split" && suggestedBookings?.length > 1;
+
+    if (isSplit) {
+      // Multiple booking rows from AI
+      const rows: BookingRowData[] = suggestedBookings.map((sb: any, idx: number) => {
+        let counterAccountId = "";
+        if (sb.account_id) counterAccountId = sb.account_id;
+        if (sb.account_number) {
+          const acc = accounts.find(a => a.account_number === sb.account_number);
+          if (acc) counterAccountId = acc.id;
+        }
+
+        const rowAmount = sb.amount != null ? Math.abs(sb.amount) : absAmount / suggestedBookings.length;
+
+        return {
+          id: nextRowId(),
+          account_id: defaultBankAccountId,
+          counter_account_id: counterAccountId,
+          amount: rowAmount.toFixed(2),
+          vat_rate: sb.vat_rate != null ? String(sb.vat_rate) : "19",
+          vat_amount: "",
+          description: sb.description || "",
+          booking_reference: "KI",
+          booking_date: txnDate || "",
+          receipt_number: sb.receipt_number || "",
+          booking_type: sb.booking_type || (isIncome ? "income" : "expense"),
+          is_35a_relevant: sb.is_35a_relevant || false,
+          amount_35a: "",
+          fiscal_year: fiscalYear,
+          invoice_id: null,
+          matched_template_id: sb.template_id || null,
+          booked: false,
+        };
+      });
+      setFormRows(rows);
+      setExpandedRowId(rows[0]?.id || null);
+      return;
+    }
+
+    // Single booking row
+    const row = createDefaultRow();
+
+    // Auto-fill from template
     if (templateDetail) {
-      if (templateDetail.account_id) newForm.counter_account_id = templateDetail.account_id;
-      if (templateDetail.vat_rate != null) newForm.vat_rate = String(templateDetail.vat_rate);
-      if (templateDetail.is_35a_relevant) newForm.is_35a_relevant = true;
-      newForm.description = templateDetail.name || "";
-      newForm.matched_template_id = templateDetail.id;
-
-      // Calculate VAT
+      if (templateDetail.account_id) row.counter_account_id = templateDetail.account_id;
+      if (templateDetail.vat_rate != null) row.vat_rate = String(templateDetail.vat_rate);
+      if (templateDetail.is_35a_relevant) row.is_35a_relevant = true;
+      row.description = templateDetail.name || "";
+      row.matched_template_id = templateDetail.id;
       const vatRate = templateDetail.vat_rate || 0;
       if (vatRate > 0) {
         const vatAmount = absAmount - (absAmount / (1 + vatRate / 100));
-        newForm.vat_amount = vatAmount.toFixed(2);
+        row.vat_amount = vatAmount.toFixed(2);
       }
     }
 
-    // Auto-fill from INVOICE (deterministic, no AI)
+    // Auto-fill from invoice
     if (invoiceDetail) {
-      if (invoiceDetail.suggested_account_id) newForm.counter_account_id = invoiceDetail.suggested_account_id;
-      if (invoiceDetail.vat_amount != null) newForm.vat_amount = String(Math.abs(invoiceDetail.vat_amount));
-      if (invoiceDetail.invoice_number) newForm.receipt_number = invoiceDetail.invoice_number;
-      newForm.description = [invoiceDetail.vendor_name, invoiceDetail.invoice_number].filter(Boolean).join(" ");
-      newForm.invoice_id = invoiceDetail.id;
-
-      // Calculate VAT rate from invoice amounts
+      if (invoiceDetail.suggested_account_id) row.counter_account_id = invoiceDetail.suggested_account_id;
+      if (invoiceDetail.vat_amount != null) row.vat_amount = String(Math.abs(invoiceDetail.vat_amount));
+      if (invoiceDetail.invoice_number) row.receipt_number = invoiceDetail.invoice_number;
+      row.description = [invoiceDetail.vendor_name, invoiceDetail.invoice_number].filter(Boolean).join(" ");
+      row.invoice_id = invoiceDetail.id;
       if (invoiceDetail.gross_amount && invoiceDetail.net_amount) {
         const vatPct = ((invoiceDetail.gross_amount / invoiceDetail.net_amount) - 1) * 100;
-        newForm.vat_rate = String(Math.round(vatPct));
+        row.vat_rate = String(Math.round(vatPct));
       }
     }
 
-    // Auto-fill from AI SUGGESTION (for unmatched transactions)
-    if (!templateDetail && !invoiceDetail && currentTxn.ai_suggestion) {
-      const suggestion = currentTxn.ai_suggestion;
-      if (suggestion.booking_hint?.suggested_bookings?.[0]) {
-        const sb = suggestion.booking_hint.suggested_bookings[0];
-        if (sb.account_id) newForm.counter_account_id = sb.account_id;
+    // Auto-fill from single AI suggestion
+    if (!templateDetail && !invoiceDetail && aiSuggestion) {
+      if (suggestedBookings?.[0]) {
+        const sb = suggestedBookings[0];
+        if (sb.account_id) row.counter_account_id = sb.account_id;
         if (sb.account_number) {
           const acc = accounts.find(a => a.account_number === sb.account_number);
-          if (acc) newForm.counter_account_id = acc.id;
+          if (acc) row.counter_account_id = acc.id;
         }
-        if (sb.description) newForm.description = sb.description;
-        if (sb.booking_type) newForm.booking_type = sb.booking_type;
+        if (sb.description) row.description = sb.description;
+        if (sb.booking_type) row.booking_type = sb.booking_type;
       }
     }
 
-    // Set VAT rate-based defaults from counter account
-    if (newForm.counter_account_id) {
-      const selectedCounterAcc = accounts.find(a => a.id === newForm.counter_account_id);
+    // VAT defaults from counter account
+    if (row.counter_account_id) {
+      const selectedCounterAcc = accounts.find(a => a.id === row.counter_account_id);
       if (selectedCounterAcc?.default_vat_rate != null && !invoiceDetail && !templateDetail) {
-        newForm.vat_rate = String(selectedCounterAcc.default_vat_rate);
+        row.vat_rate = String(selectedCounterAcc.default_vat_rate);
       }
       if (selectedCounterAcc?.is_35a_relevant) {
-        newForm.is_35a_relevant = true;
+        row.is_35a_relevant = true;
       }
     }
 
-    setFormData(newForm);
+    setFormRows([row]);
+    setExpandedRowId(row.id);
   }, [currentTxn?.id, templateDetail, invoiceDetail, accounts, currentTxn?.ai_suggestion]);
 
-  // Recalculate VAT amount when rate or amount changes
-  useEffect(() => {
-    const amount = parseFloat(formData.amount) || 0;
-    const vatRate = parseFloat(formData.vat_rate) || 0;
-    if (vatRate > 0 && amount > 0 && !invoiceDetail?.vat_amount) {
-      const vatAmount = amount - (amount / (1 + vatRate / 100));
-      setFormData(f => ({ ...f, vat_amount: vatAmount.toFixed(2) }));
-    }
-  }, [formData.amount, formData.vat_rate]);
+  const updateRow = (rowId: string, field: string, value: string | boolean) => {
+    setFormRows(rows => rows.map(r => r.id === rowId ? { ...r, [field]: value } : r));
+  };
 
-  const handleFieldChange = (field: string, value: string | boolean) => {
-    setFormData(f => ({ ...f, [field]: value }));
+  const addRow = () => {
+    const newRow = createDefaultRow({ amount: "0.00" });
+    setFormRows(rows => [...rows, newRow]);
+    setExpandedRowId(newRow.id);
+  };
+
+  const removeRow = (rowId: string) => {
+    setFormRows(rows => rows.filter(r => r.id !== rowId));
+    if (expandedRowId === rowId) setExpandedRowId(null);
   };
 
   const handleEnterNavigation = (e: React.KeyboardEvent, currentField: string) => {
@@ -243,87 +293,103 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         const nextField = FIELD_ORDER[idx + 1];
         const el = fieldRefs.current[nextField];
         if (el) {
-          if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement) {
-            el.focus();
-          } else {
-            // For Select components, find the trigger button
-            const trigger = el.querySelector('button');
-            trigger?.focus();
-          }
+          if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement) el.focus();
+          else el.querySelector('button')?.focus();
         }
       } else if (idx === FIELD_ORDER.length - 1) {
-        // Last field - trigger booking
-        handleBook();
+        // Last field → book this row
+        if (expandedRowId) handleBookRow(expandedRowId);
       }
     }
   };
 
-  const handleBook = useCallback(async () => {
+  const handleBookRow = useCallback(async (rowId: string) => {
     if (!currentTxn || bookingSingle || !user) return;
-    
-    if (!formData.account_id) {
+
+    const row = formRows.find(r => r.id === rowId);
+    if (!row || row.booked) return;
+
+    if (!row.account_id) {
       toast.error("Bitte ein Konto auswählen");
       return;
     }
 
-    setBookingSingle(true);
+    setBookingSingle(rowId);
     try {
-      const amount = parseFloat(formData.amount) || 0;
-      const vatRate = parseFloat(formData.vat_rate) || 0;
-      const vatAmount = parseFloat(formData.vat_amount) || 0;
-      const amount35a = formData.is_35a_relevant && formData.amount_35a ? parseFloat(formData.amount_35a) : null;
+      const amount = parseFloat(row.amount) || 0;
+      const vatRate = parseFloat(row.vat_rate) || 0;
+      const vatAmount = parseFloat(row.vat_amount) || 0;
+      const amount35a = row.is_35a_relevant && row.amount_35a ? parseFloat(row.amount_35a) : null;
+      const totalParts = formRows.length;
+      const partIndex = formRows.findIndex(r => r.id === rowId) + 1;
 
-      // Create booking directly in Supabase
       const { data: booking, error: bookingError } = await supabase.from("bookings").insert({
         building_id: buildingId,
-        account_id: formData.account_id,
-        counter_account_id: formData.counter_account_id || null,
+        account_id: row.account_id,
+        counter_account_id: row.counter_account_id || null,
         amount,
         vat_rate: vatRate,
         vat_amount: vatAmount > 0 ? vatAmount : null,
-        description: formData.description || null,
-        booking_reference: formData.booking_reference || "KI",
-        booking_date: formData.booking_date,
-        receipt_number: formData.receipt_number || null,
-        booking_type: formData.booking_type,
-        fiscal_year: formData.fiscal_year,
-        invoice_id: formData.invoice_id,
-        matched_template_id: formData.matched_template_id,
-        is_35a_relevant: formData.is_35a_relevant,
+        description: row.description || null,
+        booking_reference: row.booking_reference || "KI",
+        booking_date: row.booking_date,
+        receipt_number: row.receipt_number || null,
+        booking_type: row.booking_type,
+        fiscal_year: row.fiscal_year,
+        invoice_id: row.invoice_id,
+        matched_template_id: row.matched_template_id,
+        is_35a_relevant: row.is_35a_relevant,
         amount_35a: amount35a,
         source: "bank_import",
         status: "confirmed",
         confirmed_at: new Date().toISOString(),
         confirmed_by: user.id,
         created_by: user.id,
+        bank_transaction_id: currentTxn.id,
+        split_part: totalParts > 1 ? partIndex : null,
+        split_parts_total: totalParts > 1 ? totalParts : null,
       } as any).select("id").single();
 
       if (bookingError) throw bookingError;
 
-      // Mark transaction as booked
-      await supabase.from("bank_transactions").update({
-        booked_at: new Date().toISOString(),
-        booking_id: booking.id,
-      }).eq("id", currentTxn.id);
+      // Mark this row as booked
+      setFormRows(rows => rows.map(r => r.id === rowId ? { ...r, booked: true } : r));
 
-      setBookedCount(c => c + 1);
-      toast.success("Gebucht ✓", { duration: 1500 });
-      
-      queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
-      queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
-      queryClient.invalidateQueries({ queryKey: ["bookings-pending"] });
-      queryClient.invalidateQueries({ queryKey: ["bookings-confirmed"] });
+      // Check if ALL rows are now booked
+      const updatedRows = formRows.map(r => r.id === rowId ? { ...r, booked: true } : r);
+      const allBooked = updatedRows.every(r => r.booked);
 
-      // Move to next
-      if (currentIndex < transactions.length - 1) {
-        setCurrentIndex(i => i + 1);
+      if (allBooked) {
+        // Mark transaction as booked
+        await supabase.from("bank_transactions").update({
+          booked_at: new Date().toISOString(),
+          booking_id: booking.id,
+        }).eq("id", currentTxn.id);
+
+        setBookedCount(c => c + 1);
+        toast.success(`${totalParts > 1 ? `${totalParts} Buchungen` : "Buchung"} erstellt ✓`, { duration: 1500 });
+
+        queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
+        queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+        queryClient.invalidateQueries({ queryKey: ["bookings-pending"] });
+        queryClient.invalidateQueries({ queryKey: ["bookings-confirmed"] });
+
+        // Move to next
+        if (currentIndex < transactions.length - 1) {
+          setCurrentIndex(i => i + 1);
+        }
+      } else {
+        toast.success("Teilbuchung erstellt ✓", { duration: 1500 });
+        // Expand next unbooked row
+        const nextUnbooked = updatedRows.find(r => !r.booked);
+        if (nextUnbooked) setExpandedRowId(nextUnbooked.id);
       }
     } catch (err: any) {
       toast.error("Fehler: " + (err.message || "Unbekannt"));
     } finally {
-      setBookingSingle(false);
+      setBookingSingle(null);
     }
-  }, [currentTxn, bookingSingle, user, formData, buildingId, currentIndex, transactions.length, queryClient]);
+  }, [currentTxn, bookingSingle, user, formRows, buildingId, currentIndex, transactions.length, queryClient]);
 
   const handleNext = useCallback(() => {
     if (currentIndex < transactions.length - 1) setCurrentIndex(i => i + 1);
@@ -333,15 +399,12 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     if (currentIndex > 0) setCurrentIndex(i => i - 1);
   }, [currentIndex]);
 
-  // Keyboard shortcuts (only when no input is focused)
   useEffect(() => {
     if (!open) return;
     const keyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       const isInput = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.getAttribute("role") === "combobox";
-      
-      if (isInput) return; // Let form fields handle their own events
-      
+      if (isInput) return;
       if (e.key === "ArrowRight") { e.preventDefault(); handleNext(); }
       if (e.key === "ArrowLeft") { e.preventDefault(); handlePrev(); }
     };
@@ -361,13 +424,19 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     return false;
   }, [currentTxn, invoiceDetail, templateDetail]);
 
+  // Sum validation for split bookings
+  const currentTotal = useMemo(() => {
+    return formRows.reduce((sum, row) => sum + (parseFloat(row.amount) || 0), 0);
+  }, [formRows]);
+
+  const isAmountMatching = currentTxn ? Math.abs(currentTotal - Math.abs(currentTxn.amount)) < 0.01 : false;
+
   const progressPercent = transactions.length > 0
     ? ((bookedCount) / (bookedCount + transactions.length)) * 100
     : 100;
 
   useEffect(() => { setCurrentIndex(initialIndex ?? 0); setBookedCount(0); }, [open, initialIndex]);
 
-  // Determine source type for current transaction
   const sourceType = useMemo(() => {
     if (!currentTxn) return "none";
     if (currentTxn.matched_invoice_id) return "invoice";
@@ -375,10 +444,6 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     if (currentTxn.ai_suggestion) return "ai";
     return "manual";
   }, [currentTxn]);
-
-  // Selected account display
-  const selectedAccount = accounts.find(a => a.id === formData.account_id);
-  const selectedCounterAccount = accounts.find(a => a.id === formData.counter_account_id);
 
   if (!open) return null;
 
@@ -423,9 +488,9 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           </div>
         ) : currentTxn ? (
           <div className="flex-1 flex overflow-hidden">
-            {/* Left: Transaction details + Booking mask */}
+            {/* Left: Transaction details + Booking rows */}
             <div className="w-1/2 border-r overflow-y-auto">
-              {/* Transaction summary (compact) */}
+              {/* Transaction summary */}
               <div className="p-4 bg-muted/20 border-b space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -456,196 +521,63 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                 <p className="text-sm">{currentTxn.purpose || "–"}</p>
               </div>
 
-              {/* Amount mismatch warning */}
-              {(templateDetail || invoiceDetail) && !amountMatch && (
-                <div className="mx-4 mt-3 p-3 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 text-sm flex items-start gap-2">
-                  <span className="text-amber-600 dark:text-amber-400 font-medium shrink-0">⚠</span>
-                  <span className="text-amber-800 dark:text-amber-200">
-                    Betrag weicht ab: Erwartet {formatCurrency(invoiceDetail?.gross_amount ?? templateDetail?.expected_amount ?? 0)}, tatsächlich {formatCurrency(Math.abs(currentTxn.amount))} — möglicherweise Sammelzahlung
-                  </span>
+              {/* Sum validation for multi-row */}
+              {formRows.length > 1 && (
+                <div className={cn(
+                  "mx-4 mt-3 p-2 rounded-lg border text-sm flex items-center justify-between",
+                  isAmountMatching
+                    ? "border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-950/30 text-green-800 dark:text-green-200"
+                    : "border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200"
+                )}>
+                  <span>Summe Buchungen: {formatCurrency(currentTotal)}</span>
+                  <span>Transaktion: {formatCurrency(Math.abs(currentTxn.amount))}</span>
+                  {isAmountMatching ? (
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                  ) : (
+                    <span className="font-medium">Δ {formatCurrency(Math.abs(currentTotal - Math.abs(currentTxn.amount)))}</span>
+                  )}
                 </div>
               )}
 
-              {/* Booking mask */}
-              <div className="p-4 space-y-3">
-                <h4 className="text-sm font-semibold text-foreground">Buchung</h4>
-
-                {/* Account (prominent) */}
-                <div ref={el => fieldRefs.current["account_id"] = el}>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Konto</label>
-                  <Select value={formData.account_id} onValueChange={v => handleFieldChange("account_id", v)}>
-                    <SelectTrigger className="h-11 text-base font-medium" onKeyDown={e => handleEnterNavigation(e, "account_id")}>
-                      <SelectValue placeholder="Konto wählen…" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[300px]">
-                      {accounts.filter(a => a.category !== "Bankkonto").map(a => (
-                        <SelectItem key={a.id} value={a.id}>
-                          <span className="font-mono mr-2">{a.account_number}</span>
-                          {a.account_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Booking type buttons + Amount */}
-                <div className="flex items-center gap-2 mb-1">
-                  <label className="text-xs font-medium text-muted-foreground">Typ</label>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={formData.booking_type === "expense" ? "default" : "outline"}
-                    className={cn("h-8 px-3 font-bold", formData.booking_type === "expense" && "bg-destructive hover:bg-destructive/90 text-destructive-foreground")}
-                    onClick={() => handleFieldChange("booking_type", "expense")}
-                  >
-                    − Ausgabe
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={formData.booking_type === "income" ? "default" : "outline"}
-                    className={cn("h-8 px-3 font-bold", formData.booking_type === "income" && "bg-green-600 hover:bg-green-700 text-white")}
-                    onClick={() => handleFieldChange("booking_type", "income")}
-                  >
-                    + Einnahme
+              {/* Booking rows */}
+              <div className="p-4 space-y-2">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-semibold text-foreground">
+                    {formRows.length > 1 ? `Buchungen (${formRows.filter(r => r.booked).length}/${formRows.length})` : "Buchung"}
+                  </h4>
+                  <Button variant="outline" size="sm" onClick={addRow} className="h-7 text-xs">
+                    <Plus className="h-3 w-3 mr-1" /> Buchung
                   </Button>
                 </div>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Betrag (€)</label>
-                  <Input
-                    ref={el => fieldRefs.current["amount"] = el}
-                    className={cn("h-11 text-lg font-bold", formData.booking_type === "income" ? "text-green-600" : "text-destructive")}
-                    value={formData.amount}
-                    onChange={e => handleFieldChange("amount", e.target.value)}
-                    onKeyDown={e => handleEnterNavigation(e, "amount")}
+
+                {formRows.map((row, idx) => (
+                  <BookingRowCard
+                    key={row.id}
+                    row={row}
+                    index={idx}
+                    isExpanded={expandedRowId === row.id}
+                    onToggle={() => setExpandedRowId(expandedRowId === row.id ? null : row.id)}
+                    accounts={accounts}
+                    onUpdateField={(field, value) => updateRow(row.id, field, value)}
+                    onBook={() => handleBookRow(row.id)}
+                    onRemove={formRows.length > 1 ? () => removeRow(row.id) : undefined}
+                    isBooking={bookingSingle === row.id}
+                    fieldRefs={fieldRefs}
+                    handleEnterNavigation={handleEnterNavigation}
+                    formatCurrency={formatCurrency}
                   />
-                  {parseFloat(formData.vat_amount) > 0 && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      davon MwSt: {formatCurrency(parseFloat(formData.vat_amount))} ({formData.vat_rate}%)
-                    </p>
-                  )}
-                </div>
+                ))}
 
-                {/* Counter account (prominent) */}
-                <div ref={el => fieldRefs.current["counter_account_id"] = el}>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Gegenkonto</label>
-                  <Select value={formData.counter_account_id} onValueChange={v => handleFieldChange("counter_account_id", v)}>
-                    <SelectTrigger className="h-11 text-base font-medium" onKeyDown={e => handleEnterNavigation(e, "counter_account_id")}>
-                      <SelectValue placeholder="Gegenkonto wählen…" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[300px]">
-                      {accounts.map(a => (
-                        <SelectItem key={a.id} value={a.id}>
-                          <span className="font-mono mr-2">{a.account_number}</span>
-                          {a.account_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Description */}
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Buchungstext</label>
-                  <Input
-                    ref={el => fieldRefs.current["description"] = el}
-                    className="h-10"
-                    value={formData.description}
-                    onChange={e => handleFieldChange("description", e.target.value)}
-                    onKeyDown={e => handleEnterNavigation(e, "description")}
-                  />
-                </div>
-
-                {/* Compact row: Kürzel, Beleg-Datum, Beleg-Nr, MwSt */}
-                <div className="grid grid-cols-4 gap-2">
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Kürzel</label>
-                    <Input
-                      ref={el => fieldRefs.current["booking_reference"] = el}
-                      className="h-9 text-sm font-mono"
-                      value={formData.booking_reference}
-                      onChange={e => handleFieldChange("booking_reference", e.target.value)}
-                      onKeyDown={e => handleEnterNavigation(e, "booking_reference")}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Beleg-Datum</label>
-                    <Input
-                      ref={el => fieldRefs.current["booking_date"] = el}
-                      type="date"
-                      className="h-9 text-sm"
-                      value={formData.booking_date}
-                      onChange={e => handleFieldChange("booking_date", e.target.value)}
-                      onKeyDown={e => handleEnterNavigation(e, "booking_date")}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Beleg-Nr.</label>
-                    <Input
-                      ref={el => fieldRefs.current["receipt_number"] = el}
-                      className="h-9 text-sm"
-                      value={formData.receipt_number}
-                      onChange={e => handleFieldChange("receipt_number", e.target.value)}
-                      onKeyDown={e => handleEnterNavigation(e, "receipt_number")}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1 block">MwSt %</label>
-                    <Select value={formData.vat_rate} onValueChange={v => handleFieldChange("vat_rate", v)}>
-                      <SelectTrigger 
-                        className="h-9 text-sm"
-                        ref={el => fieldRefs.current["vat_rate"] = el}
-                        onKeyDown={e => handleEnterNavigation(e, "vat_rate")}
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">0%</SelectItem>
-                        <SelectItem value="7">7%</SelectItem>
-                        <SelectItem value="19">19%</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {/* §35a - only shown when relevant */}
-                {(formData.is_35a_relevant || (selectedCounterAccount?.is_35a_relevant)) && (
-                  <div className="p-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 space-y-2">
-                    <div className="flex items-center gap-3">
-                      <Checkbox
-                        checked={formData.is_35a_relevant}
-                        onCheckedChange={v => handleFieldChange("is_35a_relevant", !!v)}
-                      />
-                      <label className="text-sm font-medium">§35a-relevant</label>
-                    </div>
-                    {formData.is_35a_relevant && (
-                      <div>
-                        <label className="text-xs font-medium text-muted-foreground mb-1 block">Lohnanteil (€)</label>
-                        <Input
-                          className="h-9 w-40 text-sm"
-                          placeholder="0,00"
-                          value={formData.amount_35a}
-                          onChange={e => handleFieldChange("amount_35a", e.target.value)}
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Action buttons */}
-                <div className="flex items-center gap-2 pt-2">
-                  <Button onClick={handleBook} disabled={bookingSingle || !formData.account_id} className="flex-1 h-11">
-                    {bookingSingle ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
-                    Buchen & Weiter
-                  </Button>
-                  <Button variant="outline" onClick={handleNext} disabled={currentIndex >= transactions.length - 1}>
+                {/* Skip button */}
+                <div className="pt-2">
+                  <Button variant="outline" size="sm" onClick={handleNext} disabled={currentIndex >= transactions.length - 1} className="w-full">
                     Überspringen <ArrowRight className="h-4 w-4 ml-1" />
                   </Button>
                 </div>
               </div>
             </div>
 
-            {/* Right: PDF or Template details */}
+            {/* Right: PDF or Template/AI details */}
             <div className="w-1/2 flex flex-col overflow-hidden">
               {invoiceDetail ? (
                 <>
@@ -748,6 +680,219 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         ) : null}
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ─── Collapsible Booking Row Card ──────────────────────────────────────────────
+
+function BookingRowCard({
+  row, index, isExpanded, onToggle, accounts, onUpdateField, onBook, onRemove,
+  isBooking, fieldRefs, handleEnterNavigation, formatCurrency,
+}: {
+  row: BookingRowData;
+  index: number;
+  isExpanded: boolean;
+  onToggle: () => void;
+  accounts: any[];
+  onUpdateField: (field: string, value: string | boolean) => void;
+  onBook: () => void;
+  onRemove?: () => void;
+  isBooking: boolean;
+  fieldRefs: React.MutableRefObject<Record<string, HTMLElement | null>>;
+  handleEnterNavigation: (e: React.KeyboardEvent, field: string) => void;
+  formatCurrency: (amount: number | null) => string;
+}) {
+  const counterAccount = accounts.find((a: any) => a.id === row.counter_account_id);
+  const selectedCounterAccount = counterAccount;
+
+  // Auto-calculate VAT when amount/rate changes
+  useEffect(() => {
+    const amount = parseFloat(row.amount) || 0;
+    const vatRate = parseFloat(row.vat_rate) || 0;
+    if (vatRate > 0 && amount > 0) {
+      const vatAmount = amount - (amount / (1 + vatRate / 100));
+      onUpdateField("vat_amount", vatAmount.toFixed(2));
+    }
+  }, [row.amount, row.vat_rate]);
+
+  return (
+    <Collapsible open={isExpanded && !row.booked} onOpenChange={() => !row.booked && onToggle()}>
+      <div className={cn(
+        "rounded-lg border transition-colors",
+        row.booked
+          ? "bg-green-50 dark:bg-green-950/20 border-green-300 dark:border-green-700"
+          : isExpanded
+            ? "border-primary bg-background"
+            : "border-border bg-muted/30 hover:bg-muted/50"
+      )}>
+        <CollapsibleTrigger asChild>
+          <button
+            className="w-full flex items-center justify-between px-3 py-2.5 text-left"
+            disabled={row.booked}
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              {row.booked ? (
+                <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
+              ) : isExpanded ? (
+                <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+              )}
+              <span className="text-sm font-medium truncate">
+                {index + 1}. {row.description || "Buchung"}
+              </span>
+              {counterAccount && (
+                <Badge variant="outline" className="text-[10px] shrink-0">
+                  {counterAccount.account_number}
+                </Badge>
+              )}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className={cn("text-sm font-bold", row.booking_type === "income" ? "text-green-600" : "text-destructive")}>
+                {row.booking_type === "income" ? "+" : "−"}{formatCurrency(parseFloat(row.amount) || 0)}
+              </span>
+              {onRemove && !row.booked && (
+                <button
+                  onClick={e => { e.stopPropagation(); onRemove(); }}
+                  className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+          </button>
+        </CollapsibleTrigger>
+
+        <CollapsibleContent>
+          <div className="px-3 pb-3 space-y-3 border-t pt-3">
+            {/* Account */}
+            <div ref={el => fieldRefs.current["account_id"] = el}>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Konto</label>
+              <Select value={row.account_id} onValueChange={v => onUpdateField("account_id", v)}>
+                <SelectTrigger className="h-9 text-sm" onKeyDown={e => handleEnterNavigation(e, "account_id")}>
+                  <SelectValue placeholder="Konto wählen…" />
+                </SelectTrigger>
+                <SelectContent className="max-h-[300px]">
+                  {accounts.filter((a: any) => a.category !== "Bankkonto").map((a: any) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      <span className="font-mono mr-2">{a.account_number}</span>{a.account_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Type + Amount */}
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-medium text-muted-foreground">Typ</label>
+              <Button type="button" size="sm" variant={row.booking_type === "expense" ? "default" : "outline"}
+                className={cn("h-7 px-2 text-xs font-bold", row.booking_type === "expense" && "bg-destructive hover:bg-destructive/90 text-destructive-foreground")}
+                onClick={() => onUpdateField("booking_type", "expense")}>− Ausgabe</Button>
+              <Button type="button" size="sm" variant={row.booking_type === "income" ? "default" : "outline"}
+                className={cn("h-7 px-2 text-xs font-bold", row.booking_type === "income" && "bg-green-600 hover:bg-green-700 text-white")}
+                onClick={() => onUpdateField("booking_type", "income")}>+ Einnahme</Button>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Betrag (€)</label>
+              <Input ref={el => fieldRefs.current["amount"] = el}
+                className={cn("h-9 text-sm font-bold", row.booking_type === "income" ? "text-green-600" : "text-destructive")}
+                value={row.amount} onChange={e => onUpdateField("amount", e.target.value)}
+                onKeyDown={e => handleEnterNavigation(e, "amount")} />
+              {parseFloat(row.vat_amount) > 0 && (
+                <p className="text-xs text-muted-foreground mt-1">davon MwSt: {formatCurrency(parseFloat(row.vat_amount))} ({row.vat_rate}%)</p>
+              )}
+            </div>
+
+            {/* Counter account */}
+            <div ref={el => fieldRefs.current["counter_account_id"] = el}>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Gegenkonto</label>
+              <Select value={row.counter_account_id} onValueChange={v => onUpdateField("counter_account_id", v)}>
+                <SelectTrigger className="h-9 text-sm" onKeyDown={e => handleEnterNavigation(e, "counter_account_id")}>
+                  <SelectValue placeholder="Gegenkonto wählen…" />
+                </SelectTrigger>
+                <SelectContent className="max-h-[300px]">
+                  {accounts.map((a: any) => (
+                    <SelectItem key={a.id} value={a.id}>
+                      <span className="font-mono mr-2">{a.account_number}</span>{a.account_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Description */}
+            <div>
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Buchungstext</label>
+              <Input ref={el => fieldRefs.current["description"] = el} className="h-9 text-sm"
+                value={row.description} onChange={e => onUpdateField("description", e.target.value)}
+                onKeyDown={e => handleEnterNavigation(e, "description")} />
+            </div>
+
+            {/* Compact row */}
+            <div className="grid grid-cols-4 gap-2">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Kürzel</label>
+                <Input ref={el => fieldRefs.current["booking_reference"] = el}
+                  className="h-8 text-xs font-mono" value={row.booking_reference}
+                  onChange={e => onUpdateField("booking_reference", e.target.value)}
+                  onKeyDown={e => handleEnterNavigation(e, "booking_reference")} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Beleg-Datum</label>
+                <Input ref={el => fieldRefs.current["booking_date"] = el}
+                  type="date" className="h-8 text-xs" value={row.booking_date}
+                  onChange={e => onUpdateField("booking_date", e.target.value)}
+                  onKeyDown={e => handleEnterNavigation(e, "booking_date")} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Beleg-Nr.</label>
+                <Input ref={el => fieldRefs.current["receipt_number"] = el}
+                  className="h-8 text-xs" value={row.receipt_number}
+                  onChange={e => onUpdateField("receipt_number", e.target.value)}
+                  onKeyDown={e => handleEnterNavigation(e, "receipt_number")} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">MwSt %</label>
+                <Select value={row.vat_rate} onValueChange={v => onUpdateField("vat_rate", v)}>
+                  <SelectTrigger className="h-8 text-xs" ref={el => fieldRefs.current["vat_rate"] = el}
+                    onKeyDown={e => handleEnterNavigation(e, "vat_rate")}>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">0%</SelectItem>
+                    <SelectItem value="7">7%</SelectItem>
+                    <SelectItem value="19">19%</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* §35a */}
+            {(row.is_35a_relevant || selectedCounterAccount?.is_35a_relevant) && (
+              <div className="p-2 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 space-y-2">
+                <div className="flex items-center gap-3">
+                  <Checkbox checked={row.is_35a_relevant} onCheckedChange={v => onUpdateField("is_35a_relevant", !!v)} />
+                  <label className="text-xs font-medium">§35a-relevant</label>
+                </div>
+                {row.is_35a_relevant && (
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Lohnanteil (€)</label>
+                    <Input className="h-8 w-32 text-xs" placeholder="0,00" value={row.amount_35a}
+                      onChange={e => onUpdateField("amount_35a", e.target.value)} />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Book button */}
+            <Button onClick={onBook} disabled={isBooking || !row.account_id} className="w-full h-9 text-sm">
+              {isBooking ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
+              Buchen
+            </Button>
+          </div>
+        </CollapsibleContent>
+      </div>
+    </Collapsible>
   );
 }
 
