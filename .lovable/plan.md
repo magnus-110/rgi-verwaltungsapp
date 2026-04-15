@@ -1,51 +1,60 @@
 
 
-## Plan: Wirtschaftsjahr-Erkennung & Abgrenzungshinweise in der KI-Analyse
+## Plan: Zwei Tabs auf der rechten Seite — Analyse & Zuordnung
 
 ### Konzept
 
-Die KI soll bei der Transaktionsanalyse automatisch erkennen, in welches Wirtschaftsjahr eine Buchung gehört, und warnen, wenn eine Abgrenzungsbuchung nötig ist. Die Logik basiert auf drei Datenpunkten:
+Die rechte Seite des Prüfmodus bekommt zwei Tabs:
+1. **Analyse** — Zeigt wie bisher: Rechnungs-PDF, Vorlagendetails oder KI-Analyse
+2. **Zuordnung** — Neue Ansicht zum Verknüpfen mit Rechnungen oder Vorlagen, mit KI-Ranking
 
-1. **Kontoauszugsdatum** (`booking_date` der Transaktion)
-2. **Rechnungsdatum** (falls eine Rechnung zugeordnet wurde)
-3. **Leistungszeitraum** (falls aus Rechnung/Verwendungszweck erkennbar)
+### Änderungen in `TransactionReviewMode.tsx`
 
-### Regeln
+#### Rechte Seite: Tabs-Struktur
 
-- **Standard**: `fiscal_year` = Jahr des Kontoauszugsdatums (bereits so implementiert)
-- **Abgrenzung nötig** wenn:
-  - Rechnungsdatum in anderem Jahr als Kontoauszugsdatum
-  - Leistungszeitraum übergreift Jahresgrenzen (z.B. Versicherung 07/2024–06/2025)
-- Die KI liefert einen neuen `fiscal_year_hint` mit Begründung
+- Import `Tabs, TabsList, TabsTrigger, TabsContent` aus `@/components/ui/tabs`
+- Die rechte Hälfte (`w-1/2`) wird in eine `Tabs`-Komponente gewickelt mit Tabs `analyse` und `zuordnung`
+- **Tab "Analyse"**: Enthält den bisherigen Inhalt (Rechnungs-PDF, Vorlagendetails, KI-Analyse, oder "Kein Beleg")
+- **Tab "Zuordnung"**: Neuer Inhalt (siehe unten)
 
-### Änderungen
+#### Tab "Zuordnung" — Inhalt
 
-#### 1. `suggest-match` Edge Function — `fiscal_year_hint` hinzufügen
+**Zwei Sektionen: Rechnungen & Vorlagen**
 
-Erweiterung des System-Prompts:
-- KI soll prüfen, ob Kontoauszugsdatum und Verwendungszweck/Rechnungsdatum auf unterschiedliche Wirtschaftsjahre hindeuten
-- Neues Tool-Feld `fiscal_year_hint` mit: `fiscal_year` (empfohlenes Jahr), `needs_accrual` (boolean), `accrual_explanation` (Begründung), `service_period_from`/`service_period_to`
+1. **Rechnungen-Sektion**
+   - Neuer Query: Alle Rechnungen des Gebäudes laden (`invoices` Tabelle, `building_id`)
+   - Toggle "Bereits zugeordnete anzeigen" — filtert Rechnungen mit `status = 'paid'` ein/aus
+   - KI-Ranking: Aus `ai_suggestion.matches` die Invoice-Matches extrahieren und oben als "Empfohlen" anzeigen
+   - Jede Rechnung als kompakte Zeile: Lieferant, Betrag, Datum, Re-Nr, 1-Satz-Begründung aus dem KI-Match
+   - Klick auf eine Rechnung → setzt `invoice_id` und `matched_invoice_id` in der aktuellen Buchungszeile und auf der Transaktion
 
-Erweiterung des Tool-Schemas um ein neues optionales Feld in `suggest_matches`.
+2. **Vorlagen-Sektion**
+   - Bestehende Templates des Gebäudes laden (query existiert bereits teilweise)
+   - KI-Ranking: Aus `ai_suggestion.matches` die Template-Matches extrahieren und oben als "Empfohlen" anzeigen
+   - Jede Vorlage als kompakte Zeile: Name, Lieferant, Betrag, Intervall, 1-Satz-Begründung
+   - Klick → setzt `matched_template_id` in der Buchungszeile und füllt Konto/MwSt vor
 
-#### 2. `TransactionReviewMode.tsx` — Wirtschaftsjahr-Feld editierbar machen + Hinweis
+3. **KI-Vorschläge hervorheben**
+   - Matches aus `ai_suggestion.matches` werden nach Score sortiert
+   - Top-Vorschläge bekommen ein Badge "Empfohlen" + Score-Prozent
+   - Die 1-Satz-Begründung kommt aus `match.reason` (bereits von der KI geliefert)
 
-- **Wirtschaftsjahr-Feld** sichtbar im Buchungsformular (aktuell fehlt es im UI, wird nur intern gesetzt)
-- Wenn `ai_suggestion.fiscal_year_hint` vorhanden:
-  - Warnung anzeigen (gelbes Banner) mit der KI-Begründung
-  - Auto-Fill des `fiscal_year`-Felds aus dem KI-Vorschlag
-  - Bei `needs_accrual=true`: Hinweis "Abgrenzungsbuchung empfohlen" mit Erklärung
-- Feld bleibt manuell änderbar
+#### State-Erweiterungen
 
-#### 3. `useTransactionAiPrefetch.ts` — Rechnungsdatum mitsenden
+- `activeRightTab`: `"analyse" | "zuordnung"` — Default `"analyse"`
+- `showAssignedInvoices`: boolean Toggle
+- Neuer Query für alle Rechnungen des Gebäudes
 
-Wenn die Transaktion eine gematchte Rechnung hat (`matched_invoice_id`), das `invoice_date` der Rechnung im Request an `suggest-match` mitsenden, damit die KI den Vergleich machen kann. Die Rechnungsdaten werden bereits geladen (`invoices`), also nur noch das Datum an die passende Transaktion anhängen.
+#### Zuordnungs-Logik
+
+Wenn eine Rechnung/Vorlage ausgewählt wird:
+- Die aktuelle `formRow` wird aktualisiert (`invoice_id`, `matched_template_id`, Konto, Beschreibung, MwSt)
+- Die Transaktion wird per Update in `bank_transactions` aktualisiert (`matched_invoice_id` / `matched_template_id`)
+- Der Analyse-Tab aktualisiert sich automatisch (da der Query-Key sich ändert)
 
 ### Dateien
 
 | Datei | Änderung |
 |-------|----------|
-| `supabase/functions/suggest-match/index.ts` | Neues `fiscal_year_hint`-Feld im Tool-Schema + Prompt-Erweiterung |
-| `src/components/finance/TransactionReviewMode.tsx` | Wirtschaftsjahr-Feld im Formular + Abgrenzungs-Warnung |
-| `src/hooks/useTransactionAiPrefetch.ts` | Rechnungsdatum an Transaktion anhängen |
+| `TransactionReviewMode.tsx` | Tabs-Struktur rechts, Zuordnungs-Tab mit Rechnungs-/Vorlagenliste, KI-Ranking, Toggle |
 
