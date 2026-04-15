@@ -188,7 +188,7 @@ function PurposeEditCopyField({ label, value, onSave, mono }: { label: string; v
         title="Klicken zum Bearbeiten"
       >
         <p className="text-xs text-muted-foreground mb-0.5">{label}</p>
-        <p className="text-lg font-semibold break-all">{value || "–"}</p>
+        <p className={`text-lg font-semibold break-all ${mono ? "font-mono text-base" : ""}`}>{value || "–"}</p>
       </div>
       {value && value !== "–" && (
         <Button variant="ghost" size="sm" className="shrink-0 h-8 w-8 p-0 mt-3" onClick={handleCopy}>
