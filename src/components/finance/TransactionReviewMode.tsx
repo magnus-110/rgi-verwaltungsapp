@@ -567,9 +567,14 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30 shrink-0">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
-              <X className="h-4 w-4 mr-1" /> Schließen
-            </Button>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">Enter</kbd>
+              <span className="text-[11px]">Nächstes Feld</span>
+              <span className="mx-1 text-border">|</span>
+              <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">←</kbd>
+              <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">→</kbd>
+              <span className="text-[11px]">Nav</span>
+            </div>
             <Separator orientation="vertical" className="h-6" />
             <span className="text-sm font-medium">
               {transactions.length > 0 ? currentIndex + 1 : 0} / {transactions.length}
@@ -583,14 +588,9 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
             <Separator orientation="vertical" className="h-6" />
             <Progress value={progressPercent} className="w-32 h-2" />
           </div>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">Enter</kbd>
-            <span className="text-[11px]">Nächstes Feld</span>
-            <span className="mx-1 text-border">|</span>
-            <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">←</kbd>
-            <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">→</kbd>
-            <span className="text-[11px]">Nav</span>
-          </div>
+          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+            <X className="h-4 w-4 mr-1" /> Schließen
+          </Button>
         </div>
 
         {transactions.length === 0 ? (
@@ -1696,7 +1696,7 @@ function AssignmentTabContent({
       )}
 
       {/* Inner tabs: Rechnungen / Vorlagen */}
-      <Tabs value={assignTab} onValueChange={setAssignTab} className="flex-1 flex flex-col overflow-hidden">
+      <Tabs value={assignTab} onValueChange={setAssignTab}>
         <TabsList variant="pill" className="grid w-full grid-cols-2 shrink-0">
           <TabsTrigger variant="pill" value="rechnungen">
             <FileText className="h-3.5 w-3.5 mr-1" />
