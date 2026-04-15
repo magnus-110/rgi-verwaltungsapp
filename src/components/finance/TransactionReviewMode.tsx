@@ -175,7 +175,40 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     enabled: open && !!ibanToMatch,
   });
 
-  useEffect(() => {
+  // All invoices for the building (for Zuordnung tab)
+  const { data: allInvoices = [] } = useQuery({
+    queryKey: ["all-invoices-building", buildingId, showAssignedInvoices],
+    queryFn: async () => {
+      let query = supabase
+        .from("invoices")
+        .select("id, invoice_number, vendor_name, gross_amount, invoice_date, status, vendor_iban, file_path")
+        .eq("building_id", buildingId)
+        .order("invoice_date", { ascending: false })
+        .limit(300);
+      if (!showAssignedInvoices) {
+        query = query.neq("status", "paid");
+      }
+      const { data } = await query;
+      return data || [];
+    },
+    enabled: open && !!buildingId && activeRightTab === "zuordnung",
+  });
+
+  // All templates for the building (for Zuordnung tab)
+  const { data: allTemplates = [] } = useQuery({
+    queryKey: ["all-templates-building", buildingId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("booking_templates")
+        .select("id, name, vendor_name, expected_amount, interval, account_id, vat_rate, is_35a_relevant, vendor_iban, chart_of_accounts(account_number, account_name)")
+        .eq("building_id", buildingId)
+        .order("name");
+      return data || [];
+    },
+    enabled: open && !!buildingId && activeRightTab === "zuordnung",
+  });
+
+
     setPdfUrl(null);
     if (!invoiceDetail?.file_path) return;
     const loadPdf = async () => {
