@@ -317,6 +317,18 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       }
     }
 
+    // Fiscal year hint from AI
+    if (aiSuggestion?.fiscal_year_hint) {
+      const hint = aiSuggestion.fiscal_year_hint;
+      if (hint.fiscal_year) row.fiscal_year = hint.fiscal_year;
+      row.accrualHint = {
+        needs_accrual: hint.needs_accrual || false,
+        accrual_explanation: hint.accrual_explanation || "",
+        service_period_from: hint.service_period_from,
+        service_period_to: hint.service_period_to,
+      };
+    }
+
     // VAT defaults from counter account
     if (row.counter_account_id) {
       const selectedCounterAcc = accounts.find(a => a.id === row.counter_account_id);
