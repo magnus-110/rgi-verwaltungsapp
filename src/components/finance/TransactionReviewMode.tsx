@@ -235,6 +235,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     return date.getFullYear();
   }, [billingPeriods]);
 
+  useEffect(() => {
     setPdfUrl(null);
     if (!invoiceDetail?.file_path) return;
     const loadPdf = async () => {
