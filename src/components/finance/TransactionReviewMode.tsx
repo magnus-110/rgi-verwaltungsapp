@@ -1067,11 +1067,11 @@ function TemplateSuggestionCard({
   const updateField = (field: string, value: string) => setForm(f => ({ ...f, [field]: value }));
 
   return (
-    <div className="p-3 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20 space-y-3">
+    <div className="p-4 rounded-lg border bg-card space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <PackagePlus className="h-4 w-4 text-blue-600" />
-          <p className="text-sm font-medium text-blue-800 dark:text-blue-200">Neue Vorlage vorgeschlagen</p>
+          <PackagePlus className="h-4 w-4 text-primary" />
+          <p className="text-sm font-semibold">Neue Vorlage vorgeschlagen</p>
         </div>
         {!created && (
           <Button variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setEditing(!editing)}>
@@ -1082,35 +1082,39 @@ function TemplateSuggestionCard({
 
       {/* AI reasoning */}
       {suggestion.description && (
-        <div className="p-2.5 rounded-md bg-blue-100/60 dark:bg-blue-900/30 border border-blue-200/50 dark:border-blue-700/50">
+        <div className="p-3 rounded-md bg-muted/60 border">
           <div className="flex items-start gap-2">
-            <Sparkles className="h-3.5 w-3.5 text-blue-600 mt-0.5 shrink-0" />
+            <Sparkles className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
             <div>
-              <p className="text-[11px] font-medium text-blue-700 dark:text-blue-300 mb-0.5">KI-Begründung</p>
-              <p className="text-xs text-blue-800 dark:text-blue-200 leading-relaxed">{suggestion.description}</p>
+              <p className="text-[11px] font-medium text-muted-foreground mb-0.5">Begründung</p>
+              <p className="text-xs leading-relaxed">{suggestion.description}</p>
             </div>
           </div>
         </div>
       )}
 
       {editing ? (
-        <div className="space-y-2">
-          <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-[10px] text-muted-foreground">Name</label>
-              <Input className="h-7 text-xs" value={form.name} onChange={e => updateField("name", e.target.value)} />
+              <label className="text-[11px] text-muted-foreground">Name</label>
+              <Input className="h-8 text-xs" value={form.name} onChange={e => updateField("name", e.target.value)} />
             </div>
             <div>
-              <label className="text-[10px] text-muted-foreground">Lieferant</label>
-              <Input className="h-7 text-xs" value={form.vendor_name} onChange={e => updateField("vendor_name", e.target.value)} />
+              <label className="text-[11px] text-muted-foreground">Lieferant</label>
+              <Input className="h-8 text-xs" value={form.vendor_name} onChange={e => updateField("vendor_name", e.target.value)} />
             </div>
             <div>
-              <label className="text-[10px] text-muted-foreground">Betrag (€)</label>
-              <Input className="h-7 text-xs" type="number" step="0.01" value={form.expected_amount} onChange={e => updateField("expected_amount", e.target.value)} />
+              <label className="text-[11px] text-muted-foreground">Betrag (€)</label>
+              <Input className="h-8 text-xs" type="number" step="0.01" value={form.expected_amount} onChange={e => updateField("expected_amount", e.target.value)} />
             </div>
             <div>
-              <label className="text-[10px] text-muted-foreground">Intervall</label>
-              <select className="h-7 w-full text-xs rounded-md border border-input bg-background px-2" value={form.interval} onChange={e => updateField("interval", e.target.value)}>
+              <label className="text-[11px] text-muted-foreground">Toleranz (± €)</label>
+              <Input className="h-8 text-xs" type="number" step="0.01" value={form.amount_tolerance} onChange={e => updateField("amount_tolerance", e.target.value)} />
+            </div>
+            <div>
+              <label className="text-[11px] text-muted-foreground">Intervall</label>
+              <select className="h-8 w-full text-xs rounded-md border border-input bg-background px-2" value={form.interval} onChange={e => updateField("interval", e.target.value)}>
                 <option value="">—</option>
                 <option value="monatlich">monatlich</option>
                 <option value="quartalsweise">quartalsweise</option>
@@ -1118,26 +1122,27 @@ function TemplateSuggestionCard({
                 <option value="jährlich">jährlich</option>
               </select>
             </div>
+            <div>
+              <label className="text-[11px] text-muted-foreground">Gegenkonto</label>
+              <select className="h-8 w-full text-xs rounded-md border border-input bg-background px-2" value={form.account_number} onChange={e => updateField("account_number", e.target.value)}>
+                <option value="">— Konto wählen —</option>
+                {accounts.map((a: any) => (
+                  <option key={a.id} value={a.account_number}>{a.account_number} – {a.account_name}</option>
+                ))}
+              </select>
+            </div>
           </div>
           <div>
-            <label className="text-[10px] text-muted-foreground">IBAN</label>
-            <Input className="h-7 text-xs font-mono" value={form.vendor_iban} onChange={e => updateField("vendor_iban", e.target.value)} />
-          </div>
-          <div>
-            <label className="text-[10px] text-muted-foreground">Gegenkonto</label>
-            <select className="h-7 w-full text-xs rounded-md border border-input bg-background px-2" value={form.account_number} onChange={e => updateField("account_number", e.target.value)}>
-              <option value="">— Konto wählen —</option>
-              {accounts.map((a: any) => (
-                <option key={a.id} value={a.account_number}>{a.account_number} – {a.account_name}</option>
-              ))}
-            </select>
+            <label className="text-[11px] text-muted-foreground">IBAN</label>
+            <Input className="h-8 text-xs font-mono" value={form.vendor_iban} onChange={e => updateField("vendor_iban", e.target.value)} />
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-2 text-xs">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
           <div><span className="text-muted-foreground">Name:</span> <span className="font-medium">{form.name}</span></div>
           {form.vendor_name && <div><span className="text-muted-foreground">Lieferant:</span> <span className="font-medium">{form.vendor_name}</span></div>}
           {form.expected_amount && <div><span className="text-muted-foreground">Betrag:</span> <span className="font-medium">{formatCurrency(parseFloat(form.expected_amount))}</span></div>}
+          {form.amount_tolerance && <div><span className="text-muted-foreground">Toleranz:</span> <span className="font-medium">± {form.amount_tolerance} €</span></div>}
           {form.interval && <div><span className="text-muted-foreground">Intervall:</span> <span className="font-medium">{form.interval}</span></div>}
           {form.account_number && <div><span className="text-muted-foreground">Konto:</span> <span className="font-medium">{form.account_number}</span></div>}
           {form.vendor_iban && <div className="col-span-2"><span className="text-muted-foreground">IBAN:</span> <span className="font-mono font-medium text-[11px]">{form.vendor_iban}</span></div>}
@@ -1146,7 +1151,7 @@ function TemplateSuggestionCard({
 
       <Button
         size="sm"
-        className="w-full h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white"
+        className="w-full h-9 text-xs"
         onClick={handleCreate}
         disabled={creating || created || !form.name}
       >
