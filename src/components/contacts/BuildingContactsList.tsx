@@ -377,6 +377,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
             building_id: buildingId,
             category: "0. Personenkonten",
             sort_order: numericSort,
+            default_vat_rate: 0,
           })
           .select("id")
           .single();
