@@ -859,7 +859,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                 </TabsContent>
 
                 {/* ── Tab: Zuordnung ── */}
-                <TabsContent value="zuordnung" className="flex-1 overflow-y-auto mt-0 p-4 space-y-6">
+                <TabsContent value="zuordnung" className="flex-1 overflow-y-auto mt-0 p-4">
                   <AssignmentTabContent
                     currentTxn={currentTxn}
                     allInvoices={allInvoices}
@@ -1686,7 +1686,7 @@ function AssignmentTabContent({
   const hasAnyRecommendation = invoiceRecommendations > 0 || templateRecommendations > 0;
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="space-y-4">
       {/* No recommendations hint */}
       {!hasAnyRecommendation && (
         <div className="flex items-center gap-2 p-3 mb-3 rounded-lg border border-orange-200 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-950/20 text-sm text-orange-700 dark:text-orange-300">
