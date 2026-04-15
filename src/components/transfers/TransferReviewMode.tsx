@@ -141,7 +141,7 @@ function InlineEditField({ label, value, onSave, type = "text", mono }: {
   );
 }
 
-function PurposeEditCopyField({ label, value, onSave }: { label: string; value: string; onSave: (val: string) => void }) {
+function PurposeEditCopyField({ label, value, onSave, mono }: { label: string; value: string; onSave: (val: string) => void; mono?: boolean }) {
   const [editing, setEditing] = useState(false);
   const [editVal, setEditVal] = useState(value);
   const [copied, setCopied] = useState(false);
