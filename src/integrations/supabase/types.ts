@@ -453,6 +453,7 @@ export type Database = {
           ai_warning: string | null
           amount: number
           amount_35a: number | null
+          bank_transaction_id: string | null
           booking_category: string | null
           booking_date: string
           booking_reference: string | null
@@ -487,6 +488,7 @@ export type Database = {
           ai_warning?: string | null
           amount: number
           amount_35a?: number | null
+          bank_transaction_id?: string | null
           booking_category?: string | null
           booking_date: string
           booking_reference?: string | null
@@ -521,6 +523,7 @@ export type Database = {
           ai_warning?: string | null
           amount?: number
           amount_35a?: number | null
+          bank_transaction_id?: string | null
           booking_category?: string | null
           booking_date?: string
           booking_reference?: string | null
@@ -556,6 +559,13 @@ export type Database = {
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_bank_transaction_id_fkey"
+            columns: ["bank_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "bank_transactions"
             referencedColumns: ["id"]
           },
           {
