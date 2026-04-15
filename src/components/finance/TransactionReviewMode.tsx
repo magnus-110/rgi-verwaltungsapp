@@ -190,7 +190,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       const { data } = await query;
       return data || [];
     },
-    enabled: open && !!buildingId && activeRightTab === "zuordnung",
+    enabled: open && !!buildingId,
   });
 
   // All templates for the building (for Zuordnung tab)
@@ -204,7 +204,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         .order("name");
       return data || [];
     },
-    enabled: open && !!buildingId && activeRightTab === "zuordnung",
+    enabled: open && !!buildingId,
   });
 
 
@@ -548,7 +548,6 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     : 100;
 
   useEffect(() => { setCurrentIndex(initialIndex ?? 0); setBookedCount(0); }, [open, initialIndex]);
-  useEffect(() => { setActiveRightTab("analyse"); }, [currentIndex]);
 
   const sourceType = useMemo(() => {
     if (!currentTxn) return "none";
