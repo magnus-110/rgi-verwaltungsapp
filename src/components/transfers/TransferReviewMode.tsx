@@ -141,6 +141,64 @@ function InlineEditField({ label, value, onSave, type = "text", mono }: {
   );
 }
 
+function PurposeEditCopyField({ label, value, onSave }: { label: string; value: string; onSave: (val: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [editVal, setEditVal] = useState(value);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => { setEditVal(value); }, [value]);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  if (editing) {
+    return (
+      <div className="py-2">
+        <p className="text-xs text-muted-foreground mb-1">{label}</p>
+        <div className="flex items-center gap-2">
+          <Input
+            value={editVal}
+            onChange={e => setEditVal(e.target.value)}
+            className="h-8 text-sm"
+            autoFocus
+            onKeyDown={e => {
+              if (e.key === "Escape") { setEditing(false); setEditVal(value); }
+              if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); onSave(editVal); setEditing(false); }
+            }}
+          />
+          <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => { onSave(editVal); setEditing(false); }}>
+            <Save className="h-3.5 w-3.5" />
+          </Button>
+          <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => { setEditing(false); setEditVal(value); }}>
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-start justify-between gap-3 py-2">
+      <div
+        className="min-w-0 flex-1 cursor-pointer rounded px-1 -mx-1 hover:bg-muted/80 transition-colors"
+        onClick={() => { setEditVal(value); setEditing(true); }}
+        title="Klicken zum Bearbeiten"
+      >
+        <p className="text-xs text-muted-foreground mb-0.5">{label}</p>
+        <p className="text-lg font-semibold break-all">{value || "–"}</p>
+      </div>
+      {value && value !== "–" && (
+        <Button variant="ghost" size="sm" className="shrink-0 h-8 w-8 p-0 mt-3" onClick={handleCopy}>
+          {copied ? <CheckCircle className="h-4 w-4 text-primary" /> : <Copy className="h-4 w-4" />}
+        </Button>
+      )}
+    </div>
+  );
+
+
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between text-sm">
