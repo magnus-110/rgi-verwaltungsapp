@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 const BATCH_SIZE = 5;
@@ -18,11 +18,26 @@ export function useTransactionAiPrefetch(
   const abortRef = useRef(false);
   const runningRef = useRef(false);
 
+  // Stable dependency: sorted IDs of transactions needing AI analysis
+  const transactionIds = useMemo(() => {
+    if (!enabled || !buildingId) return "";
+    return transactions
+      .filter((t: any) => !t.ai_suggestion && !t.booked_at)
+      .map((t: any) => t.id)
+      .sort()
+      .join(",");
+  }, [transactions, enabled, buildingId]);
+
   useEffect(() => {
-    if (!enabled || !buildingId || runningRef.current) return;
+    if (!enabled || !buildingId || !transactionIds) {
+      setState({ total: 0, completed: 0, running: false });
+      return;
+    }
+
+    if (runningRef.current) return;
 
     const unmatchedWithoutSuggestion = transactions.filter(
-      (t: any) => (t.match_status === "unmatched" || t.match_status === "invoice_pending") && !t.ai_suggestion && !t.booked_at
+      (t: any) => !t.ai_suggestion && !t.booked_at
     );
 
     if (unmatchedWithoutSuggestion.length === 0) {
@@ -78,17 +93,66 @@ export function useTransactionAiPrefetch(
         const batch = unmatchedWithoutSuggestion.slice(i, i + BATCH_SIZE);
         const promises = batch.map(async (txn: any) => {
           try {
+            // Load historical bookings for this creditor/debtor
+            const txnIban = txn.amount < 0 ? txn.creditor_iban : txn.debtor_iban;
+            const txnName = txn.amount < 0 ? txn.creditor_name : txn.debtor_name;
+            let historicalBookings: any[] = [];
+
+            if (txnIban || txnName) {
+              // Find matching transactions by IBAN or name to get booking history
+              let query = supabase.from("bank_transactions")
+                .select("id, amount, booking_date, booked_at, booking_id")
+                .eq("building_id", buildingId)
+                .not("booked_at", "is", null)
+                .order("booking_date", { ascending: false })
+                .limit(20);
+
+              if (txnIban) {
+                if (txn.amount < 0) {
+                  query = query.eq("creditor_iban", txnIban);
+                } else {
+                  query = query.eq("debtor_iban", txnIban);
+                }
+              } else if (txnName) {
+                if (txn.amount < 0) {
+                  query = query.ilike("creditor_name", `%${txnName}%`);
+                } else {
+                  query = query.ilike("debtor_name", `%${txnName}%`);
+                }
+              }
+
+              const { data: histTxns } = await query;
+              if (histTxns && histTxns.length > 0) {
+                // Check which had invoices
+                const bookingIds = histTxns.map(t => t.booking_id).filter(Boolean);
+                let invoiceMap: Record<string, boolean> = {};
+                if (bookingIds.length > 0) {
+                  const { data: bookings } = await supabase.from("bookings")
+                    .select("id, invoice_id")
+                    .in("id", bookingIds.slice(0, 50));
+                  if (bookings) {
+                    bookings.forEach(b => { invoiceMap[b.id] = !!b.invoice_id; });
+                  }
+                }
+                historicalBookings = histTxns.map(t => ({
+                  amount: t.amount,
+                  date: t.booking_date,
+                  has_invoice: t.booking_id ? (invoiceMap[t.booking_id] || false) : false,
+                }));
+              }
+            }
+
             const { data, error } = await supabase.functions.invoke("suggest-match", {
               body: {
                 transaction: txn,
                 invoices: invoiceData,
                 templates: templateData,
                 allTransactions: transactions.slice(0, 30),
+                historicalBookings,
               },
             });
 
             if (!error && data && !data.error) {
-              // Store the suggestion
               await supabase.from("bank_transactions")
                 .update({ ai_suggestion: data } as any)
                 .eq("id", txn.id);
@@ -113,7 +177,7 @@ export function useTransactionAiPrefetch(
       abortRef.current = true;
       runningRef.current = false;
     };
-  }, [buildingId, transactions.length, enabled]);
+  }, [buildingId, transactionIds, enabled]);
 
   return state;
 }

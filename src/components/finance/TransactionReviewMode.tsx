@@ -17,7 +17,7 @@ import { de } from "date-fns/locale";
 import {
   ArrowLeft, ArrowRight, CheckCircle, X,
   FileText, LayoutTemplate, Loader2, Sparkles,
-  ChevronDown, ChevronRight, Plus, Trash2, User
+  ChevronDown, ChevronRight, Plus, Trash2, User, PackagePlus
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -299,6 +299,15 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         }
         if (sb.description) row.description = sb.description;
         if (sb.booking_type) row.booking_type = sb.booking_type;
+      }
+      // Auto-fill from template_suggestion if no other source
+      if (!suggestedBookings?.[0] && aiSuggestion.template_suggestion) {
+        const ts = aiSuggestion.template_suggestion;
+        if (ts.account_number) {
+          const acc = accounts.find(a => a.account_number === ts.account_number);
+          if (acc) row.counter_account_id = acc.id;
+        }
+        if (ts.name) row.description = ts.name;
       }
     }
 
@@ -714,7 +723,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                   </div>
                 </div>
               ) : currentTxn.ai_suggestion ? (
-                <div className="p-6 space-y-4">
+                <div className="p-6 space-y-4 overflow-y-auto">
                   <div className="flex items-center gap-2 mb-2">
                     <Sparkles className="h-5 w-5 text-purple-500" />
                     <h3 className="font-semibold">KI-Analyse</h3>
@@ -740,6 +749,20 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                       <p className="font-medium text-orange-800 dark:text-orange-200">Rechnung fehlt</p>
                       <p className="text-orange-700 dark:text-orange-300 mt-1">{currentTxn.ai_suggestion.missing_invoice_hint.explanation}</p>
                     </div>
+                  )}
+                  {/* Template suggestion from AI */}
+                  {currentTxn.ai_suggestion.template_suggestion && (
+                    <TemplateSuggestionCard
+                      suggestion={currentTxn.ai_suggestion.template_suggestion}
+                      buildingId={buildingId}
+                      transactionId={currentTxn.id}
+                      accounts={accounts}
+                      onCreated={() => {
+                        queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
+                        queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+                        queryClient.invalidateQueries({ queryKey: ["booking-templates"] });
+                      }}
+                    />
                   )}
                 </div>
               ) : (
@@ -975,6 +998,88 @@ function DetailField({ label, value }: { label: string; value: React.ReactNode }
     <div className="space-y-0.5">
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
       <div className="text-sm font-medium">{value}</div>
+    </div>
+  );
+}
+
+// ─── Template Suggestion Card ──────────────────────────────────────────────────
+
+function TemplateSuggestionCard({
+  suggestion, buildingId, transactionId, accounts, onCreated,
+}: {
+  suggestion: any;
+  buildingId: string;
+  transactionId: string;
+  accounts: any[];
+  onCreated: () => void;
+}) {
+  const [creating, setCreating] = useState(false);
+  const [created, setCreated] = useState(false);
+
+  const handleCreate = async () => {
+    setCreating(true);
+    try {
+      // Find account by number
+      let accountId: string | null = null;
+      if (suggestion.account_number) {
+        const acc = accounts.find((a: any) => a.account_number === suggestion.account_number);
+        if (acc) accountId = acc.id;
+      }
+
+      const { data: template, error } = await supabase.from("booking_templates").insert({
+        building_id: buildingId,
+        name: suggestion.name,
+        vendor_name: suggestion.vendor_name || null,
+        vendor_iban: suggestion.vendor_iban || null,
+        expected_amount: suggestion.expected_amount || null,
+        interval: suggestion.interval || null,
+        account_id: accountId,
+        description: suggestion.description || null,
+      } as any).select("id").single();
+
+      if (error) throw error;
+
+      // Link template to the transaction
+      await supabase.from("bank_transactions").update({
+        matched_template_id: template.id,
+      }).eq("id", transactionId);
+
+      setCreated(true);
+      toast.success("Vorlage erstellt ✓");
+      onCreated();
+    } catch (err: any) {
+      toast.error("Fehler: " + (err.message || "Unbekannt"));
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  return (
+    <div className="p-3 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/20 space-y-3">
+      <div className="flex items-center gap-2">
+        <PackagePlus className="h-4 w-4 text-blue-600" />
+        <p className="text-sm font-medium text-blue-800 dark:text-blue-200">Neue Vorlage vorgeschlagen</p>
+      </div>
+      <div className="grid grid-cols-2 gap-2 text-xs">
+        <div><span className="text-muted-foreground">Name:</span> <span className="font-medium">{suggestion.name}</span></div>
+        {suggestion.vendor_name && <div><span className="text-muted-foreground">Lieferant:</span> <span className="font-medium">{suggestion.vendor_name}</span></div>}
+        {suggestion.expected_amount && <div><span className="text-muted-foreground">Betrag:</span> <span className="font-medium">{formatCurrency(suggestion.expected_amount)}</span></div>}
+        {suggestion.interval && <div><span className="text-muted-foreground">Intervall:</span> <span className="font-medium">{suggestion.interval}</span></div>}
+        {suggestion.account_number && <div><span className="text-muted-foreground">Konto:</span> <span className="font-medium">{suggestion.account_number} {suggestion.account_name || ""}</span></div>}
+        {suggestion.vendor_iban && <div className="col-span-2"><span className="text-muted-foreground">IBAN:</span> <span className="font-mono font-medium text-[11px]">{suggestion.vendor_iban}</span></div>}
+      </div>
+      {suggestion.description && (
+        <p className="text-xs text-muted-foreground italic">{suggestion.description}</p>
+      )}
+      <Button
+        size="sm"
+        className="w-full h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white"
+        onClick={handleCreate}
+        disabled={creating || created}
+      >
+        {creating ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : created ? <CheckCircle className="h-3 w-3 mr-1" /> : <PackagePlus className="h-3 w-3 mr-1" />}
+        {created ? "Vorlage erstellt" : "Vorlage erstellen"}
+      </Button>
     </div>
   );
 }
