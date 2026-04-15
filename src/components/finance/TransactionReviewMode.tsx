@@ -1653,14 +1653,12 @@ function CreateAccountInlineDialog({
 // ─── Assignment Tab Content ────────────────────────────────────────────────────
 
 function AssignmentTabContent({
-  currentTxn, allInvoices, allTemplates, showAssignedInvoices, onToggleShowAssigned,
+  currentTxn, allInvoices, allTemplates,
   accounts, formRows, expandedRowId, onAssignInvoice, onAssignTemplate, formatCurrency,
 }: {
   currentTxn: any;
   allInvoices: any[];
   allTemplates: any[];
-  showAssignedInvoices: boolean;
-  onToggleShowAssigned: (v: boolean) => void;
   accounts: any[];
   formRows: BookingRowData[];
   expandedRowId: string | null;
@@ -1668,6 +1666,7 @@ function AssignmentTabContent({
   onAssignTemplate: (tpl: any) => void;
   formatCurrency: (amount: number | null) => string;
 }) {
+  const [invoiceFilter, setInvoiceFilter] = useState<"unassigned" | "assigned">("unassigned");
   const aiMatches = currentTxn?.ai_suggestion?.matches || [];
 
   // Extract transaction metadata for smart matching
