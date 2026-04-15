@@ -47,6 +47,12 @@ interface BookingRowData {
   invoice_id: string | null;
   matched_template_id: string | null;
   booked: boolean;
+  accrualHint?: {
+    needs_accrual: boolean;
+    accrual_explanation: string;
+    service_period_from?: string;
+    service_period_to?: string;
+  } | null;
 }
 
 const formatCurrency = (amount: number | null) =>
