@@ -381,7 +381,20 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
             <Separator />
             <CopyField label="Betrag" value={invoice.gross_amount != null ? formatCurrency(invoice.gross_amount) : "–"} />
             <Separator />
-            <CopyField label={`Verwendungszweck${generatingPurpose ? " (KI generiert…)" : ""}`} value={purpose} />
+            <div className="py-2">
+              <InlineEditField
+                label={`Verwendungszweck${generatingPurpose ? " (KI generiert…)" : ""}`}
+                value={purpose}
+                onSave={async (val) => {
+                  const { error } = await supabase.from("invoices").update({ payment_purpose: val } as any).eq("id", invoice.id);
+                  if (error) { toast.error("Fehler beim Speichern"); } else {
+                    setPurpose(val);
+                    toast.success("Verwendungszweck gespeichert");
+                    onRefetch();
+                  }
+                }}
+              />
+            </div>
             <Separator />
             <CopyField label="Rechnungsnummer" value={invoice.invoice_number || "–"} />
           </div>
