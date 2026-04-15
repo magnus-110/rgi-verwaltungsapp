@@ -15,8 +15,13 @@ import {
   Castle,
   BarChart3,
   MessageCircle,
-   CheckSquare,
-   CalendarDays
+  CheckSquare,
+  CalendarDays,
+  BookUser,
+  Landmark,
+  Mail,
+  Users,
+  CreditCard,
 } from "lucide-react";
 
 interface MobileHeaderProps {
@@ -34,58 +39,22 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
   const getNavigationItems = () => {
     if (userRole === 'admin' || userRole === 'employee') {
       const items = [
-        { 
-          icon: BarChart3, 
-          label: "Dashboard", 
-          path: '/dashboard',
-          active: location.pathname === '/dashboard'
-        },
-        { 
-          icon: Sparkles, 
-          label: "NOVA", 
-          path: '/documents',
-          active: location.pathname.startsWith('/documents')
-        },
-        { 
-          icon: CheckSquare, 
-          label: "Aufgaben", 
-          path: '/todos',
-          active: location.pathname.startsWith('/todos')
-        },
-         { 
-           icon: CalendarDays, 
-           label: "Kalender", 
-           path: '/calendar',
-           active: location.pathname.startsWith('/calendar')
-         },
-        { 
-          icon: ClipboardList, 
-          label: "Meldungen", 
-          path: '/reports',
-          active: location.pathname.startsWith('/reports')
-        },
-        { 
-          icon: Castle, 
-          label: "Gebäude", 
-          path: '/buildings',
-          active: location.pathname.startsWith('/buildings')
-        },
-        { 
-          icon: Newspaper, 
-          label: "Schwarzes Brett", 
-          path: '/forum',
-          active: location.pathname.startsWith('/forum')
-        },
+        { icon: BarChart3, label: "Dashboard", path: '/dashboard', active: location.pathname === '/dashboard' },
+        { icon: Mail, label: "Postfach", path: '/postfach', active: location.pathname.startsWith('/postfach') },
+        { icon: Sparkles, label: "NOVA", path: '/documents', active: location.pathname.startsWith('/documents') },
+        { icon: CheckSquare, label: "Aufgaben", path: '/todos', active: location.pathname.startsWith('/todos') },
+        { icon: CalendarDays, label: "Kalender", path: '/calendar', active: location.pathname.startsWith('/calendar') },
+        { icon: ClipboardList, label: "Meldungen", path: '/reports', active: location.pathname.startsWith('/reports') },
+        { icon: Castle, label: "Gebäude", path: '/buildings', active: location.pathname.startsWith('/buildings') },
+        { icon: BookUser, label: "Adressen", path: '/contacts', active: location.pathname.startsWith('/contacts') },
+        { icon: Users, label: "Versammlungen", path: '/versammlungen', active: location.pathname.startsWith('/versammlungen') },
+        { icon: Landmark, label: "Buchhaltung", path: '/finanzen', active: location.pathname.startsWith('/finanzen') },
+        { icon: CreditCard, label: "Überweisungen", path: '/ueberweisungen', active: location.pathname.startsWith('/ueberweisungen') },
       ];
-      
-      // Chatbot nur für Admin
-      if (userRole === 'admin') {
-        items.push({ 
-          icon: MessageCircle, 
-          label: "Chatbot", 
-          path: '/chatbot',
-          active: location.pathname.startsWith('/chatbot')
-        });
+
+      // Filter für Mitarbeiter
+      if (userRole === 'employee') {
+        return items.filter(item => !['Einstellungen'].includes(item.label));
       }
       
       return items;
