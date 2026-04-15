@@ -568,9 +568,6 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
               <div className="p-4 bg-muted/20 border-b space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">
-                      {format(new Date(currentTxn.booking_date), "dd.MM.yyyy", { locale: de })}
-                    </span>
                     {amountMatch && <Badge variant="outline" className="text-xs bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300">✓ Betrag</Badge>}
                     {sourceType !== "manual" && (
                       <Badge variant="outline" className={cn("text-xs", sourceType === "invoice" ? "bg-green-50 text-green-700" : sourceType === "template" ? "bg-blue-50 text-blue-700" : "bg-purple-50 text-purple-700")}>
@@ -591,6 +588,14 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                 </div>
                 <div className={cn("text-2xl font-bold", currentTxn.amount < 0 ? "text-destructive" : "text-green-600")}>
                   {currentTxn.amount < 0 ? "" : "+"}{formatCurrency(currentTxn.amount)}
+                </div>
+
+                {/* Date & Time */}
+                <div className="text-sm text-muted-foreground">
+                  <span>{format(new Date(currentTxn.booking_date), "dd.MM.yyyy", { locale: de })}</span>
+                  {currentTxn.value_date && currentTxn.value_date !== currentTxn.booking_date && (
+                    <span className="ml-2">· Wertstellung: {format(new Date(currentTxn.value_date), "dd.MM.yyyy", { locale: de })}</span>
+                  )}
                 </div>
 
                 {/* Sender/Recipient with IBAN mapping */}
@@ -619,7 +624,13 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                   </div>
                 )}
 
-                <p className="text-sm">{currentTxn.purpose || "–"}</p>
+                {/* Verwendungszweck */}
+                {currentTxn.purpose && (
+                  <div className="text-sm bg-muted/40 rounded-md p-2 border">
+                    <p className="text-[11px] font-medium text-muted-foreground mb-0.5">Verwendungszweck</p>
+                    <p className="text-foreground leading-relaxed">{currentTxn.purpose}</p>
+                  </div>
+                )}
               </div>
 
               {/* Sum validation for multi-row */}
