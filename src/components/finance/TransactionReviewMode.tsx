@@ -206,6 +206,34 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     enabled: open && !!buildingId,
   });
 
+  // Billing periods for fiscal year detection
+  const { data: billingPeriods = [] } = useQuery({
+    queryKey: ["billing-periods-fiscal", buildingId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("billing_periods")
+        .select("fiscal_year, period_from, period_to")
+        .eq("building_id", buildingId)
+        .order("fiscal_year", { ascending: false })
+        .limit(10);
+      return data || [];
+    },
+    enabled: open && !!buildingId,
+  });
+
+  // Helper: determine fiscal year from billing periods or fallback to calendar year
+  const getFiscalYearForDate = useCallback((dateStr: string): number => {
+    if (!dateStr) return new Date().getFullYear();
+    const date = new Date(dateStr);
+    for (const bp of billingPeriods) {
+      const from = new Date(bp.period_from);
+      const to = new Date(bp.period_to);
+      if (date >= from && date <= to) {
+        return bp.fiscal_year;
+      }
+    }
+    return date.getFullYear();
+  }, [billingPeriods]);
 
   useEffect(() => {
     setPdfUrl(null);
@@ -221,7 +249,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
   // Create a default booking row
   const createDefaultRow = useCallback((overrides?: Partial<BookingRowData>): BookingRowData => {
     const txnDate = currentTxn?.booking_date || "";
-    const fiscalYear = txnDate ? new Date(txnDate).getFullYear() : new Date().getFullYear();
+    const fiscalYear = getFiscalYearForDate(txnDate);
     const absAmount = Math.abs(currentTxn?.amount || 0);
     const isIncome = (currentTxn?.amount || 0) > 0;
     const bankAccount = accounts.find(a => a.account_number === "1800") || accounts.find(a => a.account_number === "1200") || accounts.find(a => a.category === "Bankkonto");
@@ -246,14 +274,14 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       booked: false,
       ...overrides,
     };
-  }, [currentTxn, accounts]);
+  }, [currentTxn, accounts, getFiscalYearForDate]);
 
   // Auto-fill form rows when transaction changes
   useEffect(() => {
     if (!currentTxn || accounts.length === 0) return;
 
     const txnDate = currentTxn.booking_date;
-    const fiscalYear = txnDate ? new Date(txnDate).getFullYear() : new Date().getFullYear();
+    const fiscalYear = getFiscalYearForDate(txnDate);
     const absAmount = Math.abs(currentTxn.amount);
     const isIncome = currentTxn.amount > 0;
     const bankAccount = accounts.find(a => a.account_number === "1800") || accounts.find(a => a.account_number === "1200") || accounts.find(a => a.category === "Bankkonto");
@@ -354,16 +382,24 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       }
     }
 
-    // Fiscal year hint from AI
+    // Fiscal year hint from AI - only show when fiscal year differs or accrual needed
     if (aiSuggestion?.fiscal_year_hint) {
       const hint = aiSuggestion.fiscal_year_hint;
+      const defaultFiscalYear = getFiscalYearForDate(currentTxn.booking_date);
+      const hintFiscalYear = hint.fiscal_year || defaultFiscalYear;
+      
       if (hint.fiscal_year) row.fiscal_year = hint.fiscal_year;
-      row.accrualHint = {
-        needs_accrual: hint.needs_accrual || false,
-        accrual_explanation: hint.accrual_explanation || "",
-        service_period_from: hint.service_period_from,
-        service_period_to: hint.service_period_to,
-      };
+      
+      // Only show accrual hint if fiscal year differs or accrual is actually needed
+      const fiscalYearDiffers = hintFiscalYear !== defaultFiscalYear;
+      if (fiscalYearDiffers || hint.needs_accrual) {
+        row.accrualHint = {
+          needs_accrual: hint.needs_accrual || false,
+          accrual_explanation: hint.accrual_explanation || "",
+          service_period_from: hint.service_period_from,
+          service_period_to: hint.service_period_to,
+        };
+      }
     }
 
     // VAT defaults from counter account
@@ -379,7 +415,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
     setFormRows([row]);
     setExpandedRowId(row.id);
-  }, [currentTxn?.id, templateDetail, invoiceDetail, accounts, currentTxn?.ai_suggestion]);
+  }, [currentTxn?.id, templateDetail, invoiceDetail, accounts, currentTxn?.ai_suggestion, getFiscalYearForDate]);
 
   const updateRow = (rowId: string, field: string, value: string | boolean | number) => {
     setFormRows(rows => rows.map(r => r.id === rowId ? { ...r, [field]: field === "fiscal_year" ? (typeof value === "string" ? parseInt(value) || r.fiscal_year : value) : value } : r));
@@ -546,7 +582,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         .eq("id", currentTxn.id);
 
       // Load fresh template + invoice data
-      const [{ data: templates }, { data: invoices }] = await Promise.all([
+      const [{ data: templates }, { data: invoices }, { data: billingPeriods }] = await Promise.all([
         supabase.from("booking_templates")
           .select("id, name, vendor_name, vendor_iban, expected_amount, amount_tolerance, interval, account_id, vat_rate, valid_from, valid_to, chart_of_accounts(account_number, account_name)")
           .eq("building_id", buildingId),
@@ -555,6 +591,11 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           .eq("building_id", buildingId)
           .eq("status", "paid")
           .limit(200),
+        supabase.from("billing_periods")
+          .select("fiscal_year, period_from, period_to")
+          .eq("building_id", buildingId)
+          .order("fiscal_year", { ascending: false })
+          .limit(5),
       ]);
 
       const templateData = (templates || []).map((t: any) => ({
@@ -572,7 +613,15 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       }));
 
       const { data, error } = await supabase.functions.invoke("suggest-match", {
-        body: { transaction: currentTxn, invoices: invoiceData, templates: templateData, allTransactions: transactions.slice(0, 30) },
+        body: {
+          transaction: currentTxn,
+          invoices: invoiceData,
+          templates: templateData,
+          allTransactions: transactions.slice(0, 30),
+          billingPeriods: (billingPeriods || []).map((bp: any) => ({
+            fiscal_year: bp.fiscal_year, period_from: bp.period_from, period_to: bp.period_to,
+          })),
+        },
       });
 
       if (!error && data && !data.error) {

@@ -10,7 +10,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { transaction, invoices, templates, allTransactions, historicalBookings } = await req.json();
+    const { transaction, invoices, templates, allTransactions, historicalBookings, billingPeriods } = await req.json();
 
     const MISTRAL_API_KEY = Deno.env.get("MISTRAL_API_KEY");
     if (!MISTRAL_API_KEY) throw new Error("MISTRAL_API_KEY not configured");
@@ -71,11 +71,14 @@ Vorlagen-Erkennung:
 - Erkennbare Muster: Abschlagszahlungen, Versicherungsbeiträge, Wartungsverträge, Mietzahlungen, Hausgeld.
 
 Wirtschaftsjahr & Abgrenzung:
-- Standardmäßig ist das Wirtschaftsjahr = Jahr des Kontoauszugsdatums (booking_date).
+- WICHTIG: Das Wirtschaftsjahr muss NICHT dem Kalenderjahr entsprechen! Nutze die übergebenen Abrechnungszeiträume (billing_periods), um das korrekte Wirtschaftsjahr zu bestimmen.
+- Wenn Abrechnungszeiträume vorhanden sind, prüfe in welchen Zeitraum das Transaktionsdatum fällt. Das fiscal_year dieses Zeitraums ist das korrekte Wirtschaftsjahr.
+- Beispiel: Wenn period_from=2024-07-01, period_to=2025-06-30, fiscal_year=2024, dann gehört eine Transaktion vom 15.01.2025 zum Wirtschaftsjahr 2024.
+- Setze fiscal_year_hint NUR wenn das empfohlene Wirtschaftsjahr ABWEICHT vom Standard (= Kalenderjahr des Buchungsdatums) ODER wenn eine Abgrenzungsbuchung nötig ist.
+- Wenn das Wirtschaftsjahr dem Kalenderjahr des Buchungsdatums entspricht und keine Abgrenzung nötig ist, setze KEINEN fiscal_year_hint.
 - Prüfe ob Verwendungszweck, Rechnungsdatum oder erkennbare Leistungszeiträume auf ein ANDERES Wirtschaftsjahr hindeuten.
-- Wenn Rechnungsdatum in einem anderen Jahr als das Kontoauszugsdatum liegt → Abgrenzung empfehlen.
-- Wenn ein Leistungszeitraum Jahresgrenzen übergreift (z.B. Versicherung 07/2024–06/2025) → Abgrenzung empfehlen.
-- Setze fiscal_year_hint mit dem empfohlenen Wirtschaftsjahr, ob eine Abgrenzungsbuchung nötig ist, und einer Begründung.
+- Wenn Rechnungsdatum in einem anderen Wirtschaftsjahr als das Kontoauszugsdatum liegt → Abgrenzung empfehlen.
+- Wenn ein Leistungszeitraum über Wirtschaftsjahrgrenzen hinausgeht → Abgrenzung empfehlen.
 
 Wichtig bei fehlenden Metadaten:
 - Manche Transaktionen (z.B. Bankgebühren, Kontoführungsgebühren) haben KEINEN Kreditor-Namen und KEINE IBAN.
@@ -90,6 +93,14 @@ WICHTIG zur Score-Vergabe:
 
 Gib die besten 1-5 Kandidaten zurück UND einen booking_hint wenn du eine komplexe Zuordnung erkennst UND einen template_suggestion ODER missing_invoice_hint wenn angemessen UND einen fiscal_year_hint wenn das Wirtschaftsjahr nicht trivial ist.`;
 
+    let billingPeriodContext = "";
+    if (billingPeriods && billingPeriods.length > 0) {
+      const lines = billingPeriods.map((bp: any) =>
+        `WJ ${bp.fiscal_year}: ${bp.period_from} bis ${bp.period_to}`
+      );
+      billingPeriodContext = `\n\nAbrechnungszeiträume (Wirtschaftsjahre) dieser Liegenschaft:\n${lines.join("\n")}`;
+    }
+
     const userPrompt = `Transaktion:
 - Betrag: ${transaction.amount} €
 - Name: ${txnName || "unbekannt"}
@@ -98,7 +109,7 @@ Gib die besten 1-5 Kandidaten zurück UND einen booking_hint wenn du eine komple
 - Datum: ${transaction.booking_date}
 
 Kandidaten:
-${candidatesSummary}${otherTxnContext}${historicalContext}`;
+${candidatesSummary}${otherTxnContext}${historicalContext}${billingPeriodContext}`;
 
     const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
       method: "POST",
