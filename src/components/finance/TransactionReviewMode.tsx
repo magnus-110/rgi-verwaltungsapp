@@ -900,18 +900,26 @@ function BookingRowCard({
             {/* Account */}
             <div ref={el => fieldRefs.current["account_id"] = el}>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Konto</label>
-              <Select value={row.account_id} onValueChange={v => onUpdateField("account_id", v)}>
-                <SelectTrigger className="h-9 text-sm" onKeyDown={e => handleEnterNavigation(e, "account_id")}>
-                  <SelectValue placeholder="Konto wählen…" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[300px]">
-                  {accounts.filter((a: any) => a.category !== "Bankkonto").map((a: any) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      <span className="font-mono mr-2">{a.account_number}</span>{a.account_name}
+              <div className="flex gap-1.5">
+                <Select value={row.account_id} onValueChange={v => {
+                  if (v === "__create__") { setCreateAccountTarget("account_id"); setCreateAccountOpen(true); }
+                  else onUpdateField("account_id", v);
+                }}>
+                  <SelectTrigger className="h-9 text-sm flex-1" onKeyDown={e => handleEnterNavigation(e, "account_id")}>
+                    <SelectValue placeholder="Konto wählen…" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    {accounts.filter((a: any) => a.category !== "Bankkonto").map((a: any) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        <span className="font-mono mr-2">{a.account_number}</span>{a.account_name}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="__create__" className="text-primary font-medium">
+                      <span className="flex items-center gap-1"><Plus className="h-3 w-3" /> Neues Konto anlegen</span>
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Type + Amount */}
@@ -938,7 +946,10 @@ function BookingRowCard({
             {/* Counter account */}
             <div ref={el => fieldRefs.current["counter_account_id"] = el}>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Gegenkonto</label>
-              <Select value={row.counter_account_id} onValueChange={v => onUpdateField("counter_account_id", v)}>
+              <Select value={row.counter_account_id} onValueChange={v => {
+                if (v === "__create__") { setCreateAccountTarget("counter_account_id"); setCreateAccountOpen(true); }
+                else onUpdateField("counter_account_id", v);
+              }}>
                 <SelectTrigger className="h-9 text-sm" onKeyDown={e => handleEnterNavigation(e, "counter_account_id")}>
                   <SelectValue placeholder="Gegenkonto wählen…" />
                 </SelectTrigger>
@@ -948,6 +959,9 @@ function BookingRowCard({
                       <span className="font-mono mr-2">{a.account_number}</span>{a.account_name}
                     </SelectItem>
                   ))}
+                  <SelectItem value="__create__" className="text-primary font-medium">
+                    <span className="flex items-center gap-1"><Plus className="h-3 w-3" /> Neues Konto anlegen</span>
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
