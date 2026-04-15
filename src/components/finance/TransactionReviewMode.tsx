@@ -179,18 +179,14 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
   // All invoices for the building (for Zuordnung tab)
   const { data: allInvoices = [] } = useQuery({
-    queryKey: ["all-invoices-building", buildingId, showAssignedInvoices],
+    queryKey: ["all-invoices-building", buildingId],
     queryFn: async () => {
-      let query = supabase
+      const { data } = await supabase
         .from("invoices")
         .select("id, invoice_number, vendor_name, gross_amount, invoice_date, status, vendor_iban, file_path")
         .eq("building_id", buildingId)
         .order("invoice_date", { ascending: false })
         .limit(300);
-      if (!showAssignedInvoices) {
-        query = query.neq("status", "paid");
-      }
-      const { data } = await query;
       return data || [];
     },
     enabled: open && !!buildingId,
