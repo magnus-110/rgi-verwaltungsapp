@@ -729,127 +729,10 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
               </div>
             </div>
 
-            {/* Right: Analyse + Zuordnung (single scrollable panel) */}
+            {/* Right: Zuordnung (top) + Analyse (bottom, collapsible) */}
             <div className="w-1/2 flex flex-col overflow-y-auto">
-              {/* ── Analyse Section ── */}
+              {/* ── Zuordnung Section (Top, prominent) ── */}
               <div className="shrink-0">
-                <div className="px-4 py-2 border-b bg-muted/20 flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-semibold">Analyse</span>
-                </div>
-                {invoiceDetail ? (
-                  <div>
-                    <div className="px-4 py-2 border-b space-y-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <FileText className="h-4 w-4 text-primary" />
-                        <span className="text-sm font-medium">Rechnung</span>
-                        {invoiceDetail.vendor_name && <Badge variant="outline" className="text-xs">{invoiceDetail.vendor_name}</Badge>}
-                      </div>
-                      <div className="grid grid-cols-3 gap-2 text-sm">
-                        <div>
-                          <span className="text-xs text-muted-foreground">Brutto</span>
-                          <p className={cn("font-medium", amountMatch && "text-green-600")}>{formatCurrency(invoiceDetail.gross_amount)}</p>
-                        </div>
-                        {invoiceDetail.invoice_number && (
-                          <div>
-                            <span className="text-xs text-muted-foreground">Re-Nr.</span>
-                            <p className="font-medium">{invoiceDetail.invoice_number}</p>
-                          </div>
-                        )}
-                        {invoiceDetail.invoice_date && (
-                          <div>
-                            <span className="text-xs text-muted-foreground">Re-Datum</span>
-                            <p className="font-medium">{format(new Date(invoiceDetail.invoice_date), "dd.MM.yyyy", { locale: de })}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    {pdfUrl ? (
-                      <iframe src={pdfUrl} className="w-full border-0" style={{ height: "400px" }} title="Rechnung PDF" />
-                    ) : (
-                      <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">
-                        PDF wird geladen...
-                      </div>
-                    )}
-                  </div>
-                ) : templateDetail ? (
-                  <div className="p-4 space-y-3">
-                    <div className="flex items-center gap-2">
-                      <LayoutTemplate className="h-5 w-5 text-primary" />
-                      <h3 className="font-semibold text-sm">Zugeordnete Vorlage</h3>
-                    </div>
-                    <div className="grid grid-cols-1 gap-2">
-                      <DetailField label="Name" value={templateDetail.name} />
-                      {(templateDetail as any).vendor_name && <DetailField label="Lieferant" value={(templateDetail as any).vendor_name} />}
-                      {templateDetail.expected_amount != null && (
-                        <DetailField label="Erwarteter Betrag" value={
-                          <span className={cn(amountMatch && "text-green-600")}>
-                            {formatCurrency(templateDetail.expected_amount)}
-                            {(templateDetail as any).amount_tolerance > 0 && ` ±${formatCurrency((templateDetail as any).amount_tolerance)}`}
-                          </span>
-                        } />
-                      )}
-                      {(templateDetail as any).chart_of_accounts && (
-                        <DetailField label="Konto" value={`${(templateDetail as any).chart_of_accounts.account_number} – ${(templateDetail as any).chart_of_accounts.account_name}`} />
-                      )}
-                      {templateDetail.vat_rate != null && <DetailField label="MwSt" value={`${templateDetail.vat_rate}%`} />}
-                      {templateDetail.interval && <DetailField label="Intervall" value={templateDetail.interval} />}
-                      {templateDetail.description && <DetailField label="Beschreibung" value={templateDetail.description} />}
-                    </div>
-                  </div>
-                ) : currentTxn.ai_suggestion ? (
-                  <div className="p-4 space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Sparkles className="h-5 w-5 text-purple-500" />
-                      <h3 className="font-semibold text-sm">KI-Analyse</h3>
-                    </div>
-                    {currentTxn.ai_suggestion.matches?.length > 0 && (
-                      <div className="space-y-2">
-                        <p className="text-xs text-muted-foreground font-medium">Mögliche Zuordnungen:</p>
-                        {currentTxn.ai_suggestion.matches.map((m: any, i: number) => (
-                          <div key={i} className="flex items-center justify-between p-2 rounded-md bg-muted/50 text-sm">
-                            <span>{m.reason}</span>
-                            <Badge variant="outline" className="text-xs">{Math.round(m.score * 100)}%</Badge>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                    {currentTxn.ai_suggestion.booking_hint?.explanation && (
-                      <div className="p-3 rounded-lg bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 text-sm">
-                        {currentTxn.ai_suggestion.booking_hint.explanation}
-                      </div>
-                    )}
-                    {currentTxn.ai_suggestion.missing_invoice_hint && (
-                      <div className="p-3 rounded-lg bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 text-sm">
-                        <p className="font-medium text-orange-800 dark:text-orange-200">Rechnung fehlt</p>
-                        <p className="text-orange-700 dark:text-orange-300 mt-1">{currentTxn.ai_suggestion.missing_invoice_hint.explanation}</p>
-                      </div>
-                    )}
-                    {currentTxn.ai_suggestion.template_suggestion && (
-                      <TemplateSuggestionCard
-                        suggestion={currentTxn.ai_suggestion.template_suggestion}
-                        buildingId={buildingId}
-                        transactionId={currentTxn.id}
-                        accounts={accounts}
-                        onCreated={() => {
-                          queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
-                          queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
-                          queryClient.invalidateQueries({ queryKey: ["booking-templates"] });
-                        }}
-                      />
-                    )}
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-8 text-muted-foreground gap-2">
-                    <FileText className="h-12 w-12 opacity-20" />
-                    <p className="text-sm">Kein Beleg zugeordnet</p>
-                    <p className="text-xs">Bitte Konto manuell auswählen</p>
-                  </div>
-                )}
-              </div>
-
-              {/* ── Zuordnung Section ── */}
-              <div className="border-t">
                 <div className="px-4 py-2 border-b bg-muted/20 flex items-center gap-2">
                   <Link2 className="h-4 w-4 text-primary" />
                   <span className="text-sm font-semibold">Zuordnung</span>
@@ -902,6 +785,129 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                   />
                 </div>
               </div>
+
+              {/* ── Analyse Section (Bottom, collapsible) ── */}
+              <Collapsible defaultOpen={true}>
+                <div className="border-t">
+                  <CollapsibleTrigger asChild>
+                    <button className="w-full px-4 py-2 border-b bg-muted/20 flex items-center gap-2 hover:bg-muted/40 transition-colors">
+                      <Sparkles className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-semibold">Analyse</span>
+                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground ml-auto" />
+                    </button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    {invoiceDetail ? (
+                      <div>
+                        <div className="px-4 py-2 border-b space-y-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <FileText className="h-4 w-4 text-primary" />
+                            <span className="text-sm font-medium">Rechnung</span>
+                            {invoiceDetail.vendor_name && <Badge variant="outline" className="text-xs">{invoiceDetail.vendor_name}</Badge>}
+                          </div>
+                          <div className="grid grid-cols-3 gap-2 text-sm">
+                            <div>
+                              <span className="text-xs text-muted-foreground">Brutto</span>
+                              <p className={cn("font-medium", amountMatch && "text-green-600")}>{formatCurrency(invoiceDetail.gross_amount)}</p>
+                            </div>
+                            {invoiceDetail.invoice_number && (
+                              <div>
+                                <span className="text-xs text-muted-foreground">Re-Nr.</span>
+                                <p className="font-medium">{invoiceDetail.invoice_number}</p>
+                              </div>
+                            )}
+                            {invoiceDetail.invoice_date && (
+                              <div>
+                                <span className="text-xs text-muted-foreground">Re-Datum</span>
+                                <p className="font-medium">{format(new Date(invoiceDetail.invoice_date), "dd.MM.yyyy", { locale: de })}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        {pdfUrl ? (
+                          <iframe src={pdfUrl} className="w-full border-0" style={{ height: "400px" }} title="Rechnung PDF" />
+                        ) : (
+                          <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">
+                            PDF wird geladen...
+                          </div>
+                        )}
+                      </div>
+                    ) : templateDetail ? (
+                      <div className="p-4 space-y-3">
+                        <div className="flex items-center gap-2">
+                          <LayoutTemplate className="h-5 w-5 text-primary" />
+                          <h3 className="font-semibold text-sm">Zugeordnete Vorlage</h3>
+                        </div>
+                        <div className="grid grid-cols-1 gap-2">
+                          <DetailField label="Name" value={templateDetail.name} />
+                          {(templateDetail as any).vendor_name && <DetailField label="Lieferant" value={(templateDetail as any).vendor_name} />}
+                          {templateDetail.expected_amount != null && (
+                            <DetailField label="Erwarteter Betrag" value={
+                              <span className={cn(amountMatch && "text-green-600")}>
+                                {formatCurrency(templateDetail.expected_amount)}
+                                {(templateDetail as any).amount_tolerance > 0 && ` ±${formatCurrency((templateDetail as any).amount_tolerance)}`}
+                              </span>
+                            } />
+                          )}
+                          {(templateDetail as any).chart_of_accounts && (
+                            <DetailField label="Konto" value={`${(templateDetail as any).chart_of_accounts.account_number} – ${(templateDetail as any).chart_of_accounts.account_name}`} />
+                          )}
+                          {templateDetail.vat_rate != null && <DetailField label="MwSt" value={`${templateDetail.vat_rate}%`} />}
+                          {templateDetail.interval && <DetailField label="Intervall" value={templateDetail.interval} />}
+                          {templateDetail.description && <DetailField label="Beschreibung" value={templateDetail.description} />}
+                        </div>
+                      </div>
+                    ) : currentTxn.ai_suggestion ? (
+                      <div className="p-4 space-y-3">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-5 w-5 text-purple-500" />
+                          <h3 className="font-semibold text-sm">KI-Analyse</h3>
+                        </div>
+                        {currentTxn.ai_suggestion.matches?.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="text-xs text-muted-foreground font-medium">Mögliche Zuordnungen:</p>
+                            {currentTxn.ai_suggestion.matches.map((m: any, i: number) => (
+                              <div key={i} className="flex items-center justify-between p-2 rounded-md bg-muted/50 text-sm">
+                                <span>{m.reason}</span>
+                                <Badge variant="outline" className="text-xs">{Math.round(m.score * 100)}%</Badge>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {currentTxn.ai_suggestion.booking_hint?.explanation && (
+                          <div className="p-3 rounded-lg bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 text-sm">
+                            {currentTxn.ai_suggestion.booking_hint.explanation}
+                          </div>
+                        )}
+                        {currentTxn.ai_suggestion.missing_invoice_hint && (
+                          <div className="p-3 rounded-lg bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 text-sm">
+                            <p className="font-medium text-orange-800 dark:text-orange-200">Rechnung fehlt</p>
+                            <p className="text-orange-700 dark:text-orange-300 mt-1">{currentTxn.ai_suggestion.missing_invoice_hint.explanation}</p>
+                          </div>
+                        )}
+                        {currentTxn.ai_suggestion.template_suggestion && (
+                          <TemplateSuggestionCard
+                            suggestion={currentTxn.ai_suggestion.template_suggestion}
+                            buildingId={buildingId}
+                            transactionId={currentTxn.id}
+                            accounts={accounts}
+                            onCreated={() => {
+                              queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
+                              queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+                              queryClient.invalidateQueries({ queryKey: ["booking-templates"] });
+                            }}
+                          />
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-6 text-muted-foreground gap-2">
+                        <FileText className="h-10 w-10 opacity-20" />
+                        <p className="text-sm">Kein Beleg zugeordnet</p>
+                      </div>
+                    )}
+                  </CollapsibleContent>
+                </div>
+              </Collapsible>
             </div>
           </div>
         ) : null}

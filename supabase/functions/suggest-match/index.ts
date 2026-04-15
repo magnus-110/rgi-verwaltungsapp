@@ -96,7 +96,7 @@ ${candidatesSummary}${otherTxnContext}${historicalContext}`;
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "mistral-large-latest",
+        model: "mistral-small-latest",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
