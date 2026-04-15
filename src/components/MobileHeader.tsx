@@ -15,8 +15,13 @@ import {
   Castle,
   BarChart3,
   MessageCircle,
-   CheckSquare,
-   CalendarDays
+  CheckSquare,
+  CalendarDays,
+  BookUser,
+  Landmark,
+  Mail,
+  Users,
+  CreditCard,
 } from "lucide-react";
 
 interface MobileHeaderProps {
