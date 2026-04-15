@@ -1,85 +1,44 @@
 
 
-## Plan: Überweisungen-Seite + Duplikatschutz bei E-Mail-Import
+## Plan: Absender-Anzeige mit IBAN-Mapping zu Eigentümern
 
-### 1. Neuer Sidebar-Punkt "Überweisungen" + Seite
+### Kontext
+Die Transaktionsdetails im `TransactionReviewMode` zeigen aktuell nur Datum, Betrag und Verwendungszweck. Der Absender (bei Einnahmen: `debtor_name`/`debtor_iban`, bei Ausgaben: `creditor_name`/`creditor_iban`) fehlt. Zusätzlich sollen IBANs automatisch gegen die `contact_bank_accounts`-Tabelle abgeglichen werden, um den zugehörigen Kontakt (z.B. Eigentümer) direkt anzuzeigen.
 
-**Datei:** `src/components/AdminSidebar.tsx`
-- Neuer Menüpunkt `{ title: "Überweisungen", url: "/ueberweisungen", icon: CreditCard }` nach "Finanzen"
+### 1. IBAN-Lookup Query
 
-**Datei:** `src/App.tsx`
-- Neue Route `/ueberweisungen` → `Transfers` Page
+Neue Query im `TransactionReviewMode`, die beim Laden einer Transaktion die relevante IBAN (debtor oder creditor) gegen `contact_bank_accounts` prüft:
 
-**Neue Datei:** `src/pages/Transfers.tsx`
-- Zeigt nur **unbezahlte** Rechnungen (`status != 'paid'`), sortiert nach `due_date ASC` (überfällige zuerst)
-- Gebäudefilter, Fälligkeits-Farbmarkierung (rot wenn überfällig)
-- Spalten: Fällig am, Lieferant, Re.-Nr., IBAN, Betrag, Liegenschaft, Notiz
-- Klick auf Rechnung öffnet Prüfmodus bei dieser Rechnung
-- Button "Prüfmodus starten" für sequenzielles Durcharbeiten
-
-### 2. Transfer-Prüfmodus
-
-**Neue Datei:** `src/components/transfers/TransferReviewMode.tsx`
-
-Vollbild-Split-View (wie TransactionReviewMode):
-
-**Links — Überweisungsdaten mit einzelnen Copy-Buttons:**
-- Empfänger/Lieferant → eigener Copy-Button (Clipboard-Icon)
-- IBAN → eigener Copy-Button
-- Betrag → eigener Copy-Button (formatiert als "1.250,00")
-- Verwendungszweck (auto: "Re. Nr. {nr}, {vendor kurz}") → eigener Copy-Button
-- Re.-Nr. → eigener Copy-Button
-- Fälligkeitsdatum mit Warnung wenn überfällig
-- Notiz-Feld (Textarea, speichert in `payment_notes`)
-
-Kein "Alles kopieren"-Button — jedes Feld einzeln kopierbar für direktes Einfügen ins Bankprogramm.
-
-**Prüfmodus unabhängig vom Bezahlen:**
-- Button "Geprüft & Weiter" → setzt `review_status = 'verified'`, springt zur nächsten
-- Separater Button "Als bezahlt markieren" → setzt `status = 'paid'`, `paid_at = now()`
-- Beides unabhängig voneinander nutzbar
-
-**Rechts — PDF-Vorschau** der Rechnung
-
-**Navigation:** Pfeile + Fortschrittsanzeige "3/12"
-
-### 3. Datenbank: payment_notes
-
-**Migration:**
 ```sql
-ALTER TABLE invoices ADD COLUMN payment_notes text;
+contact_bank_accounts.iban → contact_persons.contact_id → contacts.name
++ contact_building_assignments (gefiltert auf buildingId) → unit_number, role
 ```
 
-### 4. Duplikatschutz bei E-Mail-Import
+Dies liefert: Kontaktname, Einheitsnummer, Rolle im Gebäude (owner/tenant).
 
-**Datei:** `src/components/email/EmailAttachments.tsx`
+### 2. UI-Erweiterung im Transaktions-Header
 
-Aktuell prüft der Import nur im Session-State (`importedIds`), ob ein Anhang schon importiert wurde — ein Seiten-Reload erlaubt erneuten Import derselben Datei.
+Im bestehenden Summary-Block (Zeilen 494-522) wird zwischen Betrag und Verwendungszweck eine neue Zeile eingefügt:
 
-Lösung: Vor dem Upload in den `invoices`-Bucket prüfen, ob bereits eine Rechnung mit identischem `file_name` existiert (gleicher Dateiname = gleicher Anhang).
-
-```typescript
-// Vor Upload prüfen
-const { data: existing } = await supabase
-  .from("invoices")
-  .select("id")
-  .eq("file_name", att.file_name)
-  .limit(1);
-if (existing?.length) {
-  toast.warning("Diese Datei wurde bereits als Rechnung importiert");
-  setImportedIds(prev => new Set(prev).add(att.id));
-  return;
-}
+```text
+┌──────────────────────────────────────────┐
+│ 01.12.2025   ✓ Betrag   KI-Vorschlag    │
+│ +1.170,00 €                              │
+│ 👤 Max Mustermann (DE89...)  → Whg. 2   │  ← NEU
+│ Hausgeld Whg. 2 (3 Monate)              │
+└──────────────────────────────────────────┘
 ```
 
-### Zusammenfassung der Dateien
+- Bei **Einnahmen** (amount > 0): Absender = `debtor_name` + `debtor_iban`
+- Bei **Ausgaben** (amount < 0): Empfänger = `creditor_name` + `creditor_iban`
+- Wenn IBAN-Match gefunden: Kontaktname + Einheit als grünes Badge
+- Wenn kein Match: Name + IBAN in grau (ohne Badge)
 
-| Datei | Aktion |
-|-------|--------|
-| Migration | `payment_notes text` zu `invoices` |
-| `src/components/AdminSidebar.tsx` | Menüpunkt "Überweisungen" |
-| `src/App.tsx` | Route `/ueberweisungen` |
-| `src/pages/Transfers.tsx` | Neue Seite: unbezahlte Rechnungen |
-| `src/components/transfers/TransferReviewMode.tsx` | Prüfmodus mit Einzel-Copy-Buttons |
-| `src/components/email/EmailAttachments.tsx` | Duplikatprüfung vor Import |
+### 3. Dateien
+
+| Datei | Änderung |
+|-------|----------|
+| `TransactionReviewMode.tsx` | Neue `useQuery` für IBAN-Lookup, UI-Block im Header |
+
+Keine Migration nötig — alle Daten existieren bereits in `bank_transactions` und `contact_bank_accounts`.
 
