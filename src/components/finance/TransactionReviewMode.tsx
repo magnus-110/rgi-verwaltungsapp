@@ -735,7 +735,10 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
             <div className="w-1/2 flex flex-col overflow-hidden">
               <Tabs value={activeRightTab} onValueChange={setActiveRightTab} className="flex flex-col flex-1 overflow-hidden">
                 <TabsList variant="underline" className="shrink-0 px-4 pt-1">
-                  <TabsTrigger variant="underline" value="analyse">Analyse</TabsTrigger>
+                  <TabsTrigger variant="underline" value="analyse">
+                    <Sparkles className="h-3.5 w-3.5 mr-1" />
+                    Analyse
+                  </TabsTrigger>
                   <TabsTrigger variant="underline" value="zuordnung">
                     <Link2 className="h-3.5 w-3.5 mr-1" />
                     Zuordnung
@@ -1580,7 +1583,14 @@ function AssignmentTabContent({
   onAssignTemplate: (tpl: any) => void;
   formatCurrency: (amount: number | null) => string;
 }) {
+  const [assignTab, setAssignTab] = useState<string>("rechnungen");
   const aiMatches = currentTxn?.ai_suggestion?.matches || [];
+
+  // Extract transaction metadata for smart matching
+  const txnIban = currentTxn?.amount < 0 ? currentTxn?.creditor_iban : currentTxn?.debtor_iban;
+  const txnName = (currentTxn?.amount < 0 ? currentTxn?.creditor_name : currentTxn?.debtor_name) || "";
+  const txnPurpose = (currentTxn?.purpose || "").toLowerCase();
+  const txnAmount = Math.abs(currentTxn?.amount || 0);
 
   // Separate AI matches by type
   const invoiceMatches = useMemo(() => {
@@ -1595,154 +1605,232 @@ function AssignmentTabContent({
     return matchMap;
   }, [aiMatches]);
 
-  // Sort invoices: AI-recommended first
+  // Smart matching: check IBAN, vendor name, invoice number in purpose, amount
+  const getInvoiceMatchReason = useCallback((inv: any): string | null => {
+    if (invoiceMatches.has(inv.id)) return null; // AI already matched
+    const reasons: string[] = [];
+    // IBAN match
+    if (txnIban && inv.vendor_iban && txnIban.replace(/\s/g, "").toUpperCase() === inv.vendor_iban.replace(/\s/g, "").toUpperCase()) {
+      reasons.push("IBAN stimmt überein");
+    }
+    // Vendor name match
+    if (txnName && inv.vendor_name) {
+      const nameNorm = txnName.toLowerCase();
+      const vendorNorm = inv.vendor_name.toLowerCase();
+      if (nameNorm.includes(vendorNorm) || vendorNorm.includes(nameNorm)) {
+        reasons.push("Kreditor stimmt überein");
+      }
+    }
+    // Invoice number in purpose
+    if (inv.invoice_number && txnPurpose.includes(inv.invoice_number.toLowerCase())) {
+      reasons.push("Re-Nr. im Verwendungszweck");
+    }
+    // Amount match
+    if (inv.gross_amount && Math.abs(txnAmount - Math.abs(inv.gross_amount)) < 0.01) {
+      reasons.push("Betrag stimmt überein");
+    }
+    return reasons.length > 0 ? reasons.join(" · ") : null;
+  }, [txnIban, txnName, txnPurpose, txnAmount, invoiceMatches]);
+
+  const getTemplateMatchReason = useCallback((tpl: any): string | null => {
+    if (templateMatches.has(tpl.id)) return null;
+    const reasons: string[] = [];
+    if (txnIban && tpl.vendor_iban && txnIban.replace(/\s/g, "").toUpperCase() === tpl.vendor_iban.replace(/\s/g, "").toUpperCase()) {
+      reasons.push("IBAN stimmt überein");
+    }
+    if (txnName && tpl.vendor_name) {
+      const nameNorm = txnName.toLowerCase();
+      const vendorNorm = tpl.vendor_name.toLowerCase();
+      if (nameNorm.includes(vendorNorm) || vendorNorm.includes(nameNorm)) {
+        reasons.push("Kreditor stimmt überein");
+      }
+    }
+    if (tpl.expected_amount != null) {
+      const tol = tpl.amount_tolerance || 0;
+      if (Math.abs(txnAmount - Math.abs(tpl.expected_amount)) <= tol) {
+        reasons.push("Betrag stimmt überein");
+      }
+    }
+    return reasons.length > 0 ? reasons.join(" · ") : null;
+  }, [txnIban, txnName, txnAmount, templateMatches]);
+
+  // Sort: AI matches first, then smart matches, then rest
   const sortedInvoices = useMemo(() => {
     return [...allInvoices].sort((a, b) => {
-      const scoreA = invoiceMatches.get(a.id)?.score || 0;
-      const scoreB = invoiceMatches.get(b.id)?.score || 0;
-      return scoreB - scoreA;
+      const aiA = invoiceMatches.get(a.id)?.score || 0;
+      const aiB = invoiceMatches.get(b.id)?.score || 0;
+      const smartA = getInvoiceMatchReason(a) ? 0.5 : 0;
+      const smartB = getInvoiceMatchReason(b) ? 0.5 : 0;
+      return (aiB + smartB) - (aiA + smartA);
     });
-  }, [allInvoices, invoiceMatches]);
+  }, [allInvoices, invoiceMatches, getInvoiceMatchReason]);
 
-  // Sort templates: AI-recommended first
   const sortedTemplates = useMemo(() => {
     return [...allTemplates].sort((a, b) => {
-      const scoreA = templateMatches.get(a.id)?.score || 0;
-      const scoreB = templateMatches.get(b.id)?.score || 0;
-      return scoreB - scoreA;
+      const aiA = templateMatches.get(a.id)?.score || 0;
+      const aiB = templateMatches.get(b.id)?.score || 0;
+      const smartA = getTemplateMatchReason(a) ? 0.5 : 0;
+      const smartB = getTemplateMatchReason(b) ? 0.5 : 0;
+      return (aiB + smartB) - (aiA + smartA);
     });
-  }, [allTemplates, templateMatches]);
+  }, [allTemplates, templateMatches, getTemplateMatchReason]);
 
   const isCurrentlyAssigned = (type: "invoice" | "template", id: string) => {
     if (type === "invoice") return currentTxn?.matched_invoice_id === id;
     return currentTxn?.matched_template_id === id;
   };
 
+  // Count recommendations
+  const invoiceRecommendations = sortedInvoices.filter(inv => invoiceMatches.has(inv.id) || getInvoiceMatchReason(inv)).length;
+  const templateRecommendations = sortedTemplates.filter(tpl => templateMatches.has(tpl.id) || getTemplateMatchReason(tpl)).length;
+  const hasAnyRecommendation = invoiceRecommendations > 0 || templateRecommendations > 0;
+
   return (
-    <>
-      {/* Rechnungen */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h4 className="text-sm font-semibold flex items-center gap-1.5">
-            <FileText className="h-4 w-4 text-primary" />
-            Rechnungen
-            <Badge variant="secondary" className="text-[10px] ml-1">{sortedInvoices.length}</Badge>
-          </h4>
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-muted-foreground">Bezahlte anzeigen</span>
-            <Switch checked={showAssignedInvoices} onCheckedChange={onToggleShowAssigned} className="scale-75" />
-          </div>
+    <div className="flex flex-col h-full">
+      {/* No recommendations hint */}
+      {!hasAnyRecommendation && (
+        <div className="flex items-center gap-2 p-3 mb-3 rounded-lg border border-orange-200 dark:border-orange-800 bg-orange-50/50 dark:bg-orange-950/20 text-sm text-orange-700 dark:text-orange-300">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span>Keine Übereinstimmungen gefunden — bitte manuell zuordnen.</span>
         </div>
+      )}
 
-        {sortedInvoices.length === 0 ? (
-          <p className="text-xs text-muted-foreground py-4 text-center">Keine Rechnungen verfügbar</p>
-        ) : (
-          <div className="space-y-1.5 max-h-[280px] overflow-y-auto">
-            {sortedInvoices.map((inv: any) => {
-              const match = invoiceMatches.get(inv.id);
-              const isAssigned = isCurrentlyAssigned("invoice", inv.id);
-              return (
-                <button
-                  key={inv.id}
-                  onClick={() => !isAssigned && onAssignInvoice(inv)}
-                  disabled={isAssigned}
-                  className={cn(
-                    "w-full text-left p-2.5 rounded-lg border transition-colors",
-                    isAssigned
-                      ? "border-primary/50 bg-primary/5 cursor-default"
-                      : "hover:border-primary/40 hover:bg-muted/50 cursor-pointer",
-                    match && !isAssigned && "border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/20"
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium truncate">{inv.vendor_name || "Unbekannt"}</span>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {isAssigned && <Badge variant="default" className="text-[10px]">Zugeordnet</Badge>}
-                      {match && !isAssigned && (
-                        <Badge variant="outline" className="text-[10px] border-purple-300 text-purple-700 dark:text-purple-300">
-                          <Sparkles className="h-2.5 w-2.5 mr-0.5" />
-                          {Math.round(match.score * 100)}%
-                        </Badge>
-                      )}
-                      <span className="text-sm font-semibold">{formatCurrency(inv.gross_amount)}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                    {inv.invoice_number && <span>Re-Nr. {inv.invoice_number}</span>}
-                    {inv.invoice_date && <span>· {format(new Date(inv.invoice_date), "dd.MM.yyyy", { locale: de })}</span>}
-                    {inv.status && <Badge variant="outline" className="text-[9px] ml-auto">{inv.status}</Badge>}
-                  </div>
-                  {match?.reason && (
-                    <p className="text-[11px] text-purple-600 dark:text-purple-400 mt-1 italic">{match.reason}</p>
-                  )}
-                </button>
-              );
-            })}
+      {/* Inner tabs: Rechnungen / Vorlagen */}
+      <Tabs value={assignTab} onValueChange={setAssignTab} className="flex-1 flex flex-col overflow-hidden">
+        <TabsList variant="pill" className="grid w-full grid-cols-2 shrink-0">
+          <TabsTrigger variant="pill" value="rechnungen">
+            <FileText className="h-3.5 w-3.5 mr-1" />
+            Rechnungen
+            <Badge variant="secondary" className="text-[10px] ml-1.5">{sortedInvoices.length}</Badge>
+          </TabsTrigger>
+          <TabsTrigger variant="pill" value="vorlagen">
+            <LayoutTemplate className="h-3.5 w-3.5 mr-1" />
+            Vorlagen
+            <Badge variant="secondary" className="text-[10px] ml-1.5">{sortedTemplates.length}</Badge>
+          </TabsTrigger>
+        </TabsList>
+
+        {/* ── Rechnungen ── */}
+        <TabsContent value="rechnungen" className="flex-1 overflow-y-auto mt-2">
+          <div className="flex items-center justify-end mb-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-muted-foreground">Bezahlte anzeigen</span>
+              <Switch checked={showAssignedInvoices} onCheckedChange={onToggleShowAssigned} className="scale-75" />
+            </div>
           </div>
-        )}
-      </div>
 
-      <Separator />
-
-      {/* Vorlagen */}
-      <div>
-        <h4 className="text-sm font-semibold flex items-center gap-1.5 mb-3">
-          <LayoutTemplate className="h-4 w-4 text-primary" />
-          Vorlagen
-          <Badge variant="secondary" className="text-[10px] ml-1">{sortedTemplates.length}</Badge>
-        </h4>
-
-        {sortedTemplates.length === 0 ? (
-          <p className="text-xs text-muted-foreground py-4 text-center">Keine Vorlagen verfügbar</p>
-        ) : (
-          <div className="space-y-1.5 max-h-[280px] overflow-y-auto">
-            {sortedTemplates.map((tpl: any) => {
-              const match = templateMatches.get(tpl.id);
-              const isAssigned = isCurrentlyAssigned("template", tpl.id);
-              return (
-                <button
-                  key={tpl.id}
-                  onClick={() => !isAssigned && onAssignTemplate(tpl)}
-                  disabled={isAssigned}
-                  className={cn(
-                    "w-full text-left p-2.5 rounded-lg border transition-colors",
-                    isAssigned
-                      ? "border-primary/50 bg-primary/5 cursor-default"
-                      : "hover:border-primary/40 hover:bg-muted/50 cursor-pointer",
-                    match && !isAssigned && "border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/20"
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium truncate">{tpl.name}</span>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {isAssigned && <Badge variant="default" className="text-[10px]">Zugeordnet</Badge>}
-                      {match && !isAssigned && (
-                        <Badge variant="outline" className="text-[10px] border-purple-300 text-purple-700 dark:text-purple-300">
-                          <Sparkles className="h-2.5 w-2.5 mr-0.5" />
-                          {Math.round(match.score * 100)}%
-                        </Badge>
-                      )}
-                      {tpl.expected_amount != null && (
-                        <span className="text-sm font-semibold">{formatCurrency(tpl.expected_amount)}</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
-                    {tpl.vendor_name && <span>{tpl.vendor_name}</span>}
-                    {tpl.interval && <span>· {tpl.interval}</span>}
-                    {(tpl as any).chart_of_accounts && (
-                      <span className="ml-auto">{(tpl as any).chart_of_accounts.account_number}</span>
+          {sortedInvoices.length === 0 ? (
+            <p className="text-xs text-muted-foreground py-8 text-center">Keine Rechnungen verfügbar</p>
+          ) : (
+            <div className="space-y-1.5">
+              {sortedInvoices.map((inv: any) => {
+                const aiMatch = invoiceMatches.get(inv.id);
+                const smartReason = getInvoiceMatchReason(inv);
+                const isRecommended = !!aiMatch || !!smartReason;
+                const isAssigned = isCurrentlyAssigned("invoice", inv.id);
+                return (
+                  <button
+                    key={inv.id}
+                    onClick={() => !isAssigned && onAssignInvoice(inv)}
+                    disabled={isAssigned}
+                    className={cn(
+                      "w-full text-left p-2.5 rounded-lg border transition-colors",
+                      isAssigned
+                        ? "border-primary/50 bg-primary/5 cursor-default"
+                        : "hover:border-primary/40 hover:bg-muted/50 cursor-pointer",
+                      isRecommended && !isAssigned && "border-orange-300 dark:border-orange-700 bg-orange-50/60 dark:bg-orange-950/30"
                     )}
-                  </div>
-                  {match?.reason && (
-                    <p className="text-[11px] text-purple-600 dark:text-purple-400 mt-1 italic">{match.reason}</p>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </>
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium truncate">{inv.vendor_name || "Unbekannt"}</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {isAssigned && <Badge variant="default" className="text-[10px]">Zugeordnet</Badge>}
+                        {aiMatch && !isAssigned && (
+                          <Badge variant="outline" className="text-[10px] border-orange-400 bg-orange-100 text-orange-800 dark:border-orange-600 dark:bg-orange-950 dark:text-orange-300">
+                            <Sparkles className="h-2.5 w-2.5 mr-0.5" />
+                            {Math.round(aiMatch.score * 100)}%
+                          </Badge>
+                        )}
+                        <span className="text-sm font-semibold">{formatCurrency(inv.gross_amount)}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                      {inv.invoice_number && <span>Re-Nr. {inv.invoice_number}</span>}
+                      {inv.invoice_date && <span>· {format(new Date(inv.invoice_date), "dd.MM.yyyy", { locale: de })}</span>}
+                      {inv.status && <Badge variant="outline" className="text-[9px] ml-auto">{inv.status}</Badge>}
+                    </div>
+                    {aiMatch?.reason && (
+                      <p className="text-[11px] text-orange-700 dark:text-orange-400 mt-1 italic">{aiMatch.reason}</p>
+                    )}
+                    {!aiMatch && smartReason && (
+                      <p className="text-[11px] text-orange-700 dark:text-orange-400 mt-1 italic">{smartReason}</p>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* ── Vorlagen ── */}
+        <TabsContent value="vorlagen" className="flex-1 overflow-y-auto mt-2">
+          {sortedTemplates.length === 0 ? (
+            <p className="text-xs text-muted-foreground py-8 text-center">Keine Vorlagen verfügbar</p>
+          ) : (
+            <div className="space-y-1.5">
+              {sortedTemplates.map((tpl: any) => {
+                const aiMatch = templateMatches.get(tpl.id);
+                const smartReason = getTemplateMatchReason(tpl);
+                const isRecommended = !!aiMatch || !!smartReason;
+                const isAssigned = isCurrentlyAssigned("template", tpl.id);
+                return (
+                  <button
+                    key={tpl.id}
+                    onClick={() => !isAssigned && onAssignTemplate(tpl)}
+                    disabled={isAssigned}
+                    className={cn(
+                      "w-full text-left p-2.5 rounded-lg border transition-colors",
+                      isAssigned
+                        ? "border-primary/50 bg-primary/5 cursor-default"
+                        : "hover:border-primary/40 hover:bg-muted/50 cursor-pointer",
+                      isRecommended && !isAssigned && "border-orange-300 dark:border-orange-700 bg-orange-50/60 dark:bg-orange-950/30"
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium truncate">{tpl.name}</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {isAssigned && <Badge variant="default" className="text-[10px]">Zugeordnet</Badge>}
+                        {aiMatch && !isAssigned && (
+                          <Badge variant="outline" className="text-[10px] border-orange-400 bg-orange-100 text-orange-800 dark:border-orange-600 dark:bg-orange-950 dark:text-orange-300">
+                            <Sparkles className="h-2.5 w-2.5 mr-0.5" />
+                            {Math.round(aiMatch.score * 100)}%
+                          </Badge>
+                        )}
+                        {tpl.expected_amount != null && (
+                          <span className="text-sm font-semibold">{formatCurrency(tpl.expected_amount)}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                      {tpl.vendor_name && <span>{tpl.vendor_name}</span>}
+                      {tpl.interval && <span>· {tpl.interval}</span>}
+                      {(tpl as any).chart_of_accounts && (
+                        <span className="ml-auto">{(tpl as any).chart_of_accounts.account_number}</span>
+                      )}
+                    </div>
+                    {aiMatch?.reason && (
+                      <p className="text-[11px] text-orange-700 dark:text-orange-400 mt-1 italic">{aiMatch.reason}</p>
+                    )}
+                    {!aiMatch && smartReason && (
+                      <p className="text-[11px] text-orange-700 dark:text-orange-400 mt-1 italic">{smartReason}</p>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }
