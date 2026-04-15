@@ -816,60 +816,70 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
             {/* Right: Zuordnung (top) + Analyse (bottom, collapsible) */}
             <div className="w-1/2 flex flex-col overflow-y-auto">
-              {/* ── Zuordnung Section (Top, prominent) ── */}
-              <div className="shrink-0">
-                <div className="px-4 py-2 border-b bg-muted/20 flex items-center gap-2">
-                  <Link2 className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-semibold">Zuordnung</span>
+              {/* ── Zuordnung Section (collapsible, default closed unless AI has matches) ── */}
+              <Collapsible defaultOpen={!!(currentTxn?.ai_suggestion?.matches?.length > 0)}>
+                <div className="shrink-0">
+                  <CollapsibleTrigger asChild>
+                    <button className="w-full px-4 py-2 border-b bg-muted/20 flex items-center gap-2 hover:bg-muted/40 transition-colors">
+                      <Link2 className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-semibold">Zuordnung</span>
+                      {(currentTxn?.ai_suggestion?.matches?.length > 0) && (
+                        <Badge variant="outline" className="text-[10px] ml-1">{currentTxn.ai_suggestion.matches.length} Vorschläge</Badge>
+                      )}
+                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground ml-auto" />
+                    </button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="p-4">
+                      <AssignmentTabContent
+                        currentTxn={currentTxn}
+                        allInvoices={allInvoices}
+                        allTemplates={allTemplates}
+                        showAssignedInvoices={showAssignedInvoices}
+                        onToggleShowAssigned={setShowAssignedInvoices}
+                        accounts={accounts}
+                        formRows={formRows}
+                        expandedRowId={expandedRowId}
+                        onAssignInvoice={async (inv: any) => {
+                          const targetRowId = expandedRowId || formRows[0]?.id;
+                          if (!targetRowId) return;
+                          setFormRows(rows => rows.map(r => {
+                            if (r.id !== targetRowId) return r;
+                            const updated = { ...r, invoice_id: inv.id };
+                            if (inv.invoice_number) updated.receipt_number = inv.invoice_number;
+                            if (inv.vendor_name) updated.description = [inv.vendor_name, inv.invoice_number].filter(Boolean).join(" ");
+                            return updated;
+                          }));
+                          await supabase.from("bank_transactions").update({
+                            matched_invoice_id: inv.id,
+                          }).eq("id", currentTxn.id);
+                          queryClient.invalidateQueries({ queryKey: ["txn-review-invoice"] });
+                          toast.success("Rechnung zugeordnet");
+                        }}
+                        onAssignTemplate={async (tpl: any) => {
+                          const targetRowId = expandedRowId || formRows[0]?.id;
+                          if (!targetRowId) return;
+                          setFormRows(rows => rows.map(r => {
+                            if (r.id !== targetRowId) return r;
+                            const updated = { ...r, matched_template_id: tpl.id };
+                            if (tpl.account_id) updated.counter_account_id = tpl.account_id;
+                            if (tpl.vat_rate != null) updated.vat_rate = String(tpl.vat_rate);
+                            if (tpl.is_35a_relevant) updated.is_35a_relevant = true;
+                            if (tpl.name) updated.description = tpl.name;
+                            return updated;
+                          }));
+                          await supabase.from("bank_transactions").update({
+                            matched_template_id: tpl.id,
+                          }).eq("id", currentTxn.id);
+                          queryClient.invalidateQueries({ queryKey: ["txn-review-template"] });
+                          toast.success("Vorlage zugeordnet");
+                        }}
+                        formatCurrency={formatCurrency}
+                      />
+                    </div>
+                  </CollapsibleContent>
                 </div>
-                <div className="p-4">
-                  <AssignmentTabContent
-                    currentTxn={currentTxn}
-                    allInvoices={allInvoices}
-                    allTemplates={allTemplates}
-                    showAssignedInvoices={showAssignedInvoices}
-                    onToggleShowAssigned={setShowAssignedInvoices}
-                    accounts={accounts}
-                    formRows={formRows}
-                    expandedRowId={expandedRowId}
-                    onAssignInvoice={async (inv: any) => {
-                      const targetRowId = expandedRowId || formRows[0]?.id;
-                      if (!targetRowId) return;
-                      setFormRows(rows => rows.map(r => {
-                        if (r.id !== targetRowId) return r;
-                        const updated = { ...r, invoice_id: inv.id };
-                        if (inv.invoice_number) updated.receipt_number = inv.invoice_number;
-                        if (inv.vendor_name) updated.description = [inv.vendor_name, inv.invoice_number].filter(Boolean).join(" ");
-                        return updated;
-                      }));
-                      await supabase.from("bank_transactions").update({
-                        matched_invoice_id: inv.id,
-                      }).eq("id", currentTxn.id);
-                      queryClient.invalidateQueries({ queryKey: ["txn-review-invoice"] });
-                      toast.success("Rechnung zugeordnet");
-                    }}
-                    onAssignTemplate={async (tpl: any) => {
-                      const targetRowId = expandedRowId || formRows[0]?.id;
-                      if (!targetRowId) return;
-                      setFormRows(rows => rows.map(r => {
-                        if (r.id !== targetRowId) return r;
-                        const updated = { ...r, matched_template_id: tpl.id };
-                        if (tpl.account_id) updated.counter_account_id = tpl.account_id;
-                        if (tpl.vat_rate != null) updated.vat_rate = String(tpl.vat_rate);
-                        if (tpl.is_35a_relevant) updated.is_35a_relevant = true;
-                        if (tpl.name) updated.description = tpl.name;
-                        return updated;
-                      }));
-                      await supabase.from("bank_transactions").update({
-                        matched_template_id: tpl.id,
-                      }).eq("id", currentTxn.id);
-                      queryClient.invalidateQueries({ queryKey: ["txn-review-template"] });
-                      toast.success("Vorlage zugeordnet");
-                    }}
-                    formatCurrency={formatCurrency}
-                  />
-                </div>
-              </div>
+              </Collapsible>
 
               {/* ── Analyse Section (Bottom, collapsible) ── */}
               <Collapsible defaultOpen={true}>
@@ -1666,7 +1676,6 @@ function AssignmentTabContent({
   onAssignTemplate: (tpl: any) => void;
   formatCurrency: (amount: number | null) => string;
 }) {
-  const [assignTab, setAssignTab] = useState<string>("rechnungen");
   const aiMatches = currentTxn?.ai_suggestion?.matches || [];
 
   // Extract transaction metadata for smart matching
@@ -1678,6 +1687,21 @@ function AssignmentTabContent({
   // Cross-reference AI match IDs against actual invoice/template lists to determine type
   const invoiceIdSet = useMemo(() => new Set(allInvoices.map((i: any) => i.id)), [allInvoices]);
   const templateIdSet = useMemo(() => new Set(allTemplates.map((t: any) => t.id)), [allTemplates]);
+
+  // Determine default tab based on AI matches
+  const defaultTab = useMemo(() => {
+    const hasTemplateMatch = aiMatches.some((m: any) => m.id && templateIdSet.has(m.id));
+    const hasInvoiceMatch = aiMatches.some((m: any) => m.id && invoiceIdSet.has(m.id));
+    if (hasTemplateMatch && !hasInvoiceMatch) return "vorlagen";
+    return "rechnungen";
+  }, [aiMatches, invoiceIdSet, templateIdSet]);
+
+  const [assignTab, setAssignTab] = useState<string>(defaultTab);
+
+  // Update tab when transaction changes and default changes
+  useEffect(() => {
+    setAssignTab(defaultTab);
+  }, [currentTxn?.id, defaultTab]);
 
   const invoiceMatches = useMemo(() => {
     const matchMap = new Map<string, any>();
