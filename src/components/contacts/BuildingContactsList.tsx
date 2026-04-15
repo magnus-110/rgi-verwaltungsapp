@@ -406,7 +406,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
           expected_amount: amount,
           vendor_name: vendorName,
           vendor_iban: vendorIban,
-          vat_rate: 19,
+          vat_rate: 0,
           account_id: accountId,
         }).eq("id", existingTemplate.id);
         if (updateErr) {
@@ -422,7 +422,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
           account_id: accountId,
           vendor_name: vendorName,
           vendor_iban: vendorIban,
-          vat_rate: 19,
+          vat_rate: 0,
         });
         if (insertErr) {
           toast({ title: "Fehler beim Vorlage erstellen", description: insertErr.message, variant: "destructive" });
