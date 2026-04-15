@@ -1,44 +1,43 @@
 
 
-## Plan: Absender-Anzeige mit IBAN-Mapping zu Eigentümern
+## Plan: KI-Vorlagenvorschlag anzeigen + Prefetch-Zuverlässigkeit verbessern
 
-### Kontext
-Die Transaktionsdetails im `TransactionReviewMode` zeigen aktuell nur Datum, Betrag und Verwendungszweck. Der Absender (bei Einnahmen: `debtor_name`/`debtor_iban`, bei Ausgaben: `creditor_name`/`creditor_iban`) fehlt. Zusätzlich sollen IBANs automatisch gegen die `contact_bank_accounts`-Tabelle abgeglichen werden, um den zugehörigen Kontakt (z.B. Eigentümer) direkt anzuzeigen.
+### Problem 1: Template-Vorschlag wird nicht angezeigt
+Die `suggest-match` Edge Function gibt `template_suggestion` zurück (Name, Lieferant, Betrag, Intervall), aber das UI im TransactionReviewMode zeigt diesen Vorschlag nirgends an. Es fehlt ein UI-Block, der den Vorschlag darstellt und einen "Vorlage erstellen"-Button bietet.
 
-### 1. IBAN-Lookup Query
+### Problem 2: KI-Analyse fehlt oft
+Mehrere Ursachen:
+- Der Prefetch-Hook filtert nur `match_status === "unmatched" || "invoice_pending"` — Transaktionen mit anderen Status werden nie analysiert
+- Der `useEffect`-Dependency auf `transactions.length` triggert nicht bei Datenänderungen innerhalb der Transaktion (z.B. nach Reload)
+- Wenn `runningRef.current` noch `true` ist (z.B. nach Tab-Wechsel), startet der Prefetch nicht erneut
 
-Neue Query im `TransactionReviewMode`, die beim Laden einer Transaktion die relevante IBAN (debtor oder creditor) gegen `contact_bank_accounts` prüft:
+### Änderungen
 
-```sql
-contact_bank_accounts.iban → contact_persons.contact_id → contacts.name
-+ contact_building_assignments (gefiltert auf buildingId) → unit_number, role
-```
+#### 1. TransactionReviewMode.tsx — Template-Vorschlag im rechten Panel
 
-Dies liefert: Kontaktname, Einheitsnummer, Rolle im Gebäude (owner/tenant).
+Im KI-Analyse-Bereich (rechtes Panel, ab Zeile 716) wird ein neuer Block eingefügt für `template_suggestion`:
+- Karte mit Vorlagendetails: Name, Lieferant, IBAN, Betrag, Intervall, Konto
+- Grüner "Vorlage erstellen"-Button, der die Vorlage direkt in `booking_templates` anlegt
+- Nach Erstellung: Erfolgsmeldung + automatisches Verknüpfen mit der Transaktion
 
-### 2. UI-Erweiterung im Transaktions-Header
+#### 2. TransactionReviewMode.tsx — Buchungsformular auto-fill aus template_suggestion
 
-Im bestehenden Summary-Block (Zeilen 494-522) wird zwischen Betrag und Verwendungszweck eine neue Zeile eingefügt:
+Wenn die KI eine `template_suggestion` liefert (aber keine bestehende Vorlage matcht), werden die Felder des Buchungsformulars (Gegenkonto, Beschreibung) aus der Suggestion vorausgefüllt — analog zur bestehenden Template-Logik.
 
-```text
-┌──────────────────────────────────────────┐
-│ 01.12.2025   ✓ Betrag   KI-Vorschlag    │
-│ +1.170,00 €                              │
-│ 👤 Max Mustermann (DE89...)  → Whg. 2   │  ← NEU
-│ Hausgeld Whg. 2 (3 Monate)              │
-└──────────────────────────────────────────┘
-```
+#### 3. useTransactionAiPrefetch.ts — Robustere Auslösung
 
-- Bei **Einnahmen** (amount > 0): Absender = `debtor_name` + `debtor_iban`
-- Bei **Ausgaben** (amount < 0): Empfänger = `creditor_name` + `creditor_iban`
-- Wenn IBAN-Match gefunden: Kontaktname + Einheit als grünes Badge
-- Wenn kein Match: Name + IBAN in grau (ohne Badge)
+- Filter erweitern: Auch Transaktionen mit `match_status === "matched_template"` oder `"matched_invoice"` können `ai_suggestion` bekommen (für zusätzliche Hinweise)
+- **Hauptfix**: Dependency-Array auf stabile ID-Liste statt `transactions.length` umstellen, damit Neuladungen den Prefetch triggern
+- Reset `runningRef` beim Cleanup sauberer handhaben
 
-### 3. Dateien
+#### 4. suggest-match Edge Function — Historische Buchungen mitliefern
+
+Der Prefetch-Hook lädt bereits Templates und Invoices, sendet aber keine `historicalBookings`. Das führt dazu, dass die KI keine fundierte Entscheidung treffen kann, ob eine Vorlage oder ein `missing_invoice_hint` vorgeschlagen werden soll. Fix: Im Prefetch zusätzlich die letzten Buchungen desselben Kreditors (per IBAN/Name) laden und mitsenden.
+
+### Dateien
 
 | Datei | Änderung |
 |-------|----------|
-| `TransactionReviewMode.tsx` | Neue `useQuery` für IBAN-Lookup, UI-Block im Header |
-
-Keine Migration nötig — alle Daten existieren bereits in `bank_transactions` und `contact_bank_accounts`.
+| `TransactionReviewMode.tsx` | Template-Suggestion-UI, Auto-Fill aus Suggestion |
+| `useTransactionAiPrefetch.ts` | Historische Buchungen laden, robustere Dependencies |
 
