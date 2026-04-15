@@ -415,7 +415,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
     setFormRows([row]);
     setExpandedRowId(row.id);
-  }, [currentTxn?.id, templateDetail, invoiceDetail, accounts, currentTxn?.ai_suggestion]);
+  }, [currentTxn?.id, templateDetail, invoiceDetail, accounts, currentTxn?.ai_suggestion, getFiscalYearForDate]);
 
   const updateRow = (rowId: string, field: string, value: string | boolean | number) => {
     setFormRows(rows => rows.map(r => r.id === rowId ? { ...r, [field]: field === "fiscal_year" ? (typeof value === "string" ? parseInt(value) || r.fiscal_year : value) : value } : r));
