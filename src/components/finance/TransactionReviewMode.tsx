@@ -549,6 +549,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     : 100;
 
   useEffect(() => { setCurrentIndex(initialIndex ?? 0); setBookedCount(0); }, [open, initialIndex]);
+  useEffect(() => { setActiveRightTab("analyse"); }, [currentIndex]);
 
   const sourceType = useMemo(() => {
     if (!currentTxn) return "none";
