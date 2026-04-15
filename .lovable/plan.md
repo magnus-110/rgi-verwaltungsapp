@@ -1,60 +1,50 @@
 
 
-## Plan: Zwei Tabs auf der rechten Seite — Analyse & Zuordnung
+## Plan: Fix AI Matching Bug & Merge Analyse/Zuordnung into Single View
 
-### Konzept
+### Problem 1: AI matches never displayed
 
-Die rechte Seite des Prüfmodus bekommt zwei Tabs:
-1. **Analyse** — Zeigt wie bisher: Rechnungs-PDF, Vorlagendetails oder KI-Analyse
-2. **Zuordnung** — Neue Ansicht zum Verknüpfen mit Rechnungen oder Vorlagen, mit KI-Ranking
+The `suggest-match` edge function returns matches with `{ id, score, reason }` — **no `type` field**. But `AssignmentTabContent` filters matches with `m.type === "invoice"` and `m.type === "template"`, so both `invoiceMatches` and `templateMatches` maps are always empty. This is why the "Bankgebühren" template isn't recognized despite being in tolerance range.
 
-### Änderungen in `TransactionReviewMode.tsx`
+**Fix**: Instead of filtering by `type`, match the AI result IDs against the actual invoice/template lists to determine which type each match belongs to.
 
-#### Rechte Seite: Tabs-Struktur
+### Problem 2: UI Restructuring
 
-- Import `Tabs, TabsList, TabsTrigger, TabsContent` aus `@/components/ui/tabs`
-- Die rechte Hälfte (`w-1/2`) wird in eine `Tabs`-Komponente gewickelt mit Tabs `analyse` und `zuordnung`
-- **Tab "Analyse"**: Enthält den bisherigen Inhalt (Rechnungs-PDF, Vorlagendetails, KI-Analyse, oder "Kein Beleg")
-- **Tab "Zuordnung"**: Neuer Inhalt (siehe unten)
+Remove the Analyse/Zuordnung tabs. Replace with a single scrollable right panel:
 
-#### Tab "Zuordnung" — Inhalt
+```text
+┌─────────────────────────────┐
+│ 🔮 Analyse                  │  ← Section header
+│  (PDF / Vorlage / KI-Info)  │
+├─────────────────────────────┤
+│ 🔗 Zuordnung                │  ← Section header
+│  Empfohlene Matches (orange)│  ← Only if matches exist
+│  "Keine Übereinstimmung"    │  ← Only if no matches
+│  [Alle Rechnungen/Vorlagen] │  ← Expandable browse
+└─────────────────────────────┘
+```
 
-**Zwei Sektionen: Rechnungen & Vorlagen**
+- If there ARE matches (AI or smart), show them directly with orange highlight
+- If there are NO matches, show the "Keine Übereinstimmungen" message and a collapsible section to browse all invoices/templates manually
+- Remove `activeRightTab` state and the Tabs wrapper
 
-1. **Rechnungen-Sektion**
-   - Neuer Query: Alle Rechnungen des Gebäudes laden (`invoices` Tabelle, `building_id`)
-   - Toggle "Bereits zugeordnete anzeigen" — filtert Rechnungen mit `status = 'paid'` ein/aus
-   - KI-Ranking: Aus `ai_suggestion.matches` die Invoice-Matches extrahieren und oben als "Empfohlen" anzeigen
-   - Jede Rechnung als kompakte Zeile: Lieferant, Betrag, Datum, Re-Nr, 1-Satz-Begründung aus dem KI-Match
-   - Klick auf eine Rechnung → setzt `invoice_id` und `matched_invoice_id` in der aktuellen Buchungszeile und auf der Transaktion
+### Changes
 
-2. **Vorlagen-Sektion**
-   - Bestehende Templates des Gebäudes laden (query existiert bereits teilweise)
-   - KI-Ranking: Aus `ai_suggestion.matches` die Template-Matches extrahieren und oben als "Empfohlen" anzeigen
-   - Jede Vorlage als kompakte Zeile: Name, Lieferant, Betrag, Intervall, 1-Satz-Begründung
-   - Klick → setzt `matched_template_id` in der Buchungszeile und füllt Konto/MwSt vor
+| File | Change |
+|------|--------|
+| `TransactionReviewMode.tsx` | 1. Fix match type detection by cross-referencing IDs with invoice/template lists instead of `m.type`. 2. Remove Tabs from right side, render Analyse section followed by Zuordnung section in a single scrollable column. 3. Remove `activeRightTab` state. 4. Always load invoices/templates queries (remove `activeRightTab === "zuordnung"` condition). |
 
-3. **KI-Vorschläge hervorheben**
-   - Matches aus `ai_suggestion.matches` werden nach Score sortiert
-   - Top-Vorschläge bekommen ein Badge "Empfohlen" + Score-Prozent
-   - Die 1-Satz-Begründung kommt aus `match.reason` (bereits von der KI geliefert)
+### Technical Details
 
-#### State-Erweiterungen
+**Match type detection fix:**
+```typescript
+// Instead of m.type === "invoice"
+const invoiceIds = new Set(allInvoices.map(i => i.id));
+const templateIds = new Set(allTemplates.map(t => t.id));
 
-- `activeRightTab`: `"analyse" | "zuordnung"` — Default `"analyse"`
-- `showAssignedInvoices`: boolean Toggle
-- Neuer Query für alle Rechnungen des Gebäudes
+const invoiceMatches = aiMatches.filter(m => invoiceIds.has(m.id));
+const templateMatches = aiMatches.filter(m => templateIds.has(m.id));
+```
 
-#### Zuordnungs-Logik
-
-Wenn eine Rechnung/Vorlage ausgewählt wird:
-- Die aktuelle `formRow` wird aktualisiert (`invoice_id`, `matched_template_id`, Konto, Beschreibung, MwSt)
-- Die Transaktion wird per Update in `bank_transactions` aktualisiert (`matched_invoice_id` / `matched_template_id`)
-- Der Analyse-Tab aktualisiert sich automatisch (da der Query-Key sich ändert)
-
-### Dateien
-
-| Datei | Änderung |
-|-------|----------|
-| `TransactionReviewMode.tsx` | Tabs-Struktur rechts, Zuordnungs-Tab mit Rechnungs-/Vorlagenliste, KI-Ranking, Toggle |
+**Layout**: Single `overflow-y-auto` div with two sections separated by headers. The Zuordnung section shows matched items (invoices + templates combined, sorted by score) at the top, then a collapsible "Alle durchsuchen" with the Rechnungen/Vorlagen sub-tabs for manual browsing.
 
