@@ -51,7 +51,7 @@ export function useTransactionAiPrefetch(
 
     const run = async () => {
       // Load templates and invoices for context
-      const [{ data: templates }, { data: invoices }] = await Promise.all([
+      const [{ data: templates }, { data: invoices }, { data: billingPeriods }] = await Promise.all([
         supabase.from("booking_templates")
           .select("id, name, vendor_name, vendor_iban, expected_amount, amount_tolerance, interval, account_id, vat_rate, valid_from, valid_to, chart_of_accounts(account_number, account_name)")
           .eq("building_id", buildingId),
@@ -60,7 +60,18 @@ export function useTransactionAiPrefetch(
           .eq("building_id", buildingId)
           .eq("status", "paid")
           .limit(200),
+        supabase.from("billing_periods")
+          .select("fiscal_year, period_from, period_to")
+          .eq("building_id", buildingId)
+          .order("fiscal_year", { ascending: false })
+          .limit(5),
       ]);
+
+      const billingPeriodData = (billingPeriods || []).map((bp: any) => ({
+        fiscal_year: bp.fiscal_year,
+        period_from: bp.period_from,
+        period_to: bp.period_to,
+      }));
 
       const templateData = (templates || []).map((t: any) => ({
         id: t.id,
