@@ -274,7 +274,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       booked: false,
       ...overrides,
     };
-  }, [currentTxn, accounts]);
+  }, [currentTxn, accounts, getFiscalYearForDate]);
 
   // Auto-fill form rows when transaction changes
   useEffect(() => {
