@@ -1044,6 +1044,7 @@ function TemplateSuggestionCard({
         interval: form.interval || null,
         account_id: accountId,
         description: suggestion.description || null,
+        amount_tolerance: form.amount_tolerance ? parseFloat(form.amount_tolerance) : null,
       } as any).select("id").single();
 
       if (error) throw error;
