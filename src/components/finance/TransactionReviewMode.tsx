@@ -1560,3 +1560,188 @@ function CreateAccountInlineDialog({
     </Dialog>
   );
 }
+
+// ─── Assignment Tab Content ────────────────────────────────────────────────────
+
+function AssignmentTabContent({
+  currentTxn, allInvoices, allTemplates, showAssignedInvoices, onToggleShowAssigned,
+  accounts, formRows, expandedRowId, onAssignInvoice, onAssignTemplate, formatCurrency,
+}: {
+  currentTxn: any;
+  allInvoices: any[];
+  allTemplates: any[];
+  showAssignedInvoices: boolean;
+  onToggleShowAssigned: (v: boolean) => void;
+  accounts: any[];
+  formRows: BookingRowData[];
+  expandedRowId: string | null;
+  onAssignInvoice: (inv: any) => void;
+  onAssignTemplate: (tpl: any) => void;
+  formatCurrency: (amount: number | null) => string;
+}) {
+  const aiMatches = currentTxn?.ai_suggestion?.matches || [];
+
+  // Separate AI matches by type
+  const invoiceMatches = useMemo(() => {
+    const matchMap = new Map<string, any>();
+    aiMatches.filter((m: any) => m.type === "invoice" && m.id).forEach((m: any) => matchMap.set(m.id, m));
+    return matchMap;
+  }, [aiMatches]);
+
+  const templateMatches = useMemo(() => {
+    const matchMap = new Map<string, any>();
+    aiMatches.filter((m: any) => m.type === "template" && m.id).forEach((m: any) => matchMap.set(m.id, m));
+    return matchMap;
+  }, [aiMatches]);
+
+  // Sort invoices: AI-recommended first
+  const sortedInvoices = useMemo(() => {
+    return [...allInvoices].sort((a, b) => {
+      const scoreA = invoiceMatches.get(a.id)?.score || 0;
+      const scoreB = invoiceMatches.get(b.id)?.score || 0;
+      return scoreB - scoreA;
+    });
+  }, [allInvoices, invoiceMatches]);
+
+  // Sort templates: AI-recommended first
+  const sortedTemplates = useMemo(() => {
+    return [...allTemplates].sort((a, b) => {
+      const scoreA = templateMatches.get(a.id)?.score || 0;
+      const scoreB = templateMatches.get(b.id)?.score || 0;
+      return scoreB - scoreA;
+    });
+  }, [allTemplates, templateMatches]);
+
+  const isCurrentlyAssigned = (type: "invoice" | "template", id: string) => {
+    if (type === "invoice") return currentTxn?.matched_invoice_id === id;
+    return currentTxn?.matched_template_id === id;
+  };
+
+  return (
+    <>
+      {/* Rechnungen */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-sm font-semibold flex items-center gap-1.5">
+            <FileText className="h-4 w-4 text-primary" />
+            Rechnungen
+            <Badge variant="secondary" className="text-[10px] ml-1">{sortedInvoices.length}</Badge>
+          </h4>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-muted-foreground">Bezahlte anzeigen</span>
+            <Switch checked={showAssignedInvoices} onCheckedChange={onToggleShowAssigned} className="scale-75" />
+          </div>
+        </div>
+
+        {sortedInvoices.length === 0 ? (
+          <p className="text-xs text-muted-foreground py-4 text-center">Keine Rechnungen verfügbar</p>
+        ) : (
+          <div className="space-y-1.5 max-h-[280px] overflow-y-auto">
+            {sortedInvoices.map((inv: any) => {
+              const match = invoiceMatches.get(inv.id);
+              const isAssigned = isCurrentlyAssigned("invoice", inv.id);
+              return (
+                <button
+                  key={inv.id}
+                  onClick={() => !isAssigned && onAssignInvoice(inv)}
+                  disabled={isAssigned}
+                  className={cn(
+                    "w-full text-left p-2.5 rounded-lg border transition-colors",
+                    isAssigned
+                      ? "border-primary/50 bg-primary/5 cursor-default"
+                      : "hover:border-primary/40 hover:bg-muted/50 cursor-pointer",
+                    match && !isAssigned && "border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/20"
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium truncate">{inv.vendor_name || "Unbekannt"}</span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {isAssigned && <Badge variant="default" className="text-[10px]">Zugeordnet</Badge>}
+                      {match && !isAssigned && (
+                        <Badge variant="outline" className="text-[10px] border-purple-300 text-purple-700 dark:text-purple-300">
+                          <Sparkles className="h-2.5 w-2.5 mr-0.5" />
+                          {Math.round(match.score * 100)}%
+                        </Badge>
+                      )}
+                      <span className="text-sm font-semibold">{formatCurrency(inv.gross_amount)}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                    {inv.invoice_number && <span>Re-Nr. {inv.invoice_number}</span>}
+                    {inv.invoice_date && <span>· {format(new Date(inv.invoice_date), "dd.MM.yyyy", { locale: de })}</span>}
+                    {inv.status && <Badge variant="outline" className="text-[9px] ml-auto">{inv.status}</Badge>}
+                  </div>
+                  {match?.reason && (
+                    <p className="text-[11px] text-purple-600 dark:text-purple-400 mt-1 italic">{match.reason}</p>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <Separator />
+
+      {/* Vorlagen */}
+      <div>
+        <h4 className="text-sm font-semibold flex items-center gap-1.5 mb-3">
+          <LayoutTemplate className="h-4 w-4 text-primary" />
+          Vorlagen
+          <Badge variant="secondary" className="text-[10px] ml-1">{sortedTemplates.length}</Badge>
+        </h4>
+
+        {sortedTemplates.length === 0 ? (
+          <p className="text-xs text-muted-foreground py-4 text-center">Keine Vorlagen verfügbar</p>
+        ) : (
+          <div className="space-y-1.5 max-h-[280px] overflow-y-auto">
+            {sortedTemplates.map((tpl: any) => {
+              const match = templateMatches.get(tpl.id);
+              const isAssigned = isCurrentlyAssigned("template", tpl.id);
+              return (
+                <button
+                  key={tpl.id}
+                  onClick={() => !isAssigned && onAssignTemplate(tpl)}
+                  disabled={isAssigned}
+                  className={cn(
+                    "w-full text-left p-2.5 rounded-lg border transition-colors",
+                    isAssigned
+                      ? "border-primary/50 bg-primary/5 cursor-default"
+                      : "hover:border-primary/40 hover:bg-muted/50 cursor-pointer",
+                    match && !isAssigned && "border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/20"
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium truncate">{tpl.name}</span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {isAssigned && <Badge variant="default" className="text-[10px]">Zugeordnet</Badge>}
+                      {match && !isAssigned && (
+                        <Badge variant="outline" className="text-[10px] border-purple-300 text-purple-700 dark:text-purple-300">
+                          <Sparkles className="h-2.5 w-2.5 mr-0.5" />
+                          {Math.round(match.score * 100)}%
+                        </Badge>
+                      )}
+                      {tpl.expected_amount != null && (
+                        <span className="text-sm font-semibold">{formatCurrency(tpl.expected_amount)}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                    {tpl.vendor_name && <span>{tpl.vendor_name}</span>}
+                    {tpl.interval && <span>· {tpl.interval}</span>}
+                    {(tpl as any).chart_of_accounts && (
+                      <span className="ml-auto">{(tpl as any).chart_of_accounts.account_number}</span>
+                    )}
+                  </div>
+                  {match?.reason && (
+                    <p className="text-[11px] text-purple-600 dark:text-purple-400 mt-1 italic">{match.reason}</p>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
