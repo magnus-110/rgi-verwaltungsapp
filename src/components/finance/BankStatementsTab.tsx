@@ -9,7 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
-import { Upload, Loader2, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff, Building2, BookOpen, Link2, Send, RefreshCw, Landmark, FileWarning, Sparkles } from "lucide-react";
+import { Upload, Loader2, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff, Building2, BookOpen, Link2, Send, RefreshCw, Landmark, FileWarning, Sparkles, Flag } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { AssignmentDialog } from "./AssignmentDialog";
@@ -425,6 +426,17 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
               <Icon className="h-3 w-3" />{config.label}
             </Badge>
             {txn.booked_at && <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-950">✓</Badge>}
+            {txn.bookings?.needs_review && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger><Flag className="h-3.5 w-3.5 text-orange-500 fill-orange-500" /></TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p className="text-xs font-medium">Zur Prüfung markiert</p>
+                    {txn.bookings?.review_note && <p className="text-xs text-muted-foreground">{txn.bookings.review_note}</p>}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
           </div>
         </TableCell>
         <TableCell onClick={(e) => e.stopPropagation()}>
