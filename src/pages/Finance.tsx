@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BankStatementsTab } from "@/components/finance/BankStatementsTab";
 import { BookingTemplatesTab } from "@/components/finance/BookingTemplatesTab";
@@ -16,12 +16,22 @@ import { supabase } from "@/integrations/supabase/client";
 
 const NEEDS_PERIOD = ["abrechnung", "planung"];
 
+const SUB_TABS = [
+  { value: "templates", label: "Vorlagen" },
+  { value: "statements", label: "Kontoauszüge" },
+  { value: "bookings", label: "Buchungen" },
+] as const;
+
+type SubTab = typeof SUB_TABS[number]["value"];
+
 export const Finance = () => {
   const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
   const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("buchen");
-  const [activeSubTab, setActiveSubTab] = useState("invoices");
+  const [activeSubTab, setActiveSubTab] = useState<SubTab>("templates");
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["wirtschaftsplan"]));
+  const [buchenHover, setBuchenHover] = useState(false);
+  const hoverTimeout = useRef<ReturnType<typeof setTimeout>>();
 
   const showPeriod = NEEDS_PERIOD.includes(activeTab);
 
@@ -48,6 +58,23 @@ export const Finance = () => {
     });
   };
 
+  const handleBuchenMouseEnter = () => {
+    clearTimeout(hoverTimeout.current);
+    setBuchenHover(true);
+  };
+
+  const handleBuchenMouseLeave = () => {
+    hoverTimeout.current = setTimeout(() => setBuchenHover(false), 150);
+  };
+
+  const handleSubTabClick = (sub: SubTab) => {
+    setActiveSubTab(sub);
+    setActiveTab("buchen");
+    setBuchenHover(false);
+  };
+
+  const subLabel = SUB_TABS.find(s => s.value === activeSubTab)?.label ?? "";
+
   const SECTIONS = [
     { id: "wirtschaftsplan", label: "Wirtschaftsplan", description: "Gesamt- & Einzelwirtschaftsplan erstellen", icon: FileText },
     { id: "vermoegensbericht", label: "Vermögensbericht", description: "Vermögensübersicht der WEG", icon: Landmark },
@@ -63,7 +90,6 @@ export const Finance = () => {
         </p>
       </div>
 
-      {/* Global building (+ optional period) selector */}
       <BillingPeriodSelector
         selectedBuildingId={selectedBuildingId}
         onBuildingChange={(id) => { setSelectedBuildingId(id); setSelectedPeriodId(null); }}
@@ -74,33 +100,61 @@ export const Finance = () => {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList variant="segment" className="grid w-full grid-cols-4">
-          <TabsTrigger variant="segment" value="buchen">Buchen</TabsTrigger>
+          {/* Custom Buchen trigger with hover dropdown */}
+          <div
+            className="relative"
+            onMouseEnter={handleBuchenMouseEnter}
+            onMouseLeave={handleBuchenMouseLeave}
+          >
+            <TabsTrigger
+              variant="segment"
+              value="buchen"
+              className="w-full flex items-center gap-1.5"
+            >
+              <span>Buchen · {subLabel}</span>
+              <ChevronDown className="h-3 w-3 opacity-50" />
+            </TabsTrigger>
+
+            {buchenHover && (
+              <div className="absolute top-full left-0 z-50 mt-1 min-w-[160px] rounded-md border bg-popover p-1 shadow-md animate-in fade-in-0 zoom-in-95 duration-100">
+                {SUB_TABS.map(sub => (
+                  <button
+                    key={sub.value}
+                    onClick={() => handleSubTabClick(sub.value)}
+                    className={`w-full text-left rounded-sm px-3 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground ${
+                      activeSubTab === sub.value && activeTab === "buchen"
+                        ? "bg-accent/50 font-medium text-foreground"
+                        : "text-muted-foreground"
+                    }`}
+                  >
+                    {sub.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <TabsTrigger variant="segment" value="abrechnung">Abrechnung</TabsTrigger>
           <TabsTrigger variant="segment" value="planung">Planung & Berichte</TabsTrigger>
           <TabsTrigger variant="segment" value="kassenpruefung">Kassenprüfung</TabsTrigger>
         </TabsList>
 
         <TabsContent value="buchen">
-          <Tabs value={activeSubTab} onValueChange={setActiveSubTab} className="space-y-4">
-            <TabsList variant="pill" className="grid w-full grid-cols-3">
-              <TabsTrigger variant="pill" value="templates">Vorlagen</TabsTrigger>
-              <TabsTrigger variant="pill" value="statements">Kontoauszüge</TabsTrigger>
-              <TabsTrigger variant="pill" value="bookings">Buchungen</TabsTrigger>
-            </TabsList>
-            <TabsContent value="templates">
-              <BookingTemplatesTab
-                sharedBuildingId={selectedBuildingId}
-                onBuildingChange={setSelectedBuildingId}
-              />
-            </TabsContent>
-            <TabsContent value="statements">
-              <BankStatementsTab
-                sharedBuildingId={selectedBuildingId}
-                onBuildingChange={setSelectedBuildingId}
-              />
-            </TabsContent>
-            <TabsContent value="bookings"><BookingsTab sharedBuildingId={selectedBuildingId} /></TabsContent>
-          </Tabs>
+          {activeSubTab === "templates" && (
+            <BookingTemplatesTab
+              sharedBuildingId={selectedBuildingId}
+              onBuildingChange={setSelectedBuildingId}
+            />
+          )}
+          {activeSubTab === "statements" && (
+            <BankStatementsTab
+              sharedBuildingId={selectedBuildingId}
+              onBuildingChange={setSelectedBuildingId}
+            />
+          )}
+          {activeSubTab === "bookings" && (
+            <BookingsTab sharedBuildingId={selectedBuildingId} />
+          )}
         </TabsContent>
 
         <TabsContent value="abrechnung">
