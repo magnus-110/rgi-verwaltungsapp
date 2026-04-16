@@ -1172,7 +1172,7 @@ function BookingRowCard({
             <div className="flex items-center gap-1">
               <Input ref={el => fieldRefs.current["amount"] = el}
                 type="text" inputMode="decimal"
-                className={cn("h-12 text-3xl font-bold flex-1 border-none shadow-none px-0 focus-visible:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none", row.booking_type === "income" ? "text-green-600" : "text-destructive")}
+                className={cn("h-12 text-[2rem] font-bold flex-1 border-none shadow-none px-0 focus-visible:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none", row.booking_type === "income" ? "text-green-600" : "text-destructive")}
                 value={`${row.booking_type === "income" ? "+" : "−"}${row.amount}`}
                 onChange={e => {
                   const raw = e.target.value;
