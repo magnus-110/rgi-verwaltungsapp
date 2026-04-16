@@ -76,7 +76,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
       if (!selectedBuilding) return [];
       const { data, error } = await supabase
         .from("bank_transactions")
-        .select("*")
+        .select("*, bookings!bank_transactions_booking_id_fkey(id, needs_review, review_note)")
         .eq("building_id", selectedBuilding)
         .order("booking_date", { ascending: false });
       if (error) throw error;
