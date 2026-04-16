@@ -541,9 +541,16 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
                   <Badge variant="outline" className="text-xs bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 gap-1">
                     <Sparkles className="h-3 w-3 animate-pulse" />
                     KI analysiert {aiPrefetchState.completed}/{aiPrefetchState.total}
+                    {aiPrefetchState.errors > 0 && <span className="text-destructive ml-1">({aiPrefetchState.errors} Fehler)</span>}
                   </Badge>
                 )}
-                {!aiPrefetchState.running && aiPrefetchState.completed > 0 && (
+                {!aiPrefetchState.running && aiPrefetchState.abortReason && (
+                  <Badge variant="outline" className="text-xs bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300 gap-1">
+                    <FileWarning className="h-3 w-3" />
+                    {aiPrefetchState.abortReason}
+                  </Badge>
+                )}
+                {!aiPrefetchState.running && !aiPrefetchState.abortReason && aiPrefetchState.completed > 0 && (
                   <Badge variant="outline" className="text-xs bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300">
                     <Sparkles className="h-3 w-3 mr-1" />
                     {aiPrefetchState.completed} KI-Vorschläge
