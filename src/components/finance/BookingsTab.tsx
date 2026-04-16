@@ -377,27 +377,6 @@ export function BookingsTab({ sharedBuildingId }: { sharedBuildingId?: string | 
         </CardContent>
       </Card>
 
-      {/* Manual bookings */}
-      <Collapsible open={manualOpen} onOpenChange={setManualOpen}>
-        <Card className="overflow-hidden">
-          <CollapsibleTrigger asChild>
-            <div className="flex items-center justify-between px-4 py-2 border-b cursor-pointer hover:bg-muted/30 transition-colors">
-              <div className="flex items-center gap-2">
-                {manualOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                <h3 className="text-sm font-semibold">Manuelle Buchungen</h3>
-              </div>
-              {manualOpen && <Badge variant="outline" className="text-xs">{filteredManual.length}</Badge>}
-            </div>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            {filteredManual.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-6">Keine manuellen Buchungen in {filterYear}</p>
-            ) : (
-              renderSection("Manuelle Buchungen", filteredManual, filteredManual.length)
-            )}
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
 
       <EditBookingDialog
         open={!!editBooking}
