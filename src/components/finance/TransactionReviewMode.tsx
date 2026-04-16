@@ -1442,62 +1442,39 @@ function BookingRowCard({
               </div>
             )}
 
-            {/* §35a */}
-            <div className="p-2 rounded-lg border bg-muted/30 space-y-2">
-              <div className="flex items-center gap-3">
-                <Checkbox id={`35a-${index}`} checked={row.is_35a_relevant} onCheckedChange={v => onUpdateField("is_35a_relevant", !!v)} />
-                <label htmlFor={`35a-${index}`} className="text-xs font-medium">§35a-relevant</label>
-              </div>
-              {row.is_35a_relevant && (
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Lohnanteil (€)</label>
-                  <Input className="h-8 w-32 text-xs" placeholder="0,00" value={row.amount_35a}
-                    onChange={e => onUpdateField("amount_35a", e.target.value)} />
-                </div>
-              )}
-            </div>
-
-            {/* Brennstoffkauf */}
-            <div className="p-2 rounded-lg border space-y-2" style={{ borderColor: row.is_fuel_purchase ? 'hsl(var(--chart-5))' : undefined, backgroundColor: row.is_fuel_purchase ? 'hsl(var(--chart-5) / 0.08)' : undefined }}>
-              <div className="flex items-center gap-3">
-                <Checkbox id={`fuel-${index}`} checked={row.is_fuel_purchase} onCheckedChange={v => onUpdateField("is_fuel_purchase", !!v)} />
-                <label htmlFor={`fuel-${index}`} className="text-xs font-medium flex items-center gap-1.5">
-                  <Flame className="h-3.5 w-3.5" style={{ color: row.is_fuel_purchase ? 'hsl(var(--chart-5))' : undefined }} /> Brennstoffkauf
-                </label>
-              </div>
-              {row.is_fuel_purchase && (
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Art</label>
-                    <Select value={row.fuel_type} onValueChange={v => onUpdateField("fuel_type", v)}>
-                      <SelectTrigger className="h-8 text-xs">
-                        <SelectValue placeholder="Wählen…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="oil">Heizöl</SelectItem>
-                        <SelectItem value="pellets">Pellets</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1 block">
-                      Menge ({row.fuel_type === "pellets" ? "kg" : "l"})
-                    </label>
-                    <Input className="h-8 text-xs" type="number" placeholder="0" value={row.fuel_quantity}
-                      onChange={e => onUpdateField("fuel_quantity", e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Gesamtpreis (€)</label>
-                    <Input className="h-8 text-xs" type="number" step="0.01" placeholder="0,00" value={row.fuel_total_price}
-                      onChange={e => onUpdateField("fuel_total_price", e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Lieferdatum</label>
-                    <Input className="h-8 text-xs" type="date" value={row.fuel_date}
-                      onChange={e => onUpdateField("fuel_date", e.target.value)} />
-                  </div>
-                </div>
-              )}
+            {/* §35a & Brennstoff Buttons */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShow35aDialog(true)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors",
+                  row.is_35a_relevant
+                    ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400"
+                    : "border-border text-muted-foreground hover:bg-muted"
+                )}
+              >
+                §35a
+                {row.is_35a_relevant && row.amount_35a && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 ml-1">{row.amount_35a}€</Badge>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowFuelDialog(true)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors",
+                  row.is_fuel_purchase
+                    ? "bg-orange-50 dark:bg-orange-950/30 border-orange-300 dark:border-orange-700 text-orange-700 dark:text-orange-400"
+                    : "border-border text-muted-foreground hover:bg-muted"
+                )}
+              >
+                <Flame className="h-3.5 w-3.5" />
+                Brennstoff
+                {row.is_fuel_purchase && row.fuel_type && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 ml-1">{row.fuel_type === "oil" ? "Öl" : "Pellets"}</Badge>
+                )}
+              </button>
             </div>
 
 
