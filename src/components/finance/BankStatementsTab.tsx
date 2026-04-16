@@ -630,16 +630,31 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
               {/* Booked transactions */}
               {bookedTransactions.length > 0 && (
                 <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Switch checked={showBooked} onCheckedChange={setShowBooked} id="show-booked" />
-                    <Label htmlFor="show-booked" className="text-sm text-muted-foreground cursor-pointer flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4" />Gebuchte Transaktionen ({bookedTransactions.length})
-                    </Label>
+                  <div className="flex items-center gap-3 mb-2 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <Switch checked={showBooked} onCheckedChange={setShowBooked} id="show-booked" />
+                      <Label htmlFor="show-booked" className="text-sm text-muted-foreground cursor-pointer flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4" />Gebuchte Transaktionen ({bookedTransactions.length})
+                      </Label>
+                    </div>
+                    {showBooked && bookedTransactions.some((t: any) => t.bookings?.needs_review) && (
+                      <div className="flex items-center gap-2">
+                        <Switch checked={reviewFlaggedFirst} onCheckedChange={setReviewFlaggedFirst} id="flagged-first" />
+                        <Label htmlFor="flagged-first" className="text-sm text-muted-foreground cursor-pointer flex items-center gap-1.5">
+                          <Flag className="h-3.5 w-3.5 text-orange-500" />Markierte oben
+                        </Label>
+                      </div>
+                    )}
                   </div>
                   {showBooked && (
                     <Table>
                       {transactionTableHeader}
-                      <TableBody>{bookedTransactions.map(renderTransactionRow)}</TableBody>
+                      <TableBody>{
+                        (reviewFlaggedFirst
+                          ? [...bookedTransactions].sort((a: any, b: any) => (b.bookings?.needs_review ? 1 : 0) - (a.bookings?.needs_review ? 1 : 0))
+                          : bookedTransactions
+                        ).map(renderTransactionRow)
+                      }</TableBody>
                     </Table>
                   )}
                 </div>
