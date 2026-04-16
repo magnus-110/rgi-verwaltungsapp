@@ -152,40 +152,18 @@ export function AssignmentDialog({
     if (!transaction || (invoicesList.length === 0 && templatesList.length === 0)) return;
     setAiLoading(true);
     try {
-      // Query historical bookings for the same creditor
-      const txnName = transaction.amount < 0 ? transaction.creditor_name : transaction.debtor_name;
-      const txnIban = transaction.amount < 0 ? transaction.creditor_iban : transaction.debtor_iban;
-      let historicalBookings: { amount: number; date: string; has_invoice: boolean }[] = [];
+      const { loadSuggestMatchContext, loadHistoricalBookings, buildSuggestMatchPayload } = await import("@/hooks/useSuggestMatchContext");
+      const buildingId = transaction.building_id;
 
-      if (transaction.building_id && (txnName || txnIban)) {
-        const twoYearsAgo = new Date();
-        twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
-
-        let query = supabase
-          .from("bookings")
-          .select("amount, booking_date, invoice_id")
-          .eq("building_id", transaction.building_id)
-          .gte("booking_date", twoYearsAgo.toISOString().split("T")[0])
-          .order("booking_date", { ascending: false })
-          .limit(20);
-
-        // Filter by vendor: use description ILIKE for name match
-        if (txnName) {
-          query = query.ilike("description", `%${txnName}%`);
-        }
-
-        const { data: histData } = await query;
-        if (histData && histData.length > 0) {
-          historicalBookings = histData.map((b: any) => ({
-            amount: b.amount,
-            date: b.booking_date,
-            has_invoice: !!b.invoice_id,
-          }));
-        }
-      }
-
-      const { data, error } = await supabase.functions.invoke("suggest-match", {
-        body: {
+      // Load full context if we have a building
+      let payload: any;
+      if (buildingId) {
+        const ctx = await loadSuggestMatchContext(buildingId);
+        const historicalBookings = await loadHistoricalBookings(buildingId, transaction);
+        payload = buildSuggestMatchPayload(transaction, ctx, allTransactions || [], historicalBookings);
+      } else {
+        // Fallback: minimal context without building
+        payload = {
           transaction: {
             amount: transaction.amount,
             creditor_name: transaction.creditor_name,
@@ -196,38 +174,23 @@ export function AssignmentDialog({
             booking_date: transaction.booking_date,
           },
           invoices: invoicesList.slice(0, 50).map((inv: any) => ({
-            id: inv.id,
-            invoice_number: inv.invoice_number,
-            vendor_name: inv.vendor_name,
-            gross_amount: inv.gross_amount,
-            vendor_iban: inv.vendor_iban,
-            invoice_date: inv.invoice_date,
+            id: inv.id, invoice_number: inv.invoice_number, vendor_name: inv.vendor_name,
+            gross_amount: inv.gross_amount, vendor_iban: inv.vendor_iban, invoice_date: inv.invoice_date,
           })),
           templates: templatesList.slice(0, 30).map((t: any) => ({
-            id: t.id,
-            name: t.name,
-            vendor_name: t.vendor_name,
-            expected_amount: t.expected_amount,
-            vendor_iban: t.vendor_iban,
-            interval: t.interval,
-            account_id: t.account_id,
-            account_number: t.account_number,
-            account_name: t.account_name,
+            id: t.id, name: t.name, vendor_name: t.vendor_name,
+            expected_amount: t.expected_amount, vendor_iban: t.vendor_iban,
+            interval: t.interval, account_id: t.account_id,
+            account_number: t.account_number, account_name: t.account_name,
           })),
           allTransactions: (allTransactions || [])
             .filter((t: any) => !t.booked_at && t.match_status === "unmatched")
-            .slice(0, 30)
-            .map((t: any) => ({
-              id: t.id,
-              amount: t.amount,
-              creditor_name: t.creditor_name,
-              debtor_name: t.debtor_name,
-              purpose: t.purpose,
-              booking_date: t.booking_date,
-              match_status: t.match_status,
-            })),
-          historicalBookings: historicalBookings.length > 0 ? historicalBookings : undefined,
-        },
+            .slice(0, 30),
+        };
+      }
+
+      const { data, error } = await supabase.functions.invoke("suggest-match", {
+        body: payload,
       });
       if (data?.matches) setAiMatches(data.matches);
       if (data?.booking_hint) setBookingHint(data.booking_hint);
