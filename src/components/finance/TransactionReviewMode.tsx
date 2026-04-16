@@ -475,6 +475,8 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
     setFormRows([row]);
     setExpandedRowId(row.id);
+    setShowLinkedInvoicePdf(false);
+    setLinkedInvoicePdfUrl(null);
   }, [currentTxn?.id, templateDetail, invoiceDetail, accounts, currentTxn?.ai_suggestion, getFiscalYearForDate]);
 
   const updateRow = (rowId: string, field: string, value: string | boolean | number) => {
