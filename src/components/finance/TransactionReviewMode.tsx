@@ -935,10 +935,10 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                       {rerunningAi ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
                     </Button>
                   </div>
-                  <CollapsibleContent>
+                  <CollapsibleContent className="flex-1 flex flex-col min-h-0">
                     {invoiceDetail ? (
-                      <div>
-                        <div className="px-4 py-2 border-b space-y-1">
+                      <div className="flex flex-col flex-1 min-h-0">
+                        <div className="px-4 py-2 border-b space-y-1 shrink-0">
                           <div className="flex items-center gap-2 mb-1">
                             <FileText className="h-4 w-4 text-primary" />
                             <span className="text-sm font-medium">Rechnung</span>
@@ -964,7 +964,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                           </div>
                         </div>
                         {pdfUrl ? (
-                          <iframe src={pdfUrl} className="w-full border-0" style={{ height: "400px" }} title="Rechnung PDF" />
+                          <iframe src={pdfUrl} className="w-full border-0 flex-1 min-h-[300px]" title="Rechnung PDF" />
                         ) : (
                           <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">
                             PDF wird geladen...
