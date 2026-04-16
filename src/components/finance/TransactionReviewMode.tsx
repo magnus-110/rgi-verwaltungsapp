@@ -735,47 +735,14 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         .update({ ai_suggestion: null } as any)
         .eq("id", currentTxn.id);
 
-      // Load fresh template + invoice data
-      const [{ data: templates }, { data: invoices }, { data: billingPeriods }] = await Promise.all([
-        supabase.from("booking_templates")
-          .select("id, name, vendor_name, vendor_iban, expected_amount, amount_tolerance, interval, account_id, vat_rate, valid_from, valid_to, chart_of_accounts(account_number, account_name)")
-          .eq("building_id", buildingId),
-        supabase.from("invoices")
-          .select("id, invoice_number, vendor_name, gross_amount, vendor_iban, invoice_date")
-          .eq("building_id", buildingId)
-          .eq("status", "paid")
-          .limit(200),
-        supabase.from("billing_periods")
-          .select("fiscal_year, period_from, period_to")
-          .eq("building_id", buildingId)
-          .order("fiscal_year", { ascending: false })
-          .limit(5),
-      ]);
-
-      const templateData = (templates || []).map((t: any) => ({
-        id: t.id, name: t.name, vendor_name: t.vendor_name,
-        expected_amount: t.expected_amount, amount_tolerance: t.amount_tolerance,
-        vendor_iban: t.vendor_iban, interval: t.interval,
-        account_number: t.chart_of_accounts?.account_number,
-        account_name: t.chart_of_accounts?.account_name,
-        account_id: t.account_id, valid_from: t.valid_from, valid_to: t.valid_to,
-      }));
-
-      const invoiceData = (invoices || []).map((inv: any) => ({
-        id: inv.id, invoice_number: inv.invoice_number, vendor_name: inv.vendor_name,
-        gross_amount: inv.gross_amount, vendor_iban: inv.vendor_iban, invoice_date: inv.invoice_date,
-      }));
+      // Load full context including accounts and booking instructions
+      const { loadSuggestMatchContext, loadHistoricalBookings, buildSuggestMatchPayload } = await import("@/hooks/useSuggestMatchContext");
+      const ctx = await loadSuggestMatchContext(buildingId);
+      const historicalBookings = await loadHistoricalBookings(buildingId, currentTxn);
+      const payload = buildSuggestMatchPayload(currentTxn, ctx, transactions, historicalBookings);
 
       const { data, error } = await supabase.functions.invoke("suggest-match", {
-        body: {
-          transaction: currentTxn,
-          invoices: invoiceData,
-          templates: templateData,
-          allTransactions: transactions.slice(0, 30),
-          billingPeriods: (billingPeriods || []).map((bp: any) => ({
-            fiscal_year: bp.fiscal_year, period_from: bp.period_from, period_to: bp.period_to,
-          })),
-        },
+        body: payload,
       });
 
       if (!error && data && !data.error) {
