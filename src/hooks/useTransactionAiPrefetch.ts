@@ -27,14 +27,26 @@ export function useTransactionAiPrefetch(
   const processedRunKeyRef = useRef("");
 
   // Build a stable key from transactions that need analysis
+  // Include transactions that are unmatched OR have a matched invoice (regardless of match_status string)
+  // Exclude template-only matches (deterministic logic suffices for those)
+  const needsAiAnalysis = useCallback((t: any) => {
+    if (t.ai_suggestion || t.booked_at) return false;
+    // Has invoice → always analyze (includes manually_matched)
+    if (t.matched_invoice_id) return true;
+    // Unmatched → analyze
+    if (t.match_status === "unmatched") return true;
+    // Template-only → skip (template provides deterministic account)
+    return false;
+  }, []);
+
   const pendingKey = useMemo(() => {
     if (!enabled || !buildingId) return "";
     return transactions
-      .filter((t: any) => !t.ai_suggestion && !t.booked_at && (t.match_status === "unmatched" || t.match_status === "matched_invoice"))
+      .filter(needsAiAnalysis)
       .map((t: any) => t.id)
       .sort()
       .join(",");
-  }, [transactions, enabled, buildingId]);
+  }, [transactions, enabled, buildingId, needsAiAnalysis]);
 
   useEffect(() => {
     if (!enabled || !buildingId || !pendingKey) {
@@ -50,9 +62,7 @@ export function useTransactionAiPrefetch(
     // If we already processed this exact set, skip
     if (processedRunKeyRef.current === pendingKey) return;
 
-    const unmatchedWithoutSuggestion = transactions.filter(
-      (t: any) => !t.ai_suggestion && !t.booked_at && (t.match_status === "unmatched" || t.match_status === "matched_invoice")
-    );
+    const unmatchedWithoutSuggestion = transactions.filter(needsAiAnalysis);
 
     if (unmatchedWithoutSuggestion.length === 0) {
       setState({ total: 0, completed: 0, running: false, errors: 0 });
