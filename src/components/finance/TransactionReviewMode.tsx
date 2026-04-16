@@ -57,6 +57,7 @@ interface BookingRowData {
   fuel_quantity: string;
   fuel_total_price: string;
   fuel_date: string;
+  line_items_detail: any[] | null;
   accrualHint?: {
     needs_accrual: boolean;
     accrual_explanation: string;
@@ -286,6 +287,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       fuel_quantity: "",
       fuel_total_price: "",
       fuel_date: txnDate,
+      line_items_detail: null,
       ...overrides,
     };
   }, [currentTxn, accounts, getFiscalYearForDate]);
@@ -455,7 +457,20 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
   }, [currentTxn?.id, templateDetail, invoiceDetail, accounts, currentTxn?.ai_suggestion, getFiscalYearForDate]);
 
   const updateRow = (rowId: string, field: string, value: string | boolean | number) => {
-    setFormRows(rows => rows.map(r => r.id === rowId ? { ...r, [field]: field === "fiscal_year" ? (typeof value === "string" ? parseInt(value) || r.fiscal_year : value) : value } : r));
+    setFormRows(rows => rows.map(r => {
+      if (r.id !== rowId) return r;
+      if (field === "fiscal_year") {
+        const parsed = typeof value === "string" ? parseInt(value) : (typeof value === "number" ? value : r.fiscal_year);
+        return { ...r, fiscal_year: parsed || r.fiscal_year } as BookingRowData;
+      }
+      if (field === "line_items_detail") {
+        try {
+          const parsed = typeof value === "string" ? JSON.parse(value) : null;
+          return { ...r, line_items_detail: parsed } as BookingRowData;
+        } catch { return r; }
+      }
+      return { ...r, [field]: value } as BookingRowData;
+    }));
   };
 
   const addRow = () => {
@@ -541,6 +556,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         split_parts_total: totalParts > 1 ? totalParts : null,
         needs_review: row.needs_review,
         review_note: row.review_note || null,
+        line_items_detail: row.line_items_detail || null,
       } as any).select("id").single();
 
       if (bookingError) throw bookingError;
@@ -919,6 +935,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                     fieldRefs={fieldRefs}
                     handleEnterNavigation={handleEnterNavigation}
                     formatCurrency={formatCurrency}
+                    invoiceDetail={invoiceDetail}
                   />
                 ))}
 
@@ -1131,7 +1148,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
 function BookingRowCard({
   row, index, isExpanded, onToggle, accounts, buildingId, onAccountCreated, onUpdateField, onBook, onRemove,
-  isBooking, fieldRefs, handleEnterNavigation, formatCurrency,
+  isBooking, fieldRefs, handleEnterNavigation, formatCurrency, invoiceDetail,
 }: {
   row: BookingRowData;
   index: number;
@@ -1147,11 +1164,22 @@ function BookingRowCard({
   fieldRefs: React.MutableRefObject<Record<string, HTMLElement | null>>;
   handleEnterNavigation: (e: React.KeyboardEvent, field: string) => void;
   formatCurrency: (amount: number | null) => string;
+  invoiceDetail?: any;
 }) {
   const counterAccount = accounts.find((a: any) => a.id === row.counter_account_id);
   const selectedCounterAccount = counterAccount;
   const [createAccountOpen, setCreateAccountOpen] = useState(false);
   const [createAccountTarget, setCreateAccountTarget] = useState<"account_id" | "counter_account_id">("counter_account_id");
+  const [show35aDialog, setShow35aDialog] = useState(false);
+  const [showFuelDialog, setShowFuelDialog] = useState(false);
+
+  // Line items from invoice for §35a selection
+  const invoiceLineItems = useMemo(() => {
+    if (!invoiceDetail?.line_items) return [];
+    const items = invoiceDetail.line_items;
+    if (Array.isArray(items)) return items;
+    return [];
+  }, [invoiceDetail?.line_items]);
 
   // Auto-calculate VAT when amount/rate changes
   useEffect(() => {
@@ -1164,6 +1192,7 @@ function BookingRowCard({
   }, [row.amount, row.vat_rate]);
 
   return (
+    <>
     <Collapsible open={isExpanded && !row.booked} onOpenChange={() => !row.booked && onToggle()}>
       <div className={cn(
         "rounded-lg border transition-colors",
@@ -1430,62 +1459,39 @@ function BookingRowCard({
               </div>
             )}
 
-            {/* §35a */}
-            <div className="p-2 rounded-lg border bg-muted/30 space-y-2">
-              <div className="flex items-center gap-3">
-                <Checkbox id={`35a-${index}`} checked={row.is_35a_relevant} onCheckedChange={v => onUpdateField("is_35a_relevant", !!v)} />
-                <label htmlFor={`35a-${index}`} className="text-xs font-medium">§35a-relevant</label>
-              </div>
-              {row.is_35a_relevant && (
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Lohnanteil (€)</label>
-                  <Input className="h-8 w-32 text-xs" placeholder="0,00" value={row.amount_35a}
-                    onChange={e => onUpdateField("amount_35a", e.target.value)} />
-                </div>
-              )}
-            </div>
-
-            {/* Brennstoffkauf */}
-            <div className="p-2 rounded-lg border space-y-2" style={{ borderColor: row.is_fuel_purchase ? 'hsl(var(--chart-5))' : undefined, backgroundColor: row.is_fuel_purchase ? 'hsl(var(--chart-5) / 0.08)' : undefined }}>
-              <div className="flex items-center gap-3">
-                <Checkbox id={`fuel-${index}`} checked={row.is_fuel_purchase} onCheckedChange={v => onUpdateField("is_fuel_purchase", !!v)} />
-                <label htmlFor={`fuel-${index}`} className="text-xs font-medium flex items-center gap-1.5">
-                  <Flame className="h-3.5 w-3.5" style={{ color: row.is_fuel_purchase ? 'hsl(var(--chart-5))' : undefined }} /> Brennstoffkauf
-                </label>
-              </div>
-              {row.is_fuel_purchase && (
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Art</label>
-                    <Select value={row.fuel_type} onValueChange={v => onUpdateField("fuel_type", v)}>
-                      <SelectTrigger className="h-8 text-xs">
-                        <SelectValue placeholder="Wählen…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="oil">Heizöl</SelectItem>
-                        <SelectItem value="pellets">Pellets</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1 block">
-                      Menge ({row.fuel_type === "pellets" ? "kg" : "l"})
-                    </label>
-                    <Input className="h-8 text-xs" type="number" placeholder="0" value={row.fuel_quantity}
-                      onChange={e => onUpdateField("fuel_quantity", e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Gesamtpreis (€)</label>
-                    <Input className="h-8 text-xs" type="number" step="0.01" placeholder="0,00" value={row.fuel_total_price}
-                      onChange={e => onUpdateField("fuel_total_price", e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Lieferdatum</label>
-                    <Input className="h-8 text-xs" type="date" value={row.fuel_date}
-                      onChange={e => onUpdateField("fuel_date", e.target.value)} />
-                  </div>
-                </div>
-              )}
+            {/* §35a & Brennstoff Buttons */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShow35aDialog(true)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors",
+                  row.is_35a_relevant
+                    ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400"
+                    : "border-border text-muted-foreground hover:bg-muted"
+                )}
+              >
+                §35a
+                {row.is_35a_relevant && row.amount_35a && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 ml-1">{row.amount_35a}€</Badge>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowFuelDialog(true)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors",
+                  row.is_fuel_purchase
+                    ? "bg-orange-50 dark:bg-orange-950/30 border-orange-300 dark:border-orange-700 text-orange-700 dark:text-orange-400"
+                    : "border-border text-muted-foreground hover:bg-muted"
+                )}
+              >
+                <Flame className="h-3.5 w-3.5" />
+                Brennstoff
+                {row.is_fuel_purchase && row.fuel_type && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 ml-1">{row.fuel_type === "oil" ? "Öl" : "Pellets"}</Badge>
+                )}
+              </button>
             </div>
 
 
@@ -1509,6 +1515,127 @@ function BookingRowCard({
         }}
       />
     </Collapsible>
+
+      {/* §35a Dialog */}
+      <Dialog open={show35aDialog} onOpenChange={setShow35aDialog}>
+        <DialogContent className="max-w-md">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-base">§35a – Haushaltsnahe Dienstleistungen</h3>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Checkbox id={`35a-dialog-${index}`} checked={row.is_35a_relevant} onCheckedChange={v => onUpdateField("is_35a_relevant", !!v)} />
+              <label htmlFor={`35a-dialog-${index}`} className="text-sm font-medium">§35a-relevant</label>
+            </div>
+
+            {row.is_35a_relevant && (
+              <div className="space-y-3">
+                {invoiceLineItems.length > 0 && (
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium text-muted-foreground">Rechnungspositionen</label>
+                    <div className="space-y-1 max-h-48 overflow-y-auto">
+                      {invoiceLineItems.map((item: any, i: number) => {
+                        const lineItemsDetail: any[] = Array.isArray(row.line_items_detail) ? (row.line_items_detail as any[]) : [];
+                        const isSelected = lineItemsDetail.some((d: any) => d.index === i && d.is_35a);
+                        return (
+                          <div key={i} className={cn(
+                            "flex items-center gap-2 p-2 rounded-md border text-xs",
+                            isSelected && "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-700"
+                          )}>
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={(checked) => {
+                                let updated = [...lineItemsDetail];
+                                if (checked) {
+                                  updated.push({ index: i, description: item.description || item.name || `Position ${i + 1}`, amount: item.amount || item.total || 0, is_35a: true });
+                                } else {
+                                  updated = updated.filter((d: any) => d.index !== i);
+                                }
+                                onUpdateField("line_items_detail", JSON.stringify(updated));
+                              }}
+                            />
+                            <span className="flex-1 truncate">{item.description || item.name || `Position ${i + 1}`}</span>
+                            {(item.amount || item.total) && (
+                              <span className="font-medium shrink-0">{formatCurrency(item.amount || item.total)}</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Lohnanteil (€)</label>
+                  <Input className="h-9 text-sm" placeholder="0,00" value={row.amount_35a}
+                    onChange={e => onUpdateField("amount_35a", e.target.value)} />
+                </div>
+              </div>
+            )}
+
+            <Button onClick={() => setShow35aDialog(false)} className="w-full">
+              Übernehmen
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Brennstoffkauf Dialog */}
+      <Dialog open={showFuelDialog} onOpenChange={setShowFuelDialog}>
+        <DialogContent className="max-w-md">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Flame className="h-5 w-5 text-orange-500" />
+              <h3 className="font-semibold text-base">Brennstoffkauf</h3>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Checkbox id={`fuel-dialog-${index}`} checked={row.is_fuel_purchase} onCheckedChange={v => onUpdateField("is_fuel_purchase", !!v)} />
+              <label htmlFor={`fuel-dialog-${index}`} className="text-sm font-medium">Brennstoffkauf erfassen</label>
+            </div>
+
+            {row.is_fuel_purchase && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Art</label>
+                  <Select value={row.fuel_type} onValueChange={v => onUpdateField("fuel_type", v)}>
+                    <SelectTrigger className="h-9 text-sm">
+                      <SelectValue placeholder="Wählen…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="oil">Heizöl</SelectItem>
+                      <SelectItem value="pellets">Pellets</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                    Menge ({row.fuel_type === "pellets" ? "kg" : "l"})
+                  </label>
+                  <Input className="h-9 text-sm" type="number" placeholder="0" value={row.fuel_quantity}
+                    onChange={e => onUpdateField("fuel_quantity", e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Gesamtpreis (€)</label>
+                  <Input className="h-9 text-sm" type="number" step="0.01" placeholder="0,00" value={row.fuel_total_price}
+                    onChange={e => onUpdateField("fuel_total_price", e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Lieferdatum</label>
+                  <Input className="h-9 text-sm" type="date" value={row.fuel_date}
+                    onChange={e => onUpdateField("fuel_date", e.target.value)} />
+                </div>
+              </div>
+            )}
+
+            <Button onClick={() => setShowFuelDialog(false)} className="w-full">
+              Übernehmen
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
