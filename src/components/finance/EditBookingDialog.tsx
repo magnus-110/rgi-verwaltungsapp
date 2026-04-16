@@ -495,7 +495,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
 
       {/* §35a Dialog */}
       <Dialog open={show35aDialog} onOpenChange={setShow35aDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg">
           <div className="space-y-4">
             <h3 className="font-semibold text-base">§35a – Haushaltsnahe Dienstleistungen</h3>
 
@@ -513,7 +513,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
                     const isSelected = lineItemsDetail.some((d: any) => d.index === i && d.is_35a);
                     return (
                       <div key={i} className={cn(
-                        "flex items-center gap-2 p-2 rounded-md border text-xs",
+                        "flex items-center gap-2 p-2 rounded-md border text-xs min-w-0",
                         isSelected && "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-700"
                       )}>
                         <Checkbox
@@ -536,7 +536,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
                             }));
                           }}
                         />
-                        <span className="flex-1 truncate">{item.description || item.name || `Position ${i + 1}`}</span>
+                        <span className="flex-1 truncate min-w-0">{item.description || item.name || `Position ${i + 1}`}</span>
                         {(item.amount || item.total) && (
                           <span className="font-medium shrink-0">{formatCurrency(item.amount || item.total)}</span>
                         )}
