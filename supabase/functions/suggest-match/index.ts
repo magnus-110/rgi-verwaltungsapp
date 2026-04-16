@@ -10,7 +10,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { transaction, invoices, templates, allTransactions, historicalBookings, billingPeriods } = await req.json();
+    const { transaction, invoices, templates, allTransactions, historicalBookings, billingPeriods, accounts, bookingInstructions } = await req.json();
 
     const MISTRAL_API_KEY = Deno.env.get("MISTRAL_API_KEY");
     if (!MISTRAL_API_KEY) throw new Error("MISTRAL_API_KEY not configured");
@@ -45,53 +45,98 @@ serve(async (req) => {
       historicalContext = `\n\nHistorische Buchungen desselben Kreditors (letzte 2 Jahre):\n${lines.join("\n")}`;
     }
 
-    const systemPrompt = `Du bist ein Buchhaltungs-Assistent für WEG-Hausverwaltungen. Du analysierst eine Banktransaktion und findest die am besten passenden Rechnungen oder Vorlagen aus einer Kandidatenliste.
+    // Build accounts context
+    let accountsContext = "";
+    if (accounts && accounts.length > 0) {
+      const lines = accounts.map((a: any) =>
+        `KONTO ${a.account_number} "${a.account_name}" Kategorie="${a.category}" §35a=${a.is_35a_relevant ? "JA" : "NEIN"} id="${a.id}"`
+      );
+      accountsContext = `\n\nVERFÜGBARE KONTEN (nur diese Konten verwenden!):\n${lines.join("\n")}`;
+    }
 
-Matching-Kriterien (nach Wichtigkeit):
+    // Build booking instructions context
+    let instructionsContext = "";
+    if (bookingInstructions) {
+      instructionsContext = `\n\nLIEGENSCHAFTSSPEZIFISCHE BUCHUNGSHINWEISE (HÖCHSTE PRIORITÄT bei der Kontenzuordnung!):\n${bookingInstructions}`;
+    }
+
+    const systemPrompt = `Du bist ein hochspezialisierter WEG-Buchhalter (Deutschland) für automatisierte Belegverbuchung. Du analysierst Banktransaktionen und findest die am besten passenden Rechnungen oder Vorlagen aus einer Kandidatenliste. Du arbeitest ausschließlich mit dem übergebenen Kontenrahmen.
+
+MATCHING-KRITERIEN (nach Wichtigkeit):
 1. IBAN-Übereinstimmung (stärkster Indikator)
 2. Betragsübereinstimmung oder -ähnlichkeit
 3. Namensähnlichkeit (Auftraggeber/Empfänger vs. Lieferant)
 4. Schlüsselwörter im Verwendungszweck
 5. Zeitliche Gültigkeit: Vorlagen mit valid_from/valid_to nur vorschlagen, wenn das Transaktionsdatum im Gültigkeitszeitraum liegt. Vorlagen ohne Datumseinschränkung gelten immer.
 
-Erweiterte Analyse:
-- Prüfe ob der Transaktionsbetrag der SUMME mehrerer Vorlagen entspricht (z.B. Sammeleingänge wie Hausgeld)
+BUCHUNGSHINWEISE (höchste Priorität!):
+Wenn liegenschaftsspezifische Buchungshinweise mitgeliefert werden, haben diese HÖCHSTE PRIORITÄT bei der Kontenzuordnung. Sie überschreiben im Zweifel die allgemeinen Regeln.
+
+KONTENZUORDNUNG:
+- Verwende AUSSCHLIESSLICH Konten aus dem übergebenen Kontenrahmen.
+- Setze account_number, account_name und account_id in den suggested_bookings.
+- Standard-Gegenkonto für Bankzahlungen: "1800" (Bank).
+
+TYPISCHE WEG-KONTENZUORDNUNGEN (Orientierung):
+- Straßenreinigung → 1000, §35a JA (Arbeitsanteil ~100%)
+- Müllabfuhr/Abfallentsorgung → 1010, §35a NEIN
+- Wasserversorgung → 1030, §35a NEIN
+- Abwasser/Kanal → 1040, §35a NEIN
+- Allgemeinstrom → 1050, §35a NEIN
+- Hausmeister → 1060, §35a JA (Arbeitsanteil ~100%)
+- Winterdienst → 1061, §35a JA (Arbeitsanteil ~80%)
+- Hausreinigung/Treppenhausreinigung → 1070, §35a JA (Arbeitsanteil ~100%)
+- Gartenpflege → 1080, §35a JA (Arbeitsanteil ~80%)
+- Ungezieferbekämpfung/Schädlingsbekämpfung → 1090, §35a JA (Arbeitsanteil ~100%)
+- Wartung allgemein → 1100, §35a JA (Arbeitsanteil ~50%)
+- Aufzugwartung → 1103, §35a JA (Arbeitsanteil ~50%)
+- Grundsteuer → 1200, §35a NEIN
+- Versicherungen → 1300, §35a NEIN
+- Heizung/Warmwasser → 1400, §35a NEIN
+- Brennstoffkauf → 1410, §35a NEIN
+- Heizungswartung → 1440, §35a JA (Arbeitsanteil ~70%)
+- Vorauszahlungen Gas → 1470 (Vorauszahlungskonto!)
+- Vorauszahlungen Fernwärme → 1471 (Vorauszahlungskonto!)
+- Vorauszahlungen Strom → 1472 (Vorauszahlungskonto!)
+- Vorauszahlungen Wasser → 1473 (Vorauszahlungskonto!)
+- Verwaltervergütung → 1500, §35a NEIN
+- Bankgebühren/Kontoführung → 1520, §35a NEIN
+- Instandhaltung/Reparaturen → 1600, §35a JA (Arbeitsanteil ~60%)
+- Gegenkonto Bank → 1800
+
+ABSCHLAGSZAHLUNGEN:
+- Monatliche Abschläge für Gas, Strom, Wasser, Fernwärme IMMER auf Vorauszahlungskonten (1470-1473) buchen, NICHT auf Aufwandskonten!
+- Erkennbar an: "Abschlag", "Vorauszahlung", regelmäßige gleiche Beträge an Versorger.
+
+§35a EStG REGELN:
+- is_35a_relevant = true bei Arbeitsleistungen: Hausmeister, Reinigung, Gartenpflege, Wartung, Winterdienst, Schädlingsbekämpfung, Reparaturen (Arbeitsanteil).
+- is_35a_relevant = false bei: Material, Energie, Versicherungen, Steuern, Bankgebühren, Verwaltung.
+- amount_35a = geschätzter Netto-Arbeitsanteil des Buchungsbetrags (Bruttobetrag × Arbeitsanteil-Prozent / 1.19).
+
+ERWEITERTE ANALYSE:
+- Prüfe ob der Transaktionsbetrag der SUMME mehrerer Vorlagen entspricht (Sammeleingänge wie Hausgeld)
 - Prüfe ob der Betrag ein TEILBETRAG einer Rechnung ist
 - Prüfe ob andere offene Transaktionen zusammen den vollen Rechnungsbetrag ergeben
 - Bei Sammelzahlungen: Identifiziere alle Vorlagen, die in der Summe enthalten sein könnten
 
-Vorlagen vs. fehlende Rechnung (WICHTIG!):
-- Wenn historische Buchungen desselben Kreditors vorhanden sind, prüfe ob diese ÜBERWIEGEND mit Rechnungen verknüpft waren (has_invoice=true).
-- Wenn ja: Erstelle KEINE template_suggestion, sondern setze missing_invoice_hint. Das bedeutet: der Kreditor liefert normalerweise Rechnungen, aber die aktuelle fehlt noch.
-- Wenn nein (historisch keine/wenige Rechnungen): Erstelle wie bisher eine template_suggestion für eine neue Vorlage.
-- Wenn KEINE historischen Daten vorhanden sind: Nutze dein Urteilsvermögen basierend auf dem Transaktionstyp (z.B. Abschlagszahlungen deuten auf Rechnungen hin).
+VORLAGEN vs. FEHLENDE RECHNUNG:
+- Wenn historische Buchungen desselben Kreditors ÜBERWIEGEND mit Rechnungen verknüpft waren (has_invoice=true): Setze missing_invoice_hint statt template_suggestion.
+- Wenn historisch keine/wenige Rechnungen: Erstelle template_suggestion für neue Vorlage.
+- Ohne historische Daten: Nutze Urteilsvermögen (Abschläge → Rechnungen erwartet).
 
-Vorlagen-Erkennung:
-- Wenn KEINE passende Vorlage existiert und die Transaktion auf eine WIEDERKEHRENDE Zahlung hindeutet (z.B. "Abschlag", "monatlich", Kundennummer, regelmäßiger Lieferant wie Strom/Gas/Wasser/Versicherung), schlage eine neue Vorlage vor im template_suggestion Feld — ABER NUR wenn historisch keine Rechnungen vorhanden waren.
-- Erkennbare Muster: Abschlagszahlungen, Versicherungsbeiträge, Wartungsverträge, Mietzahlungen, Hausgeld.
+WIRTSCHAFTSJAHR & ABGRENZUNG:
+- Das Wirtschaftsjahr muss NICHT dem Kalenderjahr entsprechen! Nutze die übergebenen Abrechnungszeiträume.
+- Setze fiscal_year_hint NUR wenn das empfohlene Wirtschaftsjahr ABWEICHT vom Kalenderjahr des Buchungsdatums ODER bei Abgrenzungsbedarf.
 
-Wirtschaftsjahr & Abgrenzung:
-- WICHTIG: Das Wirtschaftsjahr muss NICHT dem Kalenderjahr entsprechen! Nutze die übergebenen Abrechnungszeiträume (billing_periods), um das korrekte Wirtschaftsjahr zu bestimmen.
-- Wenn Abrechnungszeiträume vorhanden sind, prüfe in welchen Zeitraum das Transaktionsdatum fällt. Das fiscal_year dieses Zeitraums ist das korrekte Wirtschaftsjahr.
-- Beispiel: Wenn period_from=2024-07-01, period_to=2025-06-30, fiscal_year=2024, dann gehört eine Transaktion vom 15.01.2025 zum Wirtschaftsjahr 2024.
-- Setze fiscal_year_hint NUR wenn das empfohlene Wirtschaftsjahr ABWEICHT vom Standard (= Kalenderjahr des Buchungsdatums) ODER wenn eine Abgrenzungsbuchung nötig ist.
-- Wenn das Wirtschaftsjahr dem Kalenderjahr des Buchungsdatums entspricht und keine Abgrenzung nötig ist, setze KEINEN fiscal_year_hint.
-- Prüfe ob Verwendungszweck, Rechnungsdatum oder erkennbare Leistungszeiträume auf ein ANDERES Wirtschaftsjahr hindeuten.
-- Wenn Rechnungsdatum in einem anderen Wirtschaftsjahr als das Kontoauszugsdatum liegt → Abgrenzung empfehlen.
-- Wenn ein Leistungszeitraum über Wirtschaftsjahrgrenzen hinausgeht → Abgrenzung empfehlen.
+FEHLENDE METADATEN:
+- Manche Transaktionen haben KEINEN Kreditor-Namen und KEINE IBAN (z.B. Bankgebühren).
+- Matche anhand Verwendungszweck UND Betrag gegen existierende Vorlagen.
 
-Wichtig bei fehlenden Metadaten:
-- Manche Transaktionen (z.B. Bankgebühren, Kontoführungsgebühren) haben KEINEN Kreditor-Namen und KEINE IBAN.
-- In diesen Fällen: Matche anhand des Verwendungszwecks UND Betrags gegen existierende Vorlagen.
-- Beispiel: Verwendungszweck "Abrechnung" + Betrag ~12€ → Vorlage "Bankgebühren / Kontoführung" mit Toleranz ±5€
-- Bevorzuge IMMER eine existierende Vorlage gegenüber dem Vorschlag einer neuen Vorlage.
+SCORE-VERGABE:
+- NUR Kandidaten mit Score > 0.5 zurückgeben.
+- Lieber wenige präzise Vorschläge als viele unsichere.
 
-WICHTIG zur Score-Vergabe:
-- Gib NUR Kandidaten mit einem Score über 0.5 zurück. Keine Beispiele für falsche oder unwahrscheinliche Zuordnungen.
-- Wenn du dir nicht sicher bist, dass ein Kandidat passt (Score < 0.5), lass ihn weg.
-- Lieber weniger aber dafür präzise Vorschläge als viele unsichere.
-
-Gib die besten 1-5 Kandidaten zurück UND einen booking_hint wenn du eine komplexe Zuordnung erkennst UND einen template_suggestion ODER missing_invoice_hint wenn angemessen UND einen fiscal_year_hint wenn das Wirtschaftsjahr nicht trivial ist.`;
+Gib die besten 1-5 Kandidaten zurück UND booking_hint bei komplexer Zuordnung UND template_suggestion/missing_invoice_hint wenn angemessen UND fiscal_year_hint wenn nötig.`;
 
     let billingPeriodContext = "";
     if (billingPeriods && billingPeriods.length > 0) {
@@ -109,7 +154,7 @@ Gib die besten 1-5 Kandidaten zurück UND einen booking_hint wenn du eine komple
 - Datum: ${transaction.booking_date}
 
 Kandidaten:
-${candidatesSummary}${otherTxnContext}${historicalContext}${billingPeriodContext}`;
+${candidatesSummary}${otherTxnContext}${historicalContext}${billingPeriodContext}${accountsContext}${instructionsContext}`;
 
     const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
       method: "POST",
@@ -128,7 +173,7 @@ ${candidatesSummary}${otherTxnContext}${historicalContext}${billingPeriodContext
             type: "function",
             function: {
               name: "suggest_matches",
-              description: "Return the best matching candidates, an optional booking hint, an optional template suggestion, and an optional missing invoice hint",
+              description: "Return the best matching candidates, booking hints, template suggestions, and fiscal year hints",
               parameters: {
                 type: "object",
                 properties: {
@@ -164,14 +209,17 @@ ${candidatesSummary}${otherTxnContext}${historicalContext}${billingPeriodContext
                         items: {
                           type: "object",
                           properties: {
-                            account_number: { type: "string", description: "Target account number" },
+                            account_number: { type: "string", description: "Target account number from chart of accounts" },
                             account_name: { type: "string", description: "Target account name" },
-                            account_id: { type: "string", description: "Target account ID if known from template" },
+                            account_id: { type: "string", description: "Target account ID from chart of accounts" },
+                            counter_account_number: { type: "string", description: "Counter account number, default '1800' (Bank)" },
                             amount: { type: "number", description: "Booking amount (positive)" },
                             booking_type: { type: "string", enum: ["income", "expense"], description: "income for Zugang, expense for Abgang" },
                             description: { type: "string", description: "Suggested booking text" },
                             related_template_id: { type: "string", description: "Related template ID if applicable" },
                             related_invoice_id: { type: "string", description: "Related invoice ID if applicable" },
+                            is_35a_relevant: { type: "boolean", description: "True if §35a EStG relevant (haushaltsnahe Dienstleistung/Handwerkerleistung)" },
+                            amount_35a: { type: "number", description: "Geschätzter Netto-Arbeitsanteil für §35a (Bruttobetrag × Arbeitsanteil% / 1.19)" },
                           },
                           required: ["amount", "booking_type", "description"],
                           additionalProperties: false,
@@ -211,13 +259,13 @@ ${candidatesSummary}${otherTxnContext}${historicalContext}${billingPeriodContext
                   },
                   fiscal_year_hint: {
                     type: "object",
-                    description: "Set this when the fiscal year is not simply the year of the booking_date, or when an accrual booking (Abgrenzungsbuchung) is recommended. Always set fiscal_year to the recommended year.",
+                    description: "Set this when the fiscal year is not simply the year of the booking_date, or when an accrual booking (Abgrenzungsbuchung) is recommended.",
                     properties: {
                       fiscal_year: { type: "number", description: "Recommended fiscal year for this booking" },
-                      needs_accrual: { type: "boolean", description: "True if an accrual booking (Abgrenzungsbuchung) is recommended" },
+                      needs_accrual: { type: "boolean", description: "True if an accrual booking is recommended" },
                       accrual_explanation: { type: "string", description: "German explanation why accrual is needed or why a different fiscal year is recommended" },
-                      service_period_from: { type: "string", description: "Start of the service/performance period if identifiable (ISO date)" },
-                      service_period_to: { type: "string", description: "End of the service/performance period if identifiable (ISO date)" },
+                      service_period_from: { type: "string", description: "Start of service period if identifiable (ISO date)" },
+                      service_period_to: { type: "string", description: "End of service period if identifiable (ISO date)" },
                     },
                     required: ["fiscal_year", "needs_accrual", "accrual_explanation"],
                     additionalProperties: false,

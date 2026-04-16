@@ -51,7 +51,7 @@ export function useTransactionAiPrefetch(
 
     const run = async () => {
       // Load templates and invoices for context
-      const [{ data: templates }, { data: invoices }, { data: billingPeriods }] = await Promise.all([
+      const [{ data: templates }, { data: invoices }, { data: billingPeriods }, { data: accounts }, { data: buildingData }] = await Promise.all([
         supabase.from("booking_templates")
           .select("id, name, vendor_name, vendor_iban, expected_amount, amount_tolerance, interval, account_id, vat_rate, valid_from, valid_to, chart_of_accounts(account_number, account_name)")
           .eq("building_id", buildingId),
@@ -65,6 +65,13 @@ export function useTransactionAiPrefetch(
           .eq("building_id", buildingId)
           .order("fiscal_year", { ascending: false })
           .limit(5),
+        supabase.from("chart_of_accounts")
+          .select("id, account_number, account_name, category, is_35a_relevant, default_distribution_key, is_billing_relevant, settlement_section")
+          .or(`building_id.is.null,building_id.eq.${buildingId}`),
+        supabase.from("buildings")
+          .select("booking_instructions")
+          .eq("id", buildingId)
+          .single(),
       ]);
 
       const billingPeriodData = (billingPeriods || []).map((bp: any) => ({
@@ -87,6 +94,16 @@ export function useTransactionAiPrefetch(
         valid_from: t.valid_from,
         valid_to: t.valid_to,
       }));
+
+      const accountData = (accounts || []).map((a: any) => ({
+        id: a.id,
+        account_number: a.account_number,
+        account_name: a.account_name,
+        category: a.category,
+        is_35a_relevant: a.is_35a_relevant,
+      }));
+
+      const bookingInstructions = (buildingData as any)?.booking_instructions || null;
 
       const invoiceData = (invoices || []).map((inv: any) => ({
         id: inv.id,
@@ -171,6 +188,8 @@ export function useTransactionAiPrefetch(
                 allTransactions: transactions.slice(0, 30),
                 historicalBookings,
                 billingPeriods: billingPeriodData,
+                accounts: accountData,
+                bookingInstructions,
               },
             });
 
