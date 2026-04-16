@@ -144,6 +144,11 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
       toast.error("Bitte alle Pflichtfelder ausfüllen");
       return;
     }
+    const counterAcc = accounts.find(a => a.account_number?.startsWith("4") && a.id === form.counter_account_id);
+    if (counterAcc && !form.vat_rate) {
+      toast.error("Bei Abgrenzungskonten (4000er) muss der MwSt-Satz angegeben werden");
+      return;
+    }
     const { error } = await supabase.from("bookings").update({
       account_id: form.account_id,
       counter_account_id: form.counter_account_id || null,
@@ -175,6 +180,11 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
     // Save first, then confirm
     if (!form.account_id || !form.amount || !form.booking_date) {
       toast.error("Bitte alle Pflichtfelder ausfüllen");
+      return;
+    }
+    const counterAccC = accounts.find(a => a.account_number?.startsWith("4") && a.id === form.counter_account_id);
+    if (counterAccC && !form.vat_rate) {
+      toast.error("Bei Abgrenzungskonten (4000er) muss der MwSt-Satz angegeben werden");
       return;
     }
     const { error } = await supabase.from("bookings").update({
@@ -415,17 +425,27 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
           <div className="rounded-xl border p-6 space-y-5">
             <p className="text-base font-semibold text-foreground">Steuer & Optionen</p>
             <div className="flex items-end gap-6 flex-wrap">
-              <div className="flex-1 min-w-[200px]">
-                <Label className="text-sm mb-2 block">MwSt-Satz</Label>
-                <RadioGroup value={form.vat_rate} onValueChange={v => set("vat_rate", v)} className="flex gap-4">
-                  {VAT_RATES.map(r => (
-                    <div key={r.value} className="flex items-center gap-2">
-                      <RadioGroupItem value={r.value} id={`edit-vat-${r.value}`} className="h-5 w-5" />
-                      <Label htmlFor={`edit-vat-${r.value}`} className="text-sm cursor-pointer">{r.label}</Label>
-                    </div>
-                  ))}
-                </RadioGroup>
-              </div>
+              {(() => {
+                const counterAcc = accounts.find(a => a.id === form.counter_account_id);
+                const isAccrual = counterAcc?.account_number?.startsWith("4");
+                const vatMissing = isAccrual && !form.vat_rate;
+                return (
+                  <div className="flex-1 min-w-[200px]">
+                    <Label className={cn("text-sm mb-2 block", vatMissing && "text-orange-600 dark:text-orange-400")}>
+                      MwSt-Satz {isAccrual && <span className="text-orange-500">*</span>}
+                    </Label>
+                    <RadioGroup value={form.vat_rate} onValueChange={v => set("vat_rate", v)} className="flex gap-4">
+                      {VAT_RATES.map(r => (
+                        <div key={r.value} className="flex items-center gap-2">
+                          <RadioGroupItem value={r.value} id={`edit-vat-${r.value}`} className="h-5 w-5" />
+                          <Label htmlFor={`edit-vat-${r.value}`} className="text-sm cursor-pointer">{r.label}</Label>
+                        </div>
+                      ))}
+                    </RadioGroup>
+                    {vatMissing && <p className="text-xs text-orange-500 mt-1">⚠ Pflichtfeld bei Abgrenzungskonten</p>}
+                  </div>
+                );
+              })()}
               <div className="w-[140px]">
                 <Label className="text-sm mb-1.5 block">MwSt-Betrag</Label>
                 <Input value={computedVat} readOnly className="h-11 text-right bg-muted font-medium" />
