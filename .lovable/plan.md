@@ -1,53 +1,28 @@
 
 
-## Plan: Fix Bank Fee Template Matching & Add Re-run Button
+## Problem Analysis
 
-### Root Cause
+The amount input shows no visible size change because the `Input` component has a built-in `md:text-sm` responsive class (line 11 of `input.tsx`). On your 1422px screen (which is `md+`), Tailwind applies `md:text-sm` **in addition to** `text-4xl`. Since `md:text-sm` is a responsive variant, `twMerge` does NOT remove it when you pass `text-4xl` (a base-level class). The responsive `md:text-sm` wins at your screen size, making the number always appear small regardless of the base font size.
 
-Bank fee transactions ("Abrechnung 30.12.2025") have **no creditor_name and no creditor_iban** — both are `null`. The "Bankgebühren / Kontoführung" template has `vendor_iban: "unbekannt"` and `vendor_name: "Bank / Kreditinstitut"`. This means:
+## Plan
 
-1. **AI matching fails** — the AI sees the template in its candidate list but returns `matches: []` because there's no IBAN or name overlap. It instead suggests creating a *new* template.
-2. **Smart matching fails** — the code checks IBAN and vendor name, both of which are empty, so no match is found.
-3. **Amount matching alone isn't triggered** — the smart matcher requires at least one other signal (IBAN or name) before considering amount.
+### Step 1: Fix the amount input class override
+In `TransactionReviewMode.tsx` at line 1167, add `md:text-4xl` alongside `text-4xl` so the responsive override is properly countered:
 
-### Changes
-
-| File | Change |
-|------|--------|
-| `suggest-match/index.ts` | Add explicit instruction to the AI prompt: "If a transaction has no creditor_name and no creditor_iban, match it by purpose keywords and amount against template names. For example, 'Abrechnung' → 'Bankgebühren'" |
-| `TransactionReviewMode.tsx` | 1. **Enhanced smart matching**: Add purpose-keyword matching — if the template name contains words from the purpose (or vice versa), and the amount is within tolerance, flag as a smart match. 2. **Add "KI-Analyse erneut starten" button** (RefreshCw icon) that clears `ai_suggestion` on the current transaction, re-invokes `suggest-match`, and updates local state. 3. **Add bulk "Alle KI-Analysen zurücksetzen" button** in the top bar to clear all stale suggestions. |
-| `suggest-match/index.ts` | Redeploy after prompt update |
-
-### Technical Details
-
-**Enhanced AI prompt** (add to system prompt in `suggest-match/index.ts`):
 ```
-Wichtig bei fehlenden Metadaten:
-- Manche Transaktionen (z.B. Bankgebühren, Kontoführungsgebühren) haben KEINEN Kreditor-Namen und KEINE IBAN.
-- In diesen Fällen: Matche anhand des Verwendungszwecks UND Betrags gegen existierende Vorlagen.
-- Beispiel: Verwendungszweck "Abrechnung" + Betrag ~12€ → Vorlage "Bankgebühren / Kontoführung" mit Toleranz ±5€
-- Bevorzuge IMMER eine existierende Vorlage gegenüber dem Vorschlag einer neuen Vorlage.
+className={cn(
+  "h-14 text-4xl md:text-4xl font-bold flex-1 border-none shadow-none px-0 focus-visible:ring-0",
+  row.booking_type === "income" ? "text-green-600" : "text-destructive"
+)}
 ```
 
-**Enhanced smart matching** (purpose keywords → template name):
-```typescript
-// If no IBAN/name match but amount is in tolerance, check purpose keywords
-if (reasons.length === 0 && tpl.expected_amount != null) {
-  const tol = tpl.amount_tolerance || 0;
-  const amountInRange = Math.abs(txnAmount - Math.abs(tpl.expected_amount)) <= tol;
-  const purposeWords = txnPurpose.split(/\s+/).filter(w => w.length > 3);
-  const templateNameLower = (tpl.name || "").toLowerCase();
-  const nameOverlap = purposeWords.some(w => templateNameLower.includes(w));
-  if (amountInRange && (nameOverlap || (!txnIban && !txnName))) {
-    reasons.push("Betrag im Toleranzbereich");
-  }
-}
-```
+This ensures `md:text-4xl` overrides the Input's built-in `md:text-sm` via Tailwind Merge, making the amount display large on all screen sizes.
 
-**Re-run button**: A RefreshCw icon button next to the Analyse section header. Clicking it:
-1. Sets `ai_suggestion = null` on the current transaction in DB
-2. Calls `suggest-match` edge function with fresh data
-3. Saves result back to DB and updates local state via `queryClient.invalidateQueries`
+### Why this happened
+- `Input` component has: `text-base ... md:text-sm`
+- Your code passes: `text-4xl`
+- `twMerge` removes `text-base` (same breakpoint as `text-4xl`) but keeps `md:text-sm` (different breakpoint)
+- At `md+` screens → `md:text-sm` applies → number stays small
 
-**Bulk reset**: A button in the top bar that clears `ai_suggestion` for all unbooked transactions in this building, triggering the prefetch hook to re-analyze everything.
+Single line change, no other files affected.
 
