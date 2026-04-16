@@ -111,13 +111,17 @@ export function BookingsTab() {
 
   // Filter by search
   const filteredPending = useMemo(() => {
-    if (!searchQuery.trim()) return pendingBookings;
+    let result = pendingBookings;
+    if (filterReview) {
+      result = result.filter((b: any) => b.needs_review === true);
+    }
+    if (!searchQuery.trim()) return result;
     const q = searchQuery.toLowerCase();
-    return pendingBookings.filter((b: any) =>
+    return result.filter((b: any) =>
       b.buildings?.name?.toLowerCase().includes(q) ||
       b.buildings?.building_code?.toLowerCase().includes(q)
     );
-  }, [pendingBookings, searchQuery]);
+  }, [pendingBookings, searchQuery, filterReview]);
 
   // Group by building
   const groupedBookings = useMemo(() => {
