@@ -1,35 +1,28 @@
 
 
-## Plan: Hover-Dropdown für "Buchen" Tab
+## Plan: Zeitraum in Vorlagen + Keine doppelten Konten
 
-**Konzept**: Der "Buchen"-Tab bekommt ein Hover-Dropdown, das die drei Sub-Optionen (Vorlagen, Kontoauszüge, Buchungen) anzeigt. Nach Auswahl wird der gewählte Sub-Tab im Button-Label angezeigt, z.B. "Buchen · Kontoauszüge". Die zweite Tab-Zeile verschwindet komplett.
+### Änderungen
 
-### Visuelles Ergebnis
+**1. `BuildingContactsList.tsx` — `ensureAccountAndTemplate` Funktion anpassen**
 
-```text
-┌──────────────────────────────────────────────────────────────────┐
-│  [Buchen · Vorlagen ▾]  [Abrechnung]  [Planung]  [Kassenprüfung] │
-│        ┌─────────────┐                                            │
-│        │ Vorlagen     │  ← Dropdown erscheint bei Hover           │
-│        │ Kontoauszüge │                                            │
-│        │ Buchungen    │                                            │
-│        └─────────────┘                                            │
-└──────────────────────────────────────────────────────────────────┘
-```
+- **Konto-Logik bleibt**: Suche per `account_number` (= Einheitennummer). Wenn vorhanden → wiederverwenden, nicht duplizieren.
+- **Vorlage-Logik ändern**: Statt per `ilike` nach Name zu suchen und zu updaten, wird jetzt geprüft ob eine Vorlage mit gleichem Kostentyp + Einheit + **überlappenden Zeiträumen** existiert.
+  - Wenn **ja** → bestehende Vorlage updaten (Betrag, IBAN etc.)
+  - Wenn **nein** (anderer Zeitraum oder keine Überlappung) → **neue Vorlage** erstellen
+- **Zeitraum aus Kostenzeile übernehmen**: `valid_from` und `valid_to` der `contact_building_costs` Zeile werden in die Vorlage geschrieben
 
-### Technische Umsetzung
+**2. Zeitraum an die Funktion übergeben**
 
-**`src/pages/Finance.tsx`**:
+- Die `ensureAccountAndTemplate`-Funktion bekommt zusätzlich `validFrom` und `validTo` als Parameter
+- Der Knopfdruck-Handler liest die Werte aus der jeweiligen Kostenzeile und übergibt sie
 
-1. **Verschachteltes `<Tabs>` entfernen** — kein zweites `<Tabs>`/`<TabsList>` mehr für die Sub-Navigation
-2. **Custom Hover-Dropdown auf dem "Buchen"-Trigger**: Statt eines normalen `<TabsTrigger>` wird der "Buchen"-Slot ein `div` mit `onMouseEnter`/`onMouseLeave` und absolutem Dropdown-Menü
-3. **Label-Logik**: Der angezeigte Text im Buchen-Tab wird dynamisch: `"Buchen · {SubTab-Name}"` (z.B. "Buchen · Kontoauszüge")
-4. **Klick auf Haupt-Button**: Aktiviert den `buchen`-Tab mit dem zuletzt gewählten Sub-Tab
-5. **Klick auf Dropdown-Item**: Setzt `activeTab="buchen"` + `activeSubTab` auf den gewählten Wert, Dropdown schließt sich
-6. **Content-Rendering**: `TabsContent` für `buchen` rendert direkt basierend auf `activeSubTab` (ohne verschachteltes Tabs-Komponente)
+**3. Template-Name differenzieren**
 
-### Sub-Tab Labels
-- `templates` → "Vorlagen"
-- `statements` → "Kontoauszüge"  
-- `bookings` → "Buchungen"
+- Bei mehreren Vorlagen gleichen Typs wird der Name um den Zeitraum ergänzt:
+  - `mtl. Hausgeld 0001 EG (01.07.2025–31.12.2025)`
+  - `mtl. Hausgeld 0001 EG (01.01.2025–30.06.2025)`
+
+### Keine DB-Migration nötig
+`valid_from` und `valid_to` existieren bereits in `booking_templates`.
 
