@@ -119,6 +119,12 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
       path: '/weg-owner/files',
       active: location.pathname.startsWith('/weg-owner/files')
     }] : []),
+    ...(hasAudit ? [{
+      icon: ClipboardCheck,
+      label: "Kassenprüfung",
+      path: '/weg-owner/kassenpruefung',
+      active: location.pathname.startsWith('/weg-owner/kassenpruefung')
+    }] : []),
     { 
       icon: MessageSquare, 
       label: "Schwarzes Brett", 
