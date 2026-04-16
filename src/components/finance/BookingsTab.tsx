@@ -375,6 +375,7 @@ export function BookingsTab() {
                 )}
               </Button>
             </div>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
