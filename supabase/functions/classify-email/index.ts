@@ -76,8 +76,8 @@ Deno.serve(async (req) => {
       contactBuildings[cba.contact_id].push(cba.building_id);
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    const MISTRAL_API_KEY = Deno.env.get("MISTRAL_API_KEY");
+    if (!MISTRAL_API_KEY) throw new Error("MISTRAL_API_KEY not configured");
 
     const buildingList = (buildings || [])
       .map((b) => `- "${b.name}" (${b.address}) [ID: ${b.id}]`)
@@ -105,15 +105,15 @@ Von: ${email.from_name || ""} <${email.from_address || ""}>
 Inhalt (Auszug): ${(email.body_text || "").substring(0, 1500)}`;
 
         const response = await fetch(
-          "https://ai.gateway.lovable.dev/v1/chat/completions",
+          "https://api.mistral.ai/v1/chat/completions",
           {
             method: "POST",
             headers: {
-              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              Authorization: `Bearer ${MISTRAL_API_KEY}`,
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              model: "google/gemini-3-flash-preview",
+              model: "mistral-small-latest",
               messages: [
                 {
                   role: "system",
