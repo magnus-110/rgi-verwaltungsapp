@@ -308,7 +308,7 @@ export function CashAuditJournal({ buildingId, fiscalYear, progress, onProgressC
         </DialogContent>
       </Dialog>
 
-      {pdfUrl && <PdfViewerModal url={pdfUrl} onClose={() => setPdfUrl(null)} />}
+      {pdfUrl && <PdfViewerModal isOpen={!!pdfUrl} onClose={() => setPdfUrl(null)} documentUrl={pdfUrl} documentName="Rechnung" />}
     </div>
   );
 }

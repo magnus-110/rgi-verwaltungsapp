@@ -13,7 +13,7 @@ import { CashAuditSignature } from "./CashAuditSignature";
 import { Download, PenLine, ArrowLeft, CheckCircle2, Copy, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { useDebouncedCallback } from "@/hooks/useDebouncedSave";
+
 
 interface CashAuditWizardProps {
   auditId: string;
