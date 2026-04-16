@@ -219,7 +219,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     queryFn: async () => {
       const { data } = await supabase
         .from("billing_periods")
-        .select("fiscal_year, period_from, period_to")
+        .select("id, fiscal_year, period_from, period_to")
         .eq("building_id", buildingId)
         .order("fiscal_year", { ascending: false })
         .limit(10);
@@ -565,9 +565,8 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           total_price: totalPrice,
           unit_price: unitPrice > 0 ? unitPrice : null,
           invoice_id: row.invoice_id || null,
-          billing_period_id: matchingPeriod ? undefined : undefined, // billing_period_id is optional
+          billing_period_id: matchingPeriod?.id || null,
           notes: `Brennstoffkauf ${row.fuel_type === "oil" ? "Heizöl" : "Pellets"}: ${quantity} ${fuelUnit}`,
-          ...(matchingPeriod ? {} : {}),
         } as any);
       }
 
