@@ -1,73 +1,108 @@
 
-Ziel: Verstehen, warum bei bereits zugeordneten Rechnungen oft trotzdem kein Gegenkonto, keine §35a-Info und keine vollständige Buchung vorgeschlagen wird.
+Ziel: Den kompletten Flow stabil machen, damit die KI nicht mehr hängt und genau dein gewünschtes Szenario sauber abbildet:
+1. Kontoauszug importieren
+2. Rechnungen/Vorlagen automatisch matchen
+3. später hochgeladene Rechnungen oder neue Vorlagen automatisch nachmatchen
+4. bei gematchten Rechnungen die Buchungsmaske vollständig vorfüllen
+5. bei offenen Transaktionen sinnvolle Match-, Buchungs- und Vorlagenvorschläge liefern
 
-Befund im aktuellen Code:
-- In `src/components/finance/TransactionReviewMode.tsx` wird bei einer gematchten Rechnung die Buchungsmaske primär nur aus `invoiceDetail` befüllt.
-- Für Rechnungen wird dort aktuell nur `invoiceDetail.suggested_account_id` als Gegenkonto übernommen.
-- Die KI-Vorschläge aus `currentTxn.ai_suggestion.booking_hint.suggested_bookings[0]` werden für Einzelbuchungen nur angewendet, wenn `!templateDetail && !invoiceDetail` gilt.
-- Heißt konkret: Sobald eine Rechnung vorhanden ist, wird die KI für Konto/Gegenkonto/§35a praktisch ignoriert.
-- Zusätzlich filtert `src/hooks/useTransactionAiPrefetch.ts` aktuell nur auf:
-  - `unmatched`
-  - `matched_invoice`
-- Manuell zugeordnete Rechnungen landen aber in `src/components/finance/BankStatementsTab.tsx` auf `match_status = "manually_matched"`.
-- Diese Transaktionen fallen dadurch aus der automatischen KI-Analyse komplett heraus, obwohl `matched_invoice_id` gesetzt ist.
-
-Warum das bei dir passiert:
-1. Hauptursache:
-   Die UI nutzt bei Rechnungen nicht die KI-Buchungsvorschläge als Fallback/Ergänzung. Wenn `invoices.suggested_account_id` leer ist, bleibt das Gegenkonto leer.
-
-2. Zweite Hauptursache:
-   Manuell gematchte Rechnungen werden oft gar nicht mehr von der KI analysiert, weil der Prefetch nur auf `match_status` schaut und nicht auf `matched_invoice_id`.
-
-3. Nebeneffekt:
-   Felder wie `counter_account_number`, `amount_35a`, `related_invoice_id` aus der Edge Function werden im Prüfmodus nicht sauber übernommen bzw. teils gar nicht gelesen.
+Kurzbefund nach Prüfung:
+- Das aktuelle Hängen bei `KI analysiert 0/33` passt zum Prefetch-Flow in `useTransactionAiPrefetch.ts`: Die Analyse läuft batchweise, aber ohne harten Timeout pro `suggest-match`-Aufruf. Wenn ein erster Batch hängen bleibt, bleibt die Anzeige bei `0/x`.
+- Der Matching-Lebenszyklus ist noch nicht geschlossen:
+  - `parse-bank-statement` matched nur beim XML-Import oder manuellem Rematch.
+  - `extract-invoice` verarbeitet OCR, stößt danach aber kein automatisches Rematching offener Banktransaktionen an.
+  - Beim Erstellen neuer Vorlagen wird nur die aktuelle Transaktion verknüpft, nicht automatisch erneut über ähnliche offene Buchungen gematcht.
+- Die KI-Kontexte sind inkonsistent:
+  - Prefetch übergibt reichhaltigen Kontext.
+  - `TransactionReviewMode` beim manuellen Neu-Analysieren und `AssignmentDialog` übergeben deutlich weniger Kontext.
+  - Dadurch fehlen oft Gegenkonto, §35a oder bessere Buchungshinweise gerade in den Fällen, wo manuell nachgesteuert wird.
+- Die Zusammenführung Rechnung + KI ist schon teilweise verbessert, muss aber konsequent für alle relevanten Felder und Sonderfälle gelten.
 
 Umsetzungsplan:
-1. `useTransactionAiPrefetch.ts` robuster filtern
-- Nicht mehr nur nach `match_status` filtern.
-- Stattdessen semantisch:
-  - analysieren, wenn `!booked_at && !ai_suggestion`
-  - und entweder:
-    - keine Zuordnung vorhanden ist
-    - oder eine Rechnung zugeordnet ist (`matched_invoice_id` gesetzt)
-- Template-Fälle weiter ausnehmen, weil dort deterministische Logik reicht.
+1. Prefetch robust gegen Hänger machen
+- `useTransactionAiPrefetch.ts` so umbauen, dass einzelne `suggest-match`-Calls einen klaren Timeout bekommen.
+- Batch-Größe reduzieren und Fehler/Timeouts pro Transaktion sauber weiterzählen statt den gesamten Lauf zu blockieren.
+- Fortschritt so belassen, dass immer `completed/total` hochzählt.
+- Stalled/Timeout-Fälle sichtbar machen, damit die Anzeige nicht ewig bei `0/x` steht.
 
-2. `TransactionReviewMode.tsx` Quellen zusammenführen statt gegenseitig auszuschließen
-- Reihenfolge:
-  - Rechnung liefert Belegdaten: Beleg-Nr., Datum, MwSt, Rechnung-ID, Beschreibung
-  - KI liefert Buchungsvorschlag: Gegenkonto, Buchungstyp, §35a, `amount_35a`, ggf. Fiskaljahr
-- Bei vorhandener Rechnung soll also KI nicht ersetzt, sondern als Ergänzung verwendet werden.
-- Fallback-Regel:
-  - zuerst `invoiceDetail.suggested_account_id`
-  - wenn leer: `aiSuggestion.booking_hint.suggested_bookings[0].account_id`
-  - wenn leer: `...account_number` oder `counter_account_number` gegen Kontenrahmen auflösen
+2. Einheitlichen KI-Analyse-Context bauen
+- Eine gemeinsame Hilfslogik für den `suggest-match`-Payload einführen.
+- Diese Logik in allen 3 Einstiegspunkten verwenden:
+  - `useTransactionAiPrefetch`
+  - `TransactionReviewMode` (`rerunAiAnalysis`)
+  - `AssignmentDialog`
+- Immer mitsenden:
+  - Kontenrahmen
+  - Wirtschaftsjahre
+  - liegenschaftsspezifische Buchungshinweise
+  - historische Buchungen
+  - Rechnungs-/Vorlagenkandidaten
+  - relevante offene Transaktionen derselben Liegenschaft
 
-3. KI-Felder vollständig in die Maske übernehmen
-- `is_35a_relevant`
-- `amount_35a`
-- `booking_type`
-- `counter_account_number`
-- `related_invoice_id` / `related_template_id` sauber auf die tatsächlichen Formularfelder mappen
+3. Automatisches Nachmatchen nach neuen Rechnungen/Vorlagen
+- Nach erfolgreicher OCR in `extract-invoice` automatisch einen zielgerichteten Rematch für offene Transaktionen der betroffenen Liegenschaft auslösen.
+- Nach neu erstellter Vorlage ebenfalls passende offene Transaktionen erneut prüfen.
+- Nach manueller Rechnungszuordnung die bestehende `ai_suggestion` für diese Transaktion zurücksetzen und sofort neu analysieren, damit die Buchungsmaske danach vollständig ist.
 
-4. Manuelle Rechnungszuordnung KI-fähig machen
-- Nach manueller Rechnungszuordnung entweder:
-  - Prefetch-Filter greift automatisch über `matched_invoice_id`
-  - oder zusätzlich `ai_suggestion` zurücksetzen / Einzelanalyse neu anstoßen
-- Wichtig: Nicht auf den Statusnamen `matched_invoice` vertrauen, sondern auf das Vorhandensein der Rechnungs-ID.
+4. Buchungsmaske für Rechnungs-Matches vollständig befüllen
+- In `TransactionReviewMode.tsx` Rechnung und KI konsequent zusammenführen:
+  - Rechnung = Belegdaten
+  - KI = Gegenkonto, Buchungstyp, §35a, `amount_35a`, Fiskaljahr, Erklärung
+- Auflösung in dieser Reihenfolge:
+  - `invoice.suggested_account_id`
+  - `ai.booking_hint.suggested_bookings[0].account_id`
+  - `account_number` / `counter_account_number` gegen Kontenrahmen auflösen
+- Auch `related_invoice_id`, `related_template_id`, Split-/Teilzahlungsfälle sauber mappen.
 
-Dateien:
+5. Offene Transaktionen intelligenter behandeln
+- Für ungematchte Transaktionen soll die KI immer drei Dinge liefern bzw. anzeigen, wenn vorhanden:
+  - beste Rechnungs-/Vorlagenkandidaten
+  - Buchungsvorschlag mit Gegenkonto/§35a/Fiskaljahr
+  - Vorlagenvorschlag oder Hinweis „Rechnung fehlt“
+- So bleibt der Human-in-the-loop-Workflow erhalten: Die KI analysiert, der Nutzer prüft.
+
+6. Robusten Kostenschutz ergänzen
+- Nicht nur clientseitig begrenzen, sondern dauerhaft auf Transaktionsebene absichern.
+- Dazu DB-gestützte Analyse-Metadaten ergänzen, z. B.:
+  - Analyse-Status
+  - letzter Analysezeitpunkt
+  - Anzahl Versuche
+  - Cooldown / Sperre nach mehreren Fehlern
+- So verhindern wir, dass Reloads, Rematchs oder Bugs dieselben Transaktionen unendlich oft neu anstoßen.
+
+Technische Details / betroffene Dateien:
 - `src/hooks/useTransactionAiPrefetch.ts`
+  - Timeout, Batch-Strategie, Fortschritt, Fehlerbehandlung
 - `src/components/finance/TransactionReviewMode.tsx`
-- optional `src/components/finance/BankStatementsTab.tsx` für sauberes Re-Triggering nach manueller Rechnungszuordnung
+  - vollständiges Merge Rechnung + KI
+  - konsistenter Einzel-Rerun mit vollem Kontext
+- `src/components/finance/AssignmentDialog.tsx`
+  - gleiche KI-Qualität wie im Prefetch
+  - bessere Vorschläge für offene Buchungen
+- `src/components/finance/BankStatementsTab.tsx`
+  - Rematch-/Reset-Trigger nach manuellen Zuordnungen / neuen Vorlagen
+- `supabase/functions/extract-invoice/index.ts`
+  - nach OCR automatisch Folgematching anstoßen
+- `supabase/functions/parse-bank-statement/index.ts`
+  - zielgerichteten Rematch-Fluss erweitern
+- `supabase/functions/suggest-match/index.ts`
+  - optional auf Performance/Antwortzeit trimmen, falls nötig
+- `supabase/migrations/*`
+  - falls wir den dauerhaften Kostenschutz mit Analyse-Statusfeldern sauber absichern
 
-Erwartetes Ergebnis nach dem Fix:
-- Auch bei bereits gematchten Rechnungen wird ein Gegenkonto vorgeschlagen.
-- §35a wird bei passenden Rechnungen direkt vorbelegt.
-- Manuell zugeordnete Rechnungen bekommen ebenfalls KI-Buchungsvorschläge.
-- Die Buchungsmaske ist nicht mehr abhängig davon, ob OCR schon `suggested_account_id` gesetzt hat.
+Erwartetes Ergebnis:
+- Die KI-Anzeige hängt nicht mehr bei `0/x`.
+- Beim Import eines Kontoauszugs werden passende Rechnungen/Vorlagen automatisch gematcht.
+- Neu hochgeladene Rechnungen und neu erstellte Vorlagen führen danach automatisch zu neuem Matching offener Buchungen.
+- Bei gematchten Rechnungen wird die Buchungsmaske vollständig vorbelegt, besonders Gegenkonto und §35a.
+- Bei offenen Buchungen zeigt die KI nachvollziehbare Kandidaten, Buchungsvorschläge und ggf. Vorlagenvorschläge.
+- API-Kosten sind gegen Endlosschleifen deutlich besser abgesichert.
 
 QA nach Umsetzung:
-- Rechnung automatisch gematcht, aber `suggested_account_id` leer → Gegenkonto muss trotzdem aus KI erscheinen.
-- Rechnung manuell zugeordnet (`manually_matched`) → KI-Vorschlag muss danach trotzdem erzeugt werden.
-- §35a-Rechnung (z. B. Hausmeister/Winterdienst) → Schalter und Betrag vorbelegt.
-- Nicht-§35a-Rechnung (z. B. Müll/Abfall) → korrekt ohne §35a.
+- XML importieren → automatische Matches erscheinen.
+- Danach neue Rechnung hochladen → offene passende Transaktion wird automatisch nachgematcht.
+- Neue Vorlage erstellen → ähnliche offene Transaktionen werden erneut geprüft.
+- Gematchte Rechnung ohne `suggested_account_id` → Gegenkonto kommt trotzdem aus KI.
+- Hausmeister/Winterdienst → §35a und Betrag werden vorbelegt.
+- Offene Buchung ohne Match → Kandidaten + Buchungsvorschlag + ggf. Vorlagenvorschlag sichtbar.
+- Fehler-/Timeout-Fall → KI-Anzeige bleibt nicht hängen, sondern zählt weiter bzw. zeigt Abbruch sauber an.
