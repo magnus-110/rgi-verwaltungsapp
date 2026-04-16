@@ -921,8 +921,8 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
               </Collapsible>
 
               {/* ── Analyse Section (Bottom, collapsible) ── */}
-              <Collapsible defaultOpen={true}>
-                <div className="border-t">
+              <Collapsible defaultOpen={true} className="flex-1 flex flex-col min-h-0">
+                <div className="border-t flex flex-col flex-1 min-h-0">
                   <div className="flex items-center">
                     <CollapsibleTrigger asChild>
                       <button className="flex-1 px-4 py-2 bg-muted/20 flex items-center gap-2 hover:bg-muted/40 transition-colors">
