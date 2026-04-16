@@ -1529,50 +1529,66 @@ function BookingRowCard({
               <label htmlFor={`35a-dialog-${index}`} className="text-sm font-medium">§35a-relevant</label>
             </div>
 
-            {row.is_35a_relevant && (
-              <div className="space-y-3">
-                {invoiceLineItems.length > 0 && (
-                  <div className="space-y-2">
-                    <label className="text-xs font-medium text-muted-foreground">Rechnungspositionen</label>
-                    <div className="space-y-1 max-h-48 overflow-y-auto">
-                      {invoiceLineItems.map((item: any, i: number) => {
-                        const lineItemsDetail: any[] = Array.isArray(row.line_items_detail) ? (row.line_items_detail as any[]) : [];
-                        const isSelected = lineItemsDetail.some((d: any) => d.index === i && d.is_35a);
-                        return (
-                          <div key={i} className={cn(
-                            "flex items-center gap-2 p-2 rounded-md border text-xs",
-                            isSelected && "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-700"
-                          )}>
-                            <Checkbox
-                              checked={isSelected}
-                              onCheckedChange={(checked) => {
-                                let updated = [...lineItemsDetail];
-                                if (checked) {
-                                  updated.push({ index: i, description: item.description || item.name || `Position ${i + 1}`, amount: item.amount || item.total || 0, is_35a: true });
-                                } else {
-                                  updated = updated.filter((d: any) => d.index !== i);
-                                }
-                                onUpdateField("line_items_detail", JSON.stringify(updated));
-                              }}
-                            />
-                            <span className="flex-1 truncate">{item.description || item.name || `Position ${i + 1}`}</span>
-                            {(item.amount || item.total) && (
-                              <span className="font-medium shrink-0">{formatCurrency(item.amount || item.total)}</span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Lohnanteil (€)</label>
-                  <Input className="h-9 text-sm" placeholder="0,00" value={row.amount_35a}
-                    onChange={e => onUpdateField("amount_35a", e.target.value)} />
+            {invoiceLineItems.length > 0 && (
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">Rechnungspositionen</label>
+                <div className="space-y-1 max-h-48 overflow-y-auto">
+                  {invoiceLineItems.map((item: any, i: number) => {
+                    const lineItemsDetail: any[] = Array.isArray(row.line_items_detail) ? (row.line_items_detail as any[]) : [];
+                    const isSelected = lineItemsDetail.some((d: any) => d.index === i && d.is_35a);
+                    return (
+                      <div key={i} className={cn(
+                        "flex items-center gap-2 p-2 rounded-md border text-xs",
+                        isSelected && "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-700"
+                      )}>
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={(checked) => {
+                            let updated = [...lineItemsDetail];
+                            if (checked) {
+                              updated.push({ index: i, description: item.description || item.name || `Position ${i + 1}`, amount: item.amount || item.total || 0, is_35a: true });
+                            } else {
+                              updated = updated.filter((d: any) => d.index !== i);
+                            }
+                            // Auto-calculate amount_35a from selected items + VAT
+                            const vatRate = parseFloat(row.vat_rate) || 0;
+                            const selectedItems = checked ? updated : updated;
+                            const netSum = selectedItems.reduce((sum: number, d: any) => sum + (parseFloat(d.amount) || 0), 0);
+                            const grossSum = vatRate > 0 ? netSum * (1 + vatRate / 100) : netSum;
+                            onUpdateField("line_items_detail", JSON.stringify(updated));
+                            onUpdateField("amount_35a", grossSum.toFixed(2));
+                            if (updated.length > 0) {
+                              onUpdateField("is_35a_relevant", true);
+                            }
+                          }}
+                        />
+                        <span className="flex-1 truncate">{item.description || item.name || `Position ${i + 1}`}</span>
+                        {(item.amount || item.total) && (
+                          <span className="font-medium shrink-0">{formatCurrency(item.amount || item.total)}</span>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
+
+            {(() => {
+              const lineItemsDetail: any[] = Array.isArray(row.line_items_detail) ? (row.line_items_detail as any[]) : [];
+              const selectedItems = lineItemsDetail.filter((d: any) => d.is_35a);
+              const vatRate = parseFloat(row.vat_rate) || 0;
+              const netSum = selectedItems.reduce((sum: number, d: any) => sum + (parseFloat(d.amount) || 0), 0);
+              const grossSum = vatRate > 0 ? netSum * (1 + vatRate / 100) : netSum;
+              return (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground block">Lohnanteil (€)</label>
+                  <div className="text-lg font-bold">{new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(grossSum)}</div>
+                  {vatRate > 0 && netSum > 0 && (
+                    <p className="text-xs text-muted-foreground">Netto {formatCurrency(netSum)} + {vatRate}% MwSt.</p>
+                  )}
+                </div>
+              );
+            })()}
 
             <Button onClick={() => setShow35aDialog(false)} className="w-full">
               Übernehmen
@@ -1595,41 +1611,42 @@ function BookingRowCard({
               <label htmlFor={`fuel-dialog-${index}`} className="text-sm font-medium">Brennstoffkauf erfassen</label>
             </div>
 
-            {row.is_fuel_purchase && (
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Art</label>
-                  <Select value={row.fuel_type} onValueChange={v => onUpdateField("fuel_type", v)}>
-                    <SelectTrigger className="h-9 text-sm">
-                      <SelectValue placeholder="Wählen…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="oil">Heizöl</SelectItem>
-                      <SelectItem value="pellets">Pellets</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">
-                    Menge ({row.fuel_type === "pellets" ? "kg" : "l"})
-                  </label>
-                  <Input className="h-9 text-sm" type="number" placeholder="0" value={row.fuel_quantity}
-                    onChange={e => onUpdateField("fuel_quantity", e.target.value)} />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Gesamtpreis (€)</label>
-                  <Input className="h-9 text-sm" type="number" step="0.01" placeholder="0,00" value={row.fuel_total_price}
-                    onChange={e => onUpdateField("fuel_total_price", e.target.value)} />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Lieferdatum</label>
-                  <Input className="h-9 text-sm" type="date" value={row.fuel_date}
-                    onChange={e => onUpdateField("fuel_date", e.target.value)} />
-                </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Art</label>
+                <Select value={row.fuel_type} onValueChange={v => onUpdateField("fuel_type", v)}>
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="Wählen…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="oil">Heizöl</SelectItem>
+                    <SelectItem value="pellets">Pellets</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            )}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                  Menge ({row.fuel_type === "pellets" ? "kg" : "l"})
+                </label>
+                <Input className="h-9 text-sm" type="number" placeholder="0" value={row.fuel_quantity}
+                  onChange={e => onUpdateField("fuel_quantity", e.target.value)} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Gesamtpreis (€)</label>
+                <Input className="h-9 text-sm" type="number" step="0.01" placeholder="0,00" value={row.fuel_total_price}
+                  onChange={e => onUpdateField("fuel_total_price", e.target.value)} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Lieferdatum</label>
+                <Input className="h-9 text-sm" type="date" value={row.fuel_date}
+                  onChange={e => onUpdateField("fuel_date", e.target.value)} />
+              </div>
+            </div>
 
-            <Button onClick={() => setShowFuelDialog(false)} className="w-full">
+            <Button onClick={() => {
+              if (row.fuel_type && row.fuel_quantity) onUpdateField("is_fuel_purchase", true);
+              setShowFuelDialog(false);
+            }} className="w-full">
               Übernehmen
             </Button>
           </div>
