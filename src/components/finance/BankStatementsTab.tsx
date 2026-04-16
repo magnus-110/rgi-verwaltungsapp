@@ -440,40 +440,6 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
             )}
           </div>
         </TableCell>
-        <TableCell onClick={(e) => e.stopPropagation()}>
-          {txn.match_status === "unmatched" && !txn.booked_at && (
-            <div className="flex gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-xs"
-                disabled={bookingSingleId === txn.id}
-                onClick={() => handleBookSingle(txn.id)}
-              >
-                {bookingSingleId === txn.id ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Send className="h-3 w-3 mr-1" />}
-                Buchen
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-xs text-muted-foreground"
-                onClick={() => updateMatchStatus(txn.id, "ignored")}
-              >
-                <EyeOff className="h-3 w-3 mr-1" />Ignorieren
-              </Button>
-            </div>
-          )}
-          {txn.match_status === "ignored" && !txn.booked_at && (
-            <Button variant="ghost" size="sm" className="text-xs" onClick={() => updateMatchStatus(txn.id, "unmatched")}>
-              Wiederherstellen
-            </Button>
-          )}
-          {isMatchedUnbooked && (
-            <Button variant="ghost" size="sm" className="text-xs" onClick={(e) => { e.stopPropagation(); openReviewAtTransaction(txn); }}>
-              Prüfen
-            </Button>
-          )}
-        </TableCell>
       </TableRow>
     );
   };
@@ -486,7 +452,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
         <TableHead>Verwendungszweck</TableHead>
         <TableHead className="text-right">Betrag</TableHead>
         <TableHead>Status</TableHead>
-        <TableHead>Aktionen</TableHead>
+        
       </TableRow>
     </TableHeader>
   );
