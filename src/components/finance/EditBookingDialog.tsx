@@ -1,20 +1,10 @@
-import { useState, useMemo, useEffect } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Separator } from "@/components/ui/separator";
-import { toast } from "sonner";
-import { useAuth } from "@/hooks/useAuth";
-import { ChevronDown, Search, ArrowDownLeft, ArrowUpRight, X, CheckCircle, FileText, Flag, LayoutTemplate, Building2 } from "lucide-react";
+import { FileText, LayoutTemplate, Building2, X, AlertTriangle, Flag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -52,62 +42,27 @@ interface Props {
   onInvoiceClick?: (booking: any) => void;
 }
 
-const VAT_RATES = [
-  { value: "0", label: "0 %" },
-  { value: "7", label: "7 %" },
-  { value: "19", label: "19 %" },
-];
-
 const formatCurrency = (amount: number | null) =>
   amount != null ? new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(amount) : "–";
 
-export function EditBookingDialog({ open, onOpenChange, booking, buildingName, onInvoiceClick }: Props) {
-  const { user } = useAuth();
-  const queryClient = useQueryClient();
-  const [form, setForm] = useState({
-    account_id: "",
-    counter_account_id: "",
-    booking_date: "",
-    amount: "",
-    description: "",
-    performance_period_from: "",
-    performance_period_to: "",
-    booking_type: "expense",
-    receipt_number: "",
-    booking_reference: "",
-    vat_rate: "19",
-    is_35a_relevant: false,
-    fiscal_year: String(new Date().getFullYear()),
-    amount_35a: "",
-  });
-  const [accountSearch, setAccountSearch] = useState("");
-  const [counterSearch, setCounterSearch] = useState("");
-  const [showPeriod, setShowPeriod] = useState(false);
-  const [accountOpen, setAccountOpen] = useState(false);
-  const [counterOpen, setCounterOpen] = useState(false);
+export function EditBookingDialog({ open, onOpenChange, booking, buildingName }: Props) {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (open && booking) {
-      setForm({
-        account_id: booking.account_id || "",
-        counter_account_id: booking.counter_account_id || "",
-        booking_date: booking.booking_date,
-        amount: String(booking.amount),
-        description: booking.description || "",
-        performance_period_from: booking.performance_period_from || "",
-        performance_period_to: booking.performance_period_to || "",
-        booking_type: booking.booking_type || "expense",
-        receipt_number: booking.receipt_number || "",
-        booking_reference: booking.booking_reference || "",
-        vat_rate: String(booking.vat_rate ?? 19),
-        is_35a_relevant: booking.is_35a_relevant ?? false,
-        fiscal_year: String(booking.fiscal_year),
-        amount_35a: (booking as any).amount_35a != null ? String((booking as any).amount_35a) : "",
-      });
-      setShowPeriod(!!(booking.performance_period_from || booking.performance_period_to));
-    }
-  }, [open, booking]);
+  // Load account names
+  const buildingId = booking?.building_id;
+  const { data: accounts = [] } = useQuery({
+    queryKey: ["chart-of-accounts", buildingId],
+    queryFn: async () => {
+      let query = supabase.from("chart_of_accounts").select("*");
+      if (buildingId) {
+        query = query.or(`building_id.is.null,building_id.eq.${buildingId}`);
+      }
+      const { data, error } = await query.order("sort_order");
+      if (error) throw error;
+      return data;
+    },
+    enabled: open && !!buildingId,
+  });
 
   // Load invoice details
   const { data: invoiceDetail } = useQuery({
@@ -151,170 +106,10 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
     loadPdf();
   }, [invoiceDetail?.file_path]);
 
-  const buildingId = booking?.building_id;
-  const { data: accounts = [] } = useQuery({
-    queryKey: ["chart-of-accounts", buildingId],
-    queryFn: async () => {
-      let query = supabase.from("chart_of_accounts").select("*");
-      if (buildingId) {
-        query = query.or(`building_id.is.null,building_id.eq.${buildingId}`);
-      }
-      const { data, error } = await query.order("sort_order");
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const filterAccounts = (list: typeof accounts, query: string) => {
-    const q = query.toLowerCase().trim();
-    return q ? list.filter(a => a.account_number.includes(q) || a.account_name.toLowerCase().includes(q)) : list;
-  };
-
-  const groupAccounts = (list: typeof accounts) => {
-    return list.reduce((acc: Record<string, typeof accounts>, a) => {
-      (acc[a.category] = acc[a.category] || []).push(a);
-      return acc;
-    }, {});
-  };
-
-  const computedVat = useMemo(() => {
-    const amt = parseFloat(form.amount) || 0;
-    const rate = parseFloat(form.vat_rate) || 0;
-    return rate > 0 ? (amt - amt / (1 + rate / 100)).toFixed(2) : "0.00";
-  }, [form.amount, form.vat_rate]);
-
-  const getAccountLabel = (id: string) => {
+  const getAccountLabel = (id: string | null) => {
+    if (!id) return "–";
     const a = accounts.find(acc => acc.id === id);
-    return a ? `${a.account_number} – ${a.account_name}` : "";
-  };
-
-  const handleSave = async () => {
-    if (!booking) return;
-    if (!form.account_id || !form.amount || !form.booking_date) {
-      toast.error("Bitte alle Pflichtfelder ausfüllen");
-      return;
-    }
-    const { error } = await supabase.from("bookings").update({
-      account_id: form.account_id,
-      counter_account_id: form.counter_account_id || null,
-      booking_date: form.booking_date,
-      amount: parseFloat(form.amount),
-      description: form.description || null,
-      performance_period_from: form.performance_period_from || null,
-      performance_period_to: form.performance_period_to || null,
-      booking_type: form.booking_type,
-      receipt_number: form.receipt_number || null,
-      booking_reference: form.booking_reference || null,
-      vat_rate: parseFloat(form.vat_rate),
-      vat_amount: parseFloat(computedVat),
-      is_35a_relevant: form.is_35a_relevant,
-      fiscal_year: parseInt(form.fiscal_year),
-      amount_35a: form.amount_35a ? parseFloat(form.amount_35a) : null,
-    }).eq("id", booking.id);
-    if (error) { toast.error("Fehler: " + error.message); return; }
-    toast.success("Buchung gespeichert");
-    onOpenChange(false);
-    queryClient.invalidateQueries({ predicate: (query) => {
-      const key = query.queryKey[0] as string;
-      return key.startsWith("bookings");
-    }});
-  };
-
-  const handleConfirm = async () => {
-    if (!booking) return;
-    if (!form.account_id || !form.amount || !form.booking_date) {
-      toast.error("Bitte alle Pflichtfelder ausfüllen");
-      return;
-    }
-    const { error } = await supabase.from("bookings").update({
-      account_id: form.account_id,
-      counter_account_id: form.counter_account_id || null,
-      booking_date: form.booking_date,
-      amount: parseFloat(form.amount),
-      description: form.description || null,
-      performance_period_from: form.performance_period_from || null,
-      performance_period_to: form.performance_period_to || null,
-      booking_type: form.booking_type,
-      receipt_number: form.receipt_number || null,
-      booking_reference: form.booking_reference || null,
-      vat_rate: parseFloat(form.vat_rate),
-      vat_amount: parseFloat(computedVat),
-      is_35a_relevant: form.is_35a_relevant,
-      fiscal_year: parseInt(form.fiscal_year),
-      amount_35a: form.amount_35a ? parseFloat(form.amount_35a) : null,
-      status: "confirmed",
-      confirmed_by: user?.id,
-      confirmed_at: new Date().toISOString(),
-    }).eq("id", booking.id);
-    if (error) { toast.error("Fehler: " + error.message); return; }
-    toast.success("Buchung bestätigt");
-    onOpenChange(false);
-    queryClient.invalidateQueries({ predicate: (query) => {
-      const key = query.queryKey[0] as string;
-      return key.startsWith("bookings");
-    }});
-  };
-
-  const set = (key: string, value: string | boolean) => setForm(p => ({ ...p, [key]: value }));
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault();
-      if (booking?.status === "pending") {
-        handleConfirm();
-      } else {
-        handleSave();
-      }
-    }
-  };
-
-  const AccountPicker = ({ value, onChange, search, onSearchChange, isOpen, onOpenChange: setOpen, placeholder }: {
-    value: string; onChange: (v: string) => void; search: string;
-    onSearchChange: (v: string) => void; isOpen: boolean; onOpenChange: (v: boolean) => void; placeholder: string;
-  }) => {
-    const filtered = filterAccounts(accounts, search);
-    const grouped = groupAccounts(filtered);
-    return (
-      <Popover open={isOpen} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button variant="outline" role="combobox" className={cn("w-full h-11 justify-between text-left font-normal", !value && "text-muted-foreground")}>
-            <span className="truncate">{value ? getAccountLabel(value) : placeholder}</span>
-            {value ? (
-              <X className="h-4 w-4 shrink-0 opacity-50 hover:opacity-100" onClick={(e) => { e.stopPropagation(); onChange(""); }} />
-            ) : (
-              <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-            )}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[460px] p-0" align="start">
-          <div className="p-3 border-b">
-            <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input value={search} onChange={e => onSearchChange(e.target.value)} placeholder="Kontonummer oder Name eingeben..." className="pl-9 h-10" autoFocus />
-            </div>
-          </div>
-          <div className="max-h-[300px] overflow-y-auto p-1">
-            {Object.keys(grouped).length === 0 ? (
-              <div className="text-center py-6 text-sm text-muted-foreground">Kein Konto gefunden</div>
-            ) : (
-              Object.entries(grouped).map(([cat, accs]) => (
-                <div key={cat}>
-                  <div className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{cat}</div>
-                  {accs.map(a => (
-                    <button key={a.id} onClick={() => { onChange(a.id); setOpen(false); onSearchChange(""); }}
-                      className={cn("w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-md hover:bg-accent transition-colors", value === a.id && "bg-accent")}>
-                      <span className="font-mono text-sm font-medium w-14 shrink-0">{a.account_number}</span>
-                      <span className="text-sm truncate">{a.account_name}</span>
-                      {a.is_35a_relevant && <Badge className="text-[10px] bg-amber-100 text-amber-800 hover:bg-amber-100 ml-auto shrink-0">§35a</Badge>}
-                    </button>
-                  ))}
-                </div>
-              ))
-            )}
-          </div>
-        </PopoverContent>
-      </Popover>
-    );
+    return a ? `${a.account_number} – ${a.account_name}` : "–";
   };
 
   if (!booking) return null;
@@ -328,40 +123,33 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
       <DialogContent
         className={cn(
           "max-h-[94vh] p-0 flex flex-col overflow-hidden",
-          hasRightPanel ? "max-w-[96vw] w-full h-[94vh]" : "max-w-4xl"
+          hasRightPanel ? "max-w-[96vw] w-full h-[94vh]" : "max-w-2xl"
         )}
-        onKeyDown={handleKeyDown}
       >
-        {/* Header bar */}
+        {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30 shrink-0">
           <div className="flex items-center gap-3">
             <Building2 className="h-5 w-5 text-muted-foreground" />
             <div>
-              <h3 className="font-semibold text-base">Buchung bearbeiten</h3>
+              <h3 className="font-semibold text-base">Buchungsdetails</h3>
               <p className="text-xs text-muted-foreground">
                 {buildingName} · Wirtschaftsjahr {booking.fiscal_year}
                 {booking.source !== "manual" && (
                   <Badge variant="outline" className="ml-2 text-[10px]">
-                    {booking.source === "ocr" ? "OCR" : booking.source === "bank_import" ? "Bank" : booking.source}
+                    {booking.source === "ocr" ? "OCR" : booking.source === "bank_import" ? "Kontoauszug" : booking.source}
                   </Badge>
                 )}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mr-2">
-              <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">Ctrl+↵</kbd>
-              <span className="text-[11px]">{booking.status === "pending" ? "Bestätigen" : "Speichern"}</span>
-            </div>
-            <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
+          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+            <X className="h-4 w-4" />
+          </Button>
         </div>
 
         {/* Main content */}
         <div className={cn("flex-1 flex overflow-hidden", !hasRightPanel && "flex-col")}>
-          {/* Left panel - Form */}
+          {/* Left panel - Read-only details */}
           <div className={cn(
             "overflow-y-auto p-6 space-y-4",
             hasRightPanel ? "w-1/2 border-r" : "flex-1"
@@ -369,7 +157,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
             {/* AI Warning */}
             {booking.ai_warning && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 p-3 flex gap-2 items-start">
-                <span className="text-amber-600 mt-0.5 text-sm">⚠️</span>
+                <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
                 <p className="text-sm text-amber-800 dark:text-amber-200">{booking.ai_warning}</p>
               </div>
             )}
@@ -384,191 +172,75 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
                     <p className="text-sm text-orange-700 dark:text-orange-300">{(booking as any).review_note}</p>
                   )}
                 </div>
-                <Button size="sm" variant="outline" className="shrink-0 h-8 text-xs gap-1.5"
-                  onClick={async () => {
-                    const { error } = await supabase.from("bookings").update({
-                      needs_review: false,
-                      review_note: null,
-                    } as any).eq("id", booking!.id);
-                    if (error) { toast.error("Fehler: " + error.message); return; }
-                    toast.success("Als geprüft markiert ✓");
-                    onOpenChange(false);
-                    queryClient.invalidateQueries({ predicate: (query) => {
-                      const key = query.queryKey[0] as string;
-                      return key.startsWith("bookings");
-                    }});
-                  }}>
-                  <CheckCircle className="h-3.5 w-3.5" /> Geprüft
-                </Button>
               </div>
             )}
 
-            {/* Invoice link (only shown when no right panel) */}
-            {!hasRightPanel && booking.invoice_id && booking.invoices && (
-              <div className="rounded-lg border p-3 flex items-center gap-3">
-                <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                <div className="flex-1 text-sm">
-                  <span className="font-medium">Zugeordnete Rechnung:</span>{" "}
-                  <span className="text-muted-foreground">{booking.invoices.vendor_name || booking.invoices.file_name || "–"}</span>
-                </div>
-                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => onInvoiceClick?.(booking)}>
-                  <FileText className="h-3.5 w-3.5 mr-1" /> Anzeigen
-                </Button>
-              </div>
-            )}
+            {/* Booking details grid */}
+            <div className="grid grid-cols-2 gap-4">
+              <DetailField label="Buchungsdatum" value={format(new Date(booking.booking_date), "dd.MM.yyyy", { locale: de })} />
+              <DetailField label="Wirtschaftsjahr" value={String(booking.fiscal_year)} />
 
-            {/* Buchung section */}
-            <div className="rounded-xl border p-5 space-y-4">
-              <p className="text-base font-semibold text-foreground">Buchung</p>
-              <div>
-                <Label className="text-sm mb-1.5 block">Konto (Soll) *</Label>
-                <AccountPicker value={form.account_id} onChange={v => {
-                  set("account_id", v);
-                  const acc = accounts.find(a => a.id === v);
-                  if (acc?.is_35a_relevant) set("is_35a_relevant", true);
-                  if (acc && (acc as any).default_vat_rate != null) {
-                    set("vat_rate", String((acc as any).default_vat_rate));
-                  }
-                }} search={accountSearch} onSearchChange={setAccountSearch}
-                  isOpen={accountOpen} onOpenChange={setAccountOpen} placeholder="Konto suchen..." />
-              </div>
-              <div className="flex items-end gap-4">
-                <div className="flex-1">
-                  <Label className="text-sm mb-1.5 block">Zugang / Abgang *</Label>
-                  <div className="flex gap-2">
-                    <Button type="button" variant={form.booking_type === "expense" ? "default" : "outline"}
-                      className={cn("flex-1 h-11 gap-2", form.booking_type === "expense" && "bg-destructive hover:bg-destructive/90 text-destructive-foreground")}
-                      onClick={() => set("booking_type", "expense")}>
-                      <ArrowDownLeft className="h-4 w-4" /> Abgang
-                    </Button>
-                    <Button type="button" variant={form.booking_type === "income" ? "default" : "outline"}
-                      className={cn("flex-1 h-11 gap-2", form.booking_type === "income" && "bg-green-600 hover:bg-green-700 text-white")}
-                      onClick={() => set("booking_type", "income")}>
-                      <ArrowUpRight className="h-4 w-4" /> Zugang
-                    </Button>
-                  </div>
-                </div>
-                <div className="w-[180px]">
-                  <Label className="text-sm mb-1.5 block">Betrag (€) *</Label>
-                  <Input type="number" step="0.01" value={form.amount} onChange={e => set("amount", e.target.value)}
-                    className="h-11 text-right text-lg font-semibold" placeholder="0,00" />
-                </div>
-              </div>
-              <div>
-                <Label className="text-sm mb-1.5 block">Gegenkonto (Haben)</Label>
-                <AccountPicker value={form.counter_account_id} onChange={v => set("counter_account_id", v)}
-                  search={counterSearch} onSearchChange={setCounterSearch}
-                  isOpen={counterOpen} onOpenChange={setCounterOpen} placeholder="z.B. 1200 Bank, 1000 Kasse..." />
-              </div>
-            </div>
+              <DetailField
+                label="Betrag"
+                value={
+                  <span className={cn("text-lg font-bold", booking.booking_type === "income" ? "text-green-600" : "")}>
+                    {booking.booking_type === "income" ? "+" : ""}{formatCurrency(booking.amount)}
+                  </span>
+                }
+              />
+              <DetailField
+                label="MwSt"
+                value={booking.vat_rate ? `${booking.vat_rate}%` + (booking.vat_amount != null ? ` (${formatCurrency(booking.vat_amount)})` : "") : "–"}
+              />
 
-            {/* Beleg section */}
-            <div className="rounded-xl border p-5 space-y-4">
-              <p className="text-base font-semibold text-foreground">Beleg</p>
-              <div className="grid grid-cols-4 gap-4">
-                <div>
-                  <Label className="text-sm mb-1.5 block">Buchungskürzel</Label>
-                  <Input value={form.booking_reference} onChange={e => set("booking_reference", e.target.value)} className="h-11" placeholder="z.B. HG" />
-                </div>
-                <div>
-                  <Label className="text-sm mb-1.5 block">Beleg-Nr.</Label>
-                  <Input value={form.receipt_number} onChange={e => set("receipt_number", e.target.value)} className="h-11" placeholder="z.B. RE-2026-001" />
-                </div>
-                <div>
-                  <Label className="text-sm mb-1.5 block">Belegdatum *</Label>
-                  <Input type="date" value={form.booking_date} onChange={e => {
-                    const val = e.target.value;
-                    setForm(prev => ({ ...prev, booking_date: val, fiscal_year: val ? String(new Date(val).getFullYear()) : prev.fiscal_year }));
-                  }} className="h-11" />
-                </div>
-                <div>
-                  <Label className="text-sm mb-1.5 block">Wirtschaftsjahr</Label>
-                  <Input type="number" value={form.fiscal_year} onChange={e => set("fiscal_year", e.target.value)} className="h-11" />
-                </div>
-              </div>
-              <div>
-                <Label className="text-sm mb-1.5 block">Buchungstext</Label>
-                <Textarea value={form.description} onChange={e => set("description", e.target.value)} rows={2} placeholder="Beschreibung der Buchung..." />
-              </div>
-            </div>
+              <DetailField
+                label="Soll-Konto"
+                value={getAccountLabel(booking.account_id)}
+                className="col-span-2"
+              />
+              <DetailField
+                label="Gegen-Konto"
+                value={getAccountLabel(booking.counter_account_id)}
+                className="col-span-2"
+              />
 
-            {/* Steuer section */}
-            <div className="rounded-xl border p-5 space-y-4">
-              <p className="text-base font-semibold text-foreground">Steuer & Optionen</p>
-              <div className="flex items-end gap-6 flex-wrap">
-                {(() => {
-                  const counterAcc = accounts.find(a => a.id === form.counter_account_id);
-                  const isAccrual = counterAcc?.account_number?.startsWith("4");
-                  const vatMissing = isAccrual && !form.vat_rate;
-                  return (
-                    <div className="flex-1 min-w-[200px]">
-                      <Label className={cn("text-sm mb-2 block", vatMissing && "text-orange-600 dark:text-orange-400")}>
-                        MwSt-Satz {isAccrual && <span className="text-orange-500">*</span>}
-                      </Label>
-                      <RadioGroup value={form.vat_rate} onValueChange={v => set("vat_rate", v)} className="flex gap-4">
-                        {VAT_RATES.map(r => (
-                          <div key={r.value} className="flex items-center gap-2">
-                            <RadioGroupItem value={r.value} id={`edit-vat-${r.value}`} className="h-5 w-5" />
-                            <Label htmlFor={`edit-vat-${r.value}`} className="text-sm cursor-pointer">{r.label}</Label>
-                          </div>
-                        ))}
-                      </RadioGroup>
-                      {vatMissing && <p className="text-xs text-orange-500 mt-1">⚠ Pflichtfeld bei Abgrenzungskonten</p>}
-                    </div>
-                  );
-                })()}
-                <div className="w-[140px]">
-                  <Label className="text-sm mb-1.5 block">MwSt-Betrag</Label>
-                  <Input value={computedVat} readOnly className="h-11 text-right bg-muted font-medium" />
-                </div>
-                <div className="flex items-center gap-2.5 pb-1">
-                  <Checkbox id="edit_is_35a" checked={form.is_35a_relevant} onCheckedChange={c => set("is_35a_relevant", !!c)} className="h-5 w-5" />
-                  <Label htmlFor="edit_is_35a" className="text-sm cursor-pointer whitespace-nowrap font-medium">§35a relevant</Label>
-                </div>
-              </div>
-              {form.is_35a_relevant && (
-                <div className="pt-2">
-                  <Label className="text-sm mb-1.5 block">§35a-Anteil (Arbeitskosten netto, €)</Label>
-                  <Input
-                    type="number"
-                    step="0.01"
-                    value={form.amount_35a}
-                    onChange={e => set("amount_35a", e.target.value)}
-                    className="h-11 w-[200px] text-right font-medium"
-                    placeholder="0,00"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Nur der §35a-relevante Arbeitsanteil (netto) dieser Buchung.
-                  </p>
-                </div>
+              <DetailField label="Buchungstext" value={booking.description || "–"} className="col-span-2" />
+              <DetailField label="Beleg-Nr." value={booking.receipt_number || "–"} />
+              <DetailField label="Buchungskürzel" value={booking.booking_reference || "–"} />
+
+              <DetailField label="§35a-relevant" value={booking.is_35a_relevant ? "Ja" : "Nein"} />
+              {booking.is_35a_relevant && (booking as any).amount_35a != null && (
+                <DetailField
+                  label="§35a-Anteil"
+                  value={<span className="font-bold">{formatCurrency((booking as any).amount_35a)}</span>}
+                />
               )}
+
+              <DetailField
+                label="Quelle"
+                value={booking.source === "manual" ? "Manuell" : booking.source === "bank_import" ? "Kontoauszug" : booking.source === "ocr" ? "OCR" : booking.source}
+              />
+              <DetailField
+                label="Status"
+                value={
+                  <Badge variant={booking.status === "confirmed" ? "default" : "secondary"} className="text-xs">
+                    {booking.status === "confirmed" ? "Bestätigt" : booking.status === "pending" ? "Offen" : booking.status}
+                  </Badge>
+                }
+              />
             </div>
 
-            {/* Leistungszeitraum */}
-            <Collapsible open={showPeriod} onOpenChange={setShowPeriod}>
-              <CollapsibleTrigger asChild>
-                <Button variant="ghost" className="text-sm text-muted-foreground gap-2 px-0 h-auto">
-                  <ChevronDown className={`h-4 w-4 transition-transform ${showPeriod ? "rotate-180" : ""}`} />
-                  Leistungszeitraum
-                  {form.performance_period_from && <Badge variant="secondary" className="text-xs ml-1">gesetzt</Badge>}
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="pt-3">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label className="text-sm mb-1.5 block">Von</Label>
-                    <Input type="date" value={form.performance_period_from} onChange={e => set("performance_period_from", e.target.value)} className="h-11" />
-                  </div>
-                  <div>
-                    <Label className="text-sm mb-1.5 block">Bis</Label>
-                    <Input type="date" value={form.performance_period_to} onChange={e => set("performance_period_to", e.target.value)} className="h-11" />
-                  </div>
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
+            {booking.performance_period_from && (
+              <DetailField
+                label="Leistungszeitraum"
+                value={`${format(new Date(booking.performance_period_from), "dd.MM.yyyy", { locale: de })} – ${booking.performance_period_to ? format(new Date(booking.performance_period_to), "dd.MM.yyyy", { locale: de }) : "–"}`}
+              />
+            )}
 
             {/* Vendor History */}
-            <VendorHistorySection booking={booking} />
+            <div className="pt-2">
+              <VendorHistorySection booking={booking} />
+            </div>
           </div>
 
           {/* Right panel - Invoice PDF or Template details */}
@@ -644,19 +316,6 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
             </div>
           )}
         </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between px-4 py-3 border-t bg-muted/30 shrink-0">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Abbrechen</Button>
-          <div className="flex items-center gap-2">
-            {booking.status === "pending" && (
-              <Button variant="default" onClick={handleConfirm} className="min-w-[180px] gap-2 bg-green-600 hover:bg-green-700 text-white">
-                <CheckCircle className="h-4 w-4" /> Bestätigen & Speichern
-              </Button>
-            )}
-            <Button onClick={handleSave} className="min-w-[140px]">Speichern</Button>
-          </div>
-        </div>
       </DialogContent>
     </Dialog>
   );
@@ -668,7 +327,7 @@ function DetailField({ label, value, className }: {
   className?: string;
 }) {
   return (
-    <div className={cn("space-y-0.5 p-2 rounded-md", className)}>
+    <div className={cn("space-y-0.5 p-2 rounded-md bg-muted/30", className)}>
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
       <div className="text-sm">{value}</div>
     </div>
