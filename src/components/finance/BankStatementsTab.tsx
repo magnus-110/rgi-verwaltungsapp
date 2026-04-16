@@ -359,6 +359,8 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     if (!selectedBuilding) return;
     setRematching(true);
     try {
+      // Reset AI prefetch state so it restarts after rematch
+      resetAiPrefetch();
       // Reset all AI suggestions for this building so they get re-analyzed
       await supabase.from("bank_transactions")
         .update({ ai_suggestion: null } as any)
