@@ -17,7 +17,8 @@ import {
   Menu,
   MessageSquare,
   FolderOpen,
-  Users
+  Users,
+  ClipboardCheck
 } from "lucide-react";
 
 interface WegOwnerLayoutProps {
@@ -30,6 +31,7 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
   const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const hasVisibleFiles = useHasVisibleFiles(profile?.user_id);
+  const [hasAudit, setHasAudit] = useState(false);
  const [showTermsDialog, setShowTermsDialog] = useState(false);
  const [termsAccepted, setTermsAccepted] = useState<boolean | null>(null);
  
@@ -50,7 +52,25 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
      }
    };
    checkTermsAcceptance();
- }, [profile?.user_id]);
+  }, [profile?.user_id]);
+
+  // Check if user has active cash audit
+  useEffect(() => {
+    const checkAudit = async () => {
+      if (!profile?.user_id) return;
+      const { data } = await supabase
+        .from("cash_audits")
+        .select("id")
+        .in("auditor_contact_id", 
+          supabase.from("contacts").select("id").eq("user_id", profile.user_id) as any
+        )
+        .neq("status", "completed")
+        .gt("visible_in_portal_until", new Date().toISOString())
+        .limit(1);
+      setHasAudit(!!(data && data.length > 0));
+    };
+    checkAudit();
+  }, [profile?.user_id]);
  
  const handleTermsAccepted = () => {
    setTermsAccepted(true);
