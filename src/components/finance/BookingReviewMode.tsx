@@ -250,7 +250,7 @@ export function BookingReviewMode({ open, onOpenChange, fiscalYear, buildingId }
                   <DetailField
                     label="Betrag"
                     value={
-                      <span className={cn("text-lg font-bold", currentBooking.booking_type === "income" ? "text-green-600" : "")}>
+                      <span className={cn("text-3xl font-bold", currentBooking.booking_type === "income" ? "text-green-600" : "text-destructive")}>
                         {currentBooking.booking_type === "income" ? "+" : ""}{formatCurrency(currentBooking.amount)}
                       </span>
                     }
