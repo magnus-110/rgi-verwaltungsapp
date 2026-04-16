@@ -1,28 +1,50 @@
 
 
-## Problem Analysis
+## Plan: Buchungen mit "Zur Prüfung markieren"-Funktion
 
-The amount input shows no visible size change because the `Input` component has a built-in `md:text-sm` responsive class (line 11 of `input.tsx`). On your 1422px screen (which is `md+`), Tailwind applies `md:text-sm` **in addition to** `text-4xl`. Since `md:text-sm` is a responsive variant, `twMerge` does NOT remove it when you pass `text-4xl` (a base-level class). The responsive `md:text-sm` wins at your screen size, making the number always appear small regardless of the base font size.
+### Konzept
 
-## Plan
+Ein Mitarbeiter kann beim Buchen oder nachträglich eine Buchung als **"Zur Prüfung"** markieren. Das signalisiert dem Vorgesetzten, dass diese Buchung nochmal geprüft werden muss. In der Buchungsübersicht kann nach markierten Buchungen gefiltert werden.
 
-### Step 1: Fix the amount input class override
-In `TransactionReviewMode.tsx` at line 1167, add `md:text-4xl` alongside `text-4xl` so the responsive override is properly countered:
-
+### Schritt 1: Datenbank-Migration
+Neue Spalte `needs_review` (boolean, default false) auf der `bookings`-Tabelle:
+```sql
+ALTER TABLE bookings ADD COLUMN needs_review boolean NOT NULL DEFAULT false;
+ALTER TABLE bookings ADD COLUMN review_note text;
 ```
-className={cn(
-  "h-14 text-4xl md:text-4xl font-bold flex-1 border-none shadow-none px-0 focus-visible:ring-0",
-  row.booking_type === "income" ? "text-green-600" : "text-destructive"
-)}
-```
+- `needs_review`: Flag ob Prüfung nötig
+- `review_note`: Optionaler Kommentar warum (z.B. "IBAN unklar", "Betrag weicht ab")
 
-This ensures `md:text-4xl` overrides the Input's built-in `md:text-sm` via Tailwind Merge, making the amount display large on all screen sizes.
+### Schritt 2: TransactionReviewMode – Flag-Button beim Buchen
+Neben den bestehenden Buttons (Buchen, Weiter) einen kleinen **Flaggen-Button** (🚩 `Flag` Icon) hinzufügen. Beim Klick:
+- Setzt `needs_review = true` in der Insert-Query (Zeile ~473)
+- Optionales Popover für kurze Notiz (review_note)
+- Visuelles Feedback: oranges Badge "Zur Prüfung" erscheint
 
-### Why this happened
-- `Input` component has: `text-base ... md:text-sm`
-- Your code passes: `text-4xl`
-- `twMerge` removes `text-base` (same breakpoint as `text-4xl`) but keeps `md:text-sm` (different breakpoint)
-- At `md+` screens → `md:text-sm` applies → number stays small
+### Schritt 3: BookingsTab – Filter & Anzeige
+- Neuer Filter-Toggle "Nur zur Prüfung" in der Filterleiste
+- Markierte Buchungen bekommen ein oranges 🚩-Badge in der Statuszeile
+- Klick auf Badge in EditBookingDialog → kann Review-Flag entfernen (= "geprüft")
 
-Single line change, no other files affected.
+### Schritt 4: EditBookingDialog – Review verwalten
+- Anzeige des Review-Flags + review_note
+- Button "Als geprüft markieren" der `needs_review = false` setzt
+
+### Technische Details
+
+**Dateien:**
+1. **Migration**: `supabase/migrations/` – `needs_review` boolean + `review_note` text
+2. **TransactionReviewMode.tsx** (~Zeile 473): `needs_review` in Insert-Payload; Flag-Button im UI (~Zeile 1206)
+3. **BookingsTab.tsx** (~Zeile 27): State `filterReview`, Query-Filter `.eq("needs_review", true)`, Badge in `renderBookingRow`
+4. **EditBookingDialog.tsx**: Review-Status anzeigen/ändern
+
+**UI-Verhalten im TransactionReviewMode:**
+- Kleiner `Flag`-Icon-Button neben den +/- Buttons oder am unteren Rand der Buchungszeile
+- Toggle: einmal klicken = markiert (orange), nochmal = entfernt
+- Beim Buchen wird der Flag-Status mitgespeichert
+
+**UI-Verhalten in BookingsTab:**
+- Neuer Toggle-Button "🚩 Zur Prüfung" in der Filterleiste
+- Zeigt Anzahl markierter Buchungen als Badge
+- Markierte Buchungen: oranges Flag-Icon + optional review_note als Tooltip
 
