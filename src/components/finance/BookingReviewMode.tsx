@@ -448,7 +448,7 @@ function DetailField({ label, value, highlight, className }: {
       className
     )}>
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <div className="text-sm">{value}</div>
+      <div>{value}</div>
     </div>
   );
 }
