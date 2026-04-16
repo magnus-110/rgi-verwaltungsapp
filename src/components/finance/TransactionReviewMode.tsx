@@ -1163,10 +1163,23 @@ function BookingRowCard({
             {/* Betrag + Typ inline */}
             <div className="flex items-center gap-1">
               <Input ref={el => fieldRefs.current["amount"] = el}
-                type="number" step="0.01"
-                className={cn("h-14 text-4xl md:text-4xl font-bold flex-1 border-none shadow-none px-0 focus-visible:ring-0", row.booking_type === "income" ? "text-green-600" : "text-destructive")}
-                value={row.amount} onChange={e => onUpdateField("amount", e.target.value)}
-                onKeyDown={e => handleEnterNavigation(e, "amount")} />
+                type="text" inputMode="decimal"
+                className={cn("h-14 text-4xl md:text-4xl font-bold flex-1 border-none shadow-none px-0 focus-visible:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none", row.booking_type === "income" ? "text-green-600" : "text-destructive")}
+                value={`${row.booking_type === "income" ? "+" : "-"}${row.amount}`}
+                onChange={e => {
+                  const raw = e.target.value;
+                  if (raw.startsWith("+")) {
+                    onUpdateField("booking_type", "income");
+                    onUpdateField("amount", raw.slice(1).replace(/[^0-9.,]/g, ""));
+                  } else if (raw.startsWith("-")) {
+                    onUpdateField("booking_type", "expense");
+                    onUpdateField("amount", raw.slice(1).replace(/[^0-9.,]/g, ""));
+                  } else {
+                    onUpdateField("amount", raw.replace(/[^0-9.,]/g, ""));
+                  }
+                }}
+                onKeyDown={e => handleEnterNavigation(e, "amount")}
+                onWheel={e => (e.target as HTMLElement).blur()} />
               <Button type="button" size="icon" variant={row.booking_type === "expense" ? "default" : "outline"}
                 className={cn("h-8 w-8 shrink-0 text-sm font-bold", row.booking_type === "expense" && "bg-destructive hover:bg-destructive/90 text-destructive-foreground")}
                 onClick={() => onUpdateField("booking_type", "expense")}>−</Button>
