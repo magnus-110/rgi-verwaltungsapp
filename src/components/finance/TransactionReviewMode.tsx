@@ -338,6 +338,11 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           booked: false,
           needs_review: false,
           review_note: "",
+          is_fuel_purchase: false,
+          fuel_type: "",
+          fuel_quantity: "",
+          fuel_total_price: "",
+          fuel_date: txnDate || "",
         };
       });
       setFormRows(rows);
