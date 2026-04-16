@@ -322,7 +322,10 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
 
   const handleManualAssign = async () => {
     if (!manualAssignTxn || !manualAssignId) return;
-    const updateData: any = { match_status: "manually_matched" };
+    const updateData: any = {
+      match_status: "manually_matched",
+      ai_suggestion: null, // Reset so AI re-analyzes with new context
+    };
     if (manualAssignType === "invoice") { updateData.matched_invoice_id = manualAssignId; }
     else { updateData.matched_template_id = manualAssignId; }
     const { error } = await supabase.from("bank_transactions").update(updateData).eq("id", manualAssignTxn.id);
@@ -331,6 +334,8 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
       toast.success("Transaktion manuell zugeordnet");
       setManualAssignTxn(null);
       setManualAssignId("");
+      // Reset AI prefetch so it picks up the newly matched transaction
+      resetAiPrefetch();
       queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
       queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
     }
