@@ -30,7 +30,7 @@ export function useTransactionAiPrefetch(
   const pendingKey = useMemo(() => {
     if (!enabled || !buildingId) return "";
     return transactions
-      .filter((t: any) => !t.ai_suggestion && !t.booked_at)
+      .filter((t: any) => !t.ai_suggestion && !t.booked_at && (t.match_status === "unmatched" || t.match_status === "matched_invoice"))
       .map((t: any) => t.id)
       .sort()
       .join(",");
@@ -51,7 +51,7 @@ export function useTransactionAiPrefetch(
     if (processedRunKeyRef.current === pendingKey) return;
 
     const unmatchedWithoutSuggestion = transactions.filter(
-      (t: any) => !t.ai_suggestion && !t.booked_at
+      (t: any) => !t.ai_suggestion && !t.booked_at && (t.match_status === "unmatched" || t.match_status === "matched_invoice")
     );
 
     if (unmatchedWithoutSuggestion.length === 0) {
