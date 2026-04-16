@@ -20,7 +20,7 @@ import {
   ArrowLeft, ArrowRight, CheckCircle, X,
   FileText, LayoutTemplate, Loader2, Sparkles,
   ChevronDown, ChevronRight, Plus, Trash2, User, PackagePlus, AlertTriangle,
-  Link2, RefreshCw, RotateCcw
+  Link2, RefreshCw, RotateCcw, Flag
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -50,6 +50,8 @@ interface BookingRowData {
   invoice_id: string | null;
   matched_template_id: string | null;
   booked: boolean;
+  needs_review: boolean;
+  review_note: string;
   accrualHint?: {
     needs_accrual: boolean;
     accrual_explanation: string;
