@@ -301,6 +301,8 @@ export function BookingsTab() {
             </Tooltip>
           </TooltipProvider>
         )}
+      </TableCell>
+    </TableRow>
   );
 
   const tableHeaders = (
