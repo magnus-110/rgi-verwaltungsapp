@@ -5,7 +5,8 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { AccountSearchSelect } from "./AccountSearchSelect";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -274,23 +275,18 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
                 {/* Konto */}
                 <div>
                   <label className="text-xs font-bold text-primary mb-1 block">Konto</label>
-                  <Select value={form.account_id} onValueChange={v => {
-                    set("account_id", v);
-                    const acc = accounts.find(a => a.id === v);
-                    if (acc?.is_35a_relevant) set("is_35a_relevant", true);
-                    if (acc && (acc as any).default_vat_rate != null) set("vat_rate", String((acc as any).default_vat_rate));
-                  }}>
-                    <SelectTrigger className="h-9 text-sm font-semibold border-primary/30 bg-primary/5">
-                      <SelectValue placeholder="Konto wählen…" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[300px]">
-                      {accounts.filter((a: any) => a.category !== "Bankkonto").map((a: any) => (
-                        <SelectItem key={a.id} value={a.id}>
-                          <span className="font-mono mr-2">{a.account_number}</span>{a.account_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <AccountSearchSelect
+                    value={form.account_id}
+                    onChange={v => {
+                      set("account_id", v);
+                      const acc = accounts.find(a => a.id === v);
+                      if (acc?.is_35a_relevant) set("is_35a_relevant", true);
+                      if (acc && (acc as any).default_vat_rate != null) set("vat_rate", String((acc as any).default_vat_rate));
+                    }}
+                    accounts={accounts}
+                    excludeCategory="Bankkonto"
+                    placeholder="Konto suchen…"
+                  />
                 </div>
 
                 {/* Amount + type */}
@@ -343,22 +339,16 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
                 {/* Gegenkonto */}
                 <div>
                   <label className="text-xs font-bold text-primary mb-1 block">Gegenkonto</label>
-                  <Select value={form.counter_account_id} onValueChange={v => {
-                    set("counter_account_id", v);
-                    const acc = accounts.find((a: any) => a.id === v);
-                    if (acc?.account_number?.startsWith("4")) set("vat_rate", "");
-                  }}>
-                    <SelectTrigger className="h-9 text-sm font-semibold border-primary/30 bg-primary/5">
-                      <SelectValue placeholder="Gegenkonto wählen…" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-[300px]">
-                      {accounts.map((a: any) => (
-                        <SelectItem key={a.id} value={a.id}>
-                          <span className="font-mono mr-2">{a.account_number}</span>{a.account_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <AccountSearchSelect
+                    value={form.counter_account_id}
+                    onChange={v => {
+                      set("counter_account_id", v);
+                      const acc = accounts.find((a: any) => a.id === v);
+                      if (acc?.account_number?.startsWith("4")) set("vat_rate", "");
+                    }}
+                    accounts={accounts}
+                    placeholder="Gegenkonto suchen…"
+                  />
                 </div>
 
                 {/* Description */}
