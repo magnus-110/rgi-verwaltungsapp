@@ -52,6 +52,11 @@ interface BookingRowData {
   booked: boolean;
   needs_review: boolean;
   review_note: string;
+  is_fuel_purchase: boolean;
+  fuel_type: string;
+  fuel_quantity: string;
+  fuel_total_price: string;
+  fuel_date: string;
   accrualHint?: {
     needs_accrual: boolean;
     accrual_explanation: string;
