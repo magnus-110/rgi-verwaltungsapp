@@ -501,6 +501,8 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         bank_transaction_id: currentTxn.id,
         split_part: totalParts > 1 ? partIndex : null,
         split_parts_total: totalParts > 1 ? totalParts : null,
+        needs_review: row.needs_review,
+        review_note: row.review_note || null,
       } as any).select("id").single();
 
       if (bookingError) throw bookingError;
