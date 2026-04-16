@@ -1069,6 +1069,82 @@ export type Database = {
           },
         ]
       }
+      cash_audits: {
+        Row: {
+          access_token: string | null
+          auditor_contact_id: string | null
+          billing_period_id: string
+          building_id: string
+          completed_at: string | null
+          created_at: string
+          fiscal_year: number
+          id: string
+          notes: string | null
+          progress: Json
+          signature_data: string | null
+          signed_at: string | null
+          status: string
+          updated_at: string
+          visible_in_portal_until: string | null
+        }
+        Insert: {
+          access_token?: string | null
+          auditor_contact_id?: string | null
+          billing_period_id: string
+          building_id: string
+          completed_at?: string | null
+          created_at?: string
+          fiscal_year: number
+          id?: string
+          notes?: string | null
+          progress?: Json
+          signature_data?: string | null
+          signed_at?: string | null
+          status?: string
+          updated_at?: string
+          visible_in_portal_until?: string | null
+        }
+        Update: {
+          access_token?: string | null
+          auditor_contact_id?: string | null
+          billing_period_id?: string
+          building_id?: string
+          completed_at?: string | null
+          created_at?: string
+          fiscal_year?: number
+          id?: string
+          notes?: string | null
+          progress?: Json
+          signature_data?: string | null
+          signed_at?: string | null
+          status?: string
+          updated_at?: string
+          visible_in_portal_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cash_audits_auditor_contact_id_fkey"
+            columns: ["auditor_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_audits_billing_period_id_fkey"
+            columns: ["billing_period_id"]
+            isOneToOne: false
+            referencedRelation: "billing_periods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cash_audits_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chart_of_accounts: {
         Row: {
           account_name: string
@@ -4197,6 +4273,7 @@ export type Database = {
         Returns: string
       }
       get_attendee_by_proxy_token: { Args: { p_token: string }; Returns: Json }
+      get_audit_by_token: { Args: { p_token: string }; Returns: Json }
       get_building_manager_names: {
         Args: { building_id_param: string }
         Returns: string[]
@@ -4296,6 +4373,16 @@ export type Database = {
           metadata: Json
           similarity: number
         }[]
+      }
+      update_audit_by_token: {
+        Args: {
+          p_notes?: string
+          p_progress?: Json
+          p_signature_data?: string
+          p_status?: string
+          p_token: string
+        }
+        Returns: Json
       }
       user_has_admin_access: { Args: { user_id: string }; Returns: boolean }
     }

@@ -31,6 +31,7 @@ import { EconomicPlan } from "./pages/EconomicPlan";
 import { Inbox } from "./pages/Inbox";
 import { Meetings } from "./pages/Meetings";
 import { EtvProxy } from "./pages/EtvProxy";
+import { CashAuditProxy } from "./pages/CashAuditProxy";
 import { Transfers } from "./pages/Transfers";
 import { AdminLayout } from "./components/AdminLayout";
 import { WegOwnerLayout } from "./components/WegOwnerLayout";
@@ -41,6 +42,7 @@ import { WegOwnerChatbot } from "./pages/weg-owner/Chatbot";
 import { WegOwnerSettings } from "./pages/weg-owner/Settings";
 import { WegOwnerFiles } from "./pages/weg-owner/Files";
 import { WegOwnerMeetings } from "./pages/weg-owner/Meetings";
+import { WegOwnerCashAudit } from "./pages/weg-owner/CashAudit";
 import { TenantLayout } from "./components/TenantLayout";
 import { TenantDashboard } from "./pages/tenant/Dashboard";
 import { TenantReports } from "./pages/tenant/Reports";
@@ -110,6 +112,7 @@ const App = () => (
               <Route path="/weg-owner/settings" element={<WegOwnerLayout><WegOwnerSettings /></WegOwnerLayout>} />
               <Route path="/weg-owner/files" element={<WegOwnerLayout><WegOwnerFiles /></WegOwnerLayout>} />
               <Route path="/weg-owner/meetings" element={<WegOwnerLayout><WegOwnerMeetings /></WegOwnerLayout>} />
+              <Route path="/weg-owner/kassenpruefung" element={<WegOwnerLayout><WegOwnerCashAudit /></WegOwnerLayout>} />
               
               {/* Tenant Routes */}
               <Route path="/tenant/change-password" element={<TenantLayout><ChangePassword /></TenantLayout>} />
@@ -121,6 +124,7 @@ const App = () => (
               <Route path="/tenant/files" element={<TenantLayout><TenantFiles /></TenantLayout>} />
               
               <Route path="/etv-proxy/:token" element={<EtvProxy />} />
+              <Route path="/kassenpruefung/:token" element={<CashAuditProxy />} />
               <Route path="/offline" element={<Offline />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

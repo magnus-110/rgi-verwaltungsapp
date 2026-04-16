@@ -6,6 +6,7 @@ import { BookingsTab } from "@/components/finance/BookingsTab";
 import { BillingTab } from "@/components/finance/BillingTab";
 import { BillingPeriodSelector } from "@/components/finance/BillingPeriodSelector";
 import { EconomicPlanEditor } from "@/components/finance/EconomicPlanEditor";
+import { CashAuditTab } from "@/components/finance/CashAuditTab";
 import { AssetReportSection } from "@/components/finance/AssetReportSection";
 import { Paragraph35aSection } from "@/components/finance/Paragraph35aSection";
 import { Card, CardContent } from "@/components/ui/card";
@@ -72,10 +73,11 @@ export const Finance = () => {
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList variant="segment" className="grid w-full grid-cols-3">
+        <TabsList variant="segment" className="grid w-full grid-cols-4">
           <TabsTrigger variant="segment" value="buchen">Buchen</TabsTrigger>
           <TabsTrigger variant="segment" value="abrechnung">Abrechnung</TabsTrigger>
           <TabsTrigger variant="segment" value="planung">Planung & Berichte</TabsTrigger>
+          <TabsTrigger variant="segment" value="kassenpruefung">Kassenprüfung</TabsTrigger>
         </TabsList>
 
         <TabsContent value="buchen">
@@ -180,6 +182,9 @@ export const Finance = () => {
               })}
             </div>
           )}
+        </TabsContent>
+        <TabsContent value="kassenpruefung">
+          <CashAuditTab />
         </TabsContent>
       </Tabs>
     </div>
