@@ -459,11 +459,17 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
   const updateRow = (rowId: string, field: string, value: string | boolean | number) => {
     setFormRows(rows => rows.map(r => {
       if (r.id !== rowId) return r;
-      if (field === "fiscal_year") return { ...r, [field]: typeof value === "string" ? parseInt(value) || r.fiscal_year : value };
-      if (field === "line_items_detail") {
-        try { return { ...r, line_items_detail: typeof value === "string" ? JSON.parse(value) : value }; } catch { return r; }
+      if (field === "fiscal_year") {
+        const parsed = typeof value === "string" ? parseInt(value) : (typeof value === "number" ? value : r.fiscal_year);
+        return { ...r, fiscal_year: parsed || r.fiscal_year } as BookingRowData;
       }
-      return { ...r, [field]: value };
+      if (field === "line_items_detail") {
+        try {
+          const parsed = typeof value === "string" ? JSON.parse(value) : null;
+          return { ...r, line_items_detail: parsed } as BookingRowData;
+        } catch { return r; }
+      }
+      return { ...r, [field]: value } as BookingRowData;
     }));
   };
 
