@@ -495,25 +495,25 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
 
       {/* §35a Dialog */}
       <Dialog open={show35aDialog} onOpenChange={setShow35aDialog}>
-        <DialogContent className="max-w-lg">
-          <div className="space-y-4">
+        <DialogContent className="max-w-lg overflow-hidden">
+          <div className="space-y-4 w-full min-w-0 max-w-full">
             <h3 className="font-semibold text-base">§35a – Haushaltsnahe Dienstleistungen</h3>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 min-w-0">
               <Checkbox id="edit-35a-toggle" checked={form.is_35a_relevant} onCheckedChange={v => set("is_35a_relevant", !!v)} />
               <label htmlFor="edit-35a-toggle" className="text-sm font-medium">§35a-relevant</label>
             </div>
 
             {invoiceLineItems.length > 0 && (
-              <div className="space-y-2">
+              <div className="space-y-2 w-full min-w-0">
                 <label className="text-xs font-medium text-muted-foreground">Rechnungspositionen</label>
-                <div className="space-y-1 max-h-48 overflow-y-auto">
+                <div className="space-y-1 max-h-48 overflow-y-auto overflow-x-hidden w-full min-w-0">
                   {invoiceLineItems.map((item: any, i: number) => {
                     const lineItemsDetail: any[] = Array.isArray(form.line_items_detail) ? form.line_items_detail : [];
                     const isSelected = lineItemsDetail.some((d: any) => d.index === i && d.is_35a);
                     return (
                       <div key={i} className={cn(
-                        "flex items-center gap-2 p-2 rounded-md border text-xs min-w-0",
+                        "flex w-full max-w-full min-w-0 items-center gap-2 overflow-hidden rounded-md border p-2 text-xs",
                         isSelected && "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-700"
                       )}>
                         <Checkbox
@@ -536,9 +536,9 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
                             }));
                           }}
                         />
-                        <span className="flex-1 truncate min-w-0">{item.description || item.name || `Position ${i + 1}`}</span>
+                        <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{item.description || item.name || `Position ${i + 1}`}</span>
                         {(item.amount || item.total) && (
-                          <span className="font-medium shrink-0">{formatCurrency(item.amount || item.total)}</span>
+                          <span className="font-medium shrink-0 pl-2">{formatCurrency(item.amount || item.total)}</span>
                         )}
                       </div>
                     );
@@ -554,7 +554,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
               const netSum = selectedItems.reduce((sum: number, d: any) => sum + (parseFloat(d.amount) || 0), 0);
               const grossSum = vatRate > 0 ? netSum * (1 + vatRate / 100) : netSum;
               return (
-                <div className="space-y-1">
+                <div className="space-y-1 w-full min-w-0">
                   <label className="text-xs font-medium text-muted-foreground block">Lohnanteil (€)</label>
                   <div className="text-lg font-bold">{new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(grossSum)}</div>
                   {vatRate > 0 && netSum > 0 && (
@@ -564,7 +564,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
               );
             })()}
 
-            <Button onClick={() => setShow35aDialog(false)} className="w-full">Übernehmen</Button>
+            <Button onClick={() => setShow35aDialog(false)} className="w-full max-w-full">Übernehmen</Button>
           </div>
         </DialogContent>
       </Dialog>
