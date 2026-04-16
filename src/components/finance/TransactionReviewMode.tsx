@@ -1196,6 +1196,18 @@ function BookingRowCard({
               )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={e => { e.stopPropagation(); onUpdateField("needs_review", !row.needs_review); }}
+                className={cn(
+                  "flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors",
+                  row.needs_review
+                    ? "bg-orange-100 text-orange-700 dark:bg-orange-950/30 dark:text-orange-400"
+                    : "text-muted-foreground hover:bg-muted"
+                )}
+              >
+                <Flag className="h-3.5 w-3.5" />
+                Prüfen
+              </button>
               <span className={cn("text-sm font-bold", row.booking_type === "income" ? "text-green-600" : "text-destructive")}>
                 {row.booking_type === "income" ? "+" : "−"}{formatCurrency(parseFloat(row.amount) || 0)}
               </span>
@@ -1213,6 +1225,13 @@ function BookingRowCard({
 
         <CollapsibleContent>
           <div className="px-3 pb-3 space-y-3 border-t pt-3">
+            {row.needs_review && (
+              <div className="flex items-center gap-2 p-2 rounded-md bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800">
+                <Flag className="h-3.5 w-3.5 text-orange-500 shrink-0" />
+                <Input className="h-7 text-xs flex-1 border-orange-200 dark:border-orange-700" placeholder="Prüfnotiz (optional), z.B. IBAN unklar, Betrag prüfen..."
+                  value={row.review_note} onChange={e => onUpdateField("review_note", e.target.value)} />
+              </div>
+            )}
             {/* Konto */}
             <div ref={el => fieldRefs.current["account_id"] = el}>
               <label className="text-xs font-bold text-primary mb-1 block">Konto</label>
@@ -1469,21 +1488,6 @@ function BookingRowCard({
               )}
             </div>
 
-            <div className="p-2 rounded-lg border space-y-2" style={{ borderColor: row.needs_review ? 'hsl(var(--chart-4))' : undefined, backgroundColor: row.needs_review ? 'hsl(var(--chart-4) / 0.08)' : undefined }}>
-              <div className="flex items-center gap-3">
-                <Checkbox id={`review-${index}`} checked={row.needs_review} onCheckedChange={v => onUpdateField("needs_review", !!v)} />
-                <label htmlFor={`review-${index}`} className="text-xs font-medium flex items-center gap-1.5">
-                  <Flag className="h-3.5 w-3.5" /> Zur Prüfung markieren
-                </label>
-              </div>
-              {row.needs_review && (
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Notiz (optional)</label>
-                  <Input className="h-8 text-xs" placeholder="z.B. IBAN unklar, Betrag prüfen..."
-                    value={row.review_note} onChange={e => onUpdateField("review_note", e.target.value)} />
-                </div>
-              )}
-            </div>
 
             {/* Book button */}
             <Button onClick={onBook} disabled={isBooking || !row.account_id} className="w-full h-9 text-sm">
