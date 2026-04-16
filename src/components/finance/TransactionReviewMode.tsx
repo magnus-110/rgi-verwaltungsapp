@@ -1266,24 +1266,18 @@ function BookingRowCard({
             {/* Konto */}
             <div ref={el => fieldRefs.current["account_id"] = el}>
               <label className="text-xs font-bold text-primary mb-1 block">Konto</label>
-              <Select value={row.account_id} onValueChange={v => {
-                if (v === "__create__") { setCreateAccountTarget("account_id"); setCreateAccountOpen(true); }
-                else onUpdateField("account_id", v);
-              }}>
-                <SelectTrigger className="h-9 text-sm font-semibold border-primary/30 bg-primary/5" onKeyDown={e => handleEnterNavigation(e, "account_id")}>
-                  <SelectValue placeholder="Konto wählen…" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[300px]">
-                  {accounts.filter((a: any) => a.category !== "Bankkonto").map((a: any) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      <span className="font-mono mr-2">{a.account_number}</span>{a.account_name}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value="__create__" className="text-primary font-medium">
-                    <span className="flex items-center gap-1"><Plus className="h-3 w-3" /> Neues Konto</span>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+              <AccountSearchSelect
+                value={row.account_id}
+                onChange={v => {
+                  if (v === "__create__") { setCreateAccountTarget("account_id"); setCreateAccountOpen(true); }
+                  else onUpdateField("account_id", v);
+                }}
+                accounts={accounts}
+                excludeCategory="Bankkonto"
+                placeholder="Konto suchen…"
+                showCreateOption
+                onCreateClick={() => { setCreateAccountTarget("account_id"); setCreateAccountOpen(true); }}
+              />
             </div>
 
             {/* Betrag + Typ inline */}
@@ -1349,31 +1343,23 @@ function BookingRowCard({
             {/* Gegenkonto */}
             <div ref={el => fieldRefs.current["counter_account_id"] = el}>
               <label className="text-xs font-bold text-primary mb-1 block">Gegenkonto</label>
-              <Select value={row.counter_account_id} onValueChange={v => {
-                if (v === "__create__") { setCreateAccountTarget("counter_account_id"); setCreateAccountOpen(true); }
-                else {
-                  onUpdateField("counter_account_id", v);
-                  // Clear VAT for 4000er accrual accounts
-                  const acc = accounts.find((a: any) => a.id === v);
-                  if (acc?.account_number?.startsWith("4")) {
-                    onUpdateField("vat_rate", "");
+              <AccountSearchSelect
+                value={row.counter_account_id}
+                onChange={v => {
+                  if (v === "__create__") { setCreateAccountTarget("counter_account_id"); setCreateAccountOpen(true); }
+                  else {
+                    onUpdateField("counter_account_id", v);
+                    const acc = accounts.find((a: any) => a.id === v);
+                    if (acc?.account_number?.startsWith("4")) {
+                      onUpdateField("vat_rate", "");
+                    }
                   }
-                }
-              }}>
-                <SelectTrigger className="h-9 text-sm font-semibold border-primary/30 bg-primary/5" onKeyDown={e => handleEnterNavigation(e, "counter_account_id")}>
-                  <SelectValue placeholder="Gegenkonto wählen…" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[300px]">
-                  {accounts.map((a: any) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      <span className="font-mono mr-2">{a.account_number}</span>{a.account_name}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value="__create__" className="text-primary font-medium">
-                    <span className="flex items-center gap-1"><Plus className="h-3 w-3" /> Neues Konto</span>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+                }}
+                accounts={accounts}
+                placeholder="Gegenkonto suchen…"
+                showCreateOption
+                onCreateClick={() => { setCreateAccountTarget("counter_account_id"); setCreateAccountOpen(true); }}
+              />
             </div>
 
             {/* Description */}
