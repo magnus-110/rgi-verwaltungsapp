@@ -57,6 +57,7 @@ interface BookingRowData {
   fuel_quantity: string;
   fuel_total_price: string;
   fuel_date: string;
+  line_items_detail: any[] | null;
   accrualHint?: {
     needs_accrual: boolean;
     accrual_explanation: string;
