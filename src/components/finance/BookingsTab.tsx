@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { BookOpen, AlertTriangle, FileText, ChevronDown, ChevronRight, Search, Building2, LayoutTemplate, Flag } from "lucide-react";
+import { BookOpen, AlertTriangle, FileText, ChevronDown, ChevronRight, Search, LayoutTemplate, Flag } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { EditBookingDialog } from "./EditBookingDialog";
@@ -20,7 +20,7 @@ import { de } from "date-fns/locale";
 import { useAuth } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 50;
 
 export function BookingsTab() {
   const { user } = useAuth();
@@ -35,16 +35,7 @@ export function BookingsTab() {
   const [manualOpen, setManualOpen] = useState(false);
   const [templateDetail, setTemplateDetail] = useState<any>(null);
   const [filterReview, setFilterReview] = useState(false);
-  const { data: buildings = [] } = useQuery({
-    queryKey: ["buildings-list-finance"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("buildings").select("id, name, building_code").order("name");
-      if (error) throw error;
-      return data;
-    },
-  });
 
-  // Pending bookings (all buildings)
   const { data: pendingBookings = [], isLoading } = useQuery({
     queryKey: ["bookings-pending", filterYear],
     queryFn: async () => {
@@ -65,7 +56,6 @@ export function BookingsTab() {
     },
   });
 
-  // Confirmed bookings (lazy, only when collapsible open)
   const { data: confirmedBookings = [] } = useQuery({
     queryKey: ["bookings-confirmed", filterYear],
     queryFn: async () => {
@@ -87,7 +77,6 @@ export function BookingsTab() {
     enabled: confirmedOpen,
   });
 
-  // Manual bookings (lazy)
   const { data: manualBookings = [] } = useQuery({
     queryKey: ["bookings-manual", filterYear],
     queryFn: async () => {
@@ -110,100 +99,66 @@ export function BookingsTab() {
     enabled: manualOpen,
   });
 
-  // Filter by search
-  const filteredPending = useMemo(() => {
-    let result = pendingBookings;
+  // Universal search across all fields
+  const universalFilter = useCallback((bookings: any[]) => {
+    let result = bookings;
     if (filterReview) {
       result = result.filter((b: any) => b.needs_review === true);
     }
     if (!searchQuery.trim()) return result;
     const q = searchQuery.toLowerCase();
-    return result.filter((b: any) =>
-      b.buildings?.name?.toLowerCase().includes(q) ||
-      b.buildings?.building_code?.toLowerCase().includes(q)
-    );
-  }, [pendingBookings, searchQuery, filterReview]);
-
-  // Group by building
-  const groupedBookings = useMemo(() => {
-    const groups: Record<string, { building: any; bookings: any[] }> = {};
-    filteredPending.forEach((b: any) => {
-      const key = b.building_id || "unassigned";
-      if (!groups[key]) {
-        groups[key] = { building: b.buildings || { name: "Ohne Zuordnung" }, bookings: [] };
-      }
-      groups[key].bookings.push(b);
+    return result.filter((b: any) => {
+      const fields = [
+        b.description,
+        b.receipt_number,
+        b.booking_reference,
+        b.chart_of_accounts?.account_number,
+        b.chart_of_accounts?.account_name,
+        b.counter_account?.account_number,
+        b.counter_account?.account_name,
+        b.buildings?.name,
+        b.buildings?.building_code,
+        b.invoices?.vendor_name,
+        b.amount != null ? new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2 }).format(b.amount) : null,
+        b.amount != null ? String(b.amount) : null,
+        b.booking_date ? format(new Date(b.booking_date), "dd.MM.yyyy") : null,
+      ];
+      return fields.some(f => f && String(f).toLowerCase().includes(q));
     });
-    return Object.entries(groups).sort((a, b) => 
-      (a[1].building?.name || "").localeCompare(b[1].building?.name || "")
-    );
-  }, [filteredPending]);
+  }, [searchQuery, filterReview]);
 
-  // Flatten for pagination
-  const allFiltered = useMemo(() => {
-    const result: { type: "header"; building: any } | { type: "booking"; booking: any }[] = [];
-    groupedBookings.forEach(([, group]) => {
-      result.push({ type: "header", building: group.building } as any);
-      group.bookings.forEach(b => result.push({ type: "booking", booking: b } as any));
-    });
-    return result;
-  }, [groupedBookings]);
+  const filteredPending = useMemo(() => universalFilter(pendingBookings), [pendingBookings, universalFilter]);
+  const filteredConfirmed = useMemo(() => universalFilter(confirmedBookings), [confirmedBookings, universalFilter]);
+  const filteredManual = useMemo(() => universalFilter(manualBookings), [manualBookings, universalFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filteredPending.length / PAGE_SIZE));
-  const paginatedBookings = useMemo(() => {
+  const paginatedPending = useMemo(() => {
     const start = currentPage * PAGE_SIZE;
-    const end = start + PAGE_SIZE;
-    const pageItems = filteredPending.slice(start, end);
-    
-    // Group the page items
-    const groups: Record<string, { building: any; bookings: any[] }> = {};
-    pageItems.forEach((b: any) => {
-      const key = b.building_id || "unassigned";
-      if (!groups[key]) {
-        groups[key] = { building: b.buildings || { name: "Ohne Zuordnung" }, bookings: [] };
-      }
-      groups[key].bookings.push(b);
-    });
-    return Object.entries(groups).sort((a, b) =>
-      (a[1].building?.name || "").localeCompare(b[1].building?.name || "")
-    );
+    return filteredPending.slice(start, start + PAGE_SIZE);
   }, [filteredPending, currentPage]);
 
   const handleRowClick = (booking: any) => setEditBooking(booking);
-  const handleRowKeyDown = (e: React.KeyboardEvent, booking: any) => {
-    if (e.key === "Enter") { e.preventDefault(); setEditBooking(booking); }
-  };
 
   const handleInvoiceClick = useCallback(async (booking: any) => {
     try {
       const filePath = booking?.invoices?.file_path;
       const fileName = booking?.invoices?.file_name || "Rechnung.pdf";
       if (!filePath) { toast.error("Keine Datei hinterlegt"); return; }
-      
-      // Normalize: remove leading slashes and any bucket prefix variations
-      const cleanPath = filePath
-        .replace(/^\/+/, "")
-        .replace(/^invoices\//, "");
-      
+      const cleanPath = filePath.replace(/^\/+/, "").replace(/^invoices\//, "");
       const { data, error } = await supabase.storage.from("invoices").createSignedUrl(cleanPath, 3600);
       if (error || !data?.signedUrl) {
-        console.error("Signed URL error:", error, "path tried:", cleanPath, "original:", filePath);
         toast.error("PDF konnte nicht geladen werden");
         return;
       }
       setPdfUrl(data.signedUrl);
       setPdfFileName(fileName);
     } catch (err) {
-      console.error("Invoice PDF error:", err);
       toast.error("Fehler beim Laden der Rechnung");
     }
   }, []);
 
-
   const handleTemplateClick = useCallback((booking: any) => {
-    if (booking?.booking_templates) {
-      setTemplateDetail(booking.booking_templates);
-    }
+    if (booking?.booking_templates) setTemplateDetail(booking.booking_templates);
   }, []);
 
   const formatCurrency = (amount: number | null) =>
@@ -212,211 +167,174 @@ export function BookingsTab() {
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 5 }, (_, i) => String(currentYear - i));
 
-  const renderBookingRow = (b: any) => (
-    <TableRow
-      key={b.id}
-      tabIndex={0}
-      className={`cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/30 ${b.status === "pending" ? "bg-amber-50/50 dark:bg-amber-950/10" : ""}`}
-      onClick={() => handleRowClick(b)}
-      onKeyDown={(e) => handleRowKeyDown(e, b)}
-    >
-      <TableCell className="text-sm whitespace-nowrap">
-        {format(new Date(b.booking_date), "dd.MM.yyyy", { locale: de })}
-      </TableCell>
-      <TableCell>
-        <div className="text-xs">
-          {b.chart_of_accounts ? (
-            <>
-              <span className="font-mono font-medium">{b.chart_of_accounts.account_number}</span>
-              <span className="text-muted-foreground ml-1">{b.chart_of_accounts.account_name}</span>
-            </>
-          ) : <span className="text-muted-foreground italic">–</span>}
-        </div>
-      </TableCell>
-      <TableCell>
-        <div className="text-xs">
-          {b.counter_account ? (
-            <>
-              <span className="font-mono font-medium">{b.counter_account.account_number}</span>
-              <span className="text-muted-foreground ml-1">{b.counter_account.account_name}</span>
-            </>
-          ) : <span className="text-muted-foreground">–</span>}
-        </div>
-      </TableCell>
-      <TableCell className="text-sm max-w-[200px] truncate">{b.description || "–"}</TableCell>
-      <TableCell className="text-xs font-mono">{b.receipt_number || "–"}</TableCell>
-      <TableCell className="text-right font-medium text-sm">
-        <span className={b.booking_type === "income" ? "text-green-600" : ""}>
-          {b.booking_type === "income" ? "+" : ""}{formatCurrency(b.amount)}
-        </span>
-      </TableCell>
-      <TableCell className="text-right text-xs text-muted-foreground">
-        {b.vat_rate > 0 ? `${b.vat_rate}%` : "–"}
-      </TableCell>
-      <TableCell>
-        <div className="flex gap-1 items-center" onClick={e => e.stopPropagation()}>
-          {b.ai_warning && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger><AlertTriangle className="h-4 w-4 text-amber-500" /></TooltipTrigger>
-                <TooltipContent className="max-w-xs"><p className="text-xs">{b.ai_warning}</p></TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-          {b.is_35a_relevant && (
-            <Badge className="text-[10px] bg-amber-100 text-amber-800 hover:bg-amber-100">
-              §35a{b.amount_35a != null ? ` ${formatCurrency(b.amount_35a)}` : ""}
-            </Badge>
-          )}
-          {b.invoice_id && (
-            <Button size="sm" variant="ghost" className="h-6 w-6 p-0"
-              onClick={(e) => { e.stopPropagation(); handleInvoiceClick(b); }}>
-              <FileText className="h-3.5 w-3.5 text-primary" />
-            </Button>
-          )}
-          {b.matched_template_id && b.booking_templates && (
-            <Button size="sm" variant="ghost" className="h-6 w-6 p-0"
-              onClick={(e) => { e.stopPropagation(); handleTemplateClick(b); }}>
-              <LayoutTemplate className="h-4 w-4 text-primary" />
-            </Button>
-          )}
-          {b.booking_reference && (
-            <span className="text-xs text-muted-foreground font-mono">{b.booking_reference}</span>
-          )}
-        </div>
-      </TableCell>
-      <TableCell>
-        <Badge variant={b.status === "confirmed" ? "default" : "secondary"} className="text-xs">
-          {b.status === "confirmed" ? "Bestätigt" : "Offen"}
-        </Badge>
-        {b.needs_review && (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger>
-                <Flag className="h-3.5 w-3.5 text-orange-500 fill-orange-500" />
-              </TooltipTrigger>
-              <TooltipContent className="max-w-xs">
-                <p className="text-xs font-medium">Zur Prüfung markiert</p>
-                {b.review_note && <p className="text-xs text-muted-foreground">{b.review_note}</p>}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+  const renderRow = (b: any) => {
+    const isIncome = b.booking_type === "income";
+    const hasWarnings = b.ai_warning || b.is_35a_relevant || b.needs_review;
+
+    return (
+      <TableRow
+        key={b.id}
+        className={cn(
+          "cursor-pointer text-xs hover:bg-muted/60 transition-colors",
+          b.needs_review && "bg-orange-50/50 dark:bg-orange-950/10",
+          b.is_35a_relevant && "bg-amber-50/30 dark:bg-amber-950/10"
         )}
-      </TableCell>
-    </TableRow>
-  );
+        onClick={() => handleRowClick(b)}
+      >
+        <TableCell className="py-1.5 px-2 whitespace-nowrap font-medium tabular-nums">
+          {format(new Date(b.booking_date), "dd.MM.yyyy")}
+        </TableCell>
+        <TableCell className="py-1.5 px-2 font-mono tabular-nums">
+          {b.chart_of_accounts?.account_number || "–"}
+        </TableCell>
+        <TableCell className="py-1.5 px-2 max-w-[160px] truncate">
+          {b.chart_of_accounts?.account_name || "–"}
+        </TableCell>
+        <TableCell className={cn(
+          "py-1.5 px-2 text-right font-mono tabular-nums font-semibold whitespace-nowrap",
+          isIncome ? "text-green-600" : "text-destructive"
+        )}>
+          {isIncome ? "+" : ""}{formatCurrency(b.amount)}
+        </TableCell>
+        <TableCell className="py-1.5 px-2 font-mono tabular-nums text-muted-foreground">
+          {b.receipt_number || "–"}
+        </TableCell>
+        <TableCell className="py-1.5 px-2 max-w-[280px] truncate">
+          {b.description || "–"}
+        </TableCell>
+        <TableCell className="py-1.5 px-2 font-mono tabular-nums">
+          {b.counter_account?.account_number || "–"}
+        </TableCell>
+        <TableCell className="py-1.5 px-2 max-w-[160px] truncate">
+          {b.counter_account?.account_name || "–"}
+        </TableCell>
+        <TableCell className="py-1.5 px-2">
+          <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+            {b.needs_review && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger><Flag className="h-3 w-3 text-orange-500 fill-orange-500" /></TooltipTrigger>
+                  <TooltipContent><p className="text-xs">Zur Prüfung</p></TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {b.ai_warning && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger><AlertTriangle className="h-3 w-3 text-amber-500" /></TooltipTrigger>
+                  <TooltipContent className="max-w-xs"><p className="text-xs">{b.ai_warning}</p></TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {b.is_35a_relevant && (
+              <span className="text-[9px] font-bold text-amber-700">§35a</span>
+            )}
+            {b.invoice_id && (
+              <Button size="sm" variant="ghost" className="h-5 w-5 p-0"
+                onClick={(e) => { e.stopPropagation(); handleInvoiceClick(b); }}>
+                <FileText className="h-3 w-3 text-primary" />
+              </Button>
+            )}
+            {b.matched_template_id && b.booking_templates && (
+              <Button size="sm" variant="ghost" className="h-5 w-5 p-0"
+                onClick={(e) => { e.stopPropagation(); handleTemplateClick(b); }}>
+                <LayoutTemplate className="h-3 w-3 text-primary" />
+              </Button>
+            )}
+          </div>
+        </TableCell>
+      </TableRow>
+    );
+  };
 
   const tableHeaders = (
     <TableHeader>
-      <TableRow>
-        <TableHead>Datum</TableHead>
-        <TableHead>Soll-Konto</TableHead>
-        <TableHead>Gegen-Konto</TableHead>
-        <TableHead>Buchungstext</TableHead>
-        <TableHead>Beleg-Nr.</TableHead>
-        <TableHead className="text-right">Betrag</TableHead>
-        <TableHead className="text-right">MwSt</TableHead>
-        <TableHead>Kürzel</TableHead>
-        <TableHead>Status</TableHead>
+      <TableRow className="text-[11px]">
+        <TableHead className="py-2 px-2 font-semibold">Bel. Datum</TableHead>
+        <TableHead className="py-2 px-2 font-semibold">Kto-Nr.</TableHead>
+        <TableHead className="py-2 px-2 font-semibold">Konto</TableHead>
+        <TableHead className="py-2 px-2 text-right font-semibold">Betrag</TableHead>
+        <TableHead className="py-2 px-2 font-semibold">Beleg Nr.</TableHead>
+        <TableHead className="py-2 px-2 font-semibold">Buch-Text</TableHead>
+        <TableHead className="py-2 px-2 font-semibold">G-Kto-Nr.</TableHead>
+        <TableHead className="py-2 px-2 font-semibold">Gegen-Konto</TableHead>
+        <TableHead className="py-2 px-2 w-[60px]"></TableHead>
       </TableRow>
     </TableHeader>
   );
 
+  const renderSection = (title: string, bookings: any[], count: number) => (
+    <>
+      <div className="overflow-x-auto">
+        <Table>
+          {tableHeaders}
+          <TableBody>
+            {bookings.map(renderRow)}
+          </TableBody>
+        </Table>
+      </div>
+      <div className="text-right text-xs text-muted-foreground py-2 px-2 border-t">
+        Anzahl Buchungen: {count}
+      </div>
+    </>
+  );
+
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader className="space-y-4">
-          <div className="flex flex-row items-center justify-between flex-wrap gap-4">
-            <CardTitle className="text-lg">
-              Offene Buchungen
-              {filteredPending.length > 0 && (
-                <Badge variant="secondary" className="ml-2">{filteredPending.length}</Badge>
-              )}
-            </CardTitle>
-            <div className="flex items-center gap-2">
-            </div>
-          </div>
+      {/* Toolbar */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Suche (Konto, Betrag, Text, Beleg…)"
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(0); }}
+            className="pl-9 h-9"
+          />
+        </div>
+        <Select value={filterYear} onValueChange={(v) => { setFilterYear(v); setCurrentPage(0); }}>
+          <SelectTrigger className="w-28 h-9"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Button
+          variant={filterReview ? "default" : "outline"}
+          size="sm"
+          className={cn("h-9 gap-1.5", filterReview && "bg-orange-500 hover:bg-orange-600 text-white")}
+          onClick={() => { setFilterReview(f => !f); setCurrentPage(0); }}
+        >
+          <Flag className="h-3.5 w-3.5" />
+          Prüfung
+          {pendingBookings.filter((b: any) => b.needs_review).length > 0 && (
+            <Badge variant="secondary" className="ml-1 text-[10px] h-5 px-1.5">
+              {pendingBookings.filter((b: any) => b.needs_review).length}
+            </Badge>
+          )}
+        </Button>
+      </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-muted-foreground">Suche</span>
-              <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Liegenschaft suchen..."
-                  value={searchQuery}
-                  onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(0); }}
-                  className="pl-9 w-64 h-10"
-                />
-              </div>
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-muted-foreground">Wirtschaftsjahr</span>
-              <Select value={filterYear} onValueChange={(v) => { setFilterYear(v); setCurrentPage(0); }}>
-                <SelectTrigger className="w-32 h-10"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1">
-              <span className="text-xs font-medium text-muted-foreground">Filter</span>
-              <Button
-                variant={filterReview ? "default" : "outline"}
-                size="sm"
-                className={cn("h-10 gap-1.5", filterReview && "bg-orange-500 hover:bg-orange-600 text-white")}
-                onClick={() => { setFilterReview(f => !f); setCurrentPage(0); }}
-              >
-                <Flag className="h-3.5 w-3.5" />
-                Zur Prüfung
-                {pendingBookings.filter((b: any) => b.needs_review).length > 0 && (
-                  <Badge variant="secondary" className="ml-1 text-[10px] h-5 px-1.5">
-                    {pendingBookings.filter((b: any) => b.needs_review).length}
-                  </Badge>
-                )}
-              </Button>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent>
+      {/* Pending bookings */}
+      <Card className="overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
+          <h3 className="text-sm font-semibold">Offene Buchungen</h3>
+          <Badge variant="secondary" className="text-xs">{filteredPending.length}</Badge>
+        </div>
+        <CardContent className="p-0">
           {isLoading ? (
-            <div className="text-muted-foreground text-sm p-4">Laden...</div>
+            <div className="text-muted-foreground text-sm p-6 text-center">Laden...</div>
           ) : filteredPending.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <BookOpen className="h-12 w-12 mx-auto mb-3 opacity-30" />
+            <div className="text-center py-10 text-muted-foreground">
+              <BookOpen className="h-10 w-10 mx-auto mb-2 opacity-30" />
               <p className="text-sm">
-                {searchQuery ? "Keine offenen Buchungen für diese Suche" : `Keine offenen Buchungen im Jahr ${filterYear}`}
+                {searchQuery ? "Keine Buchungen für diese Suche" : `Keine offenen Buchungen in ${filterYear}`}
               </p>
             </div>
           ) : (
             <>
-              <div className="overflow-x-auto">
-                <Table>
-                  {tableHeaders}
-                  <TableBody>
-                    {paginatedBookings.map(([buildingId, group]) => (
-                      <>
-                        <TableRow key={`header-${buildingId}`} className="bg-muted/50 hover:bg-muted/50">
-                          <TableCell colSpan={9} className="py-2">
-                            <div className="flex items-center gap-2 text-sm font-semibold">
-                              <Building2 className="h-4 w-4 text-muted-foreground" />
-                              {group.building?.name || "Ohne Zuordnung"}
-                              {group.building?.building_code && (
-                                <span className="text-xs font-normal text-muted-foreground">({group.building.building_code})</span>
-                              )}
-                              <Badge variant="outline" className="text-xs ml-1">{group.bookings.length}</Badge>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                        {group.bookings.map(renderBookingRow)}
-                      </>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-
+              {renderSection("Offene Buchungen", paginatedPending, filteredPending.length)}
               {totalPages > 1 && (
-                <div className="mt-4">
+                <div className="py-2 border-t">
                   <Pagination>
                     <PaginationContent>
                       <PaginationItem>
@@ -425,17 +343,25 @@ export function BookingsTab() {
                           className={currentPage === 0 ? "pointer-events-none opacity-50" : "cursor-pointer"}
                         />
                       </PaginationItem>
-                      {Array.from({ length: totalPages }, (_, i) => (
-                        <PaginationItem key={i}>
-                          <PaginationLink
-                            isActive={i === currentPage}
-                            onClick={() => setCurrentPage(i)}
-                            className="cursor-pointer"
-                          >
-                            {i + 1}
-                          </PaginationLink>
-                        </PaginationItem>
-                      ))}
+                      {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                        let page = i;
+                        if (totalPages > 7) {
+                          if (currentPage < 4) page = i;
+                          else if (currentPage > totalPages - 5) page = totalPages - 7 + i;
+                          else page = currentPage - 3 + i;
+                        }
+                        return (
+                          <PaginationItem key={page}>
+                            <PaginationLink
+                              isActive={page === currentPage}
+                              onClick={() => setCurrentPage(page)}
+                              className="cursor-pointer"
+                            >
+                              {page + 1}
+                            </PaginationLink>
+                          </PaginationItem>
+                        );
+                      })}
                       <PaginationItem>
                         <PaginationNext
                           onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))}
@@ -451,64 +377,46 @@ export function BookingsTab() {
         </CardContent>
       </Card>
 
-      {/* Confirmed bookings collapsible */}
+      {/* Confirmed bookings */}
       <Collapsible open={confirmedOpen} onOpenChange={setConfirmedOpen}>
-        <Card>
+        <Card className="overflow-hidden">
           <CollapsibleTrigger asChild>
-            <CardHeader className="cursor-pointer hover:bg-muted/30 transition-colors">
+            <div className="flex items-center justify-between px-4 py-2 border-b cursor-pointer hover:bg-muted/30 transition-colors">
               <div className="flex items-center gap-2">
                 {confirmedOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                <CardTitle className="text-lg">Bestätigte Buchungen</CardTitle>
-                {confirmedOpen && confirmedBookings.length > 0 && (
-                  <Badge variant="outline">{confirmedBookings.length}</Badge>
-                )}
+                <h3 className="text-sm font-semibold">Bestätigte Buchungen</h3>
               </div>
-            </CardHeader>
+              {confirmedOpen && <Badge variant="outline" className="text-xs">{filteredConfirmed.length}</Badge>}
+            </div>
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <CardContent>
-              {confirmedBookings.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-6">Keine bestätigten Buchungen im Jahr {filterYear}</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    {tableHeaders}
-                    <TableBody>{confirmedBookings.map(renderBookingRow)}</TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
+            {filteredConfirmed.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">Keine bestätigten Buchungen in {filterYear}</p>
+            ) : (
+              renderSection("Bestätigte Buchungen", filteredConfirmed, filteredConfirmed.length)
+            )}
           </CollapsibleContent>
         </Card>
       </Collapsible>
 
-      {/* Manual bookings collapsible */}
+      {/* Manual bookings */}
       <Collapsible open={manualOpen} onOpenChange={setManualOpen}>
-        <Card>
+        <Card className="overflow-hidden">
           <CollapsibleTrigger asChild>
-            <CardHeader className="cursor-pointer hover:bg-muted/30 transition-colors">
+            <div className="flex items-center justify-between px-4 py-2 border-b cursor-pointer hover:bg-muted/30 transition-colors">
               <div className="flex items-center gap-2">
                 {manualOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                <CardTitle className="text-lg">Manuelle Buchungen</CardTitle>
-                {manualOpen && manualBookings.length > 0 && (
-                  <Badge variant="outline">{manualBookings.length}</Badge>
-                )}
+                <h3 className="text-sm font-semibold">Manuelle Buchungen</h3>
               </div>
-            </CardHeader>
+              {manualOpen && <Badge variant="outline" className="text-xs">{filteredManual.length}</Badge>}
+            </div>
           </CollapsibleTrigger>
           <CollapsibleContent>
-            <CardContent>
-              {manualBookings.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-6">Keine manuellen Buchungen im Jahr {filterYear}</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    {tableHeaders}
-                    <TableBody>{manualBookings.map(renderBookingRow)}</TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
+            {filteredManual.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">Keine manuellen Buchungen in {filterYear}</p>
+            ) : (
+              renderSection("Manuelle Buchungen", filteredManual, filteredManual.length)
+            )}
           </CollapsibleContent>
         </Card>
       </Collapsible>
@@ -548,13 +456,7 @@ export function BookingsTab() {
               {templateDetail.expected_amount != null && (
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Erwarteter Betrag</span>
-                  <span>{new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(templateDetail.expected_amount)}</span>
-                </div>
-              )}
-              {templateDetail.vat_rate != null && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">MwSt-Satz</span>
-                  <span>{templateDetail.vat_rate} %</span>
+                  <span>{formatCurrency(templateDetail.expected_amount)}</span>
                 </div>
               )}
               {templateDetail.interval && (
