@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { BookOpen, AlertTriangle, FileText, ChevronDown, ChevronRight, Search, Building2, LayoutTemplate } from "lucide-react";
+import { BookOpen, AlertTriangle, FileText, ChevronDown, ChevronRight, Search, Building2, LayoutTemplate, Flag } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { EditBookingDialog } from "./EditBookingDialog";
@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { useAuth } from "@/hooks/useAuth";
+import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 25;
 
@@ -33,7 +34,7 @@ export function BookingsTab() {
   const [confirmedOpen, setConfirmedOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [templateDetail, setTemplateDetail] = useState<any>(null);
-
+  const [filterReview, setFilterReview] = useState(false);
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
     queryFn: async () => {
@@ -111,13 +112,17 @@ export function BookingsTab() {
 
   // Filter by search
   const filteredPending = useMemo(() => {
-    if (!searchQuery.trim()) return pendingBookings;
+    let result = pendingBookings;
+    if (filterReview) {
+      result = result.filter((b: any) => b.needs_review === true);
+    }
+    if (!searchQuery.trim()) return result;
     const q = searchQuery.toLowerCase();
-    return pendingBookings.filter((b: any) =>
+    return result.filter((b: any) =>
       b.buildings?.name?.toLowerCase().includes(q) ||
       b.buildings?.building_code?.toLowerCase().includes(q)
     );
-  }, [pendingBookings, searchQuery]);
+  }, [pendingBookings, searchQuery, filterReview]);
 
   // Group by building
   const groupedBookings = useMemo(() => {
@@ -284,6 +289,19 @@ export function BookingsTab() {
         <Badge variant={b.status === "confirmed" ? "default" : "secondary"} className="text-xs">
           {b.status === "confirmed" ? "Bestätigt" : "Offen"}
         </Badge>
+        {b.needs_review && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger>
+                <Flag className="h-3.5 w-3.5 text-orange-500 fill-orange-500" />
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                <p className="text-xs font-medium">Zur Prüfung markiert</p>
+                {b.review_note && <p className="text-xs text-muted-foreground">{b.review_note}</p>}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
       </TableCell>
     </TableRow>
   );
@@ -340,6 +358,23 @@ export function BookingsTab() {
                   {years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-muted-foreground">Filter</span>
+              <Button
+                variant={filterReview ? "default" : "outline"}
+                size="sm"
+                className={cn("h-10 gap-1.5", filterReview && "bg-orange-500 hover:bg-orange-600 text-white")}
+                onClick={() => { setFilterReview(f => !f); setCurrentPage(0); }}
+              >
+                <Flag className="h-3.5 w-3.5" />
+                Zur Prüfung
+                {pendingBookings.filter((b: any) => b.needs_review).length > 0 && (
+                  <Badge variant="secondary" className="ml-1 text-[10px] h-5 px-1.5">
+                    {pendingBookings.filter((b: any) => b.needs_review).length}
+                  </Badge>
+                )}
+              </Button>
             </div>
           </div>
         </CardHeader>

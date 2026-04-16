@@ -471,9 +471,11 @@ export type Database = {
           is_35a_relevant: boolean | null
           line_items_detail: Json | null
           matched_template_id: string | null
+          needs_review: boolean
           performance_period_from: string | null
           performance_period_to: string | null
           receipt_number: string | null
+          review_note: string | null
           source: string
           source_line_index: number | null
           split_part: number | null
@@ -506,9 +508,11 @@ export type Database = {
           is_35a_relevant?: boolean | null
           line_items_detail?: Json | null
           matched_template_id?: string | null
+          needs_review?: boolean
           performance_period_from?: string | null
           performance_period_to?: string | null
           receipt_number?: string | null
+          review_note?: string | null
           source?: string
           source_line_index?: number | null
           split_part?: number | null
@@ -541,9 +545,11 @@ export type Database = {
           is_35a_relevant?: boolean | null
           line_items_detail?: Json | null
           matched_template_id?: string | null
+          needs_review?: boolean
           performance_period_from?: string | null
           performance_period_to?: string | null
           receipt_number?: string | null
+          review_note?: string | null
           source?: string
           source_line_index?: number | null
           split_part?: number | null

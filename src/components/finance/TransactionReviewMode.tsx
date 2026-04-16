@@ -20,7 +20,7 @@ import {
   ArrowLeft, ArrowRight, CheckCircle, X,
   FileText, LayoutTemplate, Loader2, Sparkles,
   ChevronDown, ChevronRight, Plus, Trash2, User, PackagePlus, AlertTriangle,
-  Link2, RefreshCw, RotateCcw
+  Link2, RefreshCw, RotateCcw, Flag
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -50,6 +50,8 @@ interface BookingRowData {
   invoice_id: string | null;
   matched_template_id: string | null;
   booked: boolean;
+  needs_review: boolean;
+  review_note: string;
   accrualHint?: {
     needs_accrual: boolean;
     accrual_explanation: string;
@@ -272,6 +274,8 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       invoice_id: currentTxn?.matched_invoice_id || null,
       matched_template_id: currentTxn?.matched_template_id || null,
       booked: false,
+      needs_review: false,
+      review_note: "",
       ...overrides,
     };
   }, [currentTxn, accounts, getFiscalYearForDate]);
@@ -322,6 +326,8 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           invoice_id: null,
           matched_template_id: sb.template_id || null,
           booked: false,
+          needs_review: false,
+          review_note: "",
         };
       });
       setFormRows(rows);
@@ -495,6 +501,8 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         bank_transaction_id: currentTxn.id,
         split_part: totalParts > 1 ? partIndex : null,
         split_parts_total: totalParts > 1 ? totalParts : null,
+        needs_review: row.needs_review,
+        review_note: row.review_note || null,
       } as any).select("id").single();
 
       if (bookingError) throw bookingError;
@@ -1326,10 +1334,27 @@ function BookingRowCard({
               )}
             </div>
 
+            {/* Review flag */}
+            <div className="p-2 rounded-lg border space-y-2" style={{ borderColor: row.needs_review ? 'hsl(var(--chart-4))' : undefined, backgroundColor: row.needs_review ? 'hsl(var(--chart-4) / 0.08)' : undefined }}>
+              <div className="flex items-center gap-3">
+                <Checkbox id={`review-${index}`} checked={row.needs_review} onCheckedChange={v => onUpdateField("needs_review", !!v)} />
+                <label htmlFor={`review-${index}`} className="text-xs font-medium flex items-center gap-1.5">
+                  <Flag className="h-3.5 w-3.5" /> Zur Prüfung markieren
+                </label>
+              </div>
+              {row.needs_review && (
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Notiz (optional)</label>
+                  <Input className="h-8 text-xs" placeholder="z.B. IBAN unklar, Betrag prüfen..."
+                    value={row.review_note} onChange={e => onUpdateField("review_note", e.target.value)} />
+                </div>
+              )}
+            </div>
+
             {/* Book button */}
             <Button onClick={onBook} disabled={isBooking || !row.account_id} className="w-full h-9 text-sm">
               {isBooking ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
-              Buchen
+              {row.needs_review ? "Buchen & Zur Prüfung" : "Buchen"}
             </Button>
           </div>
         </CollapsibleContent>
