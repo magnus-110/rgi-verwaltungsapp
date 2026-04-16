@@ -453,6 +453,17 @@ export function BookingsTab() {
           )}
         </DialogContent>
       </Dialog>
+
+      <CreateBookingDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        buildings={buildings}
+        preselectedYear={filterYear}
+        onBookingCreated={() => {
+          queryClient.invalidateQueries({ queryKey: ["bookings-pending"] });
+          queryClient.invalidateQueries({ queryKey: ["bookings-manual"] });
+        }}
+      />
     </div>
   );
 }
