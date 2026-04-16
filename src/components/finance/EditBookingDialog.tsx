@@ -1,7 +1,7 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,10 +11,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { ChevronDown, Search, ArrowDownLeft, ArrowUpRight, X, CheckCircle, FileText, Flag } from "lucide-react";
+import { ChevronDown, Search, ArrowDownLeft, ArrowUpRight, X, CheckCircle, FileText, Flag, LayoutTemplate, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { de } from "date-fns/locale";
+import { VendorHistorySection } from "./VendorHistorySection";
 
 interface Booking {
   id: string;
@@ -54,6 +58,9 @@ const VAT_RATES = [
   { value: "19", label: "19 %" },
 ];
 
+const formatCurrency = (amount: number | null) =>
+  amount != null ? new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(amount) : "–";
+
 export function EditBookingDialog({ open, onOpenChange, booking, buildingName, onInvoiceClick }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -78,6 +85,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
   const [showPeriod, setShowPeriod] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [counterOpen, setCounterOpen] = useState(false);
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (open && booking) {
@@ -100,6 +108,48 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
       setShowPeriod(!!(booking.performance_period_from || booking.performance_period_to));
     }
   }, [open, booking]);
+
+  // Load invoice details
+  const { data: invoiceDetail } = useQuery({
+    queryKey: ["edit-booking-invoice", booking?.invoice_id],
+    queryFn: async () => {
+      if (!booking?.invoice_id) return null;
+      const { data } = await supabase
+        .from("invoices")
+        .select("id, file_path, file_name, vendor_name, gross_amount, net_amount, vat_amount, invoice_number, invoice_date, description")
+        .eq("id", booking.invoice_id)
+        .maybeSingle();
+      return data;
+    },
+    enabled: open && !!booking?.invoice_id,
+  });
+
+  // Load template details
+  const { data: templateDetail } = useQuery({
+    queryKey: ["edit-booking-template", (booking as any)?.matched_template_id],
+    queryFn: async () => {
+      if (!(booking as any)?.matched_template_id) return null;
+      const { data } = await supabase
+        .from("booking_templates")
+        .select("id, name, vendor_name, expected_amount, amount_tolerance, vat_rate, interval, category, description, account_id, is_35a_relevant")
+        .eq("id", (booking as any).matched_template_id)
+        .maybeSingle();
+      return data;
+    },
+    enabled: open && !!(booking as any)?.matched_template_id,
+  });
+
+  // Load PDF URL for invoice
+  useEffect(() => {
+    setPdfUrl(null);
+    if (!invoiceDetail?.file_path) return;
+    const loadPdf = async () => {
+      const cleanPath = invoiceDetail.file_path!.replace(/^\/+/, "").replace(/^invoices\//, "");
+      const { data } = await supabase.storage.from("invoices").createSignedUrl(cleanPath, 3600);
+      if (data?.signedUrl) setPdfUrl(data.signedUrl);
+    };
+    loadPdf();
+  }, [invoiceDetail?.file_path]);
 
   const buildingId = booking?.building_id;
   const { data: accounts = [] } = useQuery({
@@ -144,11 +194,6 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
       toast.error("Bitte alle Pflichtfelder ausfüllen");
       return;
     }
-    const counterAcc = accounts.find(a => a.account_number?.startsWith("4") && a.id === form.counter_account_id);
-    if (counterAcc && !form.vat_rate) {
-      toast.error("Bei Abgrenzungskonten (4000er) muss der MwSt-Satz angegeben werden");
-      return;
-    }
     const { error } = await supabase.from("bookings").update({
       account_id: form.account_id,
       counter_account_id: form.counter_account_id || null,
@@ -177,14 +222,8 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
 
   const handleConfirm = async () => {
     if (!booking) return;
-    // Save first, then confirm
     if (!form.account_id || !form.amount || !form.booking_date) {
       toast.error("Bitte alle Pflichtfelder ausfüllen");
-      return;
-    }
-    const counterAccC = accounts.find(a => a.account_number?.startsWith("4") && a.id === form.counter_account_id);
-    if (counterAccC && !form.vat_rate) {
-      toast.error("Bei Abgrenzungskonten (4000er) muss der MwSt-Satz angegeben werden");
       return;
     }
     const { error } = await supabase.from("bookings").update({
@@ -280,237 +319,370 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
 
   if (!booking) return null;
 
+  const hasInvoice = !!invoiceDetail;
+  const hasTemplate = !!templateDetail;
+  const hasRightPanel = hasInvoice || hasTemplate;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" onKeyDown={handleKeyDown}>
-        <DialogHeader>
-          <DialogTitle className="text-xl">Buchung bearbeiten</DialogTitle>
-          <p className="text-sm text-muted-foreground">
-            {buildingName} · Wirtschaftsjahr {booking.fiscal_year}
-            {booking.source !== "manual" && (
-              <Badge variant="outline" className="ml-2 text-[10px]">
-                {booking.source === "ocr" ? "OCR" : booking.source === "bank_import" ? "Bank" : booking.source}
-              </Badge>
-            )}
-          </p>
-        </DialogHeader>
-
-        {/* AI Warning */}
-        {booking.ai_warning && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 p-3 flex gap-2 items-start">
-            <span className="text-amber-600 mt-0.5 text-sm">⚠️</span>
-            <p className="text-sm text-amber-800 dark:text-amber-200">{booking.ai_warning}</p>
-          </div>
+      <DialogContent
+        className={cn(
+          "max-h-[94vh] p-0 flex flex-col overflow-hidden",
+          hasRightPanel ? "max-w-[96vw] w-full h-[94vh]" : "max-w-4xl"
         )}
-
-        {/* Review flag */}
-        {(booking as any).needs_review && (
-          <div className="rounded-lg border border-orange-200 bg-orange-50 dark:bg-orange-950/20 p-3 flex gap-3 items-start">
-            <Flag className="h-4 w-4 text-orange-500 fill-orange-500 mt-0.5 shrink-0" />
-            <div className="flex-1 space-y-1">
-              <p className="text-sm font-medium text-orange-800 dark:text-orange-200">Zur Prüfung markiert</p>
-              {(booking as any).review_note && (
-                <p className="text-sm text-orange-700 dark:text-orange-300">{(booking as any).review_note}</p>
-              )}
+        onKeyDown={handleKeyDown}
+      >
+        {/* Header bar */}
+        <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30 shrink-0">
+          <div className="flex items-center gap-3">
+            <Building2 className="h-5 w-5 text-muted-foreground" />
+            <div>
+              <h3 className="font-semibold text-base">Buchung bearbeiten</h3>
+              <p className="text-xs text-muted-foreground">
+                {buildingName} · Wirtschaftsjahr {booking.fiscal_year}
+                {booking.source !== "manual" && (
+                  <Badge variant="outline" className="ml-2 text-[10px]">
+                    {booking.source === "ocr" ? "OCR" : booking.source === "bank_import" ? "Bank" : booking.source}
+                  </Badge>
+                )}
+              </p>
             </div>
-            <Button size="sm" variant="outline" className="shrink-0 h-8 text-xs gap-1.5"
-              onClick={async () => {
-                const { error } = await supabase.from("bookings").update({
-                  needs_review: false,
-                  review_note: null,
-                } as any).eq("id", booking!.id);
-                if (error) { toast.error("Fehler: " + error.message); return; }
-                toast.success("Als geprüft markiert ✓");
-                onOpenChange(false);
-                queryClient.invalidateQueries({ predicate: (query) => {
-                  const key = query.queryKey[0] as string;
-                  return key.startsWith("bookings");
-                }});
-              }}>
-              <CheckCircle className="h-3.5 w-3.5" /> Geprüft
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mr-2">
+              <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">Ctrl+↵</kbd>
+              <span className="text-[11px]">{booking.status === "pending" ? "Bestätigen" : "Speichern"}</span>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+              <X className="h-4 w-4" />
             </Button>
           </div>
-        )}
-        {/* Invoice link */}
-        {booking.invoice_id && booking.invoices && (
-          <div className="rounded-lg border p-3 flex items-center gap-3">
-            <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-            <div className="flex-1 text-sm">
-              <span className="font-medium">Zugeordnete Rechnung:</span>{" "}
-              <span className="text-muted-foreground">{booking.invoices.vendor_name || booking.invoices.file_name || "–"}</span>
-            </div>
-            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => onInvoiceClick?.(booking)}>
-              <FileText className="h-3.5 w-3.5 mr-1" /> Anzeigen
-            </Button>
-          </div>
-        )}
-
-        <div className="space-y-6 py-2">
-          {/* Buchung section */}
-          <div className="rounded-xl border p-6 space-y-5">
-            <p className="text-base font-semibold text-foreground">Buchung</p>
-            <div>
-              <Label className="text-sm mb-1.5 block">Konto (Soll) *</Label>
-              <AccountPicker value={form.account_id} onChange={v => {
-                set("account_id", v);
-                const acc = accounts.find(a => a.id === v);
-                if (acc?.is_35a_relevant) set("is_35a_relevant", true);
-                if (acc && (acc as any).default_vat_rate != null) {
-                  set("vat_rate", String((acc as any).default_vat_rate));
-                }
-              }} search={accountSearch} onSearchChange={setAccountSearch}
-                isOpen={accountOpen} onOpenChange={setAccountOpen} placeholder="Konto suchen..." />
-            </div>
-            <div className="flex items-end gap-4">
-              <div className="flex-1">
-                <Label className="text-sm mb-1.5 block">Zugang / Abgang *</Label>
-                <div className="flex gap-2">
-                  <Button type="button" variant={form.booking_type === "expense" ? "default" : "outline"}
-                    className={cn("flex-1 h-11 gap-2", form.booking_type === "expense" && "bg-destructive hover:bg-destructive/90 text-destructive-foreground")}
-                    onClick={() => set("booking_type", "expense")}>
-                    <ArrowDownLeft className="h-4 w-4" /> Abgang
-                  </Button>
-                  <Button type="button" variant={form.booking_type === "income" ? "default" : "outline"}
-                    className={cn("flex-1 h-11 gap-2", form.booking_type === "income" && "bg-green-600 hover:bg-green-700 text-white")}
-                    onClick={() => set("booking_type", "income")}>
-                    <ArrowUpRight className="h-4 w-4" /> Zugang
-                  </Button>
-                </div>
-              </div>
-              <div className="w-[180px]">
-                <Label className="text-sm mb-1.5 block">Betrag (€) *</Label>
-                <Input type="number" step="0.01" value={form.amount} onChange={e => set("amount", e.target.value)}
-                  className="h-11 text-right text-lg font-semibold" placeholder="0,00" />
-              </div>
-            </div>
-            <div>
-              <Label className="text-sm mb-1.5 block">Gegenkonto (Haben)</Label>
-              <AccountPicker value={form.counter_account_id} onChange={v => set("counter_account_id", v)}
-                search={counterSearch} onSearchChange={setCounterSearch}
-                isOpen={counterOpen} onOpenChange={setCounterOpen} placeholder="z.B. 1200 Bank, 1000 Kasse..." />
-            </div>
-          </div>
-
-          {/* Beleg section */}
-          <div className="rounded-xl border p-6 space-y-5">
-            <p className="text-base font-semibold text-foreground">Beleg</p>
-            <div className="grid grid-cols-4 gap-4">
-              <div>
-                <Label className="text-sm mb-1.5 block">Buchungskürzel</Label>
-                <Input value={form.booking_reference} onChange={e => set("booking_reference", e.target.value)} className="h-11" placeholder="z.B. HG" />
-              </div>
-              <div>
-                <Label className="text-sm mb-1.5 block">Beleg-Nr.</Label>
-                <Input value={form.receipt_number} onChange={e => set("receipt_number", e.target.value)} className="h-11" placeholder="z.B. RE-2026-001" />
-              </div>
-              <div>
-                <Label className="text-sm mb-1.5 block">Belegdatum *</Label>
-                <Input type="date" value={form.booking_date} onChange={e => {
-                  const val = e.target.value;
-                  setForm(prev => ({ ...prev, booking_date: val, fiscal_year: val ? String(new Date(val).getFullYear()) : prev.fiscal_year }));
-                }} className="h-11" />
-              </div>
-              <div>
-                <Label className="text-sm mb-1.5 block">Wirtschaftsjahr</Label>
-                <Input type="number" value={form.fiscal_year} onChange={e => set("fiscal_year", e.target.value)} className="h-11" />
-              </div>
-            </div>
-            <div>
-              <Label className="text-sm mb-1.5 block">Buchungstext</Label>
-              <Textarea value={form.description} onChange={e => set("description", e.target.value)} rows={2} placeholder="Beschreibung der Buchung..." />
-            </div>
-          </div>
-
-          {/* Steuer section */}
-          <div className="rounded-xl border p-6 space-y-5">
-            <p className="text-base font-semibold text-foreground">Steuer & Optionen</p>
-            <div className="flex items-end gap-6 flex-wrap">
-              {(() => {
-                const counterAcc = accounts.find(a => a.id === form.counter_account_id);
-                const isAccrual = counterAcc?.account_number?.startsWith("4");
-                const vatMissing = isAccrual && !form.vat_rate;
-                return (
-                  <div className="flex-1 min-w-[200px]">
-                    <Label className={cn("text-sm mb-2 block", vatMissing && "text-orange-600 dark:text-orange-400")}>
-                      MwSt-Satz {isAccrual && <span className="text-orange-500">*</span>}
-                    </Label>
-                    <RadioGroup value={form.vat_rate} onValueChange={v => set("vat_rate", v)} className="flex gap-4">
-                      {VAT_RATES.map(r => (
-                        <div key={r.value} className="flex items-center gap-2">
-                          <RadioGroupItem value={r.value} id={`edit-vat-${r.value}`} className="h-5 w-5" />
-                          <Label htmlFor={`edit-vat-${r.value}`} className="text-sm cursor-pointer">{r.label}</Label>
-                        </div>
-                      ))}
-                    </RadioGroup>
-                    {vatMissing && <p className="text-xs text-orange-500 mt-1">⚠ Pflichtfeld bei Abgrenzungskonten</p>}
-                  </div>
-                );
-              })()}
-              <div className="w-[140px]">
-                <Label className="text-sm mb-1.5 block">MwSt-Betrag</Label>
-                <Input value={computedVat} readOnly className="h-11 text-right bg-muted font-medium" />
-              </div>
-              <div className="flex items-center gap-2.5 pb-1">
-                <Checkbox id="edit_is_35a" checked={form.is_35a_relevant} onCheckedChange={c => set("is_35a_relevant", !!c)} className="h-5 w-5" />
-                <Label htmlFor="edit_is_35a" className="text-sm cursor-pointer whitespace-nowrap font-medium">§35a relevant</Label>
-              </div>
-            </div>
-            {form.is_35a_relevant && (
-              <div className="pt-2">
-                <Label className="text-sm mb-1.5 block">§35a-Anteil (Arbeitskosten netto, €)</Label>
-                <Input
-                  type="number"
-                  step="0.01"
-                  value={form.amount_35a}
-                  onChange={e => set("amount_35a", e.target.value)}
-                  className="h-11 w-[200px] text-right font-medium"
-                  placeholder="0,00"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Nur der §35a-relevante Arbeitsanteil (netto) dieser Buchung.
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Leistungszeitraum */}
-          <Collapsible open={showPeriod} onOpenChange={setShowPeriod}>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" className="text-sm text-muted-foreground gap-2 px-0 h-auto">
-                <ChevronDown className={`h-4 w-4 transition-transform ${showPeriod ? "rotate-180" : ""}`} />
-                Leistungszeitraum
-                {form.performance_period_from && <Badge variant="secondary" className="text-xs ml-1">gesetzt</Badge>}
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-3">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-sm mb-1.5 block">Von</Label>
-                  <Input type="date" value={form.performance_period_from} onChange={e => set("performance_period_from", e.target.value)} className="h-11" />
-                </div>
-                <div>
-                  <Label className="text-sm mb-1.5 block">Bis</Label>
-                  <Input type="date" value={form.performance_period_to} onChange={e => set("performance_period_to", e.target.value)} className="h-11" />
-                </div>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
         </div>
 
-        <DialogFooter className="pt-4 gap-2">
-          <Button variant="outline" size="lg" onClick={() => onOpenChange(false)}>Abbrechen</Button>
-          {booking.status === "pending" && (
-            <Button size="lg" variant="default" onClick={handleConfirm} className="min-w-[180px] gap-2 bg-green-600 hover:bg-green-700 text-white">
-              <CheckCircle className="h-4 w-4" /> Bestätigen & Speichern
-            </Button>
-          )}
-          <Button size="lg" onClick={handleSave} className="min-w-[140px]">Speichern</Button>
-        </DialogFooter>
+        {/* Main content */}
+        <div className={cn("flex-1 flex overflow-hidden", !hasRightPanel && "flex-col")}>
+          {/* Left panel - Form */}
+          <div className={cn(
+            "overflow-y-auto p-6 space-y-4",
+            hasRightPanel ? "w-1/2 border-r" : "flex-1"
+          )}>
+            {/* AI Warning */}
+            {booking.ai_warning && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 p-3 flex gap-2 items-start">
+                <span className="text-amber-600 mt-0.5 text-sm">⚠️</span>
+                <p className="text-sm text-amber-800 dark:text-amber-200">{booking.ai_warning}</p>
+              </div>
+            )}
 
-        <p className="text-xs text-muted-foreground text-center">
-          {booking.status === "pending" ? "Ctrl+Enter = Bestätigen & Speichern" : "Ctrl+Enter = Speichern"}
-        </p>
+            {/* Review flag */}
+            {(booking as any).needs_review && (
+              <div className="rounded-lg border border-orange-200 bg-orange-50 dark:bg-orange-950/20 p-3 flex gap-3 items-start">
+                <Flag className="h-4 w-4 text-orange-500 fill-orange-500 mt-0.5 shrink-0" />
+                <div className="flex-1 space-y-1">
+                  <p className="text-sm font-medium text-orange-800 dark:text-orange-200">Zur Prüfung markiert</p>
+                  {(booking as any).review_note && (
+                    <p className="text-sm text-orange-700 dark:text-orange-300">{(booking as any).review_note}</p>
+                  )}
+                </div>
+                <Button size="sm" variant="outline" className="shrink-0 h-8 text-xs gap-1.5"
+                  onClick={async () => {
+                    const { error } = await supabase.from("bookings").update({
+                      needs_review: false,
+                      review_note: null,
+                    } as any).eq("id", booking!.id);
+                    if (error) { toast.error("Fehler: " + error.message); return; }
+                    toast.success("Als geprüft markiert ✓");
+                    onOpenChange(false);
+                    queryClient.invalidateQueries({ predicate: (query) => {
+                      const key = query.queryKey[0] as string;
+                      return key.startsWith("bookings");
+                    }});
+                  }}>
+                  <CheckCircle className="h-3.5 w-3.5" /> Geprüft
+                </Button>
+              </div>
+            )}
+
+            {/* Invoice link (only shown when no right panel) */}
+            {!hasRightPanel && booking.invoice_id && booking.invoices && (
+              <div className="rounded-lg border p-3 flex items-center gap-3">
+                <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                <div className="flex-1 text-sm">
+                  <span className="font-medium">Zugeordnete Rechnung:</span>{" "}
+                  <span className="text-muted-foreground">{booking.invoices.vendor_name || booking.invoices.file_name || "–"}</span>
+                </div>
+                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => onInvoiceClick?.(booking)}>
+                  <FileText className="h-3.5 w-3.5 mr-1" /> Anzeigen
+                </Button>
+              </div>
+            )}
+
+            {/* Buchung section */}
+            <div className="rounded-xl border p-5 space-y-4">
+              <p className="text-base font-semibold text-foreground">Buchung</p>
+              <div>
+                <Label className="text-sm mb-1.5 block">Konto (Soll) *</Label>
+                <AccountPicker value={form.account_id} onChange={v => {
+                  set("account_id", v);
+                  const acc = accounts.find(a => a.id === v);
+                  if (acc?.is_35a_relevant) set("is_35a_relevant", true);
+                  if (acc && (acc as any).default_vat_rate != null) {
+                    set("vat_rate", String((acc as any).default_vat_rate));
+                  }
+                }} search={accountSearch} onSearchChange={setAccountSearch}
+                  isOpen={accountOpen} onOpenChange={setAccountOpen} placeholder="Konto suchen..." />
+              </div>
+              <div className="flex items-end gap-4">
+                <div className="flex-1">
+                  <Label className="text-sm mb-1.5 block">Zugang / Abgang *</Label>
+                  <div className="flex gap-2">
+                    <Button type="button" variant={form.booking_type === "expense" ? "default" : "outline"}
+                      className={cn("flex-1 h-11 gap-2", form.booking_type === "expense" && "bg-destructive hover:bg-destructive/90 text-destructive-foreground")}
+                      onClick={() => set("booking_type", "expense")}>
+                      <ArrowDownLeft className="h-4 w-4" /> Abgang
+                    </Button>
+                    <Button type="button" variant={form.booking_type === "income" ? "default" : "outline"}
+                      className={cn("flex-1 h-11 gap-2", form.booking_type === "income" && "bg-green-600 hover:bg-green-700 text-white")}
+                      onClick={() => set("booking_type", "income")}>
+                      <ArrowUpRight className="h-4 w-4" /> Zugang
+                    </Button>
+                  </div>
+                </div>
+                <div className="w-[180px]">
+                  <Label className="text-sm mb-1.5 block">Betrag (€) *</Label>
+                  <Input type="number" step="0.01" value={form.amount} onChange={e => set("amount", e.target.value)}
+                    className="h-11 text-right text-lg font-semibold" placeholder="0,00" />
+                </div>
+              </div>
+              <div>
+                <Label className="text-sm mb-1.5 block">Gegenkonto (Haben)</Label>
+                <AccountPicker value={form.counter_account_id} onChange={v => set("counter_account_id", v)}
+                  search={counterSearch} onSearchChange={setCounterSearch}
+                  isOpen={counterOpen} onOpenChange={setCounterOpen} placeholder="z.B. 1200 Bank, 1000 Kasse..." />
+              </div>
+            </div>
+
+            {/* Beleg section */}
+            <div className="rounded-xl border p-5 space-y-4">
+              <p className="text-base font-semibold text-foreground">Beleg</p>
+              <div className="grid grid-cols-4 gap-4">
+                <div>
+                  <Label className="text-sm mb-1.5 block">Buchungskürzel</Label>
+                  <Input value={form.booking_reference} onChange={e => set("booking_reference", e.target.value)} className="h-11" placeholder="z.B. HG" />
+                </div>
+                <div>
+                  <Label className="text-sm mb-1.5 block">Beleg-Nr.</Label>
+                  <Input value={form.receipt_number} onChange={e => set("receipt_number", e.target.value)} className="h-11" placeholder="z.B. RE-2026-001" />
+                </div>
+                <div>
+                  <Label className="text-sm mb-1.5 block">Belegdatum *</Label>
+                  <Input type="date" value={form.booking_date} onChange={e => {
+                    const val = e.target.value;
+                    setForm(prev => ({ ...prev, booking_date: val, fiscal_year: val ? String(new Date(val).getFullYear()) : prev.fiscal_year }));
+                  }} className="h-11" />
+                </div>
+                <div>
+                  <Label className="text-sm mb-1.5 block">Wirtschaftsjahr</Label>
+                  <Input type="number" value={form.fiscal_year} onChange={e => set("fiscal_year", e.target.value)} className="h-11" />
+                </div>
+              </div>
+              <div>
+                <Label className="text-sm mb-1.5 block">Buchungstext</Label>
+                <Textarea value={form.description} onChange={e => set("description", e.target.value)} rows={2} placeholder="Beschreibung der Buchung..." />
+              </div>
+            </div>
+
+            {/* Steuer section */}
+            <div className="rounded-xl border p-5 space-y-4">
+              <p className="text-base font-semibold text-foreground">Steuer & Optionen</p>
+              <div className="flex items-end gap-6 flex-wrap">
+                {(() => {
+                  const counterAcc = accounts.find(a => a.id === form.counter_account_id);
+                  const isAccrual = counterAcc?.account_number?.startsWith("4");
+                  const vatMissing = isAccrual && !form.vat_rate;
+                  return (
+                    <div className="flex-1 min-w-[200px]">
+                      <Label className={cn("text-sm mb-2 block", vatMissing && "text-orange-600 dark:text-orange-400")}>
+                        MwSt-Satz {isAccrual && <span className="text-orange-500">*</span>}
+                      </Label>
+                      <RadioGroup value={form.vat_rate} onValueChange={v => set("vat_rate", v)} className="flex gap-4">
+                        {VAT_RATES.map(r => (
+                          <div key={r.value} className="flex items-center gap-2">
+                            <RadioGroupItem value={r.value} id={`edit-vat-${r.value}`} className="h-5 w-5" />
+                            <Label htmlFor={`edit-vat-${r.value}`} className="text-sm cursor-pointer">{r.label}</Label>
+                          </div>
+                        ))}
+                      </RadioGroup>
+                      {vatMissing && <p className="text-xs text-orange-500 mt-1">⚠ Pflichtfeld bei Abgrenzungskonten</p>}
+                    </div>
+                  );
+                })()}
+                <div className="w-[140px]">
+                  <Label className="text-sm mb-1.5 block">MwSt-Betrag</Label>
+                  <Input value={computedVat} readOnly className="h-11 text-right bg-muted font-medium" />
+                </div>
+                <div className="flex items-center gap-2.5 pb-1">
+                  <Checkbox id="edit_is_35a" checked={form.is_35a_relevant} onCheckedChange={c => set("is_35a_relevant", !!c)} className="h-5 w-5" />
+                  <Label htmlFor="edit_is_35a" className="text-sm cursor-pointer whitespace-nowrap font-medium">§35a relevant</Label>
+                </div>
+              </div>
+              {form.is_35a_relevant && (
+                <div className="pt-2">
+                  <Label className="text-sm mb-1.5 block">§35a-Anteil (Arbeitskosten netto, €)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={form.amount_35a}
+                    onChange={e => set("amount_35a", e.target.value)}
+                    className="h-11 w-[200px] text-right font-medium"
+                    placeholder="0,00"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Nur der §35a-relevante Arbeitsanteil (netto) dieser Buchung.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Leistungszeitraum */}
+            <Collapsible open={showPeriod} onOpenChange={setShowPeriod}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="text-sm text-muted-foreground gap-2 px-0 h-auto">
+                  <ChevronDown className={`h-4 w-4 transition-transform ${showPeriod ? "rotate-180" : ""}`} />
+                  Leistungszeitraum
+                  {form.performance_period_from && <Badge variant="secondary" className="text-xs ml-1">gesetzt</Badge>}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="pt-3">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label className="text-sm mb-1.5 block">Von</Label>
+                    <Input type="date" value={form.performance_period_from} onChange={e => set("performance_period_from", e.target.value)} className="h-11" />
+                  </div>
+                  <div>
+                    <Label className="text-sm mb-1.5 block">Bis</Label>
+                    <Input type="date" value={form.performance_period_to} onChange={e => set("performance_period_to", e.target.value)} className="h-11" />
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+
+            {/* Vendor History */}
+            <VendorHistorySection booking={booking} />
+          </div>
+
+          {/* Right panel - Invoice PDF or Template details */}
+          {hasRightPanel && (
+            <div className="w-1/2 flex flex-col overflow-hidden">
+              {hasInvoice ? (
+                <>
+                  <div className="px-4 py-2 border-b bg-muted/20 flex items-center gap-2 shrink-0">
+                    <FileText className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium">Rechnung</span>
+                    {invoiceDetail.vendor_name && (
+                      <Badge variant="outline" className="text-xs">{invoiceDetail.vendor_name}</Badge>
+                    )}
+                  </div>
+                  <div className="px-4 py-2 border-b space-y-1 shrink-0">
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <MatchField label="Brutto" value={formatCurrency(invoiceDetail.gross_amount)} />
+                      {invoiceDetail.net_amount != null && (
+                        <MatchField label="Netto" value={formatCurrency(invoiceDetail.net_amount)} />
+                      )}
+                      {invoiceDetail.invoice_number && (
+                        <MatchField label="Re-Nr." value={invoiceDetail.invoice_number} />
+                      )}
+                      {invoiceDetail.invoice_date && (
+                        <MatchField label="Re-Datum" value={format(new Date(invoiceDetail.invoice_date), "dd.MM.yyyy", { locale: de })} />
+                      )}
+                    </div>
+                  </div>
+                  {pdfUrl ? (
+                    <iframe src={pdfUrl} className="flex-1 w-full border-0" title="Rechnung PDF" />
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">
+                      PDF wird geladen...
+                    </div>
+                  )}
+                </>
+              ) : hasTemplate ? (
+                <div className="p-6 space-y-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <LayoutTemplate className="h-5 w-5 text-primary" />
+                    <h3 className="font-semibold">Buchungsvorlage</h3>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3">
+                    <DetailField label="Name" value={templateDetail.name} />
+                    {templateDetail.vendor_name && (
+                      <DetailField label="Lieferant" value={templateDetail.vendor_name} />
+                    )}
+                    {templateDetail.expected_amount != null && (
+                      <DetailField
+                        label="Erwarteter Betrag"
+                        value={
+                          templateDetail.amount_tolerance
+                            ? `${formatCurrency(templateDetail.expected_amount)} ±${formatCurrency(templateDetail.amount_tolerance)}`
+                            : formatCurrency(templateDetail.expected_amount)
+                        }
+                      />
+                    )}
+                    {templateDetail.vat_rate != null && (
+                      <DetailField label="MwSt-Satz" value={`${templateDetail.vat_rate}%`} />
+                    )}
+                    {templateDetail.interval && (
+                      <DetailField label="Intervall" value={templateDetail.interval} />
+                    )}
+                    {templateDetail.category && (
+                      <DetailField label="Kategorie" value={templateDetail.category} />
+                    )}
+                    {templateDetail.description && (
+                      <DetailField label="Beschreibung" value={templateDetail.description} />
+                    )}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-4 py-3 border-t bg-muted/30 shrink-0">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Abbrechen</Button>
+          <div className="flex items-center gap-2">
+            {booking.status === "pending" && (
+              <Button variant="default" onClick={handleConfirm} className="min-w-[180px] gap-2 bg-green-600 hover:bg-green-700 text-white">
+                <CheckCircle className="h-4 w-4" /> Bestätigen & Speichern
+              </Button>
+            )}
+            <Button onClick={handleSave} className="min-w-[140px]">Speichern</Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function DetailField({ label, value, className }: {
+  label: string;
+  value: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("space-y-0.5 p-2 rounded-md", className)}>
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <div className="text-sm">{value}</div>
+    </div>
+  );
+}
+
+function MatchField({ label, value }: {
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between px-2 py-1 rounded">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-medium">{value}</span>
+    </div>
   );
 }
