@@ -287,6 +287,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       fuel_quantity: "",
       fuel_total_price: "",
       fuel_date: txnDate,
+      line_items_detail: null,
       ...overrides,
     };
   }, [currentTxn, accounts, getFiscalYearForDate]);
