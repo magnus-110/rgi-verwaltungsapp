@@ -457,7 +457,14 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
   }, [currentTxn?.id, templateDetail, invoiceDetail, accounts, currentTxn?.ai_suggestion, getFiscalYearForDate]);
 
   const updateRow = (rowId: string, field: string, value: string | boolean | number) => {
-    setFormRows(rows => rows.map(r => r.id === rowId ? { ...r, [field]: field === "fiscal_year" ? (typeof value === "string" ? parseInt(value) || r.fiscal_year : value) : value } : r));
+    setFormRows(rows => rows.map(r => {
+      if (r.id !== rowId) return r;
+      if (field === "fiscal_year") return { ...r, [field]: typeof value === "string" ? parseInt(value) || r.fiscal_year : value };
+      if (field === "line_items_detail") {
+        try { return { ...r, line_items_detail: typeof value === "string" ? JSON.parse(value) : value }; } catch { return r; }
+      }
+      return { ...r, [field]: value };
+    }));
   };
 
   const addRow = () => {
