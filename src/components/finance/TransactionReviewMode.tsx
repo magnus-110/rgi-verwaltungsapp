@@ -23,6 +23,7 @@ import {
   Link2, RefreshCw, RotateCcw, Flag, Flame
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { VendorHistorySection } from "./VendorHistorySection";
 
 interface TransactionReviewModeProps {
   open: boolean;
@@ -1494,6 +1495,8 @@ function BookingRowCard({
               </button>
             </div>
 
+            {/* Vendor History */}
+            <VendorHistorySection booking={{ building_id: buildingId, id: row.id, description: row.description, invoices: invoiceDetail ? { vendor_name: invoiceDetail.vendor_name } : null }} />
 
             {/* Book button */}
             <Button onClick={onBook} disabled={isBooking || !row.account_id} className="w-full h-9 text-sm">
