@@ -401,6 +401,37 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         const vatPct = ((invoiceDetail.gross_amount / invoiceDetail.net_amount) - 1) * 100;
         row.vat_rate = String(Math.round(vatPct));
       }
+
+      // Use AI suggestion as fallback/supplement for fields the invoice doesn't provide
+      if (aiSuggestion && suggestedBookings?.[0]) {
+        const sb = suggestedBookings[0];
+        // Counter account: invoice OCR first, then AI
+        if (!row.counter_account_id) {
+          if (sb.account_id) row.counter_account_id = sb.account_id;
+          else if (sb.account_number) {
+            const acc = accounts.find(a => a.account_number === sb.account_number);
+            if (acc) row.counter_account_id = acc.id;
+          } else if (sb.counter_account_number) {
+            const acc = accounts.find(a => a.account_number === sb.counter_account_number);
+            if (acc) row.counter_account_id = acc.id;
+          }
+        }
+        // §35a from AI (invoice OCR rarely provides this)
+        if (sb.is_35a_relevant) {
+          row.is_35a_relevant = true;
+          if (sb.amount_35a != null) row.amount_35a = String(sb.amount_35a);
+        }
+        // Booking type from AI if not already set
+        if (sb.booking_type) row.booking_type = sb.booking_type;
+      }
+      // Fallback to template_suggestion from AI
+      if (!row.counter_account_id && aiSuggestion?.template_suggestion) {
+        const ts = aiSuggestion.template_suggestion;
+        if (ts.account_number) {
+          const acc = accounts.find(a => a.account_number === ts.account_number);
+          if (acc) row.counter_account_id = acc.id;
+        }
+      }
     }
 
     // Auto-fill fuel purchase from OCR data
@@ -415,7 +446,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       }
     }
 
-    // Auto-fill from single AI suggestion
+    // Auto-fill from single AI suggestion (no invoice, no template)
     if (!templateDetail && !invoiceDetail && aiSuggestion) {
       if (suggestedBookings?.[0]) {
         const sb = suggestedBookings[0];
@@ -424,17 +455,25 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           const acc = accounts.find(a => a.account_number === sb.account_number);
           if (acc) row.counter_account_id = acc.id;
         }
+        if (sb.counter_account_number && !row.counter_account_id) {
+          const acc = accounts.find(a => a.account_number === sb.counter_account_number);
+          if (acc) row.counter_account_id = acc.id;
+        }
         if (sb.description) row.description = sb.description;
         if (sb.booking_type) row.booking_type = sb.booking_type;
+        if (sb.is_35a_relevant) {
+          row.is_35a_relevant = true;
+          if (sb.amount_35a != null) row.amount_35a = String(sb.amount_35a);
+        }
       }
       // Auto-fill from template_suggestion if no other source
-      if (!suggestedBookings?.[0] && aiSuggestion.template_suggestion) {
+      if (!row.counter_account_id && aiSuggestion.template_suggestion) {
         const ts = aiSuggestion.template_suggestion;
         if (ts.account_number) {
           const acc = accounts.find(a => a.account_number === ts.account_number);
           if (acc) row.counter_account_id = acc.id;
         }
-        if (ts.name) row.description = ts.name;
+        if (!row.description && ts.name) row.description = ts.name;
       }
     }
 
