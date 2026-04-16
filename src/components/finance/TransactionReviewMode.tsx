@@ -567,6 +567,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           invoice_id: row.invoice_id || null,
           billing_period_id: matchingPeriod ? undefined : undefined, // billing_period_id is optional
           notes: `Brennstoffkauf ${row.fuel_type === "oil" ? "Heizöl" : "Pellets"}: ${quantity} ${fuelUnit}`,
+          ...(matchingPeriod ? {} : {}),
         } as any);
       }
 
