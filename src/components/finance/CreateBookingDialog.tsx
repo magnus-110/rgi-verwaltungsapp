@@ -1,19 +1,15 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Badge } from "@/components/ui/badge";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AccountSearchSelect } from "./AccountSearchSelect";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { ChevronDown, Search, ArrowDownLeft, ArrowUpRight, X, Sparkles, LayoutTemplate } from "lucide-react";
+import { CheckCircle, Building2, X, Sparkles, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface BookingPrefill {
@@ -39,15 +35,14 @@ interface Props {
   onBookingCreated?: (bookingId: string) => void;
 }
 
-const VAT_RATES = [
-  { value: "0", label: "0 %" },
-  { value: "7", label: "7 %" },
-  { value: "19", label: "19 %" },
-];
+const formatCurrency = (amount: number | null) =>
+  amount != null ? new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(amount) : "–";
 
 export function CreateBookingDialog({ open, onOpenChange, buildings, preselectedBuildingId, preselectedYear, prefill, linkedTransactionId, onBookingCreated }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [saving, setSaving] = useState(false);
+
   const [form, setForm] = useState({
     building_id: "",
     account_id: "",
@@ -56,8 +51,6 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
     amount: "",
     description: "",
     fiscal_year: String(new Date().getFullYear()),
-    performance_period_from: "",
-    performance_period_to: "",
     booking_type: "expense",
     receipt_number: "",
     booking_reference: "",
@@ -65,15 +58,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
     is_35a_relevant: false,
     matched_template_id: "",
   });
-  const [accountSearch, setAccountSearch] = useState("");
-  const [counterSearch, setCounterSearch] = useState("");
-  const [showPeriod, setShowPeriod] = useState(false);
-  const [accountOpen, setAccountOpen] = useState(false);
-  const [counterOpen, setCounterOpen] = useState(false);
-  const [templateOpen, setTemplateOpen] = useState(false);
-  const [templateSearch, setTemplateSearch] = useState("");
 
-  // Sync preselected values and prefill when dialog opens
   useEffect(() => {
     if (open) {
       setForm(prev => ({
@@ -107,35 +92,8 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
       if (error) throw error;
       return data;
     },
+    enabled: open,
   });
-
-  // Fetch booking templates for the selected building
-  const { data: bookingTemplates = [] } = useQuery({
-    queryKey: ["booking-templates-for-dialog", form.building_id],
-    queryFn: async () => {
-      if (!form.building_id) return [];
-      const { data, error } = await supabase
-        .from("booking_templates")
-        .select("id, name, vendor_name, expected_amount")
-        .eq("building_id", form.building_id)
-        .order("name");
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!form.building_id,
-  });
-
-  const filterAccounts = (list: typeof accounts, query: string) => {
-    const q = query.toLowerCase().trim();
-    return q ? list.filter(a => a.account_number.includes(q) || a.account_name.toLowerCase().includes(q)) : list;
-  };
-
-  const groupAccounts = (list: typeof accounts) => {
-    return list.reduce((acc: Record<string, typeof accounts>, a) => {
-      (acc[a.category] = acc[a.category] || []).push(a);
-      return acc;
-    }, {});
-  };
 
   const computedVat = useMemo(() => {
     const amt = parseFloat(form.amount) || 0;
@@ -143,22 +101,14 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
     return rate > 0 ? (amt - amt / (1 + rate / 100)).toFixed(2) : "0.00";
   }, [form.amount, form.vat_rate]);
 
-  const getAccountLabel = (id: string) => {
-    const a = accounts.find(acc => acc.id === id);
-    return a ? `${a.account_number} – ${a.account_name}` : "";
-  };
+  const set = (key: string, value: string | boolean) => setForm(p => ({ ...p, [key]: value }));
 
   const handleSave = async () => {
     if (!form.building_id || !form.account_id || !form.amount || !form.booking_date) {
       toast.error("Bitte alle Pflichtfelder ausfüllen");
       return;
     }
-    // 4000er accrual accounts require explicit VAT rate
-    const counterAcc = accounts.find(a => a.id === form.counter_account_id);
-    if (counterAcc?.account_number?.startsWith("4") && !form.vat_rate) {
-      toast.error("Bei Abgrenzungskonten (4000er) muss der MwSt-Satz angegeben werden");
-      return;
-    }
+    setSaving(true);
     const { data: insertedData, error } = await supabase.from("bookings").insert({
       building_id: form.building_id,
       account_id: form.account_id,
@@ -167,8 +117,6 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
       amount: parseFloat(form.amount),
       description: form.description || null,
       fiscal_year: parseInt(form.fiscal_year),
-      performance_period_from: form.performance_period_from || null,
-      performance_period_to: form.performance_period_to || null,
       source: "manual",
       status: "pending",
       created_by: user?.id,
@@ -180,6 +128,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
       is_35a_relevant: form.is_35a_relevant,
       matched_template_id: form.matched_template_id || null,
     } as any).select("id").single();
+    setSaving(false);
     if (error) { toast.error("Fehler: " + error.message); return; }
     toast.success("Buchung angelegt");
     if (insertedData?.id && onBookingCreated) {
@@ -187,378 +136,233 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
     }
     onOpenChange(false);
     resetForm();
-    queryClient.invalidateQueries({ queryKey: ["bookings"] });
+    queryClient.invalidateQueries({ predicate: (query) => {
+      const key = query.queryKey[0] as string;
+      return key.startsWith("bookings");
+    }});
   };
 
   const resetForm = () => {
     setForm({
-      building_id: preselectedBuildingId || "", account_id: "", counter_account_id: "",
+      building_id: preselectedBuildingId || "",
+      account_id: "", counter_account_id: "",
       booking_date: new Date().toISOString().split("T")[0],
-      amount: "", description: "", fiscal_year: preselectedYear || String(new Date().getFullYear()),
-      performance_period_from: "", performance_period_to: "",
+      amount: "", description: "",
+      fiscal_year: preselectedYear || String(new Date().getFullYear()),
       booking_type: "expense", receipt_number: "", booking_reference: "",
       vat_rate: "19", is_35a_relevant: false, matched_template_id: "",
     });
-    setAccountSearch("");
-    setCounterSearch("");
-    setTemplateSearch("");
-    setShowPeriod(false);
   };
-
-  const set = (key: string, value: string | boolean) => setForm(p => ({ ...p, [key]: value }));
 
   const selectedBuildingName = buildings.find(b => b.id === form.building_id)?.name || "–";
-
-  // Account picker component using Popover + searchable list
-  const AccountPicker = ({ value, onChange, search, onSearchChange, isOpen, onOpenChange, placeholder }: {
-    value: string; onChange: (v: string) => void; search: string;
-    onSearchChange: (v: string) => void; isOpen: boolean; onOpenChange: (v: boolean) => void; placeholder: string;
-  }) => {
-    const inputRef = useRef<HTMLInputElement>(null);
-    const filtered = filterAccounts(accounts, search);
-    const grouped = groupAccounts(filtered);
-
-    return (
-      <Popover open={isOpen} onOpenChange={onOpenChange}>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            role="combobox"
-            className={cn(
-              "w-full h-11 justify-between text-left font-normal",
-              !value && "text-muted-foreground"
-            )}
-          >
-            <span className="truncate">
-              {value ? getAccountLabel(value) : placeholder}
-            </span>
-            {value ? (
-              <X className="h-4 w-4 shrink-0 opacity-50 hover:opacity-100"
-                onClick={(e) => { e.stopPropagation(); onChange(""); }} />
-            ) : (
-              <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-            )}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[460px] p-0" align="start">
-          <div className="p-3 border-b">
-            <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                ref={inputRef}
-                value={search}
-                onChange={e => onSearchChange(e.target.value)}
-                placeholder="Kontonummer oder Name eingeben..."
-                className="pl-9 h-10"
-                autoFocus
-              />
-            </div>
-          </div>
-          <div className="max-h-[300px] overflow-y-auto p-1">
-            {Object.keys(grouped).length === 0 ? (
-              <div className="text-center py-6 text-sm text-muted-foreground">Kein Konto gefunden</div>
-            ) : (
-              Object.entries(grouped).map(([cat, accs]) => (
-                <div key={cat}>
-                  <div className="px-3 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">{cat}</div>
-                  {accs.map(a => (
-                    <button
-                      key={a.id}
-                      onClick={() => { onChange(a.id); onOpenChange(false); onSearchChange(""); }}
-                      className={cn(
-                        "w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-md hover:bg-accent transition-colors",
-                        value === a.id && "bg-accent"
-                      )}
-                    >
-                      <span className="font-mono text-sm font-medium w-14 shrink-0">{a.account_number}</span>
-                      <span className="text-sm truncate">{a.account_name}</span>
-                      {a.is_35a_relevant && (
-                        <Badge className="text-[10px] bg-amber-100 text-amber-800 hover:bg-amber-100 ml-auto shrink-0">§35a</Badge>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              ))
-            )}
-          </div>
-        </PopoverContent>
-      </Popover>
-    );
-  };
+  const counterAccount = accounts.find((a: any) => a.id === form.counter_account_id);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-xl">Neue Buchung</DialogTitle>
-          <p className="text-sm text-muted-foreground">
-            {selectedBuildingName} · Wirtschaftsjahr {form.fiscal_year}
-          </p>
-        </DialogHeader>
-
-        <div className="space-y-6 py-2">
-          {prefill && (
-            <div className="flex items-center gap-2 text-sm bg-primary/10 text-primary border border-primary/20 rounded-lg px-4 py-3">
-              <Sparkles className="h-4 w-4 shrink-0" />
-              Felder basierend auf KI-Analyse vorausgefüllt. Bitte prüfen und bei Bedarf anpassen.
-            </div>
-          )}
-          {/* Row 1: Buchung – Konto, Typ, Betrag */}
-          <div className="rounded-xl border p-6 space-y-5">
-            <p className="text-base font-semibold text-foreground">Buchung</p>
-
+      <DialogContent className="max-w-xl max-h-[94vh] p-0 flex flex-col overflow-hidden [&>button.absolute]:hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30 shrink-0">
+          <div className="flex items-center gap-3">
+            <Building2 className="h-5 w-5 text-muted-foreground" />
             <div>
-              <Label className="text-sm mb-1.5 block">Konto (Soll) *</Label>
-              <AccountPicker
-                value={form.account_id} onChange={v => {
+              <h3 className="font-semibold text-base">Neue Buchung</h3>
+              <p className="text-xs text-muted-foreground">
+                {form.building_id ? selectedBuildingName : "Liegenschaft wählen"} · {form.fiscal_year}
+              </p>
+            </div>
+          </div>
+          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          <div className="p-4 space-y-3">
+            {/* Prefill hint */}
+            {prefill && (
+              <div className="flex items-center gap-2 text-sm bg-primary/10 text-primary border border-primary/20 rounded-lg px-3 py-2">
+                <Sparkles className="h-4 w-4 shrink-0" />
+                KI-vorausgefüllt – bitte prüfen.
+              </div>
+            )}
+
+            {/* Building selector */}
+            <div>
+              <label className="text-xs font-bold text-primary mb-1 block">Liegenschaft *</label>
+              <Select value={form.building_id} onValueChange={v => set("building_id", v)}>
+                <SelectTrigger className="h-9 text-sm font-semibold border-primary/30 bg-primary/5">
+                  <SelectValue placeholder="Liegenschaft wählen…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {buildings.map(b => (
+                    <SelectItem key={b.id} value={b.id}>
+                      {b.name} {b.building_code && <span className="text-muted-foreground">({b.building_code})</span>}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Konto */}
+            <div>
+              <label className="text-xs font-bold text-primary mb-1 block">Konto *</label>
+              <AccountSearchSelect
+                value={form.account_id}
+                onChange={v => {
                   set("account_id", v);
                   const acc = accounts.find(a => a.id === v);
                   if (acc?.is_35a_relevant) set("is_35a_relevant", true);
-                  if (acc && (acc as any).default_vat_rate != null) {
-                    set("vat_rate", String((acc as any).default_vat_rate));
-                  }
+                  if (acc && (acc as any).default_vat_rate != null) set("vat_rate", String((acc as any).default_vat_rate));
                 }}
-                search={accountSearch} onSearchChange={setAccountSearch}
-                isOpen={accountOpen} onOpenChange={setAccountOpen}
-                placeholder="Konto suchen (Nummer oder Name)..."
+                accounts={accounts}
+                excludeCategory="Bankkonto"
+                placeholder="Konto suchen…"
               />
             </div>
 
-            <div className="flex items-end gap-4">
-              <div className="flex-1">
-                <Label className="text-sm mb-1.5 block">Zugang / Abgang *</Label>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    variant={form.booking_type === "expense" ? "default" : "outline"}
-                    className={cn("flex-1 h-11 gap-2", form.booking_type === "expense" && "bg-destructive hover:bg-destructive/90 text-destructive-foreground")}
-                    onClick={() => set("booking_type", "expense")}
-                  >
-                    <ArrowDownLeft className="h-4 w-4" />
-                    Abgang
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={form.booking_type === "income" ? "default" : "outline"}
-                    className={cn("flex-1 h-11 gap-2", form.booking_type === "income" && "bg-green-600 hover:bg-green-700 text-white")}
-                    onClick={() => set("booking_type", "income")}
-                  >
-                    <ArrowUpRight className="h-4 w-4" />
-                    Zugang
-                  </Button>
-                </div>
-              </div>
-              <div className="w-[180px]">
-                <Label className="text-sm mb-1.5 block">Betrag (€) *</Label>
-                <Input
-                  type="number" step="0.01" value={form.amount}
-                  onChange={e => set("amount", e.target.value)}
-                  className="h-11 text-right text-lg font-semibold"
-                  placeholder="0,00"
-                />
-              </div>
+            {/* Amount + type */}
+            <div className="flex items-center gap-1">
+              <Input
+                type="text" inputMode="decimal"
+                className={cn(
+                  "h-14 flex-1 border-none shadow-none px-0 !text-4xl md:!text-4xl font-bold focus-visible:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+                  form.booking_type === "income" ? "text-green-600" : "text-destructive"
+                )}
+                value={`${form.booking_type === "income" ? "+" : "−"}${form.amount}`}
+                onChange={e => {
+                  const digits = e.target.value.replace(/[^0-9.,]/g, "");
+                  set("amount", digits);
+                }}
+                onKeyDown={e => {
+                  if (e.key === "+" || e.key === "-") {
+                    e.preventDefault();
+                    set("booking_type", e.key === "+" ? "income" : "expense");
+                    return;
+                  }
+                  const input = e.target as HTMLInputElement;
+                  if (e.key === "Backspace" && input.selectionStart !== null && input.selectionStart <= 1 && input.selectionEnd !== null && input.selectionEnd <= 1) {
+                    e.preventDefault();
+                    return;
+                  }
+                  if (e.key === "Delete" && input.selectionStart === 0) {
+                    e.preventDefault();
+                    return;
+                  }
+                }}
+                onClick={e => {
+                  const input = e.target as HTMLInputElement;
+                  if (input.selectionStart !== null && input.selectionStart < 1) {
+                    input.setSelectionRange(1, 1);
+                  }
+                }}
+                placeholder="0,00"
+              />
+              <Button type="button" size="icon" variant={form.booking_type === "expense" ? "default" : "outline"}
+                className={cn("h-8 w-8 shrink-0 text-sm font-bold", form.booking_type === "expense" && "bg-destructive hover:bg-destructive/90 text-destructive-foreground")}
+                onClick={() => set("booking_type", "expense")}>−</Button>
+              <Button type="button" size="icon" variant={form.booking_type === "income" ? "default" : "outline"}
+                className={cn("h-8 w-8 shrink-0 text-sm font-bold", form.booking_type === "income" && "bg-green-600 hover:bg-green-700 text-white")}
+                onClick={() => set("booking_type", "income")}>+</Button>
             </div>
+            {parseFloat(computedVat) > 0 && form.vat_rate && (
+              <p className="text-xs text-muted-foreground">davon MwSt: {formatCurrency(parseFloat(computedVat))} ({form.vat_rate}%)</p>
+            )}
 
+            {/* Gegenkonto */}
             <div>
-              <Label className="text-sm mb-1.5 block">Gegenkonto (Haben)</Label>
-              <AccountPicker
-                value={form.counter_account_id} onChange={v => {
+              <label className="text-xs font-bold text-primary mb-1 block">Gegenkonto</label>
+              <AccountSearchSelect
+                value={form.counter_account_id}
+                onChange={v => {
                   set("counter_account_id", v);
-                  // Clear VAT for 4000er accrual accounts
-                  const acc = accounts.find(a => a.id === v);
-                  if (acc?.account_number?.startsWith("4")) {
-                    set("vat_rate", "");
-                  }
+                  const acc = accounts.find((a: any) => a.id === v);
+                  if (acc?.account_number?.startsWith("4")) set("vat_rate", "");
                 }}
-                search={counterSearch} onSearchChange={setCounterSearch}
-                isOpen={counterOpen} onOpenChange={setCounterOpen}
-                placeholder="z.B. 1200 Bank, 1000 Kasse..."
+                accounts={accounts}
+                placeholder="Gegenkonto suchen…"
               />
             </div>
-          </div>
 
-          {/* Row 2: Beleg */}
-          <div className="rounded-xl border p-6 space-y-5">
-            <p className="text-base font-semibold text-foreground">Beleg</p>
-            <div className="grid grid-cols-3 gap-4">
-              <div>
-                <Label className="text-sm mb-1.5 block">Buchungskürzel</Label>
-                <Input value={form.booking_reference} onChange={e => set("booking_reference", e.target.value)}
-                  className="h-11" placeholder="z.B. HG" />
-              </div>
-              <div>
-                <Label className="text-sm mb-1.5 block">Beleg-Nr.</Label>
-                <Input value={form.receipt_number} onChange={e => set("receipt_number", e.target.value)}
-                  className="h-11" placeholder="z.B. RE-2026-001" />
-              </div>
-              <div>
-                <Label className="text-sm mb-1.5 block">Belegdatum *</Label>
-                <Input type="date" value={form.booking_date} onChange={e => { const val = e.target.value; setForm(prev => ({ ...prev, booking_date: val, fiscal_year: val ? String(new Date(val).getFullYear()) : prev.fiscal_year })); }}
-                  className="h-11" />
-              </div>
-            </div>
+            {/* Description */}
             <div>
-              <Label className="text-sm mb-1.5 block">Buchungstext</Label>
-              <Textarea value={form.description} onChange={e => set("description", e.target.value)}
-                rows={2} placeholder="Beschreibung der Buchung..." />
+              <label className="text-xs font-medium text-muted-foreground mb-1 block">Buchungstext</label>
+              <Input className="h-9 text-sm" value={form.description} onChange={e => set("description", e.target.value)} placeholder="Beschreibung der Buchung…" />
             </div>
-          </div>
 
-          {/* Row 3: Steuer & Optionen */}
-          <div className="rounded-xl border p-6 space-y-5">
-            <p className="text-base font-semibold text-foreground">Steuer & Optionen</p>
-            <div className="flex items-end gap-6 flex-wrap">
-              <div className="flex-1 min-w-[200px]">
+            {/* Compact row: Kürzel, Beleg-Datum, Beleg-Nr, MwSt */}
+            <div className="grid grid-cols-4 gap-2">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Kürzel</label>
+                <Input className="h-8 text-xs font-mono" value={form.booking_reference} onChange={e => set("booking_reference", e.target.value)} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Beleg-Datum *</label>
+                <Input type="date" className="h-8 text-xs" value={form.booking_date}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setForm(prev => ({ ...prev, booking_date: val, fiscal_year: val ? String(new Date(val).getFullYear()) : prev.fiscal_year }));
+                  }} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Beleg-Nr.</label>
+                <Input className="h-8 text-xs" value={form.receipt_number} onChange={e => set("receipt_number", e.target.value)} />
+              </div>
+              <div>
                 {(() => {
-                  const counterAcc = accounts.find(a => a.id === form.counter_account_id);
-                  const isAccrual = counterAcc?.account_number?.startsWith("4");
+                  const isAccrual = counterAccount?.account_number?.startsWith("4");
                   const vatMissing = isAccrual && !form.vat_rate;
                   return (
                     <>
-                      <Label className={cn("text-sm mb-2 block", vatMissing && "text-orange-600 dark:text-orange-400")}>
-                        MwSt-Satz {isAccrual && <span className="text-orange-500">*</span>}
-                      </Label>
-                      <RadioGroup value={form.vat_rate} onValueChange={v => set("vat_rate", v)}
-                        className="flex gap-4">
-                        {VAT_RATES.map(r => (
-                          <div key={r.value} className="flex items-center gap-2">
-                            <RadioGroupItem value={r.value} id={`vat-${r.value}`} className="h-5 w-5" />
-                            <Label htmlFor={`vat-${r.value}`} className="text-sm cursor-pointer">{r.label}</Label>
-                          </div>
-                        ))}
-                      </RadioGroup>
-                      {vatMissing && <p className="text-xs text-orange-500 mt-1">⚠ Pflichtfeld bei Abgrenzungskonten</p>}
+                      <label className={cn("text-xs font-medium mb-1 block", vatMissing ? "text-orange-600 dark:text-orange-400" : "text-muted-foreground")}>
+                        MwSt % {isAccrual && <span className="text-orange-500">*</span>}
+                      </label>
+                      <Select value={form.vat_rate} onValueChange={v => set("vat_rate", v)}>
+                        <SelectTrigger className={cn("h-8 text-xs", vatMissing && "border-orange-400 ring-1 ring-orange-300")}>
+                          <SelectValue placeholder="Wählen…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">0%</SelectItem>
+                          <SelectItem value="7">7%</SelectItem>
+                          <SelectItem value="19">19%</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </>
                   );
                 })()}
               </div>
-              <div className="w-[140px]">
-                <Label className="text-sm mb-1.5 block">MwSt-Betrag</Label>
-                <Input value={computedVat} readOnly className="h-11 text-right bg-muted font-medium" />
-              </div>
-              <div className="flex items-center gap-2.5 pb-1">
-                <Checkbox
-                  id="is_35a"
-                  checked={form.is_35a_relevant}
-                  onCheckedChange={c => set("is_35a_relevant", !!c)}
-                  className="h-5 w-5"
-                />
-                <Label htmlFor="is_35a" className="text-sm cursor-pointer whitespace-nowrap font-medium">
-                  §35a relevant
-                </Label>
+            </div>
+
+            {/* Wirtschaftsjahr */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Wirtschaftsjahr</label>
+                <Input className="h-8 text-xs font-mono" type="number" value={form.fiscal_year} onChange={e => set("fiscal_year", e.target.value)} />
               </div>
             </div>
-          </div>
 
-          {/* Row 3b: Vorlage verknüpfen */}
-          {bookingTemplates.length > 0 && (
-            <div className="rounded-xl border p-6 space-y-5">
-              <p className="text-base font-semibold text-foreground flex items-center gap-2">
-                <LayoutTemplate className="h-4 w-4" />
-                Vorlage verknüpfen
-              </p>
-              <Popover open={templateOpen} onOpenChange={setTemplateOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    className={cn(
-                      "w-full h-11 justify-between text-left font-normal",
-                      !form.matched_template_id && "text-muted-foreground"
-                    )}
-                  >
-                    <span className="truncate">
-                      {form.matched_template_id
-                        ? (() => {
-                            const t = bookingTemplates.find((t: any) => t.id === form.matched_template_id);
-                            return t ? `${t.name}${t.vendor_name ? ` – ${t.vendor_name}` : ''}` : "Vorlage wählen…";
-                          })()
-                        : "Vorlage wählen (optional)…"}
-                    </span>
-                    {form.matched_template_id ? (
-                      <X className="h-4 w-4 shrink-0 opacity-50 hover:opacity-100"
-                        onClick={(e) => { e.stopPropagation(); set("matched_template_id", ""); }} />
-                    ) : (
-                      <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-[460px] p-0" align="start">
-                  <div className="p-3 border-b">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        value={templateSearch}
-                        onChange={e => setTemplateSearch(e.target.value)}
-                        placeholder="Vorlage suchen…"
-                        className="pl-9 h-10"
-                        autoFocus
-                      />
-                    </div>
-                  </div>
-                  <div className="max-h-[300px] overflow-y-auto p-1">
-                    {bookingTemplates
-                      .filter((t: any) => {
-                        const q = templateSearch.toLowerCase().trim();
-                        if (!q) return true;
-                        return (t.name || "").toLowerCase().includes(q) || (t.vendor_name || "").toLowerCase().includes(q);
-                      })
-                      .map((t: any) => (
-                        <button
-                          key={t.id}
-                          onClick={() => { set("matched_template_id", t.id); setTemplateOpen(false); setTemplateSearch(""); }}
-                          className={cn(
-                            "w-full flex items-center gap-3 px-3 py-2.5 text-left rounded-md hover:bg-accent transition-colors",
-                            form.matched_template_id === t.id && "bg-accent"
-                          )}
-                        >
-                          <LayoutTemplate className="h-4 w-4 shrink-0 text-muted-foreground" />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{t.name}</p>
-                            <p className="text-xs text-muted-foreground truncate">
-                              {t.vendor_name || "–"}{t.expected_amount ? ` · ${Number(t.expected_amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €` : ""}
-                            </p>
-                          </div>
-                        </button>
-                      ))}
-                  </div>
-                </PopoverContent>
-              </Popover>
-            </div>
-          )}
-
-          {/* Row 4: Leistungszeitraum (collapsible) */}
-          <Collapsible open={showPeriod} onOpenChange={setShowPeriod}>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" className="text-sm text-muted-foreground gap-2 px-0 h-auto">
-                <ChevronDown className={`h-4 w-4 transition-transform ${showPeriod ? "rotate-180" : ""}`} />
-                Leistungszeitraum
-                {form.performance_period_from && (
-                  <Badge variant="secondary" className="text-xs ml-1">gesetzt</Badge>
+            {/* §35a toggle */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => set("is_35a_relevant", !form.is_35a_relevant)}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors",
+                  form.is_35a_relevant
+                    ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400"
+                    : "border-border text-muted-foreground hover:bg-muted"
                 )}
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="pt-3">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-sm mb-1.5 block">Von</Label>
-                  <Input type="date" value={form.performance_period_from}
-                    onChange={e => set("performance_period_from", e.target.value)} className="h-11" />
-                </div>
-                <div>
-                  <Label className="text-sm mb-1.5 block">Bis</Label>
-                  <Input type="date" value={form.performance_period_to}
-                    onChange={e => set("performance_period_to", e.target.value)} className="h-11" />
-                </div>
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-        </div>
+              >
+                §35a
+              </button>
+            </div>
 
-        <DialogFooter className="pt-4 gap-2">
-          <Button variant="outline" size="lg" onClick={() => onOpenChange(false)}>Abbrechen</Button>
-          <Button size="lg" onClick={handleSave} className="min-w-[140px]">Buchen</Button>
-        </DialogFooter>
+            {/* Save button */}
+            <Button onClick={handleSave} disabled={saving || !form.account_id || !form.building_id} className="w-full h-10 text-sm font-semibold bg-primary hover:bg-primary/90">
+              {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
+              Speichern
+            </Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );
