@@ -456,14 +456,9 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
             </Button>
           )}
           {isMatchedUnbooked && (
-            <div className="flex gap-1">
-              <Button variant="ghost" size="sm" className="text-xs" onClick={(e) => { e.stopPropagation(); setManualAssignTxn(txn); setManualAssignType("invoice"); setManualAssignId(""); }}>
-                <Link2 className="h-3 w-3 mr-1" />Ändern
-              </Button>
-              <Button variant="ghost" size="sm" className="text-xs text-destructive" onClick={(e) => { e.stopPropagation(); removeAssignment(txn.id); }}>
-                Entfernen
-              </Button>
-            </div>
+            <Button variant="ghost" size="sm" className="text-xs" onClick={(e) => { e.stopPropagation(); openReviewAtTransaction(txn); }}>
+              Prüfen
+            </Button>
           )}
         </TableCell>
       </TableRow>
