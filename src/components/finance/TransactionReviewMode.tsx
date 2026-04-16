@@ -115,7 +115,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       if (!currentTxn?.matched_invoice_id) return null;
       const { data } = await supabase
         .from("invoices")
-        .select("id, file_path, file_name, vendor_name, gross_amount, net_amount, vat_amount, invoice_number, invoice_date, description, suggested_account_id, line_items")
+        .select("id, file_path, file_name, vendor_name, gross_amount, net_amount, vat_amount, invoice_number, invoice_date, description, suggested_account_id, line_items, ocr_extracted_data")
         .eq("id", currentTxn.matched_invoice_id)
         .maybeSingle();
       return data;
