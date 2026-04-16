@@ -132,13 +132,32 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       if (!currentTxn?.matched_template_id) return null;
       const { data } = await supabase
         .from("booking_templates")
-        .select("id, name, vendor_name, expected_amount, amount_tolerance, vat_rate, interval, category, description, account_id, is_35a_relevant, chart_of_accounts(account_number, account_name)")
+        .select("id, name, vendor_name, expected_amount, amount_tolerance, vat_rate, interval, category, description, account_id, is_35a_relevant, linked_invoice_id, chart_of_accounts(account_number, account_name)")
         .eq("id", currentTxn.matched_template_id)
         .maybeSingle();
       return data;
     },
     enabled: open && !!currentTxn?.matched_template_id,
   });
+
+  // Fetch linked invoice for template
+  const linkedInvoiceId = (templateDetail as any)?.linked_invoice_id;
+  const { data: linkedInvoice } = useQuery({
+    queryKey: ["txn-review-linked-invoice", linkedInvoiceId],
+    queryFn: async () => {
+      if (!linkedInvoiceId) return null;
+      const { data } = await supabase
+        .from("invoices")
+        .select("id, invoice_number, vendor_name, gross_amount, invoice_date, file_path")
+        .eq("id", linkedInvoiceId)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!linkedInvoiceId,
+  });
+
+  const [linkedInvoicePdfUrl, setLinkedInvoicePdfUrl] = useState<string | null>(null);
+  const [showLinkedInvoicePdf, setShowLinkedInvoicePdf] = useState(false);
 
   // IBAN lookup: match debtor/creditor IBAN against contact_bank_accounts
   const ibanToMatch = currentTxn?.amount > 0 ? currentTxn?.debtor_iban : currentTxn?.creditor_iban;
