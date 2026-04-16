@@ -375,6 +375,18 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       }
     }
 
+    // Auto-fill fuel purchase from OCR data
+    if (invoiceDetail) {
+      const ocrData = (invoiceDetail as any).ocr_extracted_data;
+      if (ocrData?.is_fuel_purchase) {
+        row.is_fuel_purchase = true;
+        row.fuel_type = ocrData.fuel_type === "pellets" ? "pellets" : "oil";
+        row.fuel_quantity = ocrData.fuel_quantity ? String(ocrData.fuel_quantity) : "";
+        row.fuel_total_price = invoiceDetail.gross_amount ? String(invoiceDetail.gross_amount) : "";
+        row.fuel_date = invoiceDetail.invoice_date || currentTxn.booking_date || "";
+      }
+    }
+
     // Auto-fill from single AI suggestion
     if (!templateDetail && !invoiceDetail && aiSuggestion) {
       if (suggestedBookings?.[0]) {
