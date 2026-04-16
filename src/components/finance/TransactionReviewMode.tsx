@@ -1165,20 +1165,43 @@ function BookingRowCard({
               <Input ref={el => fieldRefs.current["amount"] = el}
                 type="text" inputMode="decimal"
                 className={cn("h-14 text-4xl md:text-4xl font-bold flex-1 border-none shadow-none px-0 focus-visible:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none", row.booking_type === "income" ? "text-green-600" : "text-destructive")}
-                value={`${row.booking_type === "income" ? "+" : "-"}${row.amount}`}
+                value={`${row.booking_type === "income" ? "+" : "−"}${row.amount}`}
                 onChange={e => {
                   const raw = e.target.value;
-                  if (raw.startsWith("+")) {
-                    onUpdateField("booking_type", "income");
-                    onUpdateField("amount", raw.slice(1).replace(/[^0-9.,]/g, ""));
-                  } else if (raw.startsWith("-")) {
-                    onUpdateField("booking_type", "expense");
-                    onUpdateField("amount", raw.slice(1).replace(/[^0-9.,]/g, ""));
-                  } else {
-                    onUpdateField("amount", raw.replace(/[^0-9.,]/g, ""));
+                  // Strip any sign characters and non-numeric chars except . and ,
+                  const digits = raw.replace(/[^0-9.,]/g, "");
+                  onUpdateField("amount", digits);
+                }}
+                onKeyDown={e => {
+                  if (e.key === "+" || e.key === "-") {
+                    e.preventDefault();
+                    onUpdateField("booking_type", e.key === "+" ? "income" : "expense");
+                    return;
+                  }
+                  // Block Backspace/Delete on position 0 (the sign character)
+                  const input = e.target as HTMLInputElement;
+                  if (e.key === "Backspace" && input.selectionStart !== null && input.selectionStart <= 1 && input.selectionEnd !== null && input.selectionEnd <= 1) {
+                    e.preventDefault();
+                    return;
+                  }
+                  if (e.key === "Delete" && input.selectionStart === 0) {
+                    e.preventDefault();
+                    return;
+                  }
+                  // Prevent cursor from going before sign
+                  if (e.key === "Home") {
+                    e.preventDefault();
+                    input.setSelectionRange(1, 1);
+                    return;
+                  }
+                  handleEnterNavigation(e as any, "amount");
+                }}
+                onClick={e => {
+                  const input = e.target as HTMLInputElement;
+                  if (input.selectionStart !== null && input.selectionStart < 1) {
+                    input.setSelectionRange(1, 1);
                   }
                 }}
-                onKeyDown={e => handleEnterNavigation(e, "amount")}
                 onWheel={e => (e.target as HTMLElement).blur()} />
               <Button type="button" size="icon" variant={row.booking_type === "expense" ? "default" : "outline"}
                 className={cn("h-8 w-8 shrink-0 text-sm font-bold", row.booking_type === "expense" && "bg-destructive hover:bg-destructive/90 text-destructive-foreground")}
