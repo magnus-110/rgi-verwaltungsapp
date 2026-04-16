@@ -1137,16 +1137,16 @@ function BookingRowCard({
 
         <CollapsibleContent>
           <div className="px-3 pb-3 space-y-3 border-t pt-3">
-            {/* Account */}
-            <div ref={el => fieldRefs.current["account_id"] = el} className="rounded-lg border-2 border-primary/20 bg-primary/5 p-2.5">
-              <label className="text-xs font-semibold text-primary mb-1.5 block">Konto</label>
-              <div className="flex gap-1.5">
+            {/* Account & Counter Account - compact inline */}
+            <div className="grid grid-cols-2 gap-2">
+              <div ref={el => fieldRefs.current["account_id"] = el} className="rounded-md border-2 border-primary/20 bg-primary/5 px-2 py-1.5">
+                <label className="text-[10px] font-semibold text-primary mb-1 block">Konto</label>
                 <Select value={row.account_id} onValueChange={v => {
                   if (v === "__create__") { setCreateAccountTarget("account_id"); setCreateAccountOpen(true); }
                   else onUpdateField("account_id", v);
                 }}>
-                  <SelectTrigger className="h-10 text-sm font-medium flex-1 bg-background" onKeyDown={e => handleEnterNavigation(e, "account_id")}>
-                    <SelectValue placeholder="Konto wählen…" />
+                  <SelectTrigger className="h-8 text-xs font-medium bg-background" onKeyDown={e => handleEnterNavigation(e, "account_id")}>
+                    <SelectValue placeholder="Konto…" />
                   </SelectTrigger>
                   <SelectContent className="max-h-[300px]">
                     {accounts.filter((a: any) => a.category !== "Bankkonto").map((a: any) => (
@@ -1155,7 +1155,28 @@ function BookingRowCard({
                       </SelectItem>
                     ))}
                     <SelectItem value="__create__" className="text-primary font-medium">
-                      <span className="flex items-center gap-1"><Plus className="h-3 w-3" /> Neues Konto anlegen</span>
+                      <span className="flex items-center gap-1"><Plus className="h-3 w-3" /> Neues Konto</span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div ref={el => fieldRefs.current["counter_account_id"] = el} className="rounded-md border-2 border-primary/20 bg-primary/5 px-2 py-1.5">
+                <label className="text-[10px] font-semibold text-primary mb-1 block">Gegenkonto</label>
+                <Select value={row.counter_account_id} onValueChange={v => {
+                  if (v === "__create__") { setCreateAccountTarget("counter_account_id"); setCreateAccountOpen(true); }
+                  else onUpdateField("counter_account_id", v);
+                }}>
+                  <SelectTrigger className="h-8 text-xs font-medium bg-background" onKeyDown={e => handleEnterNavigation(e, "counter_account_id")}>
+                    <SelectValue placeholder="Gegenkonto…" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    {accounts.map((a: any) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        <span className="font-mono mr-2">{a.account_number}</span>{a.account_name}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="__create__" className="text-primary font-medium">
+                      <span className="flex items-center gap-1"><Plus className="h-3 w-3" /> Neues Konto</span>
                     </SelectItem>
                   </SelectContent>
                 </Select>
@@ -1181,29 +1202,6 @@ function BookingRowCard({
               {parseFloat(row.vat_amount) > 0 && (
                 <p className="text-xs text-muted-foreground mt-1">davon MwSt: {formatCurrency(parseFloat(row.vat_amount))} ({row.vat_rate}%)</p>
               )}
-            </div>
-
-            {/* Counter account */}
-            <div ref={el => fieldRefs.current["counter_account_id"] = el} className="rounded-lg border-2 border-primary/20 bg-primary/5 p-2.5">
-              <label className="text-xs font-semibold text-primary mb-1.5 block">Gegenkonto</label>
-              <Select value={row.counter_account_id} onValueChange={v => {
-                if (v === "__create__") { setCreateAccountTarget("counter_account_id"); setCreateAccountOpen(true); }
-                else onUpdateField("counter_account_id", v);
-              }}>
-                <SelectTrigger className="h-10 text-sm font-medium bg-background" onKeyDown={e => handleEnterNavigation(e, "counter_account_id")}>
-                  <SelectValue placeholder="Gegenkonto wählen…" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[300px]">
-                  {accounts.map((a: any) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      <span className="font-mono mr-2">{a.account_number}</span>{a.account_name}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value="__create__" className="text-primary font-medium">
-                    <span className="flex items-center gap-1"><Plus className="h-3 w-3" /> Neues Konto anlegen</span>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
             </div>
 
             {/* Description */}
