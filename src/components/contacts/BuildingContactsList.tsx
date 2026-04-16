@@ -419,7 +419,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
       });
 
       // Build template name — append date range if dates are set
-      const baseName = `mtl. ${costType} ${unitNumber} ${floorLocation}`.trim();
+      const baseName = `${costType} ${unitNumber} ${floorLocation}`.trim();
       const dateSuffix = (validFrom || validTo)
         ? ` (${fmtDate(validFrom) || "…"}–${fmtDate(validTo) || "…"})`
         : "";
