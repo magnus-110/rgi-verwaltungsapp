@@ -204,19 +204,19 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
     }});
   };
 
-  if (!booking) return null;
-
-  const hasInvoice = !!invoiceDetail;
-  const hasTemplate = !!templateDetail;
-  const hasRightPanel = hasInvoice || hasTemplate;
-  const counterAccount = accounts.find((a: any) => a.id === form.counter_account_id);
-
   const invoiceLineItems = useMemo(() => {
     if (!invoiceDetail?.line_items) return [];
     const items = (invoiceDetail as any).line_items;
     if (Array.isArray(items)) return items;
     return [];
   }, [invoiceDetail]);
+
+  if (!booking) return null;
+
+  const hasInvoice = !!invoiceDetail;
+  const hasTemplate = !!templateDetail;
+  const hasRightPanel = hasInvoice || hasTemplate;
+  const counterAccount = accounts.find((a: any) => a.id === form.counter_account_id);
 
   return (
     <>
