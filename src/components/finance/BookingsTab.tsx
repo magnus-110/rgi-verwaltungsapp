@@ -9,10 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { BookOpen, AlertTriangle, FileText, ChevronDown, ChevronRight, Search, LayoutTemplate, Flag } from "lucide-react";
+import { BookOpen, AlertTriangle, FileText, ChevronDown, ChevronRight, Search, LayoutTemplate, Flag, Plus } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { EditBookingDialog } from "./EditBookingDialog";
+import { CreateBookingDialog } from "./CreateBookingDialog";
 import { PdfViewerModal } from "@/components/documents/PdfViewerModal";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -35,6 +36,16 @@ export function BookingsTab() {
   const [manualOpen, setManualOpen] = useState(false);
   const [templateDetail, setTemplateDetail] = useState<any>(null);
   const [filterReview, setFilterReview] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+
+  const { data: buildings = [] } = useQuery({
+    queryKey: ["buildings-list-finance"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("buildings").select("id, name, building_code").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
 
   const { data: pendingBookings = [], isLoading } = useQuery({
     queryKey: ["bookings-pending", filterYear],
@@ -297,6 +308,10 @@ export function BookingsTab() {
             </Badge>
           )}
         </Button>
+        <Button size="sm" className="h-9 gap-1.5 ml-auto" onClick={() => setCreateOpen(true)}>
+          <Plus className="h-3.5 w-3.5" />
+          Neue Buchung
+        </Button>
       </div>
 
       {/* Pending bookings */}
@@ -438,6 +453,17 @@ export function BookingsTab() {
           )}
         </DialogContent>
       </Dialog>
+
+      <CreateBookingDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        buildings={buildings}
+        preselectedYear={filterYear}
+        onBookingCreated={() => {
+          queryClient.invalidateQueries({ queryKey: ["bookings-pending"] });
+          queryClient.invalidateQueries({ queryKey: ["bookings-manual"] });
+        }}
+      />
     </div>
   );
 }
