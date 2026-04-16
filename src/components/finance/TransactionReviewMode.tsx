@@ -1421,7 +1421,49 @@ function BookingRowCard({
               )}
             </div>
 
-            {/* Review flag */}
+            {/* Brennstoffkauf */}
+            <div className="p-2 rounded-lg border space-y-2" style={{ borderColor: row.is_fuel_purchase ? 'hsl(var(--chart-5))' : undefined, backgroundColor: row.is_fuel_purchase ? 'hsl(var(--chart-5) / 0.08)' : undefined }}>
+              <div className="flex items-center gap-3">
+                <Checkbox id={`fuel-${index}`} checked={row.is_fuel_purchase} onCheckedChange={v => onUpdateField("is_fuel_purchase", !!v)} />
+                <label htmlFor={`fuel-${index}`} className="text-xs font-medium flex items-center gap-1.5">
+                  <Flame className="h-3.5 w-3.5" style={{ color: row.is_fuel_purchase ? 'hsl(var(--chart-5))' : undefined }} /> Brennstoffkauf
+                </label>
+              </div>
+              {row.is_fuel_purchase && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Art</label>
+                    <Select value={row.fuel_type} onValueChange={v => onUpdateField("fuel_type", v)}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Wählen…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="oil">Heizöl</SelectItem>
+                        <SelectItem value="pellets">Pellets</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                      Menge ({row.fuel_type === "pellets" ? "kg" : "l"})
+                    </label>
+                    <Input className="h-8 text-xs" type="number" placeholder="0" value={row.fuel_quantity}
+                      onChange={e => onUpdateField("fuel_quantity", e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Gesamtpreis (€)</label>
+                    <Input className="h-8 text-xs" type="number" step="0.01" placeholder="0,00" value={row.fuel_total_price}
+                      onChange={e => onUpdateField("fuel_total_price", e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Lieferdatum</label>
+                    <Input className="h-8 text-xs" type="date" value={row.fuel_date}
+                      onChange={e => onUpdateField("fuel_date", e.target.value)} />
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="p-2 rounded-lg border space-y-2" style={{ borderColor: row.needs_review ? 'hsl(var(--chart-4))' : undefined, backgroundColor: row.needs_review ? 'hsl(var(--chart-4) / 0.08)' : undefined }}>
               <div className="flex items-center gap-3">
                 <Checkbox id={`review-${index}`} checked={row.needs_review} onCheckedChange={v => onUpdateField("needs_review", !!v)} />
