@@ -20,7 +20,7 @@ import {
   ArrowLeft, ArrowRight, CheckCircle, X,
   FileText, LayoutTemplate, Loader2, Sparkles,
   ChevronDown, ChevronRight, Plus, Trash2, User, PackagePlus, AlertTriangle,
-  Link2, RefreshCw, RotateCcw, Flag
+  Link2, RefreshCw, RotateCcw, Flag, Flame
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
