@@ -274,6 +274,8 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       invoice_id: currentTxn?.matched_invoice_id || null,
       matched_template_id: currentTxn?.matched_template_id || null,
       booked: false,
+      needs_review: false,
+      review_note: "",
       ...overrides,
     };
   }, [currentTxn, accounts, getFiscalYearForDate]);
@@ -324,6 +326,8 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           invoice_id: null,
           matched_template_id: sb.template_id || null,
           booked: false,
+          needs_review: false,
+          review_note: "",
         };
       });
       setFormRows(rows);
