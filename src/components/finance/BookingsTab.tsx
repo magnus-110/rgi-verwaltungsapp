@@ -169,51 +169,46 @@ export function BookingsTab() {
 
   const renderRow = (b: any) => {
     const isIncome = b.booking_type === "income";
-    const hasWarnings = b.ai_warning || b.is_35a_relevant || b.needs_review;
 
     return (
       <TableRow
         key={b.id}
         className={cn(
-          "cursor-pointer text-xs hover:bg-muted/60 transition-colors",
-          b.needs_review && "bg-orange-50/50 dark:bg-orange-950/10",
-          b.is_35a_relevant && "bg-amber-50/30 dark:bg-amber-950/10"
+          "cursor-pointer text-[13px] hover:bg-muted/60 transition-colors",
+          b.needs_review && "bg-orange-50 dark:bg-orange-950/20"
         )}
         onClick={() => handleRowClick(b)}
       >
-        <TableCell className="py-1.5 px-2 whitespace-nowrap font-medium tabular-nums">
+        <TableCell className="py-2 px-3 whitespace-nowrap font-medium tabular-nums">
           {format(new Date(b.booking_date), "dd.MM.yyyy")}
         </TableCell>
-        <TableCell className="py-1.5 px-2 font-mono tabular-nums">
+        <TableCell className="py-2 px-3 font-mono tabular-nums">
           {b.chart_of_accounts?.account_number || "–"}
         </TableCell>
-        <TableCell className="py-1.5 px-2 max-w-[160px] truncate">
+        <TableCell className="py-2 px-3 max-w-[180px] truncate">
           {b.chart_of_accounts?.account_name || "–"}
         </TableCell>
         <TableCell className={cn(
-          "py-1.5 px-2 text-right font-mono tabular-nums font-semibold whitespace-nowrap",
+          "py-2 px-3 text-right font-mono tabular-nums font-semibold whitespace-nowrap",
           isIncome ? "text-green-600" : "text-destructive"
         )}>
           {isIncome ? "+" : ""}{formatCurrency(b.amount)}
         </TableCell>
-        <TableCell className="py-1.5 px-2 font-mono tabular-nums text-muted-foreground">
-          {b.receipt_number || "–"}
-        </TableCell>
-        <TableCell className="py-1.5 px-2 max-w-[280px] truncate">
+        <TableCell className="py-2 px-3 max-w-[300px] truncate">
           {b.description || "–"}
         </TableCell>
-        <TableCell className="py-1.5 px-2 font-mono tabular-nums">
+        <TableCell className="py-2 px-3 font-mono tabular-nums">
           {b.counter_account?.account_number || "–"}
         </TableCell>
-        <TableCell className="py-1.5 px-2 max-w-[160px] truncate">
+        <TableCell className="py-2 px-3 max-w-[180px] truncate">
           {b.counter_account?.account_name || "–"}
         </TableCell>
-        <TableCell className="py-1.5 px-2">
+        <TableCell className="py-2 px-3">
           <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
             {b.needs_review && (
               <TooltipProvider>
                 <Tooltip>
-                  <TooltipTrigger><Flag className="h-3 w-3 text-orange-500 fill-orange-500" /></TooltipTrigger>
+                  <TooltipTrigger><Flag className="h-3.5 w-3.5 text-orange-500 fill-orange-500" /></TooltipTrigger>
                   <TooltipContent><p className="text-xs">Zur Prüfung</p></TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -221,24 +216,15 @@ export function BookingsTab() {
             {b.ai_warning && (
               <TooltipProvider>
                 <Tooltip>
-                  <TooltipTrigger><AlertTriangle className="h-3 w-3 text-amber-500" /></TooltipTrigger>
+                  <TooltipTrigger><AlertTriangle className="h-3.5 w-3.5 text-amber-500" /></TooltipTrigger>
                   <TooltipContent className="max-w-xs"><p className="text-xs">{b.ai_warning}</p></TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             )}
-            {b.is_35a_relevant && (
-              <span className="text-[9px] font-bold text-amber-700">§35a</span>
-            )}
-            {b.invoice_id && (
-              <Button size="sm" variant="ghost" className="h-5 w-5 p-0"
-                onClick={(e) => { e.stopPropagation(); handleInvoiceClick(b); }}>
-                <FileText className="h-3 w-3 text-primary" />
-              </Button>
-            )}
             {b.matched_template_id && b.booking_templates && (
               <Button size="sm" variant="ghost" className="h-5 w-5 p-0"
                 onClick={(e) => { e.stopPropagation(); handleTemplateClick(b); }}>
-                <LayoutTemplate className="h-3 w-3 text-primary" />
+                <LayoutTemplate className="h-3.5 w-3.5 text-primary" />
               </Button>
             )}
           </div>
@@ -249,16 +235,15 @@ export function BookingsTab() {
 
   const tableHeaders = (
     <TableHeader>
-      <TableRow className="text-[11px]">
-        <TableHead className="py-2 px-2 font-semibold">Bel. Datum</TableHead>
-        <TableHead className="py-2 px-2 font-semibold">Kto-Nr.</TableHead>
-        <TableHead className="py-2 px-2 font-semibold">Konto</TableHead>
-        <TableHead className="py-2 px-2 text-right font-semibold">Betrag</TableHead>
-        <TableHead className="py-2 px-2 font-semibold">Beleg Nr.</TableHead>
-        <TableHead className="py-2 px-2 font-semibold">Buch-Text</TableHead>
-        <TableHead className="py-2 px-2 font-semibold">G-Kto-Nr.</TableHead>
-        <TableHead className="py-2 px-2 font-semibold">Gegen-Konto</TableHead>
-        <TableHead className="py-2 px-2 w-[60px]"></TableHead>
+      <TableRow className="text-xs">
+        <TableHead className="py-2.5 px-3 font-semibold">Bel. Datum</TableHead>
+        <TableHead className="py-2.5 px-3 font-semibold">Kto-Nr.</TableHead>
+        <TableHead className="py-2.5 px-3 font-semibold">Konto</TableHead>
+        <TableHead className="py-2.5 px-3 text-right font-semibold">Betrag</TableHead>
+        <TableHead className="py-2.5 px-3 font-semibold">Buch-Text</TableHead>
+        <TableHead className="py-2.5 px-3 font-semibold">G-Kto-Nr.</TableHead>
+        <TableHead className="py-2.5 px-3 font-semibold">Gegen-Konto</TableHead>
+        <TableHead className="py-2.5 px-3 w-[60px]"></TableHead>
       </TableRow>
     </TableHeader>
   );
@@ -316,8 +301,8 @@ export function BookingsTab() {
 
       {/* Pending bookings */}
       <Card className="overflow-hidden">
-        <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/30">
-          <h3 className="text-sm font-semibold">Offene Buchungen</h3>
+        <div className="flex items-center justify-between px-4 py-2.5 border-b bg-muted/30">
+          <h3 className="text-sm font-semibold">Buchungen</h3>
           <Badge variant="secondary" className="text-xs">{filteredPending.length}</Badge>
         </div>
         <CardContent className="p-0">
@@ -327,7 +312,7 @@ export function BookingsTab() {
             <div className="text-center py-10 text-muted-foreground">
               <BookOpen className="h-10 w-10 mx-auto mb-2 opacity-30" />
               <p className="text-sm">
-                {searchQuery ? "Keine Buchungen für diese Suche" : `Keine offenen Buchungen in ${filterYear}`}
+                {searchQuery ? "Keine Buchungen für diese Suche" : `Keine Buchungen in ${filterYear}`}
               </p>
             </div>
           ) : (
@@ -376,28 +361,6 @@ export function BookingsTab() {
           )}
         </CardContent>
       </Card>
-
-      {/* Confirmed bookings */}
-      <Collapsible open={confirmedOpen} onOpenChange={setConfirmedOpen}>
-        <Card className="overflow-hidden">
-          <CollapsibleTrigger asChild>
-            <div className="flex items-center justify-between px-4 py-2 border-b cursor-pointer hover:bg-muted/30 transition-colors">
-              <div className="flex items-center gap-2">
-                {confirmedOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                <h3 className="text-sm font-semibold">Bestätigte Buchungen</h3>
-              </div>
-              {confirmedOpen && <Badge variant="outline" className="text-xs">{filteredConfirmed.length}</Badge>}
-            </div>
-          </CollapsibleTrigger>
-          <CollapsibleContent>
-            {filteredConfirmed.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-6">Keine bestätigten Buchungen in {filterYear}</p>
-            ) : (
-              renderSection("Bestätigte Buchungen", filteredConfirmed, filteredConfirmed.length)
-            )}
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
 
       {/* Manual bookings */}
       <Collapsible open={manualOpen} onOpenChange={setManualOpen}>
