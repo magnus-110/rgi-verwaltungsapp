@@ -42,6 +42,7 @@ import { WegOwnerChatbot } from "./pages/weg-owner/Chatbot";
 import { WegOwnerSettings } from "./pages/weg-owner/Settings";
 import { WegOwnerFiles } from "./pages/weg-owner/Files";
 import { WegOwnerMeetings } from "./pages/weg-owner/Meetings";
+import { WegOwnerCashAudit } from "./pages/weg-owner/CashAudit";
 import { TenantLayout } from "./components/TenantLayout";
 import { TenantDashboard } from "./pages/tenant/Dashboard";
 import { TenantReports } from "./pages/tenant/Reports";
@@ -111,6 +112,7 @@ const App = () => (
               <Route path="/weg-owner/settings" element={<WegOwnerLayout><WegOwnerSettings /></WegOwnerLayout>} />
               <Route path="/weg-owner/files" element={<WegOwnerLayout><WegOwnerFiles /></WegOwnerLayout>} />
               <Route path="/weg-owner/meetings" element={<WegOwnerLayout><WegOwnerMeetings /></WegOwnerLayout>} />
+              <Route path="/weg-owner/kassenpruefung" element={<WegOwnerLayout><WegOwnerCashAudit /></WegOwnerLayout>} />
               
               {/* Tenant Routes */}
               <Route path="/tenant/change-password" element={<TenantLayout><ChangePassword /></TenantLayout>} />
