@@ -1176,6 +1176,7 @@ function BookingRowCard({
   }, [row.amount, row.vat_rate]);
 
   return (
+    <>
     <Collapsible open={isExpanded && !row.booked} onOpenChange={() => !row.booked && onToggle()}>
       <div className={cn(
         "rounded-lg border transition-colors",
