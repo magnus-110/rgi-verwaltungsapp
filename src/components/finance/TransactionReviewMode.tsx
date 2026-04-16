@@ -1109,6 +1109,67 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                           {templateDetail.interval && <DetailField label="Intervall" value={templateDetail.interval} />}
                           {templateDetail.description && <DetailField label="Beschreibung" value={templateDetail.description} />}
                         </div>
+
+                        {/* Linked Invoice */}
+                        {linkedInvoice && (
+                          <div className="mt-3 border-t pt-3 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <FileText className="h-4 w-4 text-primary" />
+                                <span className="text-sm font-medium">Verknüpfte Rechnung</span>
+                              </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-7 text-xs"
+                                onClick={async () => {
+                                  if (showLinkedInvoicePdf) {
+                                    setShowLinkedInvoicePdf(false);
+                                    return;
+                                  }
+                                  if (!linkedInvoicePdfUrl && linkedInvoice.file_path) {
+                                    const { data } = await supabase.storage
+                                      .from("invoices")
+                                      .createSignedUrl(linkedInvoice.file_path, 3600);
+                                    if (data?.signedUrl) setLinkedInvoicePdfUrl(data.signedUrl);
+                                  }
+                                  setShowLinkedInvoicePdf(true);
+                                }}
+                              >
+                                {showLinkedInvoicePdf ? "Schließen" : "PDF anzeigen"}
+                              </Button>
+                            </div>
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                              {linkedInvoice.vendor_name && (
+                                <div>
+                                  <span className="text-xs text-muted-foreground">Lieferant</span>
+                                  <p className="font-medium">{linkedInvoice.vendor_name}</p>
+                                </div>
+                              )}
+                              {linkedInvoice.gross_amount != null && (
+                                <div>
+                                  <span className="text-xs text-muted-foreground">Brutto</span>
+                                  <p className="font-medium">{formatCurrency(linkedInvoice.gross_amount)}</p>
+                                </div>
+                              )}
+                              {linkedInvoice.invoice_number && (
+                                <div>
+                                  <span className="text-xs text-muted-foreground">Re-Nr.</span>
+                                  <p className="font-medium">{linkedInvoice.invoice_number}</p>
+                                </div>
+                              )}
+                              {linkedInvoice.invoice_date && (
+                                <div>
+                                  <span className="text-xs text-muted-foreground">Datum</span>
+                                  <p className="font-medium">{format(new Date(linkedInvoice.invoice_date), "dd.MM.yyyy", { locale: de })}</p>
+                                </div>
+                              )}
+                            </div>
+                            {showLinkedInvoicePdf && linkedInvoicePdfUrl && (
+                              <iframe src={linkedInvoicePdfUrl} className="w-full border-0 rounded-md min-h-[400px]" title="Verknüpfte Rechnung PDF" />
+                            )}
+                          </div>
+                        )}
                       </div>
                     ) : currentTxn.ai_suggestion ? (
                       <div className="p-4 space-y-3">
