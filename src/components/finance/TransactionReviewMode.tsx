@@ -411,7 +411,11 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     // VAT defaults from counter account
     if (row.counter_account_id) {
       const selectedCounterAcc = accounts.find(a => a.id === row.counter_account_id);
-      if (selectedCounterAcc?.default_vat_rate != null && !invoiceDetail && !templateDetail) {
+      const isAccrualAccount = selectedCounterAcc?.account_number?.startsWith("4");
+      if (isAccrualAccount && !invoiceDetail && !templateDetail && !(aiSuggestion?.booking_hint?.suggested_bookings?.[0]?.vat_rate != null)) {
+        // 4000er accounts: VAT must be explicitly chosen, not pre-filled
+        row.vat_rate = "";
+      } else if (selectedCounterAcc?.default_vat_rate != null && !invoiceDetail && !templateDetail) {
         row.vat_rate = String(selectedCounterAcc.default_vat_rate);
       }
       if (selectedCounterAcc?.is_35a_relevant) {
@@ -464,6 +468,13 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
     if (!row.account_id) {
       toast.error("Bitte ein Konto auswählen");
+      return;
+    }
+
+    // For 4000-series accrual accounts, VAT rate is mandatory
+    const counterAcc = accounts.find(a => a.id === row.counter_account_id);
+    if (counterAcc?.account_number?.startsWith("4") && !row.vat_rate) {
+      toast.error("Bei Abgrenzungskonten (4000er) muss der MwSt-Satz angegeben werden");
       return;
     }
 
@@ -1218,9 +1229,15 @@ function BookingRowCard({
                 className={cn("h-8 w-8 shrink-0 text-sm font-bold", row.booking_type === "income" && "bg-green-600 hover:bg-green-700 text-white")}
                 onClick={() => onUpdateField("booking_type", "income")}>+</Button>
             </div>
-            {parseFloat(row.vat_amount) > 0 && (
+            {parseFloat(row.vat_amount) > 0 && row.vat_rate && (
               <p className="text-xs text-muted-foreground">davon MwSt: {formatCurrency(parseFloat(row.vat_amount))} ({row.vat_rate}%)</p>
             )}
+            {(() => {
+              const ca = accounts.find((a: any) => a.id === row.counter_account_id);
+              return ca?.account_number?.startsWith("4") && !row.vat_rate ? (
+                <p className="text-xs text-orange-500 font-medium">⚠ MwSt-Satz erforderlich</p>
+              ) : null;
+            })()}
 
             {/* Gegenkonto */}
             <div ref={el => fieldRefs.current["counter_account_id"] = el}>
@@ -1277,18 +1294,29 @@ function BookingRowCard({
                   onKeyDown={e => handleEnterNavigation(e, "receipt_number")} />
               </div>
               <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">MwSt %</label>
-                <Select value={row.vat_rate} onValueChange={v => onUpdateField("vat_rate", v)}>
-                  <SelectTrigger className="h-8 text-xs" ref={el => fieldRefs.current["vat_rate"] = el}
-                    onKeyDown={e => handleEnterNavigation(e, "vat_rate")}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="0">0%</SelectItem>
-                    <SelectItem value="7">7%</SelectItem>
-                    <SelectItem value="19">19%</SelectItem>
-                  </SelectContent>
-                </Select>
+                {(() => {
+                  const counterAcc = accounts.find((a: any) => a.id === row.counter_account_id);
+                  const isAccrual = counterAcc?.account_number?.startsWith("4");
+                  const vatMissing = isAccrual && !row.vat_rate;
+                  return (
+                    <>
+                      <label className={cn("text-xs font-medium mb-1 block", vatMissing ? "text-orange-600 dark:text-orange-400" : "text-muted-foreground")}>
+                        MwSt % {isAccrual && <span className="text-orange-500">*</span>}
+                      </label>
+                      <Select value={row.vat_rate} onValueChange={v => onUpdateField("vat_rate", v)}>
+                        <SelectTrigger className={cn("h-8 text-xs", vatMissing && "border-orange-400 ring-1 ring-orange-300")} ref={el => fieldRefs.current["vat_rate"] = el}
+                          onKeyDown={e => handleEnterNavigation(e, "vat_rate")}>
+                          <SelectValue placeholder="Wählen…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">0%</SelectItem>
+                          <SelectItem value="7">7%</SelectItem>
+                          <SelectItem value="19">19%</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </>
+                  );
+                })()}
               </div>
             </div>
 
