@@ -76,8 +76,8 @@ Deno.serve(async (req) => {
       contactBuildings[cba.contact_id].push(cba.building_id);
     }
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
+    const MISTRAL_API_KEY = Deno.env.get("MISTRAL_API_KEY");
+    if (!MISTRAL_API_KEY) throw new Error("MISTRAL_API_KEY not configured");
 
     const buildingList = (buildings || [])
       .map((b) => `- "${b.name}" (${b.address}) [ID: ${b.id}]`)
