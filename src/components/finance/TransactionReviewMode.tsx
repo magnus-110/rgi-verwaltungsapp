@@ -919,6 +919,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                     fieldRefs={fieldRefs}
                     handleEnterNavigation={handleEnterNavigation}
                     formatCurrency={formatCurrency}
+                    invoiceDetail={invoiceDetail}
                   />
                 ))}
 
@@ -1131,7 +1132,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
 function BookingRowCard({
   row, index, isExpanded, onToggle, accounts, buildingId, onAccountCreated, onUpdateField, onBook, onRemove,
-  isBooking, fieldRefs, handleEnterNavigation, formatCurrency,
+  isBooking, fieldRefs, handleEnterNavigation, formatCurrency, invoiceDetail,
 }: {
   row: BookingRowData;
   index: number;
@@ -1147,11 +1148,22 @@ function BookingRowCard({
   fieldRefs: React.MutableRefObject<Record<string, HTMLElement | null>>;
   handleEnterNavigation: (e: React.KeyboardEvent, field: string) => void;
   formatCurrency: (amount: number | null) => string;
+  invoiceDetail?: any;
 }) {
   const counterAccount = accounts.find((a: any) => a.id === row.counter_account_id);
   const selectedCounterAccount = counterAccount;
   const [createAccountOpen, setCreateAccountOpen] = useState(false);
   const [createAccountTarget, setCreateAccountTarget] = useState<"account_id" | "counter_account_id">("counter_account_id");
+  const [show35aDialog, setShow35aDialog] = useState(false);
+  const [showFuelDialog, setShowFuelDialog] = useState(false);
+
+  // Line items from invoice for §35a selection
+  const invoiceLineItems = useMemo(() => {
+    if (!invoiceDetail?.line_items) return [];
+    const items = invoiceDetail.line_items;
+    if (Array.isArray(items)) return items;
+    return [];
+  }, [invoiceDetail?.line_items]);
 
   // Auto-calculate VAT when amount/rate changes
   useEffect(() => {
