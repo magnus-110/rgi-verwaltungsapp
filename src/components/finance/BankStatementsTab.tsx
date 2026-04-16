@@ -9,7 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Progress } from "@/components/ui/progress";
-import { Upload, Loader2, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff, Building2, BookOpen, Link2, Send, RefreshCw, Landmark, FileWarning, Sparkles } from "lucide-react";
+import { Upload, Loader2, CheckCircle2, FileQuestion, LayoutTemplate, EyeOff, Building2, BookOpen, Link2, Send, RefreshCw, Landmark, FileWarning, Sparkles, Flag } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { AssignmentDialog } from "./AssignmentDialog";
@@ -59,6 +60,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
   const [currentHintIndex, setCurrentHintIndex] = useState<number | null>(null);
   const [reviewModeOpen, setReviewModeOpen] = useState(false);
   const [reviewInitialIndex, setReviewInitialIndex] = useState(0);
+  const [reviewFlaggedFirst, setReviewFlaggedFirst] = useState(false);
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
@@ -76,7 +78,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
       if (!selectedBuilding) return [];
       const { data, error } = await supabase
         .from("bank_transactions")
-        .select("*")
+        .select("*, bookings!bank_transactions_booking_id_fkey(id, needs_review, review_note)")
         .eq("building_id", selectedBuilding)
         .order("booking_date", { ascending: false });
       if (error) throw error;
@@ -425,6 +427,17 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
               <Icon className="h-3 w-3" />{config.label}
             </Badge>
             {txn.booked_at && <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-950">✓</Badge>}
+            {txn.bookings?.needs_review && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger><Flag className="h-3.5 w-3.5 text-orange-500 fill-orange-500" /></TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p className="text-xs font-medium">Zur Prüfung markiert</p>
+                    {txn.bookings?.review_note && <p className="text-xs text-muted-foreground">{txn.bookings.review_note}</p>}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
           </div>
         </TableCell>
         <TableCell onClick={(e) => e.stopPropagation()}>
@@ -456,14 +469,9 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
             </Button>
           )}
           {isMatchedUnbooked && (
-            <div className="flex gap-1">
-              <Button variant="ghost" size="sm" className="text-xs" onClick={(e) => { e.stopPropagation(); setManualAssignTxn(txn); setManualAssignType("invoice"); setManualAssignId(""); }}>
-                <Link2 className="h-3 w-3 mr-1" />Ändern
-              </Button>
-              <Button variant="ghost" size="sm" className="text-xs text-destructive" onClick={(e) => { e.stopPropagation(); removeAssignment(txn.id); }}>
-                Entfernen
-              </Button>
-            </div>
+            <Button variant="ghost" size="sm" className="text-xs" onClick={(e) => { e.stopPropagation(); openReviewAtTransaction(txn); }}>
+              Prüfen
+            </Button>
           )}
         </TableCell>
       </TableRow>
@@ -622,16 +630,31 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
               {/* Booked transactions */}
               {bookedTransactions.length > 0 && (
                 <div>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Switch checked={showBooked} onCheckedChange={setShowBooked} id="show-booked" />
-                    <Label htmlFor="show-booked" className="text-sm text-muted-foreground cursor-pointer flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4" />Gebuchte Transaktionen ({bookedTransactions.length})
-                    </Label>
+                  <div className="flex items-center gap-3 mb-2 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <Switch checked={showBooked} onCheckedChange={setShowBooked} id="show-booked" />
+                      <Label htmlFor="show-booked" className="text-sm text-muted-foreground cursor-pointer flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4" />Gebuchte Transaktionen ({bookedTransactions.length})
+                      </Label>
+                    </div>
+                    {showBooked && bookedTransactions.some((t: any) => t.bookings?.needs_review) && (
+                      <div className="flex items-center gap-2">
+                        <Switch checked={reviewFlaggedFirst} onCheckedChange={setReviewFlaggedFirst} id="flagged-first" />
+                        <Label htmlFor="flagged-first" className="text-sm text-muted-foreground cursor-pointer flex items-center gap-1.5">
+                          <Flag className="h-3.5 w-3.5 text-orange-500" />Markierte oben
+                        </Label>
+                      </div>
+                    )}
                   </div>
                   {showBooked && (
                     <Table>
                       {transactionTableHeader}
-                      <TableBody>{bookedTransactions.map(renderTransactionRow)}</TableBody>
+                      <TableBody>{
+                        (reviewFlaggedFirst
+                          ? [...bookedTransactions].sort((a: any, b: any) => (b.bookings?.needs_review ? 1 : 0) - (a.bookings?.needs_review ? 1 : 0))
+                          : bookedTransactions
+                        ).map(renderTransactionRow)
+                      }</TableBody>
                     </Table>
                   )}
                 </div>
