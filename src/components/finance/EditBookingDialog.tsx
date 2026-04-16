@@ -294,7 +294,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
                   <Input
                     type="text" inputMode="decimal"
                     className={cn(
-                      "h-14 text-4xl font-bold flex-1 border-none shadow-none px-0 focus-visible:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+                      "h-14 flex-1 border-none shadow-none px-0 !text-4xl md:!text-4xl font-bold focus-visible:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
                       form.booking_type === "income" ? "text-green-600" : "text-destructive"
                     )}
                     value={`${form.booking_type === "income" ? "+" : "−"}${form.amount}`}
