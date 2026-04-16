@@ -394,7 +394,7 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
               </Button>
             </div>
           </div>
-          {!sharedBuildingId && (
+          {sharedBuildingId === undefined && (
             <div className="mt-3">
               <Select value={filterBuildingId} onValueChange={handleFilterBuildingChange}>
                 <SelectTrigger className="w-full sm:w-72">
