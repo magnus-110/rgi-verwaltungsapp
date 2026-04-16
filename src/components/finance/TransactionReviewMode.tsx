@@ -1334,10 +1334,27 @@ function BookingRowCard({
               )}
             </div>
 
+            {/* Review flag */}
+            <div className="p-2 rounded-lg border space-y-2" style={{ borderColor: row.needs_review ? 'hsl(var(--chart-4))' : undefined, backgroundColor: row.needs_review ? 'hsl(var(--chart-4) / 0.08)' : undefined }}>
+              <div className="flex items-center gap-3">
+                <Checkbox id={`review-${index}`} checked={row.needs_review} onCheckedChange={v => onUpdateField("needs_review", !!v)} />
+                <label htmlFor={`review-${index}`} className="text-xs font-medium flex items-center gap-1.5">
+                  <Flag className="h-3.5 w-3.5" /> Zur Prüfung markieren
+                </label>
+              </div>
+              {row.needs_review && (
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Notiz (optional)</label>
+                  <Input className="h-8 text-xs" placeholder="z.B. IBAN unklar, Betrag prüfen..."
+                    value={row.review_note} onChange={e => onUpdateField("review_note", e.target.value)} />
+                </div>
+              )}
+            </div>
+
             {/* Book button */}
             <Button onClick={onBook} disabled={isBooking || !row.account_id} className="w-full h-9 text-sm">
               {isBooking ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
-              Buchen
+              {row.needs_review ? "Buchen & Zur Prüfung" : "Buchen"}
             </Button>
           </div>
         </CollapsibleContent>

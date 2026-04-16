@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { BookOpen, AlertTriangle, FileText, ChevronDown, ChevronRight, Search, Building2, LayoutTemplate } from "lucide-react";
+import { BookOpen, AlertTriangle, FileText, ChevronDown, ChevronRight, Search, Building2, LayoutTemplate, Flag } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { EditBookingDialog } from "./EditBookingDialog";
@@ -33,7 +33,7 @@ export function BookingsTab() {
   const [confirmedOpen, setConfirmedOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [templateDetail, setTemplateDetail] = useState<any>(null);
-
+  const [filterReview, setFilterReview] = useState(false);
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
     queryFn: async () => {
