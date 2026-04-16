@@ -105,15 +105,15 @@ Von: ${email.from_name || ""} <${email.from_address || ""}>
 Inhalt (Auszug): ${(email.body_text || "").substring(0, 1500)}`;
 
         const response = await fetch(
-          "https://ai.gateway.lovable.dev/v1/chat/completions",
+          "https://api.mistral.ai/v1/chat/completions",
           {
             method: "POST",
             headers: {
-              Authorization: `Bearer ${LOVABLE_API_KEY}`,
+              Authorization: `Bearer ${MISTRAL_API_KEY}`,
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              model: "google/gemini-3-flash-preview",
+              model: "mistral-small-latest",
               messages: [
                 {
                   role: "system",
