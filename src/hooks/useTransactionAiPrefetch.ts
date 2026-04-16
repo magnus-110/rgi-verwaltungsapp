@@ -1,12 +1,17 @@
-import { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 const BATCH_SIZE = 5;
+const MAX_TOTAL_CALLS = 200; // Hard limit: never make more than 200 AI calls per run
+const MAX_CONSECUTIVE_ERRORS = 5; // Abort after 5 consecutive failures
+const DELAY_BETWEEN_BATCHES_MS = 500; // Throttle between batches
 
 interface PrefetchState {
   total: number;
   completed: number;
   running: boolean;
+  errors: number;
+  abortReason?: string;
 }
 
 export function useTransactionAiPrefetch(
@@ -14,9 +19,9 @@ export function useTransactionAiPrefetch(
   transactions: any[],
   enabled: boolean
 ) {
-  const [state, setState] = useState<PrefetchState>({ total: 0, completed: 0, running: false });
+  const [state, setState] = useState<PrefetchState>({ total: 0, completed: 0, running: false, errors: 0 });
   const abortRef = useRef(false);
-  const runningRef = useRef(false);
+  const runIdRef = useRef(0); // Incremented each run to detect stale runs
 
   // Stable dependency: sorted IDs of transactions needing AI analysis
   const transactionIds = useMemo(() => {
@@ -30,193 +35,226 @@ export function useTransactionAiPrefetch(
 
   useEffect(() => {
     if (!enabled || !buildingId || !transactionIds) {
-      setState({ total: 0, completed: 0, running: false });
+      setState({ total: 0, completed: 0, running: false, errors: 0 });
       return;
     }
-
-    if (runningRef.current) return;
 
     const unmatchedWithoutSuggestion = transactions.filter(
       (t: any) => !t.ai_suggestion && !t.booked_at
     );
 
     if (unmatchedWithoutSuggestion.length === 0) {
-      setState({ total: 0, completed: 0, running: false });
+      setState({ total: 0, completed: 0, running: false, errors: 0 });
       return;
     }
 
-    abortRef.current = false;
-    runningRef.current = true;
-    setState({ total: unmatchedWithoutSuggestion.length, completed: 0, running: true });
+    // Abort any previous run
+    abortRef.current = true;
 
-    const run = async () => {
-      // Load templates and invoices for context
-      const [{ data: templates }, { data: invoices }, { data: billingPeriods }, { data: accounts }, { data: buildingData }] = await Promise.all([
-        supabase.from("booking_templates")
-          .select("id, name, vendor_name, vendor_iban, expected_amount, amount_tolerance, interval, account_id, vat_rate, valid_from, valid_to, chart_of_accounts(account_number, account_name)")
-          .eq("building_id", buildingId),
-        supabase.from("invoices")
-          .select("id, invoice_number, vendor_name, gross_amount, vendor_iban, invoice_date")
-          .eq("building_id", buildingId)
-          .eq("status", "paid")
-          .limit(200),
-        supabase.from("billing_periods")
-          .select("fiscal_year, period_from, period_to")
-          .eq("building_id", buildingId)
-          .order("fiscal_year", { ascending: false })
-          .limit(5),
-        supabase.from("chart_of_accounts")
-          .select("id, account_number, account_name, category, is_35a_relevant, default_distribution_key, is_billing_relevant, settlement_section")
-          .or(`building_id.is.null,building_id.eq.${buildingId}`),
-        supabase.from("buildings")
-          .select("booking_instructions")
-          .eq("id", buildingId)
-          .single(),
-      ]);
+    // Start new run after a tick to let previous cleanup
+    const startTimer = setTimeout(() => {
+      abortRef.current = false;
+      const currentRunId = ++runIdRef.current;
 
-      const billingPeriodData = (billingPeriods || []).map((bp: any) => ({
-        fiscal_year: bp.fiscal_year,
-        period_from: bp.period_from,
-        period_to: bp.period_to,
-      }));
+      // Apply hard limit
+      const txnsToProcess = unmatchedWithoutSuggestion.slice(0, MAX_TOTAL_CALLS);
+      setState({ total: txnsToProcess.length, completed: 0, running: true, errors: 0 });
 
-      const templateData = (templates || []).map((t: any) => ({
-        id: t.id,
-        name: t.name,
-        vendor_name: t.vendor_name,
-        expected_amount: t.expected_amount,
-        amount_tolerance: t.amount_tolerance,
-        vendor_iban: t.vendor_iban,
-        interval: t.interval,
-        account_number: t.chart_of_accounts?.account_number,
-        account_name: t.chart_of_accounts?.account_name,
-        account_id: t.account_id,
-        valid_from: t.valid_from,
-        valid_to: t.valid_to,
-      }));
+      const run = async () => {
+        try {
+          // Load context data
+          const [{ data: templates }, { data: invoices }, { data: billingPeriods }, { data: accounts }, { data: buildingData }] = await Promise.all([
+            supabase.from("booking_templates")
+              .select("id, name, vendor_name, vendor_iban, expected_amount, amount_tolerance, interval, account_id, vat_rate, valid_from, valid_to, chart_of_accounts(account_number, account_name)")
+              .eq("building_id", buildingId),
+            supabase.from("invoices")
+              .select("id, invoice_number, vendor_name, gross_amount, vendor_iban, invoice_date")
+              .eq("building_id", buildingId)
+              .eq("status", "paid")
+              .limit(200),
+            supabase.from("billing_periods")
+              .select("fiscal_year, period_from, period_to")
+              .eq("building_id", buildingId)
+              .order("fiscal_year", { ascending: false })
+              .limit(5),
+            supabase.from("chart_of_accounts")
+              .select("id, account_number, account_name, category, is_35a_relevant, default_distribution_key, is_billing_relevant, settlement_section")
+              .or(`building_id.is.null,building_id.eq.${buildingId}`),
+            supabase.from("buildings")
+              .select("booking_instructions")
+              .eq("id", buildingId)
+              .single(),
+          ]);
 
-      const accountData = (accounts || []).map((a: any) => ({
-        id: a.id,
-        account_number: a.account_number,
-        account_name: a.account_name,
-        category: a.category,
-        is_35a_relevant: a.is_35a_relevant,
-      }));
+          // Check if this run is still current
+          if (abortRef.current || runIdRef.current !== currentRunId) return;
 
-      const bookingInstructions = (buildingData as any)?.booking_instructions || null;
+          const billingPeriodData = (billingPeriods || []).map((bp: any) => ({
+            fiscal_year: bp.fiscal_year,
+            period_from: bp.period_from,
+            period_to: bp.period_to,
+          }));
 
-      const invoiceData = (invoices || []).map((inv: any) => ({
-        id: inv.id,
-        invoice_number: inv.invoice_number,
-        vendor_name: inv.vendor_name,
-        gross_amount: inv.gross_amount,
-        vendor_iban: inv.vendor_iban,
-        invoice_date: inv.invoice_date,
-      }));
+          const templateData = (templates || []).map((t: any) => ({
+            id: t.id,
+            name: t.name,
+            vendor_name: t.vendor_name,
+            expected_amount: t.expected_amount,
+            amount_tolerance: t.amount_tolerance,
+            vendor_iban: t.vendor_iban,
+            interval: t.interval,
+            account_number: t.chart_of_accounts?.account_number,
+            account_name: t.chart_of_accounts?.account_name,
+            account_id: t.account_id,
+            valid_from: t.valid_from,
+            valid_to: t.valid_to,
+          }));
 
-      let completed = 0;
+          const accountData = (accounts || []).map((a: any) => ({
+            id: a.id,
+            account_number: a.account_number,
+            account_name: a.account_name,
+            category: a.category,
+            is_35a_relevant: a.is_35a_relevant,
+          }));
 
-      for (let i = 0; i < unmatchedWithoutSuggestion.length; i += BATCH_SIZE) {
-        if (abortRef.current) break;
+          const bookingInstructions = (buildingData as any)?.booking_instructions || null;
 
-        const batch = unmatchedWithoutSuggestion.slice(i, i + BATCH_SIZE);
-        const promises = batch.map(async (txn: any) => {
-          try {
-            // Load historical bookings for this creditor/debtor
-            const txnIban = txn.amount < 0 ? txn.creditor_iban : txn.debtor_iban;
-            const txnName = txn.amount < 0 ? txn.creditor_name : txn.debtor_name;
-            let historicalBookings: any[] = [];
+          const invoiceData = (invoices || []).map((inv: any) => ({
+            id: inv.id,
+            invoice_number: inv.invoice_number,
+            vendor_name: inv.vendor_name,
+            gross_amount: inv.gross_amount,
+            vendor_iban: inv.vendor_iban,
+            invoice_date: inv.invoice_date,
+          }));
 
-            if (txnIban || txnName) {
-              // Find matching transactions by IBAN or name to get booking history
-              let query = supabase.from("bank_transactions")
-                .select("id, amount, booking_date, booked_at, booking_id")
-                .eq("building_id", buildingId)
-                .not("booked_at", "is", null)
-                .order("booking_date", { ascending: false })
-                .limit(20);
+          let completed = 0;
+          let consecutiveErrors = 0;
+          let totalErrors = 0;
 
-              if (txnIban) {
-                if (txn.amount < 0) {
-                  query = query.eq("creditor_iban", txnIban);
-                } else {
-                  query = query.eq("debtor_iban", txnIban);
+          for (let i = 0; i < txnsToProcess.length; i += BATCH_SIZE) {
+            if (abortRef.current || runIdRef.current !== currentRunId) break;
+
+            // Throttle between batches
+            if (i > 0) {
+              await new Promise(r => setTimeout(r, DELAY_BETWEEN_BATCHES_MS));
+            }
+
+            const batch = txnsToProcess.slice(i, i + BATCH_SIZE);
+            const results = await Promise.allSettled(batch.map(async (txn: any) => {
+              // Load historical bookings
+              const txnIban = txn.amount < 0 ? txn.creditor_iban : txn.debtor_iban;
+              const txnName = txn.amount < 0 ? txn.creditor_name : txn.debtor_name;
+              let historicalBookings: any[] = [];
+
+              if (txnIban || txnName) {
+                let query = supabase.from("bank_transactions")
+                  .select("id, amount, booking_date, booked_at, booking_id")
+                  .eq("building_id", buildingId)
+                  .not("booked_at", "is", null)
+                  .order("booking_date", { ascending: false })
+                  .limit(20);
+
+                if (txnIban) {
+                  query = txn.amount < 0
+                    ? query.eq("creditor_iban", txnIban)
+                    : query.eq("debtor_iban", txnIban);
+                } else if (txnName) {
+                  query = txn.amount < 0
+                    ? query.ilike("creditor_name", `%${txnName}%`)
+                    : query.ilike("debtor_name", `%${txnName}%`);
                 }
-              } else if (txnName) {
-                if (txn.amount < 0) {
-                  query = query.ilike("creditor_name", `%${txnName}%`);
-                } else {
-                  query = query.ilike("debtor_name", `%${txnName}%`);
-                }
-              }
 
-              const { data: histTxns } = await query;
-              if (histTxns && histTxns.length > 0) {
-                // Check which had invoices
-                const bookingIds = histTxns.map(t => t.booking_id).filter(Boolean);
-                let invoiceMap: Record<string, boolean> = {};
-                if (bookingIds.length > 0) {
-                  const { data: bookings } = await supabase.from("bookings")
-                    .select("id, invoice_id")
-                    .in("id", bookingIds.slice(0, 50));
-                  if (bookings) {
-                    bookings.forEach(b => { invoiceMap[b.id] = !!b.invoice_id; });
+                const { data: histTxns } = await query;
+                if (histTxns && histTxns.length > 0) {
+                  const bookingIds = histTxns.map(t => t.booking_id).filter(Boolean);
+                  let invoiceMap: Record<string, boolean> = {};
+                  if (bookingIds.length > 0) {
+                    const { data: bookings } = await supabase.from("bookings")
+                      .select("id, invoice_id")
+                      .in("id", bookingIds.slice(0, 50));
+                    if (bookings) {
+                      bookings.forEach(b => { invoiceMap[b.id] = !!b.invoice_id; });
+                    }
                   }
+                  historicalBookings = histTxns.map(t => ({
+                    amount: t.amount,
+                    date: t.booking_date,
+                    has_invoice: t.booking_id ? (invoiceMap[t.booking_id] || false) : false,
+                  }));
                 }
-                historicalBookings = histTxns.map(t => ({
-                  amount: t.amount,
-                  date: t.booking_date,
-                  has_invoice: t.booking_id ? (invoiceMap[t.booking_id] || false) : false,
-                }));
               }
-            }
 
-            // Attach matched invoice date if available
-            const enrichedTxn = { ...txn };
-            if (txn.matched_invoice_id) {
-              const matchedInv = invoiceData.find((inv: any) => inv.id === txn.matched_invoice_id);
-              if (matchedInv) {
-                enrichedTxn.matched_invoice_date = matchedInv.invoice_date;
+              const enrichedTxn = { ...txn };
+              if (txn.matched_invoice_id) {
+                const matchedInv = invoiceData.find((inv: any) => inv.id === txn.matched_invoice_id);
+                if (matchedInv) {
+                  enrichedTxn.matched_invoice_date = matchedInv.invoice_date;
+                }
               }
+
+              const { data, error } = await supabase.functions.invoke("suggest-match", {
+                body: {
+                  transaction: enrichedTxn,
+                  invoices: invoiceData,
+                  templates: templateData,
+                  allTransactions: transactions.slice(0, 30),
+                  historicalBookings,
+                  billingPeriods: billingPeriodData,
+                  accounts: accountData,
+                  bookingInstructions,
+                },
+              });
+
+              if (error) throw error;
+              if (data?.error) throw new Error(data.error);
+
+              if (data) {
+                await supabase.from("bank_transactions")
+                  .update({ ai_suggestion: data } as any)
+                  .eq("id", txn.id);
+              }
+            }));
+
+            // Count errors in this batch
+            const batchErrors = results.filter(r => r.status === "rejected").length;
+            totalErrors += batchErrors;
+
+            if (batchErrors === batch.length) {
+              consecutiveErrors += batchErrors;
+            } else {
+              consecutiveErrors = 0;
             }
 
-            const { data, error } = await supabase.functions.invoke("suggest-match", {
-              body: {
-                transaction: enrichedTxn,
-                invoices: invoiceData,
-                templates: templateData,
-                allTransactions: transactions.slice(0, 30),
-                historicalBookings,
-                billingPeriods: billingPeriodData,
-                accounts: accountData,
-                bookingInstructions,
-              },
-            });
+            completed += batch.length;
+            setState(s => ({ ...s, completed, errors: totalErrors }));
 
-            if (!error && data && !data.error) {
-              await supabase.from("bank_transactions")
-                .update({ ai_suggestion: data } as any)
-                .eq("id", txn.id);
+            // Safety: abort on too many consecutive errors
+            if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+              console.error(`AI prefetch aborted: ${consecutiveErrors} consecutive errors`);
+              setState(s => ({ ...s, running: false, abortReason: `Abgebrochen nach ${consecutiveErrors} Fehlern` }));
+              return;
             }
-          } catch (err) {
-            console.error("AI prefetch error for txn", txn.id, err);
           }
-        });
 
-        await Promise.all(promises);
-        completed += batch.length;
-        setState(s => ({ ...s, completed }));
-      }
+          if (runIdRef.current === currentRunId) {
+            setState(s => ({ ...s, running: false }));
+          }
+        } catch (err) {
+          console.error("AI prefetch fatal error:", err);
+          if (runIdRef.current === currentRunId) {
+            setState(s => ({ ...s, running: false, abortReason: "Fehler beim Laden der Kontextdaten" }));
+          }
+        }
+      };
 
-      setState(s => ({ ...s, running: false }));
-      runningRef.current = false;
-    };
-
-    run();
+      run();
+    }, 100);
 
     return () => {
       abortRef.current = true;
-      runningRef.current = false;
+      clearTimeout(startTimer);
     };
   }, [buildingId, transactionIds, enabled]);
 
