@@ -288,8 +288,19 @@ export function BookingsTab() {
         <Badge variant={b.status === "confirmed" ? "default" : "secondary"} className="text-xs">
           {b.status === "confirmed" ? "Bestätigt" : "Offen"}
         </Badge>
-      </TableCell>
-    </TableRow>
+        {b.needs_review && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger>
+                <Flag className="h-3.5 w-3.5 text-orange-500 fill-orange-500" />
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                <p className="text-xs font-medium">Zur Prüfung markiert</p>
+                {b.review_note && <p className="text-xs text-muted-foreground">{b.review_note}</p>}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
   );
 
   const tableHeaders = (
@@ -345,7 +356,23 @@ export function BookingsTab() {
                 </SelectContent>
               </Select>
             </div>
-          </div>
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-muted-foreground">Filter</span>
+              <Button
+                variant={filterReview ? "default" : "outline"}
+                size="sm"
+                className={cn("h-10 gap-1.5", filterReview && "bg-orange-500 hover:bg-orange-600 text-white")}
+                onClick={() => { setFilterReview(f => !f); setCurrentPage(0); }}
+              >
+                <Flag className="h-3.5 w-3.5" />
+                Zur Prüfung
+                {pendingBookings.filter((b: any) => b.needs_review).length > 0 && (
+                  <Badge variant="secondary" className="ml-1 text-[10px] h-5 px-1.5">
+                    {pendingBookings.filter((b: any) => b.needs_review).length}
+                  </Badge>
+                )}
+              </Button>
+            </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
