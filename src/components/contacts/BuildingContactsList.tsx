@@ -331,13 +331,12 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   };
 
 
-  const ensureAccountAndTemplate = async (assignmentId: string, costType: string, amount: number) => {
+  const ensureAccountAndTemplate = async (assignmentId: string, costType: string, amount: number, validFrom: string | null, validTo: string | null) => {
     if (amount <= 0) {
       toast({ title: "Hinweis", description: "Bitte zuerst einen Betrag eingeben.", variant: "destructive" });
       return;
     }
     
-    // Find the assignment with contact data
     const assignment = assignments.find(a => a.id === assignmentId);
     if (!assignment) return;
     
@@ -346,13 +345,15 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
     const lastName = assignment.contact.last_name || "Unbenannt";
     const contactName = [assignment.contact.first_name, assignment.contact.last_name].filter(Boolean).join(" ") || "Unbenannt";
     
-    // Get bank account data (default or first)
     const defaultBank = assignment.bankAccounts?.find((b: any) => b.is_default) || assignment.bankAccounts?.[0];
     const vendorIban = defaultBank?.iban || null;
     const vendorName = contactName;
 
+    // Format date for display in template name
+    const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" }) : null;
+
     try {
-      // 1. Find or create account
+      // 1. Find or create account (reuse by account_number — no duplicates)
       const { data: existingAccount, error: findError } = await supabase
         .from("chart_of_accounts")
         .select("id")
@@ -367,7 +368,6 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
 
       let accountId = existingAccount?.id;
       if (!accountId) {
-        // Calculate sort_order from account_number for chronological ordering
         const numericSort = parseInt(unitNumber.replace(/\D/g, ''), 10) || 0;
         const { data: newAccount, error: insertError } = await supabase
           .from("chart_of_accounts")
@@ -393,28 +393,51 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
         return;
       }
 
-      // 2. Find or create booking template
-      const templateName = `mtl. ${costType} ${unitNumber} ${floorLocation}`.trim();
-      const { data: existingTemplate } = await supabase
+      // 2. Find existing templates for same cost type + unit
+      const { data: existingTemplates } = await supabase
         .from("booking_templates")
-        .select("id")
+        .select("id, valid_from, valid_to")
         .eq("building_id", buildingId)
-        .ilike("name", `%${costType}%${unitNumber}%`)
-        .maybeSingle();
+        .ilike("name", `%${costType}%${unitNumber}%`);
 
-      if (existingTemplate) {
+      // Check for overlapping timeframe
+      const hasOverlap = (existingTemplates || []).find(t => {
+        const tFrom = t.valid_from || null;
+        const tTo = t.valid_to || null;
+        // If both have no dates, they overlap
+        if (!tFrom && !tTo && !validFrom && !validTo) return true;
+        // Open-ended ranges: treat null as infinity
+        const aStart = validFrom || "0000-01-01";
+        const aEnd = validTo || "9999-12-31";
+        const bStart = tFrom || "0000-01-01";
+        const bEnd = tTo || "9999-12-31";
+        return aStart <= bEnd && bStart <= aEnd;
+      });
+
+      // Build template name — append date range if dates are set
+      const baseName = `mtl. ${costType} ${unitNumber} ${floorLocation}`.trim();
+      const dateSuffix = (validFrom || validTo)
+        ? ` (${fmtDate(validFrom) || "…"}–${fmtDate(validTo) || "…"})`
+        : "";
+      const templateName = baseName + dateSuffix;
+
+      if (hasOverlap) {
+        // Update existing overlapping template
         const { error: updateErr } = await supabase.from("booking_templates").update({ 
           expected_amount: amount,
           vendor_name: vendorName,
           vendor_iban: vendorIban,
           vat_rate: 0,
           account_id: accountId,
-        }).eq("id", existingTemplate.id);
+          valid_from: validFrom,
+          valid_to: validTo,
+        }).eq("id", hasOverlap.id);
         if (updateErr) {
           toast({ title: "Fehler beim Vorlage aktualisieren", description: updateErr.message, variant: "destructive" });
           return;
         }
       } else {
+        // Create new template (different timeframe)
         const { error: insertErr } = await supabase.from("booking_templates").insert({
           name: templateName,
           building_id: buildingId,
@@ -424,6 +447,8 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
           vendor_name: vendorName,
           vendor_iban: vendorIban,
           vat_rate: 0,
+          valid_from: validFrom,
+          valid_to: validTo,
         });
         if (insertErr) {
           toast({ title: "Fehler beim Vorlage erstellen", description: insertErr.message, variant: "destructive" });
@@ -431,7 +456,6 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
         }
       }
 
-      // Invalidate queries so UI refreshes
       queryClient.invalidateQueries({ queryKey: ["chart-of-accounts"] });
       queryClient.invalidateQueries({ queryKey: ["booking-templates"] });
 
@@ -869,7 +893,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                                   size="icon"
                                   variant="ghost"
                                   className="h-7 w-7"
-                                  onClick={() => ensureAccountAndTemplate(a.id, c.cost_type, c.amount)}
+                                  onClick={() => ensureAccountAndTemplate(a.id, c.cost_type, c.amount, c.valid_from, c.valid_to)}
                                 >
                                   <BookOpen className="h-3.5 w-3.5 text-orange-500" />
                                 </Button>
