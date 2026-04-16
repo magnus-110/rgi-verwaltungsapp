@@ -1244,7 +1244,14 @@ function BookingRowCard({
               <label className="text-xs font-bold text-primary mb-1 block">Gegenkonto</label>
               <Select value={row.counter_account_id} onValueChange={v => {
                 if (v === "__create__") { setCreateAccountTarget("counter_account_id"); setCreateAccountOpen(true); }
-                else onUpdateField("counter_account_id", v);
+                else {
+                  onUpdateField("counter_account_id", v);
+                  // Clear VAT for 4000er accrual accounts
+                  const acc = accounts.find((a: any) => a.id === v);
+                  if (acc?.account_number?.startsWith("4")) {
+                    onUpdateField("vat_rate", "");
+                  }
+                }
               }}>
                 <SelectTrigger className="h-9 text-sm font-semibold border-primary/30 bg-primary/5" onKeyDown={e => handleEnterNavigation(e, "counter_account_id")}>
                   <SelectValue placeholder="Gegenkonto wählen…" />
