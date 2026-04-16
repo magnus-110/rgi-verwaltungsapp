@@ -58,12 +58,18 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
   useEffect(() => {
     const checkAudit = async () => {
       if (!profile?.user_id) return;
+      // First get contact IDs for this user
+      const { data: contacts } = await supabase
+        .from("contacts")
+        .select("id")
+        .eq("user_id", profile.user_id);
+      if (!contacts || contacts.length === 0) return;
+      
+      const contactIds = contacts.map(c => c.id);
       const { data } = await supabase
         .from("cash_audits")
         .select("id")
-        .in("auditor_contact_id", 
-          supabase.from("contacts").select("id").eq("user_id", profile.user_id) as any
-        )
+        .in("auditor_contact_id", contactIds)
         .neq("status", "completed")
         .gt("visible_in_portal_until", new Date().toISOString())
         .limit(1);
