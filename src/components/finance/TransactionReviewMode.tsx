@@ -1164,7 +1164,7 @@ function BookingRowCard({
             <div className="flex items-center gap-1">
               <Input ref={el => fieldRefs.current["amount"] = el}
                 type="number" step="0.01"
-                className={cn("h-14 text-4xl font-bold flex-1 border-none shadow-none px-0 focus-visible:ring-0", row.booking_type === "income" ? "text-green-600" : "text-destructive")}
+                className={cn("h-14 text-4xl md:text-4xl font-bold flex-1 border-none shadow-none px-0 focus-visible:ring-0", row.booking_type === "income" ? "text-green-600" : "text-destructive")}
                 value={row.amount} onChange={e => onUpdateField("amount", e.target.value)}
                 onKeyDown={e => handleEnterNavigation(e, "amount")} />
               <Button type="button" size="icon" variant={row.booking_type === "expense" ? "default" : "outline"}
