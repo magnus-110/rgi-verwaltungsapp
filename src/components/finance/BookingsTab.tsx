@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 50;
 
-export function BookingsTab() {
+export function BookingsTab({ sharedBuildingId }: { sharedBuildingId?: string | null }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [filterYear, setFilterYear] = useState<string>(String(new Date().getFullYear()));
@@ -458,6 +458,7 @@ export function BookingsTab() {
         open={createOpen}
         onOpenChange={setCreateOpen}
         buildings={buildings}
+        preselectedBuildingId={sharedBuildingId || undefined}
         preselectedYear={filterYear}
         onBookingCreated={() => {
           queryClient.invalidateQueries({ queryKey: ["bookings-pending"] });

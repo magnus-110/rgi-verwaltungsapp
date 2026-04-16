@@ -99,7 +99,7 @@ export const Finance = () => {
                 onBuildingChange={setSelectedBuildingId}
               />
             </TabsContent>
-            <TabsContent value="bookings"><BookingsTab /></TabsContent>
+            <TabsContent value="bookings"><BookingsTab sharedBuildingId={selectedBuildingId} /></TabsContent>
           </Tabs>
         </TabsContent>
 
