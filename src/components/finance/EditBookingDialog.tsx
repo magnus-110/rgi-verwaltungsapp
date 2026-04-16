@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
-import { ChevronDown, Search, ArrowDownLeft, ArrowUpRight, X, CheckCircle, FileText } from "lucide-react";
+import { ChevronDown, Search, ArrowDownLeft, ArrowUpRight, X, CheckCircle, FileText, Flag } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Booking {
@@ -293,6 +293,34 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName, o
           </div>
         )}
 
+        {/* Review flag */}
+        {(booking as any).needs_review && (
+          <div className="rounded-lg border border-orange-200 bg-orange-50 dark:bg-orange-950/20 p-3 flex gap-3 items-start">
+            <Flag className="h-4 w-4 text-orange-500 fill-orange-500 mt-0.5 shrink-0" />
+            <div className="flex-1 space-y-1">
+              <p className="text-sm font-medium text-orange-800 dark:text-orange-200">Zur Prüfung markiert</p>
+              {(booking as any).review_note && (
+                <p className="text-sm text-orange-700 dark:text-orange-300">{(booking as any).review_note}</p>
+              )}
+            </div>
+            <Button size="sm" variant="outline" className="shrink-0 h-8 text-xs gap-1.5"
+              onClick={async () => {
+                const { error } = await supabase.from("bookings").update({
+                  needs_review: false,
+                  review_note: null,
+                } as any).eq("id", booking!.id);
+                if (error) { toast.error("Fehler: " + error.message); return; }
+                toast.success("Als geprüft markiert ✓");
+                onOpenChange(false);
+                queryClient.invalidateQueries({ predicate: (query) => {
+                  const key = query.queryKey[0] as string;
+                  return key.startsWith("bookings");
+                }});
+              }}>
+              <CheckCircle className="h-3.5 w-3.5" /> Geprüft
+            </Button>
+          </div>
+        )}
         {/* Invoice link */}
         {booking.invoice_id && booking.invoices && (
           <div className="rounded-lg border p-3 flex items-center gap-3">
