@@ -540,6 +540,36 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
       if (bookingError) throw bookingError;
 
+      // Save fuel purchase to fuel_inventory
+      if (row.is_fuel_purchase && row.fuel_type && row.fuel_quantity) {
+        const fuelUnit = row.fuel_type === "oil" ? "l" : "kg";
+        const quantity = parseFloat(row.fuel_quantity) || 0;
+        const totalPrice = parseFloat(row.fuel_total_price) || 0;
+        const unitPrice = quantity > 0 ? totalPrice / quantity : 0;
+
+        // Find matching billing period
+        const matchingPeriod = billingPeriods.find(bp => {
+          const from = new Date(bp.period_from);
+          const to = new Date(bp.period_to);
+          const entryDate = new Date(row.fuel_date || row.booking_date);
+          return entryDate >= from && entryDate <= to;
+        });
+
+        await supabase.from("fuel_inventory").insert({
+          building_id: buildingId,
+          fuel_type: row.fuel_type,
+          entry_type: "purchase",
+          entry_date: row.fuel_date || row.booking_date,
+          quantity,
+          unit: fuelUnit,
+          total_price: totalPrice,
+          unit_price: unitPrice > 0 ? unitPrice : null,
+          invoice_id: row.invoice_id || null,
+          billing_period_id: matchingPeriod ? undefined : undefined, // billing_period_id is optional
+          notes: `Brennstoffkauf ${row.fuel_type === "oil" ? "Heizöl" : "Pellets"}: ${quantity} ${fuelUnit}`,
+        } as any);
+      }
+
       // Mark this row as booked
       setFormRows(rows => rows.map(r => r.id === rowId ? { ...r, booked: true } : r));
 
