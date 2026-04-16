@@ -458,6 +458,7 @@ export function BookingsTab({ sharedBuildingId }: { sharedBuildingId?: string | 
         open={createOpen}
         onOpenChange={setCreateOpen}
         buildings={buildings}
+        preselectedBuildingId={sharedBuildingId || undefined}
         preselectedYear={filterYear}
         onBookingCreated={() => {
           queryClient.invalidateQueries({ queryKey: ["bookings-pending"] });
