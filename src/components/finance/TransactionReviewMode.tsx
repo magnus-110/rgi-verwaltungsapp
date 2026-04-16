@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { VendorHistorySection } from "./VendorHistorySection";
+import { AccountSearchSelect } from "./AccountSearchSelect";
 
 interface TransactionReviewModeProps {
   open: boolean;
