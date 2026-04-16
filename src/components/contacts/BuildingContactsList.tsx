@@ -893,7 +893,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                                   size="icon"
                                   variant="ghost"
                                   className="h-7 w-7"
-                                  onClick={() => ensureAccountAndTemplate(a.id, c.cost_type, c.amount)}
+                                  onClick={() => ensureAccountAndTemplate(a.id, c.cost_type, c.amount, c.valid_from, c.valid_to)}
                                 >
                                   <BookOpen className="h-3.5 w-3.5 text-orange-500" />
                                 </Button>
