@@ -758,7 +758,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                     </Button>
                   </div>
                 </div>
-                <div className={cn("text-2xl font-bold", currentTxn.amount < 0 ? "text-destructive" : "text-green-600")}>
+                <div className={cn("text-xl font-bold", currentTxn.amount < 0 ? "text-destructive" : "text-green-600")}>
                   {currentTxn.amount < 0 ? "" : "+"}{formatCurrency(currentTxn.amount)}
                 </div>
 
