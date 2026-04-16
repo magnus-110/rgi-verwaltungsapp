@@ -20,7 +20,7 @@ import {
   ArrowLeft, ArrowRight, CheckCircle, X,
   FileText, LayoutTemplate, Loader2, Sparkles,
   ChevronDown, ChevronRight, Plus, Trash2, User, PackagePlus, AlertTriangle,
-  Link2, RefreshCw, RotateCcw, Flag
+  Link2, RefreshCw, RotateCcw, Flag, Flame
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -52,6 +52,11 @@ interface BookingRowData {
   booked: boolean;
   needs_review: boolean;
   review_note: string;
+  is_fuel_purchase: boolean;
+  fuel_type: string;
+  fuel_quantity: string;
+  fuel_total_price: string;
+  fuel_date: string;
   accrualHint?: {
     needs_accrual: boolean;
     accrual_explanation: string;
@@ -110,7 +115,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       if (!currentTxn?.matched_invoice_id) return null;
       const { data } = await supabase
         .from("invoices")
-        .select("id, file_path, file_name, vendor_name, gross_amount, net_amount, vat_amount, invoice_number, invoice_date, description, suggested_account_id, line_items")
+        .select("id, file_path, file_name, vendor_name, gross_amount, net_amount, vat_amount, invoice_number, invoice_date, description, suggested_account_id, line_items, ocr_extracted_data")
         .eq("id", currentTxn.matched_invoice_id)
         .maybeSingle();
       return data;
@@ -214,7 +219,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     queryFn: async () => {
       const { data } = await supabase
         .from("billing_periods")
-        .select("fiscal_year, period_from, period_to")
+        .select("id, fiscal_year, period_from, period_to")
         .eq("building_id", buildingId)
         .order("fiscal_year", { ascending: false })
         .limit(10);
@@ -276,6 +281,11 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       booked: false,
       needs_review: false,
       review_note: "",
+      is_fuel_purchase: false,
+      fuel_type: "",
+      fuel_quantity: "",
+      fuel_total_price: "",
+      fuel_date: txnDate,
       ...overrides,
     };
   }, [currentTxn, accounts, getFiscalYearForDate]);
@@ -328,6 +338,11 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           booked: false,
           needs_review: false,
           review_note: "",
+          is_fuel_purchase: false,
+          fuel_type: "",
+          fuel_quantity: "",
+          fuel_total_price: "",
+          fuel_date: txnDate || "",
         };
       });
       setFormRows(rows);
@@ -362,6 +377,18 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       if (invoiceDetail.gross_amount && invoiceDetail.net_amount) {
         const vatPct = ((invoiceDetail.gross_amount / invoiceDetail.net_amount) - 1) * 100;
         row.vat_rate = String(Math.round(vatPct));
+      }
+    }
+
+    // Auto-fill fuel purchase from OCR data
+    if (invoiceDetail) {
+      const ocrData = (invoiceDetail as any).ocr_extracted_data;
+      if (ocrData?.is_fuel_purchase) {
+        row.is_fuel_purchase = true;
+        row.fuel_type = ocrData.fuel_type === "pellets" ? "pellets" : "oil";
+        row.fuel_quantity = ocrData.fuel_quantity ? String(ocrData.fuel_quantity) : "";
+        row.fuel_total_price = invoiceDetail.gross_amount ? String(invoiceDetail.gross_amount) : "";
+        row.fuel_date = invoiceDetail.invoice_date || currentTxn.booking_date || "";
       }
     }
 
@@ -517,6 +544,36 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       } as any).select("id").single();
 
       if (bookingError) throw bookingError;
+
+      // Save fuel purchase to fuel_inventory
+      if (row.is_fuel_purchase && row.fuel_type && row.fuel_quantity) {
+        const fuelUnit = row.fuel_type === "oil" ? "l" : "kg";
+        const quantity = parseFloat(row.fuel_quantity) || 0;
+        const totalPrice = parseFloat(row.fuel_total_price) || 0;
+        const unitPrice = quantity > 0 ? totalPrice / quantity : 0;
+
+        // Find matching billing period
+        const matchingPeriod = billingPeriods.find(bp => {
+          const from = new Date(bp.period_from);
+          const to = new Date(bp.period_to);
+          const entryDate = new Date(row.fuel_date || row.booking_date);
+          return entryDate >= from && entryDate <= to;
+        });
+
+        await supabase.from("fuel_inventory").insert({
+          building_id: buildingId,
+          fuel_type: row.fuel_type,
+          entry_type: "purchase",
+          entry_date: row.fuel_date || row.booking_date,
+          quantity,
+          unit: fuelUnit,
+          total_price: totalPrice,
+          unit_price: unitPrice > 0 ? unitPrice : null,
+          invoice_id: row.invoice_id || null,
+          billing_period_id: matchingPeriod?.id || null,
+          notes: `Brennstoffkauf ${row.fuel_type === "oil" ? "Heizöl" : "Pellets"}: ${quantity} ${fuelUnit}`,
+        } as any);
+      }
 
       // Mark this row as booked
       setFormRows(rows => rows.map(r => r.id === rowId ? { ...r, booked: true } : r));
@@ -1369,7 +1426,49 @@ function BookingRowCard({
               )}
             </div>
 
-            {/* Review flag */}
+            {/* Brennstoffkauf */}
+            <div className="p-2 rounded-lg border space-y-2" style={{ borderColor: row.is_fuel_purchase ? 'hsl(var(--chart-5))' : undefined, backgroundColor: row.is_fuel_purchase ? 'hsl(var(--chart-5) / 0.08)' : undefined }}>
+              <div className="flex items-center gap-3">
+                <Checkbox id={`fuel-${index}`} checked={row.is_fuel_purchase} onCheckedChange={v => onUpdateField("is_fuel_purchase", !!v)} />
+                <label htmlFor={`fuel-${index}`} className="text-xs font-medium flex items-center gap-1.5">
+                  <Flame className="h-3.5 w-3.5" style={{ color: row.is_fuel_purchase ? 'hsl(var(--chart-5))' : undefined }} /> Brennstoffkauf
+                </label>
+              </div>
+              {row.is_fuel_purchase && (
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Art</label>
+                    <Select value={row.fuel_type} onValueChange={v => onUpdateField("fuel_type", v)}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue placeholder="Wählen…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="oil">Heizöl</SelectItem>
+                        <SelectItem value="pellets">Pellets</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                      Menge ({row.fuel_type === "pellets" ? "kg" : "l"})
+                    </label>
+                    <Input className="h-8 text-xs" type="number" placeholder="0" value={row.fuel_quantity}
+                      onChange={e => onUpdateField("fuel_quantity", e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Gesamtpreis (€)</label>
+                    <Input className="h-8 text-xs" type="number" step="0.01" placeholder="0,00" value={row.fuel_total_price}
+                      onChange={e => onUpdateField("fuel_total_price", e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Lieferdatum</label>
+                    <Input className="h-8 text-xs" type="date" value={row.fuel_date}
+                      onChange={e => onUpdateField("fuel_date", e.target.value)} />
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="p-2 rounded-lg border space-y-2" style={{ borderColor: row.needs_review ? 'hsl(var(--chart-4))' : undefined, backgroundColor: row.needs_review ? 'hsl(var(--chart-4) / 0.08)' : undefined }}>
               <div className="flex items-center gap-3">
                 <Checkbox id={`review-${index}`} checked={row.needs_review} onCheckedChange={v => onUpdateField("needs_review", !!v)} />
