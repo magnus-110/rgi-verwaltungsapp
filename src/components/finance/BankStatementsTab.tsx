@@ -358,6 +358,12 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     if (!selectedBuilding) return;
     setRematching(true);
     try {
+      // Reset all AI suggestions for this building so they get re-analyzed
+      await supabase.from("bank_transactions")
+        .update({ ai_suggestion: null } as any)
+        .eq("building_id", selectedBuilding)
+        .is("booked_at", null);
+
       const { data, error } = await supabase.functions.invoke("parse-bank-statement", {
         body: { rematchBuildingId: selectedBuilding },
       });
