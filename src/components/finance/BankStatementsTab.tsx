@@ -93,6 +93,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     allBuildingTxns,
     !!selectedBuilding && allBuildingTxns.length > 0
   );
+  const { reset: resetAiPrefetch } = aiPrefetchState;
 
   // Fetch bank statements for IBAN display
   const { data: bankStatements = [] } = useQuery({
