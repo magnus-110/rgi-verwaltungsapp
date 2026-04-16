@@ -349,8 +349,12 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
     const vendorIban = defaultBank?.iban || null;
     const vendorName = contactName;
 
-    // Format date for display in template name
-    const fmtDate = (d: string | null) => d ? new Date(d).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" }) : null;
+    // Format date compact MM/YY for template name
+    const fmtDate = (d: string | null) => {
+      if (!d) return null;
+      const dt = new Date(d);
+      return `${String(dt.getMonth() + 1).padStart(2, "0")}/${String(dt.getFullYear()).slice(-2)}`;
+    };
 
     try {
       // 1. Find or create account (reuse by account_number — no duplicates)
@@ -415,7 +419,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
       });
 
       // Build template name — append date range if dates are set
-      const baseName = `mtl. ${costType} ${unitNumber} ${floorLocation}`.trim();
+      const baseName = `${costType} ${unitNumber} ${floorLocation}`.trim();
       const dateSuffix = (validFrom || validTo)
         ? ` (${fmtDate(validFrom) || "…"}–${fmtDate(validTo) || "…"})`
         : "";
