@@ -1162,15 +1162,15 @@ function BookingRowCard({
 
             {/* Betrag + Typ inline */}
             <div className="flex items-center gap-2">
-              <Button type="button" size="icon" variant={row.booking_type === "expense" ? "default" : "outline"}
-                className={cn("h-12 w-12 shrink-0 text-lg font-bold", row.booking_type === "expense" && "bg-destructive hover:bg-destructive/90 text-destructive-foreground")}
-                onClick={() => onUpdateField("booking_type", "expense")}>−</Button>
               <Input ref={el => fieldRefs.current["amount"] = el}
-                className={cn("h-12 text-2xl font-bold text-center flex-1", row.booking_type === "income" ? "text-green-600" : "text-destructive")}
+                className={cn("h-14 text-3xl font-bold flex-1", row.booking_type === "income" ? "text-green-600" : "text-destructive")}
                 value={row.amount} onChange={e => onUpdateField("amount", e.target.value)}
                 onKeyDown={e => handleEnterNavigation(e, "amount")} />
+              <Button type="button" size="icon" variant={row.booking_type === "expense" ? "default" : "outline"}
+                className={cn("h-9 w-9 shrink-0 text-sm font-bold", row.booking_type === "expense" && "bg-destructive hover:bg-destructive/90 text-destructive-foreground")}
+                onClick={() => onUpdateField("booking_type", "expense")}>−</Button>
               <Button type="button" size="icon" variant={row.booking_type === "income" ? "default" : "outline"}
-                className={cn("h-12 w-12 shrink-0 text-lg font-bold", row.booking_type === "income" && "bg-green-600 hover:bg-green-700 text-white")}
+                className={cn("h-9 w-9 shrink-0 text-sm font-bold", row.booking_type === "income" && "bg-green-600 hover:bg-green-700 text-white")}
                 onClick={() => onUpdateField("booking_type", "income")}>+</Button>
             </div>
             {parseFloat(row.vat_amount) > 0 && (
