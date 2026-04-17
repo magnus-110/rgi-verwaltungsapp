@@ -53,8 +53,8 @@ const LABEL: Record<CaseEventType, string> = {
   file: "Datei",
 };
 
-const downloadAttachment = async (path: string, name: string) => {
-  const { data, error } = await supabase.storage.from("building-files").createSignedUrl(path, 60);
+const downloadAttachment = async (path: string, _name: string, bucket: string = "building-files") => {
+  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 60);
   if (error || !data) return;
   window.open(data.signedUrl, "_blank");
 };
@@ -93,12 +93,12 @@ const EventRow = ({ event }: EventRowProps) => {
             <span className="text-xs font-medium text-muted-foreground">{LABEL[event.event_type]}</span>
             {!editing && event.title && <span className="text-sm font-medium truncate">{event.title}</span>}
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex flex-col items-end gap-1">
             <span className="text-xs text-muted-foreground whitespace-nowrap">
               {format(new Date(event.occurred_at), "dd.MM.yyyy HH:mm", { locale: de })}
             </span>
             {!editing && event.event_type !== "ai_summary" && (
-              <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5 ml-1">
+              <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
                 <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditing(true)}>
                   <Pencil className="h-3 w-3" />
                 </Button>
@@ -146,7 +146,7 @@ const EventRow = ({ event }: EventRowProps) => {
                 {event.attachments.map((a: any, i: number) => (
                   <button
                     key={i}
-                    onClick={() => a.path && downloadAttachment(a.path, a.name)}
+                    onClick={() => a.path && downloadAttachment(a.path, a.name, a.bucket || "building-files")}
                     className="text-xs bg-muted hover:bg-muted/70 px-2 py-1 rounded inline-flex items-center gap-1 transition-colors"
                   >
                     <Paperclip className="h-3 w-3" />
