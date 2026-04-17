@@ -645,7 +645,6 @@ export const Inbox = () => {
                       onCheckedChange={() => toggleAccount(acc.id)}
                       className="shrink-0"
                     />
-                    <div className={cn("h-2 w-2 rounded-full shrink-0", acc.is_active ? "bg-green-500" : "bg-muted-foreground")} />
                     <span className="truncate text-left flex-1">{acc.display_name}</span>
                   </label>
                 );
