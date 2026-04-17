@@ -769,8 +769,8 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
         queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
         queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
-        queryClient.invalidateQueries({ queryKey: ["bookings-pending"] });
-        queryClient.invalidateQueries({ queryKey: ["bookings-confirmed"] });
+        queryClient.invalidateQueries({ queryKey: ["bookings-all"] });
+        
 
         // Move to next
         if (currentIndex < transactions.length - 1) {
@@ -833,8 +833,8 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       toast.success("Buchung rückgängig gemacht", { duration: 1500 });
       queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
       queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
-      queryClient.invalidateQueries({ queryKey: ["bookings-pending"] });
-      queryClient.invalidateQueries({ queryKey: ["bookings-confirmed"] });
+      queryClient.invalidateQueries({ queryKey: ["bookings-all"] });
+      
     } catch (err: any) {
       toast.error("Rückgängig fehlgeschlagen: " + (err.message || "Unbekannt"));
     } finally {

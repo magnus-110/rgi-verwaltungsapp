@@ -354,7 +354,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
       toast.success(data.message || "Alle Buchungen gesendet");
       queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
       queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
-      queryClient.invalidateQueries({ queryKey: ["bookings-pending"] });
+      queryClient.invalidateQueries({ queryKey: ["bookings-all"] });
     } catch (err: any) {
       toast.error("Fehler beim Buchen: " + (err.message || "Unbekannter Fehler"));
     } finally {
