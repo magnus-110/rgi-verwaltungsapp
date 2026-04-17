@@ -498,72 +498,20 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
         <DialogContent className="max-w-lg overflow-hidden">
           <div className="space-y-4 w-full min-w-0 max-w-full">
             <h3 className="font-semibold text-base">§35a – Haushaltsnahe Dienstleistungen</h3>
-
-            <div className="flex items-center gap-3 min-w-0">
-              <Checkbox id="edit-35a-toggle" checked={form.is_35a_relevant} onCheckedChange={v => set("is_35a_relevant", !!v)} />
-              <label htmlFor="edit-35a-toggle" className="text-sm font-medium">§35a-relevant</label>
-            </div>
-
-            {invoiceLineItems.length > 0 && (
-              <div className="space-y-2 w-full min-w-0">
-                <label className="text-xs font-medium text-muted-foreground">Rechnungspositionen</label>
-                <div className="space-y-1 max-h-48 overflow-y-auto overflow-x-hidden w-full min-w-0">
-                  {invoiceLineItems.map((item: any, i: number) => {
-                    const lineItemsDetail: any[] = Array.isArray(form.line_items_detail) ? form.line_items_detail : [];
-                    const isSelected = lineItemsDetail.some((d: any) => d.index === i && d.is_35a);
-                    return (
-                      <div key={i} className={cn(
-                        "flex w-full max-w-full min-w-0 items-center gap-2 overflow-hidden rounded-md border p-2 text-xs",
-                        isSelected && "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-700"
-                      )}>
-                        <Checkbox
-                          checked={isSelected}
-                          onCheckedChange={(checked) => {
-                            let updated = [...lineItemsDetail];
-                            if (checked) {
-                              updated.push({ index: i, description: item.description || item.name || `Position ${i + 1}`, amount: item.amount || item.total || 0, is_35a: true });
-                            } else {
-                              updated = updated.filter((d: any) => d.index !== i);
-                            }
-                            const vatRate = parseFloat(form.vat_rate) || 0;
-                            const netSum = updated.reduce((sum: number, d: any) => sum + (parseFloat(d.amount) || 0), 0);
-                            const grossSum = vatRate > 0 ? netSum * (1 + vatRate / 100) : netSum;
-                            setForm(prev => ({
-                              ...prev,
-                              line_items_detail: updated,
-                              amount_35a: grossSum.toFixed(2),
-                              is_35a_relevant: updated.length > 0 ? true : prev.is_35a_relevant,
-                            }));
-                          }}
-                        />
-                        <span className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap">{item.description || item.name || `Position ${i + 1}`}</span>
-                        {(item.amount || item.total) && (
-                          <span className="font-medium shrink-0 pl-2">{formatCurrency(item.amount || item.total)}</span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {(() => {
-              const lineItemsDetail: any[] = Array.isArray(form.line_items_detail) ? form.line_items_detail : [];
-              const selectedItems = lineItemsDetail.filter((d: any) => d.is_35a);
-              const vatRate = parseFloat(form.vat_rate) || 0;
-              const netSum = selectedItems.reduce((sum: number, d: any) => sum + (parseFloat(d.amount) || 0), 0);
-              const grossSum = vatRate > 0 ? netSum * (1 + vatRate / 100) : netSum;
-              return (
-                <div className="space-y-1 w-full min-w-0">
-                  <label className="text-xs font-medium text-muted-foreground block">Lohnanteil (€)</label>
-                  <div className="text-lg font-bold">{new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(grossSum)}</div>
-                  {vatRate > 0 && netSum > 0 && (
-                    <p className="text-xs text-muted-foreground">Netto {formatCurrency(netSum)} + {vatRate}% MwSt.</p>
-                  )}
-                </div>
-              );
-            })()}
-
+            <Section35aEditor
+              is35aRelevant={!!form.is_35a_relevant}
+              onIs35aRelevantChange={(v) => set("is_35a_relevant", v)}
+              invoiceLineItems={invoiceLineItems}
+              lineItemsDetail={Array.isArray(form.line_items_detail) ? (form.line_items_detail as any) : []}
+              onLineItemsDetailChange={(items) => setForm(prev => ({ ...prev, line_items_detail: items as any }))}
+              onAmount35aChange={(val) => setForm(prev => ({ ...prev, amount_35a: val }))}
+              defaultVatRate={parseFloat(form.vat_rate) || 0}
+              defaultType35a={(() => {
+                const acc: any = (accounts as any[]).find(a => a.id === form.account_id) || counterAccount;
+                return (acc?.settlement_35a_type === "handwerker" ? "handwerker" : "dienste");
+              })()}
+              toggleIdSuffix="edit"
+            />
             <Button onClick={() => setShow35aDialog(false)} className="w-full max-w-full">Übernehmen</Button>
           </div>
         </DialogContent>
