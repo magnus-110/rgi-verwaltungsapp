@@ -72,6 +72,15 @@ interface BookingRowData {
 const formatCurrency = (amount: number | null) =>
   amount != null ? new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(amount) : "–";
 
+const formatMonthYearRef = (dateStr: string | null | undefined): string => {
+  if (!dateStr) return "";
+  try {
+    return format(new Date(dateStr), "LLLL yyyy", { locale: de });
+  } catch {
+    return "";
+  }
+};
+
 const FIELD_ORDER = [
   "account_id", "amount", "counter_account_id", "description",
   "booking_reference", "booking_date", "receipt_number", "vat_rate"
