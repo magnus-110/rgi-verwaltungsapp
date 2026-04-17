@@ -481,7 +481,36 @@ Beschreibung: ${report.description}`;
       <CardContent className="p-4">
         <div className="flex justify-between items-start mb-3">
           <h3 className="text-lg font-medium">{report.title}</h3>
-          <div className="flex gap-2 items-center">
+          <div className="flex gap-2 items-center flex-wrap">
+            {report.case_id ? (
+              <Badge variant="outline" className="gap-1 text-xs">
+                <Link2 className="h-3 w-3" />
+                Vorgang verknüpft
+              </Badge>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1"
+                  onClick={() => setCreateCaseFromReport(report)}
+                  title="Neuen Vorgang aus Meldung erstellen"
+                >
+                  <FolderPlus className="h-3.5 w-3.5" />
+                  <span className="text-xs">Neuer Vorgang</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1"
+                  onClick={() => setLinkReportToCase(report)}
+                  title="Mit existierendem Vorgang verknüpfen"
+                >
+                  <Link2 className="h-3.5 w-3.5" />
+                  <span className="text-xs">Zuordnen</span>
+                </Button>
+              </>
+            )}
             {getStatusBadge(report.status)}
             <Button
               variant="ghost"
