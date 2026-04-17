@@ -61,7 +61,7 @@ export function BookingsTab({ sharedBuildingId }: { sharedBuildingId?: string | 
   });
 
   const { data: pendingBookings = [], isLoading } = useQuery({
-    queryKey: ["bookings-pending", filterYear],
+    queryKey: ["bookings-all", filterYear],
     queryFn: async () => {
       const { data, error } = await supabase.from("bookings")
         .select(`
@@ -73,33 +73,14 @@ export function BookingsTab({ sharedBuildingId }: { sharedBuildingId?: string | 
           booking_templates!bookings_matched_template_id_fkey(id, name, vendor_name, expected_amount, vat_rate, interval, category)
         `)
         .eq("fiscal_year", parseInt(filterYear))
-        .eq("status", "pending")
+        .in("status", ["pending", "confirmed"])
         .order("booking_date", { ascending: false });
       if (error) throw error;
       return data;
     },
   });
 
-  const { data: confirmedBookings = [] } = useQuery({
-    queryKey: ["bookings-confirmed", filterYear],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("bookings")
-        .select(`
-          *,
-          buildings(id, name, building_code),
-          chart_of_accounts!bookings_account_id_fkey(account_number, account_name),
-          counter_account:chart_of_accounts!bookings_counter_account_id_fkey(account_number, account_name),
-          invoices(id, file_path, file_name, vendor_name),
-          booking_templates!bookings_matched_template_id_fkey(id, name, vendor_name, expected_amount, vat_rate, interval, category)
-        `)
-        .eq("fiscal_year", parseInt(filterYear))
-        .eq("status", "confirmed")
-        .order("booking_date", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: confirmedOpen,
-  });
+  const confirmedBookings: any[] = [];
 
   const { data: manualBookings = [] } = useQuery({
     queryKey: ["bookings-manual", filterYear],
