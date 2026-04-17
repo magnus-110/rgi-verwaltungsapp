@@ -62,9 +62,6 @@ export const CaseDetailView = ({ caseId, onClose }: Props) => {
                     {caseRow.unit_number && <Badge variant="outline">Einheit {caseRow.unit_number}</Badge>}
                   </div>
                 </div>
-                <Button variant="ghost" size="icon" onClick={onClose}>
-                  <X className="h-4 w-4" />
-                </Button>
               </div>
             </div>
 
