@@ -25,6 +25,7 @@ import {
 import { cn } from "@/lib/utils";
 import { VendorHistorySection } from "./VendorHistorySection";
 import { AccountSearchSelect } from "./AccountSearchSelect";
+import { Section35aEditor } from "./Section35aEditor";
 
 interface TransactionReviewModeProps {
   open: boolean;
