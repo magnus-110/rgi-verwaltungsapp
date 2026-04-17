@@ -909,12 +909,19 @@ export const Inbox = () => {
                                className="h-5 min-w-[20px] rounded-full text-[9px] font-normal cursor-pointer border-0 appearance-none text-center text-muted-foreground"
                                value={(email as any).assigned_to || "none"}
                                onClick={e => e.stopPropagation()}
-                               onChange={async (e) => {
-                                 e.stopPropagation();
-                                 const val = e.target.value === "none" ? null : e.target.value;
-                                 await supabase.from("emails").update({ assigned_to: val }).eq("id", email.id);
-                                 queryClient.invalidateQueries({ queryKey: ["emails"] });
-                               }}
+                                onChange={async (e) => {
+                                  e.stopPropagation();
+                                  const val = e.target.value === "none" ? null : e.target.value;
+                                  const update: any = { assigned_to: val };
+                                  if (val) {
+                                    const targetAccountIds = accountUsers.filter(au => au.user_id === val).map(au => au.account_id);
+                                    if (targetAccountIds.length > 0 && !targetAccountIds.includes(email.account_id)) {
+                                      update.account_id = targetAccountIds[0];
+                                    }
+                                  }
+                                  await supabase.from("emails").update(update).eq("id", email.id);
+                                  queryClient.invalidateQueries({ queryKey: ["emails"] });
+                                }}
                                title={assignedProfile ? [assignedProfile.first_name, assignedProfile.last_name].filter(Boolean).join(" ") : "Zuordnen"}
                                style={{ WebkitAppearance: 'none', MozAppearance: 'none', textAlignLast: 'center', width: `${Math.max(24, initials.length * 9 + 10)}px`, padding: '0 2px' }}
                              >
