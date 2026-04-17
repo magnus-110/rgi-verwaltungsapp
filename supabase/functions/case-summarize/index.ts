@@ -48,8 +48,8 @@ Ereignisse chronologisch:
 ${eventsText || "(noch keine Ereignisse)"}
 
 Antworte AUSSCHLIESSLICH als JSON-Objekt im Format:
-{ "summary": "1-2 prägnante Sätze zum aktuellen Stand (max. 280 Zeichen).", "next_steps": ["Schritt 1", "Schritt 2", "Schritt 3"] }
-Maximal 3 nächste Schritte, jeweils kurz und konkret. Antworte auf Deutsch. Nur JSON, keine Erklärung.`;
+{ "summary": "1-2 prägnante Sätze zum aktuellen Stand (max. 280 Zeichen, KEIN Markdown, KEINE Überschriften, KEINE Sternchen)." }
+Antworte auf Deutsch in Fließtext. Nur JSON, keine Erklärung.`;
 
     const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
       method: "POST",

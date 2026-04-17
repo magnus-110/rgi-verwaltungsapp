@@ -326,10 +326,24 @@ export const Inbox = () => {
     if (params.archive) update.is_archived = true;
     await supabase.from("emails").update(update).eq("id", params.emailId);
 
-    // If linked to a case, create case event
+    // If linked to a case, create case event including attachments
     if (params.caseId) {
       const email = emails.find((e) => e.id === params.emailId);
       try {
+        const { data: atts } = await supabase
+          .from("email_attachments")
+          .select("file_name, file_path, file_size, mime_type")
+          .eq("email_id", params.emailId)
+          .eq("is_inline", false);
+        const attachments = (atts || [])
+          .filter((a) => a.file_path)
+          .map((a) => ({
+            name: a.file_name,
+            path: a.file_path,
+            size: a.file_size,
+            mime: a.mime_type,
+            bucket: "email-attachments",
+          }));
         await supabase.functions.invoke("case-add-event", {
           body: {
             case_id: params.caseId,
@@ -338,6 +352,7 @@ export const Inbox = () => {
             body: email?.body_text?.substring(0, 500) || null,
             source_table: "emails",
             source_id: params.emailId,
+            attachments,
             trigger_summary: true,
           },
         });
