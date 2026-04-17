@@ -1,0 +1,1 @@
+ALTER TABLE public.cases ADD COLUMN IF NOT EXISTS ai_next_steps jsonb NOT NULL DEFAULT '[]'::jsonb;

@@ -26,6 +26,7 @@ export interface CaseRow {
   ai_summary: string | null;
   ai_summary_updated_at: string | null;
   ai_keywords: string[];
+  ai_next_steps: string[];
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -147,6 +148,40 @@ export const useAddCaseEvent = () => {
     onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: ["case-events", vars.case_id] });
       qc.invalidateQueries({ queryKey: ["case", vars.case_id] });
+    },
+    onError: (e: any) => toast({ title: "Fehler", description: e.message, variant: "destructive" }),
+  });
+};
+
+export const useUpdateCaseEvent = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, case_id, ...patch }: { id: string; case_id: string; title?: string | null; body?: string | null; occurred_at?: string; attachments?: any[] }) => {
+      const { data, error } = await supabase.from("case_events").update(patch).eq("id", id).select().single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["case-events", vars.case_id] });
+      qc.invalidateQueries({ queryKey: ["case", vars.case_id] });
+      toast({ title: "Aktualisiert" });
+    },
+    onError: (e: any) => toast({ title: "Fehler", description: e.message, variant: "destructive" }),
+  });
+};
+
+export const useDeleteCaseEvent = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, case_id }: { id: string; case_id: string }) => {
+      const { error } = await supabase.from("case_events").delete().eq("id", id);
+      if (error) throw error;
+      return { id, case_id };
+    },
+    onSuccess: (res) => {
+      qc.invalidateQueries({ queryKey: ["case-events", res.case_id] });
+      qc.invalidateQueries({ queryKey: ["case", res.case_id] });
+      toast({ title: "Gelöscht" });
     },
     onError: (e: any) => toast({ title: "Fehler", description: e.message, variant: "destructive" }),
   });

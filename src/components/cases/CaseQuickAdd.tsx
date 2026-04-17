@@ -1,24 +1,74 @@
-import { useState } from "react";
-import { Phone, StickyNote, Send, Loader2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { Phone, StickyNote, Send, Loader2, Paperclip, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAddCaseEvent } from "@/hooks/useCases";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
 
-export const CaseQuickAdd = ({ caseId }: { caseId: string }) => {
+interface PendingFile {
+  file: File;
+  uploading: boolean;
+  path?: string;
+  error?: string;
+}
+
+export const CaseQuickAdd = ({ caseId, buildingId }: { caseId: string; buildingId: string }) => {
   const [text, setText] = useState("");
   const [type, setType] = useState<"note" | "phone">("note");
+  const [files, setFiles] = useState<PendingFile[]>([]);
+  const inputRef = useRef<HTMLInputElement>(null);
   const addEvent = useAddCaseEvent();
 
+  const handleFiles = async (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) return;
+    const newFiles: PendingFile[] = Array.from(fileList).map((file) => ({ file, uploading: true }));
+    setFiles((prev) => [...prev, ...newFiles]);
+
+    for (let i = 0; i < newFiles.length; i++) {
+      const pf = newFiles[i];
+      try {
+        const ext = pf.file.name.split(".").pop() || "bin";
+        const path = `cases/${buildingId}/${caseId}/${crypto.randomUUID()}.${ext}`;
+        const { error } = await supabase.storage.from("building-files").upload(path, pf.file, {
+          contentType: pf.file.type || "application/octet-stream",
+        });
+        if (error) throw error;
+        setFiles((prev) => prev.map((f) => (f.file === pf.file ? { ...f, uploading: false, path } : f)));
+      } catch (e: any) {
+        setFiles((prev) => prev.map((f) => (f.file === pf.file ? { ...f, uploading: false, error: e.message } : f)));
+        toast({ title: "Upload-Fehler", description: e.message, variant: "destructive" });
+      }
+    }
+  };
+
+  const removeFile = (file: File) => {
+    setFiles((prev) => prev.filter((f) => f.file !== file));
+  };
+
   const submit = async () => {
-    if (!text.trim()) return;
+    if (!text.trim() && files.length === 0) return;
+    const ready = files.filter((f) => !f.uploading && !f.error && f.path);
+    if (files.some((f) => f.uploading)) {
+      toast({ title: "Bitte warten", description: "Uploads laufen noch." });
+      return;
+    }
+    const attachments = ready.map((f) => ({
+      name: f.file.name,
+      path: f.path,
+      mime: f.file.type,
+      size: f.file.size,
+    }));
     await addEvent.mutateAsync({
       case_id: caseId,
       event_type: type,
       title: type === "phone" ? "Telefonat" : undefined,
-      body: text.trim(),
+      body: text.trim() || undefined,
+      attachments,
     });
     setText("");
     setType("note");
+    setFiles([]);
   };
 
   return (
@@ -40,9 +90,40 @@ export const CaseQuickAdd = ({ caseId }: { caseId: string }) => {
           if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit();
         }}
       />
+
+      {files.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {files.map((f) => (
+            <div key={f.file.name + f.file.size} className="text-xs bg-muted px-2 py-1 rounded inline-flex items-center gap-1.5">
+              {f.uploading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Paperclip className="h-3 w-3" />}
+              <span className="max-w-[160px] truncate">{f.file.name}</span>
+              {f.error && <span className="text-destructive">!</span>}
+              <button onClick={() => removeFile(f.file)} className="hover:text-destructive">
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="flex justify-between items-center">
-        <span className="text-xs text-muted-foreground">⌘/Strg + Enter zum Speichern</span>
-        <Button size="sm" onClick={submit} disabled={!text.trim() || addEvent.isPending}>
+        <div className="flex items-center gap-2">
+          <input
+            ref={inputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              handleFiles(e.target.files);
+              if (inputRef.current) inputRef.current.value = "";
+            }}
+          />
+          <Button size="sm" variant="ghost" onClick={() => inputRef.current?.click()} type="button">
+            <Paperclip className="h-4 w-4 mr-1" /> Anhang
+          </Button>
+          <span className="text-xs text-muted-foreground hidden sm:inline">⌘/Strg + Enter</span>
+        </div>
+        <Button size="sm" onClick={submit} disabled={(!text.trim() && files.length === 0) || addEvent.isPending}>
           {addEvent.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
       </div>

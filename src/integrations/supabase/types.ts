@@ -1189,6 +1189,7 @@ export type Database = {
       cases: {
         Row: {
           ai_keywords: string[]
+          ai_next_steps: Json
           ai_summary: string | null
           ai_summary_updated_at: string | null
           assignee_user_id: string | null
@@ -1210,6 +1211,7 @@ export type Database = {
         }
         Insert: {
           ai_keywords?: string[]
+          ai_next_steps?: Json
           ai_summary?: string | null
           ai_summary_updated_at?: string | null
           assignee_user_id?: string | null
@@ -1231,6 +1233,7 @@ export type Database = {
         }
         Update: {
           ai_keywords?: string[]
+          ai_next_steps?: Json
           ai_summary?: string | null
           ai_summary_updated_at?: string | null
           assignee_user_id?: string | null
