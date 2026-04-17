@@ -210,6 +210,14 @@ export function BookingsTab({ sharedBuildingId }: { sharedBuildingId?: string | 
         </TableCell>
         <TableCell className="py-2 px-3">
           <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+            {b.status === "confirmed" && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger><Badge variant="outline" className="h-5 px-1.5 text-[10px] bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-300 border-green-300">✓</Badge></TooltipTrigger>
+                  <TooltipContent><p className="text-xs">Gebucht</p></TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
             {b.needs_review && (
               <TooltipProvider>
                 <Tooltip>
