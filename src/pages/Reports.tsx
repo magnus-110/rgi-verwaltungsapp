@@ -41,6 +41,7 @@ interface Report {
   updated_at?: string;
   admin_notes?: string;
   internal_notes?: string;
+  case_id?: string | null;
   buildings?: {
     name: string;
     address: string;
@@ -104,6 +105,9 @@ export const Reports = () => {
     status: "all"
   });
   const [attachmentUrls, setAttachmentUrls] = useState<{[key: string]: AttachmentWithUrl[]}>({});
+  const [createCaseFromReport, setCreateCaseFromReport] = useState<Report | null>(null);
+  const [linkReportToCase, setLinkReportToCase] = useState<Report | null>(null);
+  const addEvent = useAddCaseEvent();
 
   const tableName = managementMode === "weg" ? "weg_reports" : "miete_reports";
 
