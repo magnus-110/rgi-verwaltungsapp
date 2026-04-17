@@ -38,7 +38,16 @@ export const Inbox = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [isSyncing, setIsSyncing] = useState(false);
   const { openCompose } = useComposeEmail();
-  const [filterAccountId, setFilterAccountId] = useState<string>("all");
+  const [selectedAccountIds, setSelectedAccountIds] = useState<string[] | null>(() => {
+    try {
+      const raw = localStorage.getItem("inbox-selected-accounts");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return null; // null = all accounts
+  });
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const [showEmailDetails, setShowEmailDetails] = useState(false);
   const [archiveEmailId, setArchiveEmailId] = useState<string | null>(null);
