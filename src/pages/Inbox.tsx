@@ -49,6 +49,13 @@ export const Inbox = () => {
     } catch {}
     return null; // null = all accounts
   });
+  const [accountsExpanded, setAccountsExpanded] = useState<boolean>(() => {
+    try {
+      const raw = localStorage.getItem("inbox-accounts-expanded");
+      if (raw) return JSON.parse(raw) === true;
+    } catch {}
+    return true;
+  });
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const [showEmailDetails, setShowEmailDetails] = useState(false);
   const [archiveEmailId, setArchiveEmailId] = useState<string | null>(null);
