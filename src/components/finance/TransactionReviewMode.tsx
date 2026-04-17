@@ -477,7 +477,17 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         // §35a from AI (invoice OCR rarely provides this)
         if (sb.is_35a_relevant) {
           row.is_35a_relevant = true;
-          if (sb.amount_35a != null) row.amount_35a = String(sb.amount_35a);
+          if (sb.amount_35a != null) {
+            row.amount_35a = String(sb.amount_35a);
+            const acc = accounts.find((a: any) => a.id === row.counter_account_id);
+            const t35a: "handwerker" | "dienste" = acc?.settlement_35a_type === "handwerker" ? "handwerker" : "dienste";
+            row.line_items_detail = build35aDetailFromSuggestion(
+              (invoiceDetail as any)?.line_items,
+              Number(sb.amount_35a) || 0,
+              t35a,
+              sb.vat_rate != null ? Number(sb.vat_rate) : (parseFloat(row.vat_rate) || 19),
+            );
+          }
         }
         // Booking type from AI if not already set
         if (sb.booking_type) row.booking_type = sb.booking_type;
