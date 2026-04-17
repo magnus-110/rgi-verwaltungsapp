@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sparkles, RefreshCw, Loader2, X } from "lucide-react";
+import { Sparkles, RefreshCw, Loader2, Pencil, Check, X } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { de } from "date-fns/locale";
 import { useCase, useCaseEvents, useUpdateCase, useSummarizeCase, CASE_STATUS_LABEL, CASE_PRIORITY_LABEL, CASE_CATEGORY_LABEL, CaseStatus, CasePriority } from "@/hooks/useCases";
@@ -28,6 +30,30 @@ export const CaseDetailView = ({ caseId, onClose }: Props) => {
   const { data: events = [] } = useCaseEvents(caseId);
   const update = useUpdateCase();
   const summarize = useSummarizeCase();
+  const [editingMeta, setEditingMeta] = useState(false);
+  const [draftTitle, setDraftTitle] = useState("");
+  const [draftDescription, setDraftDescription] = useState("");
+
+  useEffect(() => {
+    if (caseRow && !editingMeta) {
+      setDraftTitle(caseRow.title);
+      setDraftDescription(caseRow.description || "");
+    }
+  }, [caseRow?.id, caseRow?.title, caseRow?.description, editingMeta]);
+
+  const saveMeta = async () => {
+    if (!caseRow) return;
+    await update.mutateAsync({ id: caseRow.id, title: draftTitle.trim() || caseRow.title, description: draftDescription.trim() || null });
+    setEditingMeta(false);
+  };
+
+  const cancelMeta = () => {
+    if (caseRow) {
+      setDraftTitle(caseRow.title);
+      setDraftDescription(caseRow.description || "");
+    }
+    setEditingMeta(false);
+  };
 
   return (
     <Sheet open={!!caseId} onOpenChange={(o) => !o && onClose()}>
