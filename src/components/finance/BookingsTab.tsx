@@ -253,12 +253,6 @@ export function BookingsTab({ sharedBuildingId }: { sharedBuildingId?: string | 
                 </Tooltip>
               </TooltipProvider>
             )}
-            {b.matched_template_id && b.booking_templates && (
-              <Button size="sm" variant="ghost" className="h-5 w-5 p-0"
-                onClick={(e) => { e.stopPropagation(); handleTemplateClick(b); }}>
-                <LayoutTemplate className="h-3.5 w-3.5 text-primary" />
-              </Button>
-            )}
           </div>
         </TableCell>
       </TableRow>
