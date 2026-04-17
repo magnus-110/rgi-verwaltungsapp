@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { VendorHistorySection } from "./VendorHistorySection";
 import { AccountSearchSelect } from "./AccountSearchSelect";
 import { Section35aEditor } from "./Section35aEditor";
+import { build35aDetailFromSuggestion } from "./build35aDetail";
 
 interface TransactionReviewModeProps {
   open: boolean;
@@ -403,7 +404,15 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           receipt_number: sb.receipt_number || "",
           booking_type: sb.booking_type || (isIncome ? "income" : "expense"),
           is_35a_relevant: sb.is_35a_relevant || false,
-          amount_35a: "",
+          amount_35a: sb.is_35a_relevant && sb.amount_35a != null ? String(sb.amount_35a) : "",
+          line_items_detail: sb.is_35a_relevant && sb.amount_35a != null
+            ? build35aDetailFromSuggestion(
+                (invoiceDetail as any)?.line_items,
+                Number(sb.amount_35a) || 0,
+                (accounts.find((a: any) => a.id === counterAccountId)?.settlement_35a_type === "handwerker" ? "handwerker" : "dienste"),
+                sb.vat_rate != null ? Number(sb.vat_rate) : 19,
+              )
+            : null as any,
           fiscal_year: fiscalYear,
           invoice_id: null,
           matched_template_id: sb.template_id || null,
@@ -468,7 +477,17 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         // §35a from AI (invoice OCR rarely provides this)
         if (sb.is_35a_relevant) {
           row.is_35a_relevant = true;
-          if (sb.amount_35a != null) row.amount_35a = String(sb.amount_35a);
+          if (sb.amount_35a != null) {
+            row.amount_35a = String(sb.amount_35a);
+            const acc = accounts.find((a: any) => a.id === row.counter_account_id);
+            const t35a: "handwerker" | "dienste" = acc?.settlement_35a_type === "handwerker" ? "handwerker" : "dienste";
+            row.line_items_detail = build35aDetailFromSuggestion(
+              (invoiceDetail as any)?.line_items,
+              Number(sb.amount_35a) || 0,
+              t35a,
+              sb.vat_rate != null ? Number(sb.vat_rate) : (parseFloat(row.vat_rate) || 19),
+            );
+          }
         }
         // Booking type from AI if not already set
         if (sb.booking_type) row.booking_type = sb.booking_type;
@@ -512,7 +531,17 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         if (sb.booking_type) row.booking_type = sb.booking_type;
         if (sb.is_35a_relevant) {
           row.is_35a_relevant = true;
-          if (sb.amount_35a != null) row.amount_35a = String(sb.amount_35a);
+          if (sb.amount_35a != null) {
+            row.amount_35a = String(sb.amount_35a);
+            const acc = accounts.find((a: any) => a.id === row.counter_account_id);
+            const t35a: "handwerker" | "dienste" = acc?.settlement_35a_type === "handwerker" ? "handwerker" : "dienste";
+            row.line_items_detail = build35aDetailFromSuggestion(
+              (invoiceDetail as any)?.line_items,
+              Number(sb.amount_35a) || 0,
+              t35a,
+              sb.vat_rate != null ? Number(sb.vat_rate) : (parseFloat(row.vat_rate) || 19),
+            );
+          }
         }
       }
       // Auto-fill from template_suggestion if no other source
@@ -1734,9 +1763,9 @@ function BookingRowCard({
 
       {/* §35a Dialog */}
       <Dialog open={show35aDialog} onOpenChange={setShow35aDialog}>
-        <DialogContent className="max-w-md">
-          <div className="space-y-4">
-            <h3 className="font-semibold text-base">§35a – Haushaltsnahe Dienstleistungen</h3>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+          <h3 className="font-semibold text-base shrink-0">§35a – Haushaltsnahe Dienstleistungen</h3>
+          <div className="flex-1 overflow-y-auto -mx-6 px-6">
             <Section35aEditor
               is35aRelevant={!!row.is_35a_relevant}
               onIs35aRelevantChange={(v) => onUpdateField("is_35a_relevant", v)}
@@ -1749,10 +1778,11 @@ function BookingRowCard({
                 const acc: any = (accounts as any[]).find(a => a.id === row.account_id) || (accounts as any[]).find(a => a.id === row.counter_account_id);
                 return (acc?.settlement_35a_type === "handwerker" ? "handwerker" : "dienste");
               })()}
+              currentAmount35a={parseFloat(row.amount_35a) || 0}
               toggleIdSuffix={String(index)}
             />
-            <Button onClick={() => setShow35aDialog(false)} className="w-full">Übernehmen</Button>
           </div>
+          <Button onClick={() => setShow35aDialog(false)} className="w-full shrink-0">Übernehmen</Button>
         </DialogContent>
       </Dialog>
 
