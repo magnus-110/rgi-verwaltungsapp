@@ -404,7 +404,15 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           receipt_number: sb.receipt_number || "",
           booking_type: sb.booking_type || (isIncome ? "income" : "expense"),
           is_35a_relevant: sb.is_35a_relevant || false,
-          amount_35a: "",
+          amount_35a: sb.is_35a_relevant && sb.amount_35a != null ? String(sb.amount_35a) : "",
+          line_items_detail: sb.is_35a_relevant && sb.amount_35a != null
+            ? build35aDetailFromSuggestion(
+                (invoiceDetail as any)?.line_items,
+                Number(sb.amount_35a) || 0,
+                (accounts.find((a: any) => a.id === counterAccountId)?.settlement_35a_type === "handwerker" ? "handwerker" : "dienste"),
+                sb.vat_rate != null ? Number(sb.vat_rate) : 19,
+              )
+            : null as any,
           fiscal_year: fiscalYear,
           invoice_id: null,
           matched_template_id: sb.template_id || null,
