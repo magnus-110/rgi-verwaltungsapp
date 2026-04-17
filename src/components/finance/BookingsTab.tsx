@@ -9,7 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { BookOpen, AlertTriangle, FileText, ChevronDown, ChevronRight, Search, LayoutTemplate, Flag, Plus } from "lucide-react";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { BookOpen, AlertTriangle, FileText, ChevronDown, ChevronRight, Search, LayoutTemplate, Flag, Plus, List, LayoutGrid, Eye, EyeOff } from "lucide-react";
+import { AccountPlanView } from "./AccountPlanView";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { EditBookingDialog } from "./EditBookingDialog";
@@ -37,6 +39,17 @@ export function BookingsTab({ sharedBuildingId }: { sharedBuildingId?: string | 
   const [templateDetail, setTemplateDetail] = useState<any>(null);
   const [filterReview, setFilterReview] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "plan">(() => {
+    const saved = typeof window !== "undefined" ? localStorage.getItem("bookings-view-mode") : null;
+    return saved === "plan" ? "plan" : "list";
+  });
+  const [showAllAccounts, setShowAllAccounts] = useState(false);
+
+  const handleViewModeChange = (v: string) => {
+    if (v !== "list" && v !== "plan") return;
+    setViewMode(v as "list" | "plan");
+    try { localStorage.setItem("bookings-view-mode", v); } catch {}
+  };
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
@@ -294,6 +307,25 @@ export function BookingsTab({ sharedBuildingId }: { sharedBuildingId?: string | 
             {years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
           </SelectContent>
         </Select>
+        <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && handleViewModeChange(v)} className="h-9">
+          <ToggleGroupItem value="list" size="sm" className="h-9 px-3 gap-1.5">
+            <List className="h-3.5 w-3.5" /> Liste
+          </ToggleGroupItem>
+          <ToggleGroupItem value="plan" size="sm" className="h-9 px-3 gap-1.5">
+            <LayoutGrid className="h-3.5 w-3.5" /> Kontenplan
+          </ToggleGroupItem>
+        </ToggleGroup>
+        {viewMode === "plan" && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 gap-1.5"
+            onClick={() => setShowAllAccounts(s => !s)}
+          >
+            {showAllAccounts ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            {showAllAccounts ? "Nur bebuchte" : "Alle Konten"}
+          </Button>
+        )}
         <Button
           variant={filterReview ? "default" : "outline"}
           size="sm"
@@ -323,6 +355,16 @@ export function BookingsTab({ sharedBuildingId }: { sharedBuildingId?: string | 
         <CardContent className="p-0">
           {isLoading ? (
             <div className="text-muted-foreground text-sm p-6 text-center">Laden...</div>
+          ) : viewMode === "plan" ? (
+            <div className="p-4">
+              <AccountPlanView
+                bookings={filteredPending}
+                fiscalYear={parseInt(filterYear)}
+                buildingId={sharedBuildingId || null}
+                onRowClick={handleRowClick}
+                showAllAccounts={showAllAccounts}
+              />
+            </div>
           ) : filteredPending.length === 0 ? (
             <div className="text-center py-10 text-muted-foreground">
               <BookOpen className="h-10 w-10 mx-auto mb-2 opacity-30" />
