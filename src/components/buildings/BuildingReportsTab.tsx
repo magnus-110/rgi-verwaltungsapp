@@ -5,10 +5,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Edit, Copy, AlertCircle } from "lucide-react";
+import { Edit, Copy, AlertCircle, FolderPlus, Link2 } from "lucide-react";
 import { useManagementMode } from "@/hooks/useManagementMode";
 import { EditReportDialog } from "@/components/reports/EditReportDialog";
 import { useToast } from "@/hooks/use-toast";
+import { CreateCaseDialog } from "@/components/cases/CreateCaseDialog";
+import { useCreateCase, useAddCaseEvent } from "@/hooks/useCases";
 
 interface BuildingReportsTabProps {
   buildingId: string;
@@ -18,6 +20,9 @@ interface BuildingReportsTabProps {
 export const BuildingReportsTab = ({ buildingId, managementMode }: BuildingReportsTabProps) => {
   const { toast } = useToast();
   const [editingReport, setEditingReport] = useState<any>(null);
+  const [createCaseFromReport, setCreateCaseFromReport] = useState<any>(null);
+  const createCase = useCreateCase();
+  const addEvent = useAddCaseEvent();
 
   const tableName = managementMode === "weg" ? "weg_reports" : "miete_reports";
 
@@ -82,7 +87,19 @@ export const BuildingReportsTab = ({ buildingId, managementMode }: BuildingRepor
             <p className="text-xs text-muted-foreground mt-0.5">{formatDate(report.created_at)}</p>
           </div>
           <div className="flex items-center gap-1 flex-shrink-0 ml-2">
+            {report.case_id && (
+              <Badge variant="outline" className="gap-1 text-[10px]">
+                <Link2 className="h-2.5 w-2.5" />
+                Vorgang
+              </Badge>
+            )}
             {getStatusBadge(report.status)}
+            {!report.case_id && (
+              <Button variant="ghost" size="sm" className="h-7 px-2 gap-1" onClick={() => setCreateCaseFromReport(report)} title="Vorgang aus Meldung erstellen">
+                <FolderPlus className="h-3.5 w-3.5" />
+                <span className="text-xs">Vorgang</span>
+              </Button>
+            )}
             <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => copyToClipboard(report)}>
               <Copy className="h-3.5 w-3.5" />
             </Button>
@@ -149,6 +166,36 @@ export const BuildingReportsTab = ({ buildingId, managementMode }: BuildingRepor
           onSaved={() => { setEditingReport(null); refetch(); }}
         />
       )}
+
+      <CreateCaseDialog
+        open={!!createCaseFromReport}
+        onOpenChange={(open) => !open && setCreateCaseFromReport(null)}
+        buildingId={buildingId}
+        managementMode={managementMode}
+        defaults={createCaseFromReport ? {
+          title: createCaseFromReport.title,
+          description: createCaseFromReport.description,
+        } : undefined}
+        onCreated={async (caseRow) => {
+          if (!createCaseFromReport) return;
+          // Link report to the new case
+          await supabase.from(tableName).update({ case_id: caseRow.id } as any).eq("id", createCaseFromReport.id);
+          // Add a timeline event
+          try {
+            await addEvent.mutateAsync({
+              case_id: caseRow.id,
+              event_type: "note",
+              title: "Aus Meldung erstellt",
+              body: `Meldung: ${createCaseFromReport.title}\n${createCaseFromReport.description || ""}${createCaseFromReport.contact_name ? `\n\nKontakt: ${createCaseFromReport.contact_name}` : ""}`,
+              source_table: tableName,
+              source_id: createCaseFromReport.id,
+              trigger_summary: false,
+            });
+          } catch (e) { console.error(e); }
+          setCreateCaseFromReport(null);
+          refetch();
+        }}
+      />
     </div>
   );
 };

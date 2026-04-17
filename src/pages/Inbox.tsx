@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Mail, Search, Flag, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip, ChevronDown, ChevronUp, PanelLeftClose, PanelLeftOpen, UserPlus, UserCheck, Undo2 } from "lucide-react";
+import { Mail, Search, Flag, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip, ChevronDown, ChevronUp, PanelLeftClose, PanelLeftOpen, UserPlus, UserCheck, Undo2, Link2, Sparkles } from "lucide-react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 import { EmailAttachments } from "@/components/email/EmailAttachments";
-import { ArchiveEmailDialog } from "@/components/email/ArchiveEmailDialog";
+import { AssignEmailDialog } from "@/components/email/AssignEmailDialog";
 import { EmailHtmlBody } from "@/components/email/EmailHtmlBody";
 import { EmailSettingsSection } from "@/components/email/EmailSettingsSection";
 import { useAuth } from "@/hooks/useAuth";
@@ -311,16 +311,46 @@ export const Inbox = () => {
     setArchiveDialogOpen(true);
   };
 
-  const handleArchiveWithAssignment = async (emailId: string, buildingId: string | null, contactId: string | null) => {
-    await supabase.from("emails").update({
-      is_archived: true,
-      building_id: buildingId,
-      contact_id: contactId,
-    }).eq("id", emailId);
-    if (selectedEmailId === emailId) setSelectedEmailId(null);
+  const handleAssign = async (params: {
+    emailId: string;
+    buildingId: string | null;
+    contactId: string | null;
+    caseId: string | null;
+    archive: boolean;
+  }) => {
+    const update: any = {
+      building_id: params.buildingId,
+      contact_id: params.contactId,
+      case_id: params.caseId,
+    };
+    if (params.archive) update.is_archived = true;
+    await supabase.from("emails").update(update).eq("id", params.emailId);
+
+    // If linked to a case, create case event
+    if (params.caseId) {
+      const email = emails.find((e) => e.id === params.emailId);
+      try {
+        await supabase.functions.invoke("case-add-event", {
+          body: {
+            case_id: params.caseId,
+            event_type: "email",
+            title: email?.subject || "E-Mail",
+            body: email?.body_text?.substring(0, 500) || null,
+            source_table: "emails",
+            source_id: params.emailId,
+            trigger_summary: true,
+          },
+        });
+      } catch (e) {
+        console.error("case-add-event failed", e);
+      }
+    }
+
+    if (params.archive && selectedEmailId === params.emailId) setSelectedEmailId(null);
     queryClient.invalidateQueries({ queryKey: ["emails"] });
     queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
-    toast.success("E-Mail archiviert");
+    queryClient.invalidateQueries({ queryKey: ["case-events"] });
+    toast.success(params.archive ? "E-Mail zugeordnet & archiviert" : "E-Mail zugeordnet");
   };
 
   const deleteEmail = async (emailId: string) => {
@@ -884,8 +914,17 @@ export const Inbox = () => {
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleFollowUp(selectedEmail.id, selectedEmail.is_starred)} title={selectedEmail.is_starred ? "Nachverfolgung entfernen" : "Zur Nachverfolgung markieren"}>
                               <Flag className={cn("h-4 w-4", selectedEmail.is_starred && "text-orange-500 fill-orange-500")} />
                             </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openArchiveDialog(selectedEmail.id)} title="Zuordnen">
+                              <Link2 className="h-4 w-4" />
+                            </Button>
                             {!selectedEmail.is_archived && (
-                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openArchiveDialog(selectedEmail.id)}>
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={async () => {
+                                await supabase.from("emails").update({ is_archived: true }).eq("id", selectedEmail.id);
+                                setSelectedEmailId(null);
+                                queryClient.invalidateQueries({ queryKey: ["emails"] });
+                                queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+                                toast.success("E-Mail archiviert");
+                              }} title="Archivieren">
                                 <Archive className="h-4 w-4" />
                               </Button>
                             )}
@@ -982,6 +1021,18 @@ export const Inbox = () => {
                           {(() => { const c = contacts.find(c => c.id === selectedEmail.contact_id); return c ? getContactName(c) : "Kontakt"; })()}
                         </Badge>
                       )}
+                      {(selectedEmail as any).case_id && (
+                        <Badge variant="default" className="gap-1">
+                          <Link2 className="h-3 w-3" />
+                          Vorgang verknüpft
+                        </Badge>
+                      )}
+                      {!(selectedEmail as any).case_id && (selectedEmail as any).ai_case_suggestion_id && (
+                        <Badge variant="secondary" className="gap-1 cursor-pointer" onClick={() => openArchiveDialog(selectedEmail.id)}>
+                          <Sparkles className="h-3 w-3" />
+                          KI-Vorschlag: Vorgang ({Math.round(((selectedEmail as any).ai_case_confidence || 0) * 100)}%)
+                        </Badge>
+                      )}
                       {selectedEmail.ai_category && <Badge variant="outline">{selectedEmail.ai_category}</Badge>}
                       {selectedEmail.ai_priority && (
                         <Badge variant={selectedEmail.ai_priority === "hoch" ? "destructive" : "secondary"}>
@@ -1039,13 +1090,14 @@ export const Inbox = () => {
       </div>
 
 
-      <ArchiveEmailDialog
+      <AssignEmailDialog
         open={archiveDialogOpen}
         onOpenChange={setArchiveDialogOpen}
         emailId={archiveEmailId}
-        onArchive={handleArchiveWithAssignment}
+        onAssign={handleAssign}
         prefilledContactId={archiveEmailId ? (emails.find(e => e.id === archiveEmailId)?.contact_id || null) : null}
         prefilledBuildingId={archiveEmailId ? (emails.find(e => e.id === archiveEmailId)?.building_id || null) : null}
+        prefilledCaseId={archiveEmailId ? ((emails.find(e => e.id === archiveEmailId) as any)?.case_id || (emails.find(e => e.id === archiveEmailId) as any)?.ai_case_suggestion_id || null) : null}
       />
 
       <Dialog open={newContactDialogOpen} onOpenChange={setNewContactDialogOpen}>

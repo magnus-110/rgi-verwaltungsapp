@@ -5,14 +5,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { useCreateCase, CASE_CATEGORY_LABEL, CASE_PRIORITY_LABEL, CaseCategory, CasePriority } from "@/hooks/useCases";
+import { useCreateCase, CASE_CATEGORY_LABEL, CASE_PRIORITY_LABEL, CaseCategory, CasePriority, CaseRow, ManagementMode } from "@/hooks/useCases";
 
 interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   buildingId: string;
-  managementMode: "weg" | "miete";
-  onCreated?: (caseId: string) => void;
+  managementMode: ManagementMode;
+  onCreated?: (caseRow: CaseRow) => void;
   defaults?: { title?: string; description?: string; category?: CaseCategory };
 }
 
@@ -27,13 +27,13 @@ export const CreateCaseDialog = ({ open, onOpenChange, buildingId, managementMod
     if (!title.trim()) return;
     const c = await create.mutateAsync({
       building_id: buildingId,
-      management_mode: managementMode as any,
+      management_mode: managementMode,
       title: title.trim(),
       description: description.trim() || undefined,
       category,
       priority,
     });
-    onCreated?.(c.id);
+    onCreated?.(c);
     onOpenChange(false);
     setTitle(""); setDescription(""); setCategory("sonstiges"); setPriority("medium");
   };

@@ -1,0 +1,209 @@
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Building2, User, Sparkles, FolderOpen, Link2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+
+interface AssignEmailDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  emailId: string | null;
+  onAssign: (params: {
+    emailId: string;
+    buildingId: string | null;
+    contactId: string | null;
+    caseId: string | null;
+    archive: boolean;
+  }) => void;
+  prefilledBuildingId?: string | null;
+  prefilledContactId?: string | null;
+  prefilledCaseId?: string | null;
+}
+
+export const AssignEmailDialog = ({
+  open,
+  onOpenChange,
+  emailId,
+  onAssign,
+  prefilledBuildingId,
+  prefilledContactId,
+  prefilledCaseId,
+}: AssignEmailDialogProps) => {
+  const [buildingId, setBuildingId] = useState<string>("none");
+  const [contactId, setContactId] = useState<string>("none");
+  const [caseId, setCaseId] = useState<string>("none");
+  const [archive, setArchive] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setBuildingId(prefilledBuildingId || "none");
+      setContactId(prefilledContactId || "none");
+      setCaseId(prefilledCaseId || "none");
+      setArchive(false);
+    }
+  }, [open, prefilledBuildingId, prefilledContactId, prefilledCaseId]);
+
+  const { data: buildings = [] } = useQuery({
+    queryKey: ["buildings-for-assign"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("buildings").select("id, name, address").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: contacts = [] } = useQuery({
+    queryKey: ["contacts-for-assign"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("contacts").select("id, first_name, last_name, company_name").order("last_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: cases = [] } = useQuery({
+    queryKey: ["cases-for-assign", buildingId],
+    queryFn: async () => {
+      if (buildingId === "none") return [];
+      const { data, error } = await supabase
+        .from("cases")
+        .select("id, title, status, category")
+        .eq("building_id", buildingId)
+        .in("status", ["open", "in_progress", "waiting_external", "waiting_owner"])
+        .order("updated_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: buildingId !== "none",
+  });
+
+  const handleAssign = () => {
+    if (!emailId) return;
+    onAssign({
+      emailId,
+      buildingId: buildingId !== "none" ? buildingId : null,
+      contactId: contactId !== "none" ? contactId : null,
+      caseId: caseId !== "none" ? caseId : null,
+      archive,
+    });
+    onOpenChange(false);
+  };
+
+  const getContactName = (c: any) => {
+    const parts = [c.first_name, c.last_name].filter(Boolean).join(" ");
+    if (parts && c.company_name) return `${parts} (${c.company_name})`;
+    return parts || c.company_name || "Unbenannt";
+  };
+
+  const hasSuggestion = prefilledContactId || prefilledBuildingId || prefilledCaseId;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[480px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Link2 className="h-5 w-5" />
+            E-Mail zuordnen
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 py-2">
+          {hasSuggestion && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground bg-muted/50 rounded-md px-2.5 py-1.5">
+              <Sparkles className="h-3.5 w-3.5 text-primary shrink-0" />
+              Zuordnungen wurden automatisch aus der KI-Erkennung vorgeschlagen.
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <Label className="text-sm flex items-center gap-1.5">
+              <Building2 className="h-4 w-4" />
+              Liegenschaft
+              {prefilledBuildingId && buildingId === prefilledBuildingId && (
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-0.5">
+                  <Sparkles className="h-2.5 w-2.5" />
+                  Vorschlag
+                </Badge>
+              )}
+            </Label>
+            <Select value={buildingId} onValueChange={(v) => { setBuildingId(v); setCaseId("none"); }}>
+              <SelectTrigger><SelectValue placeholder="Keine Zuordnung" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Keine Zuordnung</SelectItem>
+                {buildings.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>{b.name} – {b.address}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-sm flex items-center gap-1.5">
+              <User className="h-4 w-4" />
+              Kontakt
+              {prefilledContactId && contactId === prefilledContactId && (
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-0.5">
+                  <Sparkles className="h-2.5 w-2.5" />
+                  Vorschlag
+                </Badge>
+              )}
+            </Label>
+            <Select value={contactId} onValueChange={setContactId}>
+              <SelectTrigger><SelectValue placeholder="Keine Zuordnung" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Keine Zuordnung</SelectItem>
+                {contacts.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>{getContactName(c)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-sm flex items-center gap-1.5">
+              <FolderOpen className="h-4 w-4" />
+              Vorgang
+              {prefilledCaseId && caseId === prefilledCaseId && (
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-0.5">
+                  <Sparkles className="h-2.5 w-2.5" />
+                  Vorschlag
+                </Badge>
+              )}
+            </Label>
+            <Select value={caseId} onValueChange={setCaseId} disabled={buildingId === "none"}>
+              <SelectTrigger>
+                <SelectValue placeholder={buildingId === "none" ? "Erst Liegenschaft wählen" : "Keinem Vorgang"} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Keinem Vorgang</SelectItem>
+                {cases.map((c: any) => (
+                  <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2 pt-2 border-t">
+            <Checkbox id="archive-too" checked={archive} onCheckedChange={(v) => setArchive(!!v)} />
+            <Label htmlFor="archive-too" className="text-sm font-normal cursor-pointer">
+              E-Mail zusätzlich archivieren
+            </Label>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Abbrechen</Button>
+          <Button onClick={handleAssign} className="gap-1.5">
+            <Link2 className="h-4 w-4" />
+            Zuordnen
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+};
