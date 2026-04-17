@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,8 @@ interface Props {
   defaultVatRate: number;
   /** Default §35a type from the linked account */
   defaultType35a?: Type35a;
+  /** Currently stored amount_35a (gross), used for fallback custom item if list is empty */
+  currentAmount35a?: number;
 
   toggleIdSuffix?: string;
 }
@@ -74,6 +76,7 @@ export function Section35aEditor({
   onAmount35aChange,
   defaultVatRate,
   defaultType35a = "dienste",
+  currentAmount35a = 0,
   toggleIdSuffix = "",
 }: Props) {
   const meta = getVatMeta(lineItemsDetail);
@@ -81,6 +84,28 @@ export function Section35aEditor({
   const vatRate = meta?.rate ?? defaultVatRate;
 
   const items = effectiveItems(lineItemsDetail);
+
+  // Mount fallback: if §35a is active, no items selected, and no OCR positions exist,
+  // create a custom entry from currentAmount35a so the user always sees a valid selection.
+  useEffect(() => {
+    if (!is35aRelevant) return;
+    if (items.length > 0) return;
+    if ((invoiceLineItems?.length || 0) > 0) return;
+    if (!currentAmount35a || currentAmount35a <= 0) return;
+    const factor = applyVat && vatRate > 0 ? 1 + vatRate / 100 : 1;
+    const net = currentAmount35a / factor;
+    const fallback: LineItemDetail[] = [{
+      index: 0,
+      description: "Lohnanteil lt. KI-Vorschlag",
+      amount: parseFloat(net.toFixed(2)),
+      is_35a: true,
+      type_35a: defaultType35a,
+      is_custom: true,
+    }];
+    const withMeta = meta ? setVatMeta(fallback, meta) : fallback;
+    onLineItemsDetailChange(withMeta);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [is35aRelevant]);
   const customItems = items.filter(i => i.is_custom);
   const nextCustomIndex = invoiceLineItems.length + customItems.length;
 
@@ -262,7 +287,7 @@ export function Section35aEditor({
             <Plus className="h-3.5 w-3.5 mr-1" /> Position hinzufügen
           </Button>
         </div>
-        <div className="space-y-1.5 max-h-64 overflow-y-auto overflow-x-hidden">
+        <div className="space-y-1.5 max-h-[40vh] overflow-y-auto overflow-x-hidden">
           {invoiceLineItems.map((item, i) => renderItemRow(i, item, false))}
           {customItems.map(c => renderItemRow(c.index, c, true))}
           {invoiceLineItems.length === 0 && customItems.length === 0 && (
