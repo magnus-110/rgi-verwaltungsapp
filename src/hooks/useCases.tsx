@@ -98,7 +98,7 @@ export const useCreateCase = () => {
   return useMutation({
     mutationFn: async (input: {
       building_id: string;
-      management_mode: "weg" | "miete";
+      management_mode: ManagementMode;
       title: string;
       description?: string;
       category?: CaseCategory;
@@ -110,11 +110,11 @@ export const useCreateCase = () => {
       if (!user) throw new Error("Nicht angemeldet");
       const { data, error } = await supabase
         .from("cases")
-        .insert({ ...input, created_by: user.id })
+        .insert([{ ...input, created_by: user.id }] as any)
         .select()
         .single();
       if (error) throw error;
-      return data as CaseRow;
+      return data as unknown as CaseRow;
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["cases", data.building_id] });

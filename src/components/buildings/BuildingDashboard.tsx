@@ -244,7 +244,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
 
           {/* Cases Tab */}
           <TabsContent value="cases" className="p-4 md:p-6 mt-0">
-            <BuildingCasesTab buildingId={buildingId} managementMode={building.management_mode} />
+            <BuildingCasesTab buildingId={buildingId} managementMode={building.management_mode as any} />
           </TabsContent>
 
           {/* Documents Tab */}
