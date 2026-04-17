@@ -96,6 +96,20 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
   // Multi-row booking state
   const [formRows, setFormRows] = useState<BookingRowData[]>([]);
 
+  // Cache of unsaved edits per transaction id, so navigating away and back keeps changes
+  const editsCacheRef = useRef<Record<string, BookingRowData[]>>({});
+  const previousTxnIdRef = useRef<string | null>(null);
+
+  // Undo stack: last up to 10 confirmed bookings
+  type UndoEntry = {
+    txnId: string;
+    txnIndex: number;
+    bookingIds: string[];
+    priorRows: BookingRowData[];
+  };
+  const [undoStack, setUndoStack] = useState<UndoEntry[]>([]);
+  const [undoing, setUndoing] = useState(false);
+
   const currentTxn = transactions[currentIndex];
 
   const { data: accounts = [] } = useQuery({
