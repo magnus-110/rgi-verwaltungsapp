@@ -1622,11 +1622,11 @@ function BookingRowCard({
                   onKeyDown={e => handleEnterNavigation(e, "booking_date")} />
               </div>
               <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Beleg-Nr.</label>
-                <Input ref={el => fieldRefs.current["receipt_number"] = el}
-                  className="h-8 text-xs" value={row.receipt_number}
-                  onChange={e => onUpdateField("receipt_number", e.target.value)}
-                  onKeyDown={e => handleEnterNavigation(e, "receipt_number")} />
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Wirtschaftsjahr</label>
+                <Input ref={el => fieldRefs.current["fiscal_year"] = el}
+                  className="h-8 text-xs font-mono" type="number" value={row.fiscal_year}
+                  onChange={e => onUpdateField("fiscal_year", e.target.value)}
+                  onKeyDown={e => handleEnterNavigation(e, "fiscal_year")} />
               </div>
               <div>
                 {(() => {
@@ -1652,15 +1652,6 @@ function BookingRowCard({
                     </>
                   );
                 })()}
-              </div>
-            </div>
-
-            {/* Wirtschaftsjahr */}
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Wirtschaftsjahr</label>
-                <Input className="h-8 text-xs font-mono" type="number" value={row.fiscal_year}
-                  onChange={e => onUpdateField("fiscal_year", e.target.value)} />
               </div>
             </div>
 
