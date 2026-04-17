@@ -9,11 +9,12 @@
    isSameMonth,
    isSameDay,
    isToday,
-   getHours,
-   setHours,
-   setMinutes,
- } from 'date-fns';
- import { de } from 'date-fns/locale';
+  getHours,
+  setHours,
+  setMinutes,
+  getISOWeek,
+} from 'date-fns';
+import { de } from 'date-fns/locale';
  import { useCalendarItems, CalendarItem } from '@/hooks/useCalendar';
  import { cn } from '@/lib/utils';
  import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
@@ -158,91 +159,103 @@
      return items.filter(item => isSameDay(item.start, date));
    };
  
-   return (
-     <DragDropContext onDragEnd={onDragEnd}>
-       <div className="bg-card rounded-lg border overflow-hidden">
-         {/* Weekday headers */}
-         <div className="grid grid-cols-7 border-b">
-           {weekdays.map(day => (
-             <div key={day} className="p-2 text-center text-sm font-medium text-muted-foreground border-r last:border-r-0">
-               {day}
-             </div>
-           ))}
-         </div>
-         
-         {/* Calendar grid */}
-         <div className="grid grid-cols-7">
-           {days.map((day, index) => {
-             const dayItems = getItemsForDay(day);
-             const isCurrentMonth = isSameMonth(day, currentDate);
-             
-             return (
-               <Droppable droppableId={`day-${format(day, 'yyyy-MM-dd')}`} key={day.toISOString()}>
-                 {(provided, snapshot) => (
-                   <div
-                     ref={provided.innerRef}
-                     {...provided.droppableProps}
-                     onClick={() => onDateClick(day)}
-                     className={cn(
-                       'min-h-[100px] sm:min-h-[120px] p-1 sm:p-2 border-r border-b last:border-r-0 cursor-pointer transition-colors',
-                       !isCurrentMonth && 'bg-muted/30 text-muted-foreground',
-                       isToday(day) && 'bg-primary/5',
-                       snapshot.isDraggingOver && 'bg-primary/10'
-                     )}
-                   >
-                     <div className={cn(
-                       'text-sm font-medium mb-1 w-7 h-7 flex items-center justify-center rounded-full',
-                       isToday(day) && 'bg-primary text-primary-foreground'
-                     )}>
-                       {format(day, 'd')}
-                     </div>
-                     
-                     <div className="space-y-1">
-                       {dayItems.slice(0, 3).map((item, itemIndex) => (
-                         <Draggable key={item.id} draggableId={item.id} index={itemIndex}>
-                           {(provided, snapshot) => (
-                             <div
-                               ref={provided.innerRef}
-                               {...provided.draggableProps}
-                               {...provided.dragHandleProps}
-                               onClick={(e) => { e.stopPropagation(); onEventClick(item.id, item.type); }}
-                               className={cn(
-                                 'text-xs p-1 rounded truncate flex items-center gap-1',
-                                 snapshot.isDragging && 'shadow-lg opacity-90'
-                               )}
-                               style={{
-                                 backgroundColor: `${item.color}20`,
-                                 borderLeft: `3px solid ${item.color}`,
-                                 ...provided.draggableProps.style,
-                               }}
-                             >
-                               {item.type === 'todo' ? (
-                                 <CheckSquare className="h-3 w-3 shrink-0" style={{ color: item.color }} />
-                               ) : (
-                                 <Calendar className="h-3 w-3 shrink-0" style={{ color: item.color }} />
-                               )}
-                               <span className="truncate">{item.taskNumber ? `#${item.taskNumber} ` : ''}{item.title}</span>
-                             </div>
-                           )}
-                         </Draggable>
-                       ))}
-                       {dayItems.length > 3 && (
-                         <div className="text-xs text-muted-foreground pl-1">
-                           +{dayItems.length - 3} weitere
-                         </div>
-                       )}
-                     </div>
-                     {provided.placeholder}
-                   </div>
-                 )}
-               </Droppable>
-             );
-           })}
-         </div>
-       </div>
-     </DragDropContext>
-   );
- }
+  return (
+    <DragDropContext onDragEnd={onDragEnd}>
+      <div className="bg-card rounded-lg border overflow-hidden">
+        {/* Weekday headers */}
+        <div className="grid grid-cols-[3rem_repeat(7,minmax(0,1fr))] border-b">
+          <div className="p-2 text-center text-xs font-medium text-muted-foreground border-r">
+            KW
+          </div>
+          {weekdays.map(day => (
+            <div key={day} className="p-2 text-center text-sm font-medium text-muted-foreground border-r last:border-r-0">
+              {day}
+            </div>
+          ))}
+        </div>
+        
+        {/* Calendar grid - rows of weeks with KW number */}
+        {Array.from({ length: days.length / 7 }).map((_, weekIdx) => {
+          const weekDays = days.slice(weekIdx * 7, weekIdx * 7 + 7);
+          const weekNumber = getISOWeek(weekDays[0]);
+          return (
+            <div key={weekIdx} className="grid grid-cols-[3rem_repeat(7,minmax(0,1fr))]">
+              <div className="border-r border-b flex items-start justify-center pt-2 text-xs font-medium text-muted-foreground bg-muted/20">
+                {weekNumber}
+              </div>
+              {weekDays.map((day) => {
+                const dayItems = getItemsForDay(day);
+                const isCurrentMonth = isSameMonth(day, currentDate);
+                
+                return (
+                  <Droppable droppableId={`day-${format(day, 'yyyy-MM-dd')}`} key={day.toISOString()}>
+                    {(provided, snapshot) => (
+                      <div
+                        ref={provided.innerRef}
+                        {...provided.droppableProps}
+                        onClick={() => onDateClick(day)}
+                        className={cn(
+                          'min-h-[100px] sm:min-h-[120px] p-1 sm:p-2 border-r border-b last:border-r-0 cursor-pointer transition-colors',
+                          !isCurrentMonth && 'bg-muted/30 text-muted-foreground',
+                          isToday(day) && 'bg-primary/5',
+                          snapshot.isDraggingOver && 'bg-primary/10'
+                        )}
+                      >
+                        <div className={cn(
+                          'text-sm font-medium mb-1 w-7 h-7 flex items-center justify-center rounded-full',
+                          isToday(day) && 'bg-primary text-primary-foreground'
+                        )}>
+                          {format(day, 'd')}
+                        </div>
+                        
+                        <div className="space-y-1">
+                          {dayItems.slice(0, 3).map((item, itemIndex) => (
+                            <Draggable key={item.id} draggableId={item.id} index={itemIndex}>
+                              {(provided, snapshot) => (
+                                <div
+                                  ref={provided.innerRef}
+                                  {...provided.draggableProps}
+                                  {...provided.dragHandleProps}
+                                  onClick={(e) => { e.stopPropagation(); onEventClick(item.id, item.type); }}
+                                  className={cn(
+                                    'text-xs p-1 rounded truncate flex items-center gap-1',
+                                    snapshot.isDragging && 'shadow-lg opacity-90'
+                                  )}
+                                  style={{
+                                    backgroundColor: `${item.color}20`,
+                                    borderLeft: `3px solid ${item.color}`,
+                                    ...provided.draggableProps.style,
+                                  }}
+                                >
+                                  {item.type === 'todo' ? (
+                                    <CheckSquare className="h-3 w-3 shrink-0" style={{ color: item.color }} />
+                                  ) : (
+                                    <Calendar className="h-3 w-3 shrink-0" style={{ color: item.color }} />
+                                  )}
+                                  <span className="truncate">{item.taskNumber ? `#${item.taskNumber} ` : ''}{item.title}</span>
+                                </div>
+                              )}
+                            </Draggable>
+                          ))}
+                          {dayItems.length > 3 && (
+                            <div className="text-xs text-muted-foreground pl-1">
+                              +{dayItems.length - 3} weitere
+                            </div>
+                          )}
+                        </div>
+                        {provided.placeholder}
+                      </div>
+                    )}
+                  </Droppable>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+    </DragDropContext>
+  );
+}
  
  // Week View Component
  function WeekView({ 
@@ -282,7 +295,10 @@
        <div className="bg-card rounded-lg border overflow-auto">
          {/* Header with days */}
          <div className="grid grid-cols-8 border-b sticky top-0 bg-card z-10">
-           <div className="p-2 text-center text-sm text-muted-foreground border-r" />
+            <div className="p-2 text-center text-xs font-medium text-muted-foreground border-r flex flex-col items-center justify-center bg-muted/20">
+              <span>KW</span>
+              <span className="text-sm font-semibold text-foreground">{getISOWeek(weekStart)}</span>
+            </div>
            {days.map(day => (
              <div 
                key={day.toISOString()} 
