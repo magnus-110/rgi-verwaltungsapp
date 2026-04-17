@@ -187,7 +187,7 @@ export const Inbox = () => {
 
   // Fetch emails for selected folder
   const { data: emails = [], isLoading: emailsLoading } = useQuery({
-    queryKey: ["emails", selectedFolderId, searchTerm, filterAccountId, isArchiveFolder, filterBuildingId, filterContactId, filterAssignedTo],
+    queryKey: ["emails", selectedFolderId, searchTerm, selectedAccountIds, isArchiveFolder, filterBuildingId, filterContactId, filterAssignedTo],
     queryFn: async () => {
       let query = supabase
         .from("emails")
@@ -214,8 +214,11 @@ export const Inbox = () => {
         }
       }
 
-      if (filterAccountId !== "all") {
-        query = query.eq("account_id", filterAccountId);
+      if (selectedAccountIds !== null) {
+        if (selectedAccountIds.length === 0) {
+          return [];
+        }
+        query = query.in("account_id", selectedAccountIds);
       }
 
       if (filterAssignedTo === "unassigned") {
