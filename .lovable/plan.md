@@ -1,56 +1,62 @@
 
 
-## Plan: Toggle "Liste vs. Kontenplan" auf der Buchungen-Seite
+## Plan: §35a-Dialog erweitern – MwSt-Toggle, editierbare Positionen, Typ pro Position
 
 ### Befund
-- `BookingsTab.tsx` zeigt Buchungen aktuell nur als flache, paginierte Tabelle (50/Seite).
-- Daten enthalten bereits `chart_of_accounts` (Konto-Nr., Name) und `counter_account` → Gruppierung pro Konto ist ohne neue Query möglich.
-- `chart_of_accounts` hat `category`, `settlement_section`, `sort_order` → ideal für Kontenplan-Struktur.
+- Dialog-Code existiert in zwei Stellen (identische Logik): `TransactionReviewMode.tsx` (~Z. 1735–1813) und `EditBookingDialog.tsx` (~Z. 496–570).
+- Aktuell:
+  - MwSt wird automatisch aus `row.vat_rate` aufgeschlagen — kein Toggle, kein Override.
+  - Positionen kommen aus `invoice.line_items` (OCR) und sind nur an-/abwählbar.
+  - Kein Unterscheidung Handwerker- vs. Haushaltsnahe Dienstleistung pro Position.
+- DB hat bereits: `bookings.amount_35a`, `bookings.line_items_detail` (jsonb) — beides nutzbar ohne Migration.
+- `chart_of_accounts.settlement_35a_type` (`dienste` | `handwerker`) existiert für die Vorbelegung pro Konto.
 
-### UI-Konzept
-Toggle (`ToggleGroup`, 2 Optionen) in der Toolbar neben der Jahresauswahl:
-- **Liste** (Default, bisheriges Verhalten)
-- **Kontenplan** (neue gruppierte Ansicht)
+### Änderungen im §35a-Dialog (beide Stellen)
 
-### Kontenplan-Ansicht
-Pro Konto eine `Collapsible`-Sektion, sortiert nach Kategorie und `account_number`:
+**1. Typ pro Position (Handwerker / Dienstleistung)**
+- Neben jeder ausgewählten Position ein kleiner Toggle/Pill-Switch:
+  - `Handwerker` (blau) ↔ `Dienstleistung` (grün)
+- Default kommt aus `chart_of_accounts.settlement_35a_type` des Kontos (oder Gegenkontos), sonst `dienste`.
+- Wert wird in `line_items_detail[i].type_35a` gespeichert (`"dienste"` | `"handwerker"`).
+- Lohnanteil im Footer wird nach Typ getrennt summiert und beides angezeigt:
+  - „Handwerker: 128,25 €"
+  - „Dienstleistung: 25,00 €"
+  - Gesamt-Lohnanteil bleibt sichtbar.
 
-```text
-▼ 4300 Instandhaltung                    12 Buch.    -3.450,00 €
-   ├ Datum    Beleg   Buchungstext              Gegenkto    Betrag
-   ├ ...
-▶ 4400 Versicherungen                     3 Buch.      -890,00 €
-▶ 8000 Hausgeld-Einnahmen                24 Buch.   +14.400,00 €
-```
+**2. Editierbare Positionen**
+- Beschreibung und Betrag jeder Position als kleine inline-Inputs, sobald die Position selektiert ist (sonst read-only).
+- Plus-Button am Ende: „+ Position hinzufügen" (Free-Text, Betrag, Typ) — speichert in `line_items_detail` mit `index = lineItems.length + N`, Flag `is_custom: true`.
+- Mülleimer-Icon zum Entfernen einer Custom-Position.
+- Validierung: Betrag > 0 und Beschreibung nicht leer.
 
-Header pro Konto-Block zeigt:
-- Konto-Nr. + Name
-- Anzahl Buchungen
-- **Saldo** (Summe der Beträge, mit Vorzeichen, farbcodiert)
+**3. MwSt-Toggle + Override**
+- Eigene Sektion im Dialog unter den Positionen:
+  - Checkbox/Switch „MwSt. auf Lohnanteil aufschlagen" (Default: an, wenn Rechnung MwSt enthält).
+  - Daneben Auswahl `0%` / `7%` / `19%` / `Eigener Wert` (Input).
+  - Default-Satz aus `invoice.vat_rate` bzw. `row.vat_rate`, bleibt aber unabhängig editierbar — wird in `line_items_detail._vat_meta` gespeichert (`{ apply_vat: bool, rate: number }`), damit es beim erneuten Öffnen erhalten bleibt.
+- `amount_35a` wird live neu berechnet:
+  - `apply_vat=false` → Summe Netto
+  - `apply_vat=true` → Netto × (1 + rate/100)
 
-Gruppierung nach `chart_of_accounts.category` (Aufwand, Ertrag, Aktiva, Passiva) als Section-Header darüber.
-
-Suche und §a-Filter (Prüfung) wirken auch hier — Konten ohne Treffer werden ausgeblendet.
-
-### Wichtige Aspekte, die du leicht vergessen könntest
-1. **Split-Buchungen / Gegenkonto-Logik**: Eine Buchung erscheint im Kontenplan nur unter dem `account_id`, nicht zusätzlich unter `counter_account_id`. Sonst doppelte Salden. Optional: Schalter „Beidseitig anzeigen" für klassische Soll/Haben-Sicht.
-2. **Saldo-Berechnung**: Eröffnungsbilanz (`account_balances.opening_balance`) sollte oben pro Konto angezeigt werden, sonst stimmt der Endsaldo nicht mit der Buchhaltung überein.
-3. **Performance**: Bei vielen Buchungen Sektionen standardmäßig collapsed öffnen (außer die mit Treffern bei aktiver Suche). Pagination entfällt im Kontenplan-Modus, dafür Lazy-Render der Zeilen erst beim Aufklappen.
-4. **Leere Konten**: Konten ohne Buchungen im Jahr standardmäßig ausblenden, mit Toggle „Alle Konten anzeigen".
-5. **Persistenz**: Gewählten Modus in `localStorage` speichern, damit der Nutzer beim Reload nicht zurückspringt.
-6. **Liegenschaftsbezug**: Bei Multi-Building-Ansicht braucht Kontenplan einen Building-Filter — sonst werden gleiche Kontonummern aus verschiedenen Häusern fälschlich vermischt (`chart_of_accounts.building_id` beachten).
-7. **Export**: Kontenplan-Ansicht eignet sich später ideal für PDF-Kontenblatt-Export pro Konto (DATEV-ähnlich) — Architektur dafür offenhalten.
-8. **Drill-down**: Klick auf Buchungszeile öffnet weiterhin `EditBookingDialog` (gleiche UX wie Liste).
+**4. Persistenz beim Buchen**
+- `bookings.line_items_detail` enthält dann pro Eintrag: `{ index, description, amount, is_35a, type_35a, is_custom? }` plus optional `_vat_meta` als letzten Eintrag.
+- `bookings.amount_35a` weiterhin als Gesamtsumme (Brutto Lohnanteil) — wird vom PDF/§35a-Bescheinigungs-Workflow genutzt.
+- Optional Phase 2: `generate-billing-pdf` so erweitern, dass es bei Vorhandensein von `line_items_detail[*].type_35a` daraus die Aufteilung Dienste/Handwerker pro Buchung liest, statt nur über `chart_of_accounts.settlement_35a_type` zu gehen. (Nicht zwingend in dieser Iteration, aber Datenstruktur ist vorbereitet.)
 
 ### Betroffene Dateien
 | Datei | Änderung |
 |---|---|
-| `src/components/finance/BookingsTab.tsx` | Toggle-State, neue `AccountPlanView`-Render-Logik, Gruppierung, Saldo-Berechnung, localStorage |
-| `src/components/finance/AccountPlanView.tsx` (neu) | Collapsible Sektionen pro Kategorie/Konto, Saldo-Header, Lazy-Render |
+| `src/components/finance/TransactionReviewMode.tsx` | §35a-Dialog umbauen (Typ-Toggle, Edit-Inputs, Add/Remove, MwSt-Toggle) |
+| `src/components/finance/EditBookingDialog.tsx` | Identische Änderung im zweiten Dialog |
+| (optional Phase 2) `supabase/functions/generate-billing-pdf/index.ts` | line_items_detail.type_35a respektieren |
 
 ### Erwartetes Ergebnis
-- Toggle „Liste / Kontenplan" in der Toolbar.
-- Kontenplan zeigt alle Konten mit Buchungen für das gewählte Jahr, gruppiert nach Kategorie, mit Saldo pro Konto.
-- Suche & §a-Filter funktionieren in beiden Modi.
-- Liegenschafts-Trennung sauber, Eröffnungsbilanz berücksichtigt, Modus bleibt nach Reload erhalten.
+- Im §35a-Popup kann der Nutzer pro Position:
+  - aus-/abwählen
+  - Beschreibung + Betrag bearbeiten
+  - zwischen Handwerker und Haushaltsnahe Dienstleistung umschalten
+  - eigene Positionen hinzufügen
+- MwSt-Aufschlag ist optional (Toggle) und Satz ist editierbar — Default kommt aus der Rechnung.
+- Lohnanteil wird im Footer getrennt nach Handwerker/Dienstleistung sowie als Gesamt angezeigt.
+- Auswahl bleibt persistent in `line_items_detail`.
 
