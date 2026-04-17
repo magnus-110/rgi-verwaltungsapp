@@ -325,6 +325,8 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     const updateData: any = {
       match_status: "manually_matched",
       ai_suggestion: null, // Reset so AI re-analyzes with new context
+      ai_analysis_status: null,
+      ai_analysis_attempts: 0,
     };
     if (manualAssignType === "invoice") { updateData.matched_invoice_id = manualAssignId; }
     else { updateData.matched_template_id = manualAssignId; }
@@ -368,7 +370,11 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
       resetAiPrefetch();
       // Reset all AI suggestions for this building so they get re-analyzed
       await supabase.from("bank_transactions")
-        .update({ ai_suggestion: null } as any)
+        .update({
+          ai_suggestion: null,
+          ai_analysis_status: null,
+          ai_analysis_attempts: 0,
+        } as any)
         .eq("building_id", selectedBuilding)
         .is("booked_at", null);
 
@@ -666,6 +672,8 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
           const updateData: any = {
             match_status: "manually_matched",
             ai_suggestion: null, // Reset so AI re-analyzes with new invoice/template context
+            ai_analysis_status: null,
+            ai_analysis_attempts: 0,
           };
           if (type === "invoice") { updateData.matched_invoice_id = id; updateData.matched_template_id = null; }
           else { updateData.matched_template_id = id; updateData.matched_invoice_id = null; }
