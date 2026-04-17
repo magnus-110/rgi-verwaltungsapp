@@ -119,6 +119,9 @@ Inhalt (Auszug): ${(email.body_text || "").substring(0, 1500)}`;
                   role: "system",
                   content: `Du bist ein KI-Assistent für eine Hausverwaltung. Analysiere eingehende E-Mails und klassifiziere sie.
 
+Hinweis zur Kategorie "Werbung": Hier gehören auch Newsletter, Marketing-Mails, Produktankündigungen und ähnliche unaufgeforderte Info-Mails hinein.
+Hinweis zur Kategorie "Sonstiges": Alles, was sich nicht eindeutig zuordnen lässt (auch frühere Kategorien wie Wartung, Mahnung oder Vertrag).
+
 Verfügbare Gebäude:
 ${buildingList || "Keine Gebäude vorhanden"}
 
