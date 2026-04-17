@@ -36,6 +36,7 @@ const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(amount);
 
 export function AccountPlanView({ bookings, fiscalYear, buildingId, onRowClick, showAllAccounts }: Props) {
+  const queryClient = useQueryClient();
   const [openAccounts, setOpenAccounts] = useState<Record<string, boolean>>({});
 
   // Load all accounts (filtered by building when possible)
@@ -232,9 +233,35 @@ export function AccountPlanView({ bookings, fiscalYear, buildingId, onRowClick, 
                                   )}>
                                     {isIncome ? "+" : ""}{formatCurrency(Number(b.amount))}
                                   </TableCell>
-                                  <TableCell className="py-1.5 px-3">
+                                  <TableCell className="py-1.5 px-3" onClick={(e) => e.stopPropagation()}>
                                     <div className="flex items-center gap-1">
-                                      {b.needs_review && <Flag className="h-3 w-3 text-orange-500 fill-orange-500" />}
+                                      {b.needs_review && (
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                className="h-5 w-5 p-0"
+                                                onClick={async (e) => {
+                                                  e.stopPropagation();
+                                                  const { error } = await supabase
+                                                    .from("bookings")
+                                                    .update({ needs_review: false })
+                                                    .eq("id", b.id);
+                                                  if (error) { toast.error("Fehler: " + error.message); return; }
+                                                  toast.success("Prüfung erledigt");
+                                                  queryClient.invalidateQueries({ queryKey: ["bookings-all"] });
+                                                  queryClient.invalidateQueries({ queryKey: ["bookings-manual"] });
+                                                }}
+                                              >
+                                                <Flag className="h-3 w-3 text-orange-500 fill-orange-500" />
+                                              </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent><p className="text-xs">Prüfung erledigt (Klick)</p></TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      )}
                                       {b.ai_warning && <AlertTriangle className="h-3 w-3 text-amber-500" />}
                                     </div>
                                   </TableCell>
