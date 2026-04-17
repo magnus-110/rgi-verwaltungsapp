@@ -94,8 +94,8 @@ export function BookingReviewMode({ open, onOpenChange, fiscalYear, buildingId }
 
     setConfirmedCount(c => c + 1);
     toast.success("Buchung bestätigt", { duration: 1500 });
-    queryClient.invalidateQueries({ queryKey: ["bookings-pending"] });
-    queryClient.invalidateQueries({ queryKey: ["bookings-confirmed"] });
+    queryClient.invalidateQueries({ queryKey: ["bookings-all"] });
+    
 
     if (currentIndex < bookings.length - 1) {
       await refetch();
