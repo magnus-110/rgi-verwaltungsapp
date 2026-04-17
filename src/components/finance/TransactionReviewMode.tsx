@@ -690,6 +690,12 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         } as any);
       }
 
+      // Track created booking ids for this txn (for undo)
+      pendingBookingIdsRef.current[currentTxn.id] = [
+        ...(pendingBookingIdsRef.current[currentTxn.id] || []),
+        booking.id,
+      ];
+
       // Mark this row as booked
       setFormRows(rows => rows.map(r => r.id === rowId ? { ...r, booked: true } : r));
 
@@ -703,6 +709,19 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           booked_at: new Date().toISOString(),
           booking_id: booking.id,
         }).eq("id", currentTxn.id);
+
+        // Push to undo stack (keep priorRows so we can restore on undo)
+        const priorRowsSnapshot = (editsCacheRef.current[currentTxn.id] || formRows).map(r => ({ ...r, booked: false }));
+        const createdIds = pendingBookingIdsRef.current[currentTxn.id] || [];
+        delete pendingBookingIdsRef.current[currentTxn.id];
+        delete editsCacheRef.current[currentTxn.id];
+        setUndoStack(stack => {
+          const next: UndoEntry[] = [
+            ...stack,
+            { txnId: currentTxn.id, txnIndex: currentIndex, bookingIds: createdIds, priorRows: priorRowsSnapshot },
+          ];
+          return next.slice(-10); // keep last 10
+        });
 
         setBookedCount(c => c + 1);
         toast.success(`${totalParts > 1 ? `${totalParts} Buchungen` : "Buchung"} erstellt ✓`, { duration: 1500 });
@@ -728,6 +747,59 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       setBookingSingle(null);
     }
   }, [currentTxn, bookingSingle, user, formRows, buildingId, currentIndex, transactions.length, queryClient]);
+
+  // Confirm all unbooked rows of the current transaction, then advance
+  const confirmAndNext = useCallback(async () => {
+    if (!currentTxn || bookingSingle) return;
+    const unbookedRows = formRows.filter(r => !r.booked);
+    if (unbookedRows.length === 0) {
+      handleNext();
+      return;
+    }
+    for (const row of unbookedRows) {
+      // eslint-disable-next-line no-await-in-loop
+      await handleBookRow(row.id);
+    }
+  }, [currentTxn, bookingSingle, formRows, handleBookRow]);
+
+  // Undo last confirmed booking(s)
+  const undoLast = useCallback(async () => {
+    if (undoing || undoStack.length === 0) return;
+    setUndoing(true);
+    try {
+      const last = undoStack[undoStack.length - 1];
+      // Delete the booking rows
+      if (last.bookingIds.length > 0) {
+        await supabase.from("bookings").delete().in("id", last.bookingIds);
+      }
+      // Reset the bank transaction
+      await supabase.from("bank_transactions").update({
+        booked_at: null,
+        booking_id: null,
+      }).eq("id", last.txnId);
+
+      // Restore form-state cache so when user navigates back, edits return
+      editsCacheRef.current[last.txnId] = last.priorRows;
+
+      setUndoStack(stack => stack.slice(0, -1));
+      setBookedCount(c => Math.max(0, c - 1));
+
+      // Jump back to the undone transaction if possible
+      if (last.txnIndex >= 0 && last.txnIndex < transactions.length) {
+        setCurrentIndex(last.txnIndex);
+      }
+
+      toast.success("Buchung rückgängig gemacht", { duration: 1500 });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+      queryClient.invalidateQueries({ queryKey: ["bookings-pending"] });
+      queryClient.invalidateQueries({ queryKey: ["bookings-confirmed"] });
+    } catch (err: any) {
+      toast.error("Rückgängig fehlgeschlagen: " + (err.message || "Unbekannt"));
+    } finally {
+      setUndoing(false);
+    }
+  }, [undoing, undoStack, transactions.length, queryClient]);
 
   const handleNext = useCallback(() => {
     if (currentIndex < transactions.length - 1) setCurrentIndex(i => i + 1);
