@@ -93,37 +93,9 @@ const EventRow = ({ event }: EventRowProps) => {
             <span className="text-xs font-medium text-muted-foreground">{LABEL[event.event_type]}</span>
             {!editing && event.title && <span className="text-sm font-medium truncate">{event.title}</span>}
           </div>
-          <div className="flex flex-col items-end gap-1">
-            <span className="text-xs text-muted-foreground whitespace-nowrap">
-              {format(new Date(event.occurred_at), "dd.MM.yyyy HH:mm", { locale: de })}
-            </span>
-            {!editing && event.event_type !== "ai_summary" && (
-              <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
-                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditing(true)}>
-                  <Pencil className="h-3 w-3" />
-                </Button>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive hover:text-destructive">
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Eintrag löschen?</AlertDialogTitle>
-                      <AlertDialogDescription>Dieser Zeitstrahl-Eintrag wird unwiderruflich entfernt.</AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                      <AlertDialogAction onClick={() => del.mutate({ id: event.id, case_id: event.case_id })}>
-                        Löschen
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
-            )}
-          </div>
+          <span className="text-xs text-muted-foreground whitespace-nowrap">
+            {format(new Date(event.occurred_at), "dd.MM.yyyy HH:mm", { locale: de })}
+          </span>
         </div>
 
         {editing ? (
@@ -154,6 +126,32 @@ const EventRow = ({ event }: EventRowProps) => {
                     {a.path && <Download className="h-3 w-3 opacity-50" />}
                   </button>
                 ))}
+              </div>
+            )}
+            {event.event_type !== "ai_summary" && (
+              <div className="mt-2 flex justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditing(true)}>
+                  <Pencil className="h-3 w-3" />
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive hover:text-destructive">
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Eintrag löschen?</AlertDialogTitle>
+                      <AlertDialogDescription>Dieser Zeitstrahl-Eintrag wird unwiderruflich entfernt.</AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => del.mutate({ id: event.id, case_id: event.case_id })}>
+                        Löschen
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             )}
           </>
