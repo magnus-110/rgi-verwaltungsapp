@@ -96,6 +96,22 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
   // Multi-row booking state
   const [formRows, setFormRows] = useState<BookingRowData[]>([]);
 
+  // Cache of unsaved edits per transaction id, so navigating away and back keeps changes
+  const editsCacheRef = useRef<Record<string, BookingRowData[]>>({});
+  const previousTxnIdRef = useRef<string | null>(null);
+  // Track booking ids created for the current txn, used for undo
+  const pendingBookingIdsRef = useRef<Record<string, string[]>>({});
+
+  // Undo stack: last up to 10 confirmed bookings
+  type UndoEntry = {
+    txnId: string;
+    txnIndex: number;
+    bookingIds: string[];
+    priorRows: BookingRowData[];
+  };
+  const [undoStack, setUndoStack] = useState<UndoEntry[]>([]);
+  const [undoing, setUndoing] = useState(false);
+
   const currentTxn = transactions[currentIndex];
 
   const { data: accounts = [] } = useQuery({
@@ -316,6 +332,29 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
   // Auto-fill form rows when transaction changes
   useEffect(() => {
     if (!currentTxn || accounts.length === 0) return;
+
+    // Save the previous transaction's edits into the cache
+    const prevId = previousTxnIdRef.current;
+    if (prevId && prevId !== currentTxn.id) {
+      // Capture current formRows snapshot for the previous txn
+      setFormRows((prevRows) => {
+        if (prevRows.length > 0 && !prevRows.every(r => r.booked)) {
+          editsCacheRef.current[prevId] = prevRows;
+        }
+        return prevRows;
+      });
+    }
+    previousTxnIdRef.current = currentTxn.id;
+
+    // If we have cached edits for this transaction, restore them instead of rebuilding
+    const cached = editsCacheRef.current[currentTxn.id];
+    if (cached && cached.length > 0) {
+      setFormRows(cached);
+      setExpandedRowId(cached.find(r => !r.booked)?.id || cached[0].id);
+      setShowLinkedInvoicePdf(false);
+      setLinkedInvoicePdfUrl(null);
+      return;
+    }
 
     const txnDate = currentTxn.booking_date;
     const fiscalYear = getFiscalYearForDate(txnDate);
@@ -653,6 +692,12 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         } as any);
       }
 
+      // Track created booking ids for this txn (for undo)
+      pendingBookingIdsRef.current[currentTxn.id] = [
+        ...(pendingBookingIdsRef.current[currentTxn.id] || []),
+        booking.id,
+      ];
+
       // Mark this row as booked
       setFormRows(rows => rows.map(r => r.id === rowId ? { ...r, booked: true } : r));
 
@@ -666,6 +711,19 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           booked_at: new Date().toISOString(),
           booking_id: booking.id,
         }).eq("id", currentTxn.id);
+
+        // Push to undo stack (keep priorRows so we can restore on undo)
+        const priorRowsSnapshot = (editsCacheRef.current[currentTxn.id] || formRows).map(r => ({ ...r, booked: false }));
+        const createdIds = pendingBookingIdsRef.current[currentTxn.id] || [];
+        delete pendingBookingIdsRef.current[currentTxn.id];
+        delete editsCacheRef.current[currentTxn.id];
+        setUndoStack(stack => {
+          const next: UndoEntry[] = [
+            ...stack,
+            { txnId: currentTxn.id, txnIndex: currentIndex, bookingIds: createdIds, priorRows: priorRowsSnapshot },
+          ];
+          return next.slice(-10); // keep last 10
+        });
 
         setBookedCount(c => c + 1);
         toast.success(`${totalParts > 1 ? `${totalParts} Buchungen` : "Buchung"} erstellt ✓`, { duration: 1500 });
@@ -692,6 +750,59 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     }
   }, [currentTxn, bookingSingle, user, formRows, buildingId, currentIndex, transactions.length, queryClient]);
 
+  // Confirm all unbooked rows of the current transaction, then advance
+  const confirmAndNext = useCallback(async () => {
+    if (!currentTxn || bookingSingle) return;
+    const unbookedRows = formRows.filter(r => !r.booked);
+    if (unbookedRows.length === 0) {
+      handleNext();
+      return;
+    }
+    for (const row of unbookedRows) {
+      // eslint-disable-next-line no-await-in-loop
+      await handleBookRow(row.id);
+    }
+  }, [currentTxn, bookingSingle, formRows, handleBookRow]);
+
+  // Undo last confirmed booking(s)
+  const undoLast = useCallback(async () => {
+    if (undoing || undoStack.length === 0) return;
+    setUndoing(true);
+    try {
+      const last = undoStack[undoStack.length - 1];
+      // Delete the booking rows
+      if (last.bookingIds.length > 0) {
+        await supabase.from("bookings").delete().in("id", last.bookingIds);
+      }
+      // Reset the bank transaction
+      await supabase.from("bank_transactions").update({
+        booked_at: null,
+        booking_id: null,
+      }).eq("id", last.txnId);
+
+      // Restore form-state cache so when user navigates back, edits return
+      editsCacheRef.current[last.txnId] = last.priorRows;
+
+      setUndoStack(stack => stack.slice(0, -1));
+      setBookedCount(c => Math.max(0, c - 1));
+
+      // Jump back to the undone transaction if possible
+      if (last.txnIndex >= 0 && last.txnIndex < transactions.length) {
+        setCurrentIndex(last.txnIndex);
+      }
+
+      toast.success("Buchung rückgängig gemacht", { duration: 1500 });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+      queryClient.invalidateQueries({ queryKey: ["bookings-pending"] });
+      queryClient.invalidateQueries({ queryKey: ["bookings-confirmed"] });
+    } catch (err: any) {
+      toast.error("Rückgängig fehlgeschlagen: " + (err.message || "Unbekannt"));
+    } finally {
+      setUndoing(false);
+    }
+  }, [undoing, undoStack, transactions.length, queryClient]);
+
   const handleNext = useCallback(() => {
     if (currentIndex < transactions.length - 1) setCurrentIndex(i => i + 1);
   }, [currentIndex, transactions.length]);
@@ -705,13 +816,24 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     const keyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       const isInput = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.getAttribute("role") === "combobox";
+
+      // Cmd/Ctrl+Z = undo last booking (works even inside inputs)
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
+        if (undoStack.length > 0) {
+          e.preventDefault();
+          undoLast();
+        }
+        return;
+      }
+
       if (isInput) return;
       if (e.key === "ArrowRight") { e.preventDefault(); handleNext(); }
       if (e.key === "ArrowLeft") { e.preventDefault(); handlePrev(); }
+      if (e.key === "Enter") { e.preventDefault(); confirmAndNext(); }
     };
     window.addEventListener("keydown", keyDown);
     return () => window.removeEventListener("keydown", keyDown);
-  }, [open, handleNext, handlePrev]);
+  }, [open, handleNext, handlePrev, confirmAndNext, undoLast, undoStack.length]);
 
   const amountMatch = useMemo(() => {
     if (!currentTxn) return false;
@@ -814,11 +936,14 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">Enter</kbd>
-              <span className="text-[11px]">Nächstes Feld</span>
+              <span className="text-[11px]">Buchen & weiter</span>
               <span className="mx-1 text-border">|</span>
               <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">←</kbd>
               <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">→</kbd>
               <span className="text-[11px]">Nav</span>
+              <span className="mx-1 text-border">|</span>
+              <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">⌘Z</kbd>
+              <span className="text-[11px]">Rückgängig</span>
             </div>
             <Separator orientation="vertical" className="h-6" />
             <span className="text-sm font-medium">
@@ -833,9 +958,21 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
             <Separator orientation="vertical" className="h-6" />
             <Progress value={progressPercent} className="w-32 h-2" />
           </div>
-          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
-            <X className="h-4 w-4 mr-1" /> Schließen
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={undoLast}
+              disabled={undoStack.length === 0 || undoing}
+              title="Letzte Buchung rückgängig (⌘Z)"
+            >
+              {undoing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RotateCcw className="h-4 w-4 mr-1" />}
+              Rückgängig {undoStack.length > 0 && `(${undoStack.length})`}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+              <X className="h-4 w-4 mr-1" /> Schließen
+            </Button>
+          </div>
         </div>
 
         {transactions.length === 0 ? (
