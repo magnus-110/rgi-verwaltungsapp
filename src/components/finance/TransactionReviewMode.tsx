@@ -816,13 +816,24 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     const keyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       const isInput = target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.getAttribute("role") === "combobox";
+
+      // Cmd/Ctrl+Z = undo last booking (works even inside inputs)
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
+        if (undoStack.length > 0) {
+          e.preventDefault();
+          undoLast();
+        }
+        return;
+      }
+
       if (isInput) return;
       if (e.key === "ArrowRight") { e.preventDefault(); handleNext(); }
       if (e.key === "ArrowLeft") { e.preventDefault(); handlePrev(); }
+      if (e.key === "Enter") { e.preventDefault(); confirmAndNext(); }
     };
     window.addEventListener("keydown", keyDown);
     return () => window.removeEventListener("keydown", keyDown);
-  }, [open, handleNext, handlePrev]);
+  }, [open, handleNext, handlePrev, confirmAndNext, undoLast, undoStack.length]);
 
   const amountMatch = useMemo(() => {
     if (!currentTxn) return false;
