@@ -491,34 +491,25 @@ Beschreibung: ${report.description}`;
               <>
                 <Button
                   variant="outline"
-                  size="sm"
-                  className="h-8 gap-1"
+                  size="icon"
+                  className="h-8 w-8"
                   onClick={() => setCreateCaseFromReport(report)}
                   title="Neuen Vorgang aus Meldung erstellen"
                 >
                   <FolderPlus className="h-3.5 w-3.5" />
-                  <span className="text-xs">Neuer Vorgang</span>
                 </Button>
                 <Button
                   variant="outline"
-                  size="sm"
-                  className="h-8 gap-1"
+                  size="icon"
+                  className="h-8 w-8"
                   onClick={() => setLinkReportToCase(report)}
                   title="Mit existierendem Vorgang verknüpfen"
                 >
                   <Link2 className="h-3.5 w-3.5" />
-                  <span className="text-xs">Zuordnen</span>
                 </Button>
               </>
             )}
             {getStatusBadge(report.status)}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => copyToClipboard(report)}
-            >
-              <Copy className="h-4 w-4" />
-            </Button>
             <Button
               variant="ghost"
               size="sm"
