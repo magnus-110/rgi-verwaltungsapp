@@ -245,8 +245,15 @@ export const Inbox = () => {
     },
   });
 
-  // All known categories (always shown)
-  const ALL_CATEGORIES = ["Rechnung", "Anfrage", "Versicherung", "Wartung", "Vertrag", "Mahnung", "Sonstiges", "Werbung", "Unkategorisiert"];
+  // All known categories (always shown). Wartung/Mahnung/Vertrag/Unkategorisiert -> Sonstiges; Newsletter -> Werbung.
+  const ALL_CATEGORIES = ["Rechnung", "Anfrage", "Versicherung", "Werbung", "Sonstiges"];
+
+  const normalizeCategory = (cat: string | null | undefined): string => {
+    if (!cat) return "Sonstiges";
+    if (cat === "Newsletter") return "Werbung";
+    if (ALL_CATEGORIES.includes(cat)) return cat;
+    return "Sonstiges";
+  };
 
   const followUpCount = useMemo(() => emails.filter(e => e.is_starred).length, [emails]);
 
@@ -254,7 +261,7 @@ export const Inbox = () => {
     const counts: Record<string, number> = {};
     for (const cat of ALL_CATEGORIES) counts[cat] = 0;
     for (const e of emails) {
-      const cat = e.ai_category || "Unkategorisiert";
+      const cat = normalizeCategory(e.ai_category);
       counts[cat] = (counts[cat] || 0) + 1;
     }
     return counts;
@@ -263,8 +270,7 @@ export const Inbox = () => {
   const filteredEmails = useMemo(() => {
     if (filterCategory === "followup") return emails.filter(e => e.is_starred);
     if (filterCategory === "all") return emails;
-    if (filterCategory === "Unkategorisiert") return emails.filter(e => !e.ai_category);
-    return emails.filter(e => e.ai_category === filterCategory);
+    return emails.filter(e => normalizeCategory(e.ai_category) === filterCategory);
   }, [emails, filterCategory]);
 
   const selectedEmail = filteredEmails.find(e => e.id === selectedEmailId) || emails.find(e => e.id === selectedEmailId);
