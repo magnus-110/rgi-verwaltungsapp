@@ -307,7 +307,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       vat_rate: "19",
       vat_amount: "",
       description: "",
-      booking_reference: "KI",
+      booking_reference: currentTxn?.end_to_end_ref || "",
       booking_date: txnDate,
       receipt_number: "",
       booking_type: isIncome ? "income" : "expense",
@@ -388,7 +388,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           vat_rate: sb.vat_rate != null ? String(sb.vat_rate) : "19",
           vat_amount: "",
           description: sb.description || "",
-          booking_reference: "KI",
+          booking_reference: currentTxn?.end_to_end_ref || "",
           booking_date: txnDate || "",
           receipt_number: sb.receipt_number || "",
           booking_type: sb.booking_type || (isIncome ? "income" : "expense"),
@@ -638,7 +638,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         vat_rate: vatRate,
         vat_amount: vatAmount > 0 ? vatAmount : null,
         description: row.description || null,
-        booking_reference: row.booking_reference || "KI",
+        booking_reference: row.booking_reference || currentTxn?.end_to_end_ref || null,
         booking_date: row.booking_date,
         receipt_number: row.receipt_number || null,
         booking_type: row.booking_type,
@@ -1598,7 +1598,7 @@ function BookingRowCard({
             {/* Compact row */}
             <div className="grid grid-cols-4 gap-2">
               <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Kürzel</label>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Belegnummer</label>
                 <Input ref={el => fieldRefs.current["booking_reference"] = el}
                   className="h-8 text-xs font-mono" value={row.booking_reference}
                   onChange={e => onUpdateField("booking_reference", e.target.value)}
