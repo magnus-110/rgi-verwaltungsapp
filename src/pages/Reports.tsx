@@ -927,6 +927,47 @@ Beschreibung: ${report.description}`;
             }}
           />
         )}
+
+        {/* Create Case from Report */}
+        <CreateCaseDialog
+          open={!!createCaseFromReport}
+          onOpenChange={(open) => !open && setCreateCaseFromReport(null)}
+          buildingId={createCaseFromReport?.building_id || ""}
+          managementMode={managementMode}
+          defaults={createCaseFromReport ? {
+            title: createCaseFromReport.title,
+            description: createCaseFromReport.description,
+          } : undefined}
+          onCreated={async (caseRow) => {
+            if (!createCaseFromReport) return;
+            await supabase.from(tableName).update({ case_id: caseRow.id } as any).eq("id", createCaseFromReport.id);
+            try {
+              await addEvent.mutateAsync({
+                case_id: caseRow.id,
+                event_type: "note",
+                title: "Aus Meldung erstellt",
+                body: `Meldung: ${createCaseFromReport.title}\n${createCaseFromReport.description || ""}${createCaseFromReport.contact_name ? `\n\nKontakt: ${createCaseFromReport.contact_name}` : ""}`,
+                source_table: tableName,
+                source_id: createCaseFromReport.id,
+                trigger_summary: false,
+              });
+            } catch (e) { console.error(e); }
+            setCreateCaseFromReport(null);
+            fetchReports();
+          }}
+        />
+
+        {/* Link Report to existing Case */}
+        {linkReportToCase && (
+          <LinkReportToCaseDialog
+            open={!!linkReportToCase}
+            onOpenChange={(open) => !open && setLinkReportToCase(null)}
+            buildingId={linkReportToCase.building_id}
+            report={linkReportToCase}
+            tableName={tableName}
+            onLinked={() => { setLinkReportToCase(null); fetchReports(); }}
+          />
+        )}
       </div>
     </div>
   );
