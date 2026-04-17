@@ -68,9 +68,47 @@ export const CaseDetailView = ({ caseId, onClose }: Props) => {
             <div className="p-4 border-b bg-card">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <h2 className="text-lg font-semibold truncate">{caseRow.title}</h2>
-                  {caseRow.description && (
-                    <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{caseRow.description}</p>
+                  {editingMeta ? (
+                    <div className="space-y-2">
+                      <Input
+                        value={draftTitle}
+                        onChange={(e) => setDraftTitle(e.target.value)}
+                        placeholder="Titel"
+                        className="text-base font-semibold h-9"
+                      />
+                      <Textarea
+                        value={draftDescription}
+                        onChange={(e) => setDraftDescription(e.target.value)}
+                        placeholder="Beschreibung (optional)"
+                        rows={3}
+                        className="text-sm"
+                      />
+                      <div className="flex justify-end gap-1">
+                        <Button size="sm" variant="ghost" onClick={cancelMeta}>
+                          <X className="h-3 w-3 mr-1" />Abbrechen
+                        </Button>
+                        <Button size="sm" onClick={saveMeta} disabled={update.isPending}>
+                          {update.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
+                          Speichern
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      className="group cursor-pointer rounded-md -mx-1 px-1 py-0.5 hover:bg-muted/50 transition-colors"
+                      onClick={() => setEditingMeta(true)}
+                      title="Klicken zum Bearbeiten"
+                    >
+                      <div className="flex items-center gap-2">
+                        <h2 className="text-lg font-semibold truncate">{caseRow.title}</h2>
+                        <Pencil className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                      </div>
+                      {caseRow.description ? (
+                        <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{caseRow.description}</p>
+                      ) : (
+                        <p className="text-sm text-muted-foreground/60 mt-1 italic">Beschreibung hinzufügen…</p>
+                      )}
+                    </div>
                   )}
                   <div className="flex items-center gap-2 mt-3 flex-wrap">
                     <Select value={caseRow.status} onValueChange={(v) => update.mutate({ id: caseRow.id, status: v as CaseStatus })}>
