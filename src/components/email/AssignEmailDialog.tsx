@@ -1,13 +1,16 @@
 import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Building2, User, Sparkles, FolderOpen, Link2 } from "lucide-react";
+import { Building2, User, Sparkles, FolderOpen, Link2, Plus, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { useCreateCase } from "@/hooks/useCases";
+import { toast } from "@/hooks/use-toast";
 
 interface AssignEmailDialogProps {
   open: boolean;
@@ -38,6 +41,10 @@ export const AssignEmailDialog = ({
   const [contactId, setContactId] = useState<string>("none");
   const [caseId, setCaseId] = useState<string>("none");
   const [archive, setArchive] = useState(false);
+  const [creatingCase, setCreatingCase] = useState(false);
+  const [newCaseTitle, setNewCaseTitle] = useState("");
+  const createCase = useCreateCase();
+  const qc = useQueryClient();
 
   useEffect(() => {
     if (open) {
@@ -45,13 +52,15 @@ export const AssignEmailDialog = ({
       setContactId(prefilledContactId || "none");
       setCaseId(prefilledCaseId || "none");
       setArchive(false);
+      setCreatingCase(false);
+      setNewCaseTitle("");
     }
   }, [open, prefilledBuildingId, prefilledContactId, prefilledCaseId]);
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-for-assign"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("buildings").select("id, name, address").order("name");
+      const { data, error } = await supabase.from("buildings").select("id, name, address, management_mode").order("name");
       if (error) throw error;
       return data;
     },
@@ -81,6 +90,25 @@ export const AssignEmailDialog = ({
     },
     enabled: buildingId !== "none",
   });
+
+  const handleCreateCase = async () => {
+    if (buildingId === "none" || !newCaseTitle.trim()) return;
+    const building = buildings.find((b) => b.id === buildingId);
+    if (!building) return;
+    try {
+      const created = await createCase.mutateAsync({
+        building_id: buildingId,
+        management_mode: building.management_mode as any,
+        title: newCaseTitle.trim(),
+      });
+      await qc.invalidateQueries({ queryKey: ["cases-for-assign", buildingId] });
+      setCaseId(created.id);
+      setCreatingCase(false);
+      setNewCaseTitle("");
+    } catch (e: any) {
+      toast({ title: "Fehler", description: e.message, variant: "destructive" });
+    }
+  };
 
   const handleAssign = () => {
     if (!emailId) return;
@@ -131,7 +159,7 @@ export const AssignEmailDialog = ({
                 </Badge>
               )}
             </Label>
-            <Select value={buildingId} onValueChange={(v) => { setBuildingId(v); setCaseId("none"); }}>
+            <Select value={buildingId} onValueChange={(v) => { setBuildingId(v); setCaseId("none"); setCreatingCase(false); }}>
               <SelectTrigger><SelectValue placeholder="Keine Zuordnung" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Keine Zuordnung</SelectItem>
@@ -165,27 +193,74 @@ export const AssignEmailDialog = ({
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-sm flex items-center gap-1.5">
-              <FolderOpen className="h-4 w-4" />
-              Vorgang
-              {prefilledCaseId && caseId === prefilledCaseId && (
-                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-0.5">
-                  <Sparkles className="h-2.5 w-2.5" />
-                  Vorschlag
-                </Badge>
+            <div className="flex items-center justify-between">
+              <Label className="text-sm flex items-center gap-1.5">
+                <FolderOpen className="h-4 w-4" />
+                Vorgang
+                {prefilledCaseId && caseId === prefilledCaseId && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-0.5">
+                    <Sparkles className="h-2.5 w-2.5" />
+                    Vorschlag
+                  </Badge>
+                )}
+              </Label>
+              {buildingId !== "none" && !creatingCase && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1 text-xs"
+                  onClick={() => setCreatingCase(true)}
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Neuer Vorgang
+                </Button>
               )}
-            </Label>
-            <Select value={caseId} onValueChange={setCaseId} disabled={buildingId === "none"}>
-              <SelectTrigger>
-                <SelectValue placeholder={buildingId === "none" ? "Erst Liegenschaft wählen" : "Keinem Vorgang"} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Keinem Vorgang</SelectItem>
-                {cases.map((c: any) => (
-                  <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            </div>
+            {creatingCase ? (
+              <div className="flex gap-2">
+                <Input
+                  autoFocus
+                  value={newCaseTitle}
+                  onChange={(e) => setNewCaseTitle(e.target.value)}
+                  placeholder="Titel des neuen Vorgangs"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleCreateCase();
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleCreateCase}
+                  disabled={!newCaseTitle.trim() || createCase.isPending}
+                >
+                  {createCase.isPending ? "..." : "Anlegen"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => { setCreatingCase(false); setNewCaseTitle(""); }}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              <Select value={caseId} onValueChange={setCaseId} disabled={buildingId === "none"}>
+                <SelectTrigger>
+                  <SelectValue placeholder={buildingId === "none" ? "Erst Liegenschaft wählen" : "Keinem Vorgang"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Keinem Vorgang</SelectItem>
+                  {cases.map((c: any) => (
+                    <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           <div className="flex items-center gap-2 pt-2 border-t">
