@@ -360,7 +360,7 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
                 {/* Compact row */}
                 <div className="grid grid-cols-4 gap-2">
                   <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Kürzel</label>
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Belegnummer</label>
                     <Input className="h-8 text-xs font-mono" value={form.booking_reference} onChange={e => set("booking_reference", e.target.value)} />
                   </div>
                   <div>
