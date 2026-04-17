@@ -355,7 +355,7 @@ export function BookingsTab({ sharedBuildingId }: { sharedBuildingId?: string | 
             </div>
           ) : (
             <>
-              {renderSection("Offene Buchungen", paginatedPending, filteredPending.length)}
+              {renderSection("Buchungen", paginatedPending, filteredPending.length)}
               {totalPages > 1 && (
                 <div className="py-2 border-t">
                   <Pagination>
