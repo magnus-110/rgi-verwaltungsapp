@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Building2, MapPin, Edit, Trash2, Users, FileText, AlertCircle, Newspaper, Wrench, ChevronLeft, Landmark, Scale, Flame } from "lucide-react";
+import { Building2, MapPin, Edit, Trash2, Users, FileText, AlertCircle, Newspaper, Wrench, ChevronLeft, Landmark, Scale, Flame, Briefcase } from "lucide-react";
+import { BuildingCasesTab } from "./BuildingCasesTab";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -165,6 +166,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
               { value: "overview", label: "Übersicht" },
               { value: "people", label: "Personen" },
               { value: "reports", label: "Meldungen" },
+              { value: "cases", label: "Vorgänge" },
               { value: "documents", label: "Dokumente" },
               { value: "forum", label: "Schwarzes Brett" },
               { value: "maintenance", label: "Wartung" },
@@ -238,6 +240,11 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
           {/* Reports Tab */}
           <TabsContent value="reports" className="p-4 md:p-6 mt-0">
             <BuildingReportsTab buildingId={buildingId} managementMode={building.management_mode} />
+          </TabsContent>
+
+          {/* Cases Tab */}
+          <TabsContent value="cases" className="p-4 md:p-6 mt-0">
+            <BuildingCasesTab buildingId={buildingId} managementMode={building.management_mode as any} />
           </TabsContent>
 
           {/* Documents Tab */}
