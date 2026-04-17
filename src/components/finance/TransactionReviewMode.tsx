@@ -99,6 +99,8 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
   // Cache of unsaved edits per transaction id, so navigating away and back keeps changes
   const editsCacheRef = useRef<Record<string, BookingRowData[]>>({});
   const previousTxnIdRef = useRef<string | null>(null);
+  // Track booking ids created for the current txn, used for undo
+  const pendingBookingIdsRef = useRef<Record<string, string[]>>({});
 
   // Undo stack: last up to 10 confirmed bookings
   type UndoEntry = {
