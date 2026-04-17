@@ -295,7 +295,10 @@ import { de } from 'date-fns/locale';
        <div className="bg-card rounded-lg border overflow-auto">
          {/* Header with days */}
          <div className="grid grid-cols-8 border-b sticky top-0 bg-card z-10">
-           <div className="p-2 text-center text-sm text-muted-foreground border-r" />
+            <div className="p-2 text-center text-xs font-medium text-muted-foreground border-r flex flex-col items-center justify-center bg-muted/20">
+              <span>KW</span>
+              <span className="text-sm font-semibold text-foreground">{getISOWeek(weekStart)}</span>
+            </div>
            {days.map(day => (
              <div 
                key={day.toISOString()} 
