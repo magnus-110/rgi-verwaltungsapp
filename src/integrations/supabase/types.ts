@@ -117,6 +117,9 @@ export type Database = {
       }
       bank_transactions: {
         Row: {
+          ai_analysis_attempted_at: string | null
+          ai_analysis_attempts: number
+          ai_analysis_status: string | null
           ai_suggestion: Json | null
           amount: number
           booked_at: string | null
@@ -140,6 +143,9 @@ export type Database = {
           value_date: string | null
         }
         Insert: {
+          ai_analysis_attempted_at?: string | null
+          ai_analysis_attempts?: number
+          ai_analysis_status?: string | null
           ai_suggestion?: Json | null
           amount: number
           booked_at?: string | null
@@ -163,6 +169,9 @@ export type Database = {
           value_date?: string | null
         }
         Update: {
+          ai_analysis_attempted_at?: string | null
+          ai_analysis_attempts?: number
+          ai_analysis_status?: string | null
           ai_suggestion?: Json | null
           amount?: number
           booked_at?: string | null
