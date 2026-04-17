@@ -331,6 +331,29 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
   useEffect(() => {
     if (!currentTxn || accounts.length === 0) return;
 
+    // Save the previous transaction's edits into the cache
+    const prevId = previousTxnIdRef.current;
+    if (prevId && prevId !== currentTxn.id) {
+      // Capture current formRows snapshot for the previous txn
+      setFormRows((prevRows) => {
+        if (prevRows.length > 0 && !prevRows.every(r => r.booked)) {
+          editsCacheRef.current[prevId] = prevRows;
+        }
+        return prevRows;
+      });
+    }
+    previousTxnIdRef.current = currentTxn.id;
+
+    // If we have cached edits for this transaction, restore them instead of rebuilding
+    const cached = editsCacheRef.current[currentTxn.id];
+    if (cached && cached.length > 0) {
+      setFormRows(cached);
+      setExpandedRowId(cached.find(r => !r.booked)?.id || cached[0].id);
+      setShowLinkedInvoicePdf(false);
+      setLinkedInvoicePdfUrl(null);
+      return;
+    }
+
     const txnDate = currentTxn.booking_date;
     const fiscalYear = getFiscalYearForDate(txnDate);
     const absAmount = Math.abs(currentTxn.amount);
