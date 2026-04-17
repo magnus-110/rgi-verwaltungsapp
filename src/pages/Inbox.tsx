@@ -879,13 +879,20 @@ export const Inbox = () => {
                                  className="h-5 w-5 rounded-full text-[9px] cursor-pointer border-0 appearance-none text-center bg-transparent text-transparent hover:bg-muted/50"
                                  value="none"
                                  onClick={e => e.stopPropagation()}
-                                 onChange={async (e) => {
-                                   e.stopPropagation();
-                                   const val = e.target.value === "none" ? null : e.target.value;
-                                   await supabase.from("emails").update({ assigned_to: val }).eq("id", email.id);
-                                   queryClient.invalidateQueries({ queryKey: ["emails"] });
-                                 }}
-                                 title="Zuordnen"
+                                onChange={async (e) => {
+                                    e.stopPropagation();
+                                    const val = e.target.value === "none" ? null : e.target.value;
+                                    const update: any = { assigned_to: val };
+                                    if (val) {
+                                      const targetAccountIds = accountUsers.filter(au => au.user_id === val).map(au => au.account_id);
+                                      if (targetAccountIds.length > 0 && !targetAccountIds.includes(email.account_id)) {
+                                        update.account_id = targetAccountIds[0];
+                                      }
+                                    }
+                                    await supabase.from("emails").update(update).eq("id", email.id);
+                                    queryClient.invalidateQueries({ queryKey: ["emails"] });
+                                  }}
+                                  title="Zuordnen"
                                  style={{ WebkitAppearance: 'none', MozAppearance: 'none', textAlignLast: 'center', padding: '0' }}
                                >
                                  <option value="none"> </option>
