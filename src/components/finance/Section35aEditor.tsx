@@ -271,31 +271,27 @@ export function Section35aEditor({
         </div>
       </div>
 
-      <div className="rounded-md border p-3 space-y-2 bg-muted/30">
-        <div className="flex items-center justify-between gap-3">
-          <label htmlFor={`vat-toggle-${toggleIdSuffix}`} className="text-xs font-medium">MwSt. auf Lohnanteil aufschlagen</label>
-          <Switch id={`vat-toggle-${toggleIdSuffix}`} checked={applyVat} onCheckedChange={(v) => setVat({ apply_vat: v })} />
-        </div>
-        {applyVat && (
-          <div className="flex items-center gap-2">
-            <Select value={String(vatRate)} onValueChange={v => setVat({ rate: parseFloat(v) || 0 })}>
-              <SelectTrigger className="h-8 text-xs flex-1"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="0">0%</SelectItem>
-                <SelectItem value="7">7%</SelectItem>
-                <SelectItem value="19">19%</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input
-              type="number"
-              step="0.1"
-              value={vatRate}
-              onChange={(e) => setVat({ rate: parseFloat(e.target.value) || 0 })}
-              className="h-8 text-xs w-20 text-right [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-            />
-            <span className="text-xs text-muted-foreground">%</span>
-          </div>
-        )}
+      {/* MwSt – kompakt einzeilig */}
+      <div className="flex items-center justify-between gap-3 rounded-md border p-2 bg-muted/30">
+        <label className="text-xs font-medium">MwSt. auf Lohnanteil</label>
+        <Select
+          value={applyVat ? String(vatRate) : "off"}
+          onValueChange={(v) => {
+            if (v === "off") setVat({ apply_vat: false });
+            else setVat({ apply_vat: true, rate: parseFloat(v) || 0 });
+          }}
+        >
+          <SelectTrigger className="h-8 text-xs w-36"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="off">Keine MwSt.</SelectItem>
+            <SelectItem value="0">0%</SelectItem>
+            <SelectItem value="7">7%</SelectItem>
+            <SelectItem value="19">19%</SelectItem>
+            {applyVat && ![0, 7, 19].includes(vatRate) && (
+              <SelectItem value={String(vatRate)}>{vatRate}% (Rechnung)</SelectItem>
+            )}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="rounded-md border p-3 space-y-1 bg-primary/5">
