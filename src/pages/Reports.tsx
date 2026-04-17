@@ -12,11 +12,14 @@ import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "@/hooks/use-toast";
-import { Filter, ChevronDown, ChevronUp, FileText, Download, Edit, Copy, CalendarIcon, X } from "lucide-react";
+import { Filter, ChevronDown, ChevronUp, FileText, Download, Edit, Copy, CalendarIcon, X, FolderPlus, Link2 } from "lucide-react";
 import { useManagementMode } from "@/hooks/useManagementMode";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { EditReportDialog } from "@/components/reports/EditReportDialog";
 import { ReportTemplatesManager } from "@/components/ReportTemplatesManager";
+import { CreateCaseDialog } from "@/components/cases/CreateCaseDialog";
+import { LinkReportToCaseDialog } from "@/components/cases/LinkReportToCaseDialog";
+import { useAddCaseEvent } from "@/hooks/useCases";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -38,6 +41,7 @@ interface Report {
   updated_at?: string;
   admin_notes?: string;
   internal_notes?: string;
+  case_id?: string | null;
   buildings?: {
     name: string;
     address: string;
@@ -101,6 +105,9 @@ export const Reports = () => {
     status: "all"
   });
   const [attachmentUrls, setAttachmentUrls] = useState<{[key: string]: AttachmentWithUrl[]}>({});
+  const [createCaseFromReport, setCreateCaseFromReport] = useState<Report | null>(null);
+  const [linkReportToCase, setLinkReportToCase] = useState<Report | null>(null);
+  const addEvent = useAddCaseEvent();
 
   const tableName = managementMode === "weg" ? "weg_reports" : "miete_reports";
 
@@ -474,7 +481,36 @@ Beschreibung: ${report.description}`;
       <CardContent className="p-4">
         <div className="flex justify-between items-start mb-3">
           <h3 className="text-lg font-medium">{report.title}</h3>
-          <div className="flex gap-2 items-center">
+          <div className="flex gap-2 items-center flex-wrap">
+            {report.case_id ? (
+              <Badge variant="outline" className="gap-1 text-xs">
+                <Link2 className="h-3 w-3" />
+                Vorgang verknüpft
+              </Badge>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1"
+                  onClick={() => setCreateCaseFromReport(report)}
+                  title="Neuen Vorgang aus Meldung erstellen"
+                >
+                  <FolderPlus className="h-3.5 w-3.5" />
+                  <span className="text-xs">Neuer Vorgang</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1"
+                  onClick={() => setLinkReportToCase(report)}
+                  title="Mit existierendem Vorgang verknüpfen"
+                >
+                  <Link2 className="h-3.5 w-3.5" />
+                  <span className="text-xs">Zuordnen</span>
+                </Button>
+              </>
+            )}
             {getStatusBadge(report.status)}
             <Button
               variant="ghost"
@@ -889,6 +925,47 @@ Beschreibung: ${report.description}`;
               fetchReports();
               setEditingReport(null);
             }}
+          />
+        )}
+
+        {/* Create Case from Report */}
+        <CreateCaseDialog
+          open={!!createCaseFromReport}
+          onOpenChange={(open) => !open && setCreateCaseFromReport(null)}
+          buildingId={createCaseFromReport?.building_id || ""}
+          managementMode={managementMode}
+          defaults={createCaseFromReport ? {
+            title: createCaseFromReport.title,
+            description: createCaseFromReport.description,
+          } : undefined}
+          onCreated={async (caseRow) => {
+            if (!createCaseFromReport) return;
+            await supabase.from(tableName).update({ case_id: caseRow.id } as any).eq("id", createCaseFromReport.id);
+            try {
+              await addEvent.mutateAsync({
+                case_id: caseRow.id,
+                event_type: "note",
+                title: "Aus Meldung erstellt",
+                body: `Meldung: ${createCaseFromReport.title}\n${createCaseFromReport.description || ""}${createCaseFromReport.contact_name ? `\n\nKontakt: ${createCaseFromReport.contact_name}` : ""}`,
+                source_table: tableName,
+                source_id: createCaseFromReport.id,
+                trigger_summary: false,
+              });
+            } catch (e) { console.error(e); }
+            setCreateCaseFromReport(null);
+            fetchReports();
+          }}
+        />
+
+        {/* Link Report to existing Case */}
+        {linkReportToCase && (
+          <LinkReportToCaseDialog
+            open={!!linkReportToCase}
+            onOpenChange={(open) => !open && setLinkReportToCase(null)}
+            buildingId={linkReportToCase.building_id}
+            report={linkReportToCase}
+            tableName={tableName}
+            onLinked={() => { setLinkReportToCase(null); fetchReports(); }}
           />
         )}
       </div>
