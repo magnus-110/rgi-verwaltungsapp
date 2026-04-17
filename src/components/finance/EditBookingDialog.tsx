@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { VendorHistorySection } from "./VendorHistorySection";
+import { Section35aEditor } from "./Section35aEditor";
 
 interface Booking {
   id: string;
