@@ -14,7 +14,7 @@ import { CaseDetailView } from "@/components/cases/CaseDetailView";
 
 interface Props {
   buildingId: string;
-  managementMode: "weg" | "miete";
+  managementMode: "weg" | "rent";
 }
 
 const PRIORITY_VARIANT: Record<CasePriority, "default" | "secondary" | "destructive" | "outline"> = {
@@ -127,7 +127,7 @@ export const BuildingCasesTab = ({ buildingId, managementMode }: Props) => {
           onOpenChange={setCreateOpen}
           buildingId={buildingId}
           managementMode={managementMode}
-          onCreated={(id) => setSelectedId(id)}
+          onCreated={(c) => setSelectedId(c.id)}
         />
         <CaseDetailView caseId={selectedId} onClose={() => setSelectedId(null)} />
       </div>
