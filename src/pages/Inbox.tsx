@@ -602,14 +602,24 @@ export const Inbox = () => {
 
             <div className="p-2">
               <div className="flex items-center justify-between px-2 py-1">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Konten</p>
+                <button
+                  onClick={() => setAccountsExpanded(v => {
+                    const next = !v;
+                    try { localStorage.setItem("inbox-accounts-expanded", JSON.stringify(next)); } catch {}
+                    return next;
+                  })}
+                  className="flex items-center gap-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+                >
+                  <ChevronDown className={cn("h-3 w-3 transition-transform", !accountsExpanded && "-rotate-90")} />
+                  Konten
+                </button>
                 {isAdmin && (
                   <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => setSettingsOpen(true)} title="E-Mail-Konten verwalten">
                     <Settings className="h-3 w-3 text-muted-foreground" />
                   </Button>
                 )}
               </div>
-              {accounts.length === 0 ? (
+              {accountsExpanded && (accounts.length === 0 ? (
                 <p className="px-2 py-2 text-xs text-muted-foreground">
                   Noch keine E-Mail-Konten.
                 </p>
@@ -672,7 +682,7 @@ export const Inbox = () => {
                     {accounts.filter(acc => myAccountIds.length === 0 || !myAccountIds.includes(acc.id)).map(renderAccountRow)}
                   </>
                 );
-              })()}
+              })())}
             </div>
           </ScrollArea>
         </div>
