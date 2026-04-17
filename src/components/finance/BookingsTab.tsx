@@ -39,6 +39,17 @@ export function BookingsTab({ sharedBuildingId }: { sharedBuildingId?: string | 
   const [templateDetail, setTemplateDetail] = useState<any>(null);
   const [filterReview, setFilterReview] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<"list" | "plan">(() => {
+    const saved = typeof window !== "undefined" ? localStorage.getItem("bookings-view-mode") : null;
+    return saved === "plan" ? "plan" : "list";
+  });
+  const [showAllAccounts, setShowAllAccounts] = useState(false);
+
+  const handleViewModeChange = (v: string) => {
+    if (v !== "list" && v !== "plan") return;
+    setViewMode(v as "list" | "plan");
+    try { localStorage.setItem("bookings-view-mode", v); } catch {}
+  };
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
