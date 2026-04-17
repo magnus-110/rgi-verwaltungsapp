@@ -936,11 +936,14 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">Enter</kbd>
-              <span className="text-[11px]">Nächstes Feld</span>
+              <span className="text-[11px]">Buchen & weiter</span>
               <span className="mx-1 text-border">|</span>
               <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">←</kbd>
               <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">→</kbd>
               <span className="text-[11px]">Nav</span>
+              <span className="mx-1 text-border">|</span>
+              <kbd className="px-1.5 py-0.5 rounded bg-muted border text-[11px] font-mono">⌘Z</kbd>
+              <span className="text-[11px]">Rückgängig</span>
             </div>
             <Separator orientation="vertical" className="h-6" />
             <span className="text-sm font-medium">
@@ -955,9 +958,21 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
             <Separator orientation="vertical" className="h-6" />
             <Progress value={progressPercent} className="w-32 h-2" />
           </div>
-          <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
-            <X className="h-4 w-4 mr-1" /> Schließen
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={undoLast}
+              disabled={undoStack.length === 0 || undoing}
+              title="Letzte Buchung rückgängig (⌘Z)"
+            >
+              {undoing ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <RotateCcw className="h-4 w-4 mr-1" />}
+              Rückgängig {undoStack.length > 0 && `(${undoStack.length})`}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
+              <X className="h-4 w-4 mr-1" /> Schließen
+            </Button>
+          </div>
         </div>
 
         {transactions.length === 0 ? (
