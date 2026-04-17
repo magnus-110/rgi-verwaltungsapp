@@ -90,7 +90,16 @@ export const CaseDetailView = ({ caseId, onClose }: Props) => {
                   </div>
                   {caseRow.ai_summary ? (
                     <div className="text-sm bg-card p-3 rounded-lg border">
-                      <p className="leading-snug whitespace-pre-wrap">{caseRow.ai_summary}</p>
+                      <p className="leading-snug whitespace-pre-wrap">
+                        {caseRow.ai_summary
+                          .split(/##\s*N[äa]chste Schritte/i)[0]
+                          .replace(/##\s*Status\s*/gi, "")
+                          .replace(/^#{1,6}\s+/gm, "")
+                          .replace(/\*\*(.+?)\*\*/g, "$1")
+                          .replace(/\*(.+?)\*/g, "$1")
+                          .replace(/__(.+?)__/g, "$1")
+                          .trim()}
+                      </p>
                       {caseRow.ai_summary_updated_at && (
                         <p className="text-xs text-muted-foreground mt-2">
                           Aktualisiert {formatDistanceToNow(new Date(caseRow.ai_summary_updated_at), { addSuffix: true, locale: de })}
