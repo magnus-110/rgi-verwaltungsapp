@@ -25,6 +25,7 @@ import {
 import { cn } from "@/lib/utils";
 import { VendorHistorySection } from "./VendorHistorySection";
 import { AccountSearchSelect } from "./AccountSearchSelect";
+import { Section35aEditor } from "./Section35aEditor";
 
 interface TransactionReviewModeProps {
   open: boolean;
@@ -1735,79 +1736,22 @@ function BookingRowCard({
       <Dialog open={show35aDialog} onOpenChange={setShow35aDialog}>
         <DialogContent className="max-w-md">
           <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-base">§35a – Haushaltsnahe Dienstleistungen</h3>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <Checkbox id={`35a-dialog-${index}`} checked={row.is_35a_relevant} onCheckedChange={v => onUpdateField("is_35a_relevant", !!v)} />
-              <label htmlFor={`35a-dialog-${index}`} className="text-sm font-medium">§35a-relevant</label>
-            </div>
-
-            {invoiceLineItems.length > 0 && (
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">Rechnungspositionen</label>
-                <div className="space-y-1 max-h-48 overflow-y-auto">
-                  {invoiceLineItems.map((item: any, i: number) => {
-                    const lineItemsDetail: any[] = Array.isArray(row.line_items_detail) ? (row.line_items_detail as any[]) : [];
-                    const isSelected = lineItemsDetail.some((d: any) => d.index === i && d.is_35a);
-                    return (
-                      <div key={i} className={cn(
-                        "flex items-center gap-2 p-2 rounded-md border text-xs",
-                        isSelected && "bg-emerald-50 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-700"
-                      )}>
-                        <Checkbox
-                          checked={isSelected}
-                          onCheckedChange={(checked) => {
-                            let updated = [...lineItemsDetail];
-                            if (checked) {
-                              updated.push({ index: i, description: item.description || item.name || `Position ${i + 1}`, amount: item.amount || item.total || 0, is_35a: true });
-                            } else {
-                              updated = updated.filter((d: any) => d.index !== i);
-                            }
-                            // Auto-calculate amount_35a from selected items + VAT
-                            const vatRate = parseFloat(row.vat_rate) || 0;
-                            const selectedItems = checked ? updated : updated;
-                            const netSum = selectedItems.reduce((sum: number, d: any) => sum + (parseFloat(d.amount) || 0), 0);
-                            const grossSum = vatRate > 0 ? netSum * (1 + vatRate / 100) : netSum;
-                            onUpdateField("line_items_detail", JSON.stringify(updated));
-                            onUpdateField("amount_35a", grossSum.toFixed(2));
-                            if (updated.length > 0) {
-                              onUpdateField("is_35a_relevant", true);
-                            }
-                          }}
-                        />
-                        <span className="flex-1 truncate">{item.description || item.name || `Position ${i + 1}`}</span>
-                        {(item.amount || item.total) && (
-                          <span className="font-medium shrink-0">{formatCurrency(item.amount || item.total)}</span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {(() => {
-              const lineItemsDetail: any[] = Array.isArray(row.line_items_detail) ? (row.line_items_detail as any[]) : [];
-              const selectedItems = lineItemsDetail.filter((d: any) => d.is_35a);
-              const vatRate = parseFloat(row.vat_rate) || 0;
-              const netSum = selectedItems.reduce((sum: number, d: any) => sum + (parseFloat(d.amount) || 0), 0);
-              const grossSum = vatRate > 0 ? netSum * (1 + vatRate / 100) : netSum;
-              return (
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground block">Lohnanteil (€)</label>
-                  <div className="text-lg font-bold">{new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(grossSum)}</div>
-                  {vatRate > 0 && netSum > 0 && (
-                    <p className="text-xs text-muted-foreground">Netto {formatCurrency(netSum)} + {vatRate}% MwSt.</p>
-                  )}
-                </div>
-              );
-            })()}
-
-            <Button onClick={() => setShow35aDialog(false)} className="w-full">
-              Übernehmen
-            </Button>
+            <h3 className="font-semibold text-base">§35a – Haushaltsnahe Dienstleistungen</h3>
+            <Section35aEditor
+              is35aRelevant={!!row.is_35a_relevant}
+              onIs35aRelevantChange={(v) => onUpdateField("is_35a_relevant", v)}
+              invoiceLineItems={invoiceLineItems}
+              lineItemsDetail={Array.isArray(row.line_items_detail) ? (row.line_items_detail as any) : []}
+              onLineItemsDetailChange={(items) => onUpdateField("line_items_detail", JSON.stringify(items))}
+              onAmount35aChange={(val) => onUpdateField("amount_35a", val)}
+              defaultVatRate={parseFloat(row.vat_rate) || 0}
+              defaultType35a={(() => {
+                const acc: any = (accounts as any[]).find(a => a.id === row.account_id) || (accounts as any[]).find(a => a.id === row.counter_account_id);
+                return (acc?.settlement_35a_type === "handwerker" ? "handwerker" : "dienste");
+              })()}
+              toggleIdSuffix={String(index)}
+            />
+            <Button onClick={() => setShow35aDialog(false)} className="w-full">Übernehmen</Button>
           </div>
         </DialogContent>
       </Dialog>
