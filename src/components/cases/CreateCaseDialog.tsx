@@ -27,7 +27,7 @@ export const CreateCaseDialog = ({ open, onOpenChange, buildingId, managementMod
     if (!title.trim()) return;
     const c = await create.mutateAsync({
       building_id: buildingId,
-      management_mode: managementMode,
+      management_mode: managementMode as any,
       title: title.trim(),
       description: description.trim() || undefined,
       category,
