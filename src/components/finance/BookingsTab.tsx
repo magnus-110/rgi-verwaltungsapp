@@ -355,6 +355,16 @@ export function BookingsTab({ sharedBuildingId }: { sharedBuildingId?: string | 
         <CardContent className="p-0">
           {isLoading ? (
             <div className="text-muted-foreground text-sm p-6 text-center">Laden...</div>
+          ) : viewMode === "plan" ? (
+            <div className="p-4">
+              <AccountPlanView
+                bookings={filteredPending}
+                fiscalYear={parseInt(filterYear)}
+                buildingId={sharedBuildingId || null}
+                onRowClick={handleRowClick}
+                showAllAccounts={showAllAccounts}
+              />
+            </div>
           ) : filteredPending.length === 0 ? (
             <div className="text-center py-10 text-muted-foreground">
               <BookOpen className="h-10 w-10 mx-auto mb-2 opacity-30" />
