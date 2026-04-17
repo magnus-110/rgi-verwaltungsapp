@@ -47,7 +47,9 @@ Beschreibung: ${caseRow.description || "(keine)"}
 Ereignisse chronologisch:
 ${eventsText || "(noch keine Ereignisse)"}
 
-Erstelle eine prägnante Status-Zusammenfassung (3-5 Sätze, deutsch) und 3 konkrete nächste Schritte.`;
+Antworte AUSSCHLIESSLICH als JSON-Objekt im Format:
+{ "summary": "1-2 prägnante Sätze zum aktuellen Stand (max. 280 Zeichen).", "next_steps": ["Schritt 1", "Schritt 2", "Schritt 3"] }
+Maximal 3 nächste Schritte, jeweils kurz und konkret. Antworte auf Deutsch. Nur JSON, keine Erklärung.`;
 
     const response = await fetch("https://api.mistral.ai/v1/chat/completions", {
       method: "POST",
@@ -55,11 +57,12 @@ Erstelle eine prägnante Status-Zusammenfassung (3-5 Sätze, deutsch) und 3 konk
       body: JSON.stringify({
         model: "mistral-small-latest",
         messages: [
-          { role: "system", content: "Du bist Assistent eines Hausverwalters. Antworte präzise auf Deutsch im Markdown-Format mit zwei Abschnitten: ## Status\\n... und ## Nächste Schritte\\n1. ..." },
+          { role: "system", content: "Du bist Assistent eines Hausverwalters. Antworte NUR mit gültigem JSON." },
           { role: "user", content: prompt },
         ],
-        temperature: 0.3,
-        max_tokens: 600,
+        temperature: 0.2,
+        max_tokens: 400,
+        response_format: { type: "json_object" },
       }),
     });
 
@@ -68,7 +71,18 @@ Erstelle eine prägnante Status-Zusammenfassung (3-5 Sätze, deutsch) und 3 konk
       throw new Error(`AI error ${response.status}: ${t}`);
     }
     const result = await response.json();
-    const summary: string = result.choices?.[0]?.message?.content || "";
+    const raw: string = result.choices?.[0]?.message?.content || "{}";
+    let summary = "";
+    let nextSteps: string[] = [];
+    try {
+      const parsed = JSON.parse(raw);
+      summary = (parsed.summary || "").toString().slice(0, 500);
+      if (Array.isArray(parsed.next_steps)) {
+        nextSteps = parsed.next_steps.filter((s: any) => typeof s === "string").slice(0, 3);
+      }
+    } catch (_) {
+      summary = raw.slice(0, 500);
+    }
 
     // Extract keywords for email matching
     const keywordsRes = await fetch("https://api.mistral.ai/v1/chat/completions", {
@@ -100,10 +114,11 @@ Erstelle eine prägnante Status-Zusammenfassung (3-5 Sätze, deutsch) und 3 konk
         ai_summary: summary,
         ai_summary_updated_at: new Date().toISOString(),
         ai_keywords: keywords,
+        ai_next_steps: nextSteps,
       })
       .eq("id", case_id);
 
-    return new Response(JSON.stringify({ success: true, summary, keywords }), {
+    return new Response(JSON.stringify({ success: true, summary, next_steps: nextSteps, keywords }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {

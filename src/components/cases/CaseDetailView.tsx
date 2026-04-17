@@ -3,7 +3,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sparkles, RefreshCw, Loader2, X } from "lucide-react";
+import { Sparkles, RefreshCw, Loader2, X, ListChecks } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { de } from "date-fns/locale";
 import ReactMarkdown from "react-markdown";
@@ -70,10 +70,10 @@ export const CaseDetailView = ({ caseId, onClose }: Props) => {
             </div>
 
             {/* Body */}
-            <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-[1fr_320px]">
+            <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-[1fr_300px]">
               {/* Timeline */}
               <div className="overflow-y-auto p-4 space-y-3">
-                <CaseQuickAdd caseId={caseRow.id} />
+                <CaseQuickAdd caseId={caseRow.id} buildingId={caseRow.building_id} />
                 <CaseTimeline events={events} />
               </div>
 
@@ -83,17 +83,17 @@ export const CaseDetailView = ({ caseId, onClose }: Props) => {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-sm font-medium">
                       <Sparkles className="h-4 w-4 text-primary" />
-                      KI-Zusammenfassung
+                      Status
                     </div>
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => summarize.mutate(caseRow.id)} disabled={summarize.isPending}>
                       {summarize.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
                     </Button>
                   </div>
                   {caseRow.ai_summary ? (
-                    <div className="text-sm bg-card p-3 rounded-lg border prose prose-sm max-w-none dark:prose-invert">
-                      <ReactMarkdown>{caseRow.ai_summary}</ReactMarkdown>
+                    <div className="text-sm bg-card p-3 rounded-lg border">
+                      <p className="leading-snug">{caseRow.ai_summary}</p>
                       {caseRow.ai_summary_updated_at && (
-                        <p className="text-xs text-muted-foreground mt-2 not-prose">
+                        <p className="text-xs text-muted-foreground mt-2">
                           Aktualisiert {formatDistanceToNow(new Date(caseRow.ai_summary_updated_at), { addSuffix: true, locale: de })}
                         </p>
                       )}
@@ -105,9 +105,19 @@ export const CaseDetailView = ({ caseId, onClose }: Props) => {
                   )}
                 </div>
 
-                <div className="border-t pt-4">
-                  <CaseAskAi caseId={caseRow.id} buildingId={caseRow.building_id} />
-                </div>
+                {caseRow.ai_next_steps && caseRow.ai_next_steps.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <ListChecks className="h-4 w-4 text-primary" />
+                      Nächste Schritte
+                    </div>
+                    <ol className="text-sm bg-card p-3 rounded-lg border space-y-1.5 list-decimal list-inside">
+                      {caseRow.ai_next_steps.map((s, i) => (
+                        <li key={i} className="leading-snug">{s}</li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
 
                 {caseRow.ai_keywords && caseRow.ai_keywords.length > 0 && (
                   <div className="border-t pt-4">
@@ -121,6 +131,9 @@ export const CaseDetailView = ({ caseId, onClose }: Props) => {
                 )}
               </div>
             </div>
+
+            {/* Floating chat */}
+            <CaseAskAi caseId={caseRow.id} buildingId={caseRow.building_id} />
           </>
         )}
       </SheetContent>
