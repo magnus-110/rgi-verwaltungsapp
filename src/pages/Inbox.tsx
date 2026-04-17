@@ -1021,6 +1021,18 @@ export const Inbox = () => {
                           {(() => { const c = contacts.find(c => c.id === selectedEmail.contact_id); return c ? getContactName(c) : "Kontakt"; })()}
                         </Badge>
                       )}
+                      {(selectedEmail as any).case_id && (
+                        <Badge variant="default" className="gap-1">
+                          <Link2 className="h-3 w-3" />
+                          Vorgang verknüpft
+                        </Badge>
+                      )}
+                      {!(selectedEmail as any).case_id && (selectedEmail as any).ai_case_suggestion_id && (
+                        <Badge variant="secondary" className="gap-1 cursor-pointer" onClick={() => openArchiveDialog(selectedEmail.id)}>
+                          <Sparkles className="h-3 w-3" />
+                          KI-Vorschlag: Vorgang ({Math.round(((selectedEmail as any).ai_case_confidence || 0) * 100)}%)
+                        </Badge>
+                      )}
                       {selectedEmail.ai_category && <Badge variant="outline">{selectedEmail.ai_category}</Badge>}
                       {selectedEmail.ai_priority && (
                         <Badge variant={selectedEmail.ai_priority === "hoch" ? "destructive" : "secondary"}>

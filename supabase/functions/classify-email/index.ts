@@ -240,6 +240,26 @@ ${contactList || "Keine Kontakte vorhanden"}`,
           classified++;
         }
 
+        // After classification, try to suggest a case (if building_id known)
+        const effectiveBuildingId = updateData.building_id || null;
+        if (effectiveBuildingId) {
+          try {
+            await fetch(
+              `${Deno.env.get("SUPABASE_URL")}/functions/v1/case-suggest-for-email`,
+              {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ email_id: email.id, building_id: effectiveBuildingId }),
+              }
+            );
+          } catch (e) {
+            console.error("case-suggest-for-email failed:", e);
+          }
+        }
+
         // Small delay to avoid rate limits
         await new Promise((r) => setTimeout(r, 500));
       } catch (emailErr: any) {
