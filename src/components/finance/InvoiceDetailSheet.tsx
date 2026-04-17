@@ -59,11 +59,16 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
 
   const [form, setForm] = useState<Record<string, any>>({});
   const [editLineItems, setEditLineItems] = useState<LineItem[]>([]);
+  const [loadedForInvoiceId, setLoadedForInvoiceId] = useState<string | null>(null);
 
   const inv = invoice as any;
-  if (inv && !form._initialized) {
+
+  // Initialize form whenever a new invoice is opened (only once per invoiceId,
+  // so user edits are not overwritten by background refetches after save).
+  useEffect(() => {
+    if (!inv || !invoiceId) return;
+    if (loadedForInvoiceId === invoiceId) return;
     setForm({
-      _initialized: true,
       vendor_name: inv.vendor_name || "",
       vendor_iban: inv.vendor_iban || "",
       invoice_number: inv.invoice_number || "",
@@ -80,12 +85,14 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
       amount: item.amount ?? null,
     }));
     setEditLineItems(items);
-  }
+    setLoadedForInvoiceId(invoiceId);
+  }, [inv, invoiceId, loadedForInvoiceId]);
 
   const handleClose = () => {
     setForm({});
     setEditLineItems([]);
     setPdfUrl(null);
+    setLoadedForInvoiceId(null);
     onClose();
   };
 
