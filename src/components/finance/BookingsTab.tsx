@@ -307,6 +307,25 @@ export function BookingsTab({ sharedBuildingId }: { sharedBuildingId?: string | 
             {years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
           </SelectContent>
         </Select>
+        <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && handleViewModeChange(v)} className="h-9">
+          <ToggleGroupItem value="list" size="sm" className="h-9 px-3 gap-1.5">
+            <List className="h-3.5 w-3.5" /> Liste
+          </ToggleGroupItem>
+          <ToggleGroupItem value="plan" size="sm" className="h-9 px-3 gap-1.5">
+            <LayoutGrid className="h-3.5 w-3.5" /> Kontenplan
+          </ToggleGroupItem>
+        </ToggleGroup>
+        {viewMode === "plan" && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 gap-1.5"
+            onClick={() => setShowAllAccounts(s => !s)}
+          >
+            {showAllAccounts ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+            {showAllAccounts ? "Nur bebuchte" : "Alle Konten"}
+          </Button>
+        )}
         <Button
           variant={filterReview ? "default" : "outline"}
           size="sm"
