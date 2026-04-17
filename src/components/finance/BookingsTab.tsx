@@ -246,7 +246,7 @@ export function BookingsTab({ sharedBuildingId }: { sharedBuildingId?: string | 
                 </TooltipTrigger>
                 <TooltipContent><p className="text-xs">{b.needs_review ? "Prüfung erledigt (Klick)" : "Zur Prüfung markieren"}</p></TooltipContent>
               </Tooltip>
-            </TooltipProvider>}
+            </TooltipProvider>
             {b.ai_warning && (
               <TooltipProvider>
                 <Tooltip>
