@@ -1078,6 +1078,195 @@ export type Database = {
           },
         ]
       }
+      case_events: {
+        Row: {
+          attachments: Json
+          body: string | null
+          building_id: string
+          case_id: string
+          created_at: string
+          created_by: string
+          event_type: Database["public"]["Enums"]["case_event_type"]
+          extracted_data: Json
+          id: string
+          occurred_at: string
+          source_id: string | null
+          source_table: string | null
+          title: string | null
+        }
+        Insert: {
+          attachments?: Json
+          body?: string | null
+          building_id: string
+          case_id: string
+          created_at?: string
+          created_by: string
+          event_type: Database["public"]["Enums"]["case_event_type"]
+          extracted_data?: Json
+          id?: string
+          occurred_at?: string
+          source_id?: string | null
+          source_table?: string | null
+          title?: string | null
+        }
+        Update: {
+          attachments?: Json
+          body?: string | null
+          building_id?: string
+          case_id?: string
+          created_at?: string
+          created_by?: string
+          event_type?: Database["public"]["Enums"]["case_event_type"]
+          extracted_data?: Json
+          id?: string
+          occurred_at?: string
+          source_id?: string | null
+          source_table?: string | null
+          title?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_events_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_events_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      case_participants: {
+        Row: {
+          case_id: string
+          contact_id: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          notes: string | null
+          role: Database["public"]["Enums"]["case_participant_role"]
+        }
+        Insert: {
+          case_id: string
+          contact_id?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          notes?: string | null
+          role?: Database["public"]["Enums"]["case_participant_role"]
+        }
+        Update: {
+          case_id?: string
+          contact_id?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          notes?: string | null
+          role?: Database["public"]["Enums"]["case_participant_role"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_participants_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_participants_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cases: {
+        Row: {
+          ai_keywords: string[]
+          ai_summary: string | null
+          ai_summary_updated_at: string | null
+          assignee_user_id: string | null
+          building_id: string
+          category: Database["public"]["Enums"]["case_category"]
+          closed_at: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          due_at: string | null
+          external_refs: Json
+          id: string
+          management_mode: Database["public"]["Enums"]["management_mode"]
+          priority: Database["public"]["Enums"]["case_priority"]
+          status: Database["public"]["Enums"]["case_status"]
+          title: string
+          unit_number: string | null
+          updated_at: string
+        }
+        Insert: {
+          ai_keywords?: string[]
+          ai_summary?: string | null
+          ai_summary_updated_at?: string | null
+          assignee_user_id?: string | null
+          building_id: string
+          category?: Database["public"]["Enums"]["case_category"]
+          closed_at?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          due_at?: string | null
+          external_refs?: Json
+          id?: string
+          management_mode: Database["public"]["Enums"]["management_mode"]
+          priority?: Database["public"]["Enums"]["case_priority"]
+          status?: Database["public"]["Enums"]["case_status"]
+          title: string
+          unit_number?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ai_keywords?: string[]
+          ai_summary?: string | null
+          ai_summary_updated_at?: string | null
+          assignee_user_id?: string | null
+          building_id?: string
+          category?: Database["public"]["Enums"]["case_category"]
+          closed_at?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          due_at?: string | null
+          external_refs?: Json
+          id?: string
+          management_mode?: Database["public"]["Enums"]["management_mode"]
+          priority?: Database["public"]["Enums"]["case_priority"]
+          status?: Database["public"]["Enums"]["case_status"]
+          title?: string
+          unit_number?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cases_assignee_user_id_fkey"
+            columns: ["assignee_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "cases_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cash_audits: {
         Row: {
           access_token: string | null
@@ -2345,6 +2534,8 @@ export type Database = {
       emails: {
         Row: {
           account_id: string
+          ai_case_confidence: number | null
+          ai_case_suggestion_id: string | null
           ai_category: string | null
           ai_classified_at: string | null
           ai_priority: string | null
@@ -2354,6 +2545,7 @@ export type Database = {
           body_html: string | null
           body_text: string | null
           building_id: string | null
+          case_id: string | null
           cc_addresses: Json | null
           contact_id: string | null
           created_at: string
@@ -2381,6 +2573,8 @@ export type Database = {
         }
         Insert: {
           account_id: string
+          ai_case_confidence?: number | null
+          ai_case_suggestion_id?: string | null
           ai_category?: string | null
           ai_classified_at?: string | null
           ai_priority?: string | null
@@ -2390,6 +2584,7 @@ export type Database = {
           body_html?: string | null
           body_text?: string | null
           building_id?: string | null
+          case_id?: string | null
           cc_addresses?: Json | null
           contact_id?: string | null
           created_at?: string
@@ -2417,6 +2612,8 @@ export type Database = {
         }
         Update: {
           account_id?: string
+          ai_case_confidence?: number | null
+          ai_case_suggestion_id?: string | null
           ai_category?: string | null
           ai_classified_at?: string | null
           ai_priority?: string | null
@@ -2426,6 +2623,7 @@ export type Database = {
           body_html?: string | null
           body_text?: string | null
           building_id?: string | null
+          case_id?: string | null
           cc_addresses?: Json | null
           contact_id?: string | null
           created_at?: string
@@ -2460,6 +2658,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "emails_ai_case_suggestion_id_fkey"
+            columns: ["ai_case_suggestion_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "emails_assigned_to_fkey"
             columns: ["assigned_to"]
             isOneToOne: false
@@ -2471,6 +2676,13 @@ export type Database = {
             columns: ["building_id"]
             isOneToOne: false
             referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emails_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
             referencedColumns: ["id"]
           },
           {
@@ -3381,6 +3593,7 @@ export type Database = {
           admin_notes: string | null
           attachments: Json | null
           building_id: string | null
+          case_id: string | null
           contact_address: string | null
           contact_email: string | null
           contact_name: string | null
@@ -3399,6 +3612,7 @@ export type Database = {
           admin_notes?: string | null
           attachments?: Json | null
           building_id?: string | null
+          case_id?: string | null
           contact_address?: string | null
           contact_email?: string | null
           contact_name?: string | null
@@ -3417,6 +3631,7 @@ export type Database = {
           admin_notes?: string | null
           attachments?: Json | null
           building_id?: string | null
+          case_id?: string | null
           contact_address?: string | null
           contact_email?: string | null
           contact_name?: string | null
@@ -3431,7 +3646,15 @@ export type Database = {
           title?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "miete_reports_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       processes: {
         Row: {
@@ -4210,6 +4433,7 @@ export type Database = {
           admin_notes: string | null
           attachments: Json | null
           building_id: string | null
+          case_id: string | null
           contact_address: string | null
           contact_email: string | null
           contact_name: string | null
@@ -4228,6 +4452,7 @@ export type Database = {
           admin_notes?: string | null
           attachments?: Json | null
           building_id?: string | null
+          case_id?: string | null
           contact_address?: string | null
           contact_email?: string | null
           contact_name?: string | null
@@ -4246,6 +4471,7 @@ export type Database = {
           admin_notes?: string | null
           attachments?: Json | null
           building_id?: string | null
+          case_id?: string | null
           contact_address?: string | null
           contact_email?: string | null
           contact_name?: string | null
@@ -4260,7 +4486,15 @@ export type Database = {
           updated_at?: string
           weg_owner_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "weg_reports_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
@@ -4393,10 +4627,52 @@ export type Database = {
         }
         Returns: Json
       }
+      user_can_access_building: {
+        Args: { _building_id: string; _user_id: string }
+        Returns: boolean
+      }
       user_has_admin_access: { Args: { user_id: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "weg_owner" | "tenant" | "employee"
+      case_category:
+        | "schaden"
+        | "versicherung"
+        | "maengel"
+        | "eigentuemerwechsel"
+        | "rechtliches"
+        | "instandhaltung"
+        | "sonstiges"
+      case_event_type:
+        | "note"
+        | "email"
+        | "document"
+        | "image"
+        | "todo"
+        | "booking"
+        | "meeting"
+        | "phone"
+        | "status_change"
+        | "ai_summary"
+        | "file"
+      case_participant_role:
+        | "geschaedigter"
+        | "verursacher"
+        | "gutachter"
+        | "versicherer"
+        | "handwerker"
+        | "eigentuemer"
+        | "mieter"
+        | "behoerde"
+        | "sonstiges"
+      case_priority: "low" | "medium" | "high" | "urgent"
+      case_status:
+        | "open"
+        | "in_progress"
+        | "waiting_external"
+        | "waiting_owner"
+        | "resolved"
+        | "archived"
       contact_building_role: "eigentuemer" | "mieter" | "verwalter" | "beirat"
       contact_type: "person" | "company" | "owner_group" | "service_provider"
       contact_usage_type:
@@ -4547,6 +4823,48 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "weg_owner", "tenant", "employee"],
+      case_category: [
+        "schaden",
+        "versicherung",
+        "maengel",
+        "eigentuemerwechsel",
+        "rechtliches",
+        "instandhaltung",
+        "sonstiges",
+      ],
+      case_event_type: [
+        "note",
+        "email",
+        "document",
+        "image",
+        "todo",
+        "booking",
+        "meeting",
+        "phone",
+        "status_change",
+        "ai_summary",
+        "file",
+      ],
+      case_participant_role: [
+        "geschaedigter",
+        "verursacher",
+        "gutachter",
+        "versicherer",
+        "handwerker",
+        "eigentuemer",
+        "mieter",
+        "behoerde",
+        "sonstiges",
+      ],
+      case_priority: ["low", "medium", "high", "urgent"],
+      case_status: [
+        "open",
+        "in_progress",
+        "waiting_external",
+        "waiting_owner",
+        "resolved",
+        "archived",
+      ],
       contact_building_role: ["eigentuemer", "mieter", "verwalter", "beirat"],
       contact_type: ["person", "company", "owner_group", "service_provider"],
       contact_usage_type: [
