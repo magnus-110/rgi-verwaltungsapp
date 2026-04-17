@@ -1763,9 +1763,9 @@ function BookingRowCard({
 
       {/* §35a Dialog */}
       <Dialog open={show35aDialog} onOpenChange={setShow35aDialog}>
-        <DialogContent className="max-w-md">
-          <div className="space-y-4">
-            <h3 className="font-semibold text-base">§35a – Haushaltsnahe Dienstleistungen</h3>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+          <h3 className="font-semibold text-base shrink-0">§35a – Haushaltsnahe Dienstleistungen</h3>
+          <div className="flex-1 overflow-y-auto -mx-6 px-6">
             <Section35aEditor
               is35aRelevant={!!row.is_35a_relevant}
               onIs35aRelevantChange={(v) => onUpdateField("is_35a_relevant", v)}
@@ -1778,10 +1778,11 @@ function BookingRowCard({
                 const acc: any = (accounts as any[]).find(a => a.id === row.account_id) || (accounts as any[]).find(a => a.id === row.counter_account_id);
                 return (acc?.settlement_35a_type === "handwerker" ? "handwerker" : "dienste");
               })()}
+              currentAmount35a={parseFloat(row.amount_35a) || 0}
               toggleIdSuffix={String(index)}
             />
-            <Button onClick={() => setShow35aDialog(false)} className="w-full">Übernehmen</Button>
           </div>
+          <Button onClick={() => setShow35aDialog(false)} className="w-full shrink-0">Übernehmen</Button>
         </DialogContent>
       </Dialog>
 
