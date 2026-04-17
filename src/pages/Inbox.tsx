@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -38,7 +39,16 @@ export const Inbox = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [isSyncing, setIsSyncing] = useState(false);
   const { openCompose } = useComposeEmail();
-  const [filterAccountId, setFilterAccountId] = useState<string>("all");
+  const [selectedAccountIds, setSelectedAccountIds] = useState<string[] | null>(() => {
+    try {
+      const raw = localStorage.getItem("inbox-selected-accounts");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return null; // null = all accounts
+  });
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const [showEmailDetails, setShowEmailDetails] = useState(false);
   const [archiveEmailId, setArchiveEmailId] = useState<string | null>(null);
@@ -178,7 +188,7 @@ export const Inbox = () => {
 
   // Fetch emails for selected folder
   const { data: emails = [], isLoading: emailsLoading } = useQuery({
-    queryKey: ["emails", selectedFolderId, searchTerm, filterAccountId, isArchiveFolder, filterBuildingId, filterContactId, filterAssignedTo],
+    queryKey: ["emails", selectedFolderId, searchTerm, selectedAccountIds, isArchiveFolder, filterBuildingId, filterContactId, filterAssignedTo],
     queryFn: async () => {
       let query = supabase
         .from("emails")
@@ -205,8 +215,11 @@ export const Inbox = () => {
         }
       }
 
-      if (filterAccountId !== "all") {
-        query = query.eq("account_id", filterAccountId);
+      if (selectedAccountIds !== null) {
+        if (selectedAccountIds.length === 0) {
+          return [];
+        }
+        query = query.in("account_id", selectedAccountIds);
       }
 
       if (filterAssignedTo === "unassigned") {
@@ -600,56 +613,67 @@ export const Inbox = () => {
                 <p className="px-2 py-2 text-xs text-muted-foreground">
                   Noch keine E-Mail-Konten.
                 </p>
-              ) : (
-                <>
-                  <button
-                    onClick={() => setFilterAccountId("all")}
-                    className={cn(
-                      "w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md transition-colors",
-                      filterAccountId === "all" ? "bg-accent text-accent-foreground" : "hover:bg-muted/50 text-muted-foreground"
-                    )}
+              ) : (() => {
+                const allIds = accounts.map(a => a.id);
+                const isAccountChecked = (id: string) =>
+                  selectedAccountIds === null || selectedAccountIds.includes(id);
+                const allChecked =
+                  selectedAccountIds === null ||
+                  (selectedAccountIds.length === allIds.length && allIds.every(id => selectedAccountIds.includes(id)));
+                const toggleAccount = (id: string) => {
+                  const current = selectedAccountIds === null ? [...allIds] : [...selectedAccountIds];
+                  const idx = current.indexOf(id);
+                  if (idx >= 0) current.splice(idx, 1);
+                  else current.push(id);
+                  const next = current.length === allIds.length ? null : current;
+                  setSelectedAccountIds(next);
+                  try { localStorage.setItem("inbox-selected-accounts", JSON.stringify(next)); } catch {}
+                };
+                const toggleAll = () => {
+                  const next = allChecked ? [] : null;
+                  setSelectedAccountIds(next);
+                  try { localStorage.setItem("inbox-selected-accounts", JSON.stringify(next)); } catch {}
+                };
+
+                const renderAccountRow = (acc: typeof accounts[number]) => (
+                  <label
+                    key={acc.id}
+                    className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md transition-colors hover:bg-muted/50 text-muted-foreground cursor-pointer"
                   >
-                    <Mail className="h-4 w-4 shrink-0" />
-                    <span className="truncate text-left flex-1">Alle Konten</span>
-                  </button>
-                  {/* Show "Meine Konten" if user has assigned accounts */}
-                  {myAccountIds.length > 0 && (
-                    <>
-                      <p className="px-2 pt-2 pb-0.5 text-[10px] font-semibold text-muted-foreground">Meine Konten</p>
-                      {accounts.filter(acc => myAccountIds.includes(acc.id)).map(acc => (
-                        <button
-                          key={acc.id}
-                          onClick={() => setFilterAccountId(filterAccountId === acc.id ? "all" : acc.id)}
-                          className={cn(
-                            "w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md transition-colors",
-                            filterAccountId === acc.id ? "bg-accent text-accent-foreground" : "hover:bg-muted/50 text-muted-foreground"
-                          )}
-                        >
-                          <div className={cn("h-2 w-2 rounded-full shrink-0", acc.is_active ? "bg-green-500" : "bg-muted-foreground")} />
-                          <span className="truncate text-left flex-1">{acc.display_name}</span>
-                        </button>
-                      ))}
-                    </>
-                  )}
-                  {/* Show all accounts (or "Weitere" if user has own accounts) */}
-                  {myAccountIds.length > 0 && accounts.some(acc => !myAccountIds.includes(acc.id)) && (
-                    <p className="px-2 pt-2 pb-0.5 text-[10px] font-semibold text-muted-foreground">Weitere Konten</p>
-                  )}
-                  {accounts.filter(acc => myAccountIds.length === 0 || !myAccountIds.includes(acc.id)).map(acc => (
-                    <button
-                      key={acc.id}
-                      onClick={() => setFilterAccountId(filterAccountId === acc.id ? "all" : acc.id)}
-                      className={cn(
-                        "w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md transition-colors",
-                        filterAccountId === acc.id ? "bg-accent text-accent-foreground" : "hover:bg-muted/50 text-muted-foreground"
-                      )}
-                    >
-                      <div className={cn("h-2 w-2 rounded-full shrink-0", acc.is_active ? "bg-green-500" : "bg-muted-foreground")} />
-                      <span className="truncate text-left flex-1">{acc.display_name}</span>
-                    </button>
-                  ))}
-                </>
-              )}
+                    <Checkbox
+                      checked={isAccountChecked(acc.id)}
+                      onCheckedChange={() => toggleAccount(acc.id)}
+                      className="shrink-0"
+                    />
+                    <div className={cn("h-2 w-2 rounded-full shrink-0", acc.is_active ? "bg-green-500" : "bg-muted-foreground")} />
+                    <span className="truncate text-left flex-1">{acc.display_name}</span>
+                  </label>
+                );
+
+                return (
+                  <>
+                    <label className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-md transition-colors hover:bg-muted/50 text-muted-foreground cursor-pointer">
+                      <Checkbox
+                        checked={allChecked}
+                        onCheckedChange={toggleAll}
+                        className="shrink-0"
+                      />
+                      <Mail className="h-4 w-4 shrink-0" />
+                      <span className="truncate text-left flex-1 font-medium">Alle Konten</span>
+                    </label>
+                    {myAccountIds.length > 0 && (
+                      <>
+                        <p className="px-2 pt-2 pb-0.5 text-[10px] font-semibold text-muted-foreground">Meine Konten</p>
+                        {accounts.filter(acc => myAccountIds.includes(acc.id)).map(renderAccountRow)}
+                      </>
+                    )}
+                    {myAccountIds.length > 0 && accounts.some(acc => !myAccountIds.includes(acc.id)) && (
+                      <p className="px-2 pt-2 pb-0.5 text-[10px] font-semibold text-muted-foreground">Weitere Konten</p>
+                    )}
+                    {accounts.filter(acc => myAccountIds.length === 0 || !myAccountIds.includes(acc.id)).map(renderAccountRow)}
+                  </>
+                );
+              })()}
             </div>
           </ScrollArea>
         </div>
