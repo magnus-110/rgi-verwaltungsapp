@@ -7,10 +7,12 @@ export type CasePriority = "low" | "medium" | "high" | "urgent";
 export type CaseCategory = "schaden" | "versicherung" | "maengel" | "eigentuemerwechsel" | "rechtliches" | "instandhaltung" | "sonstiges";
 export type CaseEventType = "note" | "email" | "document" | "image" | "todo" | "booking" | "meeting" | "phone" | "status_change" | "ai_summary" | "file";
 
+export type ManagementMode = "weg" | "rent";
+
 export interface CaseRow {
   id: string;
   building_id: string;
-  management_mode: "weg" | "miete";
+  management_mode: ManagementMode;
   title: string;
   description: string | null;
   category: CaseCategory;
