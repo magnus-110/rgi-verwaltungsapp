@@ -270,6 +270,25 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
                     {(booking as any).review_note && (
                       <p className="text-xs text-orange-700 dark:text-orange-300 ml-1">{(booking as any).review_note}</p>
                     )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="ml-auto h-7 text-xs gap-1 border-orange-300 text-orange-700 hover:bg-orange-100 dark:border-orange-700 dark:text-orange-300 dark:hover:bg-orange-900"
+                      onClick={async () => {
+                        if (!booking) return;
+                        const { error } = await supabase
+                          .from("bookings")
+                          .update({ needs_review: false })
+                          .eq("id", booking.id);
+                        if (error) { toast.error("Fehler: " + error.message); return; }
+                        toast.success("Prüfung erledigt");
+                        queryClient.invalidateQueries({ predicate: (q) => (q.queryKey[0] as string)?.startsWith("bookings") });
+                        onOpenChange(false);
+                      }}
+                    >
+                      <CheckCircle className="h-3.5 w-3.5" />
+                      Prüfung erledigt
+                    </Button>
                   </div>
                 )}
 

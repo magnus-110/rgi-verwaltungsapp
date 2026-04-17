@@ -218,35 +218,33 @@ export function BookingsTab({ sharedBuildingId }: { sharedBuildingId?: string | 
                 </Tooltip>
               </TooltipProvider>
             )}
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-5 w-5 p-0"
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      const newVal = !b.needs_review;
-                      const { error } = await supabase
-                        .from("bookings")
-                        .update({ needs_review: newVal })
-                        .eq("id", b.id);
-                      if (error) { toast.error("Fehler: " + error.message); return; }
-                      toast.success(newVal ? "Zur Prüfung markiert" : "Prüfung erledigt");
-                      queryClient.invalidateQueries({ queryKey: ["bookings-all"] });
-                      queryClient.invalidateQueries({ queryKey: ["bookings-manual"] });
-                    }}
-                  >
-                    <Flag className={cn(
-                      "h-3.5 w-3.5",
-                      b.needs_review ? "text-orange-500 fill-orange-500" : "text-muted-foreground/40"
-                    )} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent><p className="text-xs">{b.needs_review ? "Prüfung erledigt (Klick)" : "Zur Prüfung markieren"}</p></TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            {b.needs_review && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-5 w-5 p-0"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        const { error } = await supabase
+                          .from("bookings")
+                          .update({ needs_review: false })
+                          .eq("id", b.id);
+                        if (error) { toast.error("Fehler: " + error.message); return; }
+                        toast.success("Prüfung erledigt");
+                        queryClient.invalidateQueries({ queryKey: ["bookings-all"] });
+                        queryClient.invalidateQueries({ queryKey: ["bookings-manual"] });
+                      }}
+                    >
+                      <Flag className="h-3.5 w-3.5 text-orange-500 fill-orange-500" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-xs">Prüfung erledigt (Klick)</p></TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
             {b.ai_warning && (
               <TooltipProvider>
                 <Tooltip>
@@ -254,12 +252,6 @@ export function BookingsTab({ sharedBuildingId }: { sharedBuildingId?: string | 
                   <TooltipContent className="max-w-xs"><p className="text-xs">{b.ai_warning}</p></TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-            )}
-            {b.matched_template_id && b.booking_templates && (
-              <Button size="sm" variant="ghost" className="h-5 w-5 p-0"
-                onClick={(e) => { e.stopPropagation(); handleTemplateClick(b); }}>
-                <LayoutTemplate className="h-3.5 w-3.5 text-primary" />
-              </Button>
             )}
           </div>
         </TableCell>
