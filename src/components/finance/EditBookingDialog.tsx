@@ -496,9 +496,9 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
 
       {/* §35a Dialog */}
       <Dialog open={show35aDialog} onOpenChange={setShow35aDialog}>
-        <DialogContent className="max-w-lg overflow-hidden">
-          <div className="space-y-4 w-full min-w-0 max-w-full">
-            <h3 className="font-semibold text-base">§35a – Haushaltsnahe Dienstleistungen</h3>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-hidden flex flex-col">
+          <h3 className="font-semibold text-base shrink-0">§35a – Haushaltsnahe Dienstleistungen</h3>
+          <div className="flex-1 overflow-y-auto -mx-6 px-6 w-full min-w-0">
             <Section35aEditor
               is35aRelevant={!!form.is_35a_relevant}
               onIs35aRelevantChange={(v) => set("is_35a_relevant", v)}
@@ -511,10 +511,11 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
                 const acc: any = (accounts as any[]).find(a => a.id === form.account_id) || counterAccount;
                 return (acc?.settlement_35a_type === "handwerker" ? "handwerker" : "dienste");
               })()}
+              currentAmount35a={parseFloat(form.amount_35a) || 0}
               toggleIdSuffix="edit"
             />
-            <Button onClick={() => setShow35aDialog(false)} className="w-full max-w-full">Übernehmen</Button>
           </div>
+          <Button onClick={() => setShow35aDialog(false)} className="w-full max-w-full shrink-0">Übernehmen</Button>
         </DialogContent>
       </Dialog>
     </>
