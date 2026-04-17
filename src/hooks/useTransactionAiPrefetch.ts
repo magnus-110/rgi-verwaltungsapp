@@ -10,6 +10,7 @@ import {
 const BATCH_SIZE = 3;
 const MAX_TOTAL_CALLS = 200;
 const MAX_CONSECUTIVE_ERRORS = 5;
+const MAX_ATTEMPTS_PER_TXN = 2;
 const DELAY_BETWEEN_BATCHES_MS = 600;
 const PER_CALL_TIMEOUT_MS = 45000;
 
@@ -34,6 +35,11 @@ export function useTransactionAiPrefetch(
 
   const needsAiAnalysis = useCallback((t: any) => {
     if (t.ai_suggestion || t.booked_at) return false;
+    // Skip transactions that have already been tried and failed permanently
+    const status = (t as any).ai_analysis_status;
+    const attempts = (t as any).ai_analysis_attempts ?? 0;
+    if (status === "failed" && attempts >= MAX_ATTEMPTS_PER_TXN) return false;
+    if (status === "skipped") return false;
     if (t.matched_invoice_id) return true;
     if (t.match_status === "unmatched") return true;
     return false;
@@ -76,7 +82,6 @@ export function useTransactionAiPrefetch(
 
     const run = async () => {
       try {
-        // Load shared context once for the entire run
         const ctx = await loadSuggestMatchContext(buildingId);
 
         if (abortRef.current || runIdRef.current !== currentRunId) {
@@ -97,22 +102,46 @@ export function useTransactionAiPrefetch(
 
           const batch = txnsToProcess.slice(i, i + BATCH_SIZE);
           const results = await Promise.allSettled(batch.map(async (txn: any) => {
-            const historicalBookings = await loadHistoricalBookings(buildingId, txn);
-            const payload = buildSuggestMatchPayload(txn, ctx, transactions, historicalBookings);
+            const currentAttempts = (txn.ai_analysis_attempts ?? 0) + 1;
 
-            const data = await invokeSuggestMatchWithTimeout(payload, PER_CALL_TIMEOUT_MS);
+            // Mark as pending before the call
+            await supabase.from("bank_transactions")
+              .update({
+                ai_analysis_status: "pending",
+                ai_analysis_attempted_at: new Date().toISOString(),
+                ai_analysis_attempts: currentAttempts,
+              } as any)
+              .eq("id", txn.id);
 
-            if (data) {
+            try {
+              const historicalBookings = await loadHistoricalBookings(buildingId, txn);
+              const payload = buildSuggestMatchPayload(txn, ctx, transactions, historicalBookings);
+              const data = await invokeSuggestMatchWithTimeout(payload, PER_CALL_TIMEOUT_MS);
+
+              if (data) {
+                await supabase.from("bank_transactions")
+                  .update({
+                    ai_suggestion: data,
+                    ai_analysis_status: "success",
+                  } as any)
+                  .eq("id", txn.id);
+              } else {
+                await supabase.from("bank_transactions")
+                  .update({ ai_analysis_status: "failed" } as any)
+                  .eq("id", txn.id);
+                throw new Error("Empty AI response");
+              }
+            } catch (err) {
               await supabase.from("bank_transactions")
-                .update({ ai_suggestion: data } as any)
+                .update({ ai_analysis_status: "failed" } as any)
                 .eq("id", txn.id);
+              throw err;
             }
           }));
 
           const batchErrors = results.filter(r => r.status === "rejected").length;
           totalErrors += batchErrors;
-          
-          // Track consecutive: if entire batch failed, add batch size; otherwise reset
+
           if (batchErrors === batch.length) {
             consecutiveErrors += batchErrors;
           } else {
