@@ -1307,6 +1307,85 @@ export const Inbox = () => {
           </SheetContent>
         </Sheet>
       )}
+
+      {/* Mobile Folders Sheet — replaces the desktop folder sidebar on small screens */}
+      <Sheet open={mobileFoldersOpen} onOpenChange={setMobileFoldersOpen}>
+        <SheetContent side="left" className="w-[85vw] sm:max-w-sm p-0 flex flex-col">
+          <SheetHeader className="p-3 border-b">
+            <SheetTitle className="text-left">Postfach</SheetTitle>
+          </SheetHeader>
+          <ScrollArea className="flex-1">
+            <div className="p-2">
+              <p className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Ordner</p>
+              {folders.map(folder => {
+                const Icon = folderIcons[folder.icon || 'inbox'] || Mail;
+                const isActive = selectedFolderId === folder.id;
+                const count = folderCounts[folder.id] || 0;
+                return (
+                  <button
+                    key={folder.id}
+                    onClick={() => {
+                      setSelectedFolderId(folder.id);
+                      setSelectedEmailId(null);
+                      setMobileFoldersOpen(false);
+                    }}
+                    className={cn(
+                      "w-full flex items-center gap-2 px-3 py-3 rounded-md text-sm transition-colors",
+                      isActive ? "bg-primary text-primary-foreground" : "hover:bg-muted text-foreground"
+                    )}
+                  >
+                    <Icon className="h-5 w-5 shrink-0" />
+                    <span className="truncate flex-1 text-left">{folder.name}</span>
+                    {count > 0 && (
+                      <Badge variant={isActive ? "secondary" : "default"} className="text-xs">
+                        {count}
+                      </Badge>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            <Separator className="my-2" />
+
+            <div className="p-2">
+              <div className="flex items-center justify-between px-2 py-1">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Konten</p>
+                {isAdmin && (
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setSettingsOpen(true); setMobileFoldersOpen(false); }} title="E-Mail-Konten verwalten">
+                    <Settings className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                )}
+              </div>
+              {accounts.length === 0 ? (
+                <p className="px-2 py-2 text-xs text-muted-foreground">Noch keine E-Mail-Konten.</p>
+              ) : (
+                accounts.map(acc => {
+                  const checked = selectedAccountIds === null || selectedAccountIds.includes(acc.id);
+                  return (
+                    <label key={acc.id} className="w-full flex items-center gap-2 px-2 py-2.5 text-sm rounded-md hover:bg-muted/50 cursor-pointer">
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={() => {
+                          const allIds = accounts.map(a => a.id);
+                          const current = selectedAccountIds === null ? [...allIds] : [...selectedAccountIds];
+                          const idx = current.indexOf(acc.id);
+                          if (idx >= 0) current.splice(idx, 1);
+                          else current.push(acc.id);
+                          const next = current.length === allIds.length ? null : current;
+                          setSelectedAccountIds(next);
+                          try { localStorage.setItem("inbox-selected-accounts", JSON.stringify(next)); } catch {}
+                        }}
+                      />
+                      <span className="truncate flex-1">{acc.display_name}</span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+          </ScrollArea>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };
