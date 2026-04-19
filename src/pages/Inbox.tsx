@@ -266,7 +266,28 @@ export const Inbox = () => {
     return emails.filter(e => normalizeCategory(e.ai_category) === filterCategory);
   }, [emails, filterCategory]);
 
-  const selectedEmail = filteredEmails.find(e => e.id === selectedEmailId) || emails.find(e => e.id === selectedEmailId);
+  const selectedEmailMeta = filteredEmails.find(e => e.id === selectedEmailId) || emails.find(e => e.id === selectedEmailId);
+
+  // Lazy-Load Email-Body nur für die selektierte E-Mail
+  const { data: selectedEmailBody } = useQuery({
+    queryKey: ["email-body", selectedEmailId],
+    queryFn: async () => {
+      if (!selectedEmailId) return null;
+      const { data, error } = await supabase
+        .from("emails")
+        .select("body_html, body_text")
+        .eq("id", selectedEmailId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!selectedEmailId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const selectedEmail = selectedEmailMeta
+    ? { ...selectedEmailMeta, body_html: selectedEmailBody?.body_html ?? null, body_text: selectedEmailBody?.body_text ?? null }
+    : undefined;
 
   // Auto-select inbox folder
   useEffect(() => {
