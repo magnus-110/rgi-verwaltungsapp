@@ -11,7 +11,7 @@ import { DeleteBuildingDialog } from "@/components/DeleteBuildingDialog";
 import { ManagerAssignmentDialog } from "@/components/ManagerAssignmentDialog";
 import { BuildingContactsList } from "@/components/contacts/BuildingContactsList";
 import { BuildingReportsTab } from "./BuildingReportsTab";
-import { BuildingFilesTab } from "./BuildingFilesTab";
+import { BuildingDocumentsTab } from "./BuildingDocumentsTab";
 import { BuildingForumTab } from "./BuildingForumTab";
 import { BuildingMaintenanceTab } from "./BuildingMaintenanceTab";
 import { BuildingFinanceSummary } from "@/components/finance/BuildingFinanceSummary";
@@ -249,7 +249,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
 
           {/* Documents Tab */}
           <TabsContent value="documents" className="p-4 md:p-6 mt-0">
-            <BuildingFilesTab buildingId={buildingId} managementMode={building.management_mode} />
+            <BuildingDocumentsTab buildingId={buildingId} managementMode={building.management_mode} />
           </TabsContent>
 
           {/* Forum Tab */}

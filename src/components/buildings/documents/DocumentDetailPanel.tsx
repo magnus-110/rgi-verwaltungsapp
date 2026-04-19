@@ -1,0 +1,300 @@
+import { useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Download, Trash2, Upload, X, History, Sparkles, ExternalLink } from "lucide-react";
+import { toast } from "sonner";
+import { format } from "date-fns";
+import { de } from "date-fns/locale";
+import { DocFile, VisibilityRole, VISIBILITY_LABELS } from "./types";
+import { useNavigate } from "react-router-dom";
+
+interface DocumentDetailPanelProps {
+  file: DocFile | null;
+  buildingId: string;
+  onClose: () => void;
+  onChanged: () => void;
+}
+
+export function DocumentDetailPanel({ file, buildingId, onClose, onChanged }: DocumentDetailPanelProps) {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const [editing, setEditing] = useState<Partial<DocFile>>({});
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (file) setEditing({});
+  }, [file?.id]);
+
+  const { data: contacts = [] } = useQuery({
+    queryKey: ['building-contacts-for-visibility', buildingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('contact_building_assignments')
+        .select('contact_id, contacts(id, first_name, last_name, company_name)')
+        .eq('building_id', buildingId)
+        .eq('is_active', true);
+      if (error) throw error;
+      return (data || []).map((r: any) => r.contacts).filter(Boolean);
+    },
+    enabled: !!file,
+  });
+
+  const { data: visibilityContacts = [] } = useQuery({
+    queryKey: ['file-visibility', file?.id],
+    queryFn: async () => {
+      if (!file) return [];
+      const { data, error } = await supabase
+        .from('building_file_visibility')
+        .select('contact_id')
+        .eq('file_id', file.id);
+      if (error) throw error;
+      return (data || []).map(r => r.contact_id);
+    },
+    enabled: !!file,
+  });
+
+  const { data: versions = [] } = useQuery({
+    queryKey: ['file-versions', file?.id, file?.parent_file_id],
+    queryFn: async () => {
+      if (!file) return [];
+      const rootId = file.parent_file_id || file.id;
+      const { data, error } = await supabase
+        .from('building_files')
+        .select('id, version, created_at, display_name')
+        .or(`id.eq.${rootId},parent_file_id.eq.${rootId}`)
+        .order('version', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!file,
+  });
+
+  if (!file) {
+    return (
+      <div className="flex items-center justify-center h-full text-sm text-muted-foreground p-6 text-center">
+        Wähle ein Dokument aus, um Details zu sehen.
+      </div>
+    );
+  }
+
+  const current = { ...file, ...editing };
+  const isDirty = Object.keys(editing).length > 0;
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('building_files')
+        .update(editing as any)
+        .eq('id', file.id);
+      if (error) throw error;
+      await supabase.from('building_file_activity').insert({
+        file_id: file.id,
+        user_id: (await supabase.auth.getUser()).data.user?.id,
+        action: 'updated',
+        details: editing as any,
+      });
+      toast.success("Gespeichert");
+      setEditing({});
+      onChanged();
+    } catch (e: any) {
+      toast.error("Fehler: " + e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDownload = async () => {
+    const { data, error } = await supabase.storage
+      .from('building-files')
+      .createSignedUrl(file.file_path, 60);
+    if (error) { toast.error(error.message); return; }
+    window.open(data.signedUrl, '_blank');
+  };
+
+  const handleDelete = async () => {
+    if (!confirm("Dokument in den Papierkorb verschieben?")) return;
+    const { error } = await supabase
+      .from('building_files')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', file.id);
+    if (error) { toast.error(error.message); return; }
+    await supabase.from('building_file_activity').insert({
+      file_id: file.id,
+      user_id: (await supabase.auth.getUser()).data.user?.id,
+      action: 'deleted',
+    });
+    toast.success("In Papierkorb verschoben");
+    onChanged();
+    onClose();
+  };
+
+  const togglePersonVisibility = async (contactId: string) => {
+    const exists = visibilityContacts.includes(contactId);
+    if (exists) {
+      await supabase.from('building_file_visibility').delete()
+        .eq('file_id', file.id).eq('contact_id', contactId);
+    } else {
+      await supabase.from('building_file_visibility').insert({
+        file_id: file.id, contact_id: contactId,
+      });
+    }
+    queryClient.invalidateQueries({ queryKey: ['file-visibility', file.id] });
+  };
+
+  return (
+    <ScrollArea className="h-full">
+      <div className="p-4 space-y-4">
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="font-semibold flex-1">Details</h3>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="space-y-1">
+          <Label className="text-xs">Name</Label>
+          <Input
+            value={current.display_name}
+            onChange={(e) => setEditing(s => ({ ...s, display_name: e.target.value }))}
+          />
+        </div>
+
+        <div className="space-y-1">
+          <Label className="text-xs">Beschreibung</Label>
+          <Textarea
+            rows={2}
+            value={current.description || ''}
+            onChange={(e) => setEditing(s => ({ ...s, description: e.target.value }))}
+          />
+        </div>
+
+        <div className="space-y-1">
+          <Label className="text-xs">Sichtbarkeit</Label>
+          <Select
+            value={current.visibility_role}
+            onValueChange={(v) => setEditing(s => ({ ...s, visibility_role: v as VisibilityRole }))}
+          >
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {Object.entries(VISIBILITY_LABELS).map(([k, v]) => (
+                <SelectItem key={k} value={k}>{v}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {current.visibility_role === 'personen' && (
+          <div className="space-y-1">
+            <Label className="text-xs">Freigegeben für</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {contacts.map((c: any) => {
+                const active = visibilityContacts.includes(c.id);
+                const name = c.company_name || `${c.first_name || ''} ${c.last_name || ''}`.trim();
+                return (
+                  <Badge
+                    key={c.id}
+                    variant={active ? "default" : "outline"}
+                    className="cursor-pointer"
+                    onClick={() => togglePersonVisibility(c.id)}
+                  >
+                    {name}
+                  </Badge>
+                );
+              })}
+              {contacts.length === 0 && <p className="text-xs text-muted-foreground">Keine Kontakte am Gebäude.</p>}
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-1">
+          <Label className="text-xs">Ablaufdatum (optional)</Label>
+          <Input
+            type="date"
+            value={current.valid_until || ''}
+            onChange={(e) => setEditing(s => ({ ...s, valid_until: e.target.value || null }))}
+          />
+        </div>
+
+        <div className="flex items-center justify-between">
+          <Label className="text-xs flex items-center gap-1.5">
+            <Sparkles className="h-3.5 w-3.5" /> KI-Indexierung (Nova)
+          </Label>
+          <Switch
+            checked={current.rag_enabled}
+            onCheckedChange={(v) => setEditing(s => ({ ...s, rag_enabled: v }))}
+          />
+        </div>
+
+        {(file.linked_invoice_id || file.source_email_id) && (
+          <>
+            <Separator />
+            <div className="space-y-2">
+              <Label className="text-xs">Verknüpfungen</Label>
+              {file.linked_invoice_id && (
+                <Button variant="outline" size="sm" className="w-full justify-start gap-2"
+                  onClick={() => navigate('/finance')}>
+                  <ExternalLink className="h-3.5 w-3.5" /> Verknüpfte Rechnung öffnen
+                </Button>
+              )}
+            </div>
+          </>
+        )}
+
+        {versions.length > 1 && (
+          <>
+            <Separator />
+            <div className="space-y-1">
+              <Label className="text-xs flex items-center gap-1.5">
+                <History className="h-3.5 w-3.5" /> Versionen ({versions.length})
+              </Label>
+              <div className="space-y-1">
+                {versions.map((v: any) => (
+                  <div key={v.id} className="text-xs flex justify-between p-1.5 rounded hover:bg-accent">
+                    <span>v{v.version} {v.id === file.id && '(aktuell)'}</span>
+                    <span className="text-muted-foreground">
+                      {format(new Date(v.created_at), 'dd.MM.yyyy', { locale: de })}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        <Separator />
+
+        <div className="text-xs text-muted-foreground space-y-1">
+          <div>Größe: {(file.file_size / 1024).toFixed(1)} KB</div>
+          <div>Hochgeladen: {format(new Date(file.created_at), 'dd.MM.yyyy HH:mm', { locale: de })}</div>
+          <div>Quelle: {file.source}</div>
+        </div>
+
+        <div className="flex flex-col gap-2 pt-2">
+          {isDirty && (
+            <Button onClick={save} disabled={saving} size="sm">
+              Änderungen speichern
+            </Button>
+          )}
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" className="flex-1" onClick={handleDownload}>
+              <Download className="h-3.5 w-3.5 mr-1.5" /> Download
+            </Button>
+            <Button variant="outline" size="sm" className="text-destructive" onClick={handleDelete}>
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    </ScrollArea>
+  );
+}
