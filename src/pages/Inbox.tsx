@@ -203,9 +203,9 @@ export const Inbox = () => {
     queryFn: async () => {
       let query = supabase
         .from("emails")
-        .select("id, account_id, folder_id, subject, from_name, from_address, to_addresses, cc_addresses, date, is_read, is_starred, is_archived, has_attachments, ai_category, ai_priority, ai_summary, body_html, body_text, building_id, contact_id, assigned_to, deleted_at, case_id, message_id")
+        .select("id, account_id, folder_id, subject, from_name, from_address, to_addresses, cc_addresses, date, is_read, is_starred, is_archived, has_attachments, ai_category, ai_priority, ai_summary, building_id, contact_id, assigned_to, deleted_at, case_id, message_id")
         .order("date", { ascending: false })
-        .limit(200);
+        .limit(100);
 
       if (isArchiveFolder) {
         query = query.eq("is_archived", true);
@@ -266,7 +266,28 @@ export const Inbox = () => {
     return emails.filter(e => normalizeCategory(e.ai_category) === filterCategory);
   }, [emails, filterCategory]);
 
-  const selectedEmail = filteredEmails.find(e => e.id === selectedEmailId) || emails.find(e => e.id === selectedEmailId);
+  const selectedEmailMeta = filteredEmails.find(e => e.id === selectedEmailId) || emails.find(e => e.id === selectedEmailId);
+
+  // Lazy-Load Email-Body nur für die selektierte E-Mail
+  const { data: selectedEmailBody } = useQuery({
+    queryKey: ["email-body", selectedEmailId],
+    queryFn: async () => {
+      if (!selectedEmailId) return null;
+      const { data, error } = await supabase
+        .from("emails")
+        .select("body_html, body_text")
+        .eq("id", selectedEmailId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!selectedEmailId,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const selectedEmail = selectedEmailMeta
+    ? { ...selectedEmailMeta, body_html: selectedEmailBody?.body_html ?? null, body_text: selectedEmailBody?.body_text ?? null }
+    : undefined;
 
   // Auto-select inbox folder
   useEffect(() => {
@@ -401,7 +422,7 @@ export const Inbox = () => {
           }));
 
         const summary = emailRow?.ai_summary?.trim();
-        const fallback = (emailRow?.body_text || email?.body_text || "").substring(0, 500);
+        const fallback = (emailRow?.body_text || "").substring(0, 500);
 
         await supabase.functions.invoke("case-add-event", {
           body: {
