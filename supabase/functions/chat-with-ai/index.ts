@@ -14,9 +14,10 @@ serve(async (req) => {
   }
 
   try {
-    const { message, userId, managementMode, buildingId, healthCheck, sessionId } = await req.json();
+    const body = await req.json();
+    const { message, managementMode, buildingId, healthCheck, sessionId } = body;
 
-    // Health check endpoint
+    // Health check endpoint (public, no auth needed)
     if (healthCheck === true || message === '__healthcheck__') {
       const mistralApiKey = Deno.env.get('MISTRAL_API_KEY');
       if (mistralApiKey) {
@@ -32,7 +33,29 @@ serve(async (req) => {
       }
     }
 
-    if (!message || !userId || !managementMode) {
+    // SECURITY: Verify JWT and derive userId from token claims (never trust client)
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    const token = authHeader.replace('Bearer ', '');
+    const anonClient = createClient(
+      'https://eebphowrbarzawwixqcc.supabase.co',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+    );
+    const { data: authData, error: authError } = await anonClient.auth.getUser(token);
+    if (authError || !authData?.user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    const userId = authData.user.id;
+
+    if (!message || !managementMode) {
       return new Response(
         JSON.stringify({ error: 'Missing required fields' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

@@ -730,7 +730,27 @@ serve(async (req) => {
   }
 
   try {
-    const { sessionId, question, buildingId, buildingIds, includeGeneral, userId, useWebSearch, searchAllBuildings, useDeepResearch } = await req.json() as QueryDocumentsRequest;
+    // SECURITY: Verify JWT and derive userId from token claims (never trust client)
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    const jwt = authHeader.replace('Bearer ', '');
+    const anonClient = createClient(SUPABASE_URL!, Deno.env.get('SUPABASE_ANON_KEY') ?? '');
+    const { data: authData, error: authError } = await anonClient.auth.getUser(jwt);
+    if (authError || !authData?.user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    const verifiedUserId = authData.user.id;
+
+    const { sessionId, question, buildingId, buildingIds, includeGeneral, useWebSearch, searchAllBuildings, useDeepResearch } = await req.json() as QueryDocumentsRequest;
+    const userId = verifiedUserId;
     
     // Handle multiple building IDs - if buildingIds is provided, use it; otherwise use buildingId
     const effectiveBuildingIds: string[] = buildingIds && buildingIds.length > 0 
