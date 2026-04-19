@@ -141,7 +141,7 @@ const EventRow = ({ event }: EventRowProps) => {
                   size="sm"
                   variant="outline"
                   className="h-7 text-xs"
-                  onClick={() => navigate(`/inbox?email=${emailId}`)}
+                  onClick={() => navigate(`/postfach?email=${emailId}`)}
                 >
                   <ExternalLink className="h-3 w-3 mr-1" />
                   Im Postfach öffnen
