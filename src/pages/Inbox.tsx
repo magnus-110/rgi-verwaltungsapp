@@ -831,15 +831,15 @@ export const Inbox = () => {
           </ScrollArea>
         </div>
 
-        <ResizablePanelGroup direction="horizontal" className="flex-1">
+        <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0">
         {/* Middle: Email List — on mobile: hidden when an email is selected */}
         <ResizablePanel
           defaultSize={35}
           minSize={20}
           maxSize={60}
-          className={cn(selectedEmailId ? "hidden md:block" : "block", "!flex-[1_1_0] md:!flex-initial")}
+          className={cn(selectedEmailId ? "hidden md:!block" : "!block", "!flex-[1_1_0] md:!flex-initial !h-full !overflow-hidden")}
         >
-          <div className="flex flex-col h-full">
+          <div className="flex flex-col h-full min-h-0">
 
 
             {/* Search - filters within selected category */}
@@ -1060,9 +1060,9 @@ export const Inbox = () => {
         {/* Right: Email Detail — on mobile: only visible when an email is selected */}
         <ResizablePanel
           defaultSize={65}
-          className={cn(selectedEmailId ? "block" : "hidden md:block", "!flex-[1_1_0] md:!flex-initial")}
+          className={cn(selectedEmailId ? "!block" : "hidden md:!block", "!flex-[1_1_0] md:!flex-initial !h-full !overflow-hidden")}
         >
-          <div className="flex flex-col h-full min-w-0">
+          <div className="flex flex-col h-full min-h-0 min-w-0">
             {selectedEmail ? (
               <>
                 <ScrollArea className="flex-1">
