@@ -182,53 +182,13 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
 
         <ScrollArea className="flex-1">
           {/* Overview Tab */}
-          <TabsContent value="overview" className="p-3 md:p-6 mt-0 space-y-4 md:space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
-              <StatCard icon={Users} label="Kontakte" value={contactCount} />
-              <StatCard icon={AlertCircle} label="Offene Meldungen" value={reportCount} />
-              <StatCard icon={FileText} label="Dokumente" value={fileCount} />
-              <StatCard icon={Newspaper} label="Beiträge" value={forumCount} />
-            </div>
-
-            <div className="grid md:grid-cols-2 gap-3 md:gap-4">
-              <Card>
-                <CardHeader className="p-3 md:p-6 pb-2 md:pb-3">
-                  <CardTitle className="text-sm md:text-base">Personen</CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 md:p-6 pt-0 space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Kontakte</span>
-                    <span className="font-medium">{contactCount}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Verwalter</span>
-                    <span className="font-medium">{managerNames.length}</span>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="p-3 md:p-6 pb-2 md:pb-3">
-                  <CardTitle className="text-sm md:text-base">Gebäudedetails</CardTitle>
-                </CardHeader>
-                <CardContent className="p-3 md:p-6 pt-0 space-y-2">
-                  <div className="flex justify-between text-sm gap-2">
-                    <span className="text-muted-foreground flex-shrink-0">Adresse</span>
-                    <span className="font-medium text-right truncate">{building.address}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Verwaltungsart</span>
-                    <span className="font-medium">{building.management_mode === 'weg' ? 'WEG' : 'Miete'}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Einheiten</span>
-                    <span className="font-medium">{building.unit_count}</span>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            <ExpiringDocumentsWidget buildingId={buildingId} onSelectDocuments={() => setActiveTab("documents")} />
+          <TabsContent value="overview" className="p-3 md:p-6 mt-0">
+            <BuildingOverviewTab
+              buildingId={buildingId}
+              buildingName={building.name}
+              managementMode={building.management_mode as "weg" | "rent"}
+              onJumpTab={setActiveTab}
+            />
           </TabsContent>
 
           {/* People Tab */}
