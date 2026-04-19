@@ -356,6 +356,13 @@ export const Inbox = () => {
     if (params.caseId) {
       const email = emails.find((e) => e.id === params.emailId);
       try {
+        // Fetch latest ai_summary in case it was generated after initial load
+        const { data: emailRow } = await supabase
+          .from("emails")
+          .select("ai_summary, subject, from_address, from_name, body_text")
+          .eq("id", params.emailId)
+          .maybeSingle();
+
         const { data: atts } = await supabase
           .from("email_attachments")
           .select("file_name, file_path, file_size, mime_type")
@@ -370,15 +377,25 @@ export const Inbox = () => {
             mime: a.mime_type,
             bucket: "email-attachments",
           }));
+
+        const summary = emailRow?.ai_summary?.trim();
+        const fallback = (emailRow?.body_text || email?.body_text || "").substring(0, 500);
+
         await supabase.functions.invoke("case-add-event", {
           body: {
             case_id: params.caseId,
             event_type: "email",
-            title: email?.subject || "E-Mail",
-            body: email?.body_text?.substring(0, 500) || null,
+            title: emailRow?.subject || email?.subject || "E-Mail",
+            body: summary || fallback || null,
             source_table: "emails",
             source_id: params.emailId,
             attachments,
+            extracted_data: {
+              email_id: params.emailId,
+              from_address: emailRow?.from_address || null,
+              from_name: emailRow?.from_name || null,
+              has_ai_summary: !!summary,
+            },
             trigger_summary: true,
           },
         });
