@@ -340,12 +340,12 @@ export const Dashboard = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       <div>
-        <h2 className="text-4xl font-sans font-semibold tracking-tight mb-2">
+        <h2 className="text-2xl md:text-4xl font-sans font-semibold tracking-tight mb-1 md:mb-2">
           {managementMode === 'weg' ? 'WEG-Verwaltung' : 'Mietverwaltung'} Dashboard
         </h2>
-        <p className="body-secondary text-lg">
+        <p className="body-secondary text-sm md:text-lg">
           Überblick über Ihre {managementMode === 'weg' ? 'WEG-' : 'Miet-'}Verwaltungsaktivitäten
         </p>
       </div>
@@ -372,19 +372,19 @@ export const Dashboard = () => {
 
       {/* Gebäude & Einheiten Übersicht */}
       <Card>
-        <CardHeader>
+        <CardHeader className="p-4 md:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
-              <CardTitle className="heading-primary flex items-center text-lg font-semibold">
+              <CardTitle className="heading-primary flex items-center text-base md:text-lg font-semibold">
                 <Home className="mr-2 h-5 w-5" />
                 Gebäude & Einheiten
               </CardTitle>
-              <CardDescription className="body-secondary">
+              <CardDescription className="body-secondary text-xs md:text-sm">
                 Übersicht nach Verwalter
               </CardDescription>
             </div>
             <Select value={overviewManagerFilter} onValueChange={setOverviewManagerFilter}>
-              <SelectTrigger className="w-48">
+              <SelectTrigger className="w-full sm:w-48 h-11 md:h-10">
                 <SelectValue placeholder="Verwalter filtern" />
               </SelectTrigger>
               <SelectContent>
@@ -396,7 +396,7 @@ export const Dashboard = () => {
             </Select>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 md:p-6 pt-0 md:pt-0">
           {(() => {
             const filtered = overviewManagerFilter === "all"
               ? buildingOverview.managers
