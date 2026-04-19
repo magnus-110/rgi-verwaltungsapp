@@ -298,6 +298,35 @@ export const Inbox = () => {
     }
   }, [selectedEmailId]);
 
+  // Deep-link: open email by ?email=<id>. Switches folder (incl. Archiv) and resets filters.
+  useEffect(() => {
+    const emailIdFromUrl = searchParams.get("email");
+    if (!emailIdFromUrl || emailIdFromUrl === selectedEmailId || folders.length === 0) return;
+    (async () => {
+      const { data } = await supabase
+        .from("emails")
+        .select("id, folder_id, is_archived")
+        .eq("id", emailIdFromUrl)
+        .maybeSingle();
+      if (data) {
+        setFilterCategory("all");
+        setFilterBuildingId("all");
+        setFilterContactId("all");
+        setFilterAssignedTo("all");
+        if (data.is_archived) {
+          const archive = folders.find((f) => f.name === "Archiv");
+          if (archive) setSelectedFolderId(archive.id);
+        } else if (data.folder_id) {
+          setSelectedFolderId(data.folder_id);
+        }
+        setSelectedEmailId(data.id);
+      }
+      const next = new URLSearchParams(searchParams);
+      next.delete("email");
+      setSearchParams(next, { replace: true });
+    })();
+  }, [searchParams, selectedEmailId, folders, setSearchParams]);
+
   const handleSync = async () => {
     setIsSyncing(true);
     try {
