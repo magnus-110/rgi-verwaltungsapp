@@ -71,14 +71,34 @@ export function AccountPlanView({ bookings, fiscalYear, buildingId, onRowClick, 
     return m;
   }, [balances]);
 
-  // Group bookings by account_id
+  // Group bookings by account_id AND counter_account_id (double-entry display)
+  // Each booking appears on BOTH accounts: once as primary side, once as counter side (sign flipped)
   const bookingsByAccount = useMemo(() => {
     const m: Record<string, any[]> = {};
     bookings.forEach((b) => {
-      if (!b.account_id) return;
-      if (!m[b.account_id]) m[b.account_id] = [];
-      m[b.account_id].push(b);
+      // Primary side
+      if (b.account_id) {
+        if (!m[b.account_id]) m[b.account_id] = [];
+        m[b.account_id].push({ ...b, _side: "primary" });
+      }
+      // Counter side — flip booking_type so income on one side shows as expense on the other
+      if (b.counter_account_id) {
+        if (!m[b.counter_account_id]) m[b.counter_account_id] = [];
+        const flippedType = b.booking_type === "income" ? "expense" : "income";
+        // Swap account display: on counter row, the "counter_account" should be the original primary account
+        const counterDisplay = b.chart_of_accounts
+          ? { account_number: b.chart_of_accounts.account_number, account_name: b.chart_of_accounts.account_name }
+          : null;
+        m[b.counter_account_id].push({
+          ...b,
+          _side: "counter",
+          booking_type: flippedType,
+          counter_account: counterDisplay,
+        });
+      }
     });
+    // Sort each account's bookings by date desc to keep ordering stable
+    Object.values(m).forEach(arr => arr.sort((a, b) => String(b.booking_date).localeCompare(String(a.booking_date))));
     return m;
   }, [bookings]);
 
