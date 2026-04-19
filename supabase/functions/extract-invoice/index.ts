@@ -506,6 +506,104 @@ Bestimme auch den utility_type wenn es sich um Gas, Strom, Wasser oder Fernwärm
       }
     }
 
+    // Auto-file invoice PDF in building DMS under "Rechnungen" subfolder
+    if (finalBuildingId && invoice.file_path) {
+      try {
+        // Check if already filed
+        const { data: existingFile } = await supabase
+          .from("building_files")
+          .select("id")
+          .eq("linked_invoice_id", invoiceId)
+          .maybeSingle();
+
+        if (!existingFile) {
+          // Ensure stammakte categories exist
+          await supabase.rpc("ensure_stammakte_categories", { p_building_id: finalBuildingId });
+
+          // Find "Rechnungen" subcategory under "Finanzen"
+          const { data: finanzen } = await supabase
+            .from("building_file_categories")
+            .select("id")
+            .eq("building_id", finalBuildingId)
+            .eq("slug", "finanzen")
+            .maybeSingle();
+
+          let rechnungenId: string | null = null;
+          if (finanzen) {
+            const { data: rech } = await supabase
+              .from("building_file_categories")
+              .select("id")
+              .eq("building_id", finalBuildingId)
+              .eq("parent_id", finanzen.id)
+              .eq("slug", "rechnungen")
+              .maybeSingle();
+            
+            if (rech) {
+              rechnungenId = rech.id;
+            } else {
+              const { data: building } = await supabase
+                .from("buildings")
+                .select("management_mode")
+                .eq("id", finalBuildingId)
+                .single();
+              const { data: created } = await supabase
+                .from("building_file_categories")
+                .insert({
+                  name: "Rechnungen",
+                  slug: "rechnungen",
+                  building_id: finalBuildingId,
+                  parent_id: finanzen.id,
+                  management_mode: building?.management_mode || "weg",
+                  icon: "receipt",
+                  color: "#F97316",
+                  sort_order: 10,
+                  auto_rag_enabled: false,
+                })
+                .select("id")
+                .single();
+              rechnungenId = created?.id || null;
+            }
+          }
+
+          // Get file size from storage
+          let fileSize = 0;
+          try {
+            const { data: storageList } = await supabase.storage
+              .from("invoices")
+              .list(invoice.file_path.split("/").slice(0, -1).join("/"), {
+                search: invoice.file_path.split("/").pop(),
+              });
+            fileSize = storageList?.[0]?.metadata?.size || 0;
+          } catch {}
+
+          const displayName = extracted.vendor_name && extracted.invoice_number
+            ? `${extracted.vendor_name} – ${extracted.invoice_number}.pdf`
+            : invoice.file_name || "Rechnung.pdf";
+
+          await supabase.from("building_files").insert({
+            building_id: finalBuildingId,
+            category_id: rechnungenId,
+            display_name: displayName,
+            description: extracted.description || null,
+            file_path: invoice.file_path,
+            file_size: fileSize,
+            mime_type: "application/pdf",
+            management_mode: "weg",
+            source: "invoice",
+            linked_invoice_id: invoiceId,
+            uploaded_by: user.id,
+            extracted_text: extractedText,
+            rag_enabled: false,
+            visibility_role: "intern",
+          });
+
+          console.log(`Auto-filed invoice ${invoiceId} in building DMS`);
+        }
+      } catch (filingError) {
+        console.error("Building DMS filing error (non-fatal):", filingError);
+      }
+    }
+
     console.log(`Invoice ${invoiceId} OCR completed successfully`);
 
     return new Response(
