@@ -86,8 +86,8 @@ export function UploadDocumentDialog({
           .upload(path, file);
         if (upErr) throw upErr;
 
-        const { data: inserted, error: insErr } = await supabase
-          .from('building_files')
+        const { data: inserted, error: insErr } = await (supabase
+          .from('building_files') as any)
           .insert({
             display_name: file.name,
             file_path: path,
