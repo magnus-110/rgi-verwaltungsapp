@@ -36,6 +36,7 @@ const visIcon = (role: string) => {
 };
 
 export function DocumentFileList({ buildingId, categoryId, searchQuery, selectedFileId, onSelect }: DocumentFileListProps) {
+  const parentRef = useRef<HTMLDivElement>(null);
   const { data: files = [], isLoading } = useQuery({
     queryKey: ['stammakte-files', buildingId, categoryId, searchQuery],
     queryFn: async () => {
