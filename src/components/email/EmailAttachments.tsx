@@ -185,22 +185,38 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
                 <FolderArchive className="h-3.5 w-3.5" />
               </Button>
               {canImport && (
-                <Button
-                  variant={isImported ? "secondary" : "ghost"}
-                  size="sm"
-                  className="h-auto py-1.5 px-1.5"
-                  disabled={isImporting || isImported}
-                  onClick={() => handleImportAsInvoice(att)}
-                  title={isImported ? "Bereits importiert" : "Als Rechnung importieren"}
-                >
-                  {isImporting ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : isImported ? (
-                    <Check className="h-3.5 w-3.5 text-emerald-500" />
-                  ) : (
-                    <Sparkles className="h-3.5 w-3.5" />
-                  )}
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant={isImported ? "secondary" : "ghost"}
+                      size="sm"
+                      className="h-auto py-1.5 px-1.5"
+                      disabled={isImporting || isImported}
+                      title={isImported ? "Bereits importiert" : "Als Rechnung importieren"}
+                    >
+                      {isImporting ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : isImported ? (
+                        <Check className="h-3.5 w-3.5 text-primary" />
+                      ) : (
+                        <>
+                          <Sparkles className="h-3.5 w-3.5" />
+                          <ChevronDown className="h-3 w-3 ml-0.5" />
+                        </>
+                      )}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleImportAsInvoice(att, false)}>
+                      <Sparkles className="h-3.5 w-3.5 mr-2" />
+                      Für Liegenschaft (Auto-Erkennung)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleImportAsInvoice(att, true)}>
+                      <Building2 className="h-3.5 w-3.5 mr-2" />
+                      🏢 RGI Immobilien (Firma)
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               )}
             </div>
           );
