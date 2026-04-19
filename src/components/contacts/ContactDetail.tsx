@@ -8,8 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ArrowLeft, Plus, Save, Trash2, Phone, Mail, Landmark, Users, ChevronDown, ChevronRight } from "lucide-react";
+import { ArrowLeft, Plus, Save, Trash2, Phone, Mail, Landmark, Users, ChevronDown, ChevronRight, FileText } from "lucide-react";
 import { ContactBuildingAssignments } from "./ContactBuildingAssignments";
+import { ContactDocumentsSection } from "./ContactDocumentsSection";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import type { Contact } from "@/pages/Contacts";
@@ -363,13 +364,17 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
 
       <div className="p-6">
         <Tabs defaultValue="personen">
-          <TabsList variant="segment" className="w-full grid grid-cols-3">
+          <TabsList variant="segment" className="w-full grid grid-cols-4">
             <TabsTrigger variant="segment" value="stammdaten">Stammdaten</TabsTrigger>
             <TabsTrigger variant="segment" value="personen" className="gap-1">
               <Users className="h-3.5 w-3.5" />
               Personen {visiblePersons.length > 0 && `(${visiblePersons.length})`}
             </TabsTrigger>
             <TabsTrigger variant="segment" value="gebaeude">Gebäude</TabsTrigger>
+            <TabsTrigger variant="segment" value="dokumente" className="gap-1">
+              <FileText className="h-3.5 w-3.5" />
+              Dokumente
+            </TabsTrigger>
           </TabsList>
 
           {/* Stammdaten Tab */}
@@ -622,6 +627,15 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
           {/* Gebäude Tab */}
           <TabsContent value="gebaeude" className="mt-4">
             <ContactBuildingAssignments contactId={contact.id} />
+          </TabsContent>
+
+          {/* Dokumente Tab */}
+          <TabsContent value="dokumente" className="mt-4">
+            <div className="mb-3">
+              <h3 className="text-sm font-semibold flex items-center gap-2"><FileText className="h-4 w-4" /> Verträge & Dokumente</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">Alle Dokumente, die dieser Person/Firma in der Stammakte zugeordnet oder freigegeben sind.</p>
+            </div>
+            <ContactDocumentsSection contactId={contact.id} />
           </TabsContent>
         </Tabs>
       </div>

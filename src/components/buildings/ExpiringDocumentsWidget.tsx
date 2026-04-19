@@ -36,7 +36,7 @@ export function ExpiringDocumentsWidget({ buildingId, onSelectDocuments }: Expir
   return (
     <Card className="p-4">
       <div className="flex items-center gap-2 mb-3">
-        <CalendarClock className="h-4 w-4 text-amber-500" />
+        <CalendarClock className="h-4 w-4 text-warning" />
         <h3 className="text-sm font-semibold">Ablaufende Dokumente</h3>
         <Badge variant="secondary" className="ml-auto text-[10px]">{files.length}</Badge>
       </div>
