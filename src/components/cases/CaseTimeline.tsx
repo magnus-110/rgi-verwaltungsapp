@@ -1,7 +1,8 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { StickyNote, Mail, FileText, Image as ImageIcon, CheckSquare, Banknote, Users as MeetingIcon, Phone, ArrowRightLeft, Sparkles, Paperclip, Pencil, Trash2, Check, X, Loader2, Download } from "lucide-react";
+import { StickyNote, Mail, FileText, Image as ImageIcon, CheckSquare, Banknote, Users as MeetingIcon, Phone, ArrowRightLeft, Sparkles, Paperclip, Pencil, Trash2, Check, X, Loader2, Download, ExternalLink } from "lucide-react";
 import { CaseEvent, CaseEventType, useUpdateCaseEvent, useDeleteCaseEvent } from "@/hooks/useCases";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -69,7 +70,13 @@ const EventRow = ({ event }: EventRowProps) => {
   const [body, setBody] = useState(event.body || "");
   const update = useUpdateCaseEvent();
   const del = useDeleteCaseEvent();
+  const navigate = useNavigate();
   const Icon = ICONS[event.event_type] || StickyNote;
+
+  const emailId =
+    event.event_type === "email"
+      ? (event.extracted_data as any)?.email_id || (event.source_table === "emails" ? event.source_id : null)
+      : null;
 
   const save = async () => {
     await update.mutateAsync({ id: event.id, case_id: event.case_id, title: title || null, body: body || null });
@@ -126,6 +133,19 @@ const EventRow = ({ event }: EventRowProps) => {
                     {a.path && <Download className="h-3 w-3 opacity-50" />}
                   </button>
                 ))}
+              </div>
+            )}
+            {emailId && (
+              <div className="mt-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={() => navigate(`/inbox?email=${emailId}`)}
+                >
+                  <ExternalLink className="h-3 w-3 mr-1" />
+                  Im Postfach öffnen
+                </Button>
               </div>
             )}
             {event.event_type !== "ai_summary" && (
