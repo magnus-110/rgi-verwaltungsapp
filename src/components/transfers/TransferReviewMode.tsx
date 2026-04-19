@@ -223,6 +223,14 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
   const [generatingPurpose, setGeneratingPurpose] = useState(false);
   const [hasUnsavedEdits, setHasUnsavedEdits] = useState(false);
 
+  const { data: buildings = [] } = useQuery({
+    queryKey: ["buildings-list-review"],
+    queryFn: async () => {
+      const { data } = await supabase.from("buildings").select("id, name, building_code").order("name");
+      return data || [];
+    },
+  });
+
   const invoice = invoices[index];
   const isPaid = invoice?.status === "paid";
   const isOverdue = invoice?.due_date && isPast(new Date(invoice.due_date)) && !isToday(new Date(invoice.due_date));
