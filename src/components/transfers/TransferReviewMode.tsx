@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format, isPast, isToday } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +36,8 @@ interface Invoice {
   paid_at?: string | null;
   payment_notes?: string;
   payment_purpose?: string | null;
+  building_id?: string | null;
+  is_company_invoice?: boolean;
   buildings?: { name: string; building_code: string } | null;
 }
 
@@ -218,6 +222,14 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
   const [purpose, setPurpose] = useState<string>("–");
   const [generatingPurpose, setGeneratingPurpose] = useState(false);
   const [hasUnsavedEdits, setHasUnsavedEdits] = useState(false);
+
+  const { data: buildings = [] } = useQuery({
+    queryKey: ["buildings-list-review"],
+    queryFn: async () => {
+      const { data } = await supabase.from("buildings").select("id, name, building_code").order("name");
+      return data || [];
+    },
+  });
 
   const invoice = invoices[index];
   const isPaid = invoice?.status === "paid";
@@ -500,8 +512,40 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
             <InlineEditField label="Rechnungsdatum" value={invoice.invoice_date || ""} onSave={v => saveField("invoice_date", v)} type="date" />
           </div>
 
-          <div className="space-y-1.5">
-            <InfoRow label="Liegenschaft" value={(invoice as any).buildings?.name || "–"} />
+          <div className="space-y-2">
+            <label className="text-xs text-muted-foreground font-medium">Liegenschaft</label>
+            <Select
+              value={invoice.is_company_invoice ? "__company__" : (invoice.building_id || "__none__")}
+              onValueChange={async (val) => {
+                const updates: any = {};
+                if (val === "__company__") {
+                  updates.is_company_invoice = true;
+                  updates.building_id = null;
+                } else if (val === "__none__") {
+                  updates.is_company_invoice = false;
+                  updates.building_id = null;
+                } else {
+                  updates.is_company_invoice = false;
+                  updates.building_id = val;
+                }
+                const { error } = await supabase.from("invoices").update(updates).eq("id", invoice.id);
+                if (error) toast.error("Fehler beim Speichern");
+                else { toast.success("Liegenschaft aktualisiert"); onRefetch(); }
+              }}
+            >
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Liegenschaft wählen" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">– Keine Zuordnung –</SelectItem>
+                <SelectItem value="__company__">RGI Immobilien GmbH & Co. KG</SelectItem>
+                {buildings.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>
+                    {b.building_code} – {b.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {isPaid && invoice.paid_at && (
               <InfoRow label="Bezahlt am" value={format(new Date(invoice.paid_at as string), "dd.MM.yyyy")} />
             )}
