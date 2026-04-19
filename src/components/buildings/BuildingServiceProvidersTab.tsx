@@ -360,11 +360,7 @@ function AddProviderDialog({
       <CreateContactDialog
         open={showCreate}
         onOpenChange={setShowCreate}
-        onCreated={async (newId?: string) => {
-          await refetch();
-          if (newId) setSelectedId(newId);
-        }}
-        defaultType="service_provider"
+        onCreated={() => { refetch(); }}
       />
     </>
   );
