@@ -1,66 +1,109 @@
 
 
-## Performance & Skalierungs-Audit — Phasenplan
+## Praxisnahes Dashboard-Konzept (Gebäude + Allgemein)
 
-Bei 200 Gebäuden, tausenden Dokumenten und tausenden Eigentümern sind die kritischen Engpässe: ungefilterte Queries (1000-Zeilen-Limit), fehlende Pagination, fehlende DB-Indizes, große React-Listen ohne Virtualisierung, fehlende Memoization und N+1 Query-Patterns.
-
-### Vorgehen
-Wie bei Mobile: **5 Phasen**, jede testbar. Nach jeder Phase Freigabe.
-
----
-
-### Phase 1 — Datenbank-Foundation (Indizes & RPCs)
-**Ziel**: SQL-Layer für Skalierung vorbereiten.
-- Audit aller Tabellen mit >1.000 erwarteten Zeilen: `bookings`, `invoices`, `bank_transactions`, `document_chunks`, `building_files`, `email_messages`, `todos`, `contacts`, `contact_building_assignments`, `etv_votes`
-- Indizes auf häufige Filter: `building_id`, `fiscal_year`, `created_at DESC`, `status`, `(building_id, booking_date)`, `(user_id, building_id)`
-- Composite-Indizes für Sortierung+Filter
-- Aggregations-RPCs statt Client-Aggregationen (z.B. `get_building_dashboard_stats(building_id)`)
-- Prüfung der RLS-Policies auf Performance (vermeide Subqueries in `USING`)
-
-### Phase 2 — Listen & Pagination (Frontend Daten-Hydration)
-**Ziel**: Niemals mehr als 50–100 Zeilen pro Request laden.
-- Alle `select('*')` auditieren → nur benötigte Spalten
-- Server-Side Pagination via `.range(from, to)` für: `Inbox`, `Contacts`, `Todos`, `Buildings`, `Bookings`, `BankStatements`, `Invoices`, `Reports`
-- Infinite Scroll oder klassische Pagination (Cursor-basiert wo sinnvoll)
-- Server-Side Suche/Filter (statt Client-Filter über alle Daten)
-- React Query `staleTime` & `gcTime` korrekt setzen, `keepPreviousData` für sanfte UX
-
-### Phase 3 — Virtualisierung großer Listen
-**Ziel**: DOM bleibt klein, auch bei 1000+ Einträgen im Viewport.
-- `@tanstack/react-virtual` einführen für: `BuildingList`, `ContactList`, `BookingsTab`, `BankStatementsTab`, `EmailList`, `BuildingFilesTab`, `DocumentList`
-- Sticky Header bleibt, nur Body virtualisiert
-- Memoization von Row-Komponenten via `React.memo` + stabile Keys
-
-### Phase 4 — Heavy Pages (Finance, ETV, Documents)
-**Ziel**: Spezifische Hot-Paths optimieren.
-- **Finance/Settlement**: Batch-Berechnungen serverseitig (Edge Function), Caching, Web Worker für Client-Berechnungen bei großen Properties
-- **ETV Live-Voting**: Realtime-Channels nur pro aktiver Meeting subscriben, debounced Updates
-- **Documents/Nova**: RAG-Suche bereits gut indexiert, aber `document_chunks` Index auf `(building_id, category)` prüfen
-- **Email Sync**: Pagination der `email_messages` (aktuell evtl. alle laden), Lazy-Load von Attachments
-- **Building Dashboard**: Stats via einer einzigen RPC statt 8 separaten Queries
-
-### Phase 5 — Bundle, Assets & Auth
-**Ziel**: Initial Load & Wahrnehmung.
-- Code-Splitting via `React.lazy()` für Heavy-Routen (Finance, Meetings, Documents)
-- Bundle-Analyse (`vite-plugin-visualizer`) → unbenutzte Dependencies entfernen
-- Bilder/Logos: WebP, Lazy Loading
-- React Query Devtools nur in Dev
-- Auth: Session-Caching, vermeide doppelte `useAuth`-Subscriptions
-- Service Worker für Offline-First bei statischen Assets
+Klare Trennung der zwei Dashboards basierend auf Nutzungskontext:
+- **Allgemeines Dashboard** (`/dashboard`) = Tagesstart-Übersicht über ALLE Gebäude
+- **Gebäude-Dashboard** (Tab "Übersicht" im Gebäude-Hub) = Arbeitsbereich für ein konkretes Gebäude
 
 ---
 
-### Empfehlung
-**Mit Phase 1 starten** — DB-Indizes sind die Foundation und liefern sofort messbare Verbesserungen ohne UI-Risiko. Dann Phase 2 (Pagination), die den größten Effekt auf User-Wahrnehmung hat. Phase 3-5 darauf aufbauend.
+### A) Gebäude-Dashboard (`BuildingDashboard.tsx`, Tab "overview")
 
-### Geänderte Bereiche pro Phase
-| Phase | Typ | Risiko |
+**1. KPI-Action-Bar (oben, klickbar → springt in passenden Tab)**
+- Offene Meldungen · Offene Vorgänge · Buchungs-Fortschritt %
+
+**2. Buchungs-Fortschritt (neue Karte, prominent)**
+Skala/Progress-Bar: "Letzter Monat: 78 % der Bankbewegungen gebucht (42/54)"
+- Datenquelle: `bank_transactions` WHERE building_id = X AND booking_date BETWEEN [letzter Monat]
+- Berechnung: `count(invoice_id IS NOT NULL OR matched_template_id IS NOT NULL) / count(*)`
+- Klick → Sprung zu Buchhaltung > Kontoauszüge
+
+**3. Eigentümer-Liste mit Schnellaktionen**
+Kompakte Liste aller Eigentümer (`contact_building_assignments` WHERE role='eigentuemer'):
+- Name + Wohneinheit
+- Buttons rechts: ✉ E-Mail (öffnet ComposeEmail mit Empfänger vorausgefüllt), 📞 Tel (tel:-Link)
+- Mobile: kollabierbar, max. 5 sichtbar + "Alle anzeigen"
+
+**4. Handwerker / Dienstleister-Karte**
+Eigene Sektion (`contact_building_assignments` WHERE role='dienstleister'):
+- Firmenname + Gewerk
+- Schnellaktionen: ✉ Mail, 📞 Anrufen
+- Wird NICHT mehr im Personen-Tab angezeigt (bleibt wie geändert)
+
+**5. Offene Vorgänge (Cases)**
+Top 5 offene Cases (`cases` WHERE status IN ('open','in_progress','waiting_external')):
+- Titel + Priorität-Badge + Alter
+- Button: "+ Neuer Vorgang" (öffnet `CreateCaseDialog`)
+
+**6. Offene Meldungen**
+Top 5 (`weg_reports`/`miete_reports` WHERE status='open'):
+- Eigentümer-Name + Kurztext + Datum
+- Klick → Sprung in Reports-Tab
+
+**7. Quick-Action-Leiste (unten, 4 Buttons)**
+`+ Vorgang` · `+ Aufgabe` · `+ Schwarzes Brett` · `✉ Rundmail an alle Eigentümer`
+
+---
+
+### B) Allgemeines Dashboard (`pages/Dashboard.tsx`)
+
+Tagesstart-Übersicht über ALLE zugewiesenen Gebäude (für Verwalter-Mitarbeiter):
+
+**1. Big-Number-Cards (4 KPIs oben)**
+- 🔴 Offene Meldungen (Summe über alle Gebäude)
+- 📋 Offene Vorgänge
+- 💰 Offene Rechnungen (`invoices` WHERE status='open')
+- ✉ Neue E-Mails ungelesen (`emails` WHERE is_read=false, building_id IS NOT NULL)
+
+Jede Card klickbar → Sprung zur jeweiligen Seite mit passendem Filter.
+
+**2. "Heute fällig" Liste**
+- Aufgaben mit `due_date = today` aus `todos`
+- Wartungstermine aus `building_maintenance` (next_due in 7 Tagen)
+- Anstehende ETV-Termine
+
+**3. "Letzte Aktivität" Feed**
+Realtime-Stream der letzten 10 Events: neue Meldung, neue E-Mail klassifiziert, Vorgang aktualisiert, Rechnung eingegangen — mit Gebäude-Kontext-Chip.
+
+**4. Gebäude-Schnellzugriff-Grid**
+Bestehende Gebäudekacheln behalten, aber kompakter — mit Mini-Badge bei kritischen Zahlen (z. B. "3 offen").
+
+---
+
+### Technische Umsetzung
+
+| Komponente | Datei | Typ |
 |---|---|---|
-| 1 — DB Indizes | Migrations + RPCs | Niedrig (read-only Optimierung) |
-| 2 — Pagination | Hooks + Komponenten | Mittel (Datenfluss ändert sich) |
-| 3 — Virtualisierung | Listenkomponenten | Niedrig (visuell identisch) |
-| 4 — Heavy Pages | Edge Functions + Komponenten | Mittel |
-| 5 — Bundle | Vite Config + lazy imports | Niedrig |
+| RPC `get_building_overview(uuid)` | Migration | Konsolidiert alle Counter+Listen in einer Query |
+| RPC `get_dashboard_global_stats(uuid)` | Migration | Für allg. Dashboard, scoped auf zugewiesene Gebäude |
+| `BuildingOverviewTab.tsx` | NEU | Ersetzt Inhalt von Tab "overview" in `BuildingDashboard.tsx` |
+| `BookingProgressCard.tsx` | NEU | Progress-Bar mit Buchungs-% |
+| `OwnerQuickActions.tsx` | NEU | Eigentümer-Liste mit Mail/Tel-Buttons |
+| `ServiceProvidersCard.tsx` | NEU | Handwerker-Schnellzugriff |
+| `Dashboard.tsx` | EDIT | Komplettes Redesign mit KPIs + Activity Feed |
+| Hooks: `useComposeEmail` (existiert) | — | Für „E-Mail an Eigentümer" |
 
-Soll ich mit **Phase 1 (Datenbank-Indizes & Aggregations-RPCs)** beginnen?
+### Datenquellen (alle vorhanden)
+- `weg_reports` / `miete_reports` (status=open)
+- `cases` (status IN open/in_progress/waiting_external)
+- `bank_transactions` + `bookings` für Buchungs-Fortschritt
+- `contact_building_assignments` (role: eigentuemer / dienstleister) + `contact_persons` + `contact_emails` + `contact_phones`
+- `invoices`, `emails`, `todos`, `building_maintenance`
+
+### Mobile (411 px)
+- KPI-Bar als 2×2-Grid
+- Eigentümer/Handwerker-Listen kollabierbar
+- Quick-Actions als 2×2-Grid
+- Activity-Feed unter den Listen
+
+### Was bewusst NICHT angezeigt wird
+Vanity-Metriken: Anzahl Kontakte/Dokumente/Forum-Beiträge, Adresse als großes Feld (steht im Header), Kontenrahmen, Gebäudedokumente.
+
+### Reihenfolge der Umsetzung
+1. RPC `get_building_overview` + `BuildingOverviewTab` mit allen Sektionen
+2. `BookingProgressCard` (separater Schritt, weil eigene Berechnung)
+3. RPC `get_dashboard_global_stats` + Redesign `pages/Dashboard.tsx`
+
+Starte ich mit Schritt 1 (Gebäude-Dashboard inkl. RPC)?
 
