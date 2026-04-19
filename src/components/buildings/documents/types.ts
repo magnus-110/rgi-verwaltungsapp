@@ -32,6 +32,7 @@ export interface DocFile {
   linked_contact_id: string | null;
   linked_invoice_id: string | null;
   linked_billing_period_id: string | null;
+  maintenance_config_id: string | null;
   source: FileSource;
   source_email_id: string | null;
   tags: string[];
