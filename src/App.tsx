@@ -1,4 +1,4 @@
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,61 +9,70 @@ import { UploadProvider } from "@/contexts/UploadContext";
 import { ComposeEmailProvider } from "@/contexts/ComposeEmailContext";
 import { FloatingComposeWindow } from "@/components/email/FloatingComposeWindow";
 import { ScrollToTop } from "@/components/ScrollToTop";
+
+// Eager: Entry, Auth, Layouts, Dashboard (häufigster Einstieg)
 import Index from "./pages/Index";
 import { Login } from "./pages/Login";
-import { ChangePassword } from "./pages/ChangePassword";
 import { Dashboard } from "./pages/Dashboard";
-import { Reports } from "./pages/Reports";
-import { Buildings } from "./pages/Buildings";
-import { Forum } from "./pages/Forum";
-
-import { Settings } from "./pages/Settings";
-import { Documents } from "./pages/Documents";
-import { DocumentSettings } from "./pages/DocumentSettings";
-import { WebhookSettings } from "./pages/WebhookSettings";
-import { Todos } from "./pages/Todos";
-import { Calendar } from "./pages/Calendar";
-import { Files } from "./pages/Files";
-import { Contacts } from "./pages/Contacts";
-import { Finance } from "./pages/Finance";
-import { Billing } from "./pages/Billing";
-import { EconomicPlan } from "./pages/EconomicPlan";
-import { Inbox } from "./pages/Inbox";
-import { Meetings } from "./pages/Meetings";
-import { EtvProxy } from "./pages/EtvProxy";
-import { CashAuditProxy } from "./pages/CashAuditProxy";
-import { Transfers } from "./pages/Transfers";
 import { AdminLayout } from "./components/AdminLayout";
 import { WegOwnerLayout } from "./components/WegOwnerLayout";
-import { WegOwnerDashboard } from "./pages/weg-owner/Dashboard";
-import { WegOwnerReports } from "./pages/weg-owner/Reports";
-import { WegOwnerForum } from "./pages/weg-owner/Forum";
-import { WegOwnerChatbot } from "./pages/weg-owner/Chatbot";
-import { WegOwnerSettings } from "./pages/weg-owner/Settings";
-import { WegOwnerFiles } from "./pages/weg-owner/Files";
-import { WegOwnerMeetings } from "./pages/weg-owner/Meetings";
-import { WegOwnerCashAudit } from "./pages/weg-owner/CashAudit";
 import { TenantLayout } from "./components/TenantLayout";
-import { TenantDashboard } from "./pages/tenant/Dashboard";
-import { TenantReports } from "./pages/tenant/Reports";
-import { TenantForum } from "./pages/tenant/Forum";
-import { TenantChatbot } from "./pages/tenant/Chatbot";
-import { TenantSettings } from "./pages/tenant/Settings";
-import { TenantFiles } from "./pages/tenant/Files";
-import NotFound from "./pages/NotFound";
-import Offline from "./pages/Offline";
+
+// Lazy: Heavy & weniger frequente Routen → eigene Chunks
+const ChangePassword = lazy(() => import("./pages/ChangePassword").then(m => ({ default: m.ChangePassword })));
+const Reports = lazy(() => import("./pages/Reports").then(m => ({ default: m.Reports })));
+const Buildings = lazy(() => import("./pages/Buildings").then(m => ({ default: m.Buildings })));
+const Settings = lazy(() => import("./pages/Settings").then(m => ({ default: m.Settings })));
+const Documents = lazy(() => import("./pages/Documents").then(m => ({ default: m.Documents })));
+const DocumentSettings = lazy(() => import("./pages/DocumentSettings").then(m => ({ default: m.DocumentSettings })));
+const WebhookSettings = lazy(() => import("./pages/WebhookSettings").then(m => ({ default: m.WebhookSettings })));
+const Todos = lazy(() => import("./pages/Todos").then(m => ({ default: m.Todos })));
+const Calendar = lazy(() => import("./pages/Calendar").then(m => ({ default: m.Calendar })));
+const Contacts = lazy(() => import("./pages/Contacts").then(m => ({ default: m.Contacts })));
+const Finance = lazy(() => import("./pages/Finance").then(m => ({ default: m.Finance })));
+const Billing = lazy(() => import("./pages/Billing").then(m => ({ default: m.Billing })));
+const EconomicPlan = lazy(() => import("./pages/EconomicPlan").then(m => ({ default: m.EconomicPlan })));
+const Inbox = lazy(() => import("./pages/Inbox").then(m => ({ default: m.Inbox })));
+const Meetings = lazy(() => import("./pages/Meetings").then(m => ({ default: m.Meetings })));
+const EtvProxy = lazy(() => import("./pages/EtvProxy").then(m => ({ default: m.EtvProxy })));
+const CashAuditProxy = lazy(() => import("./pages/CashAuditProxy").then(m => ({ default: m.CashAuditProxy })));
+const Transfers = lazy(() => import("./pages/Transfers").then(m => ({ default: m.Transfers })));
+
+const WegOwnerDashboard = lazy(() => import("./pages/weg-owner/Dashboard").then(m => ({ default: m.WegOwnerDashboard })));
+const WegOwnerReports = lazy(() => import("./pages/weg-owner/Reports").then(m => ({ default: m.WegOwnerReports })));
+const WegOwnerForum = lazy(() => import("./pages/weg-owner/Forum").then(m => ({ default: m.WegOwnerForum })));
+const WegOwnerChatbot = lazy(() => import("./pages/weg-owner/Chatbot").then(m => ({ default: m.WegOwnerChatbot })));
+const WegOwnerSettings = lazy(() => import("./pages/weg-owner/Settings").then(m => ({ default: m.WegOwnerSettings })));
+const WegOwnerFiles = lazy(() => import("./pages/weg-owner/Files").then(m => ({ default: m.WegOwnerFiles })));
+const WegOwnerMeetings = lazy(() => import("./pages/weg-owner/Meetings").then(m => ({ default: m.WegOwnerMeetings })));
+const WegOwnerCashAudit = lazy(() => import("./pages/weg-owner/CashAudit").then(m => ({ default: m.WegOwnerCashAudit })));
+
+const TenantDashboard = lazy(() => import("./pages/tenant/Dashboard").then(m => ({ default: m.TenantDashboard })));
+const TenantReports = lazy(() => import("./pages/tenant/Reports").then(m => ({ default: m.TenantReports })));
+const TenantForum = lazy(() => import("./pages/tenant/Forum").then(m => ({ default: m.TenantForum })));
+const TenantChatbot = lazy(() => import("./pages/tenant/Chatbot").then(m => ({ default: m.TenantChatbot })));
+const TenantSettings = lazy(() => import("./pages/tenant/Settings").then(m => ({ default: m.TenantSettings })));
+const TenantFiles = lazy(() => import("./pages/tenant/Files").then(m => ({ default: m.TenantFiles })));
+
+const NotFound = lazy(() => import("./pages/NotFound"));
+const Offline = lazy(() => import("./pages/Offline"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Skalierungs-Defaults: weniger Refetches bei großen Datenmengen
-      staleTime: 1000 * 60 * 2,        // 2 min: Daten gelten als frisch
-      gcTime: 1000 * 60 * 10,           // 10 min: Cache-Retention
-      refetchOnWindowFocus: false,      // verhindert Storm bei Tab-Wechsel
-      retry: 1,                          // schnelles Fail statt 3× Retry
+      staleTime: 1000 * 60 * 2,
+      gcTime: 1000 * 60 * 10,
+      refetchOnWindowFocus: false,
+      retry: 1,
     },
   },
 });
+
+const PageLoader = () => (
+  <div className="flex items-center justify-center min-h-screen">
+    <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+  </div>
+);
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -76,6 +85,7 @@ const App = () => (
               <Toaster />
               <Sonner />
               <FloatingComposeWindow />
+            <Suspense fallback={<PageLoader />}>
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />
@@ -138,6 +148,7 @@ const App = () => (
               <Route path="/offline" element={<Offline />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
+            </Suspense>
             </UploadProvider>
           </ComposeEmailProvider>
         </AuthProvider>
