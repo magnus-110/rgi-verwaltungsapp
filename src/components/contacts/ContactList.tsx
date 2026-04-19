@@ -157,25 +157,15 @@ export function ContactList({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        {loading ? (
-          <div className="p-4 text-center text-muted-foreground text-sm">Laden...</div>
-        ) : contacts.length === 0 ? (
-          <div className="p-4 text-center text-muted-foreground text-sm">
-            {search ? "Keine Ergebnisse" : "Noch keine Kontakte"}
-          </div>
-        ) : (
-          contacts.map((c) => (
-            <ContactRow
-              key={c.id}
-              contact={c}
-              selected={selectedId === c.id}
-              onSelect={onSelect}
-              primaryName={primaryPersons[c.id]}
-            />
-          ))
-        )}
-      </div>
+      <VirtualContactRows
+        contacts={contacts}
+        selectedId={selectedId}
+        onSelect={onSelect}
+        loading={loading}
+        search={search}
+        primaryPersons={primaryPersons}
+      />
+
 
       {total > pageSize && (
         <div className="border-t border-border p-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
