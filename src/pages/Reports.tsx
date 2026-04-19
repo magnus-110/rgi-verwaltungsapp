@@ -592,20 +592,20 @@ Beschreibung: ${report.description}`;
   const timeFilteredInProgressReports = getFilteredReportsByTimeRange(filteredInProgressReports);
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="max-w-6xl mx-auto space-y-6">
+    <div className="min-h-screen bg-background p-0 md:p-6">
+      <div className="max-w-6xl mx-auto space-y-4 md:space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold">
+          <h1 className="text-2xl md:text-3xl font-bold">
             {managementMode === "weg" ? "WEG-" : "Miet-"}Meldungen
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-muted-foreground text-sm md:text-base">
             Übersicht aller {managementMode === "weg" ? "WEG-" : "Miet-"}Meldungen
           </p>
         </div>
 
         {/* Toolbar */}
-        <div className="flex flex-wrap items-center gap-4 justify-between">
+        <div className="flex flex-col md:flex-row md:flex-wrap md:items-center gap-3 md:gap-4 md:justify-between">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList variant="underline">
               <TabsTrigger variant="underline" value="reports">Meldungen</TabsTrigger>
@@ -615,7 +615,7 @@ Beschreibung: ${report.description}`;
 
           <div className="flex items-center gap-2 flex-wrap">
             <Select value={timeRange} onValueChange={setTimeRange}>
-              <SelectTrigger className="w-40">
+              <SelectTrigger className="w-full md:w-40 h-11 md:h-10">
                 <SelectValue placeholder="Zeitraum" />
               </SelectTrigger>
               <SelectContent>
@@ -627,40 +627,44 @@ Beschreibung: ${report.description}`;
               </SelectContent>
             </Select>
 
-            <Button variant="outline" onClick={() => setExportDialogOpen(true)}>
-              <Download className="h-4 w-4 mr-2" />
-              Exportieren
+            <Button
+              variant="outline"
+              className="h-11 md:h-10 flex-1 md:flex-initial"
+              onClick={() => setExportDialogOpen(true)}
+            >
+              <Download className="h-4 w-4 md:mr-2" />
+              <span className="hidden md:inline">Exportieren</span>
             </Button>
           </div>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsContent value="reports" className="space-y-6">
+          <TabsContent value="reports" className="space-y-4 md:space-y-6">
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3 md:gap-4">
               <Card>
-                <CardContent className="p-6">
+                <CardContent className="p-4 md:p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-lg font-semibold text-foreground">Offen</h3>
-                      <p className="text-3xl font-bold text-foreground">{timeFilteredOpenReports.length}</p>
+                      <h3 className="text-sm md:text-lg font-semibold text-foreground">Offen</h3>
+                      <p className="text-2xl md:text-3xl font-bold text-foreground">{timeFilteredOpenReports.length}</p>
                     </div>
                     <div className="text-muted-foreground">
-                      <FileText className="h-8 w-8" />
+                      <FileText className="h-6 w-6 md:h-8 md:w-8" />
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
               <Card>
-                <CardContent className="p-6">
+                <CardContent className="p-4 md:p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-lg font-semibold text-foreground">Bearbeitet</h3>
-                      <p className="text-3xl font-bold text-foreground">{timeFilteredInProgressReports.length}</p>
+                      <h3 className="text-sm md:text-lg font-semibold text-foreground">Bearbeitet</h3>
+                      <p className="text-2xl md:text-3xl font-bold text-foreground">{timeFilteredInProgressReports.length}</p>
                     </div>
                     <div className="text-muted-foreground">
-                      <FileText className="h-8 w-8" />
+                      <FileText className="h-6 w-6 md:h-8 md:w-8" />
                     </div>
                   </div>
                 </CardContent>
