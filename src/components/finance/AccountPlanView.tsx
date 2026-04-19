@@ -137,11 +137,9 @@ export function AccountPlanView({ bookings, fiscalYear, buildingId, onRowClick, 
       arr.sort((a, b) => String(a.account_number).localeCompare(String(b.account_number), "de", { numeric: true }))
     );
 
-    const orderedCats = Object.keys(byCat).sort((a, b) => {
-      const ia = CATEGORY_ORDER.indexOf(a);
-      const ib = CATEGORY_ORDER.indexOf(b);
-      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
-    });
+    const orderedCats = Object.keys(byCat).sort((a, b) =>
+      a.localeCompare(b, "de", { numeric: true, sensitivity: "base" })
+    );
 
     return orderedCats.map((cat) => ({ category: cat, accounts: byCat[cat] }));
   }, [accounts, bookingsByAccount, showAllAccounts]);
