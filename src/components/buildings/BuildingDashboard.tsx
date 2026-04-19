@@ -17,7 +17,7 @@ import { BuildingMaintenanceTab } from "./BuildingMaintenanceTab";
 import { BuildingFinanceSummary } from "@/components/finance/BuildingFinanceSummary";
 import { BuildingResolutionsTab } from "./BuildingResolutionsTab";
 import { BuildingDistributionKeysTab } from "@/components/finance/BuildingDistributionKeysTab";
-import { UtilityContractsTab } from "@/components/finance/UtilityContractsTab";
+import { BuildingServiceProvidersTab } from "./BuildingServiceProvidersTab";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -171,7 +171,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
               { value: "forum", label: "Schwarzes Brett" },
               { value: "maintenance", label: "Wartung" },
               { value: "distribution", label: "Kontenrahmen" },
-              { value: "utility", label: "Versorgung" },
+              { value: "providers", label: "Dienstleister" },
               { value: "finance", label: "Finanzen" },
               ...(building.management_mode === 'weg' ? [{ value: "resolutions", label: "Beschlüsse" }] : []),
             ].map(tab => (
@@ -267,9 +267,9 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
             <BuildingDistributionKeysTab buildingId={buildingId} />
           </TabsContent>
 
-          {/* Utility Contracts Tab */}
-          <TabsContent value="utility" className="p-4 md:p-6 mt-0">
-            <UtilityContractsTab buildingId={buildingId} />
+          {/* Service Providers Tab */}
+          <TabsContent value="providers" className="p-4 md:p-6 mt-0">
+            <BuildingServiceProvidersTab buildingId={buildingId} />
           </TabsContent>
 
           {/* Finance Tab */}
