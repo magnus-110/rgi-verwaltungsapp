@@ -51,11 +51,12 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
         { icon: Users, label: "Versammlungen", path: '/versammlungen', active: location.pathname.startsWith('/versammlungen') },
         { icon: Landmark, label: "Buchhaltung", path: '/finanzen', active: location.pathname.startsWith('/finanzen') },
         { icon: CreditCard, label: "Überweisungen", path: '/ueberweisungen', active: location.pathname.startsWith('/ueberweisungen') },
+        { icon: Settings, label: "Einstellungen", path: '/settings', active: location.pathname.startsWith('/settings'), adminOnly: true },
       ];
 
-      // Filter für Mitarbeiter
+      // Filter für Mitarbeiter: keine Einstellungen
       if (userRole === 'employee') {
-        return items.filter(item => !['Einstellungen'].includes(item.label));
+        return items.filter(item => !item.adminOnly);
       }
       
       return items;
