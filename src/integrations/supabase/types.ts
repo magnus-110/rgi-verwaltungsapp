@@ -3580,6 +3580,7 @@ export type Database = {
           invoice_date: string | null
           invoice_number: string | null
           invoice_type: Database["public"]["Enums"]["invoice_type"] | null
+          is_company_invoice: boolean
           line_items: Json | null
           meter_number: string | null
           net_amount: number | null
@@ -3619,6 +3620,7 @@ export type Database = {
           invoice_date?: string | null
           invoice_number?: string | null
           invoice_type?: Database["public"]["Enums"]["invoice_type"] | null
+          is_company_invoice?: boolean
           line_items?: Json | null
           meter_number?: string | null
           net_amount?: number | null
@@ -3658,6 +3660,7 @@ export type Database = {
           invoice_date?: string | null
           invoice_number?: string | null
           invoice_type?: Database["public"]["Enums"]["invoice_type"] | null
+          is_company_invoice?: boolean
           line_items?: Json | null
           meter_number?: string | null
           net_amount?: number | null

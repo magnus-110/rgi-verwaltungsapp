@@ -44,8 +44,9 @@ export function InvoiceDropZone({ buildings }: Props) {
         return;
       }
 
-      // Use building folder or "unassigned" if none selected
-      const folderPrefix = selectedBuilding || "unassigned";
+      // Use building folder, "company" for RGI invoices, or "unassigned"
+      const isCompany = selectedBuilding === "company";
+      const folderPrefix = isCompany ? "company" : (selectedBuilding || "unassigned");
       const filePath = `${folderPrefix}/${Date.now()}_${fileName}`;
       const { error: uploadError } = await supabase.storage
         .from("invoices")
@@ -56,11 +57,12 @@ export function InvoiceDropZone({ buildings }: Props) {
       // Get current user
       const { data: { user } } = await supabase.auth.getUser();
 
-      // Create invoice record (building_id is null if not selected)
-      const { data: invoice, error: insertError } = await supabase
-        .from("invoices")
+      // Create invoice record (building_id is null if company or not selected)
+      const { data: invoice, error: insertError } = await (supabase
+        .from("invoices") as any)
         .insert({
-          building_id: selectedBuilding || null,
+          building_id: isCompany ? null : (selectedBuilding || null),
+          is_company_invoice: isCompany,
           file_path: filePath,
           file_name: fileName,
           status: "open",
@@ -77,7 +79,7 @@ export function InvoiceDropZone({ buildings }: Props) {
       // Trigger OCR extraction (fire-and-forget)
       const { data: { session } } = await supabase.auth.getSession();
       supabase.functions.invoke("extract-invoice", {
-        body: { invoiceId: invoice.id },
+        body: { invoiceId: invoice.id, isCompanyInvoice: isCompany },
         headers: { Authorization: `Bearer ${session?.access_token}` },
       }).then(() => {
         queryClient.invalidateQueries({ queryKey: ["invoices"] });
@@ -117,6 +119,7 @@ export function InvoiceDropZone({ buildings }: Props) {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="auto">Automatisch erkennen</SelectItem>
+            <SelectItem value="company">🏢 RGI Immobilien (Firma)</SelectItem>
             {buildings.map(b => (
               <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
             ))}

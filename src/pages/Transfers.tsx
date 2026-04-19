@@ -43,7 +43,9 @@ export function Transfers() {
         query = query.neq("status", "paid");
       }
 
-      if (buildingFilter !== "all") {
+      if (buildingFilter === "company") {
+        query = (query as any).eq("is_company_invoice", true);
+      } else if (buildingFilter !== "all") {
         query = query.eq("building_id", buildingFilter);
       }
 
@@ -141,6 +143,7 @@ export function Transfers() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Alle Gebäude</SelectItem>
+              <SelectItem value="company">🏢 RGI Firma</SelectItem>
               {buildings.map((b) => (
                 <SelectItem key={b.id} value={b.id}>
                   {b.building_code} – {b.name}
@@ -203,7 +206,13 @@ export function Transfers() {
                     <TableCell className="font-mono text-xs">{inv.vendor_iban || "–"}</TableCell>
                     <TableCell className="text-right font-semibold">{formatCurrency(inv.gross_amount)}</TableCell>
                     <TableCell className="text-muted-foreground text-sm">
-                      {(inv as any).buildings?.name || "–"}
+                      {(inv as any).is_company_invoice ? (
+                        <Badge variant="outline" className="text-xs border-primary/40 text-primary bg-primary/10">
+                          🏢 Firma
+                        </Badge>
+                      ) : (
+                        (inv as any).buildings?.name || "–"
+                      )}
                     </TableCell>
                     <TableCell>
                       {isPaid ? (

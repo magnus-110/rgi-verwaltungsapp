@@ -97,7 +97,7 @@ serve(async (req) => {
       });
     }
 
-    const { invoiceId } = await req.json();
+    const { invoiceId, isCompanyInvoice } = await req.json();
     if (!invoiceId) {
       return new Response(JSON.stringify({ error: "invoiceId erforderlich" }), {
         status: 400,
@@ -108,7 +108,7 @@ serve(async (req) => {
     // Get invoice record
     const { data: invoice, error: invError } = await supabase
       .from("invoices")
-      .select("id, file_path, file_name, building_id")
+      .select("id, file_path, file_name, building_id, is_company_invoice")
       .eq("id", invoiceId)
       .single();
 
@@ -350,8 +350,10 @@ Bestimme auch den utility_type wenn es sich um Gas, Strom, Wasser oder Fernwärm
     }
 
     // Auto-match building from recipient_address if no building_id is set yet
+    // Skip auto-matching for company invoices (RGI Immobilien itself)
+    const isCompany = invoice.is_company_invoice || isCompanyInvoice === true;
     let matchedBuildingId: string | null = invoice.building_id || null;
-    if (!matchedBuildingId && extracted.recipient_address) {
+    if (!isCompany && !matchedBuildingId && extracted.recipient_address) {
       const { data: allBuildings } = await supabase
         .from("buildings")
         .select("id, name, address");
@@ -364,6 +366,8 @@ Bestimme auch den utility_type wenn es sich um Gas, Strom, Wasser oder Fernwärm
           console.log(`No building match for recipient: ${extracted.recipient_address}`);
         }
       }
+    } else if (isCompany) {
+      console.log(`Skipping building auto-match: invoice ${invoiceId} is a company invoice`);
     }
 
     // Post-OCR duplicate check: same invoice_number + vendor_name already exists?
@@ -413,9 +417,14 @@ Bestimme auch den utility_type wenn es sich um Gas, Strom, Wasser oder Fernwärm
       suggested_account_id: suggestedAccountId,
     };
 
-    // Set building_id if auto-matched
-    if (matchedBuildingId && !invoice.building_id) {
+    // Set building_id if auto-matched (never for company invoices)
+    if (matchedBuildingId && !invoice.building_id && !isCompany) {
       updateData.building_id = matchedBuildingId;
+    }
+
+    // Persist company-invoice flag if requested via call
+    if (isCompanyInvoice === true && !invoice.is_company_invoice) {
+      updateData.is_company_invoice = true;
     }
 
     // Only overwrite fields that are currently empty
