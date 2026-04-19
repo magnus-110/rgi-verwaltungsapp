@@ -203,7 +203,7 @@ export const Inbox = () => {
     queryFn: async () => {
       let query = supabase
         .from("emails")
-        .select("id, account_id, folder_id, subject, from_name, from_address, to_addresses, date, is_read, is_starred, is_archived, has_attachments, ai_category, ai_priority, ai_summary, building_id, contact_id, assigned_to, deleted_at, case_id, message_id")
+        .select("id, account_id, folder_id, subject, from_name, from_address, to_addresses, cc_addresses, date, is_read, is_starred, is_archived, has_attachments, ai_category, ai_priority, ai_summary, body_html, body_text, building_id, contact_id, assigned_to, deleted_at, case_id, message_id")
         .order("date", { ascending: false })
         .limit(200);
 
