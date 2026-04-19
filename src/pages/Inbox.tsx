@@ -590,7 +590,7 @@ export const Inbox = () => {
   };
 
   return (
-    <div className="h-[calc(100vh-8rem)] md:h-[calc(100vh-8rem)] flex flex-col md:flex-row rounded-lg border bg-background overflow-hidden">
+    <div className="h-[calc(100dvh-8rem)] md:h-[calc(100vh-8rem)] min-h-0 flex flex-col md:flex-row rounded-lg border bg-background overflow-hidden">
       {/* Mobile-only header bar — shows hamburger + back button + sync */}
       <div className="md:hidden flex items-center justify-between px-2 py-2 border-b shrink-0 gap-2">
         {selectedEmailId ? (
@@ -791,11 +791,10 @@ export const Inbox = () => {
       )}
 
       {/* Main content area with tabs spanning full width */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
         {/* Category tabs - full width above both panels */}
-        <div className="border-b">
-          <ScrollArea className="w-full">
-            <div className="flex px-2 py-1 gap-0.5">
+        <div className="border-b shrink-0 overflow-x-auto overflow-y-hidden">
+          <div className="flex min-w-max px-2 py-1 gap-0.5">
               <button
                 onClick={() => setFilterCategory("all")}
                 className={cn(
@@ -827,11 +826,10 @@ export const Inbox = () => {
                   {cat} ({categoryCounts[cat] || 0})
                 </button>
               ))}
-            </div>
-          </ScrollArea>
+          </div>
         </div>
 
-        <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0">
+        <ResizablePanelGroup direction="horizontal" className="flex-1 min-h-0 overflow-hidden">
         {/* Middle: Email List — on mobile: hidden when an email is selected */}
         <ResizablePanel
           defaultSize={35}
@@ -891,7 +889,7 @@ export const Inbox = () => {
               </div>
             )}
 
-            <ScrollArea className="flex-1">
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
               {emailsLoading ? (
                 <div className="p-4 text-center text-sm text-muted-foreground">Laden...</div>
               ) : filteredEmails.length === 0 ? (
@@ -1051,7 +1049,7 @@ export const Inbox = () => {
                   </button>
                 ))
               )}
-            </ScrollArea>
+            </div>
           </div>
         </ResizablePanel>
 
@@ -1065,7 +1063,7 @@ export const Inbox = () => {
           <div className="flex flex-col h-full min-h-0 min-w-0">
             {selectedEmail ? (
               <>
-                <ScrollArea className="flex-1">
+                <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
                   <div className="p-4 space-y-2">
                     <div className="flex items-start justify-between gap-4">
                       <h2 className="text-lg font-semibold truncate">{selectedEmail.subject || "(Kein Betreff)"}</h2>
@@ -1233,7 +1231,7 @@ export const Inbox = () => {
                       <pre className="text-sm whitespace-pre-wrap font-sans">{selectedEmail.body_text || "Kein Inhalt"}</pre>
                     )}
                   </div>
-                </ScrollArea>
+                </div>
                 <div className="p-3 border-t flex gap-2">
                   <Button size="sm" className="gap-1.5" onClick={() => {
                     openCompose({ replyTo: { subject: selectedEmail.subject, from_address: selectedEmail.from_address, from_name: selectedEmail.from_name, body_text: selectedEmail.body_text, date: selectedEmail.date, account_id: selectedEmail.account_id } });
