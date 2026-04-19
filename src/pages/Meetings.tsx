@@ -78,8 +78,8 @@ export const Meetings = () => {
 
   if (isCreating || selectedMeetingId) {
     return (
-      <div className="p-4 md:p-6 space-y-4">
-        <Button variant="ghost" onClick={handleBack} className="gap-2">
+      <div className="p-3 md:p-6 space-y-3 md:space-y-4">
+        <Button variant="ghost" onClick={handleBack} className="gap-2 h-10 -ml-2">
           <ArrowLeft className="h-4 w-4" />
           Zurück zur Übersicht
         </Button>
@@ -93,15 +93,15 @@ export const Meetings = () => {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-3 md:p-6 space-y-4 md:space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Versammlungen</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl md:text-2xl font-bold text-foreground">Versammlungen</h1>
+          <p className="text-xs md:text-sm text-muted-foreground">
             Eigentümerversammlungen planen, durchführen und dokumentieren
           </p>
         </div>
-        <Button onClick={() => setIsCreating(true)} className="gap-2">
+        <Button onClick={() => setIsCreating(true)} className="gap-2 h-11 md:h-10 hidden md:inline-flex">
           <Plus className="h-4 w-4" />
           Neue ETV
         </Button>
@@ -109,9 +109,9 @@ export const Meetings = () => {
 
       {/* Building Filter */}
       <div className="flex items-center gap-2">
-        <Building2 className="h-4 w-4 text-muted-foreground" />
+        <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
         <Select value={selectedBuildingId} onValueChange={setSelectedBuildingId}>
-          <SelectTrigger className="w-[300px]">
+          <SelectTrigger className="w-full md:w-[300px] h-11 md:h-10">
             <SelectValue placeholder="Liegenschaft filtern..." />
           </SelectTrigger>
           <SelectContent>
@@ -124,12 +124,13 @@ export const Meetings = () => {
       </div>
 
       <Tabs defaultValue="meetings">
-        <TabsList>
-          <TabsTrigger value="meetings" className="gap-2">
+        <TabsList className="w-full md:w-auto overflow-x-auto scrollbar-hide">
+          <TabsTrigger value="meetings" className="gap-1.5 md:gap-2 min-h-[44px] text-xs md:text-sm">
             <Users className="h-4 w-4" />
-            Versammlungen
+            <span className="hidden sm:inline">Versammlungen</span>
+            <span className="sm:hidden">ETV</span>
           </TabsTrigger>
-          <TabsTrigger value="submissions" className="gap-2">
+          <TabsTrigger value="submissions" className="gap-1.5 md:gap-2 min-h-[44px] text-xs md:text-sm">
             <Inbox className="h-4 w-4" />
             Anträge
             {pendingCount > 0 && (
@@ -138,9 +139,10 @@ export const Meetings = () => {
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="resolutions" className="gap-2">
+          <TabsTrigger value="resolutions" className="gap-1.5 md:gap-2 min-h-[44px] text-xs md:text-sm">
             <Scale className="h-4 w-4" />
-            Beschlusssammlung
+            <span className="hidden sm:inline">Beschlusssammlung</span>
+            <span className="sm:hidden">Beschl.</span>
           </TabsTrigger>
         </TabsList>
         <TabsContent value="meetings" className="mt-4">
@@ -157,6 +159,16 @@ export const Meetings = () => {
           <ResolutionLedger buildingFilter={selectedBuildingId} />
         </TabsContent>
       </Tabs>
+
+      {/* Mobile FAB */}
+      <Button
+        onClick={() => setIsCreating(true)}
+        className="md:hidden fixed right-4 h-14 w-14 rounded-full shadow-lg z-40"
+        style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+        aria-label="Neue ETV"
+      >
+        <Plus className="h-6 w-6" />
+      </Button>
     </div>
   );
 };

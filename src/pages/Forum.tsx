@@ -572,14 +572,19 @@ export const Forum = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Schwarzes Brett</h1>
+    <div className="p-3 md:p-0 space-y-4 md:space-y-6">
+      <div className="flex items-center justify-between gap-2">
+        <h1 className="text-xl md:text-3xl font-bold">Schwarzes Brett</h1>
         {canCreatePosts && (
           <div className="flex gap-2">
             <Dialog open={isTemplateDialogOpen} onOpenChange={setIsTemplateDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" className="gap-2">
+                <Button variant="outline" size="icon" className="md:hidden h-10 w-10">
+                  <Settings className="w-4 h-4" />
+                </Button>
+              </DialogTrigger>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="gap-2 hidden md:inline-flex">
                   <Settings className="w-4 h-4" />
                   Vorlagen verwalten
                 </Button>
@@ -662,13 +667,25 @@ export const Forum = () => {
                 </div>
               </DialogContent>
             </Dialog>
-            <Button onClick={() => setIsCreating(true)} className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground md:inline-flex">
+            <Button onClick={() => setIsCreating(true)} className="gap-2 bg-primary hover:bg-primary/90 text-primary-foreground hidden md:inline-flex">
               <Plus className="w-4 h-4" />
-              <span className="hidden md:inline">Neuer Beitrag</span>
+              Neuer Beitrag
             </Button>
           </div>
         )}
       </div>
+
+      {/* Mobile FAB */}
+      {canCreatePosts && (
+        <Button
+          onClick={() => setIsCreating(true)}
+          className="md:hidden fixed right-4 h-14 w-14 rounded-full shadow-lg z-40"
+          style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+          aria-label="Neuer Beitrag"
+        >
+          <Plus className="h-6 w-6" />
+        </Button>
+      )}
 
       {/* Filter Section */}
       {(canCreatePosts || canEditPosts) && (
