@@ -4715,6 +4715,10 @@ export type Database = {
       }
       get_attendee_by_proxy_token: { Args: { p_token: string }; Returns: Json }
       get_audit_by_token: { Args: { p_token: string }; Returns: Json }
+      get_building_dashboard_stats: {
+        Args: { p_building_id: string }
+        Returns: Json
+      }
       get_building_manager_names: {
         Args: { building_id_param: string }
         Returns: string[]
