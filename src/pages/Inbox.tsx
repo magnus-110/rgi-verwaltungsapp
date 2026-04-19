@@ -610,10 +610,9 @@ export const Inbox = () => {
         {selectedEmailId && <div className="w-10" />}
       </div>
 
-      {/* Left: Folders & Accounts - hidden on mobile (Sheet instead) */}
-      <div className={cn("hidden md:flex", sidebarCollapsed ? "" : "")} style={{ display: 'contents' }}>
+      {/* Left: Folders & Accounts (Desktop only) — on mobile available via Sheet */}
       {sidebarCollapsed ? (
-        <div className="w-10 border-r flex flex-col items-center py-2 shrink-0">
+        <div className="hidden md:flex w-10 border-r flex-col items-center py-2 shrink-0">
           <Button variant="ghost" size="icon" className="h-8 w-8 mb-2" onClick={() => setSidebarCollapsed(false)} title="Navigation einblenden">
             <PanelLeftOpen className="h-4 w-4" />
           </Button>
@@ -649,7 +648,7 @@ export const Inbox = () => {
           })}
         </div>
       ) : (
-        <div className="w-56 border-r flex flex-col shrink-0">
+        <div className="hidden md:flex w-56 border-r flex-col shrink-0">
           <div className="p-3 border-b flex gap-2">
             <Button size="sm" className="flex-1 gap-2" onClick={() => openCompose()}>
               <Plus className="h-4 w-4" />
