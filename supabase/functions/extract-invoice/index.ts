@@ -417,9 +417,14 @@ Bestimme auch den utility_type wenn es sich um Gas, Strom, Wasser oder Fernwärm
       suggested_account_id: suggestedAccountId,
     };
 
-    // Set building_id if auto-matched
-    if (matchedBuildingId && !invoice.building_id) {
+    // Set building_id if auto-matched (never for company invoices)
+    if (matchedBuildingId && !invoice.building_id && !isCompany) {
       updateData.building_id = matchedBuildingId;
+    }
+
+    // Persist company-invoice flag if requested via call
+    if (isCompanyInvoice === true && !invoice.is_company_invoice) {
+      updateData.is_company_invoice = true;
     }
 
     // Only overwrite fields that are currently empty
