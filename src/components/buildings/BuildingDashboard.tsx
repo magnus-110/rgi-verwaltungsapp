@@ -93,10 +93,8 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ['building-detail', buildingId] });
-    queryClient.invalidateQueries({ queryKey: ['building-contact-count', buildingId] });
+    queryClient.invalidateQueries({ queryKey: ['building-stats', buildingId] });
     queryClient.invalidateQueries({ queryKey: ['building-report-count', buildingId] });
-    queryClient.invalidateQueries({ queryKey: ['building-file-count', buildingId] });
-    queryClient.invalidateQueries({ queryKey: ['building-forum-count', buildingId] });
     queryClient.invalidateQueries({ queryKey: ['building-managers-names', buildingId] });
     queryClient.invalidateQueries({ queryKey: ['buildings-list'] });
   };
