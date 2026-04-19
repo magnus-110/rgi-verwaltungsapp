@@ -138,13 +138,13 @@ const EventRow = ({ event }: EventRowProps) => {
             {emailId && (
               <div className="mt-2">
                 <Button
-                  size="sm"
+                  size="icon"
                   variant="outline"
-                  className="h-7 text-xs"
+                  className="h-7 w-7"
+                  title="Im Postfach öffnen"
                   onClick={() => navigate(`/postfach?email=${emailId}`)}
                 >
-                  <ExternalLink className="h-3 w-3 mr-1" />
-                  Im Postfach öffnen
+                  <ExternalLink className="h-3 w-3" />
                 </Button>
               </div>
             )}
