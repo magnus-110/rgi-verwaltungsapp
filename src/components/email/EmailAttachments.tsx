@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Paperclip, Download, FileText, Image, FileSpreadsheet, File, Sparkles, Loader2, Check } from "lucide-react";
+import { Paperclip, Download, FileText, Image, FileSpreadsheet, File, Sparkles, Loader2, Check, FolderArchive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { SaveAttachmentToBuildingDialog } from "./SaveAttachmentToBuildingDialog";
 
 interface EmailAttachmentsProps {
   emailId: string;
@@ -34,6 +35,8 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
   const navigate = useNavigate();
   const [importingId, setImportingId] = useState<string | null>(null);
   const [importedIds, setImportedIds] = useState<Set<string>>(new Set());
+  const [saveToBuildingOpen, setSaveToBuildingOpen] = useState(false);
+  const [pendingAttachments, setPendingAttachments] = useState<{ name: string; path: string; size: number | null; mimeType: string | null }[]>([]);
 
   const { data: attachments = [] } = useQuery({
     queryKey: ["email-attachments", emailId],
@@ -134,9 +137,29 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
 
   return (
     <div className="border-t pt-3 mt-3">
-      <div className="flex items-center gap-1.5 mb-2 text-sm font-medium text-muted-foreground">
-        <Paperclip className="h-4 w-4" />
-        {attachments.length} Anhang{attachments.length > 1 ? "e" : ""}
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+          <Paperclip className="h-4 w-4" />
+          {attachments.length} Anhang{attachments.length > 1 ? "e" : ""}
+        </div>
+        {attachments.length > 0 && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 gap-1.5"
+            onClick={() => {
+              setPendingAttachments(
+                attachments
+                  .filter(a => a.file_path)
+                  .map(a => ({ name: a.file_name, path: a.file_path!, size: a.file_size ? Number(a.file_size) : null, mimeType: a.mime_type }))
+              );
+              setSaveToBuildingOpen(true);
+            }}
+          >
+            <FolderArchive className="h-3.5 w-3.5" />
+            Alle in Stammakte ablegen
+          </Button>
+        )}
       </div>
       <div className="flex flex-wrap gap-2">
         {attachments.map((att) => {
@@ -162,6 +185,19 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
                 )}
                 <Download className="h-3 w-3 shrink-0" />
               </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-auto py-1.5 px-1.5"
+                title="In Stammakte ablegen"
+                onClick={() => {
+                  if (!att.file_path) return;
+                  setPendingAttachments([{ name: att.file_name, path: att.file_path, size: att.file_size ? Number(att.file_size) : null, mimeType: att.mime_type }]);
+                  setSaveToBuildingOpen(true);
+                }}
+              >
+                <FolderArchive className="h-3.5 w-3.5" />
+              </Button>
               {canImport && (
                 <Button
                   variant={isImported ? "secondary" : "ghost"}
@@ -184,6 +220,12 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
           );
         })}
       </div>
+      <SaveAttachmentToBuildingDialog
+        open={saveToBuildingOpen}
+        onOpenChange={setSaveToBuildingOpen}
+        attachments={pendingAttachments}
+        emailId={emailId}
+      />
     </div>
   );
 };
