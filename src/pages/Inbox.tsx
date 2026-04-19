@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Mail, Search, Flag, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip, ChevronDown, ChevronUp, PanelLeftClose, PanelLeftOpen, UserPlus, UserCheck, Undo2, Link2, Sparkles } from "lucide-react";
+import { Mail, Search, Flag, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip, ChevronDown, ChevronUp, PanelLeftClose, PanelLeftOpen, UserPlus, UserCheck, Undo2, Link2, Sparkles, Menu, ArrowLeft } from "lucide-react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import { AssignEmailDialog } from "@/components/email/AssignEmailDialog";
 import { EmailHtmlBody } from "@/components/email/EmailHtmlBody";
 import { EmailSettingsSection } from "@/components/email/EmailSettingsSection";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 const folderIcons: Record<string, any> = {
@@ -64,6 +65,7 @@ export const Inbox = () => {
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [filterAssignedTo, setFilterAssignedTo] = useState<string>("all");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileFoldersOpen, setMobileFoldersOpen] = useState(false);
   const [newContactDialogOpen, setNewContactDialogOpen] = useState(false);
   const [newContactData, setNewContactData] = useState({ first_name: "", last_name: "", company_name: "", email: "" });
   const [contactSearchTerm, setContactSearchTerm] = useState("");
@@ -73,6 +75,7 @@ export const Inbox = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { profile } = useAuth();
   const isAdmin = profile?.role === 'admin';
+  const isMobile = useIsMobile();
 
   // Fetch folders
   const { data: folders = [] } = useQuery({
@@ -577,10 +580,39 @@ export const Inbox = () => {
   };
 
   return (
-    <div className="h-[calc(100vh-8rem)] flex rounded-lg border bg-background overflow-hidden">
-      {/* Left: Folders & Accounts - collapsible */}
+    <div className="h-[calc(100vh-8rem)] md:h-[calc(100vh-8rem)] flex flex-col md:flex-row rounded-lg border bg-background overflow-hidden">
+      {/* Mobile-only header bar — shows hamburger + back button + sync */}
+      <div className="md:hidden flex items-center justify-between px-2 py-2 border-b shrink-0 gap-2">
+        {selectedEmailId ? (
+          <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => setSelectedEmailId(null)} aria-label="Zurück">
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+        ) : (
+          <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => setMobileFoldersOpen(true)} aria-label="Ordner öffnen">
+            <Menu className="h-5 w-5" />
+          </Button>
+        )}
+        <span className="font-medium text-sm truncate flex-1 text-center">
+          {selectedEmailId
+            ? (selectedEmail?.subject || "(Kein Betreff)")
+            : (folders.find(f => f.id === selectedFolderId)?.name || "Postfach")}
+        </span>
+        {!selectedEmailId && (
+          <>
+            <Button variant="ghost" size="icon" className="h-10 w-10" onClick={handleSync} disabled={isSyncing} aria-label="Synchronisieren">
+              {isSyncing ? <Loader2 className="h-5 w-5 animate-spin" /> : <RefreshCw className="h-5 w-5" />}
+            </Button>
+            <Button size="icon" className="h-10 w-10" onClick={() => openCompose()} aria-label="Neue E-Mail">
+              <Plus className="h-5 w-5" />
+            </Button>
+          </>
+        )}
+        {selectedEmailId && <div className="w-10" />}
+      </div>
+
+      {/* Left: Folders & Accounts (Desktop only) — on mobile available via Sheet */}
       {sidebarCollapsed ? (
-        <div className="w-10 border-r flex flex-col items-center py-2 shrink-0">
+        <div className="hidden md:flex w-10 border-r flex-col items-center py-2 shrink-0">
           <Button variant="ghost" size="icon" className="h-8 w-8 mb-2" onClick={() => setSidebarCollapsed(false)} title="Navigation einblenden">
             <PanelLeftOpen className="h-4 w-4" />
           </Button>
@@ -616,7 +648,7 @@ export const Inbox = () => {
           })}
         </div>
       ) : (
-        <div className="w-56 border-r flex flex-col shrink-0">
+        <div className="hidden md:flex w-56 border-r flex-col shrink-0">
           <div className="p-3 border-b flex gap-2">
             <Button size="sm" className="flex-1 gap-2" onClick={() => openCompose()}>
               <Plus className="h-4 w-4" />
@@ -790,9 +822,15 @@ export const Inbox = () => {
         </div>
 
         <ResizablePanelGroup direction="horizontal" className="flex-1">
-        {/* Middle: Email List */}
-        <ResizablePanel defaultSize={35} minSize={20} maxSize={60}>
+        {/* Middle: Email List — on mobile: hidden when an email is selected */}
+        <ResizablePanel
+          defaultSize={35}
+          minSize={20}
+          maxSize={60}
+          className={cn(selectedEmailId ? "hidden md:block" : "block", "!flex-[1_1_0] md:!flex-initial")}
+        >
           <div className="flex flex-col h-full">
+
 
             {/* Search - filters within selected category */}
             <div className="p-2 border-b space-y-2">
@@ -1007,10 +1045,13 @@ export const Inbox = () => {
           </div>
         </ResizablePanel>
 
-        <ResizableHandle withHandle />
+        <ResizableHandle withHandle className="hidden md:flex" />
 
-        {/* Right: Email Detail */}
-        <ResizablePanel defaultSize={65}>
+        {/* Right: Email Detail — on mobile: only visible when an email is selected */}
+        <ResizablePanel
+          defaultSize={65}
+          className={cn(selectedEmailId ? "block" : "hidden md:block", "!flex-[1_1_0] md:!flex-initial")}
+        >
           <div className="flex flex-col h-full min-w-0">
             {selectedEmail ? (
               <>
@@ -1266,6 +1307,85 @@ export const Inbox = () => {
           </SheetContent>
         </Sheet>
       )}
+
+      {/* Mobile Folders Sheet — replaces the desktop folder sidebar on small screens */}
+      <Sheet open={mobileFoldersOpen} onOpenChange={setMobileFoldersOpen}>
+        <SheetContent side="left" className="w-[85vw] sm:max-w-sm p-0 flex flex-col">
+          <SheetHeader className="p-3 border-b">
+            <SheetTitle className="text-left">Postfach</SheetTitle>
+          </SheetHeader>
+          <ScrollArea className="flex-1">
+            <div className="p-2">
+              <p className="px-2 py-1 text-xs font-semibold text-muted-foreground uppercase tracking-wider">Ordner</p>
+              {folders.map(folder => {
+                const Icon = folderIcons[folder.icon || 'inbox'] || Mail;
+                const isActive = selectedFolderId === folder.id;
+                const count = folderCounts[folder.id] || 0;
+                return (
+                  <button
+                    key={folder.id}
+                    onClick={() => {
+                      setSelectedFolderId(folder.id);
+                      setSelectedEmailId(null);
+                      setMobileFoldersOpen(false);
+                    }}
+                    className={cn(
+                      "w-full flex items-center gap-2 px-3 py-3 rounded-md text-sm transition-colors",
+                      isActive ? "bg-primary text-primary-foreground" : "hover:bg-muted text-foreground"
+                    )}
+                  >
+                    <Icon className="h-5 w-5 shrink-0" />
+                    <span className="truncate flex-1 text-left">{folder.name}</span>
+                    {count > 0 && (
+                      <Badge variant={isActive ? "secondary" : "default"} className="text-xs">
+                        {count}
+                      </Badge>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            <Separator className="my-2" />
+
+            <div className="p-2">
+              <div className="flex items-center justify-between px-2 py-1">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Konten</p>
+                {isAdmin && (
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setSettingsOpen(true); setMobileFoldersOpen(false); }} title="E-Mail-Konten verwalten">
+                    <Settings className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                )}
+              </div>
+              {accounts.length === 0 ? (
+                <p className="px-2 py-2 text-xs text-muted-foreground">Noch keine E-Mail-Konten.</p>
+              ) : (
+                accounts.map(acc => {
+                  const checked = selectedAccountIds === null || selectedAccountIds.includes(acc.id);
+                  return (
+                    <label key={acc.id} className="w-full flex items-center gap-2 px-2 py-2.5 text-sm rounded-md hover:bg-muted/50 cursor-pointer">
+                      <Checkbox
+                        checked={checked}
+                        onCheckedChange={() => {
+                          const allIds = accounts.map(a => a.id);
+                          const current = selectedAccountIds === null ? [...allIds] : [...selectedAccountIds];
+                          const idx = current.indexOf(acc.id);
+                          if (idx >= 0) current.splice(idx, 1);
+                          else current.push(acc.id);
+                          const next = current.length === allIds.length ? null : current;
+                          setSelectedAccountIds(next);
+                          try { localStorage.setItem("inbox-selected-accounts", JSON.stringify(next)); } catch {}
+                        }}
+                      />
+                      <span className="truncate flex-1">{acc.display_name}</span>
+                    </label>
+                  );
+                })
+              )}
+            </div>
+          </ScrollArea>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };
