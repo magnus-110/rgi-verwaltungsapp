@@ -97,7 +97,7 @@ serve(async (req) => {
       });
     }
 
-    const { invoiceId } = await req.json();
+    const { invoiceId, isCompanyInvoice } = await req.json();
     if (!invoiceId) {
       return new Response(JSON.stringify({ error: "invoiceId erforderlich" }), {
         status: 400,
@@ -108,7 +108,7 @@ serve(async (req) => {
     // Get invoice record
     const { data: invoice, error: invError } = await supabase
       .from("invoices")
-      .select("id, file_path, file_name, building_id")
+      .select("id, file_path, file_name, building_id, is_company_invoice")
       .eq("id", invoiceId)
       .single();
 
