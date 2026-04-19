@@ -35,6 +35,8 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
   const navigate = useNavigate();
   const [importingId, setImportingId] = useState<string | null>(null);
   const [importedIds, setImportedIds] = useState<Set<string>>(new Set());
+  const [saveToBuildingOpen, setSaveToBuildingOpen] = useState(false);
+  const [pendingAttachments, setPendingAttachments] = useState<{ name: string; path: string; size: number | null; mimeType: string | null }[]>([]);
 
   const { data: attachments = [] } = useQuery({
     queryKey: ["email-attachments", emailId],
