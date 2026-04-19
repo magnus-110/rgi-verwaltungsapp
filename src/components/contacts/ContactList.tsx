@@ -78,6 +78,67 @@ const ContactRow = memo(function ContactRow({
   );
 });
 
+function VirtualContactRows({
+  contacts,
+  selectedId,
+  onSelect,
+  loading,
+  search,
+  primaryPersons,
+}: {
+  contacts: Contact[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  loading: boolean;
+  search: string;
+  primaryPersons: Record<string, string>;
+}) {
+  const parentRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: contacts.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 64,
+    overscan: 10,
+  });
+
+  if (loading) {
+    return <div className="flex-1 p-4 text-center text-muted-foreground text-sm">Laden...</div>;
+  }
+  if (contacts.length === 0) {
+    return (
+      <div className="flex-1 p-4 text-center text-muted-foreground text-sm">
+        {search ? "Keine Ergebnisse" : "Noch keine Kontakte"}
+      </div>
+    );
+  }
+
+  return (
+    <div ref={parentRef} className="flex-1 overflow-y-auto">
+      <div className="relative w-full" style={{ height: `${virtualizer.getTotalSize()}px` }}>
+        {virtualizer.getVirtualItems().map((vi) => {
+          const c = contacts[vi.index];
+          return (
+            <div
+              key={c.id}
+              data-index={vi.index}
+              ref={virtualizer.measureElement}
+              className="absolute top-0 left-0 w-full"
+              style={{ transform: `translateY(${vi.start}px)` }}
+            >
+              <ContactRow
+                contact={c}
+                selected={selectedId === c.id}
+                onSelect={onSelect}
+                primaryName={primaryPersons[c.id]}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function ContactList({
   contacts,
   selectedId,
