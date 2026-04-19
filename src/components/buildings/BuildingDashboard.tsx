@@ -12,6 +12,7 @@ import { ManagerAssignmentDialog } from "@/components/ManagerAssignmentDialog";
 import { BuildingContactsList } from "@/components/contacts/BuildingContactsList";
 import { BuildingReportsTab } from "./BuildingReportsTab";
 import { BuildingDocumentsTab } from "./BuildingDocumentsTab";
+import { ExpiringDocumentsWidget } from "./ExpiringDocumentsWidget";
 import { BuildingForumTab } from "./BuildingForumTab";
 import { BuildingMaintenanceTab } from "./BuildingMaintenanceTab";
 import { BuildingFinanceSummary } from "@/components/finance/BuildingFinanceSummary";
@@ -31,6 +32,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isManagerOpen, setIsManagerOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
   const queryClient = useQueryClient();
   const navigate = useNavigate();
 
@@ -159,7 +161,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="overview" className="flex-1 flex flex-col min-h-0">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
         <div className="px-4 md:px-6 bg-card overflow-x-auto">
           <TabsList variant="underline">
             {[
@@ -230,6 +232,8 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
                 </CardContent>
               </Card>
             </div>
+
+            <ExpiringDocumentsWidget buildingId={buildingId} onSelectDocuments={() => setActiveTab("documents")} />
           </TabsContent>
 
           {/* People Tab */}
