@@ -144,8 +144,8 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
               <Menu className="w-5 h-5" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="right" className="w-80 p-0">
-            <div className="flex flex-col h-full">
+          <SheetContent side="right" className="w-80 p-0 flex flex-col h-full">
+            <div className="flex flex-col h-full min-h-0 w-full">
               {/* Header */}
               <div className="flex items-center justify-between p-4 border-b">
                 <img 
