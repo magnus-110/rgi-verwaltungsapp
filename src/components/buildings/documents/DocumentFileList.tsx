@@ -81,6 +81,12 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
             <button
               key={f.id}
               onClick={() => onSelect(f)}
+              onDoubleClick={async () => {
+                const { data, error } = await supabase.storage
+                  .from('building-files')
+                  .createSignedUrl(f.file_path, 60);
+                if (!error && data) window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+              }}
               className={cn(
                 "w-full text-left p-3 hover:bg-accent transition-colors",
                 selectedFileId === f.id && "bg-accent"

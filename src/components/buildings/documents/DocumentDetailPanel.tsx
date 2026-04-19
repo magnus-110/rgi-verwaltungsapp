@@ -10,12 +10,14 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Download, Trash2, Upload, X, History, Sparkles, ExternalLink } from "lucide-react";
+import { Download, Trash2, X, History, Sparkles, ExternalLink, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { DocFile, VisibilityRole, VISIBILITY_LABELS } from "./types";
 import { useNavigate } from "react-router-dom";
+import { PersonVisibilityPicker } from "./PersonVisibilityPicker";
+import { MAINTENANCE_TYPES } from "@/lib/maintenanceTypes";
 
 interface DocumentDetailPanelProps {
   file: DocFile | null;
@@ -35,18 +37,36 @@ export function DocumentDetailPanel({ file, buildingId, onClose, onChanged }: Do
   }, [file?.id]);
 
   const { data: contacts = [] } = useQuery({
-    queryKey: ['building-contacts-for-visibility', buildingId],
+    queryKey: ['building-owners-for-visibility', buildingId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('contact_building_assignments')
-        .select('contact_id, contacts(id, first_name, last_name, company_name)')
+        .select('contact_id, role_in_building, contacts(id, first_name, last_name, company_name)')
         .eq('building_id', buildingId)
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .eq('role_in_building', 'eigentuemer');
       if (error) throw error;
       return (data || []).map((r: any) => r.contacts).filter(Boolean);
     },
     enabled: !!file,
   });
+
+  const { data: maintenanceConfigs = [] } = useQuery({
+    queryKey: ['building-maintenance-configs', buildingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('maintenance_configs')
+        .select('id, maintenance_type, is_active')
+        .eq('building_id', buildingId)
+        .eq('is_active', true);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!file,
+  });
+
+  const maintenanceLabel = (type: string) =>
+    MAINTENANCE_TYPES.find(t => t.key === type)?.label || type;
 
   const { data: visibilityContacts = [] } = useQuery({
     queryKey: ['file-visibility', file?.id],
@@ -116,9 +136,17 @@ export function DocumentDetailPanel({ file, buildingId, onClose, onChanged }: Do
   const handleDownload = async () => {
     const { data, error } = await supabase.storage
       .from('building-files')
-      .createSignedUrl(file.file_path, 60);
+      .createSignedUrl(file.file_path, 60, { download: file.display_name });
     if (error) { toast.error(error.message); return; }
     window.open(data.signedUrl, '_blank');
+  };
+
+  const handleOpenInTab = async () => {
+    const { data, error } = await supabase.storage
+      .from('building-files')
+      .createSignedUrl(file.file_path, 60);
+    if (error) { toast.error(error.message); return; }
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
   };
 
   const handleDelete = async () => {
@@ -196,23 +224,11 @@ export function DocumentDetailPanel({ file, buildingId, onClose, onChanged }: Do
         {current.visibility_role === 'personen' && (
           <div className="space-y-1">
             <Label className="text-xs">Freigegeben für</Label>
-            <div className="flex flex-wrap gap-1.5">
-              {contacts.map((c: any) => {
-                const active = visibilityContacts.includes(c.id);
-                const name = c.company_name || `${c.first_name || ''} ${c.last_name || ''}`.trim();
-                return (
-                  <Badge
-                    key={c.id}
-                    variant={active ? "default" : "outline"}
-                    className="cursor-pointer"
-                    onClick={() => togglePersonVisibility(c.id)}
-                  >
-                    {name}
-                  </Badge>
-                );
-              })}
-              {contacts.length === 0 && <p className="text-xs text-muted-foreground">Keine Kontakte am Gebäude.</p>}
-            </div>
+            <PersonVisibilityPicker
+              contacts={contacts as any}
+              selectedIds={visibilityContacts}
+              onToggle={togglePersonVisibility}
+            />
           </div>
         )}
 
@@ -223,6 +239,29 @@ export function DocumentDetailPanel({ file, buildingId, onClose, onChanged }: Do
             value={current.valid_until || ''}
             onChange={(e) => setEditing(s => ({ ...s, valid_until: e.target.value || null }))}
           />
+        </div>
+
+        <div className="space-y-1">
+          <Label className="text-xs flex items-center gap-1.5">
+            <Wrench className="h-3.5 w-3.5" /> Wartung verknüpfen (optional)
+          </Label>
+          <Select
+            value={current.maintenance_config_id || 'none'}
+            onValueChange={(v) => setEditing(s => ({ ...s, maintenance_config_id: v === 'none' ? null : v }))}
+          >
+            <SelectTrigger><SelectValue placeholder="Keine Wartung" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Keine Wartung</SelectItem>
+              {maintenanceConfigs.map((m: any) => (
+                <SelectItem key={m.id} value={m.id}>{maintenanceLabel(m.maintenance_type)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {current.maintenance_config_id && current.valid_until && (
+            <p className="text-[10px] text-muted-foreground">
+              Speist Wartungs-Forecast (nächster Termin {format(new Date(current.valid_until), 'dd.MM.yyyy', { locale: de })})
+            </p>
+          )}
         </div>
 
         <div className="flex items-center justify-between">
@@ -288,6 +327,9 @@ export function DocumentDetailPanel({ file, buildingId, onClose, onChanged }: Do
           <div className="flex gap-2">
             <Button variant="outline" size="sm" className="flex-1" onClick={handleDownload}>
               <Download className="h-3.5 w-3.5 mr-1.5" /> Download
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleOpenInTab} title="In neuem Tab öffnen">
+              <ExternalLink className="h-3.5 w-3.5" />
             </Button>
             <Button variant="outline" size="sm" className="text-destructive" onClick={handleDelete}>
               <Trash2 className="h-3.5 w-3.5" />

@@ -1,4 +1,4 @@
-export type VisibilityRole = 'intern' | 'alle' | 'eigentuemer' | 'mieter' | 'personen';
+export type VisibilityRole = 'intern' | 'alle' | 'personen';
 export type FileSource = 'manual' | 'email' | 'invoice' | 'booking' | 'meeting';
 
 export interface DocCategory {
@@ -32,6 +32,7 @@ export interface DocFile {
   linked_contact_id: string | null;
   linked_invoice_id: string | null;
   linked_billing_period_id: string | null;
+  maintenance_config_id: string | null;
   source: FileSource;
   source_email_id: string | null;
   tags: string[];
@@ -45,8 +46,6 @@ export interface DocFile {
 
 export const VISIBILITY_LABELS: Record<VisibilityRole, string> = {
   intern: 'Nur Verwaltung',
-  alle: 'Alle Bewohner',
-  eigentuemer: 'Nur Eigentümer',
-  mieter: 'Nur Mieter',
-  personen: 'Einzelne Personen',
+  alle: 'Alle',
+  personen: 'Spezifische Eigentümer',
 };
