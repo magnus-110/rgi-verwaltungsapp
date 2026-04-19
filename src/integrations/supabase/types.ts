@@ -747,35 +747,139 @@ export type Database = {
           },
         ]
       }
+      building_file_activity: {
+        Row: {
+          action: string
+          created_at: string
+          details: Json | null
+          file_id: string
+          id: string
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: Json | null
+          file_id: string
+          id?: string
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: Json | null
+          file_id?: string
+          id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "building_file_activity_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "building_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       building_file_categories: {
         Row: {
+          auto_rag_enabled: boolean
+          building_id: string | null
           color: string | null
           created_at: string
           icon: string | null
           id: string
+          is_recommended: boolean
           management_mode: Database["public"]["Enums"]["management_mode"]
           name: string
+          parent_id: string | null
+          slug: string | null
           sort_order: number | null
         }
         Insert: {
+          auto_rag_enabled?: boolean
+          building_id?: string | null
           color?: string | null
           created_at?: string
           icon?: string | null
           id?: string
+          is_recommended?: boolean
           management_mode: Database["public"]["Enums"]["management_mode"]
           name: string
+          parent_id?: string | null
+          slug?: string | null
           sort_order?: number | null
         }
         Update: {
+          auto_rag_enabled?: boolean
+          building_id?: string | null
           color?: string | null
           created_at?: string
           icon?: string | null
           id?: string
+          is_recommended?: boolean
           management_mode?: Database["public"]["Enums"]["management_mode"]
           name?: string
+          parent_id?: string | null
+          slug?: string | null
           sort_order?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "building_file_categories_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "building_file_categories_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "building_file_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      building_file_visibility: {
+        Row: {
+          contact_id: string
+          created_at: string
+          created_by: string | null
+          file_id: string
+          id: string
+        }
+        Insert: {
+          contact_id: string
+          created_at?: string
+          created_by?: string | null
+          file_id: string
+          id?: string
+        }
+        Update: {
+          contact_id?: string
+          created_at?: string
+          created_by?: string | null
+          file_id?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "building_file_visibility_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "building_file_visibility_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "building_files"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       building_files: {
         Row: {
@@ -783,17 +887,30 @@ export type Database = {
           building_id: string | null
           category_id: string | null
           created_at: string
+          deleted_at: string | null
           description: string | null
           display_name: string
           extracted_text: string | null
           file_path: string
           file_size: number
           id: string
+          is_current_version: boolean
+          linked_billing_period_id: string | null
+          linked_contact_id: string | null
+          linked_invoice_id: string | null
+          maintenance_config_id: string | null
           management_mode: Database["public"]["Enums"]["management_mode"]
           mime_type: string | null
+          parent_file_id: string | null
           rag_enabled: boolean
+          source: Database["public"]["Enums"]["file_source"]
+          source_email_id: string | null
+          tags: string[]
           updated_at: string
           uploaded_by: string
+          valid_until: string | null
+          version: number
+          visibility_role: Database["public"]["Enums"]["file_visibility_role"]
           visible_to_users: boolean
         }
         Insert: {
@@ -801,17 +918,30 @@ export type Database = {
           building_id?: string | null
           category_id?: string | null
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           display_name: string
           extracted_text?: string | null
           file_path: string
           file_size?: number
           id?: string
+          is_current_version?: boolean
+          linked_billing_period_id?: string | null
+          linked_contact_id?: string | null
+          linked_invoice_id?: string | null
+          maintenance_config_id?: string | null
           management_mode: Database["public"]["Enums"]["management_mode"]
           mime_type?: string | null
+          parent_file_id?: string | null
           rag_enabled?: boolean
+          source?: Database["public"]["Enums"]["file_source"]
+          source_email_id?: string | null
+          tags?: string[]
           updated_at?: string
           uploaded_by: string
+          valid_until?: string | null
+          version?: number
+          visibility_role?: Database["public"]["Enums"]["file_visibility_role"]
           visible_to_users?: boolean
         }
         Update: {
@@ -819,17 +949,30 @@ export type Database = {
           building_id?: string | null
           category_id?: string | null
           created_at?: string
+          deleted_at?: string | null
           description?: string | null
           display_name?: string
           extracted_text?: string | null
           file_path?: string
           file_size?: number
           id?: string
+          is_current_version?: boolean
+          linked_billing_period_id?: string | null
+          linked_contact_id?: string | null
+          linked_invoice_id?: string | null
+          maintenance_config_id?: string | null
           management_mode?: Database["public"]["Enums"]["management_mode"]
           mime_type?: string | null
+          parent_file_id?: string | null
           rag_enabled?: boolean
+          source?: Database["public"]["Enums"]["file_source"]
+          source_email_id?: string | null
+          tags?: string[]
           updated_at?: string
           uploaded_by?: string
+          valid_until?: string | null
+          version?: number
+          visibility_role?: Database["public"]["Enums"]["file_visibility_role"]
           visible_to_users?: boolean
         }
         Relationships: [
@@ -845,6 +988,27 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "building_file_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "building_files_linked_billing_period_id_fkey"
+            columns: ["linked_billing_period_id"]
+            isOneToOne: false
+            referencedRelation: "billing_periods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "building_files_linked_contact_id_fkey"
+            columns: ["linked_contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "building_files_parent_file_id_fkey"
+            columns: ["parent_file_id"]
+            isOneToOne: false
+            referencedRelation: "building_files"
             referencedColumns: ["id"]
           },
         ]
@@ -4536,6 +4700,10 @@ export type Database = {
         Args: { building_id_param: string }
         Returns: number
       }
+      ensure_stammakte_categories: {
+        Args: { p_building_id: string }
+        Returns: undefined
+      }
       generate_building_code: {
         Args: {
           management_mode_param: Database["public"]["Enums"]["management_mode"]
@@ -4714,6 +4882,13 @@ export type Database = {
         | "fewo"
         | "leerstand"
       cost_interval: "monatlich" | "quartal" | "jaehrlich"
+      file_source: "manual" | "email" | "invoice" | "booking" | "meeting"
+      file_visibility_role:
+        | "intern"
+        | "alle"
+        | "eigentuemer"
+        | "mieter"
+        | "personen"
       invoice_type: "standard" | "installment" | "annual_settlement"
       management_mode: "weg" | "rent"
       share_type:
@@ -4913,6 +5088,14 @@ export const Constants = {
         "leerstand",
       ],
       cost_interval: ["monatlich", "quartal", "jaehrlich"],
+      file_source: ["manual", "email", "invoice", "booking", "meeting"],
+      file_visibility_role: [
+        "intern",
+        "alle",
+        "eigentuemer",
+        "mieter",
+        "personen",
+      ],
       invoice_type: ["standard", "installment", "annual_settlement"],
       management_mode: ["weg", "rent"],
       share_type: [
