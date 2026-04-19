@@ -116,28 +116,28 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="p-4 md:p-6 border-b border-border bg-card">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-3 min-w-0">
+      <div className="p-3 md:p-6 border-b border-border bg-card sticky top-0 z-10">
+        <div className="flex items-start justify-between gap-2 md:gap-4">
+          <div className="flex items-start gap-2 md:gap-3 min-w-0 flex-1">
             {onBack && (
-              <Button variant="ghost" size="sm" onClick={onBack} className="md:hidden -ml-2 mt-0.5">
-                <ChevronLeft className="h-4 w-4" />
+              <Button variant="ghost" size="icon" onClick={onBack} className="md:hidden h-10 w-10 -ml-2 flex-shrink-0">
+                <ChevronLeft className="h-5 w-5" />
               </Button>
             )}
-            <div className="p-2.5 bg-primary/10 rounded-xl flex-shrink-0">
-              <Building2 className="h-6 w-6 text-primary" />
+            <div className="p-2 md:p-2.5 bg-primary/10 rounded-xl flex-shrink-0">
+              <Building2 className="h-5 w-5 md:h-6 md:w-6 text-primary" />
             </div>
-            <div className="min-w-0">
-              <h1 className="text-xl md:text-2xl font-bold truncate">{building.name}</h1>
-              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                <Badge variant="secondary" className="text-xs">
+            <div className="min-w-0 flex-1">
+              <h1 className="text-base md:text-2xl font-bold truncate leading-tight">{building.name}</h1>
+              <div className="flex items-center gap-1.5 mt-1 md:mt-1.5 flex-wrap">
+                <Badge variant="secondary" className="text-[10px] md:text-xs px-1.5 py-0">
                   {building.management_mode === 'weg' ? 'WEG' : 'Miete'}
                 </Badge>
-                <Badge variant="secondary" className="text-xs">
-                  {building.unit_count} Einheiten
+                <Badge variant="secondary" className="text-[10px] md:text-xs px-1.5 py-0">
+                  {building.unit_count} EH
                 </Badge>
                 {Array.isArray(managerNames) && managerNames.length > 0 && (
-                  <Badge variant="outline" className="text-xs">
+                  <Badge variant="outline" className="text-[10px] md:text-xs px-1.5 py-0 hidden sm:inline-flex">
                     <Users className="h-3 w-3 mr-1" />
                     {managerNames.join(', ')}
                   </Badge>
@@ -145,15 +145,15 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-1 flex-shrink-0">
-            <Button variant="ghost" size="sm" onClick={() => setIsManagerOpen(true)} title="Verwalter zuweisen">
+          <div className="flex items-center gap-0.5 md:gap-1 flex-shrink-0">
+            <Button variant="ghost" size="icon" onClick={() => setIsManagerOpen(true)} title="Verwalter zuweisen" className="h-10 w-10">
               <Users className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setIsEditOpen(true)} title="Bearbeiten">
+            <Button variant="ghost" size="icon" onClick={() => setIsEditOpen(true)} title="Bearbeiten" className="h-10 w-10">
               <Edit className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => setIsDeleteOpen(true)} title="Löschen"
-              className="text-destructive hover:text-destructive hover:bg-destructive/10">
+            <Button variant="ghost" size="icon" onClick={() => setIsDeleteOpen(true)} title="Löschen"
+              className="h-10 w-10 text-destructive hover:text-destructive hover:bg-destructive/10">
               <Trash2 className="h-4 w-4" />
             </Button>
           </div>
@@ -162,8 +162,8 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-        <div className="px-4 md:px-6 bg-card overflow-x-auto">
-          <TabsList variant="underline">
+        <div className="px-2 md:px-6 bg-card border-b border-border overflow-x-auto scrollbar-hide sticky top-[72px] md:top-auto z-[9]">
+          <TabsList variant="underline" className="h-auto">
             {[
               { value: "overview", label: "Übersicht" },
               { value: "people", label: "Personen" },
@@ -178,7 +178,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
               ...(building.management_mode === 'weg' ? [{ value: "resolutions", label: "Beschlüsse" }] : []),
             ].map(tab => (
               <TabsTrigger key={tab.value} value={tab.value} variant="underline"
-                className="px-4 py-3 whitespace-nowrap">
+                className="px-3 md:px-4 py-3 text-xs md:text-sm whitespace-nowrap min-h-[44px]">
                 {tab.label}
               </TabsTrigger>
             ))}
@@ -187,20 +187,20 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
 
         <ScrollArea className="flex-1">
           {/* Overview Tab */}
-          <TabsContent value="overview" className="p-4 md:p-6 mt-0 space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <TabsContent value="overview" className="p-3 md:p-6 mt-0 space-y-4 md:space-y-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
               <StatCard icon={Users} label="Kontakte" value={contactCount} />
               <StatCard icon={AlertCircle} label="Offene Meldungen" value={reportCount} />
               <StatCard icon={FileText} label="Dokumente" value={fileCount} />
               <StatCard icon={Newspaper} label="Beiträge" value={forumCount} />
             </div>
 
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid md:grid-cols-2 gap-3 md:gap-4">
               <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Personen</CardTitle>
+                <CardHeader className="p-3 md:p-6 pb-2 md:pb-3">
+                  <CardTitle className="text-sm md:text-base">Personen</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-2">
+                <CardContent className="p-3 md:p-6 pt-0 space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Kontakte</span>
                     <span className="font-medium">{contactCount}</span>
@@ -213,13 +213,13 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
               </Card>
 
               <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Gebäudedetails</CardTitle>
+                <CardHeader className="p-3 md:p-6 pb-2 md:pb-3">
+                  <CardTitle className="text-sm md:text-base">Gebäudedetails</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Adresse</span>
-                    <span className="font-medium text-right">{building.address}</span>
+                <CardContent className="p-3 md:p-6 pt-0 space-y-2">
+                  <div className="flex justify-between text-sm gap-2">
+                    <span className="text-muted-foreground flex-shrink-0">Adresse</span>
+                    <span className="font-medium text-right truncate">{building.address}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Verwaltungsart</span>
@@ -237,53 +237,53 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
           </TabsContent>
 
           {/* People Tab */}
-          <TabsContent value="people" className="p-4 md:p-6 mt-0 space-y-6">
+          <TabsContent value="people" className="p-3 md:p-6 mt-0 space-y-6">
             <BuildingContactsList buildingId={buildingId} managementMode={building?.management_mode || 'weg'} />
           </TabsContent>
 
           {/* Reports Tab */}
-          <TabsContent value="reports" className="p-4 md:p-6 mt-0">
+          <TabsContent value="reports" className="p-3 md:p-6 mt-0">
             <BuildingReportsTab buildingId={buildingId} managementMode={building.management_mode} />
           </TabsContent>
 
           {/* Cases Tab */}
-          <TabsContent value="cases" className="p-4 md:p-6 mt-0">
+          <TabsContent value="cases" className="p-3 md:p-6 mt-0">
             <BuildingCasesTab buildingId={buildingId} managementMode={building.management_mode as any} />
           </TabsContent>
 
           {/* Documents Tab */}
-          <TabsContent value="documents" className="p-4 md:p-6 mt-0">
+          <TabsContent value="documents" className="p-3 md:p-6 mt-0">
             <BuildingDocumentsTab buildingId={buildingId} managementMode={building.management_mode} />
           </TabsContent>
 
           {/* Forum Tab */}
-          <TabsContent value="forum" className="p-4 md:p-6 mt-0">
+          <TabsContent value="forum" className="p-3 md:p-6 mt-0">
             <BuildingForumTab buildingId={buildingId} managementMode={building.management_mode} />
           </TabsContent>
 
           {/* Maintenance Tab */}
-          <TabsContent value="maintenance" className="p-4 md:p-6 mt-0">
+          <TabsContent value="maintenance" className="p-3 md:p-6 mt-0">
             <BuildingMaintenanceTab buildingId={buildingId} />
           </TabsContent>
 
           {/* Distribution Keys Tab */}
-          <TabsContent value="distribution" className="p-4 md:p-6 mt-0">
+          <TabsContent value="distribution" className="p-3 md:p-6 mt-0">
             <BuildingDistributionKeysTab buildingId={buildingId} />
           </TabsContent>
 
           {/* Service Providers Tab */}
-          <TabsContent value="providers" className="p-4 md:p-6 mt-0">
+          <TabsContent value="providers" className="p-3 md:p-6 mt-0">
             <BuildingServiceProvidersTab buildingId={buildingId} />
           </TabsContent>
 
           {/* Finance Tab */}
-          <TabsContent value="finance" className="p-4 md:p-6 mt-0">
+          <TabsContent value="finance" className="p-3 md:p-6 mt-0">
             <BuildingFinanceSummary buildingId={buildingId} buildingName={building.name} />
           </TabsContent>
 
           {/* Resolutions Tab (WEG only) */}
           {building.management_mode === 'weg' && (
-            <TabsContent value="resolutions" className="p-4 md:p-6 mt-0">
+            <TabsContent value="resolutions" className="p-3 md:p-6 mt-0">
               <BuildingResolutionsTab buildingId={buildingId} />
             </TabsContent>
           )}
@@ -302,13 +302,13 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
 function StatCard({ icon: Icon, label, value }: { icon: any; label: string; value: number }) {
   return (
     <Card>
-      <CardContent className="p-4 flex items-center gap-3">
-        <div className="p-2 rounded-lg bg-primary/10 text-primary">
-          <Icon className="h-5 w-5" />
+      <CardContent className="p-3 md:p-4 flex items-center gap-2 md:gap-3">
+        <div className="p-1.5 md:p-2 rounded-lg bg-primary/10 text-primary flex-shrink-0">
+          <Icon className="h-4 w-4 md:h-5 md:w-5" />
         </div>
-        <div>
-          <p className="text-2xl font-bold">{value}</p>
-          <p className="text-xs text-muted-foreground">{label}</p>
+        <div className="min-w-0">
+          <p className="text-lg md:text-2xl font-bold leading-tight">{value}</p>
+          <p className="text-[10px] md:text-xs text-muted-foreground truncate">{label}</p>
         </div>
       </CardContent>
     </Card>

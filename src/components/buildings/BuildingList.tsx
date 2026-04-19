@@ -36,15 +36,15 @@ export const BuildingList = ({ selectedBuildingId, onSelectBuilding }: BuildingL
   );
 
   return (
-    <div className="flex flex-col h-full border-r border-border bg-card">
-      <div className="p-4 border-b border-border space-y-3">
+    <div className="flex flex-col h-full md:border-r md:border-border bg-card">
+      <div className="p-3 md:p-4 border-b border-border space-y-3 sticky top-0 bg-card z-10">
         <div className="flex items-center justify-between">
           <h2 className="font-semibold text-lg">Gebäude</h2>
           <CreateBuildingDialog onBuildingCreated={() => refetch()} />
         </div>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Suchen..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 h-9" />
+          <Input placeholder="Suchen..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 h-11 md:h-9" />
         </div>
       </div>
 
@@ -62,10 +62,10 @@ export const BuildingList = ({ selectedBuildingId, onSelectBuilding }: BuildingL
                 key={building.id}
                 onClick={() => onSelectBuilding(building.id)}
                 className={cn(
-                  "w-full text-left p-3 rounded-lg transition-colors",
+                  "w-full text-left p-3 md:p-3 min-h-[56px] md:min-h-0 rounded-lg transition-colors active:scale-[0.98]",
                   selectedBuildingId === building.id
                     ? "bg-primary/10 border border-primary/20"
-                    : "hover:bg-muted/50 border border-transparent"
+                    : "hover:bg-muted/50 active:bg-muted border border-transparent"
                 )}
               >
                 <div className="flex items-center gap-3">
