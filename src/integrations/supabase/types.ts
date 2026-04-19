@@ -4733,6 +4733,7 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_building_overview: { Args: { p_building_id: string }; Returns: Json }
       get_owner_assignments_in_user_buildings: {
         Args: { _user_id: string }
         Returns: string[]
