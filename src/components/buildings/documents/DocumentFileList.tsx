@@ -82,78 +82,86 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
   }
 
   return (
-    <ScrollArea className="h-full">
-      <div className="divide-y">
-        {files.map(f => {
+    <div ref={parentRef} className="h-full overflow-y-auto">
+      <div className="relative w-full" style={{ height: `${virtualizer.getTotalSize()}px` }}>
+        {virtualizer.getVirtualItems().map((vi) => {
+          const f = files[vi.index];
           const isExpiringSoon = f.valid_until && new Date(f.valid_until) <= new Date(Date.now() + 90 * 86400000);
           const isExpired = f.valid_until && new Date(f.valid_until) < new Date();
           return (
             <div
               key={f.id}
-              onClick={() => onSelect(f)}
-              onDoubleClick={async () => {
-                const { data, error } = await supabase.storage
-                  .from('building-files')
-                  .createSignedUrl(f.file_path, 60);
-                if (!error && data) window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
-              }}
-              className={cn(
-                "w-full text-left p-3 hover:bg-accent transition-colors cursor-pointer",
-                selectedFileId === f.id && "bg-accent"
-              )}
+              data-index={vi.index}
+              ref={virtualizer.measureElement}
+              className="absolute top-0 left-0 w-full"
+              style={{ transform: `translateY(${vi.start}px)` }}
             >
-              <div className="flex items-start gap-3">
-                <div className="p-2 rounded bg-muted flex-shrink-0">
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium text-sm truncate flex-1">{f.display_name}</p>
-                    {f.version > 1 && <Badge variant="outline" className="text-[10px] h-4 px-1">v{f.version}</Badge>}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 flex-shrink-0"
-                      title="In neuem Tab öffnen"
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        const { data, error } = await supabase.storage
-                          .from('building-files')
-                          .createSignedUrl(f.file_path, 60);
-                        if (!error && data) window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
-                      }}
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </Button>
+              <div
+                onClick={() => onSelect(f)}
+                onDoubleClick={async () => {
+                  const { data, error } = await supabase.storage
+                    .from('building-files')
+                    .createSignedUrl(f.file_path, 60);
+                  if (!error && data) window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+                }}
+                className={cn(
+                  "w-full text-left p-3 hover:bg-accent transition-colors cursor-pointer border-b",
+                  selectedFileId === f.id && "bg-accent"
+                )}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="p-2 rounded bg-muted flex-shrink-0">
+                    <FileText className="h-4 w-4 text-muted-foreground" />
                   </div>
-                  {f.description && (
-                    <p className="text-xs text-muted-foreground truncate mt-0.5">{f.description}</p>
-                  )}
-                  <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                    <Badge variant="secondary" className="text-[10px] h-4 px-1.5 gap-1">
-                      {visIcon(f.visibility_role)}
-                      {VISIBILITY_LABELS[f.visibility_role]}
-                    </Badge>
-                    {f.source !== 'manual' && (
-                      <Badge variant="outline" className="text-[10px] h-4 px-1.5 gap-1">
-                        {sourceIcon(f.source)}
-                        {f.source}
-                      </Badge>
-                    )}
-                    {f.rag_enabled && (
-                      <Badge variant="outline" className="text-[10px] h-4 px-1.5 gap-1">
-                        <Sparkles className="h-3 w-3" /> KI
-                      </Badge>
-                    )}
-                    {f.valid_until && (
-                      <Badge
-                        variant={isExpired ? "destructive" : isExpiringSoon ? "default" : "outline"}
-                        className="text-[10px] h-4 px-1.5 gap-1"
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-sm truncate flex-1">{f.display_name}</p>
+                      {f.version > 1 && <Badge variant="outline" className="text-[10px] h-4 px-1">v{f.version}</Badge>}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 flex-shrink-0"
+                        title="In neuem Tab öffnen"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          const { data, error } = await supabase.storage
+                            .from('building-files')
+                            .createSignedUrl(f.file_path, 60);
+                          if (!error && data) window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+                        }}
                       >
-                        <Calendar className="h-3 w-3" />
-                        {format(new Date(f.valid_until), 'dd.MM.yyyy', { locale: de })}
-                      </Badge>
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                    {f.description && (
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">{f.description}</p>
                     )}
+                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                      <Badge variant="secondary" className="text-[10px] h-4 px-1.5 gap-1">
+                        {visIcon(f.visibility_role)}
+                        {VISIBILITY_LABELS[f.visibility_role]}
+                      </Badge>
+                      {f.source !== 'manual' && (
+                        <Badge variant="outline" className="text-[10px] h-4 px-1.5 gap-1">
+                          {sourceIcon(f.source)}
+                          {f.source}
+                        </Badge>
+                      )}
+                      {f.rag_enabled && (
+                        <Badge variant="outline" className="text-[10px] h-4 px-1.5 gap-1">
+                          <Sparkles className="h-3 w-3" /> KI
+                        </Badge>
+                      )}
+                      {f.valid_until && (
+                        <Badge
+                          variant={isExpired ? "destructive" : isExpiringSoon ? "default" : "outline"}
+                          className="text-[10px] h-4 px-1.5 gap-1"
+                        >
+                          <Calendar className="h-3 w-3" />
+                          {format(new Date(f.valid_until), 'dd.MM.yyyy', { locale: de })}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -161,6 +169,6 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
           );
         })}
       </div>
-    </ScrollArea>
+    </div>
   );
 }
