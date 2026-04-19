@@ -10,24 +10,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Briefcase, Plus, Phone, Mail, Trash2, ExternalLink, Search, Building2 } from "lucide-react";
+import { Briefcase, Plus, Phone, Mail, Trash2, ExternalLink, Search, Building2, Settings2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { CreateContactDialog } from "@/components/contacts/CreateContactDialog";
-
-const SERVICE_CATEGORIES = [
-  { value: "handwerker", label: "Handwerker" },
-  { value: "hausmeister", label: "Hausmeister" },
-  { value: "versicherung", label: "Versicherung" },
-  { value: "ablesefirma", label: "Ablesefirma" },
-  { value: "schornsteinfeger", label: "Schornsteinfeger" },
-  { value: "versorger", label: "Versorger" },
-  { value: "reinigung", label: "Reinigung" },
-  { value: "gaertner", label: "Gärtner" },
-  { value: "sonstiges", label: "Sonstiges" },
-];
-
-const labelOf = (v?: string | null) =>
-  SERVICE_CATEGORIES.find((c) => c.value === v)?.label ?? "Sonstiges";
 
 interface Props {
   buildingId: string;
@@ -39,6 +24,19 @@ export function BuildingServiceProvidersTab({ buildingId }: Props) {
   const { toast } = useToast();
   const [filter, setFilter] = useState<string>("alle");
   const [showAdd, setShowAdd] = useState(false);
+  const [showManageCats, setShowManageCats] = useState(false);
+
+  const { data: categories = [] } = useQuery({
+    queryKey: ["service-provider-categories"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("service_provider_categories")
+        .select("id, name, sort_order")
+        .order("sort_order");
+      if (error) throw error;
+      return data || [];
+    },
+  });
 
   const { data: providers = [], isLoading } = useQuery({
     queryKey: ["building-service-providers", buildingId],
@@ -64,7 +62,7 @@ export function BuildingServiceProvidersTab({ buildingId }: Props) {
   });
 
   const filtered = providers.filter((p) =>
-    filter === "alle" ? true : (p.service_category ?? "sonstiges") === filter
+    filter === "alle" ? true : (p.service_category ?? "Sonstiges") === filter
   );
 
   const removeProvider = async (id: string) => {
@@ -88,9 +86,14 @@ export function BuildingServiceProvidersTab({ buildingId }: Props) {
           <h2 className="text-base font-semibold">Dienstleister</h2>
           <Badge variant="secondary" className="text-xs">{providers.length}</Badge>
         </div>
-        <Button size="sm" onClick={() => setShowAdd(true)}>
-          <Plus className="h-3.5 w-3.5 mr-1" /> Dienstleister hinzufügen
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="ghost" onClick={() => setShowManageCats(true)} title="Kategorien verwalten">
+            <Settings2 className="h-3.5 w-3.5" />
+          </Button>
+          <Button size="sm" onClick={() => setShowAdd(true)}>
+            <Plus className="h-3.5 w-3.5 mr-1" /> Dienstleister hinzufügen
+          </Button>
+        </div>
       </div>
 
       {/* Category filter chips */}
@@ -102,17 +105,17 @@ export function BuildingServiceProvidersTab({ buildingId }: Props) {
         >
           Alle ({providers.length})
         </Badge>
-        {SERVICE_CATEGORIES.map((cat) => {
-          const count = providers.filter((p) => (p.service_category ?? "sonstiges") === cat.value).length;
+        {categories.map((cat) => {
+          const count = providers.filter((p) => (p.service_category ?? "Sonstiges") === cat.name).length;
           if (count === 0) return null;
           return (
             <Badge
-              key={cat.value}
-              variant={filter === cat.value ? "default" : "outline"}
+              key={cat.id}
+              variant={filter === cat.name ? "default" : "outline"}
               className="cursor-pointer"
-              onClick={() => setFilter(cat.value)}
+              onClick={() => setFilter(cat.name)}
             >
-              {cat.label} ({count})
+              {cat.name} ({count})
             </Badge>
           );
         })}
@@ -147,7 +150,7 @@ export function BuildingServiceProvidersTab({ buildingId }: Props) {
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-medium text-sm truncate">{name}</p>
                         <Badge variant="secondary" className="text-[10px]">
-                          {labelOf(p.service_category)}
+                          {p.service_category || "Sonstiges"}
                         </Badge>
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs text-muted-foreground">
@@ -196,26 +199,36 @@ export function BuildingServiceProvidersTab({ buildingId }: Props) {
         open={showAdd}
         onOpenChange={setShowAdd}
         buildingId={buildingId}
+        categories={categories}
         existingContactIds={providers.map((p) => p.contact?.id).filter(Boolean)}
         onAdded={() => queryClient.invalidateQueries({ queryKey: ["building-service-providers", buildingId] })}
+      />
+
+      <ManageCategoriesDialog
+        open={showManageCats}
+        onOpenChange={setShowManageCats}
+        categories={categories}
+        onChanged={() => queryClient.invalidateQueries({ queryKey: ["service-provider-categories"] })}
       />
     </div>
   );
 }
 
 function AddProviderDialog({
-  open, onOpenChange, buildingId, existingContactIds, onAdded,
+  open, onOpenChange, buildingId, categories, existingContactIds, onAdded,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   buildingId: string;
+  categories: { id: string; name: string }[];
   existingContactIds: string[];
   onAdded: () => void;
 }) {
   const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [category, setCategory] = useState("handwerker");
+  const [showList, setShowList] = useState(true);
+  const [category, setCategory] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
@@ -233,7 +246,7 @@ function AddProviderDialog({
     enabled: open,
   });
 
-  const filtered = contacts.filter((c) => {
+  const filteredContacts = contacts.filter((c) => {
     const term = search.toLowerCase();
     if (!term) return true;
     return (
@@ -244,7 +257,16 @@ function AddProviderDialog({
   });
 
   const reset = () => {
-    setSearch(""); setSelectedId(null); setCategory("handwerker"); setNotes("");
+    setSearch(""); setSelectedId(null); setShowList(true);
+    setCategory(categories[0]?.name || ""); setNotes("");
+  };
+
+  const getName = (c: any) =>
+    c.company_name || [c.salutation, c.first_name, c.last_name].filter(Boolean).join(" ") || "Unbenannt";
+
+  const selectContact = (id: string) => {
+    setSelectedId(id);
+    setShowList(false); // close list after selection
   };
 
   const handleSave = async () => {
@@ -254,7 +276,7 @@ function AddProviderDialog({
       contact_id: selectedId,
       building_id: buildingId,
       role_in_building: "dienstleister" as any,
-      service_category: category,
+      service_category: category || "Sonstiges",
       notes: notes || null,
     });
     setSaving(false);
@@ -268,8 +290,7 @@ function AddProviderDialog({
     onAdded();
   };
 
-  const getName = (c: any) =>
-    c.company_name || [c.salutation, c.first_name, c.last_name].filter(Boolean).join(" ") || "Unbenannt";
+  const selectedContact = contacts.find((c) => c.id === selectedId);
 
   return (
     <>
@@ -282,60 +303,70 @@ function AddProviderDialog({
             <div>
               <Label className="text-xs">Gewerk / Kategorie</Label>
               <Select value={category} onValueChange={setCategory}>
-                <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Bitte wählen..." /></SelectTrigger>
                 <SelectContent>
-                  {SERVICE_CATEGORIES.map((c) => (
-                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                  {categories.map((c) => (
+                    <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
 
             <div>
-              <Label className="text-xs">Kontakt auswählen</Label>
-              <div className="relative mt-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Firma oder Name suchen..."
-                  className="pl-9 h-9 text-sm"
-                />
-              </div>
-              <div className="mt-2 max-h-56 overflow-y-auto border rounded-md">
-                {filtered.length === 0 ? (
-                  <p className="p-3 text-xs text-center text-muted-foreground">
-                    Keine Treffer
-                  </p>
-                ) : (
-                  filtered.map((c) => {
-                    const isAssigned = existingContactIds.includes(c.id);
-                    return (
-                      <div
-                        key={c.id}
-                        onClick={() => !isAssigned && setSelectedId(c.id)}
-                        className={`flex items-center gap-2 px-3 py-2 text-sm transition-colors ${
-                          isAssigned
-                            ? "opacity-50 cursor-not-allowed"
-                            : selectedId === c.id
-                              ? "bg-primary/10 cursor-pointer"
-                              : "hover:bg-muted cursor-pointer"
-                        }`}
-                      >
-                        <Building2 className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                        <span className="flex-1 truncate">{getName(c)}</span>
-                        {c.address_city && (
-                          <span className="text-xs text-muted-foreground">{c.address_city}</span>
-                        )}
-                        {isAssigned && <Badge variant="secondary" className="text-[10px]">Zugeordnet</Badge>}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-              <Button variant="outline" size="sm" className="w-full mt-2" onClick={() => setShowCreate(true)}>
-                <Plus className="h-3 w-3 mr-1" /> Neuen Dienstleister anlegen
-              </Button>
+              <Label className="text-xs">Kontakt</Label>
+              {selectedContact && !showList ? (
+                <div className="flex items-center justify-between gap-2 mt-1 p-2 border rounded-md bg-muted/40">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <span className="text-sm truncate">{getName(selectedContact)}</span>
+                  </div>
+                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowList(true)}>
+                    Ändern
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div className="relative mt-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Firma oder Name suchen..."
+                      className="pl-9 h-9 text-sm"
+                    />
+                  </div>
+                  <div className="mt-2 max-h-56 overflow-y-auto border rounded-md">
+                    {filteredContacts.length === 0 ? (
+                      <p className="p-3 text-xs text-center text-muted-foreground">Keine Treffer</p>
+                    ) : (
+                      filteredContacts.map((c) => {
+                        const isAssigned = existingContactIds.includes(c.id);
+                        return (
+                          <div
+                            key={c.id}
+                            onClick={() => !isAssigned && selectContact(c.id)}
+                            className={`flex items-center gap-2 px-3 py-2 text-sm transition-colors ${
+                              isAssigned
+                                ? "opacity-50 cursor-not-allowed"
+                                : "hover:bg-muted cursor-pointer"
+                            }`}
+                          >
+                            <Building2 className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                            <span className="flex-1 truncate">{getName(c)}</span>
+                            {c.address_city && (
+                              <span className="text-xs text-muted-foreground">{c.address_city}</span>
+                            )}
+                            {isAssigned && <Badge variant="secondary" className="text-[10px]">Zugeordnet</Badge>}
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                  <Button variant="outline" size="sm" className="w-full mt-2" onClick={() => setShowCreate(true)}>
+                    <Plus className="h-3 w-3 mr-1" /> Neuen Dienstleister anlegen
+                  </Button>
+                </>
+              )}
             </div>
 
             <div>
@@ -350,7 +381,7 @@ function AddProviderDialog({
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => onOpenChange(false)}>Abbrechen</Button>
-            <Button onClick={handleSave} disabled={!selectedId || saving}>
+            <Button onClick={handleSave} disabled={!selectedId || !category || saving}>
               {saving ? "Speichern..." : "Zuordnen"}
             </Button>
           </DialogFooter>
@@ -363,5 +394,90 @@ function AddProviderDialog({
         onCreated={() => { refetch(); }}
       />
     </>
+  );
+}
+
+function ManageCategoriesDialog({
+  open, onOpenChange, categories, onChanged,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  categories: { id: string; name: string; sort_order?: number }[];
+  onChanged: () => void;
+}) {
+  const { toast } = useToast();
+  const [newName, setNewName] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const addCategory = async () => {
+    const name = newName.trim();
+    if (!name) return;
+    setSaving(true);
+    const maxSort = Math.max(0, ...categories.map((c) => c.sort_order ?? 0));
+    const { error } = await supabase
+      .from("service_provider_categories")
+      .insert({ name, sort_order: maxSort + 10 });
+    setSaving(false);
+    if (error) {
+      toast({ title: "Fehler", description: error.message, variant: "destructive" });
+      return;
+    }
+    setNewName("");
+    onChanged();
+    toast({ title: "Kategorie hinzugefügt" });
+  };
+
+  const removeCategory = async (id: string) => {
+    const { error } = await supabase.from("service_provider_categories").delete().eq("id", id);
+    if (error) {
+      toast({ title: "Fehler", description: error.message, variant: "destructive" });
+      return;
+    }
+    onChanged();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Dienstleister-Kategorien verwalten</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Diese Kategorien stehen bei allen Gebäuden zur Auswahl.
+          </p>
+          <div className="flex gap-2">
+            <Input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="z.B. Heizung/Sanitär"
+              className="h-9 text-sm"
+              onKeyDown={(e) => { if (e.key === "Enter") addCategory(); }}
+            />
+            <Button size="sm" onClick={addCategory} disabled={!newName.trim() || saving}>
+              <Plus className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+          <div className="max-h-72 overflow-y-auto border rounded-md divide-y">
+            {categories.map((c) => (
+              <div key={c.id} className="flex items-center justify-between px-3 py-2 text-sm">
+                <span>{c.name}</span>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7 text-destructive hover:text-destructive"
+                  onClick={() => removeCategory(c.id)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Schließen</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
