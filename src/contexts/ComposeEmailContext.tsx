@@ -43,7 +43,7 @@ const defaultState: ComposeState = {
 
 interface ComposeEmailContextType {
   compose: ComposeState;
-  openCompose: (opts?: { replyTo?: ComposeState["replyTo"]; forward?: ComposeState["forward"] }) => void;
+  openCompose: (opts?: { replyTo?: ComposeState["replyTo"]; forward?: ComposeState["forward"]; prefill?: { to?: string; cc?: string; bcc?: string; subject?: string; bodyText?: string; accountId?: string } }) => void;
   closeCompose: () => void;
   toggleMinimize: () => void;
   updateCompose: (updates: Partial<ComposeState>) => void;
@@ -60,23 +60,24 @@ export const useComposeEmail = () => {
 export const ComposeEmailProvider = ({ children }: { children: React.ReactNode }) => {
   const [compose, setCompose] = useState<ComposeState>(defaultState);
 
-  const openCompose = useCallback((opts?: { replyTo?: ComposeState["replyTo"]; forward?: ComposeState["forward"] }) => {
+  const openCompose = useCallback((opts?: { replyTo?: ComposeState["replyTo"]; forward?: ComposeState["forward"]; prefill?: { to?: string; cc?: string; bcc?: string; subject?: string; bodyText?: string; accountId?: string } }) => {
     const replyTo = opts?.replyTo || null;
     const forward = opts?.forward || null;
+    const prefill = opts?.prefill;
 
     setCompose({
       isOpen: true,
       isMinimized: false,
-      accountId: replyTo?.account_id || forward?.account_id || "",
-      to: replyTo?.from_address || "",
-      cc: "",
-      bcc: "",
-      subject: replyTo ? `Re: ${replyTo.subject}` : forward ? `Fwd: ${forward.subject}` : "",
-      bodyText: replyTo
+      accountId: prefill?.accountId || replyTo?.account_id || forward?.account_id || "",
+      to: prefill?.to ?? (replyTo?.from_address || ""),
+      cc: prefill?.cc ?? "",
+      bcc: prefill?.bcc ?? "",
+      subject: prefill?.subject ?? (replyTo ? `Re: ${replyTo.subject}` : forward ? `Fwd: ${forward.subject}` : ""),
+      bodyText: prefill?.bodyText ?? (replyTo
         ? `\n\n--- Ursprüngliche Nachricht ---\nVon: ${replyTo.from_name} <${replyTo.from_address}>\nDatum: ${replyTo.date ? new Date(replyTo.date).toLocaleString("de-DE") : ""}\n\n${replyTo.body_text || ""}`
         : forward
           ? `\n\n--- Weitergeleitete Nachricht ---\n${forward.body_text || ""}`
-          : "",
+          : ""),
       forwardHtml: forward?.body_html || undefined,
       attachments: [],
       replyTo,
