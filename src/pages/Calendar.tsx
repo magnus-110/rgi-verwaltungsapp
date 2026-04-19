@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { format, addMonths, subMonths, addWeeks, subWeeks, addDays, subDays, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { Button } from '@/components/ui/button';
@@ -8,13 +8,23 @@ import { EventDialog } from '@/components/calendar/EventDialog';
 import { CalendarFilters } from '@/components/calendar/CalendarFilters';
 import { CalendarItemDialog, CalendarItem } from '@/components/calendar/CalendarItemDialog';
 import { useCalendarItems } from '@/hooks/useCalendar';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { cn } from '@/lib/utils';
 
 export type ViewMode = 'month' | 'week' | 'day';
 
 export function Calendar() {
+  const isMobile = useIsMobile();
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [viewMode, setViewMode] = useState<ViewMode>('month');
+  const [viewMode, setViewMode] = useState<ViewMode>(isMobile ? 'day' : 'month');
+
+  // Auf Mobile bei Erstaufruf zur Tagesansicht wechseln (best practice)
+  useEffect(() => {
+    if (isMobile && viewMode === 'month') {
+      setViewMode('day');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isMobile]);
   const [eventDialogOpen, setEventDialogOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
@@ -99,40 +109,44 @@ export function Calendar() {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-3 sm:space-y-6 pb-20 md:pb-0">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-xl sm:text-3xl font-semibold">Kalender</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold">Kalender</h1>
           <p className="text-muted-foreground text-sm mt-0.5 hidden sm:block">
             Termine und Aufgaben im Überblick
           </p>
         </div>
-        
-        <Button onClick={() => { setSelectedDate(new Date()); setEditingEventId(null); setEventDialogOpen(true); }}>
+
+        {/* Desktop „Neuer Termin"-Button — auf Mobile via FAB */}
+        <Button
+          className="h-11 hidden sm:inline-flex"
+          onClick={() => { setSelectedDate(new Date()); setEditingEventId(null); setEventDialogOpen(true); }}
+        >
           <Plus className="h-4 w-4 sm:mr-2" />
           <span className="hidden sm:inline">Neuer Termin</span>
         </Button>
       </div>
 
       {/* Navigation and View Toggle */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-card p-3 rounded-lg border">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card p-3 rounded-lg border">
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={navigatePrev}>
+          <Button variant="outline" size="icon" className="h-11 w-11 md:h-10 md:w-10" onClick={navigatePrev}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button variant="outline" onClick={goToToday} className="px-3">
+          <Button variant="outline" onClick={goToToday} className="px-3 h-11 md:h-10">
             Heute
           </Button>
-          <Button variant="outline" size="icon" onClick={navigateNext}>
+          <Button variant="outline" size="icon" className="h-11 w-11 md:h-10 md:w-10" onClick={navigateNext}>
             <ChevronRight className="h-4 w-4" />
           </Button>
-          <h2 className="text-base sm:text-lg font-medium ml-2 capitalize">
+          <h2 className="text-sm sm:text-lg font-medium ml-2 capitalize truncate">
             {getHeaderText()}
           </h2>
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 justify-between sm:justify-end">
           <CalendarFilters filters={filters} onFiltersChange={setFilters} />
           
           <div className="flex bg-muted rounded-lg p-1">
@@ -143,7 +157,7 @@ export function Calendar() {
                 size="sm"
                 onClick={() => setViewMode(mode)}
                 className={cn(
-                  'px-3 rounded-md',
+                  'px-3 h-9 rounded-md text-xs sm:text-sm',
                   viewMode === mode && 'bg-background shadow-sm'
                 )}
               >
@@ -179,6 +193,17 @@ export function Calendar() {
         item={selectedItem}
         onEditEvent={handleEditEventFromDialog}
       />
+
+      {/* Mobile FAB für „Neuer Termin" */}
+      <Button
+        size="icon"
+        onClick={() => { setSelectedDate(new Date()); setEditingEventId(null); setEventDialogOpen(true); }}
+        aria-label="Neuer Termin"
+        className="fixed sm:hidden right-4 bottom-4 h-14 w-14 rounded-full shadow-lg z-40"
+        style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+      >
+        <Plus className="h-6 w-6" />
+      </Button>
     </div>
   );
 }
