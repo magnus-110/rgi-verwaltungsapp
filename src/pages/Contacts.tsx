@@ -76,7 +76,7 @@ export function Contacts() {
         <div className="h-full">
           <ContactDetail
             contact={selectedContact}
-            onBack={() => setSelectedContactId(null)}
+            onBack={() => handleSelect(null)}
             onUpdate={fetchContacts}
             onDeleted={handleDeleted}
           />
@@ -88,7 +88,7 @@ export function Contacts() {
         <ContactList
           contacts={contacts}
           selectedId={selectedContactId}
-          onSelect={setSelectedContactId}
+          onSelect={handleSelect}
           onCreated={fetchContacts}
           loading={loading}
         />
@@ -103,7 +103,7 @@ export function Contacts() {
           <ContactList
             contacts={contacts}
             selectedId={selectedContactId}
-            onSelect={setSelectedContactId}
+            onSelect={handleSelect}
             onCreated={fetchContacts}
             loading={loading}
           />
