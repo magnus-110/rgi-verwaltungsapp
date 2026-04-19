@@ -230,12 +230,12 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
 
               {/* Footer Actions */}
               <div className="p-4 border-t space-y-2">
-                {/* Settings nur für nicht-Mitarbeiter */}
-                {userRole !== 'employee' && (
+                {/* Settings nur für Mieter/Eigentümer (Admin hat es im Hauptmenü) */}
+                {(userRole === 'tenant' || userRole === 'weg_owner') && (
                   <Button
                     variant="ghost"
                     className="w-full justify-start gap-3 h-12"
-                    onClick={() => handleNavigation(userRole === 'tenant' ? '/tenant/settings' : userRole === 'weg_owner' ? '/weg-owner/settings' : '/settings')}
+                    onClick={() => handleNavigation(userRole === 'tenant' ? '/tenant/settings' : '/weg-owner/settings')}
                   >
                     <Settings className="w-5 h-5" />
                     Einstellungen
