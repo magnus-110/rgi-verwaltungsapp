@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ContactList } from "@/components/contacts/ContactList";
@@ -28,6 +29,7 @@ export function Contacts() {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const fetchContacts = async () => {
     const { data, error } = await supabase
@@ -47,8 +49,22 @@ export function Contacts() {
     fetchContacts();
   }, []);
 
+  // Apply ?id=… from URL once contacts are loaded
+  useEffect(() => {
+    const idFromUrl = searchParams.get("id");
+    if (idFromUrl && contacts.some((c) => c.id === idFromUrl)) {
+      setSelectedContactId(idFromUrl);
+    }
+  }, [contacts, searchParams]);
+
+  const handleSelect = (id: string | null) => {
+    setSelectedContactId(id);
+    if (id) setSearchParams({ id }, { replace: true });
+    else setSearchParams({}, { replace: true });
+  };
+
   const handleDeleted = () => {
-    setSelectedContactId(null);
+    handleSelect(null);
     fetchContacts();
   };
 
@@ -60,7 +76,7 @@ export function Contacts() {
         <div className="h-full">
           <ContactDetail
             contact={selectedContact}
-            onBack={() => setSelectedContactId(null)}
+            onBack={() => handleSelect(null)}
             onUpdate={fetchContacts}
             onDeleted={handleDeleted}
           />
@@ -72,7 +88,7 @@ export function Contacts() {
         <ContactList
           contacts={contacts}
           selectedId={selectedContactId}
-          onSelect={setSelectedContactId}
+          onSelect={handleSelect}
           onCreated={fetchContacts}
           loading={loading}
         />
@@ -87,7 +103,7 @@ export function Contacts() {
           <ContactList
             contacts={contacts}
             selectedId={selectedContactId}
-            onSelect={setSelectedContactId}
+            onSelect={handleSelect}
             onCreated={fetchContacts}
             loading={loading}
           />
