@@ -52,7 +52,7 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
         />
       </div>
       <SidebarProvider>
-        <div className="min-h-screen flex w-full bg-background pt-16 md:pt-0 overflow-x-hidden">
+        <div className="min-h-screen flex w-full bg-background pt-16 md:pt-0 overflow-x-hidden" style={{ paddingTop: 'max(4rem, env(safe-area-inset-top))' }}>
           <AdminSidebar 
             managementMode={managementMode} 
             onModeChange={setManagementMode} 
@@ -64,7 +64,10 @@ const AdminLayoutContent = ({ children }: AdminLayoutProps) => {
                 {managementMode === 'weg' ? 'WEG-Verwaltung' : 'Mietverwaltung'}
               </h1>
             </header>
-            <div className="flex-1 p-2 md:p-6 bg-muted/30 overflow-x-hidden overflow-y-auto min-w-0">
+            <div
+              className="flex-1 px-3 py-3 md:p-6 bg-muted/30 overflow-x-hidden overflow-y-auto min-w-0"
+              style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+            >
               <div className="max-w-full min-w-0">
                 {children}
               </div>

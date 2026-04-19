@@ -25,11 +25,11 @@ const DashboardWidget = ({
   isLoading?: boolean;
 }) => (
   <Card className="hover:shadow-elegant transition-shadow">
-    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-      <CardTitle className="label-text text-sm font-medium truncate">{title}</CardTitle>
+    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 md:p-6">
+      <CardTitle className="label-text text-xs md:text-sm font-medium truncate">{title}</CardTitle>
       <Icon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
     </CardHeader>
-    <CardContent className="space-y-2">
+    <CardContent className="space-y-1.5 md:space-y-2 p-4 md:p-6 pt-0 md:pt-0">
       <div className="heading-primary text-xl sm:text-2xl font-bold text-primary truncate">
         {isLoading ? "..." : value}
       </div>
