@@ -208,7 +208,7 @@ export function Transfers() {
                     <TableCell className="text-muted-foreground text-sm">
                       {(inv as any).is_company_invoice ? (
                         <Badge variant="outline" className="text-xs border-primary/40 text-primary bg-primary/10">
-                          🏢 Firma
+                          RGI Immobilien GmbH & Co. KG
                         </Badge>
                       ) : (
                         (inv as any).buildings?.name || "–"
