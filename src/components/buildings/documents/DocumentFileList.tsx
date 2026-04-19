@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { FileText, Eye, Users, Lock, Calendar, Sparkles, Receipt, Mail } from "lucide-react";
+import { FileText, Eye, Users, Lock, Calendar, Sparkles, Receipt, Mail, ExternalLink } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
@@ -78,7 +79,7 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
           const isExpiringSoon = f.valid_until && new Date(f.valid_until) <= new Date(Date.now() + 90 * 86400000);
           const isExpired = f.valid_until && new Date(f.valid_until) < new Date();
           return (
-            <button
+            <div
               key={f.id}
               onClick={() => onSelect(f)}
               onDoubleClick={async () => {
@@ -88,7 +89,7 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
                 if (!error && data) window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
               }}
               className={cn(
-                "w-full text-left p-3 hover:bg-accent transition-colors",
+                "w-full text-left p-3 hover:bg-accent transition-colors cursor-pointer",
                 selectedFileId === f.id && "bg-accent"
               )}
             >
@@ -98,8 +99,23 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="font-medium text-sm truncate">{f.display_name}</p>
+                    <p className="font-medium text-sm truncate flex-1">{f.display_name}</p>
                     {f.version > 1 && <Badge variant="outline" className="text-[10px] h-4 px-1">v{f.version}</Badge>}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 flex-shrink-0"
+                      title="In neuem Tab öffnen"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        const { data, error } = await supabase.storage
+                          .from('building-files')
+                          .createSignedUrl(f.file_path, 60);
+                        if (!error && data) window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+                      }}
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
                   {f.description && (
                     <p className="text-xs text-muted-foreground truncate mt-0.5">{f.description}</p>
@@ -132,7 +148,7 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
                   </div>
                 </div>
               </div>
-            </button>
+            </div>
           );
         })}
       </div>
