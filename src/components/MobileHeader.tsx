@@ -126,25 +126,28 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
   };
 
   return (
-    <header className="bg-white border-b border-border shadow-sm fixed top-0 left-0 right-0 z-50 md:hidden">
-      <div className="flex items-center justify-between h-16 px-4">
+    <header
+      className="bg-white border-b border-border shadow-sm fixed top-0 left-0 right-0 z-50 md:hidden"
+      style={{ paddingTop: 'env(safe-area-inset-top)' }}
+    >
+      <div className="flex items-center justify-between h-16 px-3">
         {/* Logo */}
-        <div className="flex items-center cursor-pointer" onClick={() => navigate('/')}>
+        <div className="flex items-center cursor-pointer min-w-0" onClick={() => navigate('/')}>
           <img 
             src="/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png" 
             alt="RGI Immobilien Logo" 
-            className="h-12 w-auto object-contain hover:opacity-80 transition-opacity"
+            className="h-10 w-auto object-contain hover:opacity-80 transition-opacity"
           />
         </div>
 
         {/* Mobile Menu */}
         <Sheet open={isOpen} onOpenChange={setIsOpen}>
           <SheetTrigger asChild>
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" className="h-11 w-11">
               <Menu className="w-5 h-5" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="right" className="w-80 p-0 flex flex-col h-full">
+          <SheetContent side="right" className="w-[85vw] sm:w-80 p-0 flex flex-col h-full">
             <div className="flex flex-col h-full min-h-0 w-full">
               {/* Header */}
               <div className="flex items-center justify-between p-4 border-b">
