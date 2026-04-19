@@ -143,7 +143,7 @@ export function Transfers() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Alle Gebäude</SelectItem>
-              <SelectItem value="company">🏢 RGI Firma</SelectItem>
+              <SelectItem value="company">RGI Immobilien GmbH & Co. KG</SelectItem>
               {buildings.map((b) => (
                 <SelectItem key={b.id} value={b.id}>
                   {b.building_code} – {b.name}
