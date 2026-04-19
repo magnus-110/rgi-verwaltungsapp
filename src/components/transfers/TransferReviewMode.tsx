@@ -36,6 +36,8 @@ interface Invoice {
   paid_at?: string | null;
   payment_notes?: string;
   payment_purpose?: string | null;
+  building_id?: string | null;
+  is_company_invoice?: boolean;
   buildings?: { name: string; building_code: string } | null;
 }
 
