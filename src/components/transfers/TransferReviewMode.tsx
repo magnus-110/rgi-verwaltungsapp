@@ -512,8 +512,40 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
             <InlineEditField label="Rechnungsdatum" value={invoice.invoice_date || ""} onSave={v => saveField("invoice_date", v)} type="date" />
           </div>
 
-          <div className="space-y-1.5">
-            <InfoRow label="Liegenschaft" value={(invoice as any).buildings?.name || "–"} />
+          <div className="space-y-2">
+            <label className="text-xs text-muted-foreground font-medium">Liegenschaft</label>
+            <Select
+              value={invoice.is_company_invoice ? "__company__" : (invoice.building_id || "__none__")}
+              onValueChange={async (val) => {
+                const updates: any = {};
+                if (val === "__company__") {
+                  updates.is_company_invoice = true;
+                  updates.building_id = null;
+                } else if (val === "__none__") {
+                  updates.is_company_invoice = false;
+                  updates.building_id = null;
+                } else {
+                  updates.is_company_invoice = false;
+                  updates.building_id = val;
+                }
+                const { error } = await supabase.from("invoices").update(updates).eq("id", invoice.id);
+                if (error) toast.error("Fehler beim Speichern");
+                else { toast.success("Liegenschaft aktualisiert"); onRefetch(); }
+              }}
+            >
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder="Liegenschaft wählen" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">– Keine Zuordnung –</SelectItem>
+                <SelectItem value="__company__">RGI Immobilien GmbH & Co. KG</SelectItem>
+                {buildings.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>
+                    {b.building_code} – {b.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {isPaid && invoice.paid_at && (
               <InfoRow label="Bezahlt am" value={format(new Date(invoice.paid_at as string), "dd.MM.yyyy")} />
             )}
