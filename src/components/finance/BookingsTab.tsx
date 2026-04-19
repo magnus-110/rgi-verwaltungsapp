@@ -310,34 +310,34 @@ export function BookingsTab({ sharedBuildingId }: { sharedBuildingId?: string | 
           </SelectContent>
         </Select>
         <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && handleViewModeChange(v)} className="h-9">
-          <ToggleGroupItem value="list" size="sm" className="h-9 px-3 gap-1.5">
-            <List className="h-3.5 w-3.5" /> Liste
+          <ToggleGroupItem value="list" size="sm" className="h-9 w-9 p-0" title="Liste">
+            <List className="h-4 w-4" />
           </ToggleGroupItem>
-          <ToggleGroupItem value="plan" size="sm" className="h-9 px-3 gap-1.5">
-            <LayoutGrid className="h-3.5 w-3.5" /> Kontenplan
+          <ToggleGroupItem value="plan" size="sm" className="h-9 w-9 p-0" title="Kontenplan">
+            <LayoutGrid className="h-4 w-4" />
           </ToggleGroupItem>
         </ToggleGroup>
         {viewMode === "plan" && (
           <Button
             variant="outline"
-            size="sm"
-            className="h-9 gap-1.5"
+            size="icon"
+            className="h-9 w-9"
+            title={showAllAccounts ? "Nur bebuchte Konten" : "Alle Konten"}
             onClick={() => setShowAllAccounts(s => !s)}
           >
-            {showAllAccounts ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-            {showAllAccounts ? "Nur bebuchte" : "Alle Konten"}
+            {showAllAccounts ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </Button>
         )}
         <Button
           variant={filterReview ? "default" : "outline"}
-          size="sm"
-          className={cn("h-9 gap-1.5", filterReview && "bg-orange-500 hover:bg-orange-600 text-white")}
+          size="icon"
+          className={cn("h-9 w-9 relative", filterReview && "bg-orange-500 hover:bg-orange-600 text-white")}
+          title="Prüfung"
           onClick={() => { setFilterReview(f => !f); setCurrentPage(0); }}
         >
-          <Flag className="h-3.5 w-3.5" />
-          Prüfung
+          <Flag className="h-4 w-4" />
           {pendingBookings.filter((b: any) => b.needs_review).length > 0 && (
-            <Badge variant="secondary" className="ml-1 text-[10px] h-5 px-1.5">
+            <Badge variant="secondary" className="absolute -top-1.5 -right-1.5 text-[10px] h-4 min-w-4 px-1 rounded-full">
               {pendingBookings.filter((b: any) => b.needs_review).length}
             </Badge>
           )}
