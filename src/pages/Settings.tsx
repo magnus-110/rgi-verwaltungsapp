@@ -353,20 +353,20 @@ export const Settings = () => {
   );
 
   return (
-    <div className="min-h-screen bg-background p-4 sm:p-6">
-      <div className="max-w-5xl mx-auto space-y-6">
+    <div className="min-h-screen bg-background p-3 sm:p-6">
+      <div className="max-w-5xl mx-auto space-y-4 md:space-y-6">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold">Einstellungen</h1>
-          <p className="text-muted-foreground text-sm">Konfiguration und Verwaltung</p>
+          <h1 className="text-xl sm:text-3xl font-bold">Einstellungen</h1>
+          <p className="text-muted-foreground text-xs md:text-sm">Konfiguration und Verwaltung</p>
         </div>
 
         <Tabs defaultValue={defaultTab} onValueChange={(v) => setSearchParams({ tab: v })} className="w-full">
-          <TabsList variant="segment" className="w-full flex flex-wrap h-auto gap-1">
-            <TabsTrigger variant="segment" value="profile" className="flex-1 min-w-[100px] text-xs sm:text-sm">Profil & Sicherheit</TabsTrigger>
-            {isAdmin && <TabsTrigger variant="segment" value="users" className="flex-1 min-w-[100px] text-xs sm:text-sm">Benutzerverwaltung</TabsTrigger>}
-            {isAdmin && <TabsTrigger variant="segment" value="chatbot" className="flex-1 min-w-[100px] text-xs sm:text-sm">Chatbot</TabsTrigger>}
-            {isAdmin && <TabsTrigger variant="segment" value="email" className="flex-1 min-w-[100px] text-xs sm:text-sm">E-Mail</TabsTrigger>}
-            {isAdmin && <TabsTrigger variant="segment" value="templates" className="flex-1 min-w-[100px] text-xs sm:text-sm">Dokumente & Vorlagen</TabsTrigger>}
+          <TabsList variant="segment" className="w-full flex flex-nowrap md:flex-wrap h-auto gap-1 overflow-x-auto scrollbar-hide justify-start md:justify-stretch">
+            <TabsTrigger variant="segment" value="profile" className="flex-shrink-0 md:flex-1 min-w-[110px] min-h-[44px] text-xs sm:text-sm">Profil</TabsTrigger>
+            {isAdmin && <TabsTrigger variant="segment" value="users" className="flex-shrink-0 md:flex-1 min-w-[110px] min-h-[44px] text-xs sm:text-sm">Benutzer</TabsTrigger>}
+            {isAdmin && <TabsTrigger variant="segment" value="chatbot" className="flex-shrink-0 md:flex-1 min-w-[110px] min-h-[44px] text-xs sm:text-sm">Chatbot</TabsTrigger>}
+            {isAdmin && <TabsTrigger variant="segment" value="email" className="flex-shrink-0 md:flex-1 min-w-[110px] min-h-[44px] text-xs sm:text-sm">E-Mail</TabsTrigger>}
+            {isAdmin && <TabsTrigger variant="segment" value="templates" className="flex-shrink-0 md:flex-1 min-w-[110px] min-h-[44px] text-xs sm:text-sm">Vorlagen</TabsTrigger>}
           </TabsList>
 
           {/* Tab: Profil & Sicherheit */}
