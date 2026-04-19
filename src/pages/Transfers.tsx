@@ -118,27 +118,27 @@ export function Transfers() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-3 md:p-0 space-y-4 md:space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <CreditCard className="h-6 w-6" />
+          <h1 className="text-xl md:text-2xl font-bold flex items-center gap-2">
+            <CreditCard className="h-5 w-5 md:h-6 md:w-6" />
             Überweisungen
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <p className="text-xs md:text-sm text-muted-foreground mt-1">
             {unpaidInvoices.length} offene Rechnung{unpaidInvoices.length !== 1 ? "en" : ""} zur Zahlung
             {unreviewedInvoices.length > 0 && ` · ${unreviewedInvoices.length} ungeprüft`}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 md:gap-3">
+          <div className="flex items-center gap-2 order-2 sm:order-1">
             <Switch checked={showPaid} onCheckedChange={setShowPaid} id="show-paid" />
             <label htmlFor="show-paid" className="text-sm text-muted-foreground cursor-pointer">
               Bezahlte anzeigen
             </label>
           </div>
           <Select value={buildingFilter} onValueChange={setBuildingFilter}>
-            <SelectTrigger className="w-[220px]">
+            <SelectTrigger className="w-full sm:w-[220px] h-11 md:h-10 order-1 sm:order-2">
               <SelectValue placeholder="Alle Gebäude" />
             </SelectTrigger>
             <SelectContent>
@@ -152,7 +152,7 @@ export function Transfers() {
             </SelectContent>
           </Select>
           {unreviewedInvoices.length > 0 && (
-            <Button onClick={() => { setReviewInvoices(unreviewedInvoices); setReviewIndex(0); setReviewMode(true); }}>
+            <Button onClick={() => { setReviewInvoices(unreviewedInvoices); setReviewIndex(0); setReviewMode(true); }} className="h-11 md:h-10 order-3">
               <Play className="h-4 w-4 mr-2" />
               Prüfmodus ({unreviewedInvoices.length})
             </Button>
@@ -162,7 +162,61 @@ export function Transfers() {
 
       <InvoiceDropZone buildings={buildings} />
 
-      <div className="border rounded-lg">
+      {/* Mobile: Card list */}
+      <div className="md:hidden space-y-2">
+        {invoices.length === 0 && (
+          <div className="text-center py-12 text-sm text-muted-foreground border rounded-lg">
+            {showPaid ? "Keine Rechnungen vorhanden" : "Keine offenen Rechnungen vorhanden"}
+          </div>
+        )}
+        {invoices.map((inv) => {
+          const overdue = inv.status !== "paid" && isOverdue(inv.due_date);
+          const isPaid = inv.status === "paid";
+          const hasNote = !!(inv as any).payment_notes;
+          return (
+            <button
+              key={inv.id}
+              onClick={() => openReviewForInvoice(inv)}
+              className={`w-full text-left border rounded-lg p-3 active:bg-muted transition-colors ${overdue ? "border-destructive/40 bg-destructive/5" : ""} ${isPaid ? "opacity-60" : ""}`}
+            >
+              <div className="flex items-start justify-between gap-2 mb-1.5">
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-sm truncate">{inv.vendor_name || "–"}</p>
+                  <p className="text-xs text-muted-foreground truncate">{getPurpose(inv)}</p>
+                </div>
+                <p className="text-base font-bold tabular-nums whitespace-nowrap">{formatCurrency(inv.gross_amount)}</p>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap text-xs">
+                <span className={`flex items-center gap-1 ${overdue ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+                  {overdue && <AlertTriangle className="h-3 w-3" />}
+                  {inv.due_date ? format(new Date(inv.due_date), "dd.MM.yy") : "–"}
+                </span>
+                {isPaid ? (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Bezahlt</Badge>
+                ) : inv.review_status === "verified" ? (
+                  <Badge variant="default" className="text-[10px] px-1.5 py-0">Geprüft</Badge>
+                ) : (
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">Offen</Badge>
+                )}
+                {(inv as any).is_company_invoice ? (
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-primary/40 text-primary bg-primary/10">RGI</Badge>
+                ) : (inv as any).buildings?.name ? (
+                  <span className="text-muted-foreground truncate">· {(inv as any).buildings?.name}</span>
+                ) : null}
+                {hasNote && <StickyNote className="h-3 w-3 text-primary ml-auto" />}
+              </div>
+              {hasNote && (
+                <p className="text-xs text-muted-foreground mt-1.5 pl-0 border-l-2 border-primary/30 pl-2">
+                  {(inv as any).payment_notes}
+                </p>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Desktop: Table */}
+      <div className="hidden md:block border rounded-lg">
         <Table>
           <TableHeader>
             <TableRow>
@@ -204,7 +258,7 @@ export function Transfers() {
                     <TableCell className="font-medium">{inv.vendor_name || "–"}</TableCell>
                     <TableCell className="text-muted-foreground text-sm">{getPurpose(inv)}</TableCell>
                     <TableCell className="font-mono text-xs">{inv.vendor_iban || "–"}</TableCell>
-                    <TableCell className="text-right font-semibold">{formatCurrency(inv.gross_amount)}</TableCell>
+                    <TableCell className="text-right font-semibold tabular-nums">{formatCurrency(inv.gross_amount)}</TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       {(inv as any).is_company_invoice ? (
                         <Badge variant="outline" className="text-xs border-primary/40 text-primary bg-primary/10">
