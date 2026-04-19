@@ -94,8 +94,8 @@ export function SaveAttachmentToBuildingDialog({
           .from('building-files').upload(newPath, blob, { contentType: att.mimeType || undefined });
         if (upErr) throw upErr;
 
-        const { data: inserted, error: insErr } = await supabase
-          .from('building_files')
+        const { data: inserted, error: insErr } = await (supabase
+          .from('building_files') as any)
           .insert({
             display_name: att.name,
             file_path: newPath,
