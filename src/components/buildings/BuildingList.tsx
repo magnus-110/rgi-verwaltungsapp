@@ -1,12 +1,11 @@
-import { useState } from "react";
+import { useState, useRef, memo } from "react";
 import { Search, Building2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { CreateBuildingDialog } from "@/components/CreateBuildingDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useManagementMode } from "@/hooks/useManagementMode";
 import { useQuery } from "@tanstack/react-query";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { cn } from "@/lib/utils";
 
 interface BuildingListProps {
@@ -14,9 +13,56 @@ interface BuildingListProps {
   onSelectBuilding: (id: string) => void;
 }
 
+interface BuildingRowData {
+  id: string;
+  name: string;
+  unit_count: number;
+}
+
+const BuildingRow = memo(function BuildingRow({
+  building,
+  selected,
+  onSelect,
+}: {
+  building: BuildingRowData;
+  selected: boolean;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <button
+      onClick={() => onSelect(building.id)}
+      className={cn(
+        "w-full text-left p-3 min-h-[56px] md:min-h-0 rounded-lg transition-colors active:scale-[0.98]",
+        selected
+          ? "bg-primary/10 border border-primary/20"
+          : "hover:bg-muted/50 active:bg-muted border border-transparent"
+      )}
+    >
+      <div className="flex items-center gap-3">
+        <div className={cn(
+          "p-1.5 rounded-md flex-shrink-0",
+          selected ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"
+        )}>
+          <Building2 className="h-4 w-4" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className={cn(
+            "font-medium text-sm truncate",
+            selected && "text-primary"
+          )}>
+            {building.name}
+          </p>
+          <p className="text-xs text-muted-foreground">{building.unit_count} Einheiten</p>
+        </div>
+      </div>
+    </button>
+  );
+});
+
 export const BuildingList = ({ selectedBuildingId, onSelectBuilding }: BuildingListProps) => {
   const { managementMode } = useManagementMode();
   const [searchTerm, setSearchTerm] = useState("");
+  const parentRef = useRef<HTMLDivElement>(null);
 
   const { data: buildings = [], isLoading, refetch } = useQuery({
     queryKey: ['buildings-list', managementMode],
@@ -35,6 +81,13 @@ export const BuildingList = ({ selectedBuildingId, onSelectBuilding }: BuildingL
     b.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const virtualizer = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 64,
+    overscan: 8,
+  });
+
   return (
     <div className="flex flex-col h-full md:border-r md:border-border bg-card">
       <div className="p-3 md:p-4 border-b border-border space-y-3 sticky top-0 bg-card z-10">
@@ -48,48 +101,39 @@ export const BuildingList = ({ selectedBuildingId, onSelectBuilding }: BuildingL
         </div>
       </div>
 
-      <ScrollArea className="flex-1">
-        <div className="p-2 space-y-1">
-          {isLoading ? (
-            <div className="text-center py-8 text-sm text-muted-foreground">Laden...</div>
-          ) : filtered.length === 0 ? (
-            <div className="text-center py-8 text-sm text-muted-foreground">
-              {buildings.length === 0 ? "Noch keine Gebäude" : "Keine Treffer"}
-            </div>
-          ) : (
-            filtered.map((building) => (
-              <button
-                key={building.id}
-                onClick={() => onSelectBuilding(building.id)}
-                className={cn(
-                  "w-full text-left p-3 md:p-3 min-h-[56px] md:min-h-0 rounded-lg transition-colors active:scale-[0.98]",
-                  selectedBuildingId === building.id
-                    ? "bg-primary/10 border border-primary/20"
-                    : "hover:bg-muted/50 active:bg-muted border border-transparent"
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={cn(
-                    "p-1.5 rounded-md flex-shrink-0",
-                    selectedBuildingId === building.id ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"
-                  )}>
-                    <Building2 className="h-4 w-4" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className={cn(
-                      "font-medium text-sm truncate",
-                      selectedBuildingId === building.id && "text-primary"
-                    )}>
-                      {building.name}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{building.unit_count} Einheiten</p>
-                  </div>
+      <div ref={parentRef} className="flex-1 overflow-y-auto">
+        {isLoading ? (
+          <div className="text-center py-8 text-sm text-muted-foreground">Laden...</div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-8 text-sm text-muted-foreground">
+            {buildings.length === 0 ? "Noch keine Gebäude" : "Keine Treffer"}
+          </div>
+        ) : (
+          <div
+            className="p-2 relative"
+            style={{ height: `${virtualizer.getTotalSize()}px` }}
+          >
+            {virtualizer.getVirtualItems().map((vi) => {
+              const building = filtered[vi.index];
+              return (
+                <div
+                  key={building.id}
+                  data-index={vi.index}
+                  ref={virtualizer.measureElement}
+                  className="absolute top-0 left-0 w-full px-0 pb-1"
+                  style={{ transform: `translateY(${vi.start}px)` }}
+                >
+                  <BuildingRow
+                    building={building}
+                    selected={selectedBuildingId === building.id}
+                    onSelect={onSelectBuilding}
+                  />
                 </div>
-              </button>
-            ))
-          )}
-        </div>
-      </ScrollArea>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
