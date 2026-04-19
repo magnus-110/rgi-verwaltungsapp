@@ -25,11 +25,11 @@ const DashboardWidget = ({
   isLoading?: boolean;
 }) => (
   <Card className="hover:shadow-elegant transition-shadow">
-    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-      <CardTitle className="label-text text-sm font-medium truncate">{title}</CardTitle>
+    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 md:p-6">
+      <CardTitle className="label-text text-xs md:text-sm font-medium truncate">{title}</CardTitle>
       <Icon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
     </CardHeader>
-    <CardContent className="space-y-2">
+    <CardContent className="space-y-1.5 md:space-y-2 p-4 md:p-6 pt-0 md:pt-0">
       <div className="heading-primary text-xl sm:text-2xl font-bold text-primary truncate">
         {isLoading ? "..." : value}
       </div>
@@ -340,12 +340,12 @@ export const Dashboard = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6">
       <div>
-        <h2 className="text-4xl font-sans font-semibold tracking-tight mb-2">
+        <h2 className="text-2xl md:text-4xl font-sans font-semibold tracking-tight mb-1 md:mb-2">
           {managementMode === 'weg' ? 'WEG-Verwaltung' : 'Mietverwaltung'} Dashboard
         </h2>
-        <p className="body-secondary text-lg">
+        <p className="body-secondary text-sm md:text-lg">
           Überblick über Ihre {managementMode === 'weg' ? 'WEG-' : 'Miet-'}Verwaltungsaktivitäten
         </p>
       </div>
@@ -372,19 +372,19 @@ export const Dashboard = () => {
 
       {/* Gebäude & Einheiten Übersicht */}
       <Card>
-        <CardHeader>
+        <CardHeader className="p-4 md:p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
-              <CardTitle className="heading-primary flex items-center text-lg font-semibold">
+              <CardTitle className="heading-primary flex items-center text-base md:text-lg font-semibold">
                 <Home className="mr-2 h-5 w-5" />
                 Gebäude & Einheiten
               </CardTitle>
-              <CardDescription className="body-secondary">
+              <CardDescription className="body-secondary text-xs md:text-sm">
                 Übersicht nach Verwalter
               </CardDescription>
             </div>
             <Select value={overviewManagerFilter} onValueChange={setOverviewManagerFilter}>
-              <SelectTrigger className="w-48">
+              <SelectTrigger className="w-full sm:w-48 h-11 md:h-10">
                 <SelectValue placeholder="Verwalter filtern" />
               </SelectTrigger>
               <SelectContent>
@@ -396,7 +396,7 @@ export const Dashboard = () => {
             </Select>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-4 md:p-6 pt-0 md:pt-0">
           {(() => {
             const filtered = overviewManagerFilter === "all"
               ? buildingOverview.managers
@@ -411,22 +411,22 @@ export const Dashboard = () => {
 
             return (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="rounded-lg border p-4 text-center">
-                    <div className="text-2xl font-bold text-primary">{totalBuildings}</div>
-                    <div className="text-sm text-muted-foreground">Gebäude</div>
+                <div className="grid grid-cols-2 gap-3 md:gap-4">
+                  <div className="rounded-lg border p-3 md:p-4 text-center">
+                    <div className="text-xl md:text-2xl font-bold text-primary">{totalBuildings}</div>
+                    <div className="text-xs md:text-sm text-muted-foreground">Gebäude</div>
                   </div>
-                  <div className="rounded-lg border p-4 text-center">
-                    <div className="text-2xl font-bold text-primary">{totalUnits}</div>
-                    <div className="text-sm text-muted-foreground">Einheiten</div>
+                  <div className="rounded-lg border p-3 md:p-4 text-center">
+                    <div className="text-xl md:text-2xl font-bold text-primary">{totalUnits}</div>
+                    <div className="text-xs md:text-sm text-muted-foreground">Einheiten</div>
                   </div>
                 </div>
                 {filtered.length > 0 && (
                   <div className="space-y-2">
                     {filtered.map(m => (
-                      <div key={m.user_id} className="flex items-center justify-between rounded-lg border p-3">
+                      <div key={m.user_id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-0 rounded-lg border p-3">
                         <span className="font-medium text-sm">{m.name}</span>
-                        <div className="flex gap-4 text-sm text-muted-foreground">
+                        <div className="flex gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
                           <span>{m.buildings} Gebäude</span>
                           <span>{m.units} Einheiten</span>
                         </div>
@@ -447,19 +447,19 @@ export const Dashboard = () => {
       <TodoDashboardWidget />
 
       {/* Charts Section */}
-      <div className="grid gap-6 grid-cols-1 xl:grid-cols-2">
+      <div className="grid gap-4 md:gap-6 grid-cols-1 xl:grid-cols-2">
         {/* Monthly Tickets Chart */}
         <Card>
-          <CardHeader>
-            <CardTitle className="heading-primary flex items-center text-lg font-semibold">
+          <CardHeader className="p-4 md:p-6">
+            <CardTitle className="heading-primary flex items-center text-base md:text-lg font-semibold">
               <LineChart className="mr-2 h-5 w-5" />
               Tickets pro Monat
             </CardTitle>
-            <CardDescription className="body-secondary">
+            <CardDescription className="body-secondary text-xs md:text-sm">
               Entwicklung der letzten 12 Monate
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 md:p-6 pt-0 md:pt-0">
             {loading ? (
               <div className="h-64 flex items-center justify-center body-secondary">Laden...</div>
             ) : (
@@ -494,8 +494,8 @@ export const Dashboard = () => {
 
         {/* Problem Buildings Chart */}
         <Card>
-          <CardHeader>
-            <CardTitle className="heading-primary flex items-center text-lg font-semibold">
+          <CardHeader className="p-4 md:p-6">
+            <CardTitle className="heading-primary flex items-center text-base md:text-lg font-semibold">
               <BarChart3 className="mr-2 h-5 w-5" />
               Meldungen pro Wohnanlage
             </CardTitle>
@@ -503,7 +503,7 @@ export const Dashboard = () => {
               <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                 <span className="text-xs">Top 10 Häuser mit den meisten Meldungen pro {managementMode === 'weg' ? 'Eigentümer' : 'Mieter'}</span>
                 <Select value={timeframeDays.toString()} onValueChange={(value) => setTimeframeDays(Number(value))}>
-                  <SelectTrigger className="w-24 h-6 text-xs">
+                  <SelectTrigger className="w-full sm:w-24 h-9 sm:h-6 text-xs">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -516,7 +516,7 @@ export const Dashboard = () => {
               </div>
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 md:p-6 pt-0 md:pt-0">
             {loading ? (
               <div className="h-64 flex items-center justify-center body-secondary">Laden...</div>
             ) : topProblemBuildingsData.length === 0 ? (
