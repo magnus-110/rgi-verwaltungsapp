@@ -43,7 +43,7 @@ const defaultState: ComposeState = {
 
 interface ComposeEmailContextType {
   compose: ComposeState;
-  openCompose: (opts?: { replyTo?: ComposeState["replyTo"]; forward?: ComposeState["forward"] }) => void;
+  openCompose: (opts?: { replyTo?: ComposeState["replyTo"]; forward?: ComposeState["forward"]; prefill?: { to?: string; cc?: string; bcc?: string; subject?: string; bodyText?: string; accountId?: string } }) => void;
   closeCompose: () => void;
   toggleMinimize: () => void;
   updateCompose: (updates: Partial<ComposeState>) => void;
