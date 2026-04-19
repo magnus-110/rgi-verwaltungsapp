@@ -422,7 +422,7 @@ export const Inbox = () => {
           }));
 
         const summary = emailRow?.ai_summary?.trim();
-        const fallback = (emailRow?.body_text || email?.body_text || "").substring(0, 500);
+        const fallback = (emailRow?.body_text || "").substring(0, 500);
 
         await supabase.functions.invoke("case-add-event", {
           body: {
