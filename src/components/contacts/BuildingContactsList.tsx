@@ -197,6 +197,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
         .select("*, contact:contacts(id, salutation, first_name, last_name, company_name, address_street, address_zip, address_city)")
         .eq("building_id", buildingId)
         .eq("is_active", true)
+        .in("role_in_building", ["eigentuemer", "beirat"])
         .order("unit_number", { ascending: true, nullsFirst: false });
       
       if (error || !assignData) return [];
