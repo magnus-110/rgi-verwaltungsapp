@@ -1,50 +1,44 @@
 
 
-## Plan: RGI-Firmenrechnungen — minimal im Überweisungstab
+## Plan: Live-Abstimmung sofort aufploppen lassen
 
-### Konzept
-**Kein separater Bereich, kein neuer Tab.** Firmenrechnungen werden direkt im bestehenden Überweisungstab mitverwaltet — nur durch einen einfachen Filter/Marker unterschieden. Maximal pragmatisch.
+### Ursache
+Die ETV-Tabellen sind nicht in der `supabase_realtime` Publication eingetragen. Der Frontend-Code (`VotingPopup.tsx`) abonniert korrekt `postgres_changes` auf `etv_agenda_items`, aber Postgres verschickt diese Events nicht.
 
-### Umsetzung
+### Umsetzung (eine Migration)
 
-**1. Migration (minimal)**
-- `invoices.is_company_invoice` (bool, default false)
-- `building_id` bleibt `NULL` bei Firmenrechnungen (bereits nullable)
-- Keine neuen Tabellen
+```sql
+-- Realtime aktivieren für alle ETV-Tabellen
+ALTER PUBLICATION supabase_realtime ADD TABLE 
+  public.etv_agenda_items,
+  public.etv_votes,
+  public.etv_meetings,
+  public.etv_attendees;
 
-**2. Email-Anhang-Import**
-- Im `SaveAttachmentToBuildingDialog` (bzw. Rechnungs-Import-Dialog) erscheint im Liegenschafts-Dropdown oben eine zusätzliche Option **„🏢 RGI Immobilien (Firma)"**
-- Bei Wahl: `is_company_invoice = true`, `building_id = null`, OCR läuft normal
+-- REPLICA IDENTITY FULL → liefert auch alte Werte mit (wichtig für UPDATE-Events)
+ALTER TABLE public.etv_agenda_items REPLICA IDENTITY FULL;
+ALTER TABLE public.etv_votes REPLICA IDENTITY FULL;
+ALTER TABLE public.etv_meetings REPLICA IDENTITY FULL;
+ALTER TABLE public.etv_attendees REPLICA IDENTITY FULL;
+```
 
-**3. Überweisungstab erweitern (`Transfers.tsx`)**
-- Building-Filter bekommt zusätzliche Option **„🏢 RGI Firma"** ganz oben
-- Standardansicht „Alle Gebäude" zeigt Firmenrechnungen mit
-- In der Spalte „Liegenschaft": statt Gebäudename → Badge **„🏢 Firma"** (dezent, eigene Farbe)
-- Ablage der PDF: einfach im bestehenden `invoices` Storage-Bucket unter Ordner `company/`
+### Wirkung
+- Sobald Verwalter „Abstimmung starten" klickt → `etv_agenda_items.status = 'voting'`
+- Postgres sendet UPDATE-Event über Realtime
+- Auf jedem Handy aller eingeloggten Eigentümer/Bevollmächtigten triggert der bereits vorhandene Listener in `VotingPopup.tsx` sofort den Vollbild-Dialog
+- Live-Ergebnisse aktualisieren sich ebenfalls in Echtzeit (etv_votes)
+- Auch das Live-Dashboard und die Anwesenheitsliste werden synchron
 
-**4. Drop-Zone (`InvoiceDropZone.tsx`)**
-- Liegenschafts-Dropdown bekommt ebenfalls Option „🏢 RGI Firma" oben
-- Beim Upload mit dieser Auswahl: `is_company_invoice = true`
+### Voraussetzungen auf Eigentümer-Seite
+- App muss geöffnet sein (Tab/PWA aktiv) — bei geschlossener App helfen nur Push-Notifications
+- Stabile Internetverbindung
+- Eingeloggt als `weg_owner`
 
-**5. Edge Function `extract-invoice`**
-- Akzeptiert `is_company_invoice`-Flag, überspringt Liegenschafts-Auto-Erkennung
-- Keine Buchung, keine Kontenzuordnung — nur OCR + Speicherung
-
-**6. Was wegfällt (vs. vorheriger Plan)**
-- ❌ Kein separater „Intern"-Bereich
-- ❌ Keine Kontakte/Zugangsdaten/Inventar/Todos
-- ❌ Keine eigene Dokumenten-Stammakte für RGI (Dokumente können bei Bedarf später ergänzt werden)
-- ❌ Kein neuer Sidebar-Eintrag
+### Keine Code-Änderungen nötig
+Der Listener im `WegOwnerLayout` → `VotingPopup` ist bereits korrekt implementiert. Nur die Datenbank-Publication fehlt.
 
 ### Geänderte Dateien
 | Datei | Änderung |
 |---|---|
-| Migration | `invoices.is_company_invoice` bool default false |
-| `src/pages/Transfers.tsx` | Filter-Option „RGI Firma", Badge in Liegenschaftsspalte |
-| `src/components/finance/InvoiceDropZone.tsx` | „RGI Firma" als Ziel im Dropdown |
-| `src/components/email/SaveAttachmentToBuildingDialog.tsx` | „RGI Firma" als Ziel |
-| `supabase/functions/extract-invoice/index.ts` | `is_company_invoice` durchreichen, keine Liegenschafts-Erkennung |
-
-### Spätere Erweiterung (nur falls Bedarf entsteht)
-Wenn später doch ein Dokumenten-Ablageort für RGI benötigt wird, kann man `building_files.is_company_file` in einem späteren Schritt nachziehen — kostet dann <1h Arbeit.
+| Neue Migration | `ALTER PUBLICATION` + `REPLICA IDENTITY FULL` für 4 ETV-Tabellen |
 
