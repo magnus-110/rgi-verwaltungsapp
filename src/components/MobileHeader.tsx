@@ -51,11 +51,12 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
         { icon: Users, label: "Versammlungen", path: '/versammlungen', active: location.pathname.startsWith('/versammlungen') },
         { icon: Landmark, label: "Buchhaltung", path: '/finanzen', active: location.pathname.startsWith('/finanzen') },
         { icon: CreditCard, label: "Überweisungen", path: '/ueberweisungen', active: location.pathname.startsWith('/ueberweisungen') },
+        { icon: Settings, label: "Einstellungen", path: '/settings', active: location.pathname.startsWith('/settings'), adminOnly: true },
       ];
 
-      // Filter für Mitarbeiter
+      // Filter für Mitarbeiter: keine Einstellungen
       if (userRole === 'employee') {
-        return items.filter(item => !['Einstellungen'].includes(item.label));
+        return items.filter(item => !item.adminOnly);
       }
       
       return items;
@@ -143,8 +144,8 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
               <Menu className="w-5 h-5" />
             </Button>
           </SheetTrigger>
-          <SheetContent side="right" className="w-80 p-0">
-            <div className="flex flex-col h-full">
+          <SheetContent side="right" className="w-80 p-0 flex flex-col h-full">
+            <div className="flex flex-col h-full min-h-0 w-full">
               {/* Header */}
               <div className="flex items-center justify-between p-4 border-b">
                 <img 
@@ -229,12 +230,12 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
 
               {/* Footer Actions */}
               <div className="p-4 border-t space-y-2">
-                {/* Settings nur für nicht-Mitarbeiter */}
-                {userRole !== 'employee' && (
+                {/* Settings nur für Mieter/Eigentümer (Admin hat es im Hauptmenü) */}
+                {(userRole === 'tenant' || userRole === 'weg_owner') && (
                   <Button
                     variant="ghost"
                     className="w-full justify-start gap-3 h-12"
-                    onClick={() => handleNavigation(userRole === 'tenant' ? '/tenant/settings' : userRole === 'weg_owner' ? '/weg-owner/settings' : '/settings')}
+                    onClick={() => handleNavigation(userRole === 'tenant' ? '/tenant/settings' : '/weg-owner/settings')}
                   >
                     <Settings className="w-5 h-5" />
                     Einstellungen
