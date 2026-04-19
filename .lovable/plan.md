@@ -1,35 +1,57 @@
 
 
-## Problem
-1. **Logischer Bug**: Wenn die KI im `TransactionReviewMode` einen §35a-Betrag vorschlägt (`amount_35a` aus `suggest-match`), wird das Feld zwar gesetzt — aber `line_items_detail` bleibt leer. Beim Öffnen des §35a-Dialogs sind deshalb keine Positionen markiert, obwohl der grüne Badge einen Betrag anzeigt. Genau das in Bild 196 zu sehen.
-2. **Darstellungs-Bug**: Der §35a-Dialog (`max-w-md`, fixe `max-h-64` für die Positionsliste) wird auf manchen Auflösungen abgeschnitten/scrollig dargestellt, besonders bei vielen OCR-Positionen.
+## Was ist der „Versorgung"-Tab aktuell?
+
+Der Tab `Versorgung` (Component: `UtilityContractsTab`) ist sehr eng zugeschnitten: Er verwaltet ausschließlich **Versorgerverträge für Gas, Strom, Wasser und Fernwärme** mit Abschlagsbeträgen, Zähler­nummern und Verknüpfung zu Vorauszahlungs-/Aufwandskonten. Er dient v.a. der automatischen Abschlagslogik (Make.com → Konten 1470–1473) und wird teilweise auch automatisch aus erkannten Abschlagsrechnungen befüllt.
+
+Er ist also **kein** allgemeines Dienstleisterverzeichnis, sondern ein Buchhaltungs-Hilfsmittel.
+
+## Was du stattdessen willst
+
+Ein **„Dienstleister"-Tab**, in dem alle gebäudebezogenen externen Partner zentral sichtbar sind:
+Handwerker, Ablesefirma, Hausmeister, Versicherung, Schornsteinfeger, Reinigung, Gärtner, Versorger usw. — mit Kontaktdaten, Gewerk/Kategorie, ggf. Vertragsnummer und Notiz.
+
+## Vorhandene Bausteine (kein Neuaufbau nötig)
+
+- `contacts` hat bereits den Typ `service_provider`.
+- `contact_persons`, `contact_phones`, `contact_emails` liefern Ansprechpartner-Struktur.
+- `contact_building_assignments` verknüpft Kontakte mit Gebäuden — kann für Dienstleister analog genutzt werden.
+- Der existierende „Personen"-Tab nutzt bereits genau diese Struktur für Eigentümer/Mieter/Beirat/Verwalter.
+
+→ Wir brauchen **keine neue Tabelle**. Wir brauchen nur:
+1. Eine neue Rolle `dienstleister` im Enum `contact_building_role`.
+2. Ein optionales Feld `service_category` (Gewerk: Handwerker, Hausmeister, Versicherung, Ablesefirma, Schornsteinfeger, Versorger, Reinigung, Gärtner, Sonstiges) auf `contact_building_assignments`.
+3. Ein neuer Reiter `Dienstleister` im Building-Hub mit eigener UI.
 
 ## Plan
 
-### 1. Auto-Auswahl der Positionen beim KI-Vorschlag (Hauptproblem)
-In `src/components/finance/TransactionReviewMode.tsx` — überall wo aus `suggested_bookings[0]` `amount_35a` und `is_35a_relevant` übernommen werden (3 Stellen: Split-Branch ~L405, Invoice+AI ~L469, AI-only ~L513) — zusätzlich `line_items_detail` befüllen über einen neuen Helper `build35aDetailFromSuggestion(invoiceLineItems, suggestedAmount, defaultType35a)`:
+### 1. Datenbank (Migration)
+- Enum `contact_building_role` um `dienstleister` erweitern.
+- Spalte `service_category text` zu `contact_building_assignments` hinzufügen (nullable, nur für Dienstleister relevant).
 
-- **Wenn `invoiceLineItems` vorhanden**: Greedy-Auswahl der Positionen, deren Summe (brutto, mit `vat_rate`) der vorgeschlagenen `amount_35a` am nächsten kommt (Toleranz ±5%). Markiere diese als `is_35a: true` mit dem Default-Typ aus dem Konto (`settlement_35a_type`).
-- **Wenn keine Positionen vorhanden** (kein OCR / keine line_items): Lege einen einzigen `is_custom: true`-Eintrag mit Beschreibung (z. B. „Lohnanteil lt. KI-Vorschlag") und dem Netto-Betrag an. So sieht der Nutzer im Dialog sofort, was der Betrag repräsentiert.
-- Speichere als JSON-String in `row.line_items_detail` (passt zum bestehenden Save-Format L1745).
+### 2. Neue UI-Komponente `BuildingServiceProvidersTab.tsx`
+Schlanke Listen-/Karten-Ansicht (kein komplexes Inline-Edit wie bei Personen):
+- Gruppierung/Filterung nach Gewerk-Kategorie (Chips oben).
+- Pro Eintrag: Firma, Gewerk-Badge, Hauptansprechpartner, Telefon, E-Mail, Notiz, Kurz-Aktionen (Bearbeiten, Entfernen, Zum Kontakt springen).
+- Button „+ Dienstleister hinzufügen" → öffnet bestehenden `AssignContactDialog` vorgefiltert auf `contact_type = service_provider` mit Gewerk-Auswahl. Wenn Kontakt nicht existiert: „Neuen Dienstleister anlegen" via `CreateContactDialog` (Typ vorbelegt).
+- Anzeige relational verknüpft mit `building_id` (Linie der RGI-Architektur: nichts isoliert).
 
-`invoiceLineItems` muss für die Berechnung im `useMemo`/Init verfügbar sein — daher Helper als reine Funktion, der `invoiceDetail?.line_items` direkt nimmt.
+### 3. Tab-Umbau in `BuildingDashboard.tsx`
+- `{ value: "utility", label: "Versorgung" }` ersetzen durch `{ value: "providers", label: "Dienstleister", icon: Briefcase }`.
+- Neuen `TabsContent` mit `BuildingServiceProvidersTab` einhängen.
+- `UtilityContractsTab` bleibt als Komponente erhalten und wird in der **Buchhaltung** (Tab `Buchen` → ggf. unter „Vorlagen" oder als neuer Unter-Reiter „Versorgerverträge") platziert, weil das logisch dorthin gehört (Abschlagskonten, Vorauszahlungslogik, Make-Integration). Alternativ: Anzeige als Sub-Section innerhalb des neuen Dienstleister-Tabs, wenn ein Eintrag der Kategorie „Versorger" angeklickt wird — gibt klare Trennung „Wer" (Dienstleister-Tab) vs. „Wie verbucht" (Buchhaltung).
 
-### 2. Sicherstellen, dass beim Öffnen des Dialogs immer ein Auswahl-State existiert
-In `Section35aEditor.tsx`: Wenn `is35aRelevant === true`, aber alle `effectiveItems` leer sind UND `invoiceLineItems` leer sind, beim Mount automatisch eine Custom-Position mit dem aktuell gespeicherten `amount_35a` einfügen, damit der Nutzer sie bearbeiten/typisieren kann.
+**Empfehlung**: `UtilityContractsTab` in die Buchhaltung verschieben (näher an den Konten), neuer Dienstleister-Tab listet die Versorger ebenfalls (über Kategorie-Filter), so dass der Nutzer sie an beiden logisch passenden Orten sieht ohne Doppel-Erfassung.
 
-### 3. Responsives §35a-Dialog-Layout
-- `DialogContent` von `max-w-md` → `max-w-lg max-h-[90vh] overflow-hidden flex flex-col`.
-- Inneren Wrapper auf `flex-1 overflow-y-auto` setzen, damit die Liste bei vielen Positionen vollständig scrollbar ist und MwSt./Summen-Block sowie „Übernehmen"-Button immer sichtbar bleiben (Sticky Footer).
-- In `Section35aEditor`: `max-h-64` der Positionsliste durch `max-h-[40vh]` ersetzen für bessere Skalierung auf großen wie kleinen Bildschirmen.
+### 4. KI-/RAG-Readiness
+Da Dienstleister vollständig in `contacts`/`contact_building_assignments` liegen, kann Nova sie automatisch als Gebäude-Kontext nutzen (z. B. „Wer ist der Hausmeister von Gebäude X?").
 
-### 4. Gleiches Verhalten in `EditBookingDialog.tsx`
-Beim Öffnen einer bestehenden Buchung mit `amount_35a > 0` aber leerem `line_items_detail` denselben Helper aufrufen, damit Altbestände konsistent angezeigt werden (rein clientseitig, kein DB-Migrationsbedarf).
+### Geänderte/neue Dateien
+- **Migration**: Enum-Erweiterung + Spalte `service_category`.
+- **Neu**: `src/components/buildings/BuildingServiceProvidersTab.tsx`.
+- **Geändert**: `src/components/buildings/BuildingDashboard.tsx` (Tab-Tausch).
+- **Geändert**: `src/components/contacts/AssignContactDialog.tsx` (Filter `service_provider` + Gewerk-Feld, optional).
+- **Geändert**: `src/pages/Finance.tsx` oder `BookingTemplatesTab` (UtilityContractsTab dorthin verschieben).
 
-### Dateien
-- `src/components/finance/TransactionReviewMode.tsx` (Helper + 3 Auto-Fill-Stellen + Dialog-Layout)
-- `src/components/finance/Section35aEditor.tsx` (Mount-Fallback + responsives Layout)
-- `src/components/finance/EditBookingDialog.tsx` (Konsistenz für bestehende Buchungen)
-
-Keine DB-Änderungen nötig.
+Keine Daten gehen verloren — bestehende `utility_contracts` bleiben unverändert nutzbar.
 
