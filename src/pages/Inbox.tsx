@@ -22,7 +22,7 @@ import { AssignEmailDialog } from "@/components/email/AssignEmailDialog";
 import { EmailHtmlBody } from "@/components/email/EmailHtmlBody";
 import { EmailSettingsSection } from "@/components/email/EmailSettingsSection";
 import { useAuth } from "@/hooks/useAuth";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 const folderIcons: Record<string, any> = {
   'inbox': InboxIcon,
@@ -70,6 +70,7 @@ export const Inbox = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { profile } = useAuth();
   const isAdmin = profile?.role === 'admin';
 
