@@ -94,21 +94,26 @@ export function Todos() {
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-4 sm:space-y-6 pb-24 md:pb-0">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
         <div>
-          <h1 className="text-xl sm:text-3xl font-semibold">Aufgaben</h1>
+          <h1 className="text-2xl sm:text-3xl font-semibold">Aufgaben</h1>
           <p className="text-muted-foreground text-sm mt-0.5 hidden sm:block">
             Verwalten Sie alle Aufgaben und To-Dos
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="sm:size-default" onClick={() => setExportDialogOpen(true)}>
+          <Button
+            variant="outline"
+            className="h-11 md:h-10 flex-1 sm:flex-initial"
+            onClick={() => setExportDialogOpen(true)}
+          >
             <Download className="h-4 w-4 sm:mr-2" />
             <span className="hidden sm:inline">Exportieren</span>
           </Button>
-          <Button size="sm" className="sm:size-default" onClick={handleCreate}>
+          {/* Desktop "Neu"-Button — auf Mobile verwenden wir den FAB */}
+          <Button className="h-11 md:h-10 hidden sm:inline-flex" onClick={handleCreate}>
             <Plus className="h-4 w-4 sm:mr-2" />
             <span className="hidden sm:inline">Neue Aufgabe</span>
           </Button>
@@ -235,6 +240,17 @@ export function Todos() {
         filters={filters}
         todos={todos}
       />
+
+      {/* Mobile FAB für „Neue Aufgabe" */}
+      <Button
+        size="icon"
+        onClick={handleCreate}
+        aria-label="Neue Aufgabe"
+        className="fixed sm:hidden right-4 bottom-4 h-14 w-14 rounded-full shadow-lg z-40"
+        style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+      >
+        <Plus className="h-6 w-6" />
+      </Button>
     </div>
   );
 }
