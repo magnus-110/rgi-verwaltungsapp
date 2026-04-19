@@ -1,44 +1,66 @@
 
 
-## Plan: Live-Abstimmung sofort aufploppen lassen
+## Performance & Skalierungs-Audit — Phasenplan
 
-### Ursache
-Die ETV-Tabellen sind nicht in der `supabase_realtime` Publication eingetragen. Der Frontend-Code (`VotingPopup.tsx`) abonniert korrekt `postgres_changes` auf `etv_agenda_items`, aber Postgres verschickt diese Events nicht.
+Bei 200 Gebäuden, tausenden Dokumenten und tausenden Eigentümern sind die kritischen Engpässe: ungefilterte Queries (1000-Zeilen-Limit), fehlende Pagination, fehlende DB-Indizes, große React-Listen ohne Virtualisierung, fehlende Memoization und N+1 Query-Patterns.
 
-### Umsetzung (eine Migration)
+### Vorgehen
+Wie bei Mobile: **5 Phasen**, jede testbar. Nach jeder Phase Freigabe.
 
-```sql
--- Realtime aktivieren für alle ETV-Tabellen
-ALTER PUBLICATION supabase_realtime ADD TABLE 
-  public.etv_agenda_items,
-  public.etv_votes,
-  public.etv_meetings,
-  public.etv_attendees;
+---
 
--- REPLICA IDENTITY FULL → liefert auch alte Werte mit (wichtig für UPDATE-Events)
-ALTER TABLE public.etv_agenda_items REPLICA IDENTITY FULL;
-ALTER TABLE public.etv_votes REPLICA IDENTITY FULL;
-ALTER TABLE public.etv_meetings REPLICA IDENTITY FULL;
-ALTER TABLE public.etv_attendees REPLICA IDENTITY FULL;
-```
+### Phase 1 — Datenbank-Foundation (Indizes & RPCs)
+**Ziel**: SQL-Layer für Skalierung vorbereiten.
+- Audit aller Tabellen mit >1.000 erwarteten Zeilen: `bookings`, `invoices`, `bank_transactions`, `document_chunks`, `building_files`, `email_messages`, `todos`, `contacts`, `contact_building_assignments`, `etv_votes`
+- Indizes auf häufige Filter: `building_id`, `fiscal_year`, `created_at DESC`, `status`, `(building_id, booking_date)`, `(user_id, building_id)`
+- Composite-Indizes für Sortierung+Filter
+- Aggregations-RPCs statt Client-Aggregationen (z.B. `get_building_dashboard_stats(building_id)`)
+- Prüfung der RLS-Policies auf Performance (vermeide Subqueries in `USING`)
 
-### Wirkung
-- Sobald Verwalter „Abstimmung starten" klickt → `etv_agenda_items.status = 'voting'`
-- Postgres sendet UPDATE-Event über Realtime
-- Auf jedem Handy aller eingeloggten Eigentümer/Bevollmächtigten triggert der bereits vorhandene Listener in `VotingPopup.tsx` sofort den Vollbild-Dialog
-- Live-Ergebnisse aktualisieren sich ebenfalls in Echtzeit (etv_votes)
-- Auch das Live-Dashboard und die Anwesenheitsliste werden synchron
+### Phase 2 — Listen & Pagination (Frontend Daten-Hydration)
+**Ziel**: Niemals mehr als 50–100 Zeilen pro Request laden.
+- Alle `select('*')` auditieren → nur benötigte Spalten
+- Server-Side Pagination via `.range(from, to)` für: `Inbox`, `Contacts`, `Todos`, `Buildings`, `Bookings`, `BankStatements`, `Invoices`, `Reports`
+- Infinite Scroll oder klassische Pagination (Cursor-basiert wo sinnvoll)
+- Server-Side Suche/Filter (statt Client-Filter über alle Daten)
+- React Query `staleTime` & `gcTime` korrekt setzen, `keepPreviousData` für sanfte UX
 
-### Voraussetzungen auf Eigentümer-Seite
-- App muss geöffnet sein (Tab/PWA aktiv) — bei geschlossener App helfen nur Push-Notifications
-- Stabile Internetverbindung
-- Eingeloggt als `weg_owner`
+### Phase 3 — Virtualisierung großer Listen
+**Ziel**: DOM bleibt klein, auch bei 1000+ Einträgen im Viewport.
+- `@tanstack/react-virtual` einführen für: `BuildingList`, `ContactList`, `BookingsTab`, `BankStatementsTab`, `EmailList`, `BuildingFilesTab`, `DocumentList`
+- Sticky Header bleibt, nur Body virtualisiert
+- Memoization von Row-Komponenten via `React.memo` + stabile Keys
 
-### Keine Code-Änderungen nötig
-Der Listener im `WegOwnerLayout` → `VotingPopup` ist bereits korrekt implementiert. Nur die Datenbank-Publication fehlt.
+### Phase 4 — Heavy Pages (Finance, ETV, Documents)
+**Ziel**: Spezifische Hot-Paths optimieren.
+- **Finance/Settlement**: Batch-Berechnungen serverseitig (Edge Function), Caching, Web Worker für Client-Berechnungen bei großen Properties
+- **ETV Live-Voting**: Realtime-Channels nur pro aktiver Meeting subscriben, debounced Updates
+- **Documents/Nova**: RAG-Suche bereits gut indexiert, aber `document_chunks` Index auf `(building_id, category)` prüfen
+- **Email Sync**: Pagination der `email_messages` (aktuell evtl. alle laden), Lazy-Load von Attachments
+- **Building Dashboard**: Stats via einer einzigen RPC statt 8 separaten Queries
 
-### Geänderte Dateien
-| Datei | Änderung |
-|---|---|
-| Neue Migration | `ALTER PUBLICATION` + `REPLICA IDENTITY FULL` für 4 ETV-Tabellen |
+### Phase 5 — Bundle, Assets & Auth
+**Ziel**: Initial Load & Wahrnehmung.
+- Code-Splitting via `React.lazy()` für Heavy-Routen (Finance, Meetings, Documents)
+- Bundle-Analyse (`vite-plugin-visualizer`) → unbenutzte Dependencies entfernen
+- Bilder/Logos: WebP, Lazy Loading
+- React Query Devtools nur in Dev
+- Auth: Session-Caching, vermeide doppelte `useAuth`-Subscriptions
+- Service Worker für Offline-First bei statischen Assets
+
+---
+
+### Empfehlung
+**Mit Phase 1 starten** — DB-Indizes sind die Foundation und liefern sofort messbare Verbesserungen ohne UI-Risiko. Dann Phase 2 (Pagination), die den größten Effekt auf User-Wahrnehmung hat. Phase 3-5 darauf aufbauend.
+
+### Geänderte Bereiche pro Phase
+| Phase | Typ | Risiko |
+|---|---|---|
+| 1 — DB Indizes | Migrations + RPCs | Niedrig (read-only Optimierung) |
+| 2 — Pagination | Hooks + Komponenten | Mittel (Datenfluss ändert sich) |
+| 3 — Virtualisierung | Listenkomponenten | Niedrig (visuell identisch) |
+| 4 — Heavy Pages | Edge Functions + Komponenten | Mittel |
+| 5 — Bundle | Vite Config + lazy imports | Niedrig |
+
+Soll ich mit **Phase 1 (Datenbank-Indizes & Aggregations-RPCs)** beginnen?
 
