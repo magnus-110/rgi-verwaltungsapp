@@ -136,9 +136,9 @@ export function BillingPeriodSelector({
   };
 
   return (
-    <div className="flex flex-col md:flex-row gap-3 items-start md:items-center">
+    <div className="flex flex-col md:flex-row gap-2 md:gap-3 items-stretch md:items-center">
       <Select value={selectedBuildingId || ""} onValueChange={(v) => { onBuildingChange(v || null); onPeriodChange(null); }}>
-        <SelectTrigger className="w-full md:w-72">
+        <SelectTrigger className="w-full md:w-72 h-11 md:h-10">
           <SelectValue placeholder="Liegenschaft wählen..." />
         </SelectTrigger>
         <SelectContent>
@@ -149,28 +149,27 @@ export function BillingPeriodSelector({
       </Select>
 
       {showPeriod && selectedBuildingId && (
-        <Select value={selectedPeriodId || ""} onValueChange={(v) => onPeriodChange(v || null)}>
-          <SelectTrigger className="w-full md:w-56">
-            <SelectValue placeholder="Zeitraum wählen..." />
-          </SelectTrigger>
-          <SelectContent>
-            {periods.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {formatPeriodLabel(p)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      )}
-
-      {showPeriod && selectedBuildingId && (
-        <Button size="sm" variant="outline" onClick={openCreateDialog}>
-          <Plus className="h-4 w-4 mr-1" /> Neues Jahr
-        </Button>
+        <div className="flex gap-2 items-stretch">
+          <Select value={selectedPeriodId || ""} onValueChange={(v) => onPeriodChange(v || null)}>
+            <SelectTrigger className="flex-1 md:w-56 h-11 md:h-10">
+              <SelectValue placeholder="Zeitraum wählen..." />
+            </SelectTrigger>
+            <SelectContent>
+              {periods.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {formatPeriodLabel(p)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button size="sm" variant="outline" onClick={openCreateDialog} className="h-11 md:h-10 px-3">
+            <Plus className="h-4 w-4 md:mr-1" /> <span className="hidden md:inline">Neues Jahr</span>
+          </Button>
+        </div>
       )}
 
       {statusInfo && (
-        <Badge className={statusInfo.color}>{statusInfo.label}</Badge>
+        <Badge className={`${statusInfo.color} self-start md:self-auto`}>{statusInfo.label}</Badge>
       )}
 
       <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>

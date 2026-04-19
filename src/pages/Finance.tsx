@@ -82,10 +82,10 @@ export const Finance = () => {
   ];
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
+    <div className="p-3 md:p-6 space-y-4 md:space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Buchhaltung</h1>
-        <p className="text-muted-foreground text-sm mt-1">
+        <h1 className="text-xl md:text-2xl font-bold">Buchhaltung</h1>
+        <p className="text-muted-foreground text-xs md:text-sm mt-1">
           Kontoauszüge, Buchungen, Abrechnungen und Wirtschaftspläne verwalten
         </p>
       </div>
@@ -99,7 +99,7 @@ export const Finance = () => {
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList variant="segment" className="grid w-full grid-cols-4">
+        <TabsList variant="segment" className="grid w-full grid-cols-4 h-auto">
           {/* Custom Buchen trigger with hover dropdown */}
           <div
             className="relative"
@@ -109,10 +109,14 @@ export const Finance = () => {
             <TabsTrigger
               variant="segment"
               value="buchen"
-              className="w-full flex items-center gap-1.5"
+              className="w-full flex items-center justify-center gap-1 md:gap-1.5 min-h-[44px] text-xs md:text-sm px-1 md:px-3"
             >
-              <span>Buchen · {subLabel}</span>
-              <ChevronDown className="h-3 w-3 opacity-50" />
+              <span className="truncate">
+                <span className="hidden sm:inline">Buchen · </span>
+                <span className="sm:hidden">Buch.</span>
+                <span className="hidden sm:inline">{subLabel}</span>
+              </span>
+              <ChevronDown className="h-3 w-3 opacity-50 flex-shrink-0" />
             </TabsTrigger>
 
             {buchenHover && (
@@ -121,7 +125,7 @@ export const Finance = () => {
                   <button
                     key={sub.value}
                     onClick={() => handleSubTabClick(sub.value)}
-                    className={`w-full text-left rounded-sm px-3 py-1.5 text-sm transition-colors hover:bg-accent hover:text-accent-foreground ${
+                    className={`w-full text-left rounded-sm px-3 py-2 text-sm transition-colors hover:bg-accent hover:text-accent-foreground ${
                       activeSubTab === sub.value && activeTab === "buchen"
                         ? "bg-accent/50 font-medium text-foreground"
                         : "text-muted-foreground"
@@ -134,9 +138,9 @@ export const Finance = () => {
             )}
           </div>
 
-          <TabsTrigger variant="segment" value="abrechnung">Abrechnung</TabsTrigger>
-          <TabsTrigger variant="segment" value="planung">Planung & Berichte</TabsTrigger>
-          <TabsTrigger variant="segment" value="kassenpruefung">Kassenprüfung</TabsTrigger>
+          <TabsTrigger variant="segment" value="abrechnung" className="min-h-[44px] text-xs md:text-sm px-1 md:px-3">Abrechnung</TabsTrigger>
+          <TabsTrigger variant="segment" value="planung" className="min-h-[44px] text-xs md:text-sm px-1 md:px-3"><span className="hidden sm:inline">Planung & Berichte</span><span className="sm:hidden">Plan.</span></TabsTrigger>
+          <TabsTrigger variant="segment" value="kassenpruefung" className="min-h-[44px] text-xs md:text-sm px-1 md:px-3"><span className="hidden sm:inline">Kassenprüfung</span><span className="sm:hidden">Kasse</span></TabsTrigger>
         </TabsList>
 
         <TabsContent value="buchen">
