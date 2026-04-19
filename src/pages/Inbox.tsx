@@ -822,9 +822,15 @@ export const Inbox = () => {
         </div>
 
         <ResizablePanelGroup direction="horizontal" className="flex-1">
-        {/* Middle: Email List */}
-        <ResizablePanel defaultSize={35} minSize={20} maxSize={60}>
+        {/* Middle: Email List — on mobile: hidden when an email is selected */}
+        <ResizablePanel
+          defaultSize={35}
+          minSize={20}
+          maxSize={60}
+          className={cn(selectedEmailId ? "hidden md:block" : "block", "!flex-[1_1_0] md:!flex-initial")}
+        >
           <div className="flex flex-col h-full">
+
 
             {/* Search - filters within selected category */}
             <div className="p-2 border-b space-y-2">
@@ -1039,10 +1045,13 @@ export const Inbox = () => {
           </div>
         </ResizablePanel>
 
-        <ResizableHandle withHandle />
+        <ResizableHandle withHandle className="hidden md:flex" />
 
-        {/* Right: Email Detail */}
-        <ResizablePanel defaultSize={65}>
+        {/* Right: Email Detail — on mobile: only visible when an email is selected */}
+        <ResizablePanel
+          defaultSize={65}
+          className={cn(selectedEmailId ? "block" : "hidden md:block", "!flex-[1_1_0] md:!flex-initial")}
+        >
           <div className="flex flex-col h-full min-w-0">
             {selectedEmail ? (
               <>
