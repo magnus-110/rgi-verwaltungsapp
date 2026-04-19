@@ -44,7 +44,7 @@ export function Transfers() {
       }
 
       if (buildingFilter === "company") {
-        query = query.eq("is_company_invoice" as any, true);
+        query = (query as any).eq("is_company_invoice", true);
       } else if (buildingFilter !== "all") {
         query = query.eq("building_id", buildingFilter);
       }
@@ -207,7 +207,7 @@ export function Transfers() {
                     <TableCell className="text-right font-semibold">{formatCurrency(inv.gross_amount)}</TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       {(inv as any).is_company_invoice ? (
-                        <Badge variant="outline" className="text-xs border-blue-500/50 text-blue-700 dark:text-blue-300 bg-blue-500/10">
+                        <Badge variant="outline" className="text-xs border-primary/40 text-primary bg-primary/10">
                           🏢 Firma
                         </Badge>
                       ) : (
