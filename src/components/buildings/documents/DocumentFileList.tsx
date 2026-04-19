@@ -60,6 +60,13 @@ export function DocumentFileList({ buildingId, categoryId, searchQuery, selected
     },
   });
 
+  const virtualizer = useVirtualizer({
+    count: files.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 96,
+    overscan: 8,
+  });
+
   if (isLoading) {
     return <div className="p-4 text-sm text-muted-foreground">Laden...</div>;
   }
