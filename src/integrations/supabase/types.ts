@@ -1654,6 +1654,7 @@ export type Database = {
           role_in_building:
             | Database["public"]["Enums"]["contact_building_role"]
             | null
+          service_category: string | null
           unit_number: string | null
           updated_at: string
           usage_since: string | null
@@ -1673,6 +1674,7 @@ export type Database = {
           role_in_building?:
             | Database["public"]["Enums"]["contact_building_role"]
             | null
+          service_category?: string | null
           unit_number?: string | null
           updated_at?: string
           usage_since?: string | null
@@ -1692,6 +1694,7 @@ export type Database = {
           role_in_building?:
             | Database["public"]["Enums"]["contact_building_role"]
             | null
+          service_category?: string | null
           unit_number?: string | null
           updated_at?: string
           usage_since?: string | null
@@ -4676,7 +4679,12 @@ export type Database = {
         | "waiting_owner"
         | "resolved"
         | "archived"
-      contact_building_role: "eigentuemer" | "mieter" | "verwalter" | "beirat"
+      contact_building_role:
+        | "eigentuemer"
+        | "mieter"
+        | "verwalter"
+        | "beirat"
+        | "dienstleister"
       contact_type: "person" | "company" | "owner_group" | "service_provider"
       contact_usage_type:
         | "selbstbewohnt"
@@ -4868,7 +4876,13 @@ export const Constants = {
         "resolved",
         "archived",
       ],
-      contact_building_role: ["eigentuemer", "mieter", "verwalter", "beirat"],
+      contact_building_role: [
+        "eigentuemer",
+        "mieter",
+        "verwalter",
+        "beirat",
+        "dienstleister",
+      ],
       contact_type: ["person", "company", "owner_group", "service_provider"],
       contact_usage_type: [
         "selbstbewohnt",
