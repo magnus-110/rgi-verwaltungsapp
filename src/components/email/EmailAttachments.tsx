@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Paperclip, Download, FileText, Image, FileSpreadsheet, File, Sparkles, Loader2, Check, FolderArchive } from "lucide-react";
+import { Paperclip, Download, FileText, Image, FileSpreadsheet, File, Sparkles, Loader2, Check, FolderArchive, Building2, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { SaveAttachmentToBuildingDialog } from "./SaveAttachmentToBuildingDialog";
@@ -66,7 +67,10 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
     }
   };
 
-  const handleImportAsInvoice = async (att: { id: string; file_path: string | null; file_name: string; file_size: number | null }) => {
+  const handleImportAsInvoice = async (
+    att: { id: string; file_path: string | null; file_name: string; file_size: number | null },
+    isCompany: boolean = false
+  ) => {
     if (!att.file_path) return;
     setImportingId(att.id);
 
@@ -97,20 +101,22 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
 
       // 3. Upload to invoices bucket
       const timestamp = Date.now();
-      const invoicePath = `unassigned/${timestamp}_${att.file_name}`;
+      const folder = isCompany ? "company" : "unassigned";
+      const invoicePath = `${folder}/${timestamp}_${att.file_name}`;
       const { error: uploadErr } = await supabase.storage
         .from("invoices")
         .upload(invoicePath, blob, { contentType: "application/pdf" });
       if (uploadErr) throw uploadErr;
 
       // 4. Create invoice record
-      const { data: invoice, error: insertErr } = await supabase
-        .from("invoices")
+      const { data: invoice, error: insertErr } = await (supabase
+        .from("invoices") as any)
         .insert({
           file_name: att.file_name,
           file_path: invoicePath,
           status: "open",
           ocr_status: "pending",
+          is_company_invoice: isCompany,
         })
         .select("id")
         .single();
@@ -118,14 +124,14 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
 
       // 5. Trigger OCR extraction
       supabase.functions.invoke("extract-invoice", {
-        body: { invoiceId: invoice.id },
+        body: { invoiceId: invoice.id, isCompanyInvoice: isCompany },
       }).catch(err => console.error("OCR trigger error:", err));
 
       setImportedIds(prev => new Set(prev).add(att.id));
-      toast.success("Rechnung importiert – OCR läuft", {
+      toast.success(isCompany ? "Als Firmen-Rechnung importiert – OCR läuft" : "Rechnung importiert – OCR läuft", {
         action: {
-          label: "Zur Finanzseite",
-          onClick: () => navigate("/finance"),
+          label: "Zur Überweisungen",
+          onClick: () => navigate("/ueberweisungen"),
         },
       });
     } catch (err: any) {
