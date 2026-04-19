@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Mail, Search, Flag, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip, ChevronDown, ChevronUp, PanelLeftClose, PanelLeftOpen, UserPlus, UserCheck, Undo2, Link2, Sparkles } from "lucide-react";
+import { Mail, Search, Flag, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip, ChevronDown, ChevronUp, PanelLeftClose, PanelLeftOpen, UserPlus, UserCheck, Undo2, Link2, Sparkles, Menu, ArrowLeft } from "lucide-react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import { AssignEmailDialog } from "@/components/email/AssignEmailDialog";
 import { EmailHtmlBody } from "@/components/email/EmailHtmlBody";
 import { EmailSettingsSection } from "@/components/email/EmailSettingsSection";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 const folderIcons: Record<string, any> = {
@@ -64,6 +65,7 @@ export const Inbox = () => {
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [filterAssignedTo, setFilterAssignedTo] = useState<string>("all");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileFoldersOpen, setMobileFoldersOpen] = useState(false);
   const [newContactDialogOpen, setNewContactDialogOpen] = useState(false);
   const [newContactData, setNewContactData] = useState({ first_name: "", last_name: "", company_name: "", email: "" });
   const [contactSearchTerm, setContactSearchTerm] = useState("");
@@ -73,6 +75,7 @@ export const Inbox = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const { profile } = useAuth();
   const isAdmin = profile?.role === 'admin';
+  const isMobile = useIsMobile();
 
   // Fetch folders
   const { data: folders = [] } = useQuery({
