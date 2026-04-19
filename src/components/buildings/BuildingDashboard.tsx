@@ -49,15 +49,26 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
     },
   });
 
-  const { data: contactCount = 0 } = useQuery({
-    queryKey: ['building-contact-count', buildingId],
+  // Aggregierte Counts via RPC (1 Query statt 5)
+  const { data: stats } = useQuery({
+    queryKey: ['building-stats', buildingId, building?.management_mode],
     queryFn: async () => {
-      const { count } = await supabase.from('contact_building_assignments').select('*', { count: 'exact', head: true })
-        .eq('building_id', buildingId).eq('is_active', true);
-      return count || 0;
+      const { data, error } = await supabase.rpc('get_building_dashboard_stats', { p_building_id: buildingId });
+      if (error) {
+        console.warn('Dashboard stats RPC failed', error);
+        return null;
+      }
+      return data as Record<string, number> | null;
     },
+    enabled: !!building,
+    staleTime: 60_000,
   });
 
+  const contactCount = stats?.contact_count ?? 0;
+  const fileCount = stats?.file_count ?? 0;
+  const forumCount = stats?.forum_count ?? 0;
+
+  // Reports (modus-abhängig, separat)
   const { data: reportCount = 0 } = useQuery({
     queryKey: ['building-report-count', buildingId, building?.management_mode],
     queryFn: async () => {
@@ -70,22 +81,6 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
     enabled: !!building,
   });
 
-  const { data: fileCount = 0 } = useQuery({
-    queryKey: ['building-file-count', buildingId],
-    queryFn: async () => {
-      const { count } = await supabase.from('building_files').select('*', { count: 'exact', head: true }).eq('building_id', buildingId);
-      return count || 0;
-    },
-  });
-
-  const { data: forumCount = 0 } = useQuery({
-    queryKey: ['building-forum-count', buildingId],
-    queryFn: async () => {
-      const { count } = await supabase.from('forum_posts').select('*', { count: 'exact', head: true }).eq('building_id', buildingId);
-      return count || 0;
-    },
-  });
-
   const { data: managerNames = [] } = useQuery({
     queryKey: ['building-managers-names', buildingId],
     queryFn: async () => {
@@ -94,6 +89,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
       return data || [];
     },
   });
+
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ['building-detail', buildingId] });
