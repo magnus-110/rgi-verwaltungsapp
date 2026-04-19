@@ -839,7 +839,7 @@ export const Inbox = () => {
           maxSize={60}
           className={cn(selectedEmailId ? "hidden md:!block" : "!block", "!flex-[1_1_0] md:!flex-initial !h-full !overflow-hidden")}
         >
-          <div className="flex flex-col h-full">
+          <div className="flex flex-col h-full min-h-0">
 
 
             {/* Search - filters within selected category */}
