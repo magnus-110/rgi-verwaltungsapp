@@ -580,8 +580,38 @@ export const Inbox = () => {
   };
 
   return (
-    <div className="h-[calc(100vh-8rem)] flex rounded-lg border bg-background overflow-hidden">
-      {/* Left: Folders & Accounts - collapsible */}
+    <div className="h-[calc(100vh-8rem)] md:h-[calc(100vh-8rem)] flex flex-col md:flex-row rounded-lg border bg-background overflow-hidden">
+      {/* Mobile-only header bar — shows hamburger + back button + sync */}
+      <div className="md:hidden flex items-center justify-between px-2 py-2 border-b shrink-0 gap-2">
+        {selectedEmailId ? (
+          <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => setSelectedEmailId(null)} aria-label="Zurück">
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
+        ) : (
+          <Button variant="ghost" size="icon" className="h-10 w-10" onClick={() => setMobileFoldersOpen(true)} aria-label="Ordner öffnen">
+            <Menu className="h-5 w-5" />
+          </Button>
+        )}
+        <span className="font-medium text-sm truncate flex-1 text-center">
+          {selectedEmailId
+            ? (selectedEmail?.subject || "(Kein Betreff)")
+            : (folders.find(f => f.id === selectedFolderId)?.name || "Postfach")}
+        </span>
+        {!selectedEmailId && (
+          <>
+            <Button variant="ghost" size="icon" className="h-10 w-10" onClick={handleSync} disabled={isSyncing} aria-label="Synchronisieren">
+              {isSyncing ? <Loader2 className="h-5 w-5 animate-spin" /> : <RefreshCw className="h-5 w-5" />}
+            </Button>
+            <Button size="icon" className="h-10 w-10" onClick={() => openCompose()} aria-label="Neue E-Mail">
+              <Plus className="h-5 w-5" />
+            </Button>
+          </>
+        )}
+        {selectedEmailId && <div className="w-10" />}
+      </div>
+
+      {/* Left: Folders & Accounts - hidden on mobile (Sheet instead) */}
+      <div className={cn("hidden md:flex", sidebarCollapsed ? "" : "")} style={{ display: 'contents' }}>
       {sidebarCollapsed ? (
         <div className="w-10 border-r flex flex-col items-center py-2 shrink-0">
           <Button variant="ghost" size="icon" className="h-8 w-8 mb-2" onClick={() => setSidebarCollapsed(false)} title="Navigation einblenden">
