@@ -197,39 +197,27 @@ export const Inbox = () => {
     },
   });
 
-  // Fetch emails for selected folder
+  // Fetch emails for selected folder — slim columns; body wird lazy für Detail geladen
   const { data: emails = [], isLoading: emailsLoading } = useQuery({
     queryKey: ["emails", selectedFolderId, searchTerm, selectedAccountIds, isArchiveFolder, filterBuildingId, filterContactId, filterAssignedTo],
     queryFn: async () => {
       let query = supabase
         .from("emails")
-        .select("*")
+        .select("id, account_id, folder_id, subject, from_name, from_address, to_addresses, cc_addresses, date, is_read, is_starred, is_archived, has_attachments, ai_category, ai_priority, ai_summary, body_html, body_text, building_id, contact_id, assigned_to, deleted_at, case_id, message_id")
         .order("date", { ascending: false })
         .limit(200);
 
       if (isArchiveFolder) {
-        // Archive: show archived emails
         query = query.eq("is_archived", true);
-        
-        if (filterBuildingId !== "all") {
-          query = query.eq("building_id", filterBuildingId);
-        }
-        if (filterContactId !== "all") {
-          query = query.eq("contact_id", filterContactId);
-        }
+        if (filterBuildingId !== "all") query = query.eq("building_id", filterBuildingId);
+        if (filterContactId !== "all") query = query.eq("contact_id", filterContactId);
       } else {
-        // Normal folders: exclude archived
         query = query.eq("is_archived", false);
-        
-        if (selectedFolderId) {
-          query = query.eq("folder_id", selectedFolderId);
-        }
+        if (selectedFolderId) query = query.eq("folder_id", selectedFolderId);
       }
 
       if (selectedAccountIds !== null) {
-        if (selectedAccountIds.length === 0) {
-          return [];
-        }
+        if (selectedAccountIds.length === 0) return [];
         query = query.in("account_id", selectedAccountIds);
       }
 
@@ -240,7 +228,8 @@ export const Inbox = () => {
       }
 
       if (searchTerm.trim()) {
-        query = query.or(`subject.ilike.%${searchTerm}%,from_name.ilike.%${searchTerm}%,from_address.ilike.%${searchTerm}%,body_text.ilike.%${searchTerm}%`);
+        // Header-Suche serverseitig; body_text-Suche entfällt (zu teuer ohne Volltext-Index)
+        query = query.or(`subject.ilike.%${searchTerm}%,from_name.ilike.%${searchTerm}%,from_address.ilike.%${searchTerm}%`);
       }
 
       const { data, error } = await query;

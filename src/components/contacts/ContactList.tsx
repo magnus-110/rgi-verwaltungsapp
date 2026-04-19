@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, memo } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Search, User, Building2, Users, Wrench, Upload } from "lucide-react";
+import { Plus, Search, User, Building2, Wrench, Upload, ChevronLeft, ChevronRight } from "lucide-react";
 import { CreateContactDialog } from "./CreateContactDialog";
 import { ImportContactsCsvDialog } from "./ImportContactsCsvDialog";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,48 +20,116 @@ interface ContactListProps {
   onSelect: (id: string) => void;
   onCreated: () => void;
   loading: boolean;
+  // Server-Side Pagination + Suche
+  search: string;
+  onSearchChange: (v: string) => void;
+  page: number;
+  pageSize: number;
+  total: number;
+  onPageChange: (p: number) => void;
 }
 
-export function ContactList({ contacts, selectedId, onSelect, onCreated, loading }: ContactListProps) {
-  const [search, setSearch] = useState("");
+const getDisplayName = (c: Contact) => {
+  if (c.company_name) return c.company_name;
+  if (c.short_name) return c.short_name;
+  return [c.last_name, c.first_name].filter(Boolean).join(", ") || "Unbenannt";
+};
+
+const ContactRow = memo(function ContactRow({
+  contact,
+  selected,
+  onSelect,
+  primaryName,
+}: {
+  contact: Contact;
+  selected: boolean;
+  onSelect: (id: string) => void;
+  primaryName?: string;
+}) {
+  const typeConfig = TYPE_CONFIG[contact.contact_type || "person"];
+  return (
+    <div
+      onClick={() => onSelect(contact.id)}
+      className={`flex items-center gap-3 px-4 py-3 cursor-pointer border-b border-border transition-colors ${
+        selected ? "bg-primary/10 border-l-2 border-l-primary" : "hover:bg-muted"
+      }`}
+    >
+      <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+        {typeConfig ? <typeConfig.icon className="h-4 w-4 text-muted-foreground" /> : <User className="h-4 w-4 text-muted-foreground" />}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <p className="text-sm font-medium truncate">{getDisplayName(contact)}</p>
+          {typeConfig && contact.contact_type && contact.contact_type !== "person" && (
+            <Badge variant={typeConfig.variant} className="text-[9px] px-1 py-0 shrink-0">
+              {typeConfig.label}
+            </Badge>
+          )}
+        </div>
+        {primaryName && (contact.contact_type === "company" || contact.contact_type === "service_provider") && (
+          <p className="text-xs text-muted-foreground truncate">{primaryName}</p>
+        )}
+        {contact.short_name && contact.company_name && (
+          <p className="text-xs text-muted-foreground truncate">{contact.short_name}</p>
+        )}
+      </div>
+    </div>
+  );
+});
+
+export function ContactList({
+  contacts,
+  selectedId,
+  onSelect,
+  onCreated,
+  loading,
+  search,
+  onSearchChange,
+  page,
+  pageSize,
+  total,
+  onPageChange,
+}: ContactListProps) {
   const [showCreate, setShowCreate] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [primaryPersons, setPrimaryPersons] = useState<Record<string, string>>({});
+  const [searchInput, setSearchInput] = useState(search);
 
-  // Load primary person names for all contacts
+  // Debounce Server-Side-Search
   useEffect(() => {
-    const loadPrimaryPersons = async () => {
+    const t = setTimeout(() => onSearchChange(searchInput), 300);
+    return () => clearTimeout(t);
+  }, [searchInput, onSearchChange]);
+
+  // Lade Primary Persons NUR für die sichtbaren Kontakte
+  useEffect(() => {
+    if (contacts.length === 0) {
+      setPrimaryPersons({});
+      return;
+    }
+    const ids = contacts.map((c) => c.id);
+    let cancelled = false;
+    (async () => {
       const { data } = await supabase
         .from("contact_persons")
         .select("contact_id, first_name, last_name")
+        .in("contact_id", ids)
         .eq("is_primary", true);
-      if (data) {
-        const map: Record<string, string> = {};
-        data.forEach(p => {
-          map[p.contact_id] = [p.first_name, p.last_name].filter(Boolean).join(" ");
-        });
-        setPrimaryPersons(map);
-      }
+      if (cancelled || !data) return;
+      const map: Record<string, string> = {};
+      data.forEach((p: any) => {
+        map[p.contact_id] = [p.first_name, p.last_name].filter(Boolean).join(" ");
+      });
+      setPrimaryPersons(map);
+    })();
+    return () => {
+      cancelled = true;
     };
-    loadPrimaryPersons();
   }, [contacts]);
 
-  const filtered = contacts.filter((c) => {
-    const term = search.toLowerCase();
-    return (
-      (c.first_name || "").toLowerCase().includes(term) ||
-      (c.last_name || "").toLowerCase().includes(term) ||
-      (c.company_name || "").toLowerCase().includes(term) ||
-      (c.short_name || "").toLowerCase().includes(term) ||
-      (primaryPersons[c.id] || "").toLowerCase().includes(term)
-    );
-  });
-
-  const getDisplayName = (c: Contact) => {
-    if (c.company_name) return c.company_name;
-    if (c.short_name) return c.short_name;
-    return [c.last_name, c.first_name].filter(Boolean).join(", ") || "Unbenannt";
-  };
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const showingFrom = total === 0 ? 0 : page * pageSize + 1;
+  const showingTo = Math.min(total, (page + 1) * pageSize);
 
   return (
     <div className="h-full flex flex-col border-r border-border bg-background">
@@ -81,8 +149,8 @@ export function ContactList({ contacts, selectedId, onSelect, onCreated, loading
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Suchen..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             className="pl-9"
           />
         </div>
@@ -91,48 +159,51 @@ export function ContactList({ contacts, selectedId, onSelect, onCreated, loading
       <div className="flex-1 overflow-y-auto">
         {loading ? (
           <div className="p-4 text-center text-muted-foreground text-sm">Laden...</div>
-        ) : filtered.length === 0 ? (
+        ) : contacts.length === 0 ? (
           <div className="p-4 text-center text-muted-foreground text-sm">
             {search ? "Keine Ergebnisse" : "Noch keine Kontakte"}
           </div>
         ) : (
-          filtered.map((c) => {
-            const typeConfig = TYPE_CONFIG[c.contact_type || "person"];
-            const primaryName = primaryPersons[c.id];
-            return (
-              <div
-                key={c.id}
-                onClick={() => onSelect(c.id)}
-                className={`flex items-center gap-3 px-4 py-3 cursor-pointer border-b border-border transition-colors ${
-                  selectedId === c.id
-                    ? "bg-primary/10 border-l-2 border-l-primary"
-                    : "hover:bg-muted"
-                }`}
-              >
-                <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
-                  {typeConfig ? <typeConfig.icon className="h-4 w-4 text-muted-foreground" /> : <User className="h-4 w-4 text-muted-foreground" />}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-sm font-medium truncate">{getDisplayName(c)}</p>
-                    {typeConfig && c.contact_type && c.contact_type !== "person" && (
-                      <Badge variant={typeConfig.variant} className="text-[9px] px-1 py-0 shrink-0">
-                        {typeConfig.label}
-                      </Badge>
-                    )}
-                  </div>
-                  {primaryName && (c.contact_type === "company" || c.contact_type === "service_provider") && (
-                    <p className="text-xs text-muted-foreground truncate">{primaryName}</p>
-                  )}
-                  {c.short_name && c.company_name && (
-                    <p className="text-xs text-muted-foreground truncate">{c.short_name}</p>
-                  )}
-                </div>
-              </div>
-            );
-          })
+          contacts.map((c) => (
+            <ContactRow
+              key={c.id}
+              contact={c}
+              selected={selectedId === c.id}
+              onSelect={onSelect}
+              primaryName={primaryPersons[c.id]}
+            />
+          ))
         )}
       </div>
+
+      {total > pageSize && (
+        <div className="border-t border-border p-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+          <span>{showingFrom}–{showingTo} von {total}</span>
+          <div className="flex items-center gap-1">
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7"
+              disabled={page === 0}
+              onClick={() => onPageChange(page - 1)}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="px-1">
+              {page + 1} / {totalPages}
+            </span>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7"
+              disabled={page + 1 >= totalPages}
+              onClick={() => onPageChange(page + 1)}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       <CreateContactDialog
         open={showCreate}

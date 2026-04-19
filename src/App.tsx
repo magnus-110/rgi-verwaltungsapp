@@ -53,7 +53,17 @@ import { TenantFiles } from "./pages/tenant/Files";
 import NotFound from "./pages/NotFound";
 import Offline from "./pages/Offline";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Skalierungs-Defaults: weniger Refetches bei großen Datenmengen
+      staleTime: 1000 * 60 * 2,        // 2 min: Daten gelten als frisch
+      gcTime: 1000 * 60 * 10,           // 10 min: Cache-Retention
+      refetchOnWindowFocus: false,      // verhindert Storm bei Tab-Wechsel
+      retry: 1,                          // schnelles Fail statt 3× Retry
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>

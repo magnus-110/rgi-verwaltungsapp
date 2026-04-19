@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { ContactList } from "@/components/contacts/ContactList";
@@ -23,39 +24,78 @@ export interface Contact {
   updated_at: string;
 }
 
+const PAGE_SIZE = 100;
+
 export function Contacts() {
-  const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedContactId, setSelectedContactId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(0);
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const fetchContacts = async () => {
-    const { data, error } = await supabase
-      .from("contacts")
-      .select("*")
-      .order("last_name", { ascending: true });
+  // Server-Side Pagination + Suche; nur benötigte Spalten
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ["contacts", search, page],
+    placeholderData: keepPreviousData,
+    queryFn: async () => {
+      const from = page * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+      let q = supabase
+        .from("contacts")
+        .select(
+          "id, short_name, salutation, first_name, last_name, company_name, address_street, address_zip, address_city, notes, contact_type, created_at, updated_at",
+          { count: "exact" }
+        )
+        .order("last_name", { ascending: true, nullsFirst: false })
+        .range(from, to);
 
-    if (error) {
-      toast({ title: "Fehler", description: error.message, variant: "destructive" });
-    } else {
-      setContacts(data || []);
-    }
-    setLoading(false);
-  };
+      if (search.trim()) {
+        const term = `%${search.trim()}%`;
+        q = q.or(
+          `last_name.ilike.${term},first_name.ilike.${term},company_name.ilike.${term},short_name.ilike.${term}`
+        );
+      }
 
+      const { data, error, count } = await q;
+      if (error) {
+        toast({ title: "Fehler", description: error.message, variant: "destructive" });
+        throw error;
+      }
+      return { rows: (data || []) as Contact[], total: count ?? 0 };
+    },
+  });
+
+  const contacts = data?.rows || [];
+  const total = data?.total || 0;
+
+  // Selektierten Kontakt einzeln laden, falls nicht in der aktuellen Seite
+  const { data: selectedFromUrl } = useQuery({
+    queryKey: ["contact-by-id", selectedContactId],
+    enabled: !!selectedContactId && !contacts.some((c) => c.id === selectedContactId),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("contacts")
+        .select(
+          "id, short_name, salutation, first_name, last_name, company_name, address_street, address_zip, address_city, notes, contact_type, created_at, updated_at"
+        )
+        .eq("id", selectedContactId!)
+        .maybeSingle();
+      if (error) throw error;
+      return data as Contact | null;
+    },
+  });
+
+  // Seite zurücksetzen bei Suchänderung
   useEffect(() => {
-    fetchContacts();
-  }, []);
+    setPage(0);
+  }, [search]);
 
-  // Apply ?id=… from URL once contacts are loaded
+  // ?id= aus URL anwenden
   useEffect(() => {
     const idFromUrl = searchParams.get("id");
-    if (idFromUrl && contacts.some((c) => c.id === idFromUrl)) {
-      setSelectedContactId(idFromUrl);
-    }
-  }, [contacts, searchParams]);
+    if (idFromUrl) setSelectedContactId(idFromUrl);
+  }, [searchParams]);
 
   const handleSelect = (id: string | null) => {
     setSelectedContactId(id);
@@ -65,10 +105,11 @@ export function Contacts() {
 
   const handleDeleted = () => {
     handleSelect(null);
-    fetchContacts();
+    refetch();
   };
 
-  const selectedContact = contacts.find((c) => c.id === selectedContactId) || null;
+  const selectedContact =
+    contacts.find((c) => c.id === selectedContactId) || selectedFromUrl || null;
 
   if (isMobile) {
     if (selectedContactId && selectedContact) {
@@ -77,7 +118,7 @@ export function Contacts() {
           <ContactDetail
             contact={selectedContact}
             onBack={() => handleSelect(null)}
-            onUpdate={fetchContacts}
+            onUpdate={refetch}
             onDeleted={handleDeleted}
           />
         </div>
@@ -89,8 +130,14 @@ export function Contacts() {
           contacts={contacts}
           selectedId={selectedContactId}
           onSelect={handleSelect}
-          onCreated={fetchContacts}
-          loading={loading}
+          onCreated={refetch}
+          loading={isLoading}
+          search={search}
+          onSearchChange={setSearch}
+          page={page}
+          pageSize={PAGE_SIZE}
+          total={total}
+          onPageChange={setPage}
         />
       </div>
     );
@@ -104,8 +151,14 @@ export function Contacts() {
             contacts={contacts}
             selectedId={selectedContactId}
             onSelect={handleSelect}
-            onCreated={fetchContacts}
-            loading={loading}
+            onCreated={refetch}
+            loading={isLoading}
+            search={search}
+            onSearchChange={setSearch}
+            page={page}
+            pageSize={PAGE_SIZE}
+            total={total}
+            onPageChange={setPage}
           />
         </ResizablePanel>
         <ResizableHandle withHandle />
@@ -113,7 +166,7 @@ export function Contacts() {
           {selectedContact ? (
             <ContactDetail
               contact={selectedContact}
-              onUpdate={fetchContacts}
+              onUpdate={refetch}
               onDeleted={handleDeleted}
             />
           ) : (
