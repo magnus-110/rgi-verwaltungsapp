@@ -13,7 +13,8 @@ import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Pencil, Trash2, LayoutTemplate, Loader2, Check, ChevronsUpDown, FileText, Building2, CreditCard, Receipt, CalendarDays, Settings2, Zap, Sparkles } from "lucide-react";
+import { Plus, Pencil, Trash2, LayoutTemplate, Loader2, Check, ChevronsUpDown, FileText, Building2, CreditCard, Receipt, CalendarDays, Settings2, Zap, Sparkles, Eye } from "lucide-react";
+import { PdfViewerModal } from "@/components/documents/PdfViewerModal";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -82,6 +83,27 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
   const [selectedSuggestions, setSelectedSuggestions] = useState<Set<number>>(new Set());
   const [savingSuggestions, setSavingSuggestions] = useState(false);
   const [editingSuggestionIdx, setEditingSuggestionIdx] = useState<number | null>(null);
+  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+  const [previewPdfName, setPreviewPdfName] = useState<string>("Rechnung");
+
+  const openInvoicePreview = async (invoiceId: string) => {
+    const { data: inv, error } = await supabase
+      .from("invoices")
+      .select("file_path, invoice_number, vendor_name")
+      .eq("id", invoiceId)
+      .single();
+    if (error || !inv?.file_path) {
+      toast.error("Keine Datei für diese Rechnung vorhanden");
+      return;
+    }
+    const { data: signed } = await supabase.storage.from("invoices").createSignedUrl(inv.file_path, 300);
+    if (!signed?.signedUrl) {
+      toast.error("Datei konnte nicht geladen werden");
+      return;
+    }
+    setPreviewPdfName(`${inv.invoice_number || "Rechnung"} – ${inv.vendor_name || ""}`);
+    setPreviewPdfUrl(signed.signedUrl);
+  };
 
   const filterBuildingId = sharedBuildingId || internalFilterBuildingId;
 
@@ -147,7 +169,7 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
       if (!form.building_id) return [];
       const { data, error } = await supabase
         .from("invoices")
-        .select("id, invoice_number, vendor_name, invoice_date, gross_amount")
+        .select("id, invoice_number, vendor_name, invoice_date, gross_amount, file_path")
         .eq("building_id", form.building_id)
         .order("invoice_date", { ascending: false })
         .limit(200);
@@ -778,17 +800,30 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
                 z.B. Abschlagsbescheid des Gaslieferanten als Nachweis für die monatlichen Zahlungen
               </p>
               <Popover open={invoiceOpen} onOpenChange={setInvoiceOpen}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" role="combobox" aria-expanded={invoiceOpen} className="w-full justify-between font-normal">
-                    {form.linked_invoice_id
-                      ? (() => {
-                          const inv = invoices.find((i: any) => i.id === form.linked_invoice_id);
-                          return inv ? `${inv.invoice_number || "Ohne Nr."} – ${inv.vendor_name || ""}` : "Rechnung wählen";
-                        })()
-                      : "Keine Rechnung verknüpft"}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
+                <div className="flex items-center gap-2">
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" aria-expanded={invoiceOpen} className="flex-1 justify-between font-normal">
+                      {form.linked_invoice_id
+                        ? (() => {
+                            const inv = invoices.find((i: any) => i.id === form.linked_invoice_id);
+                            return inv ? `${inv.invoice_number || "Ohne Nr."} – ${inv.vendor_name || ""}` : "Rechnung wählen";
+                          })()
+                        : "Keine Rechnung verknüpft"}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  {form.linked_invoice_id && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => openInvoicePreview(form.linked_invoice_id)}
+                      title="Rechnung öffnen"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
                 <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
                   <Command>
                     <CommandInput placeholder="Rechnung suchen..." value={invoiceSearch} onValueChange={setInvoiceSearch} />
@@ -804,15 +839,26 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
                             key={inv.id}
                             value={`${inv.invoice_number || ""} ${inv.vendor_name || ""}`}
                             onSelect={() => { setForm({ ...form, linked_invoice_id: inv.id }); setInvoiceOpen(false); }}
+                            className="flex items-center gap-2"
                           >
-                            <Check className={cn("mr-2 h-4 w-4", form.linked_invoice_id === inv.id ? "opacity-100" : "opacity-0")} />
-                            <div className="flex flex-col">
-                              <span className="text-sm">{inv.invoice_number || "Ohne Nr."} – {inv.vendor_name || "Unbekannt"}</span>
+                            <Check className={cn("h-4 w-4 shrink-0", form.linked_invoice_id === inv.id ? "opacity-100" : "opacity-0")} />
+                            <div className="flex flex-col flex-1 min-w-0">
+                              <span className="text-sm truncate">{inv.invoice_number || "Ohne Nr."} – {inv.vendor_name || "Unbekannt"}</span>
                               <span className="text-xs text-muted-foreground">
                                 {inv.invoice_date ? new Date(inv.invoice_date).toLocaleDateString("de-DE") : ""} 
                                 {inv.gross_amount != null ? ` · ${formatCurrency(inv.gross_amount)}` : ""}
                               </span>
                             </div>
+                            {inv.file_path && (
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); e.preventDefault(); openInvoicePreview(inv.id); }}
+                                className="ml-auto p-1.5 rounded hover:bg-accent shrink-0"
+                                title="Rechnung öffnen"
+                              >
+                                <Eye className="h-4 w-4 text-muted-foreground" />
+                              </button>
+                            )}
                           </CommandItem>
                         ))}
                       </CommandGroup>
@@ -822,6 +868,15 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
               </Popover>
             </div>
           </div>
+
+          {previewPdfUrl && (
+            <PdfViewerModal
+              isOpen={!!previewPdfUrl}
+              onClose={() => setPreviewPdfUrl(null)}
+              documentUrl={previewPdfUrl}
+              documentName={previewPdfName}
+            />
+          )}
 
           <DialogFooter className="mt-6">
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Abbrechen</Button>
