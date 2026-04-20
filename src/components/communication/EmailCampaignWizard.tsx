@@ -288,9 +288,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
                       monospace={bodyFormat === "html"}
                       minHeight={320}
                       ariaLabel="Inhalt"
-                      placeholder={bodyFormat === "html"
-                        ? "<p>{{anrede_brief}}</p>\n<p>...</p>"
-                        : "{{anrede_brief}}\n\n..."}
+                      placeholder=""
                     />
                     <p className="text-[11px] text-muted-foreground mt-1">
                       Platzhalter werden direkt mit den Daten der ersten ausgewählten Person angezeigt (grau hinterlegt).
