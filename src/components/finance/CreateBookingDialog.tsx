@@ -94,6 +94,17 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
     }
   }, [open, preselectedBuildingId, preselectedYear, prefill]);
 
+  // Auto-open Konto picker when dialog opens (skip if prefill already set the account)
+  useEffect(() => {
+    if (!open) return;
+    if (prefill?.account_id) return;
+    const t = setTimeout(() => {
+      const trigger = document.querySelector<HTMLButtonElement>('[data-booking-form] [role="combobox"]');
+      trigger?.click();
+    }, 150);
+    return () => clearTimeout(t);
+  }, [open, prefill]);
+
   const { data: accounts = [] } = useQuery({
     queryKey: ["chart-of-accounts", form.building_id],
     queryFn: async () => {
