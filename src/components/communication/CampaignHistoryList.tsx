@@ -72,7 +72,7 @@ export const CampaignHistoryList = ({ buildingId }: Props) => {
                   <div className="text-xs text-destructive mt-1 truncate">{c.error_message}</div>
                 )}
                 {c.scheduled_at && c.status === "scheduled" && (
-                  <div className="text-xs text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
+                  <div className="text-xs text-warning-foreground mt-1 flex items-center gap-1">
                     <CalendarClock className="h-3 w-3" /> Geplant: {new Date(c.scheduled_at).toLocaleString("de-DE")}
                   </div>
                 )}
