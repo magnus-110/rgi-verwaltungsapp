@@ -42,13 +42,18 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
   const [resultStats, setResultStats] = useState<{ ok: number; failed: number } | null>(null);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [scheduledAt, setScheduledAt] = useState<string>("");
-  const [bodyFormat, setBodyFormat] = useState<"html" | "plain">("html");
+  const [bodyFormat, setBodyFormat] = useState<"html" | "plain">("plain");
+  const [viewMode, setViewMode] = useState<"write" | "preview">("write");
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingScheduled, setPendingScheduled] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const subjectRef = useRef<HTMLInputElement>(null);
   const lastFocused = useRef<"subject" | "body">("body");
   const { toast } = useToast();
   const qc = useQueryClient();
   const { data: placeholderStats } = usePlaceholderStats(buildingId, filter.contact_ids);
+  const { data: placeholderSamples } = usePlaceholderSamples(buildingId, filter.contact_ids);
+  const recipientCount = (filter.contact_ids || []).filter((id) => id !== "__none__").length;
 
   const insertAtCursor = (placeholder: string) => {
     const target = lastFocused.current === "subject" ? subjectRef.current : bodyRef.current;
