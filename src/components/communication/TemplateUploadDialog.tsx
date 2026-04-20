@@ -63,23 +63,11 @@ export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultTy
   };
 
   const insertPlaceholder = (ph: string) => {
-    const ta = bodyRef.current;
-    if (!ta) { setBodyHtml(bodyHtml + ph); return; }
-    const start = ta.selectionStart ?? ta.value.length;
-    const end = ta.selectionEnd ?? start;
-    const next = ta.value.slice(0, start) + ph + ta.value.slice(end);
-    setBodyHtml(next);
-    requestAnimationFrame(() => {
-      ta.focus();
-      const p = start + ph.length;
-      ta.setSelectionRange(p, p);
-    });
+    bodyRef.current?.insert(ph);
   };
 
-  const handleDrop = (e: React.DragEvent<HTMLTextAreaElement>) => {
-    e.preventDefault();
-    const ph = e.dataTransfer.getData("text/plain");
-    if (ph) insertPlaceholder(ph);
+  const handleDrop = (_e: React.DragEvent) => {
+    // Drag handling lives inside the WysiwygPlaceholderEditor itself.
   };
 
   const handleSave = async () => {
