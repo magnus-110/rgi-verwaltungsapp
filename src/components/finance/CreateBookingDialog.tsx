@@ -302,23 +302,33 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
               <Input className="h-9 text-sm" value={form.description} onChange={e => set("description", e.target.value)} placeholder="Beschreibung der Buchung…" />
             </div>
 
-            {/* Compact row: Kürzel, Beleg-Datum, Beleg-Nr, MwSt */}
+            {/* Compact row: Belegnummer, Beleg-Datum, Wirtschaftsjahr, MwSt */}
             <div className="grid grid-cols-4 gap-2">
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Belegnummer</label>
-                <Input className="h-8 text-xs font-mono" value={form.booking_reference} onChange={e => set("booking_reference", e.target.value)} />
+                <Input className="h-8 text-xs font-mono" value={form.booking_reference} onChange={e => set("booking_reference", e.target.value)} placeholder="MM/JJ" />
               </div>
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Beleg-Datum *</label>
                 <Input type="date" className="h-8 text-xs" value={form.booking_date}
                   onChange={e => {
                     const val = e.target.value;
-                    setForm(prev => ({ ...prev, booking_date: val, fiscal_year: val ? String(new Date(val).getFullYear()) : prev.fiscal_year }));
+                    setForm(prev => {
+                      const newRef = formatBelegRef(val);
+                      const oldRef = formatBelegRef(prev.booking_date);
+                      const shouldUpdateRef = !prev.booking_reference || prev.booking_reference === oldRef;
+                      return {
+                        ...prev,
+                        booking_date: val,
+                        fiscal_year: val ? String(new Date(val).getFullYear()) : prev.fiscal_year,
+                        booking_reference: shouldUpdateRef ? newRef : prev.booking_reference,
+                      };
+                    });
                   }} />
               </div>
               <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Beleg-Nr.</label>
-                <Input className="h-8 text-xs" value={form.receipt_number} onChange={e => set("receipt_number", e.target.value)} />
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Wirtschaftsjahr</label>
+                <Input className="h-8 text-xs font-mono" type="number" value={form.fiscal_year} onChange={e => set("fiscal_year", e.target.value)} />
               </div>
               <div>
                 {(() => {
@@ -342,14 +352,6 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                     </>
                   );
                 })()}
-              </div>
-            </div>
-
-            {/* Wirtschaftsjahr */}
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Wirtschaftsjahr</label>
-                <Input className="h-8 text-xs font-mono" type="number" value={form.fiscal_year} onChange={e => set("fiscal_year", e.target.value)} />
               </div>
             </div>
 
