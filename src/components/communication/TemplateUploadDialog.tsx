@@ -245,28 +245,29 @@ export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultTy
                 <div className="space-y-3 min-w-0">
                   <div>
                     <Label>Betreff *</Label>
-                    <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="z. B. Wichtige Information zur Hausversammlung" />
-                    {subject && (
-                      <div className="mt-1.5 rounded-md border bg-muted/20 px-2.5 py-1.5 text-xs flex items-baseline gap-2">
-                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Vorschau:</span>
-                        <EmailPreviewPane subject={subject} body="" format="plain" samples={placeholderSamples} subjectOnly />
-                      </div>
-                    )}
+                    <WysiwygPlaceholderEditor
+                      value={subject}
+                      onChange={setSubject}
+                      samples={placeholderSamples}
+                      singleLine
+                      ariaLabel="Betreff"
+                      placeholder="z. B. Wichtige Information zur Hausversammlung"
+                    />
                   </div>
                   <div>
                     <Label>Inhalt {bodyFormat === "html" ? "(HTML erlaubt)" : "(Klartext)"} *</Label>
-                    <InlinePreviewEditor
+                    <WysiwygPlaceholderEditor
                       ref={bodyRef}
                       value={bodyHtml}
                       onChange={setBodyHtml}
-                      onDrop={handleDrop}
-                      rows={14}
-                      format={bodyFormat}
                       samples={placeholderSamples}
+                      monospace={bodyFormat === "html"}
+                      minHeight={320}
+                      ariaLabel="Inhalt"
                       placeholder={"{{anrede_brief}}\n\nhiermit informieren wir Sie...\n\nMit freundlichen Grüßen\n{{verwalter_name}}"}
                     />
                     <p className="text-[11px] text-muted-foreground mt-1">
-                      Oben schreiben — unten siehst du sofort, wie es bei einem echten Empfänger aussieht. Grau = Platzhalter.
+                      Platzhalter werden direkt mit echten Beispielwerten (grau) angezeigt.
                     </p>
                   </div>
                 </div>
