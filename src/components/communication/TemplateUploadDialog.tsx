@@ -28,9 +28,28 @@ export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultTy
   const [bodyHtml, setBodyHtml] = useState("");
   const [bodyFormat, setBodyFormat] = useState<"html" | "plain">("html");
   const [busy, setBusy] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
+
+  const formatBytes = (b: number): string => {
+    if (b < 1024) return `${b} B`;
+    if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+    return `${(b / 1024 / 1024).toFixed(2)} MB`;
+  };
+
+  const acceptDocxFile = (f: File | null | undefined) => {
+    if (!f) return;
+    const isDocx =
+      f.name.toLowerCase().endsWith(".docx") ||
+      f.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    if (!isDocx) {
+      toast({ title: "Nur Word-Dateien (.docx) erlaubt", variant: "destructive" });
+      return;
+    }
+    setFile(f);
+  };
 
   const reset = () => {
     setName(""); setDescription(""); setFile(null);
