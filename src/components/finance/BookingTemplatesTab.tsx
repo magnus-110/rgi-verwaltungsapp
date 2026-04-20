@@ -13,7 +13,8 @@ import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Pencil, Trash2, LayoutTemplate, Loader2, Check, ChevronsUpDown, FileText, Building2, CreditCard, Receipt, CalendarDays, Settings2, Zap, Sparkles } from "lucide-react";
+import { Plus, Pencil, Trash2, LayoutTemplate, Loader2, Check, ChevronsUpDown, FileText, Building2, CreditCard, Receipt, CalendarDays, Settings2, Zap, Sparkles, Eye } from "lucide-react";
+import { PdfViewerModal } from "@/components/documents/PdfViewerModal";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -82,6 +83,27 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
   const [selectedSuggestions, setSelectedSuggestions] = useState<Set<number>>(new Set());
   const [savingSuggestions, setSavingSuggestions] = useState(false);
   const [editingSuggestionIdx, setEditingSuggestionIdx] = useState<number | null>(null);
+  const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
+  const [previewPdfName, setPreviewPdfName] = useState<string>("Rechnung");
+
+  const openInvoicePreview = async (invoiceId: string) => {
+    const { data: inv, error } = await supabase
+      .from("invoices")
+      .select("file_path, invoice_number, vendor_name")
+      .eq("id", invoiceId)
+      .single();
+    if (error || !inv?.file_path) {
+      toast.error("Keine Datei für diese Rechnung vorhanden");
+      return;
+    }
+    const { data: signed } = await supabase.storage.from("invoices").createSignedUrl(inv.file_path, 300);
+    if (!signed?.signedUrl) {
+      toast.error("Datei konnte nicht geladen werden");
+      return;
+    }
+    setPreviewPdfName(`${inv.invoice_number || "Rechnung"} – ${inv.vendor_name || ""}`);
+    setPreviewPdfUrl(signed.signedUrl);
+  };
 
   const filterBuildingId = sharedBuildingId || internalFilterBuildingId;
 
@@ -147,7 +169,7 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
       if (!form.building_id) return [];
       const { data, error } = await supabase
         .from("invoices")
-        .select("id, invoice_number, vendor_name, invoice_date, gross_amount")
+        .select("id, invoice_number, vendor_name, invoice_date, gross_amount, file_path")
         .eq("building_id", form.building_id)
         .order("invoice_date", { ascending: false })
         .limit(200);
