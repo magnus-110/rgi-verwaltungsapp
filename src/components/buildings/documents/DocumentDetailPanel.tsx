@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Download, Trash2, X, History, Sparkles, ExternalLink, Wrench } from "lucide-react";
+import { Download, Trash2, X, History, Sparkles, ExternalLink, Wrench, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
@@ -31,6 +31,7 @@ export function DocumentDetailPanel({ file, buildingId, onClose, onChanged }: Do
   const navigate = useNavigate();
   const [editing, setEditing] = useState<Partial<DocFile>>({});
   const [saving, setSaving] = useState(false);
+  const [reindexing, setReindexing] = useState(false);
 
   useEffect(() => {
     if (file) setEditing({});
@@ -264,14 +265,44 @@ export function DocumentDetailPanel({ file, buildingId, onClose, onChanged }: Do
           )}
         </div>
 
-        <div className="flex items-center justify-between">
-          <Label className="text-xs flex items-center gap-1.5">
-            <Sparkles className="h-3.5 w-3.5" /> KI-Indexierung (Nova)
-          </Label>
-          <Switch
-            checked={current.rag_enabled}
-            onCheckedChange={(v) => setEditing(s => ({ ...s, rag_enabled: v }))}
-          />
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" /> KI-Indexierung (Nova)
+            </Label>
+            <Switch
+              checked={current.rag_enabled}
+              onCheckedChange={(v) => setEditing(s => ({ ...s, rag_enabled: v }))}
+            />
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full"
+            disabled={reindexing}
+            onClick={async () => {
+              setReindexing(true);
+              try {
+                const { data, error } = await supabase.functions.invoke('process-building-file', {
+                  body: { fileId: file.id, force: true },
+                });
+                if (error) throw error;
+                if (data?.skipped) {
+                  toast.info(`Übersprungen: ${data.reason}`);
+                } else {
+                  toast.success(`Neu indiziert: ${data?.chunks ?? 0} Chunks`);
+                }
+                onChanged();
+              } catch (e: any) {
+                toast.error("Indexierung fehlgeschlagen: " + (e?.message ?? e));
+              } finally {
+                setReindexing(false);
+              }
+            }}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${reindexing ? 'animate-spin' : ''}`} />
+            {reindexing ? 'Indiziere…' : 'RAG neu indizieren'}
+          </Button>
         </div>
 
         {(file.linked_invoice_id || file.source_email_id) && (
