@@ -170,19 +170,25 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
   const selectedBuildingName = buildings.find(b => b.id === form.building_id)?.name || "–";
   const counterAccount = accounts.find((a: any) => a.id === form.counter_account_id);
 
-  // Enter-Navigation: focus next focusable element in the form
+  // Enter-Navigation: focus next focusable input/combobox (skip action buttons like +/−)
   const focusNext = (currentEl: HTMLElement | null) => {
     if (!currentEl) return;
     const container = currentEl.closest("[data-booking-form]") as HTMLElement | null;
     if (!container) return;
     const focusables = Array.from(
       container.querySelectorAll<HTMLElement>(
-        'input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [role="combobox"]:not([disabled])'
+        'input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [role="combobox"]:not([disabled])'
       )
     ).filter(el => el.offsetParent !== null);
     const idx = focusables.indexOf(currentEl);
     const next = focusables[idx + 1];
-    next?.focus();
+    if (next) {
+      next.focus();
+      // If next is a combobox (AccountSearchSelect trigger), open it
+      if (next.getAttribute("role") === "combobox") {
+        next.click();
+      }
+    }
   };
 
   const handleEnterToNext = (e: React.KeyboardEvent) => {
