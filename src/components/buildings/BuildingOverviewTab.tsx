@@ -250,7 +250,7 @@ export const BuildingOverviewTab = ({ buildingId, buildingName, managementMode, 
             Eigentümer ({data.owners.length})
           </CardTitle>
           {data.owners.some(o => o.email) && (
-            <Button size="sm" variant="outline" className="h-8" onClick={sendMailToAllOwners}>
+            <Button size="sm" variant="outline" className="h-8" onClick={() => onJumpTab("communication")}>
               <Send className="h-3.5 w-3.5 mr-1" /> Rundmail
             </Button>
           )}
@@ -358,8 +358,7 @@ export const BuildingOverviewTab = ({ buildingId, buildingName, managementMode, 
               <span className="text-xs">Aushang</span>
             </Button>
             <Button variant="outline" className="h-auto py-3 flex-col gap-1"
-              disabled={data.owners.filter(o => o.email).length === 0}
-              onClick={sendMailToAllOwners}>
+              onClick={() => onJumpTab("communication")}>
               <Send className="h-5 w-5" />
               <span className="text-xs">Rundmail</span>
             </Button>
