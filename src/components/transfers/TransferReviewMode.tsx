@@ -580,6 +580,31 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
                     <InfoRow label="CO₂-Steueranteil" value={ocr.co2_tax_amount_eur != null ? `${formatCurrency(ocr.co2_tax_amount_eur)} €` : "–"} />
                     <InfoRow label="Lieferdatum" value={ocr.delivery_date || invoice.invoice_date || "–"} />
                   </div>
+                  {(ocr.billing_period_from || ocr.billing_period_to) && (() => {
+                    const periodTo = ocr.billing_period_to || ocr.billing_period_from;
+                    const heizjahr = periodTo ? new Date(periodTo).getFullYear() : null;
+                    const invoiceYear = invoice.invoice_date ? new Date(invoice.invoice_date).getFullYear() : null;
+                    const yearMismatch = heizjahr && invoiceYear && heizjahr !== invoiceYear;
+                    return (
+                      <div className={`mt-2 rounded-md border p-2 text-xs ${yearMismatch ? "border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20" : "border-border bg-muted/30"}`}>
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <span className="font-medium">
+                            Verbrauchszeitraum: {ocr.billing_period_from || "?"} – {ocr.billing_period_to || "?"}
+                          </span>
+                          {heizjahr && (
+                            <Badge variant={yearMismatch ? "default" : "secondary"} className={yearMismatch ? "bg-amber-600 hover:bg-amber-600" : ""}>
+                              Heizjahr {heizjahr}
+                            </Badge>
+                          )}
+                        </div>
+                        {yearMismatch && (
+                          <p className="mt-1 text-amber-900 dark:text-amber-200">
+                            Rechnungsdatum {invoiceYear} · Verbrauch wird Heizjahr {heizjahr} zugeordnet.
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })()}
                   <p className="text-xs text-muted-foreground pt-1">
                     Diese Daten werden beim Buchen in die Brennstoffbestandsführung übernommen.
                   </p>
