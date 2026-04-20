@@ -41,6 +41,9 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
     quantity: "",
     unit: "l",
     total_price: "",
+    co2_emissions_kg: "",
+    co2_tax_amount: "",
+    energy_content_kwh: "",
     notes: "",
   });
 
