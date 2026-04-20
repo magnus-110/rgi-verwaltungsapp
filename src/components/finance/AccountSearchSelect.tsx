@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect, KeyboardEvent } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,7 @@ interface AccountSearchSelectProps {
   onCreateClick?: () => void;
   className?: string;
   triggerClassName?: string;
+  onCommit?: () => void;
 }
 
 export function AccountSearchSelect({
@@ -36,9 +37,12 @@ export function AccountSearchSelect({
   onCreateClick,
   className,
   triggerClassName,
+  onCommit,
 }: AccountSearchSelectProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [activeIdx, setActiveIdx] = useState(0);
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const filteredAccounts = useMemo(() => {
     let list = accounts;
@@ -55,8 +59,44 @@ export function AccountSearchSelect({
     }, {});
   }, [filteredAccounts]);
 
+  // Flat ordered list matching render order, for keyboard nav
+  const flatList = useMemo(() => Object.values(grouped).flat(), [grouped]);
+
+  useEffect(() => { setActiveIdx(0); }, [search, open]);
+
+  useEffect(() => {
+    if (open && itemRefs.current[activeIdx]) {
+      itemRefs.current[activeIdx]?.scrollIntoView({ block: "nearest" });
+    }
+  }, [activeIdx, open]);
+
   const selectedAccount = accounts.find(a => a.id === value);
   const label = selectedAccount ? `${selectedAccount.account_number}  ${selectedAccount.account_name}` : "";
+
+  const handleSelect = (id: string) => {
+    onChange(id);
+    setOpen(false);
+    setSearch("");
+    setTimeout(() => onCommit?.(), 0);
+  };
+
+  const handleSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIdx(i => Math.min(i + 1, flatList.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIdx(i => Math.max(i - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const pick = flatList[activeIdx] || flatList[0];
+      if (pick) handleSelect(pick.id);
+    } else if (e.key === "Escape") {
+      setOpen(false);
+    }
+  };
+
+  let renderIdx = -1;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -69,6 +109,12 @@ export function AccountSearchSelect({
             !value && "text-muted-foreground font-normal",
             triggerClassName
           )}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !open && value) {
+              e.preventDefault();
+              onCommit?.();
+            }
+          }}
         >
           <span className="truncate">{value ? label : placeholder}</span>
           {value ? (
@@ -85,6 +131,7 @@ export function AccountSearchSelect({
             <Input
               value={search}
               onChange={e => setSearch(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
               placeholder="Nr. oder Name suchen…"
               className="pl-8 h-8 text-sm"
               autoFocus
@@ -98,22 +145,30 @@ export function AccountSearchSelect({
             Object.entries(grouped).map(([cat, accs]) => (
               <div key={cat}>
                 <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{cat}</div>
-                {accs.map(a => (
-                  <button
-                    key={a.id}
-                    onClick={() => { onChange(a.id); setOpen(false); setSearch(""); }}
-                    className={cn(
-                      "w-full flex items-center gap-2 px-2 py-2 text-left rounded-md hover:bg-accent transition-colors text-sm",
-                      value === a.id && "bg-accent"
-                    )}
-                  >
-                    <span className="font-mono text-xs font-medium w-12 shrink-0">{a.account_number}</span>
-                    <span className="truncate">{a.account_name}</span>
-                    {a.is_35a_relevant && (
-                      <Badge className="text-[10px] bg-amber-100 text-amber-800 hover:bg-amber-100 ml-auto shrink-0">§35a</Badge>
-                    )}
-                  </button>
-                ))}
+                {accs.map(a => {
+                  renderIdx++;
+                  const idx = renderIdx;
+                  const isActive = idx === activeIdx;
+                  return (
+                    <button
+                      key={a.id}
+                      ref={el => (itemRefs.current[idx] = el)}
+                      onClick={() => handleSelect(a.id)}
+                      onMouseEnter={() => setActiveIdx(idx)}
+                      className={cn(
+                        "w-full flex items-center gap-2 px-2 py-2 text-left rounded-md transition-colors text-sm",
+                        isActive ? "bg-accent" : "hover:bg-accent/50",
+                        value === a.id && "ring-1 ring-primary/40"
+                      )}
+                    >
+                      <span className="font-mono text-xs font-medium w-12 shrink-0">{a.account_number}</span>
+                      <span className="truncate">{a.account_name}</span>
+                      {a.is_35a_relevant && (
+                        <Badge className="text-[10px] bg-amber-100 text-amber-800 hover:bg-amber-100 ml-auto shrink-0">§35a</Badge>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             ))
           )}
