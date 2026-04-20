@@ -710,32 +710,30 @@ Beschreibung: ${report.description}`;
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsContent value="reports" className="space-y-6">
             {/* Summary Cards */}
-            <div className="grid grid-cols-2 gap-3 md:gap-4">
+            <div className="grid grid-cols-2 gap-3">
               <Card className="border-l-4 border-l-destructive">
-                <CardContent className="p-4 md:p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-medium text-muted-foreground">Offen</h3>
-                      <p className="text-3xl font-semibold tracking-tight text-foreground mt-1">{timeFilteredOpenReports.length}</p>
-                      <p className="text-xs text-muted-foreground mt-1">aktueller Zeitraum</p>
+                <CardContent className="p-3 md:p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <h3 className="text-xs font-medium text-muted-foreground">Offen</h3>
+                      <p className="text-2xl font-semibold tracking-tight text-foreground leading-tight">{timeFilteredOpenReports.length}</p>
                     </div>
-                    <div className="p-2.5 bg-destructive/10 rounded-full">
-                      <AlertCircle className="h-5 w-5 md:h-6 md:w-6 text-destructive" />
+                    <div className="p-2 bg-destructive/10 rounded-full shrink-0">
+                      <AlertCircle className="h-4 w-4 text-destructive" />
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="border-l-4 border-l-warning">
-                <CardContent className="p-4 md:p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-medium text-muted-foreground">Bearbeitet</h3>
-                      <p className="text-3xl font-semibold tracking-tight text-foreground mt-1">{timeFilteredInProgressReports.length}</p>
-                      <p className="text-xs text-muted-foreground mt-1">aktueller Zeitraum</p>
+              <Card className="border-l-4 border-l-muted-foreground/40">
+                <CardContent className="p-3 md:p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <h3 className="text-xs font-medium text-muted-foreground">Bearbeitet</h3>
+                      <p className="text-2xl font-semibold tracking-tight text-foreground leading-tight">{timeFilteredInProgressReports.length}</p>
                     </div>
-                    <div className="p-2.5 bg-warning/10 rounded-full">
-                      <Clock className="h-5 w-5 md:h-6 md:w-6 text-warning" />
+                    <div className="p-2 bg-muted rounded-full shrink-0">
+                      <Clock className="h-4 w-4 text-muted-foreground" />
                     </div>
                   </div>
                 </CardContent>
