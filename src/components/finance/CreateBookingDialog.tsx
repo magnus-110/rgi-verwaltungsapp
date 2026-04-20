@@ -366,8 +366,28 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                       <label className={cn("text-xs font-medium mb-1 block", vatMissing ? "text-orange-600 dark:text-orange-400" : "text-muted-foreground")}>
                         MwSt % {isAccrual && <span className="text-orange-500">*</span>}
                       </label>
-                      <Select value={form.vat_rate} onValueChange={v => set("vat_rate", v)}>
-                        <SelectTrigger className={cn("h-8 text-xs", vatMissing && "border-orange-400 ring-1 ring-orange-300")}>
+                      <Select
+                        value={form.vat_rate}
+                        onValueChange={v => {
+                          set("vat_rate", v);
+                          // After selecting MwSt, focus the Save button so next Enter saves
+                          setTimeout(() => {
+                            const saveBtn = document.querySelector<HTMLButtonElement>('[data-booking-save]');
+                            saveBtn?.focus();
+                          }, 50);
+                        }}
+                      >
+                        <SelectTrigger
+                          className={cn("h-8 text-xs", vatMissing && "border-orange-400 ring-1 ring-orange-300")}
+                          onKeyDown={(e) => {
+                            // If MwSt is already set and user presses Enter without opening dropdown, jump to Save
+                            if (e.key === "Enter" && form.vat_rate) {
+                              e.preventDefault();
+                              const saveBtn = document.querySelector<HTMLButtonElement>('[data-booking-save]');
+                              saveBtn?.focus();
+                            }
+                          }}
+                        >
                           <SelectValue placeholder="Wählen…" />
                         </SelectTrigger>
                         <SelectContent>
@@ -399,7 +419,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
             </div>
 
             {/* Save button */}
-            <Button onClick={handleSave} disabled={saving || !form.account_id || !form.building_id} className="w-full h-10 text-sm font-semibold bg-primary hover:bg-primary/90">
+            <Button data-booking-save onClick={handleSave} disabled={saving || !form.account_id || !form.building_id} className="w-full h-10 text-sm font-semibold bg-primary hover:bg-primary/90">
               {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
               Speichern
             </Button>
