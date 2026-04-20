@@ -65,7 +65,18 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
 
   const skipTemplate = () => { setTemplate(null); setName(""); setSubject(""); setBody(""); setStep(2); };
 
-  const createCampaign = async (status: "draft") => {
+  const uploadAttachments = async (campaignId: string): Promise<string[]> => {
+    const paths: string[] = [];
+    for (const f of attachments) {
+      const path = `campaigns/${campaignId}/attachments/${Date.now()}_${f.name}`;
+      const { error } = await supabase.storage.from("comm-assets").upload(path, f, { upsert: true });
+      if (error) throw error;
+      paths.push(path);
+    }
+    return paths;
+  };
+
+  const createCampaign = async (status: "draft" | "scheduled") => {
     const { data: userData } = await supabase.auth.getUser();
     const userId = userData?.user?.id;
     if (!userId) throw new Error("Nicht angemeldet");
@@ -81,9 +92,14 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
       subject_override: subject || null,
       body_html_override: body || null,
       status,
+      scheduled_at: status === "scheduled" && scheduledAt ? new Date(scheduledAt).toISOString() : null,
       created_by: userId,
     }).select().single();
     if (error) throw error;
+    if (attachments.length > 0) {
+      const paths = await uploadAttachments(data.id);
+      await supabase.from("comm_campaigns").update({ attachment_paths: paths }).eq("id", data.id);
+    }
     return data;
   };
 
