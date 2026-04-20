@@ -1309,14 +1309,21 @@ BEISPIELE:
     // NORMAL MODE - Generate embedding for the question
     const questionEmbedding = await generateQuestionEmbedding(question);
 
-    // AUTOMATIC METADATA FILTERING: Extract categories and features from question
-    const autoFilters = extractMetadataFromQuestion(question);
-    console.log(`Auto-detected filters: categories=${JSON.stringify(autoFilters.categories)}, features=${JSON.stringify(autoFilters.features)}`);
+    // CATEGORY DETECTION (DMS folder-aware)
+    let detectedSlugs: string[] = [];
+    try {
+      const taxonomy = await loadCategoryTaxonomy(supabase, effectiveBuildingId);
+      console.log(`Taxonomy loaded: ${taxonomy.length} categories for building ${effectiveBuildingId}`);
+      if (taxonomy.length > 0) {
+        detectedSlugs = await detectCategorySlugs(question, taxonomy);
+      }
+    } catch (err) {
+      console.error('Category detection failed, falling back:', err);
+    }
 
-    // Search for relevant chunks - support multiple building IDs with automatic filtering
-    let relevantChunks;
+    // Search relevant chunks
+    let relevantChunks: any[];
     if (effectiveBuildingIds.length > 1) {
-      // For multiple buildings, search each with filters then combine
       relevantChunks = await searchSimilarChunksMultipleBuildings(
         supabase,
         questionEmbedding,
@@ -1324,8 +1331,17 @@ BEISPIELE:
         includeGeneral,
         10
       );
+    } else if (detectedSlugs.length > 0) {
+      relevantChunks = await hybridCategoryRetrieval(
+        supabase,
+        questionEmbedding,
+        effectiveBuildingId,
+        detectedSlugs,
+        10
+      );
     } else {
-      // Single building or all buildings - use automatic filters
+      const autoFilters = extractMetadataFromQuestion(question);
+      console.log(`Auto-detected filters: categories=${JSON.stringify(autoFilters.categories)}, features=${JSON.stringify(autoFilters.features)}`);
       relevantChunks = await searchSimilarChunks(
         supabase,
         questionEmbedding,
@@ -1360,24 +1376,38 @@ BEISPIELE:
       );
     }
 
-    // Get unique document IDs and fetch document info with signed URLs
-    const uniqueDocumentIds = [...new Set(relevantChunks.map(chunk => chunk.document_id).filter(Boolean))];
-    console.log(`Found ${uniqueDocumentIds.length} unique documents for sources`);
-    
-    const documentMap = await getDocumentInfoWithUrls(supabase, uniqueDocumentIds);
+    // Fetch source info for both legacy (building_documents) and new (building_files) chunks
+    const legacyDocIds = [...new Set(relevantChunks.map(c => c.document_id).filter(Boolean))];
+    const fileIds = [...new Set(relevantChunks.map(c => c.file_id).filter(Boolean))];
+    console.log(`Sources: ${legacyDocIds.length} legacy docs + ${fileIds.length} DMS files`);
 
-    // Build context from chunks
+    const documentMap = await getDocumentInfoWithUrls(supabase, legacyDocIds);
+
+    const fileMap = new Map<string, { display_name: string; file_path: string }>();
+    if (fileIds.length > 0) {
+      const { data: filesData } = await supabase
+        .from('building_files')
+        .select('id, display_name, file_path')
+        .in('id', fileIds);
+      (filesData || []).forEach((f: any) => fileMap.set(f.id, f));
+    }
+
+    // Build context with folder path
     const context = relevantChunks.map((chunk, index) => {
       const metadata = chunk.metadata || {};
-      const docInfo = documentMap.get(chunk.document_id);
+      const fileInfo = chunk.file_id ? fileMap.get(chunk.file_id) : null;
+      const docInfo = chunk.document_id ? documentMap.get(chunk.document_id) : null;
+      const fileName = fileInfo?.display_name || docInfo?.file_name || 'Unbekannt';
+      const folderPath = Array.isArray(chunk.category_path) && chunk.category_path.length > 0
+        ? chunk.category_path.join(' › ')
+        : null;
       const sourceInfo = [
-        docInfo?.file_name && `Dokument: ${docInfo.file_name}`,
+        `Dokument: ${fileName}`,
+        folderPath && `Ordner: ${folderPath}`,
         metadata.section && `Abschnitt: ${metadata.section}`,
         metadata.page && `Seite: ${metadata.page}`,
-        metadata.category && `Kategorie: ${metadata.category}`
       ].filter(Boolean).join(', ');
-      
-      return `[Quelle ${index + 1}${sourceInfo ? ` - ${sourceInfo}` : ''}]\n${chunk.content}`;
+      return `[Quelle ${index + 1} - ${sourceInfo}]\n${chunk.content}`;
     }).join('\n\n---\n\n');
 
     // Generate response
@@ -1386,26 +1416,41 @@ BEISPIELE:
       context,
       conversationHistory,
       chatSettings,
-      false // normal mode
+      false
     );
 
-    // Extract sources from chunks with document URLs
-    const extractedSources = relevantChunks.slice(0, 5).map(chunk => {
-      const docInfo = documentMap.get(chunk.document_id);
-      // Parse page number from metadata - handles formats like "10-11" or "13"
+    // Extract sources for UI
+    const extractedSources = await Promise.all(relevantChunks.slice(0, 5).map(async chunk => {
+      const fileInfo = chunk.file_id ? fileMap.get(chunk.file_id) : null;
+      const docInfo = chunk.document_id ? documentMap.get(chunk.document_id) : null;
       const rawPage = chunk.metadata?.pages || chunk.metadata?.page;
       const pageNumber = rawPage ? parseInt(String(rawPage).split('-')[0], 10) : null;
-      
+
+      let signedUrl: string | null = docInfo?.signedUrl || null;
+      if (!signedUrl && fileInfo?.file_path) {
+        try {
+          const { data } = await supabase.storage
+            .from('building-files')
+            .createSignedUrl(fileInfo.file_path, 3600);
+          signedUrl = data?.signedUrl || null;
+        } catch (err) {
+          console.error(`Failed to sign URL for file ${chunk.file_id}:`, err);
+        }
+      }
+
       return {
         content: chunk.content.slice(0, 200) + '...',
         metadata: chunk.metadata,
         buildingId: chunk.building_id,
-        documentId: chunk.document_id,
-        fileName: docInfo?.file_name || null,
-        documentUrl: docInfo?.signedUrl || null,
+        documentId: chunk.document_id || null,
+        fileId: chunk.file_id || null,
+        fileName: fileInfo?.display_name || docInfo?.file_name || null,
+        folderPath: Array.isArray(chunk.category_path) ? chunk.category_path : [],
+        categorySlug: chunk.category_slug || null,
+        documentUrl: signedUrl,
         pageNumber: pageNumber && !isNaN(pageNumber) ? pageNumber : null
       };
-    });
+    }));
 
     // Save assistant message
     await supabase
