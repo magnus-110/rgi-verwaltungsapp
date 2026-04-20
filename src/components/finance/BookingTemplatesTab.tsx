@@ -800,17 +800,30 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
                 z.B. Abschlagsbescheid des Gaslieferanten als Nachweis für die monatlichen Zahlungen
               </p>
               <Popover open={invoiceOpen} onOpenChange={setInvoiceOpen}>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" role="combobox" aria-expanded={invoiceOpen} className="w-full justify-between font-normal">
-                    {form.linked_invoice_id
-                      ? (() => {
-                          const inv = invoices.find((i: any) => i.id === form.linked_invoice_id);
-                          return inv ? `${inv.invoice_number || "Ohne Nr."} – ${inv.vendor_name || ""}` : "Rechnung wählen";
-                        })()
-                      : "Keine Rechnung verknüpft"}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
+                <div className="flex items-center gap-2">
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" aria-expanded={invoiceOpen} className="flex-1 justify-between font-normal">
+                      {form.linked_invoice_id
+                        ? (() => {
+                            const inv = invoices.find((i: any) => i.id === form.linked_invoice_id);
+                            return inv ? `${inv.invoice_number || "Ohne Nr."} – ${inv.vendor_name || ""}` : "Rechnung wählen";
+                          })()
+                        : "Keine Rechnung verknüpft"}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  {form.linked_invoice_id && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => openInvoicePreview(form.linked_invoice_id)}
+                      title="Rechnung öffnen"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
                 <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
                   <Command>
                     <CommandInput placeholder="Rechnung suchen..." value={invoiceSearch} onValueChange={setInvoiceSearch} />
@@ -826,15 +839,26 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
                             key={inv.id}
                             value={`${inv.invoice_number || ""} ${inv.vendor_name || ""}`}
                             onSelect={() => { setForm({ ...form, linked_invoice_id: inv.id }); setInvoiceOpen(false); }}
+                            className="flex items-center gap-2"
                           >
-                            <Check className={cn("mr-2 h-4 w-4", form.linked_invoice_id === inv.id ? "opacity-100" : "opacity-0")} />
-                            <div className="flex flex-col">
-                              <span className="text-sm">{inv.invoice_number || "Ohne Nr."} – {inv.vendor_name || "Unbekannt"}</span>
+                            <Check className={cn("h-4 w-4 shrink-0", form.linked_invoice_id === inv.id ? "opacity-100" : "opacity-0")} />
+                            <div className="flex flex-col flex-1 min-w-0">
+                              <span className="text-sm truncate">{inv.invoice_number || "Ohne Nr."} – {inv.vendor_name || "Unbekannt"}</span>
                               <span className="text-xs text-muted-foreground">
                                 {inv.invoice_date ? new Date(inv.invoice_date).toLocaleDateString("de-DE") : ""} 
                                 {inv.gross_amount != null ? ` · ${formatCurrency(inv.gross_amount)}` : ""}
                               </span>
                             </div>
+                            {inv.file_path && (
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); e.preventDefault(); openInvoicePreview(inv.id); }}
+                                className="ml-auto p-1.5 rounded hover:bg-accent shrink-0"
+                                title="Rechnung öffnen"
+                              >
+                                <Eye className="h-4 w-4 text-muted-foreground" />
+                              </button>
+                            )}
                           </CommandItem>
                         ))}
                       </CommandGroup>
@@ -844,6 +868,15 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
               </Popover>
             </div>
           </div>
+
+          {previewPdfUrl && (
+            <PdfViewerModal
+              isOpen={!!previewPdfUrl}
+              onClose={() => setPreviewPdfUrl(null)}
+              documentUrl={previewPdfUrl}
+              documentName={previewPdfName}
+            />
+          )}
 
           <DialogFooter className="mt-6">
             <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Abbrechen</Button>
