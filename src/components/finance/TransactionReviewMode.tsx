@@ -1738,7 +1738,7 @@ function BookingRowCard({
             </div>
 
             {/* Vendor History */}
-            <VendorHistorySection booking={{ building_id: buildingId, id: row.id, description: row.description, invoices: invoiceDetail ? { vendor_name: invoiceDetail.vendor_name } : null }} />
+            <VendorHistorySection booking={{ building_id: buildingId, id: row.id, description: row.description, counter_account_id: row.counter_account_id, account_id: row.account_id, counter_account: accounts.find((a: any) => a.id === row.counter_account_id) || null, invoices: invoiceDetail ? { vendor_name: invoiceDetail.vendor_name } : null }} />
 
             {/* Book button */}
             <Button onClick={onBook} disabled={isBooking || !row.account_id} className="w-full h-9 text-sm">

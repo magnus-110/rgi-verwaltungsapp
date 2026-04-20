@@ -21,45 +21,62 @@ export function VendorHistorySection({ booking }: VendorHistorySectionProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [yearFilter, setYearFilter] = useState<string>("all");
 
+  const exactCreditorAccountId = booking?.counter_account_id || booking?.account_id || null;
+
   const vendorName = useMemo(() => {
+    if (booking?.counter_account?.account_name) return booking.counter_account.account_name;
     if (booking?.invoices?.vendor_name) return booking.invoices.vendor_name;
     if (booking?.description) {
-      // Use first meaningful phrase (up to comma or dash)
       const match = booking.description.match(/^([^,\-–]+)/);
-      return match ? match[1].trim() : booking.description.substring(0, 30);
+      return match ? match[1].trim() : booking.description.substring(0, 40);
     }
     return null;
   }, [booking]);
 
   const { data: historyBookings = [] } = useQuery({
-    queryKey: ["vendor-history", booking?.building_id, vendorName, booking?.id],
+    queryKey: ["vendor-history", booking?.building_id, booking?.id, exactCreditorAccountId, vendorName],
     queryFn: async () => {
-      if (!vendorName || !booking?.building_id) return [];
+      if (!booking?.building_id) return [];
 
-      const escaped = vendorName.replace(/[%_,()]/g, " ").trim();
-      if (!escaped) return [];
+      const exactMatchesPromise = exactCreditorAccountId
+        ? supabase
+            .from("bookings")
+            .select(`
+              id, booking_date, amount, booking_type, fiscal_year, status, description,
+              chart_of_accounts!bookings_account_id_fkey(account_number, account_name),
+              invoices(vendor_name)
+            `)
+            .eq("building_id", booking.building_id)
+            .neq("id", booking.id)
+            .or(`counter_account_id.eq.${exactCreditorAccountId},account_id.eq.${exactCreditorAccountId}`)
+            .order("booking_date", { ascending: false })
+            .limit(100)
+        : Promise.resolve({ data: [] as any[], error: null });
 
-      // Query 1: bookings in this building whose description matches the vendor name
-      const byDescriptionPromise = supabase
-        .from("bookings")
-        .select(`
-          id, booking_date, amount, booking_type, fiscal_year, status, description,
-          chart_of_accounts!bookings_account_id_fkey(account_number, account_name),
-          invoices(vendor_name)
-        `)
-        .eq("building_id", booking.building_id)
-        .neq("id", booking.id)
-        .ilike("description", `%${escaped}%`)
-        .order("booking_date", { ascending: false })
-        .limit(100);
+      const escaped = vendorName?.replace(/[%_,()]/g, " ").trim() || "";
 
-      // Query 2: bookings whose linked invoice has the same vendor_name
-      const { data: matchingInvoices } = await supabase
-        .from("invoices")
-        .select("id")
-        .ilike("vendor_name", `%${escaped}%`);
+      const byDescriptionPromise = escaped
+        ? supabase
+            .from("bookings")
+            .select(`
+              id, booking_date, amount, booking_type, fiscal_year, status, description,
+              chart_of_accounts!bookings_account_id_fkey(account_number, account_name),
+              invoices(vendor_name)
+            `)
+            .eq("building_id", booking.building_id)
+            .neq("id", booking.id)
+            .ilike("description", `%${escaped}%`)
+            .order("booking_date", { ascending: false })
+            .limit(100)
+        : Promise.resolve({ data: [] as any[], error: null });
 
-      const invoiceIds = (matchingInvoices || []).map((i: any) => i.id);
+      const matchingInvoices = escaped
+        ? await supabase.from("invoices").select("id").ilike("vendor_name", `%${escaped}%`)
+        : { data: [] as any[], error: null };
+
+      if ((matchingInvoices as any).error) throw (matchingInvoices as any).error;
+
+      const invoiceIds = ((matchingInvoices as any).data || []).map((i: any) => i.id);
 
       const byInvoicePromise = invoiceIds.length > 0
         ? supabase
@@ -76,19 +93,21 @@ export function VendorHistorySection({ booking }: VendorHistorySectionProps) {
             .limit(100)
         : Promise.resolve({ data: [] as any[], error: null });
 
-      const [descRes, invRes] = await Promise.all([byDescriptionPromise, byInvoicePromise]);
-      if (descRes.error) throw descRes.error;
+      const [exactRes, descRes, invRes] = await Promise.all([exactMatchesPromise, byDescriptionPromise, byInvoicePromise]);
+      if ((exactRes as any).error) throw (exactRes as any).error;
+      if ((descRes as any).error) throw (descRes as any).error;
       if ((invRes as any).error) throw (invRes as any).error;
 
       const merged = new Map<string, any>();
-      [...(descRes.data || []), ...((invRes as any).data || [])].forEach((b: any) => {
+      [...((exactRes as any).data || []), ...((descRes as any).data || []), ...((invRes as any).data || [])].forEach((b: any) => {
         merged.set(b.id, b);
       });
+
       return Array.from(merged.values()).sort(
         (a, b) => new Date(b.booking_date).getTime() - new Date(a.booking_date).getTime()
       );
     },
-    enabled: isOpen && !!vendorName && !!booking?.building_id,
+    enabled: isOpen && !!booking?.building_id && (!!exactCreditorAccountId || !!vendorName),
   });
 
   const availableYears = useMemo(() => {
