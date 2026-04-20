@@ -2285,33 +2285,45 @@ export type Database = {
         Row: {
           building_id: string | null
           category: string
+          category_id: string | null
+          category_path: string[] | null
+          category_slug: string | null
           chunk_index: number
           content: string
           created_at: string
           document_id: string
           embedding: string | null
+          file_id: string | null
           id: string
           metadata: Json | null
         }
         Insert: {
           building_id?: string | null
           category: string
+          category_id?: string | null
+          category_path?: string[] | null
+          category_slug?: string | null
           chunk_index: number
           content: string
           created_at?: string
           document_id: string
           embedding?: string | null
+          file_id?: string | null
           id?: string
           metadata?: Json | null
         }
         Update: {
           building_id?: string | null
           category?: string
+          category_id?: string | null
+          category_path?: string[] | null
+          category_slug?: string | null
           chunk_index?: number
           content?: string
           created_at?: string
           document_id?: string
           embedding?: string | null
+          file_id?: string | null
           id?: string
           metadata?: Json | null
         }
@@ -2324,10 +2336,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "document_chunks_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "building_file_categories"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "document_chunks_document_id_fkey"
             columns: ["document_id"]
             isOneToOne: false
             referencedRelation: "building_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "document_chunks_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "building_files"
             referencedColumns: ["id"]
           },
         ]
@@ -4734,6 +4760,24 @@ export type Database = {
         }[]
       }
       get_building_overview: { Args: { p_building_id: string }; Returns: Json }
+      get_category_path: {
+        Args: { _category_id: string }
+        Returns: {
+          name_path: string[]
+          slug_path: string[]
+        }[]
+      }
+      get_category_taxonomy: {
+        Args: { p_building_id?: string }
+        Returns: {
+          building_id: string
+          category_id: string
+          name: string
+          parent_id: string
+          path: string[]
+          slug: string
+        }[]
+      }
       get_dashboard_global_stats: {
         Args: {
           p_management_mode: Database["public"]["Enums"]["management_mode"]
@@ -4769,6 +4813,28 @@ export type Database = {
           user_id_param: string
         }
         Returns: undefined
+      }
+      search_chunks_by_category: {
+        Args: {
+          p_building_id?: string
+          p_category_slugs?: string[]
+          p_match_count?: number
+          p_min_similarity?: number
+          p_query_embedding: string
+        }
+        Returns: {
+          building_id: string
+          category_id: string
+          category_path: string[]
+          category_slug: string
+          chunk_id: string
+          content: string
+          display_name: string
+          file_id: string
+          file_path: string
+          metadata: Json
+          similarity: number
+        }[]
       }
       search_document_chunks:
         | {
