@@ -357,6 +357,8 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       fuel_co2_tax_amount: "",
       fuel_energy_content_kwh: "",
       fuel_heating_unit_id: "",
+      fuel_consumption_from: "",
+      fuel_consumption_to: "",
       line_items_detail: null,
       ...overrides,
     };
@@ -450,6 +452,8 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           fuel_co2_tax_amount: "",
           fuel_energy_content_kwh: "",
           fuel_heating_unit_id: "",
+          fuel_consumption_from: "",
+          fuel_consumption_to: "",
         };
       });
       setFormRows(rows);
@@ -541,6 +545,18 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         if (ocrData.co2_emissions_kg != null) row.fuel_co2_emissions_kg = String(ocrData.co2_emissions_kg);
         if (ocrData.co2_tax_amount_eur != null) row.fuel_co2_tax_amount = String(ocrData.co2_tax_amount_eur);
         if (ocrData.energy_content_kwh != null) row.fuel_energy_content_kwh = String(ocrData.energy_content_kwh);
+
+        // Verbrauchszeitraum: bei Jahresabrechnungen für Gas/Fernwärme aus billing_period_*, sonst Lieferdatum
+        const isAnnualGasFW =
+          ocrData.invoice_type === "annual_settlement" &&
+          (row.fuel_type === "gas" || row.fuel_type === "district_heating");
+        if (isAnnualGasFW && ocrData.billing_period_from && ocrData.billing_period_to) {
+          row.fuel_consumption_from = String(ocrData.billing_period_from);
+          row.fuel_consumption_to = String(ocrData.billing_period_to);
+        } else {
+          row.fuel_consumption_from = row.fuel_date;
+          row.fuel_consumption_to = row.fuel_date;
+        }
       }
     }
 
@@ -772,6 +788,8 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           co2_emissions_kg: !isNaN(co2Emissions) && co2Emissions > 0 ? co2Emissions : null,
           co2_tax_amount: !isNaN(co2Tax) && co2Tax > 0 ? co2Tax : null,
           energy_content_kwh: !isNaN(energyKwh) && energyKwh > 0 ? energyKwh : null,
+          consumption_period_from: row.fuel_consumption_from || row.fuel_date || row.booking_date,
+          consumption_period_to: row.fuel_consumption_to || row.fuel_date || row.booking_date,
           notes: `Brennstoffkauf ${fuelLabel}: ${quantity} ${fuelUnit}`,
         } as any);
       }
