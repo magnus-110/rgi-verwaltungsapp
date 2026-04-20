@@ -1,56 +1,53 @@
 
-## Ziel
-Die Rechnungsliste im Dialog „Vorlage bearbeiten“ soll wieder sauber mit dem Mausrad/Trackpad scrollbar sein, auch seit dem Hinzufügen des Augen-Buttons zum Öffnen der Rechnung.
 
-## Wahrscheinliche Ursache
-Die aktuelle Rechnungs-Auswahlliste kombiniert `cmdk` (`CommandList`/`CommandItem`) mit einer eigenen Wrapper-`div` plus separatem Preview-Button pro Zeile. Dadurch ist die DOM-Struktur nicht mehr sauber im erwarteten `cmdk`-Muster, was Pointer-/Wheel-Events und Hover/Selection-Verhalten blockieren kann.
+## Ziel
+Im Brennstoffkauf-Dialog (im Buchungs-Prüfmodus / TransactionReviewMode) sollen — wie bereits in `InvoiceDetailSheet` und `FuelInventorySection` — die Felder **CO₂-Emissionen (kg)**, **CO₂-Steueranteil (€)** und **Energieinhalt (kWh)** sichtbar und bearbeitbar sein. Zusätzlich soll, falls die Liegenschaft mehrere Heizkreise hat, der **Heizkreis** zugeordnet werden können. Werte werden beim Speichern in `fuel_inventory` mitgeschrieben.
 
 ## Umsetzung
-1. `src/components/finance/BookingTemplatesTab.tsx` gezielt umbauen:
-   - Die Rechnungs-Auswahl nicht mehr als gemischte `CommandItem` + Wrapper + externen Button rendern.
-   - Stattdessen:
-     - `CommandInput` nur noch für die Suche verwenden
-     - die Trefferliste darunter als eigene, einfache scrollbare Liste rendern (`div`/`ScrollArea` mit `max-h`)
-     - jede Zeile als normales Row-Layout mit:
-       - linkem Bereich „Rechnung auswählen“
-       - rechtem Augen-Button „Rechnung öffnen“
 
-2. Suche robust machen:
-   - `filteredInvoices` lokal aus `invoiceSearch` berechnen
-   - Suche über `invoice_number`, `vendor_name`, optional Datum/Betrag
-   - So entfällt die Abhängigkeit von `cmdk` für das eigentliche List-Rendering
+### 1. Row-State erweitern (`TransactionReviewMode.tsx`)
+Im `RowState`-Typ und in allen Initialisierungen (Zeilen ~57–65, ~331–338, ~420–427) folgende Felder ergänzen:
+- `fuel_co2_emissions_kg: string`
+- `fuel_co2_tax_amount: string`
+- `fuel_energy_content_kwh: string`
+- `fuel_heating_unit_id: string`
 
-3. Scroll-Verhalten absichern:
-   - eigener Scroll-Container nur für die Liste
-   - keine verschachtelten interaktiven `cmdk`-Items mehr
-   - `min-h-0`, `overflow-y-auto`, feste `max-h` beibehalten
-   - Augen-Button mit sauberem `onMouseDown`/`onClick`, ohne den Scrollcontainer zu beeinflussen
+### 2. OCR-Prefill erweitern (Zeilen ~506–514)
+Wenn `ocr_extracted_data` vorhanden ist, zusätzlich vorbefüllen:
+- `co2_emissions_kg` → `fuel_co2_emissions_kg`
+- `co2_tax_amount_eur` → `fuel_co2_tax_amount`
+- `energy_content_kwh` → `fuel_energy_content_kwh`
 
-4. Auswahl- und Vorschau-Verhalten beibehalten:
-   - Klick auf Zeile setzt `linked_invoice_id` und schließt Popover
-   - Klick auf Auge öffnet PDF-Vorschau, ohne Rechnung auszuwählen
-   - bereits verknüpfte Rechnung neben dem Feld weiter direkt per Auge öffnbar
+### 3. Brennstoff-Dialog UI erweitern (Zeilen ~1789–1843)
+- Auswahl **Art** um `gas` (Gas, Einheit kWh) und `district_heating` (Fernwärme, Einheit kWh) ergänzen — konsistent mit den restlichen Stellen im System.
+- Einheit (`l` / `kg` / `kWh`) dynamisch ableiten.
+- Neuer Block „CO₂-Daten (BEHG) — für Heizkostenabrechnung" (amber-Hinweisbox, analog `InvoiceDetailSheet`):
+  - Nur sichtbar bei `oil`, `gas`, `district_heating`
+  - Inputs: CO₂-Emissionen (kg), CO₂-Steueranteil (€)
+  - Hinweistext „Werte aus Rechnung übernehmen, nicht raten" (Anti-Halluzination, gemäß Memory `co2-tracking-logic`)
+- Neues Feld **Energieinhalt (kWh)** (immer sichtbar bei Kauf).
+- Neues Feld **Heizkreis** (Select) — Daten aus `heating_units` per Building-ID; nur anzeigen wenn ≥ 1 Eintrag existiert. „Kein Heizkreis" als Default.
 
-5. Bewusst keine globale Änderung an `src/components/ui/command.tsx`
-   - Damit andere Such-/Combobox-Komponenten nicht unbeabsichtigt kaputtgehen
-   - Der Fix bleibt lokal auf die problematische Rechnungs-Auswahl begrenzt
+### 4. Speicher-Logik erweitern (Zeilen ~705–732)
+Beim Insert in `fuel_inventory` zusätzliche Felder mitschreiben:
+- `co2_emissions_kg`, `co2_tax_amount`, `energy_content_kwh` (jeweils nur wenn gesetzt)
+- `heating_unit_id` (falls gewählt)
+- `unit` korrekt ableiten (`l` / `kg` / `kWh`)
+
+### 5. Daten-Fetch
+Innerhalb der Komponente (oder per kleinem Helper-Hook) `heating_units` für die aktive Liegenschaft per `useQuery` laden, damit der Select gefüllt werden kann.
+
+## Bewusst nicht geändert
+- `FuelInventorySection` und `InvoiceDetailSheet`: bereits korrekt, kein Eingriff nötig.
+- DB-Schema/`fuel_inventory`-Tabelle: enthält bereits alle Felder, keine Migration nötig.
+- Anti-Halluzinations-Regel: Werte werden nur als Vorschlag aus OCR übernommen, der Nutzer prüft (Human-in-the-Loop, gemäß Projekt-Knowledge).
 
 ## Betroffene Datei
-- `src/components/finance/BookingTemplatesTab.tsx`
-
-## Technische Details
-```text
-Neu:
-CommandInput
-  -> lokale Filterung per invoiceSearch
-  -> eigener Scroll-Container
-     -> row button: Rechnung auswählen
-     -> icon button: Rechnung öffnen
-```
+- `src/components/finance/TransactionReviewMode.tsx`
 
 ## QA
-- Popover öffnen und mit Mausrad nach unten/oben scrollen
-- Dasselbe mit Trackpad testen
-- Mehrfach auf das Auge klicken: PDF öffnet, Liste bleibt bedienbar
-- Klick auf Zeile verknüpft weiterhin korrekt die Rechnung
-- Testen, dass andere Comboboxen im selben Dialog (Liegenschaft, Konto) unverändert funktionieren
+- Brennstoff-Dialog öffnen: CO₂-Felder erscheinen nur bei Heizöl/Gas/Fernwärme, nicht bei Pellets.
+- OCR-erkannte Werte vorausgefüllt (sofern Rechnung diese enthält).
+- Speichern → Eintrag in `fuel_inventory` enthält CO₂-Emissionen, CO₂-Steuer, kWh, ggf. Heizkreis.
+- Bei Liegenschaft ohne Heizkreise wird der Select ausgeblendet.
+- Bestehender Flow (nur Heizöl/Pellets ohne CO₂) funktioniert weiterhin.
