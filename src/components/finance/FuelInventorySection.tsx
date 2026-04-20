@@ -64,13 +64,15 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
   });
 
   const { data: allEntries = [] } = useQuery({
-    queryKey: ["fuel-inventory", buildingId, periodId],
+    queryKey: ["fuel-inventory", buildingId, periodId, fiscalYear],
     queryFn: async () => {
+      // Heizjahr-Logik: Einträge gehören zur Periode, wenn entweder die billing_period_id passt
+      // ODER der Verbrauchszeitraum (consumption_year) im Wirtschaftsjahr liegt (Gas/Fernwärme-Jahresabrechnungen).
       const { data, error } = await supabase
         .from("fuel_inventory")
         .select("*")
         .eq("building_id", buildingId)
-        .eq("billing_period_id", periodId)
+        .or(`billing_period_id.eq.${periodId},consumption_year.eq.${fiscalYear}`)
         .order("entry_date");
       if (error) throw error;
       return data;
