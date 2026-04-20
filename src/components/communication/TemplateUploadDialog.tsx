@@ -12,8 +12,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { FriendlyVariablePalette } from "./FriendlyVariablePalette";
 import { usePlaceholderStats } from "./usePlaceholderStats";
 import { usePlaceholderSamples } from "./usePlaceholderSamples";
-import { InlinePreviewEditor } from "./InlinePreviewEditor";
-import { EmailPreviewPane } from "./EmailPreviewPane";
+import { WysiwygPlaceholderEditor, type WysiwygPlaceholderEditorHandle } from "./WysiwygPlaceholderEditor";
+
 
 interface Props {
   open: boolean;
@@ -32,7 +32,7 @@ export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultTy
   const [bodyFormat, setBodyFormat] = useState<"html" | "plain">("plain");
   const [busy, setBusy] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
-  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const bodyRef = useRef<WysiwygPlaceholderEditorHandle>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
   const { data: placeholderStats } = usePlaceholderStats(buildingId, []);
@@ -63,23 +63,11 @@ export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultTy
   };
 
   const insertPlaceholder = (ph: string) => {
-    const ta = bodyRef.current;
-    if (!ta) { setBodyHtml(bodyHtml + ph); return; }
-    const start = ta.selectionStart ?? ta.value.length;
-    const end = ta.selectionEnd ?? start;
-    const next = ta.value.slice(0, start) + ph + ta.value.slice(end);
-    setBodyHtml(next);
-    requestAnimationFrame(() => {
-      ta.focus();
-      const p = start + ph.length;
-      ta.setSelectionRange(p, p);
-    });
+    bodyRef.current?.insert(ph);
   };
 
-  const handleDrop = (e: React.DragEvent<HTMLTextAreaElement>) => {
-    e.preventDefault();
-    const ph = e.dataTransfer.getData("text/plain");
-    if (ph) insertPlaceholder(ph);
+  const handleDrop = (_e: React.DragEvent) => {
+    // Drag handling lives inside the WysiwygPlaceholderEditor itself.
   };
 
   const handleSave = async () => {
@@ -257,28 +245,29 @@ export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultTy
                 <div className="space-y-3 min-w-0">
                   <div>
                     <Label>Betreff *</Label>
-                    <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="z. B. Wichtige Information zur Hausversammlung" />
-                    {subject && (
-                      <div className="mt-1.5 rounded-md border bg-muted/20 px-2.5 py-1.5 text-xs flex items-baseline gap-2">
-                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Vorschau:</span>
-                        <EmailPreviewPane subject={subject} body="" format="plain" samples={placeholderSamples} subjectOnly />
-                      </div>
-                    )}
+                    <WysiwygPlaceholderEditor
+                      value={subject}
+                      onChange={setSubject}
+                      samples={placeholderSamples}
+                      singleLine
+                      ariaLabel="Betreff"
+                      placeholder="z. B. Wichtige Information zur Hausversammlung"
+                    />
                   </div>
                   <div>
                     <Label>Inhalt {bodyFormat === "html" ? "(HTML erlaubt)" : "(Klartext)"} *</Label>
-                    <InlinePreviewEditor
+                    <WysiwygPlaceholderEditor
                       ref={bodyRef}
                       value={bodyHtml}
                       onChange={setBodyHtml}
-                      onDrop={handleDrop}
-                      rows={14}
-                      format={bodyFormat}
                       samples={placeholderSamples}
+                      monospace={bodyFormat === "html"}
+                      minHeight={320}
+                      ariaLabel="Inhalt"
                       placeholder={"{{anrede_brief}}\n\nhiermit informieren wir Sie...\n\nMit freundlichen Grüßen\n{{verwalter_name}}"}
                     />
                     <p className="text-[11px] text-muted-foreground mt-1">
-                      Oben schreiben — unten siehst du sofort, wie es bei einem echten Empfänger aussieht. Grau = Platzhalter.
+                      Platzhalter werden direkt mit echten Beispielwerten (grau) angezeigt.
                     </p>
                   </div>
                 </div>

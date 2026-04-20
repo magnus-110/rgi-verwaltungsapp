@@ -20,7 +20,7 @@ import { FriendlyVariablePalette } from "./FriendlyVariablePalette";
 import { usePlaceholderStats } from "./usePlaceholderStats";
 import { usePlaceholderSamples } from "./usePlaceholderSamples";
 import { EmailPreviewPane } from "./EmailPreviewPane";
-import { InlinePreviewEditor } from "./InlinePreviewEditor";
+import { WysiwygPlaceholderEditor, type WysiwygPlaceholderEditorHandle } from "./WysiwygPlaceholderEditor";
 import { ConfirmSendDialog } from "./ConfirmSendDialog";
 
 interface Props {
@@ -46,8 +46,8 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
   const [bodyFormat, setBodyFormat] = useState<"html" | "plain">("plain");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingScheduled, setPendingScheduled] = useState(false);
-  const bodyRef = useRef<HTMLTextAreaElement>(null);
-  const subjectRef = useRef<HTMLInputElement>(null);
+  const bodyRef = useRef<WysiwygPlaceholderEditorHandle>(null);
+  const subjectRef = useRef<WysiwygPlaceholderEditorHandle>(null);
   const lastFocused = useRef<"subject" | "body">("body");
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -57,45 +57,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
 
   const insertAtCursor = (placeholder: string) => {
     const target = lastFocused.current === "subject" ? subjectRef.current : bodyRef.current;
-    if (!target) return;
-    const start = target.selectionStart ?? target.value.length;
-    const end = target.selectionEnd ?? start;
-    const before = target.value.slice(0, start);
-    const after = target.value.slice(end);
-    const next = before + placeholder + after;
-    if (lastFocused.current === "subject") setSubject(next);
-    else setBody(next);
-    requestAnimationFrame(() => {
-      target.focus();
-      const pos = start + placeholder.length;
-      target.setSelectionRange(pos, pos);
-    });
-  };
-
-  const handleDropPlaceholder = (e: React.DragEvent<HTMLTextAreaElement>) => {
-    e.preventDefault();
-    const ph = e.dataTransfer.getData("text/plain");
-    if (!ph) return;
-    const ta = bodyRef.current;
-    if (!ta) { setBody(body + ph); return; }
-    // Try to use caret position from drop coordinates
-    let pos = ta.selectionStart ?? ta.value.length;
-    const docAny = document as any;
-    if (typeof docAny.caretPositionFromPoint === "function") {
-      const cp = docAny.caretPositionFromPoint(e.clientX, e.clientY);
-      if (cp && cp.offsetNode === ta) pos = cp.offset;
-    } else if (typeof (document as any).caretRangeFromPoint === "function") {
-      // Webkit fallback — works for inputs/textareas via selectionStart after focus
-      ta.focus();
-      pos = ta.selectionStart ?? pos;
-    }
-    const next = ta.value.slice(0, pos) + ph + ta.value.slice(pos);
-    setBody(next);
-    requestAnimationFrame(() => {
-      ta.focus();
-      const p = pos + ph.length;
-      ta.setSelectionRange(p, p);
-    });
+    target?.insert(placeholder);
   };
 
   const { data: accounts = [] } = useQuery({
@@ -304,36 +266,34 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
                 <div className="space-y-4 mt-2">
                   <div>
                     <Label>Betreff *</Label>
-                    <Input
+                    <WysiwygPlaceholderEditor
                       ref={subjectRef}
                       value={subject}
-                      onChange={(e) => setSubject(e.target.value)}
+                      onChange={setSubject}
                       onFocus={() => { lastFocused.current = "subject"; }}
+                      samples={placeholderSamples}
+                      singleLine
+                      ariaLabel="Betreff"
+                      placeholder="z. B. Wichtige Information zur Hausversammlung"
                     />
-                    {subject && (
-                      <div className="mt-1.5 rounded-md border bg-muted/20 px-2.5 py-1.5 text-xs flex items-baseline gap-2">
-                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Vorschau:</span>
-                        <EmailPreviewPane subject={subject} body="" format="plain" samples={placeholderSamples} subjectOnly />
-                      </div>
-                    )}
                   </div>
                   <div>
                     <Label>Inhalt {bodyFormat === "html" ? "(HTML)" : "(Klartext)"} *</Label>
-                    <InlinePreviewEditor
+                    <WysiwygPlaceholderEditor
                       ref={bodyRef}
                       value={body}
                       onChange={setBody}
                       onFocus={() => { lastFocused.current = "body"; }}
-                      onDrop={handleDropPlaceholder}
-                      rows={14}
-                      format={bodyFormat}
                       samples={placeholderSamples}
+                      monospace={bodyFormat === "html"}
+                      minHeight={320}
+                      ariaLabel="Inhalt"
                       placeholder={bodyFormat === "html"
                         ? "<p>{{anrede_brief}}</p>\n<p>...</p>"
                         : "{{anrede_brief}}\n\n..."}
                     />
                     <p className="text-[11px] text-muted-foreground mt-1">
-                      Oben schreiben — unten wird sofort gezeigt, wie es bei der ersten ausgewählten Person aussieht. Grau = Platzhalter.
+                      Platzhalter werden direkt mit den Daten der ersten ausgewählten Person angezeigt (grau hinterlegt).
                     </p>
                   </div>
                 </div>
