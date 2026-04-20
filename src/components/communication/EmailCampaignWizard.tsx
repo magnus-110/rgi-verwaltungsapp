@@ -217,7 +217,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Neue Rundmail</DialogTitle>
           <DialogDescription>Vorlage wählen oder direkt schreiben, Empfänger filtern, versenden.</DialogDescription>
@@ -255,13 +255,61 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
               </Select>
             </div>
 
-            <div>
-              <Label>Betreff *</Label>
-              <Input value={subject} onChange={(e) => setSubject(e.target.value)} />
-            </div>
-            <div>
-              <Label>Inhalt (HTML) *</Label>
-              <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={10} className="font-mono text-sm" />
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_240px] gap-4">
+              <div className="space-y-4 min-w-0">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <Label>Format</Label>
+                  </div>
+                  <RadioGroup
+                    value={bodyFormat}
+                    onValueChange={(v) => setBodyFormat(v as "html" | "plain")}
+                    className="flex gap-2"
+                  >
+                    <label className={`flex-1 flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer text-sm transition-colors ${bodyFormat === "html" ? "border-primary bg-primary/5" : "border-input hover:bg-accent"}`}>
+                      <RadioGroupItem value="html" />
+                      <Code className="h-4 w-4" /> HTML
+                      <span className="text-xs text-muted-foreground ml-auto">Formatiert</span>
+                    </label>
+                    <label className={`flex-1 flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer text-sm transition-colors ${bodyFormat === "plain" ? "border-primary bg-primary/5" : "border-input hover:bg-accent"}`}>
+                      <RadioGroupItem value="plain" />
+                      <Type className="h-4 w-4" /> Klartext
+                      <span className="text-xs text-muted-foreground ml-auto">Einfach</span>
+                    </label>
+                  </RadioGroup>
+                </div>
+
+                <div>
+                  <Label>Betreff *</Label>
+                  <Input
+                    ref={subjectRef}
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    onFocus={() => { lastFocused.current = "subject"; }}
+                  />
+                </div>
+                <div>
+                  <Label>Inhalt {bodyFormat === "html" ? "(HTML)" : "(Klartext)"} *</Label>
+                  <Textarea
+                    ref={bodyRef}
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                    onFocus={() => { lastFocused.current = "body"; }}
+                    onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
+                    onDrop={handleDropPlaceholder}
+                    rows={12}
+                    className={bodyFormat === "html" ? "font-mono text-sm" : "text-sm"}
+                    placeholder={bodyFormat === "html"
+                      ? "<p>{{anrede_brief}}</p>\n<p>...</p>"
+                      : "{{anrede_brief}}\n\n..."}
+                  />
+                </div>
+              </div>
+
+              <aside className="border rounded-md bg-muted/30 p-2 md:sticky md:top-0 self-start">
+                <h4 className="text-xs font-semibold mb-1 px-1">Platzhalter</h4>
+                <VariablePalette onInsert={insertAtCursor} />
+              </aside>
             </div>
 
             <div>
