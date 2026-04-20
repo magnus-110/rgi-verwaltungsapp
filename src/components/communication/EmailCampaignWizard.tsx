@@ -431,7 +431,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
         <DialogFooter>
           {step === 2 && <Button variant="outline" onClick={() => setStep(1)} disabled={busy}>Zurück</Button>}
           {step === 2 && (
-            <Button onClick={handleSend} disabled={busy}>
+            <Button onClick={requestSend} disabled={busy}>
               {busy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : (scheduledAt ? <CalendarClock className="h-4 w-4 mr-2" /> : <Send className="h-4 w-4 mr-2" />)}
               {scheduledAt ? "Versand planen" : "Jetzt senden"}
             </Button>
@@ -440,6 +440,13 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
         </DialogFooter>
 
         <VariableHelpSheet open={helpOpen} onOpenChange={setHelpOpen} />
+        <ConfirmSendDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          recipientCount={recipientCount}
+          scheduledAt={pendingScheduled ? scheduledAt : undefined}
+          onConfirm={executeSend}
+        />
       </DialogContent>
     </Dialog>
   );
