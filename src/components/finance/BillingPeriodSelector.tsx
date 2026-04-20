@@ -143,7 +143,7 @@ export function BillingPeriodSelector({
         </SelectTrigger>
         <SelectContent>
           {buildings.map((b) => (
-            <SelectItem key={b.id} value={b.id}>{b.name} ({b.building_code})</SelectItem>
+            <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
           ))}
         </SelectContent>
       </Select>
