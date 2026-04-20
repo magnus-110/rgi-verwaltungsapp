@@ -339,6 +339,10 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       fuel_quantity: "",
       fuel_total_price: "",
       fuel_date: txnDate,
+      fuel_co2_emissions_kg: "",
+      fuel_co2_tax_amount: "",
+      fuel_energy_content_kwh: "",
+      fuel_heating_unit_id: "",
       line_items_detail: null,
       ...overrides,
     };
