@@ -294,6 +294,12 @@ serve(async (req) => {
 
 BRENNSTOFF-ERKENNUNG: Prüfe ob es sich um eine Brennstofflieferung handelt (Heizöl, Pellets, Gas, Fernwärme). Wenn ja, setze is_fuel_purchase=true und extrahiere fuel_type, fuel_quantity und fuel_unit.
 
+CO₂-DATEN (BEHG, nur bei fossilen Brennstoffen oil/gas/district_heating): Extrahiere NUR wenn explizit auf der Rechnung genannt - NIEMALS berechnen oder schätzen!
+- co2_emissions_kg: Gesamt-CO₂-Emissionen in kg (Schlüsselwörter: "CO2-Emissionen", "CO₂-Ausstoß", "CO2 in kg", "Kohlendioxid")
+- co2_tax_amount_eur: CO₂-Preisanteil in EUR (Schlüsselwörter: "CO2-Preis", "CO₂-Steuer", "BEHG", "nationaler Emissionshandel", "nEHS")
+- energy_content_kwh: Energiegehalt/Brennwert in kWh der Lieferung (Schlüsselwörter: "Brennwert", "Energiegehalt", "kWh")
+Wenn ein Wert nicht explizit auf der Rechnung steht: setze null. Bei Pellets KEINE CO₂-Felder ausgeben (biogen, BEHG-frei).
+
 ABSCHLAGSZAHLUNGEN / VERSORGUNGSVERTRÄGE:
 Prüfe ob es sich um einen Abschlagsplan oder eine Jahresabrechnung handelt:
 - ABSCHLAGSPLAN: Schlüsselwörter sind "Abschlag", "Abschlagsplan", "monatliche Vorauszahlung", "neuer Abschlag", "Abschlagszahlung". Setze invoice_type="installment" und extrahiere installment_amount (monatlicher Abschlagsbetrag), installment_interval, contract_number, meter_number.
