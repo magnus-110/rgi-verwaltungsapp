@@ -12,7 +12,9 @@ import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "@/hooks/use-toast";
-import { Filter, ChevronDown, ChevronUp, FileText, Download, Edit, Copy, CalendarIcon, X, FolderPlus, Link2 } from "lucide-react";
+import { Filter, ChevronDown, ChevronUp, FileText, Download, Edit, Copy, CalendarIcon, X, FolderPlus, Link2, Search, Phone, Mail, Building2, User, StickyNote, Lock, Paperclip, Inbox as InboxIcon, AlertCircle, Clock } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { formatDistanceToNow } from "date-fns";
 import { useManagementMode } from "@/hooks/useManagementMode";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { EditReportDialog } from "@/components/reports/EditReportDialog";
@@ -476,108 +478,175 @@ Beschreibung: ${report.description}`;
     return profile?.role === 'admin' ? `${dateStr} ${timeStr}` : dateStr;
   };
 
-  const renderReportCard = (report: Report) => (
-    <Card key={report.id} className="border-0 shadow-sm bg-white">
-      <CardContent className="p-4">
-        <div className="flex justify-between items-start mb-3">
-          <h3 className="text-lg font-medium">{report.title}</h3>
-          <div className="flex gap-2 items-center flex-wrap">
-            {report.case_id ? (
-              <Badge variant="outline" className="gap-1 text-xs">
-                <Link2 className="h-3 w-3" />
-                Vorgang verknüpft
-              </Badge>
-            ) : (
-              <>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => setCreateCaseFromReport(report)}
-                  title="Neuen Vorgang aus Meldung erstellen"
-                >
-                  <FolderPlus className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => setLinkReportToCase(report)}
-                  title="Mit existierendem Vorgang verknüpfen"
-                >
-                  <Link2 className="h-3.5 w-3.5" />
-                </Button>
-              </>
-            )}
-            {getStatusBadge(report.status)}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setEditingReport(report)}
-            >
-              <Edit className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-        
-        <p className="text-sm text-muted-foreground mb-4">{report.description}</p>
-        
-        <div className="grid grid-cols-2 gap-4 text-sm mb-4">
-          <div className="space-y-1">
-            <p><strong>Kontakt:</strong> {report.contact_name}</p>
-            <p><strong>Telefon:</strong> {report.contact_phone || 'Nicht angegeben'}</p>
-            <p><strong>E-Mail:</strong> {report.contact_email || 'Nicht angegeben'}</p>
-          </div>
-          <div className="space-y-1">
-            <p><strong>Gebäude:</strong> {report.buildings?.address || 'Nicht zugewiesen'}</p>
-            <p><strong>Verwalter:</strong> {(report.buildings as any)?.managers?.map((m: any) => m.name).join(', ') || 'Nicht zugewiesen'}</p>
-            <p><strong>Erstellt am:</strong> {formatDateTime(report.created_at)}</p>
-          </div>
-        </div>
+  const formatRelative = (dateString: string) => {
+    try {
+      return formatDistanceToNow(new Date(dateString), { addSuffix: true, locale: de });
+    } catch {
+      return formatDateTime(dateString);
+    }
+  };
 
-        {report.admin_notes && (
-          <div className="mb-4 p-3 bg-green-50 rounded-lg border-l-4 border-green-400">
-            <h4 className="font-medium mb-1 text-green-800">Verwalter-Notiz:</h4>
-            <p className="text-sm text-green-700">{report.admin_notes}</p>
-          </div>
-        )}
+  const getInitials = (name?: string) => {
+    if (!name) return "?";
+    return name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((p) => p[0]?.toUpperCase())
+      .join("");
+  };
 
-        {report.internal_notes && (
-          <div className="mb-4 p-3 bg-gray-50 rounded-lg border-l-4 border-gray-400">
-            <h4 className="font-medium mb-1 text-gray-800">Interne Notizen:</h4>
-            <p className="text-sm text-gray-700">{report.internal_notes}</p>
-          </div>
-        )}
+  const renderReportCard = (report: Report) => {
+    const accent = report.status === "open" ? "border-l-destructive" : "border-l-warning";
+    const managerNames = (report.buildings as any)?.managers?.map((m: any) => m.name).join(', ') || 'Nicht zugewiesen';
+    const attachments = attachmentUrls[report.id] || parseAttachments(report.attachments);
 
-        {report.attachments && report.attachments.length > 0 && (
-          <div className="space-y-2">
-            <h4 className="text-sm font-medium">Anhänge:</h4>
-            <div className="grid grid-cols-2 gap-2">
-              {(attachmentUrls[report.id] || parseAttachments(report.attachments)).map((attachment: any, index: number) => (
-                <div key={index} className="flex items-center p-2 bg-muted rounded-lg">
-                  <FileText className="h-4 w-4 mr-2 text-blue-600" />
-                  {attachment.signedUrl ? (
-                    <a
-                      href={attachment.signedUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-blue-600 hover:text-blue-800 truncate"
-                    >
-                      {attachment.name}
-                    </a>
-                  ) : (
-                    <span className="text-sm text-muted-foreground truncate">
-                      {attachment.name} (URL nicht verfügbar)
-                    </span>
-                  )}
+    return (
+      <Card key={report.id} className={cn("rgi-card border-l-4 hover:shadow-md transition-all", accent)}>
+        <CardContent className="p-5">
+          {/* Header row */}
+          <div className="flex items-start gap-3 mb-3">
+            <Avatar className="h-10 w-10 shrink-0">
+              <AvatarFallback className="bg-primary/10 text-primary text-sm font-semibold">
+                {getInitials(report.contact_name)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <h3 className="text-base font-semibold leading-snug truncate">{report.title}</h3>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                    <span className="font-medium text-foreground/80">{report.contact_name || 'Unbekannt'}</span>
+                    <span>·</span>
+                    <span title={formatDateTime(report.created_at)}>{formatRelative(report.created_at)}</span>
+                  </div>
                 </div>
-              ))}
+                <div className="flex items-center gap-1 shrink-0 opacity-70 hover:opacity-100 transition-opacity">
+                  {report.case_id ? (
+                    <Badge variant="outline" className="gap-1 text-xs">
+                      <Link2 className="h-3 w-3" />
+                      Vorgang
+                    </Badge>
+                  ) : (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setCreateCaseFromReport(report)}
+                        title="Neuen Vorgang aus Meldung erstellen"
+                      >
+                        <FolderPlus className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setLinkReportToCase(report)}
+                        title="Mit existierendem Vorgang verknüpfen"
+                      >
+                        <Link2 className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
+                  {getStatusBadge(report.status)}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => copyToClipboard(report)}
+                    title="Kopieren"
+                  >
+                    <Copy className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setEditingReport(report)}
+                    title="Bearbeiten"
+                  >
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
-        )}
-      </CardContent>
-    </Card>
-  );
+
+          {report.description && (
+            <p className="text-sm text-muted-foreground mb-4 whitespace-pre-wrap">{report.description}</p>
+          )}
+
+          {/* Meta grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+            <div className="flex items-center gap-2 text-muted-foreground min-w-0">
+              <Phone className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{report.contact_phone || '—'}</span>
+            </div>
+            <div className="flex items-center gap-2 text-muted-foreground min-w-0">
+              <Mail className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{report.contact_email || '—'}</span>
+            </div>
+            <div className="flex items-center gap-2 text-muted-foreground min-w-0">
+              <Building2 className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{report.buildings?.address || 'Nicht zugewiesen'}</span>
+            </div>
+            <div className="flex items-center gap-2 text-muted-foreground min-w-0">
+              <User className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{managerNames}</span>
+            </div>
+          </div>
+
+          {report.admin_notes && (
+            <div className="mt-4 p-3 bg-success/5 border border-success/20 rounded-lg flex gap-2">
+              <StickyNote className="h-4 w-4 text-success shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <h4 className="text-xs font-semibold text-foreground mb-0.5">Verwalter-Notiz</h4>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{report.admin_notes}</p>
+              </div>
+            </div>
+          )}
+
+          {report.internal_notes && (
+            <div className="mt-3 p-3 bg-muted/40 border border-border rounded-lg flex gap-2">
+              <Lock className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+              <div className="min-w-0">
+                <h4 className="text-xs font-semibold text-foreground mb-0.5">Interne Notizen</h4>
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{report.internal_notes}</p>
+              </div>
+            </div>
+          )}
+
+          {attachments.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {attachments.map((attachment: any, index: number) => (
+                attachment.signedUrl ? (
+                  <a
+                    key={index}
+                    href={attachment.signedUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-border bg-muted/40 text-xs text-foreground hover:bg-primary/10 hover:border-primary/30 hover:text-primary transition-colors max-w-[220px]"
+                  >
+                    <Paperclip className="h-3 w-3 shrink-0" />
+                    <span className="truncate">{attachment.name}</span>
+                  </a>
+                ) : (
+                  <span
+                    key={index}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-border bg-muted/40 text-xs text-muted-foreground max-w-[220px]"
+                  >
+                    <Paperclip className="h-3 w-3 shrink-0" />
+                    <span className="truncate">{attachment.name}</span>
+                  </span>
+                )
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  };
 
   if (loading) {
     return (
@@ -595,13 +664,18 @@ Beschreibung: ${report.description}`;
     <div className="min-h-screen bg-background p-0 md:p-6">
       <div className="max-w-6xl mx-auto space-y-4 md:space-y-6">
         {/* Header */}
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold">
-            {managementMode === "weg" ? "WEG-" : "Miet-"}Meldungen
-          </h1>
-          <p className="text-muted-foreground text-sm md:text-base">
-            Übersicht aller {managementMode === "weg" ? "WEG-" : "Miet-"}Meldungen
-          </p>
+        <div className="flex items-start gap-3">
+          <div className="p-2 bg-primary/10 rounded-lg">
+            <InboxIcon className="h-6 w-6 text-primary" />
+          </div>
+          <div>
+            <h1 className="heading-primary text-2xl md:text-3xl">
+              {managementMode === "weg" ? "WEG-" : "Miet-"}Meldungen
+            </h1>
+            <p className="text-muted-foreground text-sm md:text-base">
+              Übersicht aller {managementMode === "weg" ? "WEG-" : "Miet-"}Meldungen
+            </p>
+          </div>
         </div>
 
         {/* Toolbar */}
@@ -639,32 +713,34 @@ Beschreibung: ${report.description}`;
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsContent value="reports" className="space-y-4 md:space-y-6">
+          <TabsContent value="reports" className="space-y-6">
             {/* Summary Cards */}
             <div className="grid grid-cols-2 gap-3 md:gap-4">
-              <Card>
+              <Card className="border-l-4 border-l-destructive">
                 <CardContent className="p-4 md:p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-sm md:text-lg font-semibold text-foreground">Offen</h3>
-                      <p className="text-2xl md:text-3xl font-bold text-foreground">{timeFilteredOpenReports.length}</p>
+                      <h3 className="text-sm font-medium text-muted-foreground">Offen</h3>
+                      <p className="text-3xl font-semibold tracking-tight text-foreground mt-1">{timeFilteredOpenReports.length}</p>
+                      <p className="text-xs text-muted-foreground mt-1">aktueller Zeitraum</p>
                     </div>
-                    <div className="text-muted-foreground">
-                      <FileText className="h-6 w-6 md:h-8 md:w-8" />
+                    <div className="p-2.5 bg-destructive/10 rounded-full">
+                      <AlertCircle className="h-5 w-5 md:h-6 md:w-6 text-destructive" />
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="border-l-4 border-l-warning">
                 <CardContent className="p-4 md:p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <h3 className="text-sm md:text-lg font-semibold text-foreground">Bearbeitet</h3>
-                      <p className="text-2xl md:text-3xl font-bold text-foreground">{timeFilteredInProgressReports.length}</p>
+                      <h3 className="text-sm font-medium text-muted-foreground">Bearbeitet</h3>
+                      <p className="text-3xl font-semibold tracking-tight text-foreground mt-1">{timeFilteredInProgressReports.length}</p>
+                      <p className="text-xs text-muted-foreground mt-1">aktueller Zeitraum</p>
                     </div>
-                    <div className="text-muted-foreground">
-                      <FileText className="h-6 w-6 md:h-8 md:w-8" />
+                    <div className="p-2.5 bg-warning/10 rounded-full">
+                      <Clock className="h-5 w-5 md:h-6 md:w-6 text-warning" />
                     </div>
                   </div>
                 </CardContent>
@@ -675,7 +751,7 @@ Beschreibung: ${report.description}`;
             <div className="space-y-3">
               <div className="flex gap-2">
                 <div className="relative flex-1">
-                  <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Meldungen durchsuchen..."
                     value={searchTerm}
@@ -697,7 +773,7 @@ Beschreibung: ${report.description}`;
 
               <Collapsible open={isFilterOpen} onOpenChange={setIsFilterOpen}>
                 <CollapsibleContent>
-                  <div className="space-y-3 p-4 bg-muted/30 rounded-lg border">
+                  <div className="space-y-3 p-3 bg-muted/30 rounded-lg border">
                     <div className="flex flex-col lg:flex-row gap-3">
                       <Select value={buildingFilter} onValueChange={setBuildingFilter}>
                         <SelectTrigger className="w-full lg:w-[200px]">
@@ -738,43 +814,47 @@ Beschreibung: ${report.description}`;
             </div>
 
             {/* Open Reports */}
-            <div className="space-y-4">
-              <h2 className="text-xl font-semibold text-red-600">
-                Offene Meldungen ({timeFilteredOpenReports.length})
-              </h2>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-destructive" />
+                <h2 className="text-base font-semibold text-foreground">Offene Meldungen</h2>
+                <Badge variant="secondary" className="text-xs">{timeFilteredOpenReports.length}</Badge>
+              </div>
               {timeFilteredOpenReports.length === 0 ? (
-                <Card>
-                  <CardContent className="text-center py-8">
-                    <p className="text-muted-foreground">Keine offenen Meldungen</p>
-                  </CardContent>
-                </Card>
+                <div className="border border-dashed border-muted-foreground/20 rounded-lg py-10 text-center">
+                  <InboxIcon className="h-8 w-8 text-muted-foreground/50 mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">Keine offenen Meldungen</p>
+                </div>
               ) : (
-                timeFilteredOpenReports.map(renderReportCard)
+                <div className="space-y-3">
+                  {timeFilteredOpenReports.map(renderReportCard)}
+                </div>
               )}
             </div>
 
             {/* In Progress Reports - Collapsible */}
-            <div className="space-y-4">
+            <div className="space-y-3">
               <Collapsible open={isInProgressOpen} onOpenChange={setIsInProgressOpen}>
                 <CollapsibleTrigger asChild>
-                  <div className="flex items-center justify-between cursor-pointer">
-                    <h2 className="text-xl font-semibold text-yellow-600">
-                      Bearbeitete Meldungen ({timeFilteredInProgressReports.length})
-                    </h2>
+                  <div className="flex items-center justify-between cursor-pointer group">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-warning" />
+                      <h2 className="text-base font-semibold text-foreground group-hover:text-primary transition-colors">Bearbeitete Meldungen</h2>
+                      <Badge variant="secondary" className="text-xs">{timeFilteredInProgressReports.length}</Badge>
+                    </div>
                     {isInProgressOpen ? (
-                      <ChevronUp className="h-5 w-5" />
+                      <ChevronUp className="h-4 w-4 text-muted-foreground" />
                     ) : (
-                      <ChevronDown className="h-5 w-5" />
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
                     )}
                   </div>
                 </CollapsibleTrigger>
-                <CollapsibleContent className="space-y-4">
+                <CollapsibleContent className="space-y-3 pt-3">
                   {timeFilteredInProgressReports.length === 0 ? (
-                    <Card>
-                      <CardContent className="text-center py-8">
-                        <p className="text-muted-foreground">Keine bearbeiteten Meldungen</p>
-                      </CardContent>
-                    </Card>
+                    <div className="border border-dashed border-muted-foreground/20 rounded-lg py-10 text-center">
+                      <InboxIcon className="h-8 w-8 text-muted-foreground/50 mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground">Keine bearbeiteten Meldungen</p>
+                    </div>
                   ) : (
                     timeFilteredInProgressReports.map(renderReportCard)
                   )}
