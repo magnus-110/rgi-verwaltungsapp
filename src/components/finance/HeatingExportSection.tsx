@@ -65,13 +65,15 @@ export function HeatingExportSection({ buildingId, periodId, fiscalYear }: Heati
   });
 
   const { data: fuelEntries = [] } = useQuery({
-    queryKey: ["fuel-inventory", buildingId, periodId],
+    queryKey: ["fuel-inventory", buildingId, periodId, fiscalYear],
     queryFn: async () => {
+      // Heizjahr: Einträge der Periode ODER mit consumption_year == fiscalYear
+      // (Gas/Fernwärme-Jahresabrechnungen, deren Rechnungsjahr ein anderes ist).
       const { data, error } = await supabase
         .from("fuel_inventory")
         .select("*")
         .eq("building_id", buildingId)
-        .eq("billing_period_id", periodId)
+        .or(`billing_period_id.eq.${periodId},consumption_year.eq.${fiscalYear}`)
         .order("entry_date");
       if (error) throw error;
       return data;

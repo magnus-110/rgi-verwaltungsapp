@@ -65,6 +65,8 @@ interface BookingRowData {
   fuel_co2_tax_amount: string;
   fuel_energy_content_kwh: string;
   fuel_heating_unit_id: string;
+  fuel_consumption_from: string;
+  fuel_consumption_to: string;
   line_items_detail: any[] | null;
   accrualHint?: {
     needs_accrual: boolean;
@@ -355,6 +357,8 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       fuel_co2_tax_amount: "",
       fuel_energy_content_kwh: "",
       fuel_heating_unit_id: "",
+      fuel_consumption_from: "",
+      fuel_consumption_to: "",
       line_items_detail: null,
       ...overrides,
     };
@@ -448,6 +452,8 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           fuel_co2_tax_amount: "",
           fuel_energy_content_kwh: "",
           fuel_heating_unit_id: "",
+          fuel_consumption_from: "",
+          fuel_consumption_to: "",
         };
       });
       setFormRows(rows);
@@ -539,6 +545,18 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         if (ocrData.co2_emissions_kg != null) row.fuel_co2_emissions_kg = String(ocrData.co2_emissions_kg);
         if (ocrData.co2_tax_amount_eur != null) row.fuel_co2_tax_amount = String(ocrData.co2_tax_amount_eur);
         if (ocrData.energy_content_kwh != null) row.fuel_energy_content_kwh = String(ocrData.energy_content_kwh);
+
+        // Verbrauchszeitraum: bei Jahresabrechnungen für Gas/Fernwärme aus billing_period_*, sonst Lieferdatum
+        const isAnnualGasFW =
+          ocrData.invoice_type === "annual_settlement" &&
+          (row.fuel_type === "gas" || row.fuel_type === "district_heating");
+        if (isAnnualGasFW && ocrData.billing_period_from && ocrData.billing_period_to) {
+          row.fuel_consumption_from = String(ocrData.billing_period_from);
+          row.fuel_consumption_to = String(ocrData.billing_period_to);
+        } else {
+          row.fuel_consumption_from = row.fuel_date;
+          row.fuel_consumption_to = row.fuel_date;
+        }
       }
     }
 
@@ -770,6 +788,8 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           co2_emissions_kg: !isNaN(co2Emissions) && co2Emissions > 0 ? co2Emissions : null,
           co2_tax_amount: !isNaN(co2Tax) && co2Tax > 0 ? co2Tax : null,
           energy_content_kwh: !isNaN(energyKwh) && energyKwh > 0 ? energyKwh : null,
+          consumption_period_from: row.fuel_consumption_from || row.fuel_date || row.booking_date,
+          consumption_period_to: row.fuel_consumption_to || row.fuel_date || row.booking_date,
           notes: `Brennstoffkauf ${fuelLabel}: ${quantity} ${fuelUnit}`,
         } as any);
       }
@@ -1891,6 +1911,54 @@ function BookingRowCard({
                         onChange={e => onUpdateField("fuel_energy_content_kwh", e.target.value)} />
                     </div>
                   </div>
+
+                  {/* Verbrauchszeitraum */}
+                  {(row.fuel_type === "gas" || row.fuel_type === "district_heating") ? (
+                    <div className="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-3 space-y-3">
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                        <div className="text-xs text-amber-900 dark:text-amber-200">
+                          <p className="font-medium">Verbrauchszeitraum (Heizjahr)</p>
+                          <p className="opacity-80 mt-0.5">Bei Jahresabrechnungen liegt der Verbrauch meist im Vorjahr. Werte aus Rechnung übernehmen — die Buchung bleibt im Rechnungsjahr, der Verbrauch wandert ins korrekte Heizjahr.</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground mb-1 block">Verbrauch von</label>
+                          <Input className="h-9 text-sm" type="date" value={row.fuel_consumption_from}
+                            onChange={e => onUpdateField("fuel_consumption_from", e.target.value)} />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground mb-1 block">Verbrauch bis</label>
+                          <Input className="h-9 text-sm" type="date" value={row.fuel_consumption_to}
+                            onChange={e => onUpdateField("fuel_consumption_to", e.target.value)} />
+                        </div>
+                      </div>
+                      {row.fuel_consumption_to && (
+                        <div className="text-xs font-medium text-amber-900 dark:text-amber-200">
+                          → Zugeordnet zu Heizjahr <span className="font-bold">{new Date(row.fuel_consumption_to).getFullYear()}</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <details className="text-xs">
+                      <summary className="cursor-pointer text-muted-foreground hover:text-foreground select-none">
+                        Verbrauchszeitraum abweichend? (Standard = Lieferdatum)
+                      </summary>
+                      <div className="grid grid-cols-2 gap-3 mt-2">
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground mb-1 block">Verbrauch von</label>
+                          <Input className="h-9 text-sm" type="date" value={row.fuel_consumption_from}
+                            onChange={e => onUpdateField("fuel_consumption_from", e.target.value)} />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground mb-1 block">Verbrauch bis</label>
+                          <Input className="h-9 text-sm" type="date" value={row.fuel_consumption_to}
+                            onChange={e => onUpdateField("fuel_consumption_to", e.target.value)} />
+                        </div>
+                      </div>
+                    </details>
+                  )}
 
                   {showCo2 && (
                     <div className="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-3 space-y-3">
