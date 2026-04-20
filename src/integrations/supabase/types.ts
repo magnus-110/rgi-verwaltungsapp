@@ -4734,6 +4734,12 @@ export type Database = {
         }[]
       }
       get_building_overview: { Args: { p_building_id: string }; Returns: Json }
+      get_dashboard_global_stats: {
+        Args: {
+          p_management_mode: Database["public"]["Enums"]["management_mode"]
+        }
+        Returns: Json
+      }
       get_owner_assignments_in_user_buildings: {
         Args: { _user_id: string }
         Returns: string[]
