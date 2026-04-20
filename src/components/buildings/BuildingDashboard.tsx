@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Building2, MapPin, Edit, Trash2, Users, FileText, AlertCircle, Newspaper, Wrench, ChevronLeft, Landmark, Scale, Flame, Briefcase } from "lucide-react";
+import { Building2, MapPin, Edit, Trash2, Users, FileText, AlertCircle, Newspaper, Wrench, ChevronLeft, Landmark, Scale, Flame, Briefcase, Send } from "lucide-react";
 import { BuildingCasesTab } from "./BuildingCasesTab";
+import { BuildingCommunicationTab } from "./BuildingCommunicationTab";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -170,6 +171,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
               { value: "distribution", label: "Kontenrahmen" },
               { value: "providers", label: "Dienstleister" },
               { value: "finance", label: "Finanzen" },
+              { value: "communication", label: "Kommunikation" },
               ...(building.management_mode === 'weg' ? [{ value: "resolutions", label: "Beschlüsse" }] : []),
             ].map(tab => (
               <TabsTrigger key={tab.value} value={tab.value} variant="underline"
@@ -234,6 +236,11 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
           {/* Finance Tab */}
           <TabsContent value="finance" className="p-3 md:p-6 mt-0">
             <BuildingFinanceSummary buildingId={buildingId} buildingName={building.name} />
+          </TabsContent>
+
+          {/* Communication Tab */}
+          <TabsContent value="communication" className="p-3 md:p-6 mt-0">
+            <BuildingCommunicationTab buildingId={buildingId} />
           </TabsContent>
 
           {/* Resolutions Tab (WEG only) */}
