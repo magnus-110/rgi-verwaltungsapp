@@ -6,13 +6,16 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { HelpCircle, Loader2, Mail, Send, Eye, Paperclip, X, CalendarClock } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { HelpCircle, Loader2, Mail, Send, Eye, Paperclip, X, CalendarClock, Code, Type } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef } from "react";
 import { TemplateList } from "./TemplateList";
 import { RecipientPicker, RecipientFilterValue } from "./RecipientPicker";
 import { VariableHelpSheet } from "./VariableHelpSheet";
+import { VariablePalette } from "./VariablePalette";
 
 interface Props {
   open: boolean;
@@ -34,8 +37,55 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
   const [resultStats, setResultStats] = useState<{ ok: number; failed: number } | null>(null);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [scheduledAt, setScheduledAt] = useState<string>("");
+  const [bodyFormat, setBodyFormat] = useState<"html" | "plain">("html");
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const subjectRef = useRef<HTMLInputElement>(null);
+  const lastFocused = useRef<"subject" | "body">("body");
   const { toast } = useToast();
   const qc = useQueryClient();
+
+  const insertAtCursor = (placeholder: string) => {
+    const target = lastFocused.current === "subject" ? subjectRef.current : bodyRef.current;
+    if (!target) return;
+    const start = target.selectionStart ?? target.value.length;
+    const end = target.selectionEnd ?? start;
+    const before = target.value.slice(0, start);
+    const after = target.value.slice(end);
+    const next = before + placeholder + after;
+    if (lastFocused.current === "subject") setSubject(next);
+    else setBody(next);
+    requestAnimationFrame(() => {
+      target.focus();
+      const pos = start + placeholder.length;
+      target.setSelectionRange(pos, pos);
+    });
+  };
+
+  const handleDropPlaceholder = (e: React.DragEvent<HTMLTextAreaElement>) => {
+    e.preventDefault();
+    const ph = e.dataTransfer.getData("text/plain");
+    if (!ph) return;
+    const ta = bodyRef.current;
+    if (!ta) { setBody(body + ph); return; }
+    // Try to use caret position from drop coordinates
+    let pos = ta.selectionStart ?? ta.value.length;
+    const docAny = document as any;
+    if (typeof docAny.caretPositionFromPoint === "function") {
+      const cp = docAny.caretPositionFromPoint(e.clientX, e.clientY);
+      if (cp && cp.offsetNode === ta) pos = cp.offset;
+    } else if (typeof (document as any).caretRangeFromPoint === "function") {
+      // Webkit fallback — works for inputs/textareas via selectionStart after focus
+      ta.focus();
+      pos = ta.selectionStart ?? pos;
+    }
+    const next = ta.value.slice(0, pos) + ph + ta.value.slice(pos);
+    setBody(next);
+    requestAnimationFrame(() => {
+      ta.focus();
+      const p = pos + ph.length;
+      ta.setSelectionRange(p, p);
+    });
+  };
 
   const { data: accounts = [] } = useQuery({
     queryKey: ["email-accounts"],
@@ -53,6 +103,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
     setSubject(""); setBody(""); setAccountId(""); setTestEmail("");
     setFilter({ roles: [], contact_ids: [], require_email: true });
     setResultStats(null); setAttachments([]); setScheduledAt("");
+    setBodyFormat("html");
   };
 
   const useTemplate = (t: any) => {
@@ -60,6 +111,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
     setName(`Rundmail: ${t.name}`);
     setSubject(t.subject || "");
     setBody(t.body_html || "");
+    setBodyFormat((t.body_format as "html" | "plain") || "html");
     setStep(2);
   };
 
