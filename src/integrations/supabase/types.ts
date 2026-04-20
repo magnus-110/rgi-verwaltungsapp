@@ -3598,6 +3598,8 @@ export type Database = {
           description: string | null
           due_date: string | null
           duplicate_of: string | null
+          einvoice_format: string | null
+          einvoice_xml_path: string | null
           file_name: string | null
           file_path: string | null
           gross_amount: number | null
@@ -3607,6 +3609,7 @@ export type Database = {
           invoice_number: string | null
           invoice_type: Database["public"]["Enums"]["invoice_type"] | null
           is_company_invoice: boolean
+          leitweg_id: string | null
           line_items: Json | null
           meter_number: string | null
           net_amount: number | null
@@ -3638,6 +3641,8 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           duplicate_of?: string | null
+          einvoice_format?: string | null
+          einvoice_xml_path?: string | null
           file_name?: string | null
           file_path?: string | null
           gross_amount?: number | null
@@ -3647,6 +3652,7 @@ export type Database = {
           invoice_number?: string | null
           invoice_type?: Database["public"]["Enums"]["invoice_type"] | null
           is_company_invoice?: boolean
+          leitweg_id?: string | null
           line_items?: Json | null
           meter_number?: string | null
           net_amount?: number | null
@@ -3678,6 +3684,8 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           duplicate_of?: string | null
+          einvoice_format?: string | null
+          einvoice_xml_path?: string | null
           file_name?: string | null
           file_path?: string | null
           gross_amount?: number | null
@@ -3687,6 +3695,7 @@ export type Database = {
           invoice_number?: string | null
           invoice_type?: Database["public"]["Enums"]["invoice_type"] | null
           is_company_invoice?: boolean
+          leitweg_id?: string | null
           line_items?: Json | null
           meter_number?: string | null
           net_amount?: number | null
