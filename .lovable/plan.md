@@ -1,54 +1,56 @@
 
-
 ## Ziel
-Eingabefeld und Vorschau verschmelzen: Sobald ein Platzhalter eingefügt wird, erscheint er **direkt im Inhaltsfeld** als grauer Beispielwert (z. B. „Frau Dagmar Wollmann"). Keine separate Live-Vorschau mehr nötig.
+Die Rechnungsliste im Dialog „Vorlage bearbeiten“ soll wieder sauber mit dem Mausrad/Trackpad scrollbar sein, auch seit dem Hinzufügen des Augen-Buttons zum Öffnen der Rechnung.
 
-## Lösungsansatz: Contenteditable WYSIWYG-Editor
+## Wahrscheinliche Ursache
+Die aktuelle Rechnungs-Auswahlliste kombiniert `cmdk` (`CommandList`/`CommandItem`) mit einer eigenen Wrapper-`div` plus separatem Preview-Button pro Zeile. Dadurch ist die DOM-Struktur nicht mehr sauber im erwarteten `cmdk`-Muster, was Pointer-/Wheel-Events und Hover/Selection-Verhalten blockieren kann.
 
-Da ein normales `<textarea>` keine farbigen/inline-gerenderten Elemente erlaubt, ersetzen wir es durch ein **`contenteditable` `<div>`** mit Platzhalter-Pillen.
+## Umsetzung
+1. `src/components/finance/BookingTemplatesTab.tsx` gezielt umbauen:
+   - Die Rechnungs-Auswahl nicht mehr als gemischte `CommandItem` + Wrapper + externen Button rendern.
+   - Stattdessen:
+     - `CommandInput` nur noch für die Suche verwenden
+     - die Trefferliste darunter als eigene, einfache scrollbare Liste rendern (`div`/`ScrollArea` mit `max-h`)
+     - jede Zeile als normales Row-Layout mit:
+       - linkem Bereich „Rechnung auswählen“
+       - rechtem Augen-Button „Rechnung öffnen“
 
-### Neue Komponente: `WysiwygPlaceholderEditor.tsx`
+2. Suche robust machen:
+   - `filteredInvoices` lokal aus `invoiceSearch` berechnen
+   - Suche über `invoice_number`, `vendor_name`, optional Datum/Betrag
+   - So entfällt die Abhängigkeit von `cmdk` für das eigentliche List-Rendering
 
-- `<div contenteditable="true">` mit Tailwind-Styling, das wie das aktuelle `Textarea` aussieht (border, padding, focus-ring, min-height).
-- Platzhalter werden als **inline `<span contenteditable="false">`-Pillen** eingefügt:
-  - Sichtbarer Text = Beispielwert (z. B. „Frau Dagmar Wollmann") in `text-muted-foreground`, leichter `bg-muted/50`-Hintergrund, abgerundet.
-  - `data-placeholder="anrede_brief"` Attribut speichert den eigentlichen Schlüssel.
-  - `contenteditable="false"` → wird wie ein einzelnes Token behandelt (Backspace löscht die ganze Pille auf einmal).
-- Beim Tippen reiner Text → ganz normale Texteingabe.
-- Beim Klick auf Platzhalter-Karte (oder Drag & Drop) → fügt eine Pille an der Cursor-Position ein.
+3. Scroll-Verhalten absichern:
+   - eigener Scroll-Container nur für die Liste
+   - keine verschachtelten interaktiven `cmdk`-Items mehr
+   - `min-h-0`, `overflow-y-auto`, feste `max-h` beibehalten
+   - Augen-Button mit sauberem `onMouseDown`/`onClick`, ohne den Scrollcontainer zu beeinflussen
 
-### Serialisierung (DOM ↔ Template-String)
+4. Auswahl- und Vorschau-Verhalten beibehalten:
+   - Klick auf Zeile setzt `linked_invoice_id` und schließt Popover
+   - Klick auf Auge öffnet PDF-Vorschau, ohne Rechnung auszuwählen
+   - bereits verknüpfte Rechnung neben dem Feld weiter direkt per Auge öffnbar
 
-- **Beim Auslesen** (für Senden/Speichern): DOM-Walker konvertiert Pillen zurück in `{{anrede_brief}}` und Textknoten in puren Text → ergibt den finalen `body`-String, den der Backend-Renderer (`comm-vars.ts`) wie bisher verarbeitet.
-- **Beim Initialisieren** (Vorlage laden): String mit `{{key}}` → DOM mit Pillen + Text-Nodes.
-- Zeilenumbrüche werden via `<br>` (Klartext-Modus) bzw. nativ (HTML-Modus) abgebildet.
-- Live-Update von `samples` aktualisiert nur den **angezeigten Text** in den Pillen, nicht den Schlüssel.
+5. Bewusst keine globale Änderung an `src/components/ui/command.tsx`
+   - Damit andere Such-/Combobox-Komponenten nicht unbeabsichtigt kaputtgehen
+   - Der Fix bleibt lokal auf die problematische Rechnungs-Auswahl begrenzt
 
-### Cursor-/Editing-Verhalten
+## Betroffene Datei
+- `src/components/finance/BookingTemplatesTab.tsx`
 
-- Enter im Klartext-Modus → `<br>` einfügen (kein `<div>`-Wrap).
-- Backspace neben einer Pille → Pille als Ganzes löschen.
-- Paste → nur Text-Inhalt einfügen (kein Rich-Text aus Word etc.).
+## Technische Details
+```text
+Neu:
+CommandInput
+  -> lokale Filterung per invoiceSearch
+  -> eigener Scroll-Container
+     -> row button: Rechnung auswählen
+     -> icon button: Rechnung öffnen
+```
 
-## Aufräumen / Entfernen
-
-- **`InlinePreviewEditor.tsx`** wird gelöscht (durch neuen Editor ersetzt).
-- **`EmailPreviewPane`-Aufrufe** für Body und Subject im `EmailCampaignWizard` entfernen (Live-Vorschau-Block unterhalb des Inhalts entfällt). Datei selbst bleibt vorerst erhalten, falls für Schritt-3-Zusammenfassung noch genutzt.
-- Auch der **Subject-Input** bekommt den gleichen Editor (single-line Variante: `WysiwygPlaceholderEditor` mit `singleLine` prop, kein Enter, kein `<br>`).
-
-## Geänderte/neue Dateien
-
-| Datei | Änderung |
-|---|---|
-| `src/components/communication/WysiwygPlaceholderEditor.tsx` | **Neu** — Contenteditable-Editor mit Platzhalter-Pillen + DOM↔String-Serialisierung |
-| `src/components/communication/EmailCampaignWizard.tsx` | `InlinePreviewEditor` → `WysiwygPlaceholderEditor`; Subject-Input ebenfalls als Wysiwyg (single-line); Vorschau-Boxen entfernen |
-| `src/components/communication/TemplateUploadDialog.tsx` | gleiche Umstellung wie Wizard |
-| `src/components/communication/InlinePreviewEditor.tsx` | **Entfernt** |
-
-## Backend-Auswirkungen
-**Keine.** Der gespeicherte/gesendete `body`-String enthält weiterhin `{{key}}`-Tokens. Backend (`comm-vars.ts`, `comm-render-letters`, `send-email`) bleibt unverändert.
-
-## Bewusst KISS gehalten
-- Kein Rich-Text-Editor (Tiptap/Slate) — wir brauchen nur Text + Pillen, ein schlanker `contenteditable` reicht und vermeidet eine schwere Library.
-- HTML-Modus zeigt die Pillen genauso wie Klartext-Modus; rohe HTML-Tags werden im Editor weiterhin als Text getippt (so wie aktuell).
-
+## QA
+- Popover öffnen und mit Mausrad nach unten/oben scrollen
+- Dasselbe mit Trackpad testen
+- Mehrfach auf das Auge klicken: PDF öffnet, Liste bleibt bedienbar
+- Klick auf Zeile verknüpft weiterhin korrekt die Rechnung
+- Testen, dass andere Comboboxen im selben Dialog (Liegenschaft, Konto) unverändert funktionieren
