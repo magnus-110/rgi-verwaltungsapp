@@ -20,7 +20,7 @@ import { FriendlyVariablePalette } from "./FriendlyVariablePalette";
 import { usePlaceholderStats } from "./usePlaceholderStats";
 import { usePlaceholderSamples } from "./usePlaceholderSamples";
 import { EmailPreviewPane } from "./EmailPreviewPane";
-import { InlinePreviewEditor } from "./InlinePreviewEditor";
+import { WysiwygPlaceholderEditor, type WysiwygPlaceholderEditorHandle } from "./WysiwygPlaceholderEditor";
 import { ConfirmSendDialog } from "./ConfirmSendDialog";
 
 interface Props {
