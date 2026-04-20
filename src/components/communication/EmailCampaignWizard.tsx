@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { HelpCircle, Loader2, Mail, Send, Eye } from "lucide-react";
+import { HelpCircle, Loader2, Mail, Send, Eye, Paperclip, X, CalendarClock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -32,6 +32,8 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
   const [helpOpen, setHelpOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [resultStats, setResultStats] = useState<{ ok: number; failed: number } | null>(null);
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [scheduledAt, setScheduledAt] = useState<string>("");
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -50,7 +52,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
     setStep(1); setName(""); setTemplate(null);
     setSubject(""); setBody(""); setAccountId(""); setTestEmail("");
     setFilter({ roles: [], contact_ids: [], require_email: true });
-    setResultStats(null);
+    setResultStats(null); setAttachments([]); setScheduledAt("");
   };
 
   const useTemplate = (t: any) => {
