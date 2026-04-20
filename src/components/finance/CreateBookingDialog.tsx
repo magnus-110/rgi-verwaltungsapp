@@ -170,6 +170,28 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
   const selectedBuildingName = buildings.find(b => b.id === form.building_id)?.name || "–";
   const counterAccount = accounts.find((a: any) => a.id === form.counter_account_id);
 
+  // Enter-Navigation: focus next focusable element in the form
+  const focusNext = (currentEl: HTMLElement | null) => {
+    if (!currentEl) return;
+    const container = currentEl.closest("[data-booking-form]") as HTMLElement | null;
+    if (!container) return;
+    const focusables = Array.from(
+      container.querySelectorAll<HTMLElement>(
+        'input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [role="combobox"]:not([disabled])'
+      )
+    ).filter(el => el.offsetParent !== null);
+    const idx = focusables.indexOf(currentEl);
+    const next = focusables[idx + 1];
+    next?.focus();
+  };
+
+  const handleEnterToNext = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      focusNext(e.target as HTMLElement);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl max-h-[94vh] p-0 flex flex-col overflow-hidden [&>button.absolute]:hidden">
