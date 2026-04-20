@@ -41,14 +41,7 @@ export function BankReconciliationTab({ sharedBuildingId, onBuildingChange }: Pr
   const [bankAccountId, setBankAccountId] = useState<string>("");
   const [openMonth, setOpenMonth] = useState<number | null>(null);
 
-  const { data: buildings = [] } = useQuery({
-    queryKey: ["buildings-list-recon"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("buildings").select("id, name").order("name");
-      if (error) throw error;
-      return data;
-    },
-  });
+  // buildings query removed — building is selected at the page level
 
   const { data: bankAccounts = [] } = useQuery({
     queryKey: ["bank-accounts-recon", buildingId],
