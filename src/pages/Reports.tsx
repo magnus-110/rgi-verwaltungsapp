@@ -664,18 +664,13 @@ Beschreibung: ${report.description}`;
     <div className="min-h-screen bg-background p-0 md:p-6">
       <div className="max-w-6xl mx-auto space-y-4 md:space-y-6">
         {/* Header */}
-        <div className="flex items-start gap-3">
-          <div className="p-2 bg-primary/10 rounded-lg">
-            <InboxIcon className="h-6 w-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="heading-primary text-2xl md:text-3xl">
-              {managementMode === "weg" ? "WEG-" : "Miet-"}Meldungen
-            </h1>
-            <p className="text-muted-foreground text-sm md:text-base">
-              Übersicht aller {managementMode === "weg" ? "WEG-" : "Miet-"}Meldungen
-            </p>
-          </div>
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold">
+            {managementMode === "weg" ? "WEG-" : "Miet-"}Meldungen
+          </h1>
+          <p className="text-muted-foreground text-sm md:text-base">
+            Übersicht aller {managementMode === "weg" ? "WEG-" : "Miet-"}Meldungen
+          </p>
         </div>
 
         {/* Toolbar */}
