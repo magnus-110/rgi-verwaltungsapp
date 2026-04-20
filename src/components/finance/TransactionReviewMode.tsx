@@ -61,6 +61,10 @@ interface BookingRowData {
   fuel_quantity: string;
   fuel_total_price: string;
   fuel_date: string;
+  fuel_co2_emissions_kg: string;
+  fuel_co2_tax_amount: string;
+  fuel_energy_content_kwh: string;
+  fuel_heating_unit_id: string;
   line_items_detail: any[] | null;
   accrualHint?: {
     needs_accrual: boolean;
@@ -277,7 +281,19 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     enabled: open && !!buildingId,
   });
 
-  // Helper: determine fiscal year from billing periods or fallback to calendar year
+  // Heating units for fuel purchase assignment
+  const { data: heatingUnits = [] } = useQuery({
+    queryKey: ["heating-units-review", buildingId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("heating_units")
+        .select("id, name")
+        .eq("building_id", buildingId)
+        .order("created_at");
+      return data || [];
+    },
+    enabled: open && !!buildingId,
+  });
   const getFiscalYearForDate = useCallback((dateStr: string): number => {
     if (!dateStr) return new Date().getFullYear();
     const date = new Date(dateStr);
@@ -335,6 +351,10 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       fuel_quantity: "",
       fuel_total_price: "",
       fuel_date: txnDate,
+      fuel_co2_emissions_kg: "",
+      fuel_co2_tax_amount: "",
+      fuel_energy_content_kwh: "",
+      fuel_heating_unit_id: "",
       line_items_detail: null,
       ...overrides,
     };
@@ -424,6 +444,10 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           fuel_quantity: "",
           fuel_total_price: "",
           fuel_date: txnDate || "",
+          fuel_co2_emissions_kg: "",
+          fuel_co2_tax_amount: "",
+          fuel_energy_content_kwh: "",
+          fuel_heating_unit_id: "",
         };
       });
       setFormRows(rows);
@@ -507,10 +531,14 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       const ocrData = (invoiceDetail as any).ocr_extracted_data;
       if (ocrData?.is_fuel_purchase) {
         row.is_fuel_purchase = true;
-        row.fuel_type = ocrData.fuel_type === "pellets" ? "pellets" : "oil";
+        const ft = ocrData.fuel_type;
+        row.fuel_type = ft === "pellets" ? "pellets" : ft === "gas" ? "gas" : ft === "district_heating" ? "district_heating" : "oil";
         row.fuel_quantity = ocrData.fuel_quantity ? String(ocrData.fuel_quantity) : "";
         row.fuel_total_price = invoiceDetail.gross_amount ? String(invoiceDetail.gross_amount) : "";
         row.fuel_date = invoiceDetail.invoice_date || currentTxn.booking_date || "";
+        if (ocrData.co2_emissions_kg != null) row.fuel_co2_emissions_kg = String(ocrData.co2_emissions_kg);
+        if (ocrData.co2_tax_amount_eur != null) row.fuel_co2_tax_amount = String(ocrData.co2_tax_amount_eur);
+        if (ocrData.energy_content_kwh != null) row.fuel_energy_content_kwh = String(ocrData.energy_content_kwh);
       }
     }
 
@@ -703,7 +731,9 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
       // Save fuel purchase to fuel_inventory
       if (row.is_fuel_purchase && row.fuel_type && row.fuel_quantity) {
-        const fuelUnit = row.fuel_type === "oil" ? "l" : "kg";
+        const fuelUnit = row.fuel_type === "oil" ? "l"
+          : row.fuel_type === "pellets" ? "kg"
+          : "kWh";
         const quantity = parseFloat(row.fuel_quantity) || 0;
         const totalPrice = parseFloat(row.fuel_total_price) || 0;
         const unitPrice = quantity > 0 ? totalPrice / quantity : 0;
@@ -716,6 +746,15 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           return entryDate >= from && entryDate <= to;
         });
 
+        const fuelLabel = row.fuel_type === "oil" ? "Heizöl"
+          : row.fuel_type === "pellets" ? "Pellets"
+          : row.fuel_type === "gas" ? "Gas"
+          : "Fernwärme";
+
+        const co2Emissions = parseFloat(row.fuel_co2_emissions_kg);
+        const co2Tax = parseFloat(row.fuel_co2_tax_amount);
+        const energyKwh = parseFloat(row.fuel_energy_content_kwh);
+
         await supabase.from("fuel_inventory").insert({
           building_id: buildingId,
           fuel_type: row.fuel_type,
@@ -727,7 +766,11 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           unit_price: unitPrice > 0 ? unitPrice : null,
           invoice_id: row.invoice_id || null,
           billing_period_id: matchingPeriod?.id || null,
-          notes: `Brennstoffkauf ${row.fuel_type === "oil" ? "Heizöl" : "Pellets"}: ${quantity} ${fuelUnit}`,
+          heating_unit_id: row.fuel_heating_unit_id || null,
+          co2_emissions_kg: !isNaN(co2Emissions) && co2Emissions > 0 ? co2Emissions : null,
+          co2_tax_amount: !isNaN(co2Tax) && co2Tax > 0 ? co2Tax : null,
+          energy_content_kwh: !isNaN(energyKwh) && energyKwh > 0 ? energyKwh : null,
+          notes: `Brennstoffkauf ${fuelLabel}: ${quantity} ${fuelUnit}`,
         } as any);
       }
 
@@ -1141,6 +1184,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                     handleEnterNavigation={handleEnterNavigation}
                     formatCurrency={formatCurrency}
                     invoiceDetail={invoiceDetail}
+                    heatingUnits={heatingUnits}
                   />
                 ))}
 
@@ -1414,7 +1458,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
 function BookingRowCard({
   row, index, isExpanded, onToggle, accounts, buildingId, onAccountCreated, onUpdateField, onBook, onRemove,
-  isBooking, fieldRefs, handleEnterNavigation, formatCurrency, invoiceDetail,
+  isBooking, fieldRefs, handleEnterNavigation, formatCurrency, invoiceDetail, heatingUnits,
 }: {
   row: BookingRowData;
   index: number;
@@ -1431,6 +1475,7 @@ function BookingRowCard({
   handleEnterNavigation: (e: React.KeyboardEvent, field: string) => void;
   formatCurrency: (amount: number | null) => string;
   invoiceDetail?: any;
+  heatingUnits?: Array<{ id: string; name: string }>;
 }) {
   const counterAccount = accounts.find((a: any) => a.id === row.counter_account_id);
   const selectedCounterAccount = counterAccount;
@@ -1788,7 +1833,7 @@ function BookingRowCard({
 
       {/* Brennstoffkauf Dialog */}
       <Dialog open={showFuelDialog} onOpenChange={setShowFuelDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <Flame className="h-5 w-5 text-orange-500" />
@@ -1800,37 +1845,99 @@ function BookingRowCard({
               <label htmlFor={`fuel-dialog-${index}`} className="text-sm font-medium">Brennstoffkauf erfassen</label>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Art</label>
-                <Select value={row.fuel_type} onValueChange={v => onUpdateField("fuel_type", v)}>
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue placeholder="Wählen…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="oil">Heizöl</SelectItem>
-                    <SelectItem value="pellets">Pellets</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">
-                  Menge ({row.fuel_type === "pellets" ? "kg" : "l"})
-                </label>
-                <Input className="h-9 text-sm" type="number" placeholder="0" value={row.fuel_quantity}
-                  onChange={e => onUpdateField("fuel_quantity", e.target.value)} />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Gesamtpreis (€)</label>
-                <Input className="h-9 text-sm" type="number" step="0.01" placeholder="0,00" value={row.fuel_total_price}
-                  onChange={e => onUpdateField("fuel_total_price", e.target.value)} />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Lieferdatum</label>
-                <Input className="h-9 text-sm" type="date" value={row.fuel_date}
-                  onChange={e => onUpdateField("fuel_date", e.target.value)} />
-              </div>
-            </div>
+            {(() => {
+              const fuelUnit = row.fuel_type === "oil" ? "l"
+                : row.fuel_type === "pellets" ? "kg"
+                : (row.fuel_type === "gas" || row.fuel_type === "district_heating") ? "kWh"
+                : "l";
+              const showCo2 = ["oil", "gas", "district_heating"].includes(row.fuel_type);
+              return (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Art</label>
+                      <Select value={row.fuel_type} onValueChange={v => onUpdateField("fuel_type", v)}>
+                        <SelectTrigger className="h-9 text-sm">
+                          <SelectValue placeholder="Wählen…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="oil">Heizöl</SelectItem>
+                          <SelectItem value="pellets">Pellets</SelectItem>
+                          <SelectItem value="gas">Gas</SelectItem>
+                          <SelectItem value="district_heating">Fernwärme</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                        Menge ({fuelUnit})
+                      </label>
+                      <Input className="h-9 text-sm" type="number" placeholder="0" value={row.fuel_quantity}
+                        onChange={e => onUpdateField("fuel_quantity", e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Gesamtpreis (€)</label>
+                      <Input className="h-9 text-sm" type="number" step="0.01" placeholder="0,00" value={row.fuel_total_price}
+                        onChange={e => onUpdateField("fuel_total_price", e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Lieferdatum</label>
+                      <Input className="h-9 text-sm" type="date" value={row.fuel_date}
+                        onChange={e => onUpdateField("fuel_date", e.target.value)} />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Energieinhalt (kWh)</label>
+                      <Input className="h-9 text-sm" type="number" step="0.01" placeholder="0" value={row.fuel_energy_content_kwh}
+                        onChange={e => onUpdateField("fuel_energy_content_kwh", e.target.value)} />
+                    </div>
+                  </div>
+
+                  {showCo2 && (
+                    <div className="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-3 space-y-3">
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                        <div className="text-xs text-amber-900 dark:text-amber-200">
+                          <p className="font-medium">CO₂-Daten (BEHG) — für Heizkostenabrechnung</p>
+                          <p className="opacity-80 mt-0.5">Werte aus Rechnung übernehmen, nicht raten.</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground mb-1 block">CO₂-Emissionen (kg)</label>
+                          <Input className="h-9 text-sm" type="number" step="0.01" placeholder="0" value={row.fuel_co2_emissions_kg}
+                            onChange={e => onUpdateField("fuel_co2_emissions_kg", e.target.value)} />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground mb-1 block">CO₂-Steueranteil (€)</label>
+                          <Input className="h-9 text-sm" type="number" step="0.01" placeholder="0,00" value={row.fuel_co2_tax_amount}
+                            onChange={e => onUpdateField("fuel_co2_tax_amount", e.target.value)} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {heatingUnits && heatingUnits.length > 0 && (
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Heizkreis</label>
+                      <Select
+                        value={row.fuel_heating_unit_id || "__none__"}
+                        onValueChange={v => onUpdateField("fuel_heating_unit_id", v === "__none__" ? "" : v)}
+                      >
+                        <SelectTrigger className="h-9 text-sm">
+                          <SelectValue placeholder="Kein Heizkreis" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Kein Heizkreis</SelectItem>
+                          {heatingUnits.map(hu => (
+                            <SelectItem key={hu.id} value={hu.id}>{hu.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
 
             <Button onClick={() => {
               if (row.fuel_type && row.fuel_quantity) onUpdateField("is_fuel_purchase", true);
