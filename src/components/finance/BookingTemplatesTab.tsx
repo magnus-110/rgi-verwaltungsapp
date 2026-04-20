@@ -825,35 +825,60 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
                   )}
                 </div>
                 <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-                  <Command>
-                    <CommandInput placeholder="Rechnung suchen..." value={invoiceSearch} onValueChange={setInvoiceSearch} />
-                    <CommandList className="max-h-[300px] overflow-y-auto overscroll-contain">
-                      <CommandEmpty>Keine Rechnung gefunden.</CommandEmpty>
-                      <CommandGroup>
-                        <CommandItem value="__none__" onSelect={() => { setForm({ ...form, linked_invoice_id: "" }); setInvoiceOpen(false); }}>
-                          <Check className={cn("mr-2 h-4 w-4", !form.linked_invoice_id ? "opacity-100" : "opacity-0")} />
-                          <span className="text-muted-foreground">Keine Verknüpfung</span>
-                        </CommandItem>
-                        {invoices.map((inv: any) => (
+                  <div className="flex flex-col">
+                    <div className="border-b px-3 py-2">
+                      <input
+                        type="text"
+                        placeholder="Rechnung suchen..."
+                        value={invoiceSearch}
+                        onChange={(e) => setInvoiceSearch(e.target.value)}
+                        className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                        autoFocus
+                      />
+                    </div>
+                    <div
+                      className="max-h-[300px] overflow-y-auto overscroll-contain p-1"
+                      onWheel={(e) => e.stopPropagation()}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => { setForm({ ...form, linked_invoice_id: "" }); setInvoiceOpen(false); }}
+                        className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent"
+                      >
+                        <Check className={cn("h-4 w-4 shrink-0", !form.linked_invoice_id ? "opacity-100" : "opacity-0")} />
+                        <span className="text-muted-foreground">Keine Verknüpfung</span>
+                      </button>
+                      {(() => {
+                        const q = invoiceSearch.trim().toLowerCase();
+                        const filtered = q
+                          ? invoices.filter((inv: any) => {
+                              const haystack = `${inv.invoice_number || ""} ${inv.vendor_name || ""} ${inv.invoice_date || ""} ${inv.gross_amount ?? ""}`.toLowerCase();
+                              return haystack.includes(q);
+                            })
+                          : invoices;
+                        if (filtered.length === 0) {
+                          return <div className="py-6 text-center text-sm text-muted-foreground">Keine Rechnung gefunden.</div>;
+                        }
+                        return filtered.map((inv: any) => (
                           <div key={inv.id} className="flex items-center gap-1">
-                            <CommandItem
-                              value={`${inv.invoice_number || ""} ${inv.vendor_name || ""}`}
-                              onSelect={() => { setForm({ ...form, linked_invoice_id: inv.id }); setInvoiceOpen(false); }}
-                              className="flex items-center gap-2 flex-1"
+                            <button
+                              type="button"
+                              onClick={() => { setForm({ ...form, linked_invoice_id: inv.id }); setInvoiceOpen(false); }}
+                              className="flex flex-1 items-center gap-2 rounded-sm px-2 py-1.5 text-left hover:bg-accent min-w-0"
                             >
                               <Check className={cn("h-4 w-4 shrink-0", form.linked_invoice_id === inv.id ? "opacity-100" : "opacity-0")} />
                               <div className="flex flex-col flex-1 min-w-0">
                                 <span className="text-sm truncate">{inv.invoice_number || "Ohne Nr."} – {inv.vendor_name || "Unbekannt"}</span>
                                 <span className="text-xs text-muted-foreground">
-                                  {inv.invoice_date ? new Date(inv.invoice_date).toLocaleDateString("de-DE") : ""} 
+                                  {inv.invoice_date ? new Date(inv.invoice_date).toLocaleDateString("de-DE") : ""}
                                   {inv.gross_amount != null ? ` · ${formatCurrency(inv.gross_amount)}` : ""}
                                 </span>
                               </div>
-                            </CommandItem>
+                            </button>
                             {inv.file_path && (
                               <button
                                 type="button"
-                                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); openInvoicePreview(inv.id); }}
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); openInvoicePreview(inv.id); }}
                                 className="p-1.5 mr-1 rounded hover:bg-accent shrink-0"
                                 title="Rechnung öffnen"
                               >
@@ -861,10 +886,10 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
                               </button>
                             )}
                           </div>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
+                        ));
+                      })()}
+                    </div>
+                  </div>
                 </PopoverContent>
               </Popover>
             </div>
