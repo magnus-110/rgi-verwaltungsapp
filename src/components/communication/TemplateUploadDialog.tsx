@@ -12,8 +12,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { FriendlyVariablePalette } from "./FriendlyVariablePalette";
 import { usePlaceholderStats } from "./usePlaceholderStats";
 import { usePlaceholderSamples } from "./usePlaceholderSamples";
-import { InlinePreviewEditor } from "./InlinePreviewEditor";
-import { EmailPreviewPane } from "./EmailPreviewPane";
+import { WysiwygPlaceholderEditor, type WysiwygPlaceholderEditorHandle } from "./WysiwygPlaceholderEditor";
+
 
 interface Props {
   open: boolean;
