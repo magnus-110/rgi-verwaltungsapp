@@ -14,14 +14,20 @@ import { formatDistanceToNow, format } from "date-fns";
 import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
+interface TaskItem { id: string; title: string; priority: string; due_date: string; status: string; is_overdue?: boolean }
+interface MaintenanceItem { id: string; building_id: string; building_name: string; task_name: string; next_due_date: string; category: string; is_overdue?: boolean }
+
 interface GlobalStats {
   open_reports: number;
   open_cases: number;
   open_invoices: number;
   unread_emails: number;
   building_count: number;
-  today_tasks: Array<{ id: string; title: string; priority: string; due_date: string; status: string }>;
-  upcoming_maintenance: Array<{ id: string; building_id: string; building_name: string; task_name: string; next_due_date: string; category: string }>;
+  today_tasks: TaskItem[];
+  week_tasks: TaskItem[];
+  today_maintenance: MaintenanceItem[];
+  week_maintenance: MaintenanceItem[];
+  upcoming_maintenance: MaintenanceItem[];
   recent_activity: Array<{ kind: string; id: string; label: string; ts: string; building_id: string; building_name: string; extra?: string }>;
   buildings_summary: Array<{ id: string; name: string; address: string; unit_count: number; open_count: number }>;
 }
@@ -88,7 +94,10 @@ export const Dashboard = () => {
 
   const stats: GlobalStats = data || {
     open_reports: 0, open_cases: 0, open_invoices: 0, unread_emails: 0,
-    building_count: 0, today_tasks: [], upcoming_maintenance: [],
+    building_count: 0,
+    today_tasks: [], week_tasks: [],
+    today_maintenance: [], week_maintenance: [],
+    upcoming_maintenance: [],
     recent_activity: [], buildings_summary: [],
   };
 
@@ -174,12 +183,20 @@ export const Dashboard = () => {
             </CardTitle>
             <CardDescription>Fällige Aufgaben und anstehende Wartungen</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Tasks */}
+          <CardContent className="space-y-5">
+            {/* HEUTE */}
             <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                Aufgaben
-              </p>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  Heute / Überfällig
+                </p>
+                {(stats.today_tasks.some(t => t.is_overdue) || stats.today_maintenance.some(m => m.is_overdue)) && (
+                  <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4">überfällig</Badge>
+                )}
+              </div>
+
+              {/* Tasks heute */}
+              <p className="text-[11px] font-medium text-muted-foreground mb-1 mt-1">Aufgaben</p>
               {isLoading ? (
                 <p className="text-sm text-muted-foreground">Laden…</p>
               ) : stats.today_tasks.length === 0 ? (
@@ -187,6 +204,79 @@ export const Dashboard = () => {
               ) : (
                 <ul className="space-y-1.5">
                   {stats.today_tasks.slice(0, 5).map(t => (
+                    <li
+                      key={t.id}
+                      className={cn(
+                        "flex items-center justify-between gap-2 text-sm py-1.5 px-2 rounded hover:bg-muted/50 cursor-pointer",
+                        t.is_overdue && "border-l-2 border-destructive bg-destructive/5"
+                      )}
+                      onClick={() => navigate("/todos")}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <ListTodo className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <span className="truncate">{t.title}</span>
+                      </div>
+                      <span className={cn(
+                        "text-xs flex-shrink-0",
+                        t.is_overdue ? "text-destructive font-medium" : "text-muted-foreground"
+                      )}>
+                        {format(new Date(t.due_date), "d. MMM", { locale: de })}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {/* Wartungen heute */}
+              <p className="text-[11px] font-medium text-muted-foreground mb-1 mt-3">Wartungen</p>
+              {isLoading ? (
+                <p className="text-sm text-muted-foreground">Laden…</p>
+              ) : stats.today_maintenance.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Keine fälligen Wartungen</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {stats.today_maintenance.slice(0, 5).map(m => (
+                    <li
+                      key={m.id}
+                      className={cn(
+                        "flex items-center justify-between gap-2 text-sm py-1.5 px-2 rounded hover:bg-muted/50 cursor-pointer",
+                        m.is_overdue && "border-l-2 border-destructive bg-destructive/5"
+                      )}
+                      onClick={() => navigate(`/buildings/${m.building_id}`)}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Wrench className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <div className="min-w-0">
+                          <div className="truncate">{m.task_name}</div>
+                          <div className="text-xs text-muted-foreground truncate">{m.building_name}</div>
+                        </div>
+                      </div>
+                      <span className={cn(
+                        "text-xs flex-shrink-0",
+                        m.is_overdue ? "text-destructive font-medium" : "text-muted-foreground"
+                      )}>
+                        {format(new Date(m.next_due_date), "d. MMM", { locale: de })}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* DIESE WOCHE */}
+            <div className="pt-2 border-t">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                Diese Woche
+              </p>
+
+              <p className="text-[11px] font-medium text-muted-foreground mb-1 mt-1">Aufgaben</p>
+              {isLoading ? (
+                <p className="text-sm text-muted-foreground">Laden…</p>
+              ) : stats.week_tasks.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Keine Aufgaben in den nächsten 7 Tagen</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {stats.week_tasks.slice(0, 5).map(t => (
                     <li
                       key={t.id}
                       className="flex items-center justify-between gap-2 text-sm py-1.5 px-2 rounded hover:bg-muted/50 cursor-pointer"
@@ -203,20 +293,15 @@ export const Dashboard = () => {
                   ))}
                 </ul>
               )}
-            </div>
 
-            {/* Maintenance */}
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-                Wartungen (30 Tage)
-              </p>
+              <p className="text-[11px] font-medium text-muted-foreground mb-1 mt-3">Wartungen</p>
               {isLoading ? (
                 <p className="text-sm text-muted-foreground">Laden…</p>
-              ) : stats.upcoming_maintenance.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Keine anstehenden Wartungen</p>
+              ) : stats.week_maintenance.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Keine Wartungen in den nächsten 7 Tagen</p>
               ) : (
                 <ul className="space-y-1.5">
-                  {stats.upcoming_maintenance.slice(0, 5).map(m => (
+                  {stats.week_maintenance.slice(0, 5).map(m => (
                     <li
                       key={m.id}
                       className="flex items-center justify-between gap-2 text-sm py-1.5 px-2 rounded hover:bg-muted/50 cursor-pointer"
