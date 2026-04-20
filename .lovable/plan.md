@@ -1,77 +1,70 @@
 
 
-## Verbessertes RAG-System mit DMS-Kategorien
+## Visual Redesign der Meldungsseite (Admin)
 
-### Problem
-- NOVA durchsucht `document_chunks` (Vektorsuche), aber Chunks sind **nicht** mit den DMS-Ordnern verknüpft (`building_documents.category` ist überall `"general"`).
-- Die User-Erwartung: "wenn ich Teilungserklärung sage, soll im Ordner *Teilungserklärung* gesucht werden" — aktuell unmöglich, weil die RAG-Pipeline die Kategorienhierarchie aus `building_file_categories` ignoriert.
-- Hardcodiertes Keyword-Mapping in `query-documents/index.ts` (Zeile 35-51) deckt nur 6 generische Kategorien ab, nicht die echten Ordner ("Teilungserklärung", "Hausordnung", "Versorgerverträge", "Wirtschaftsplan" usw.).
-- `building_files` (DMS) hat `category_id` + `extracted_text`, aber keine Chunks/Embeddings — wird nur als Volltext-Score in `chat-with-ai` durchsucht.
+### Ziel
+Die Seite `/reports` optisch an das restliche App-Design anpassen (wie Dashboard, Transfers, Inbox) — moderner, ruhiger, konsistenter. **Keine** funktionalen Änderungen.
 
-### Lösung: Kategorie-bewusste RAG-Pipeline
+### Aktuelle Schwächen
+- Header generisch (`text-2xl font-bold`) statt einheitlicher `heading-primary`-Stil
+- Summary-Cards flach, ohne Icon-Akzente und Farbcodierung
+- Section-Überschriften nutzen knallrot/gelb (`text-red-600`, `text-yellow-600`) → bricht Brand (RGI Orange)
+- Cards nutzen `border-0 shadow-sm bg-white` → inkonsistent mit `rgi-card`-System
+- Notiz-Boxen (grün/grau) wirken wie Bootstrap-Snippets
+- Keine visuelle Trennung Avatar/Identität → flache Wand aus Text
+- Anhänge-Bereich nutzt `bg-muted` Boxen statt eleganter Badges/Chips
 
-Eine **einheitliche Vektorsuche über `building_files`** (= das, was im DMS hochgeladen wurde) mit **Ordner-Filter** anhand der echten Kategorienhierarchie.
+### Redesign-Konzept
 
-#### Schritt 1 — Datenmodell vereinheitlichen
-- `document_chunks` bekommt zusätzliche Spalten: `file_id uuid` (FK auf `building_files`), `category_id uuid` (FK), `category_slug text` (denormalisiert für schnellen Filter), `category_path text[]` (z. B. `['Stammakte','Teilungserklärung']` für Eltern-Filter).
-- Neuer Trigger: Beim Verarbeiten eines `building_files`-Eintrags wird sein `category_id` (+ Eltern + Slug) automatisch in seine Chunks geschrieben.
-- Migration füllt bestehende Chunks rückwirkend, soweit ableitbar (über Datei-Pfad → `building_files`-Lookup).
+**1. Header-Bereich**
+- `heading-primary` Klasse, Icon links neben Titel (Inbox/MessageSquare), kleiner Untertitel
+- Toolbar: Tabs links (Underline-Variante bleibt), rechts kompakter Actionbar mit Zeitraum-Select + Export-Button
 
-#### Schritt 2 — `process-building-file` erweitern: echtes RAG statt nur OCR
-Aktuell macht die Function nur OCR → `extracted_text`. Sie soll künftig zusätzlich:
-1. Semantisches Chunking (analog `process-document`).
-2. Mistral-Embeddings je Chunk.
-3. Insert in `document_chunks` mit `file_id`, `category_id`, `category_slug`, `category_path`, `building_id`.
+**2. Summary-Cards (Offen / Bearbeitet)**
+- Farbiger linker Akzentstreifen: Offen = `border-l-4 border-l-destructive`, Bearbeitet = `border-l-4 border-l-warning`
+- Icon in farblich getöntem Kreis (`bg-destructive/10`), nicht grau
+- Große Zahl `text-3xl font-semibold tracking-tight`
+- Zusätzlich Mini-Trend-Text ("aktueller Zeitraum")
 
-So wird **jedes DMS-Dokument** automatisch RAG-fähig — und ist damit über seinen Ordner adressierbar.
+**3. Filterleiste**
+- Suche in `Input` mit `Search`-Icon (nicht Filter-Icon) links
+- Filter-Button mit Badge-Counter behält Logik
+- Collapsible-Panel: gleiches Look wie Calendar/Todos (`bg-muted/30 rounded-lg border p-3`) — bleibt strukturell erhalten
 
-#### Schritt 3 — Slug-Resolver in `query-documents`
-Statt Hardcoded-Mapping eine zweistufige Strategie:
+**4. Section-Überschriften**
+- Statt knallroter/gelber Schrift: dezenter Header mit farbigem Dot + neutralem Text
+  - `● Offene Meldungen` (Dot in `bg-destructive`)
+  - `● Bearbeitete Meldungen` (Dot in `bg-warning`)
+- Counter als Badge (`variant="secondary"`)
 
-**A) Kategorie-Detektor (LLM-light, Mistral Small):**
-- Lädt einmalig alle Kategorien-Slugs/Namen aus `building_file_categories`.
-- Mistral Small bekommt Frage + Kategorienliste und gibt 0-3 passende `category_slug`s zurück (JSON, ~200ms).
-- Beispiel: "Was steht in der Teilungserklärung zum Sondernutzungsrecht?" → `["stammakte-teilungserklaerung"]`.
-- Beispiel: "Welche Verträge habe ich?" → `["vertraege-versorger","vertraege-dienstleister","vertraege-bank"]`.
+**5. Report-Card Redesign**
+- `rgi-card` Klasse (border, hover-shadow, leichte Skalierung)
+- Linker farbiger Statusstreifen (matching status)
+- Header-Zeile: Avatar-Kreis mit Initialen des Kontakts → Name + Erstelldatum (relativ: "vor 2h")
+- Titel als `text-base font-semibold`
+- Beschreibung mit `line-clamp-2`, Klick expandiert
+- Meta-Infos in 2-Spalten-Grid mit Icons (Phone, Mail, Building2, User) statt fettem Text
+- Action-Buttons rechts oben in dezenter Toolbar (`opacity-60 hover:opacity-100`)
+- Notiz-Boxen: dezente Hintergründe (`bg-success/5 border-success/20` statt `bg-green-50 border-green-400`), Icon (StickyNote/Lock) links
+- Anhänge als kompakte Chip-Badges mit Paperclip-Icon, hover mit Primary-Tint
 
-**B) Hybrid-Retrieval:**
-1. **Phase 1 — Kategorie-gefiltert**: Vektorsuche nur in Chunks der erkannten `category_slug`s (oder Eltern-Slug für "alle Verträge"). Limit 8.
-2. **Phase 2 — Globaler Fallback**: Falls weniger als 4 Treffer ODER beste Similarity < 0.65, ergänzende ungefilterte Suche über das Gebäude (Limit 4).
-3. **Re-Ranking**: Chunks aus erkannter Kategorie bekommen Similarity-Boost +0.1 (so dass Teilungserklärungs-Chunks in Teilungserklärungs-Fragen vorne stehen, auch wenn andere Dokumente das Wort enthalten).
+**6. Empty States**
+- Statt Card mit Text → zentriertes Icon + Text in `border-dashed border-muted-foreground/20 rounded-lg`
 
-#### Schritt 4 — Quellen-Anzeige verbessern
-Antwort von NOVA nennt künftig den **Ordnerpfad**:
-> _Quelle: Stammakte › Teilungserklärung › "Teilungserklärung Musterstr. 12.pdf", S. 4_
+**7. Tokens & Konsistenz**
+- Alle hardcoded Farben (`text-red-600`, `bg-green-50`, `text-blue-600`) ersetzen durch semantische Tokens (`text-destructive`, `bg-success/10`, `text-primary`)
+- Spacing einheitlich `space-y-6`
+- Typographie: `font-manrope` für Body, `heading-primary` für Headings
 
-Im Frontend (`DocumentChat.tsx` und Nova-Chat) wird die `category_path`-Information aus dem Chunk-Metadata-JSON gerendert.
+### Geänderte Dateien
+- `src/pages/Reports.tsx` — komplettes JSX-Markup neu (Logik 1:1 erhalten: State, Filter, Fetch, Realtime, Export, Case-Linking)
 
-#### Schritt 5 — `chat-with-ai` aufräumen
-Die separate Volltext-Scoring-Logik für `building_files` (Zeile 392-432) und `building_documents` (434-...) entfällt. Stattdessen ein einziger Aufruf an `query-documents` (intern, mit Service-Role) — eine Quelle der Wahrheit.
-
----
-
-### Komponenten-Übersicht
-
-| Datei | Typ | Zweck |
-|---|---|---|
-| Migration | NEU | Spalten `file_id`, `category_id`, `category_slug`, `category_path` an `document_chunks`; Backfill-Script |
-| Migration | NEU | RPC `search_chunks_by_category(query_embedding, building_id, category_slugs[], limit)` |
-| Migration | NEU | RPC `get_category_taxonomy(building_id)` — liefert flache Liste aller Slugs+Namen+Pfaden |
-| `process-building-file/index.ts` | EDIT | OCR + Chunking + Embeddings + Chunk-Insert mit Kategorie-Metadaten |
-| `query-documents/index.ts` | EDIT | Kategorie-Detektor (Mistral Small), Hybrid-Retrieval, Boost-Logik |
-| `chat-with-ai/index.ts` | EDIT | Bestehende Score-Logik raus, intern `query-documents` aufrufen |
-| `DocumentChat.tsx` + Nova Chat-Components | EDIT | Quellen mit Ordnerpfad anzeigen |
-
-### Was bleibt unverändert
-- DMS-Upload-UX (Ordnerauswahl beim Hochladen) — nutzt schon `building_files` + `category_id`.
-- Existierende `building_documents` (Legacy-Pfad) bleibt funktionsfähig, neue Uploads laufen aber nur noch über `building_files`.
-- Vektorsuche-Engine (pgvector + Mistral-Embeddings).
-
-### Reihenfolge der Umsetzung
-1. **Migration**: Spalten + RPC + Backfill für vorhandene Chunks.
-2. **process-building-file**: Chunking/Embeddings einbauen, alte DMS-Files automatisch nachverarbeiten (Knopf "RAG neu indizieren" pro Datei).
-3. **query-documents**: Kategorie-Detektor + Hybrid-Retrieval.
-4. **chat-with-ai**: Konsolidierung + Source-Path-Anzeige im Frontend.
-
-Soll ich mit Schritt 1 (Migration + Backfill) starten?
+### Was unverändert bleibt
+- Alle Hooks, Queries, State-Management
+- Realtime-Subscription
+- Excel-Export inkl. Filter-Dialog
+- Case-Verknüpfung (FolderPlus / Link2 Buttons)
+- EditReportDialog, ReportTemplatesManager, CreateCaseDialog, LinkReportToCaseDialog
+- Tabs Meldungen/Vorlagen, Collapsible für bearbeitete Meldungen
+- attachmentUrls signed URL Logik
 
