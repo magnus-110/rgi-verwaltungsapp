@@ -497,7 +497,7 @@ Beschreibung: ${report.description}`;
   };
 
   const renderReportCard = (report: Report) => {
-    const accent = report.status === "open" ? "border-l-destructive" : "border-l-warning";
+    const accent = report.status === "open" ? "border-l-destructive" : "border-l-muted-foreground/40";
     const managerNames = (report.buildings as any)?.managers?.map((m: any) => m.name).join(', ') || 'Nicht zugewiesen';
     const attachments = attachmentUrls[report.id] || parseAttachments(report.attachments);
 
