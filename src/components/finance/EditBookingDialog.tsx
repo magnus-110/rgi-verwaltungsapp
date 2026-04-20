@@ -381,19 +381,35 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
                 <div className="grid grid-cols-4 gap-2">
                   <div>
                     <label className="text-xs font-medium text-muted-foreground mb-1 block">Belegnummer</label>
-                    <Input className="h-8 text-xs font-mono" value={form.booking_reference} onChange={e => set("booking_reference", e.target.value)} />
+                    <Input className="h-8 text-xs font-mono" value={form.booking_reference} onChange={e => set("booking_reference", e.target.value)} placeholder="MM/JJ" />
                   </div>
                   <div>
                     <label className="text-xs font-medium text-muted-foreground mb-1 block">Beleg-Datum</label>
                     <Input type="date" className="h-8 text-xs" value={form.booking_date}
                       onChange={e => {
                         const val = e.target.value;
-                        setForm(prev => ({ ...prev, booking_date: val, fiscal_year: val ? String(new Date(val).getFullYear()) : prev.fiscal_year }));
+                        setForm(prev => {
+                          const fmt = (d: string) => {
+                            if (!d) return "";
+                            const dt = new Date(d);
+                            if (isNaN(dt.getTime())) return "";
+                            return `${String(dt.getMonth() + 1).padStart(2, "0")}/${String(dt.getFullYear()).slice(-2)}`;
+                          };
+                          const oldRef = fmt(prev.booking_date);
+                          const newRef = fmt(val);
+                          const shouldUpdateRef = !prev.booking_reference || prev.booking_reference === oldRef;
+                          return {
+                            ...prev,
+                            booking_date: val,
+                            fiscal_year: val ? String(new Date(val).getFullYear()) : prev.fiscal_year,
+                            booking_reference: shouldUpdateRef ? newRef : prev.booking_reference,
+                          };
+                        });
                       }} />
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Beleg-Nr.</label>
-                    <Input className="h-8 text-xs" value={form.receipt_number} onChange={e => set("receipt_number", e.target.value)} />
+                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Wirtschaftsjahr</label>
+                    <Input className="h-8 text-xs font-mono" type="number" value={form.fiscal_year} onChange={e => set("fiscal_year", e.target.value)} />
                   </div>
                   <div>
                     {(() => {
@@ -419,15 +435,6 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
                     })()}
                   </div>
                 </div>
-
-                {/* Wirtschaftsjahr */}
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Wirtschaftsjahr</label>
-                    <Input className="h-8 text-xs font-mono" type="number" value={form.fiscal_year} onChange={e => set("fiscal_year", e.target.value)} />
-                  </div>
-                </div>
-
                 {/* §35a & Brennstoff buttons */}
                 <div className="flex items-center gap-2">
                   <button
