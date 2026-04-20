@@ -321,6 +321,12 @@ serve(async (req) => {
       });
     }
 
+    // Extract keywords from user message (used by knowledge_documents scoring below)
+    const messageWords = message.toLowerCase()
+      .replace(/[^\wäöüß\s]/g, '')
+      .split(/\s+/)
+      .filter((w: string) => w.length > 2);
+
     // ===== KATEGORIE-BEWUSSTES RAG (über query-documents) =====
     // Statt eigener Volltext-Scoring-Logik nutzen wir die einheitliche RAG-Pipeline,
     // die DMS-Ordnerstruktur (building_files + building_file_categories) berücksichtigt.
