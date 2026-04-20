@@ -3778,6 +3778,9 @@ export type Database = {
           building_id: string
           co2_emissions_kg: number | null
           co2_tax_amount: number | null
+          consumption_period_from: string | null
+          consumption_period_to: string | null
+          consumption_year: number | null
           created_at: string
           energy_content_kwh: number | null
           entry_date: string
@@ -3799,6 +3802,9 @@ export type Database = {
           building_id: string
           co2_emissions_kg?: number | null
           co2_tax_amount?: number | null
+          consumption_period_from?: string | null
+          consumption_period_to?: string | null
+          consumption_year?: number | null
           created_at?: string
           energy_content_kwh?: number | null
           entry_date?: string
@@ -3820,6 +3826,9 @@ export type Database = {
           building_id?: string
           co2_emissions_kg?: number | null
           co2_tax_amount?: number | null
+          consumption_period_from?: string | null
+          consumption_period_to?: string | null
+          consumption_year?: number | null
           created_at?: string
           energy_content_kwh?: number | null
           entry_date?: string
