@@ -130,16 +130,16 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
     } as any).select("id").single();
     setSaving(false);
     if (error) { toast.error("Fehler: " + error.message); return; }
-    toast.success("Buchung angelegt");
+    toast.success("Buchung angelegt – bereit für nächste");
     if (insertedData?.id && onBookingCreated) {
       onBookingCreated(insertedData.id);
     }
-    onOpenChange(false);
-    resetForm();
     queryClient.invalidateQueries({ predicate: (query) => {
       const key = query.queryKey[0] as string;
       return key.startsWith("bookings");
     }});
+    // Maske bleibt offen – nur Felder leeren, damit sofort die nächste Buchung erfasst werden kann
+    resetForm();
   };
 
   const resetForm = () => {
