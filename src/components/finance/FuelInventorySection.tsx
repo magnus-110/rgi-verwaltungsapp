@@ -168,13 +168,15 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
                 <TableHead>Datum</TableHead>
                 <TableHead className="text-right">Menge</TableHead>
                 <TableHead className="text-right">Gesamtpreis</TableHead>
-                <TableHead className="text-right">Stückpreis</TableHead>
+                <TableHead className="text-right">CO₂ (kg)</TableHead>
+                <TableHead className="text-right">CO₂-Steuer (€)</TableHead>
+                <TableHead className="text-right">Brennwert (kWh)</TableHead>
                 <TableHead>Notiz</TableHead>
                 <TableHead className="w-[40px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {entries.map((entry) => (
+              {entries.map((entry: any) => (
                 <TableRow key={entry.id}>
                   <TableCell>
                     <Badge variant="outline" className="text-xs">
@@ -185,7 +187,9 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
                   <TableCell className="text-sm">{new Date(entry.entry_date).toLocaleDateString("de-DE")}</TableCell>
                   <TableCell className="text-right font-mono text-sm">{formatNum(Number(entry.quantity))} {entry.unit}</TableCell>
                   <TableCell className="text-right font-mono text-sm">{formatCurrency(Number(entry.total_price))}</TableCell>
-                  <TableCell className="text-right font-mono text-sm">{formatCurrency(Number(entry.unit_price))}</TableCell>
+                  <TableCell className="text-right font-mono text-xs text-muted-foreground">{entry.co2_emissions_kg != null ? formatNum(Number(entry.co2_emissions_kg)) : "–"}</TableCell>
+                  <TableCell className="text-right font-mono text-xs text-muted-foreground">{entry.co2_tax_amount != null ? formatCurrency(Number(entry.co2_tax_amount)) : "–"}</TableCell>
+                  <TableCell className="text-right font-mono text-xs text-muted-foreground">{entry.energy_content_kwh != null ? formatNum(Number(entry.energy_content_kwh)) : "–"}</TableCell>
                   <TableCell className="text-xs text-muted-foreground max-w-[150px] truncate">{entry.notes || "–"}</TableCell>
                   <TableCell>
                     <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => deleteEntry(entry.id)}>
