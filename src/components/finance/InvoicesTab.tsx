@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, FileText, Loader2, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
+import { Plus, FileText, Loader2, ChevronLeft, ChevronRight, Sparkles, FileCode } from "lucide-react";
 import { CreateInvoiceDialog } from "./CreateInvoiceDialog";
 import { InvoiceDropZone } from "./InvoiceDropZone";
 import { InvoiceDetailSheet } from "./InvoiceDetailSheet";
@@ -188,7 +188,17 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
                         onClick={() => setSelectedInvoiceId(inv.id)}
                       >
                         <TableCell className="font-mono text-xs">{inv.invoice_number || "–"}</TableCell>
-                        <TableCell className="text-sm">{inv.vendor_name || "–"}</TableCell>
+                        <TableCell className="text-sm">
+                          <div className="flex items-center gap-1.5">
+                            {inv.einvoice_format && (
+                              <FileCode
+                                className="h-3.5 w-3.5 text-success shrink-0"
+                                aria-label={`E-Rechnung (${inv.einvoice_format})`}
+                              />
+                            )}
+                            {inv.vendor_name || "–"}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-sm">
                           {inv.buildings?.name || (
                             <Badge variant="outline" className="text-xs text-amber-600 border-amber-300">

@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, isPast, isToday } from "date-fns";
-import { CreditCard, AlertTriangle, Play, StickyNote, Check } from "lucide-react";
+import { CreditCard, AlertTriangle, Play, StickyNote, Check, FileCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -204,7 +204,12 @@ export function Transfers() {
             >
               <div className="flex items-start justify-between gap-2 mb-1.5">
                 <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-sm truncate">{inv.vendor_name || "–"}</p>
+                  <p className="font-semibold text-sm truncate flex items-center gap-1.5">
+                    {(inv as any).einvoice_format && (
+                      <FileCode className="h-3.5 w-3.5 text-success shrink-0" aria-label="E-Rechnung" />
+                    )}
+                    {inv.vendor_name || "–"}
+                  </p>
                   <p className="text-xs text-muted-foreground truncate">{getPurpose(inv)}</p>
                 </div>
                 <p className="text-base font-bold tabular-nums whitespace-nowrap">{formatCurrency(inv.gross_amount)}</p>
@@ -278,7 +283,17 @@ export function Transfers() {
                         {inv.due_date ? format(new Date(inv.due_date), "dd.MM.yyyy") : "–"}
                       </div>
                     </TableCell>
-                    <TableCell className="font-medium">{inv.vendor_name || "–"}</TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-1.5">
+                        {(inv as any).einvoice_format && (
+                          <FileCode
+                            className="h-3.5 w-3.5 text-success shrink-0"
+                            aria-label={`E-Rechnung (${(inv as any).einvoice_format})`}
+                          />
+                        )}
+                        {inv.vendor_name || "–"}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-muted-foreground text-sm">{getPurpose(inv)}</TableCell>
                     <TableCell className="font-mono text-xs">{inv.vendor_iban || "–"}</TableCell>
                     <TableCell className="text-right font-semibold tabular-nums">{formatCurrency(inv.gross_amount)}</TableCell>
