@@ -1458,7 +1458,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
 function BookingRowCard({
   row, index, isExpanded, onToggle, accounts, buildingId, onAccountCreated, onUpdateField, onBook, onRemove,
-  isBooking, fieldRefs, handleEnterNavigation, formatCurrency, invoiceDetail,
+  isBooking, fieldRefs, handleEnterNavigation, formatCurrency, invoiceDetail, heatingUnits,
 }: {
   row: BookingRowData;
   index: number;
@@ -1475,6 +1475,7 @@ function BookingRowCard({
   handleEnterNavigation: (e: React.KeyboardEvent, field: string) => void;
   formatCurrency: (amount: number | null) => string;
   invoiceDetail?: any;
+  heatingUnits?: Array<{ id: string; name: string }>;
 }) {
   const counterAccount = accounts.find((a: any) => a.id === row.counter_account_id);
   const selectedCounterAccount = counterAccount;
