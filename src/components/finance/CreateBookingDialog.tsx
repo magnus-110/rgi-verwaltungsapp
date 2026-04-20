@@ -170,6 +170,28 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
   const selectedBuildingName = buildings.find(b => b.id === form.building_id)?.name || "–";
   const counterAccount = accounts.find((a: any) => a.id === form.counter_account_id);
 
+  // Enter-Navigation: focus next focusable element in the form
+  const focusNext = (currentEl: HTMLElement | null) => {
+    if (!currentEl) return;
+    const container = currentEl.closest("[data-booking-form]") as HTMLElement | null;
+    if (!container) return;
+    const focusables = Array.from(
+      container.querySelectorAll<HTMLElement>(
+        'input:not([disabled]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), [role="combobox"]:not([disabled])'
+      )
+    ).filter(el => el.offsetParent !== null);
+    const idx = focusables.indexOf(currentEl);
+    const next = focusables[idx + 1];
+    next?.focus();
+  };
+
+  const handleEnterToNext = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      focusNext(e.target as HTMLElement);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl max-h-[94vh] p-0 flex flex-col overflow-hidden [&>button.absolute]:hidden">
@@ -190,7 +212,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          <div className="p-4 space-y-3">
+          <div className="p-4 space-y-3" data-booking-form>
             {/* Prefill hint */}
             {prefill && (
               <div className="flex items-center gap-2 text-sm bg-primary/10 text-primary border border-primary/20 rounded-lg px-3 py-2">
@@ -198,23 +220,6 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                 KI-vorausgefüllt – bitte prüfen.
               </div>
             )}
-
-            {/* Building selector */}
-            <div>
-              <label className="text-xs font-bold text-primary mb-1 block">Liegenschaft *</label>
-              <Select value={form.building_id} onValueChange={v => set("building_id", v)}>
-                <SelectTrigger className="h-9 text-sm font-semibold border-primary/30 bg-primary/5">
-                  <SelectValue placeholder="Liegenschaft wählen…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {buildings.map(b => (
-                    <SelectItem key={b.id} value={b.id}>
-                      {b.name} {b.building_code && <span className="text-muted-foreground">({b.building_code})</span>}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
 
             {/* Konto */}
             <div>
@@ -226,6 +231,12 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                   const acc = accounts.find(a => a.id === v);
                   if (acc?.is_35a_relevant) set("is_35a_relevant", true);
                   if (acc && (acc as any).default_vat_rate != null) set("vat_rate", String((acc as any).default_vat_rate));
+                }}
+                onCommit={() => {
+                  // Move focus to amount input
+                  const amt = document.querySelector<HTMLInputElement>('[data-booking-form] input[inputmode="decimal"]');
+                  amt?.focus();
+                  amt?.setSelectionRange(amt.value.length, amt.value.length);
                 }}
                 accounts={accounts}
                 excludeCategory="Bankkonto"
@@ -250,6 +261,11 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                   if (e.key === "+" || e.key === "-") {
                     e.preventDefault();
                     set("booking_type", e.key === "+" ? "income" : "expense");
+                    return;
+                  }
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    focusNext(e.target as HTMLElement);
                     return;
                   }
                   const input = e.target as HTMLInputElement;
@@ -291,6 +307,10 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                   const acc = accounts.find((a: any) => a.id === v);
                   if (acc?.account_number?.startsWith("4")) set("vat_rate", "");
                 }}
+                onCommit={() => {
+                  const desc = document.querySelector<HTMLInputElement>('[data-booking-form] input[placeholder^="Beschreibung"]');
+                  desc?.focus();
+                }}
                 accounts={accounts}
                 placeholder="Gegenkonto suchen…"
               />
@@ -299,18 +319,19 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
             {/* Description */}
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Buchungstext</label>
-              <Input className="h-9 text-sm" value={form.description} onChange={e => set("description", e.target.value)} placeholder="Beschreibung der Buchung…" />
+              <Input className="h-9 text-sm" value={form.description} onChange={e => set("description", e.target.value)} onKeyDown={handleEnterToNext} placeholder="Beschreibung der Buchung…" />
             </div>
 
             {/* Compact row: Belegnummer, Beleg-Datum, Wirtschaftsjahr, MwSt */}
             <div className="grid grid-cols-4 gap-2">
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Belegnummer</label>
-                <Input className="h-8 text-xs font-mono" value={form.booking_reference} onChange={e => set("booking_reference", e.target.value)} placeholder="MM/JJ" />
+                <Input className="h-8 text-xs font-mono" value={form.booking_reference} onChange={e => set("booking_reference", e.target.value)} onKeyDown={handleEnterToNext} placeholder="MM/JJ" />
               </div>
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Beleg-Datum *</label>
                 <Input type="date" className="h-8 text-xs" value={form.booking_date}
+                  onKeyDown={handleEnterToNext}
                   onChange={e => {
                     const val = e.target.value;
                     setForm(prev => {
@@ -328,7 +349,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
               </div>
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Wirtschaftsjahr</label>
-                <Input className="h-8 text-xs font-mono" type="number" value={form.fiscal_year} onChange={e => set("fiscal_year", e.target.value)} />
+                <Input className="h-8 text-xs font-mono" type="number" value={form.fiscal_year} onChange={e => set("fiscal_year", e.target.value)} onKeyDown={handleEnterToNext} />
               </div>
               <div>
                 {(() => {
