@@ -94,6 +94,8 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
     if (isNaN(qty) || qty <= 0) { toast.error("Bitte gültige Menge angeben"); return; }
 
     const fuelUnit = FUEL_TYPES.find((f) => f.value === newEntry.fuel_type)?.unit ?? "l";
+    const isPurchase = newEntry.entry_type === "purchase";
+    const showCo2 = isPurchase && ["oil", "gas", "district_heating"].includes(newEntry.fuel_type);
 
     const { error } = await supabase.from("fuel_inventory").insert({
       building_id: buildingId,
@@ -104,13 +106,16 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
       quantity: qty,
       unit: fuelUnit,
       total_price: isNaN(price) ? 0 : price,
+      co2_emissions_kg: showCo2 && newEntry.co2_emissions_kg ? parseFloat(newEntry.co2_emissions_kg) : null,
+      co2_tax_amount: showCo2 && newEntry.co2_tax_amount ? parseFloat(newEntry.co2_tax_amount) : null,
+      energy_content_kwh: isPurchase && newEntry.energy_content_kwh ? parseFloat(newEntry.energy_content_kwh) : null,
       notes: newEntry.notes || null,
     });
 
     if (error) { toast.error("Fehler: " + error.message); return; }
     toast.success("Eintrag hinzugefügt");
     setIsAddOpen(false);
-    setNewEntry({ fuel_type: "oil", entry_type: "purchase", entry_date: `${fiscalYear}-01-01`, quantity: "", unit: "l", total_price: "", notes: "" });
+    setNewEntry({ fuel_type: "oil", entry_type: "purchase", entry_date: `${fiscalYear}-01-01`, quantity: "", unit: "l", total_price: "", co2_emissions_kg: "", co2_tax_amount: "", energy_content_kwh: "", notes: "" });
     queryClient.invalidateQueries({ queryKey: ["fuel-inventory"] });
   };
 
