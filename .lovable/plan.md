@@ -1,70 +1,71 @@
 
 
-## Visual Redesign der Meldungsseite (Admin)
+## E-Rechnung (XRechnung & ZUGFeRD) Support
 
-### Ziel
-Die Seite `/reports` optisch an das restliche App-Design anpassen (wie Dashboard, Transfers, Inbox) — moderner, ruhiger, konsistenter. **Keine** funktionalen Änderungen.
+### Status Quo
+Aktuell akzeptiert die App **nur PDF-Dateien** (`accept=".pdf"`) und verarbeitet diese rein per Mistral-OCR. Das funktioniert für:
+- ✅ Klassische Papier-/PDF-Rechnungen
+- ✅ ZUGFeRD-PDFs **rein optisch** (das sichtbare PDF-Layout wird per OCR gelesen — die strukturierten XML-Daten im Anhang werden ignoriert)
+- ❌ XRechnung (reine `.xml`-Datei) — wird gar nicht akzeptiert
 
-### Aktuelle Schwächen
-- Header generisch (`text-2xl font-bold`) statt einheitlicher `heading-primary`-Stil
-- Summary-Cards flach, ohne Icon-Akzente und Farbcodierung
-- Section-Überschriften nutzen knallrot/gelb (`text-red-600`, `text-yellow-600`) → bricht Brand (RGI Orange)
-- Cards nutzen `border-0 shadow-sm bg-white` → inkonsistent mit `rgi-card`-System
-- Notiz-Boxen (grün/grau) wirken wie Bootstrap-Snippets
-- Keine visuelle Trennung Avatar/Identität → flache Wand aus Text
-- Anhänge-Bereich nutzt `bg-muted` Boxen statt eleganter Badges/Chips
+### Warum das wichtig ist
+Ab **2025** müssen Unternehmen E-Rechnungen empfangen können (B2B), ab **2027/2028** auch versenden. Formate:
+- **XRechnung**: reine XML (UBL/CII), kein PDF
+- **ZUGFeRD**: hybrides PDF/A-3 mit eingebettetem XML (`factur-x.xml`)
 
-### Redesign-Konzept
+Die strukturierten XML-Daten sind **100 % präzise** (Beträge, IBAN, Steuersätze, Positionen) — viel zuverlässiger als OCR und kostenfrei (keine Mistral-API-Calls nötig).
 
-**1. Header-Bereich**
-- `heading-primary` Klasse, Icon links neben Titel (Inbox/MessageSquare), kleiner Untertitel
-- Toolbar: Tabs links (Underline-Variante bleibt), rechts kompakter Actionbar mit Zeitraum-Select + Export-Button
+### Lösungsansatz
 
-**2. Summary-Cards (Offen / Bearbeitet)**
-- Farbiger linker Akzentstreifen: Offen = `border-l-4 border-l-destructive`, Bearbeitet = `border-l-4 border-l-warning`
-- Icon in farblich getöntem Kreis (`bg-destructive/10`), nicht grau
-- Große Zahl `text-3xl font-semibold tracking-tight`
-- Zusätzlich Mini-Trend-Text ("aktueller Zeitraum")
+**1. Upload-Layer erweitern**
+- `InvoiceDropZone` und `EmailAttachments`: zusätzlich `.xml` akzeptieren (`accept=".pdf,.xml"`)
+- MIME-Check erweitern (`application/xml`, `text/xml`)
 
-**3. Filterleiste**
-- Suche in `Input` mit `Search`-Icon (nicht Filter-Icon) links
-- Filter-Button mit Badge-Counter behält Logik
-- Collapsible-Panel: gleiches Look wie Calendar/Todos (`bg-muted/30 rounded-lg border p-3`) — bleibt strukturell erhalten
+**2. Neue Edge Function `parse-einvoice`**
+- Erkennt Format anhand Inhalt:
+  - `.xml` → XRechnung (UBL `Invoice` oder CII `CrossIndustryInvoice`)
+  - `.pdf` → prüft, ob ZUGFeRD-Anhang `factur-x.xml` / `ZUGFeRD-invoice.xml` vorhanden (via PDF/A-3 Embedded Files)
+- Parst XML mit `deno-dom` oder simplem XPath/Regex
+- Extrahiert Standardfelder: Vendor, IBAN, Rechnungsnummer, Datum, Netto/MwSt/Brutto, Positionen, Empfängeradresse, Leitweg-ID
+- Schreibt direkt strukturiert in `invoices`-Tabelle — **kein Mistral-Call nötig**
 
-**4. Section-Überschriften**
-- Statt knallroter/gelber Schrift: dezenter Header mit farbigem Dot + neutralem Text
-  - `● Offene Meldungen` (Dot in `bg-destructive`)
-  - `● Bearbeitete Meldungen` (Dot in `bg-warning`)
-- Counter als Badge (`variant="secondary"`)
+**3. Integration in `extract-invoice` Pipeline**
+- Workflow am Anfang: 
+  1. Wenn Datei `.xml` → direkt `parse-einvoice` und fertig
+  2. Wenn `.pdf` → erst auf eingebettetes ZUGFeRD-XML prüfen
+     - Gefunden → XML parsen (strukturierte Daten als „Source of Truth")
+     - Nicht gefunden → bisheriger Mistral-OCR-Pfad (Fallback)
+- Building-Auto-Match-Logik bleibt identisch
+- Duplikat-Check bleibt identisch
 
-**5. Report-Card Redesign**
-- `rgi-card` Klasse (border, hover-shadow, leichte Skalierung)
-- Linker farbiger Statusstreifen (matching status)
-- Header-Zeile: Avatar-Kreis mit Initialen des Kontakts → Name + Erstelldatum (relativ: "vor 2h")
-- Titel als `text-base font-semibold`
-- Beschreibung mit `line-clamp-2`, Klick expandiert
-- Meta-Infos in 2-Spalten-Grid mit Icons (Phone, Mail, Building2, User) statt fettem Text
-- Action-Buttons rechts oben in dezenter Toolbar (`opacity-60 hover:opacity-100`)
-- Notiz-Boxen: dezente Hintergründe (`bg-success/5 border-success/20` statt `bg-green-50 border-green-400`), Icon (StickyNote/Lock) links
-- Anhänge als kompakte Chip-Badges mit Paperclip-Icon, hover mit Primary-Tint
+**4. UI-Hinweise**
+- Badge in der Rechnungsliste „E-Rechnung" (grün) wenn aus XML extrahiert → signalisiert hohe Datenqualität
+- Drop-Zone-Text aktualisieren: „PDF oder XML (XRechnung/ZUGFeRD)"
+- In `Transfers.tsx` und `InvoicesTab.tsx`: kleines Icon (z. B. `FileCode`) bei E-Rechnungen
 
-**6. Empty States**
-- Statt Card mit Text → zentriertes Icon + Text in `border-dashed border-muted-foreground/20 rounded-lg`
+**5. Datenbank-Erweiterung (Migration)**
+Neue Spalten in `invoices`:
+- `einvoice_format` (text, nullable): `'xrechnung' | 'zugferd' | null`
+- `einvoice_xml_path` (text, nullable): Pfad zur extrahierten/originalen XML-Datei
+- `leitweg_id` (text, nullable): nur für B2G-Pflicht relevant, aber gut zu speichern
 
-**7. Tokens & Konsistenz**
-- Alle hardcoded Farben (`text-red-600`, `bg-green-50`, `text-blue-600`) ersetzen durch semantische Tokens (`text-destructive`, `bg-success/10`, `text-primary`)
-- Spacing einheitlich `space-y-6`
-- Typographie: `font-manrope` für Body, `heading-primary` für Headings
-
-### Geänderte Dateien
-- `src/pages/Reports.tsx` — komplettes JSX-Markup neu (Logik 1:1 erhalten: State, Filter, Fetch, Realtime, Export, Case-Linking)
+### Geänderte / Neue Dateien
+- **NEU**: `supabase/functions/parse-einvoice/index.ts` — XML-Parser für UBL & CII
+- `supabase/functions/extract-invoice/index.ts` — Format-Detection vorgeschaltet, ZUGFeRD-Extraktion
+- `supabase/config.toml` — `verify_jwt = false` für neue Function
+- `src/components/finance/InvoiceDropZone.tsx` — XML akzeptieren
+- `src/components/email/EmailAttachments.tsx` — XML als Rechnung importierbar
+- `src/pages/Transfers.tsx` — Badge „E-Rechnung"
+- `src/components/finance/InvoicesTab.tsx` — Badge „E-Rechnung"
+- **Migration**: 3 neue Spalten in `invoices`
 
 ### Was unverändert bleibt
-- Alle Hooks, Queries, State-Management
-- Realtime-Subscription
-- Excel-Export inkl. Filter-Dialog
-- Case-Verknüpfung (FolderPlus / Link2 Buttons)
-- EditReportDialog, ReportTemplatesManager, CreateCaseDialog, LinkReportToCaseDialog
-- Tabs Meldungen/Vorlagen, Collapsible für bearbeitete Meldungen
-- attachmentUrls signed URL Logik
+- Building-Auto-Match
+- Duplikat-Schutz
+- Mistral-OCR (als Fallback für klassische PDFs)
+- Make.com-Integration / Buchungs-Workflow
+- Brennstoff-/Abschlags-Erkennung (Regeln auf XML-Beschreibungen anwenden)
+
+### Aufwand
+Mittelgroß — ein Edge Function (~250 Zeilen), eine Migration, kleinere UI-Anpassungen. Beide Formate (XRechnung + ZUGFeRD) werden in einem Aufwasch erschlagen, da beide CII oder UBL nutzen.
 
