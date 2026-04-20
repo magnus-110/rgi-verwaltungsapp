@@ -46,8 +46,8 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
   const [bodyFormat, setBodyFormat] = useState<"html" | "plain">("plain");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingScheduled, setPendingScheduled] = useState(false);
-  const bodyRef = useRef<HTMLTextAreaElement>(null);
-  const subjectRef = useRef<HTMLInputElement>(null);
+  const bodyRef = useRef<WysiwygPlaceholderEditorHandle>(null);
+  const subjectRef = useRef<WysiwygPlaceholderEditorHandle>(null);
   const lastFocused = useRef<"subject" | "body">("body");
   const { toast } = useToast();
   const qc = useQueryClient();
