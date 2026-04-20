@@ -834,7 +834,7 @@ export const Inbox = () => {
         <ResizablePanel
           defaultSize={35}
           minSize={20}
-          maxSize={60}
+          maxSize={75}
           className={cn(selectedEmailId ? "hidden md:!block" : "!block", "!flex-[1_1_0] md:!flex-initial !h-full !overflow-hidden")}
         >
           <div className="flex flex-col h-full min-h-0">
@@ -903,24 +903,28 @@ export const Inbox = () => {
                     key={email.id}
                     onClick={() => setSelectedEmailId(email.id)}
                     className={cn(
-                      "w-full text-left px-3 py-2 border-b transition-colors",
+                      "w-full text-left px-3 py-2 border-b transition-colors relative",
                       selectedEmailId === email.id ? "bg-accent" : "hover:bg-muted/50",
-                      !email.is_read && "bg-primary/5"
+                      !email.is_read && "bg-primary/10 border-l-4 border-l-primary"
                     )}
                   >
                     <div className="flex items-center justify-between gap-1">
-                      <span className={cn("text-sm truncate", !email.is_read && "font-semibold")}>
+                      <span className={cn(
+                        "text-sm truncate flex items-center gap-1.5",
+                        !email.is_read ? "font-bold text-foreground" : "text-muted-foreground"
+                      )}>
+                        {!email.is_read && <span className="h-2 w-2 rounded-full bg-primary shrink-0" aria-hidden />}
                         {email.from_name || email.from_address || "Unbekannt"}
                       </span>
                       <div className="flex items-center gap-1 shrink-0">
                         {email.has_attachments && <Paperclip className="h-3 w-3 text-muted-foreground" />}
                         {email.is_starred && <Flag className="h-3 w-3 text-orange-500 fill-orange-500" />}
-                        <span className="text-[11px] text-muted-foreground">
+                        <span className={cn("text-[11px]", !email.is_read ? "text-foreground font-semibold" : "text-muted-foreground")}>
                           {email.date ? new Date(email.date).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) : ""}
                         </span>
                       </div>
                     </div>
-                    <p className={cn("text-xs truncate", !email.is_read ? "text-foreground" : "text-muted-foreground")}>
+                    <p className={cn("text-xs truncate", !email.is_read ? "text-foreground font-semibold" : "text-muted-foreground")}>
                       {email.subject || "(Kein Betreff)"}
                     </p>
                     <div className="flex items-center justify-between gap-1 mt-0.5">
@@ -1053,7 +1057,7 @@ export const Inbox = () => {
           </div>
         </ResizablePanel>
 
-        <ResizableHandle withHandle className="hidden md:flex" />
+        <ResizableHandle withHandle className="hidden md:flex w-1.5 bg-border hover:bg-primary/40 transition-colors" />
 
         {/* Right: Email Detail — on mobile: only visible when an email is selected */}
         <ResizablePanel
