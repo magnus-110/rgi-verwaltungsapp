@@ -1745,6 +1745,222 @@ export type Database = {
         }
         Relationships: []
       }
+      comm_campaigns: {
+        Row: {
+          body_html_override: string | null
+          building_id: string
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          docx_path_override: string | null
+          email_account_id: string | null
+          error_message: string | null
+          failed_count: number
+          free_vars: Json
+          id: string
+          name: string
+          recipient_count: number
+          recipient_filter: Json
+          result_pdf_path: string | null
+          result_zip_path: string | null
+          sent_count: number
+          status: string
+          subject_override: string | null
+          template_id: string | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          body_html_override?: string | null
+          building_id: string
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          docx_path_override?: string | null
+          email_account_id?: string | null
+          error_message?: string | null
+          failed_count?: number
+          free_vars?: Json
+          id?: string
+          name: string
+          recipient_count?: number
+          recipient_filter?: Json
+          result_pdf_path?: string | null
+          result_zip_path?: string | null
+          sent_count?: number
+          status?: string
+          subject_override?: string | null
+          template_id?: string | null
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          body_html_override?: string | null
+          building_id?: string
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          docx_path_override?: string | null
+          email_account_id?: string | null
+          error_message?: string | null
+          failed_count?: number
+          free_vars?: Json
+          id?: string
+          name?: string
+          recipient_count?: number
+          recipient_filter?: Json
+          result_pdf_path?: string | null
+          result_zip_path?: string | null
+          sent_count?: number
+          status?: string
+          subject_override?: string | null
+          template_id?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comm_campaigns_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comm_campaigns_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "comm_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      comm_recipients: {
+        Row: {
+          building_id: string | null
+          campaign_id: string
+          contact_id: string | null
+          created_at: string
+          display_name: string | null
+          email: string | null
+          error: string | null
+          generated_file_path: string | null
+          id: string
+          person_id: string | null
+          resolved_vars: Json
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          building_id?: string | null
+          campaign_id: string
+          contact_id?: string | null
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          error?: string | null
+          generated_file_path?: string | null
+          id?: string
+          person_id?: string | null
+          resolved_vars?: Json
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          building_id?: string | null
+          campaign_id?: string
+          contact_id?: string | null
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          error?: string | null
+          generated_file_path?: string | null
+          id?: string
+          person_id?: string | null
+          resolved_vars?: Json
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comm_recipients_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comm_recipients_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "comm_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comm_recipients_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      comm_templates: {
+        Row: {
+          body_html: string | null
+          building_id: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          docx_path: string | null
+          id: string
+          is_global: boolean
+          name: string
+          subject: string | null
+          type: string
+          updated_at: string
+          variables: Json
+        }
+        Insert: {
+          body_html?: string | null
+          building_id?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          docx_path?: string | null
+          id?: string
+          is_global?: boolean
+          name: string
+          subject?: string | null
+          type: string
+          updated_at?: string
+          variables?: Json
+        }
+        Update: {
+          body_html?: string | null
+          building_id?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          docx_path?: string | null
+          id?: string
+          is_global?: boolean
+          name?: string
+          subject?: string | null
+          type?: string
+          updated_at?: string
+          variables?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comm_templates_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contact_bank_accounts: {
         Row: {
           account_holder: string | null
