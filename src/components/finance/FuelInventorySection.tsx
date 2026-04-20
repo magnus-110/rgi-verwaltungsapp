@@ -243,6 +243,29 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
                 <Input type="number" step="0.01" value={newEntry.total_price} onChange={(e) => setNewEntry((p) => ({ ...p, total_price: e.target.value }))} placeholder="0,00" />
               </div>
             </div>
+            {newEntry.entry_type === "purchase" && (
+              <>
+                <div>
+                  <Label>Brennwert / Energiegehalt (kWh) <span className="text-xs text-muted-foreground">– optional, aus Rechnung</span></Label>
+                  <Input type="number" step="0.01" value={newEntry.energy_content_kwh} onChange={(e) => setNewEntry((p) => ({ ...p, energy_content_kwh: e.target.value }))} placeholder="z.B. 30000" />
+                </div>
+                {["oil", "gas", "district_heating"].includes(newEntry.fuel_type) && (
+                  <div className="rounded-md border border-amber-200 bg-amber-50/50 p-3 space-y-2">
+                    <p className="text-xs font-medium text-amber-900">CO₂-Daten (BEHG) – nur eintragen, was auf Rechnung steht</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs">CO₂-Emissionen (kg)</Label>
+                        <Input type="number" step="0.01" value={newEntry.co2_emissions_kg} onChange={(e) => setNewEntry((p) => ({ ...p, co2_emissions_kg: e.target.value }))} placeholder="aus Rechnung" />
+                      </div>
+                      <div>
+                        <Label className="text-xs">CO₂-Steueranteil (€)</Label>
+                        <Input type="number" step="0.01" value={newEntry.co2_tax_amount} onChange={(e) => setNewEntry((p) => ({ ...p, co2_tax_amount: e.target.value }))} placeholder="aus Rechnung" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
             <div>
               <Label>Notiz (optional)</Label>
               <Input value={newEntry.notes} onChange={(e) => setNewEntry((p) => ({ ...p, notes: e.target.value }))} placeholder="z.B. Lieferant, Lieferschein-Nr." />
