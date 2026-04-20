@@ -57,45 +57,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
 
   const insertAtCursor = (placeholder: string) => {
     const target = lastFocused.current === "subject" ? subjectRef.current : bodyRef.current;
-    if (!target) return;
-    const start = target.selectionStart ?? target.value.length;
-    const end = target.selectionEnd ?? start;
-    const before = target.value.slice(0, start);
-    const after = target.value.slice(end);
-    const next = before + placeholder + after;
-    if (lastFocused.current === "subject") setSubject(next);
-    else setBody(next);
-    requestAnimationFrame(() => {
-      target.focus();
-      const pos = start + placeholder.length;
-      target.setSelectionRange(pos, pos);
-    });
-  };
-
-  const handleDropPlaceholder = (e: React.DragEvent<HTMLTextAreaElement>) => {
-    e.preventDefault();
-    const ph = e.dataTransfer.getData("text/plain");
-    if (!ph) return;
-    const ta = bodyRef.current;
-    if (!ta) { setBody(body + ph); return; }
-    // Try to use caret position from drop coordinates
-    let pos = ta.selectionStart ?? ta.value.length;
-    const docAny = document as any;
-    if (typeof docAny.caretPositionFromPoint === "function") {
-      const cp = docAny.caretPositionFromPoint(e.clientX, e.clientY);
-      if (cp && cp.offsetNode === ta) pos = cp.offset;
-    } else if (typeof (document as any).caretRangeFromPoint === "function") {
-      // Webkit fallback — works for inputs/textareas via selectionStart after focus
-      ta.focus();
-      pos = ta.selectionStart ?? pos;
-    }
-    const next = ta.value.slice(0, pos) + ph + ta.value.slice(pos);
-    setBody(next);
-    requestAnimationFrame(() => {
-      ta.focus();
-      const p = pos + ph.length;
-      ta.setSelectionRange(p, p);
-    });
+    target?.insert(placeholder);
   };
 
   const { data: accounts = [] } = useQuery({
