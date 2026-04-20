@@ -190,7 +190,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
     } finally { setBusy(false); }
   };
 
-  const handleSend = async () => {
+  const requestSend = () => {
     if (!accountId) { toast({ title: "E-Mail-Konto wählen", variant: "destructive" }); return; }
     if (!subject.trim() || !body.trim()) { toast({ title: "Betreff und Inhalt erforderlich", variant: "destructive" }); return; }
 
@@ -200,7 +200,15 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
         toast({ title: "Geplanter Zeitpunkt muss in der Zukunft liegen", variant: "destructive" });
         return;
       }
-      if (!confirm(`Versand für ${when.toLocaleString("de-DE")} planen?`)) return;
+      setPendingScheduled(true);
+    } else {
+      setPendingScheduled(false);
+    }
+    setConfirmOpen(true);
+  };
+
+  const executeSend = async () => {
+    if (pendingScheduled) {
       setBusy(true);
       try {
         await createCampaign("scheduled");
@@ -213,7 +221,6 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
       return;
     }
 
-    if (!confirm(`Wirklich an alle ausgewählten Empfänger senden?`)) return;
     setBusy(true);
     try {
       const c = await createCampaign("draft");
