@@ -1,15 +1,16 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, Mail, Download, AlertCircle, CheckCircle2, Clock } from "lucide-react";
+import { FileText, Mail, Download, AlertCircle, CheckCircle2, Clock, RefreshCcw, CalendarClock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface Props { buildingId: string; }
 
 export const CampaignHistoryList = ({ buildingId }: Props) => {
   const { toast } = useToast();
+  const qc = useQueryClient();
   const { data: campaigns = [], isLoading } = useQuery({
     queryKey: ["comm-campaigns", buildingId],
     queryFn: async () => {
@@ -25,6 +26,22 @@ export const CampaignHistoryList = ({ buildingId }: Props) => {
     const { data, error } = await supabase.storage.from("comm-assets").createSignedUrl(path, 600);
     if (error || !data?.signedUrl) { toast({ title: "Download fehlgeschlagen", variant: "destructive" }); return; }
     window.open(data.signedUrl, "_blank");
+  };
+
+  const retry = async (c: any) => {
+    if (!confirm(`Fehlgeschlagene Empfänger (${c.failed_count}) erneut anschreiben?`)) return;
+    const { error } = await supabase.functions.invoke("comm-send-bulk-email", {
+      body: { campaign_id: c.id, retry_failed_only: true },
+    });
+    if (error) { toast({ title: "Fehler", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Wiederholung gestartet" });
+    qc.invalidateQueries({ queryKey: ["comm-campaigns", buildingId] });
+  };
+
+  const cancelScheduled = async (c: any) => {
+    if (!confirm("Geplanten Versand abbrechen?")) return;
+    await supabase.from("comm_campaigns").update({ status: "draft", scheduled_at: null }).eq("id", c.id);
+    qc.invalidateQueries({ queryKey: ["comm-campaigns", buildingId] });
   };
 
   if (isLoading) return <p className="text-sm text-muted-foreground">Laden...</p>;
@@ -54,11 +71,24 @@ export const CampaignHistoryList = ({ buildingId }: Props) => {
                 {c.error_message && (
                   <div className="text-xs text-destructive mt-1 truncate">{c.error_message}</div>
                 )}
+                {c.scheduled_at && c.status === "scheduled" && (
+                  <div className="text-xs text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1">
+                    <CalendarClock className="h-3 w-3" /> Geplant: {new Date(c.scheduled_at).toLocaleString("de-DE")}
+                  </div>
+                )}
               </div>
               {isLetter && c.result_zip_path && c.status === "done" && (
                 <Button variant="outline" size="sm" onClick={() => download(c.result_zip_path)}>
                   <Download className="h-4 w-4 mr-1" /> ZIP
                 </Button>
+              )}
+              {!isLetter && c.failed_count > 0 && (c.status === "sent" || c.status === "failed") && (
+                <Button variant="outline" size="sm" onClick={() => retry(c)}>
+                  <RefreshCcw className="h-4 w-4 mr-1" /> Wiederholen
+                </Button>
+              )}
+              {c.status === "scheduled" && (
+                <Button variant="outline" size="sm" onClick={() => cancelScheduled(c)}>Abbrechen</Button>
               )}
             </CardContent>
           </Card>
@@ -71,6 +101,7 @@ export const CampaignHistoryList = ({ buildingId }: Props) => {
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { label: string; v: any; icon: any }> = {
     draft:      { label: "Entwurf",     v: "secondary", icon: Clock },
+    scheduled:  { label: "Geplant",     v: "secondary", icon: CalendarClock },
     generating: { label: "Erstelle...", v: "secondary", icon: Clock },
     done:       { label: "Erstellt",    v: "default",   icon: CheckCircle2 },
     sending:    { label: "Sende...",    v: "secondary", icon: Clock },
