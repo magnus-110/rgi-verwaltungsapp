@@ -1,571 +1,323 @@
-import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertCircle, FileText, Building2, Users, Sparkles, TrendingUp, Activity, MessageSquare, BarChart3, LineChart, Home } from "lucide-react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useManagementMode } from "@/hooks/useManagementMode";
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, BarChart as RechartsBarChart, Bar } from 'recharts';
-import { TodoDashboardWidget } from "@/components/todos/TodoDashboardWidget";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  AlertCircle, Briefcase, FileText, Mail, ListTodo, Wrench,
+  ChevronRight, Building2, Activity, CalendarClock,
+} from "lucide-react";
+import { formatDistanceToNow, format } from "date-fns";
+import { de } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
-const DashboardWidget = ({ 
-  title, 
-  value, 
-  description, 
-  icon: Icon, 
-  trend,
-  isLoading = false
-}: { 
-  title: string; 
-  value: string | number; 
-  description: string; 
-  icon: any; 
-  trend?: string;
-  isLoading?: boolean;
-}) => (
-  <Card className="hover:shadow-elegant transition-shadow">
-    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-4 md:p-6">
-      <CardTitle className="label-text text-xs md:text-sm font-medium truncate">{title}</CardTitle>
-      <Icon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-    </CardHeader>
-    <CardContent className="space-y-1.5 md:space-y-2 p-4 md:p-6 pt-0 md:pt-0">
-      <div className="heading-primary text-xl sm:text-2xl font-bold text-primary truncate">
-        {isLoading ? "..." : value}
-      </div>
-      <p className="body-secondary text-xs leading-tight">{description}</p>
-      {trend && (
-        <div className="flex items-center pt-1">
-          <TrendingUp className="h-3 w-3 text-green-500 mr-1 flex-shrink-0" />
-          <span className="body-secondary text-xs text-green-500 truncate">{trend}</span>
-        </div>
+interface GlobalStats {
+  open_reports: number;
+  open_cases: number;
+  open_invoices: number;
+  unread_emails: number;
+  building_count: number;
+  today_tasks: Array<{ id: string; title: string; priority: string; due_date: string; status: string }>;
+  upcoming_maintenance: Array<{ id: string; building_id: string; building_name: string; task_name: string; next_due_date: string; category: string }>;
+  recent_activity: Array<{ kind: string; id: string; label: string; ts: string; building_id: string; building_name: string; extra?: string }>;
+  buildings_summary: Array<{ id: string; name: string; address: string; unit_count: number; open_count: number }>;
+}
+
+const KpiCard = ({
+  label, value, icon: Icon, tone, onClick, isLoading,
+}: {
+  label: string; value: number; icon: any;
+  tone: "destructive" | "warning" | "info" | "neutral";
+  onClick: () => void; isLoading: boolean;
+}) => {
+  const toneClasses = {
+    destructive: "border-destructive/30 bg-destructive/5 hover:bg-destructive/10",
+    warning: "border-orange-500/30 bg-orange-500/5 hover:bg-orange-500/10",
+    info: "border-primary/30 bg-primary/5 hover:bg-primary/10",
+    neutral: "border-border bg-card hover:bg-muted/50",
+  };
+  const iconColor = {
+    destructive: "text-destructive",
+    warning: "text-orange-500",
+    info: "text-primary",
+    neutral: "text-muted-foreground",
+  };
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "text-left rounded-lg border p-4 md:p-5 transition-all hover:shadow-md",
+        toneClasses[tone]
       )}
-    </CardContent>
-  </Card>
-);
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs md:text-sm text-muted-foreground font-medium truncate">{label}</p>
+          <p className="text-2xl md:text-3xl font-bold mt-1 tabular-nums">
+            {isLoading ? "…" : value}
+          </p>
+        </div>
+        <Icon className={cn("h-5 w-5 md:h-6 md:w-6 flex-shrink-0", iconColor[tone])} />
+      </div>
+      <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
+        <span>Anzeigen</span>
+        <ChevronRight className="h-3 w-3" />
+      </div>
+    </button>
+  );
+};
 
 export const Dashboard = () => {
   const { managementMode } = useManagementMode();
-  const [reports, setReports] = useState<any[]>([]);
-  const [buildings, setBuildings] = useState<any[]>([]);
-  const [timeframeDays, setTimeframeDays] = useState<number>(30);
-  const [monthlyTicketsData, setMonthlyTicketsData] = useState<any[]>([]);
-  const [topProblemBuildingsData, setTopProblemBuildingsData] = useState<any[]>([]);
-  const [chatbotStatus, setChatbotStatus] = useState({ online: false, conversations: 0 });
-  const [stats, setStats] = useState({
-    openReports: 0,
-    inProgressReports: 0,
-    resolvedReports: 0,
-    buildingsCount: 0,
-    totalReports: 0
+  const navigate = useNavigate();
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["dashboard-global-stats", managementMode],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_dashboard_global_stats" as any, {
+        p_management_mode: managementMode,
+      });
+      if (error) throw error;
+      return data as unknown as GlobalStats;
+    },
+    refetchInterval: 60_000,
   });
-  const [loading, setLoading] = useState(true);
 
-  // Building overview state
-  const [buildingOverview, setBuildingOverview] = useState<{
-    totalBuildings: number;
-    totalUnits: number;
-    managers: Array<{ user_id: string; name: string; buildings: number; units: number }>;
-  }>({ totalBuildings: 0, totalUnits: 0, managers: [] });
-  const [overviewManagerFilter, setOverviewManagerFilter] = useState<string>("all");
+  const stats: GlobalStats = data || {
+    open_reports: 0, open_cases: 0, open_invoices: 0, unread_emails: 0,
+    building_count: 0, today_tasks: [], upcoming_maintenance: [],
+    recent_activity: [], buildings_summary: [],
+  };
 
-  useEffect(() => {
-    fetchData();
-    fetchBuildingOverview();
-  }, [managementMode, timeframeDays]);
+  const topProblemBuildings = useMemo(
+    () => (stats.buildings_summary || []).filter(b => b.open_count > 0).slice(0, 5),
+    [stats.buildings_summary]
+  );
 
-  const fetchData = async () => {
-    try {
-      const reportsTable = managementMode === 'weg' ? 'weg_reports' : 'miete_reports';
-      
-      // Efficient data fetching with all new features
-      const [
-        openReportsResult,
-        inProgressReportsResult, 
-        resolvedReportsResult,
-        buildingsResult,
-        recentReportsResult,
-        recentBuildingsResult,
-        chatbotHealthResult,
-        chatbotSessionsResult,
-        allSessionsResult,
-        monthlyReportsResult,
-        problemBuildingsResult
-      ] = await Promise.all([
-        // Count reports by status
-        supabase
-          .from(reportsTable)
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'open'),
-        supabase
-          .from(reportsTable)
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'in_progress'),
-        supabase
-          .from(reportsTable)
-          .select('*', { count: 'exact', head: true })
-          .eq('status', 'resolved'),
-        
-        // Count buildings
-        supabase
-          .from('buildings')
-          .select('*', { count: 'exact', head: true })
-          .eq('management_mode', managementMode),
-        
-        // Get recent reports for display (only fetch what we need)
-        supabase
-          .from(reportsTable)
-          .select('id, title, status, contact_name, created_at')
-          .order('created_at', { ascending: false })
-          .limit(5),
-        
-        // Get recent buildings for display
-        supabase
-          .from('buildings')
-          .select('id, name, address')
-          .eq('management_mode', managementMode)
-          .order('created_at', { ascending: false })
-          .limit(5),
-
-        // Chatbot health check
-        supabase.functions.invoke('chat-with-ai', {
-          body: { healthCheck: true, userId: 'health', managementMode: managementMode }
-        }),
-
-        // Chatbot conversations count
-        supabase
-          .from('chatbot_sessions')
-          .select('*', { count: 'exact', head: true })
-          .eq('management_mode', managementMode)
-          .gte('started_at', new Date(Date.now() - timeframeDays * 24 * 60 * 60 * 1000).toISOString()),
-
-        // Debug: Get all chatbot sessions
-        supabase
-          .from('chatbot_sessions')
-          .select('*')
-          .order('started_at', { ascending: false })
-          .limit(10),
-
-        // Monthly tickets data (last 12 months)
-        supabase
-          .from(reportsTable)
-          .select('created_at')
-          .gte('created_at', new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString()),
-
-        // Problem buildings data
-        supabase
-          .from(reportsTable)
-          .select('id, building_id, created_at')
-          .gte('created_at', new Date(Date.now() - timeframeDays * 24 * 60 * 60 * 1000).toISOString())
-      ]);
-
-      // Update stats
-      setStats({
-        openReports: openReportsResult.count || 0,
-        inProgressReports: inProgressReportsResult.count || 0, 
-        resolvedReports: resolvedReportsResult.count || 0,
-        buildingsCount: buildingsResult.count || 0,
-        totalReports: (openReportsResult.count || 0) + (inProgressReportsResult.count || 0) + (resolvedReportsResult.count || 0)
-      });
-
-      // Set display data
-      setReports(recentReportsResult.data || []);
-      setBuildings(recentBuildingsResult.data || []);
-
-      // Process chatbot data
-      
-      setChatbotStatus({
-        online: chatbotHealthResult.data?.online || false,
-        conversations: chatbotSessionsResult.count || 0
-      });
-
-      // Process monthly tickets data
-      const monthlyData = processMonthlyData(monthlyReportsResult.data || []);
-      setMonthlyTicketsData(monthlyData);
-
-      // Process problem buildings data
-      const problemBuildings = await processProblemBuildings(problemBuildingsResult.data || []);
-      setTopProblemBuildingsData(problemBuildings);
-
-    } catch (error) {
-      console.error("Error fetching dashboard data:", error);
-    } finally {
-      setLoading(false);
+  const activityIcon = (kind: string) => {
+    switch (kind) {
+      case "report": return AlertCircle;
+      case "case": return Briefcase;
+      case "email": return Mail;
+      default: return Activity;
     }
   };
 
-  const fetchBuildingOverview = async () => {
-    try {
-      const { data: allBuildings } = await supabase
-        .from('buildings')
-        .select('id, name, unit_count')
-        .eq('management_mode', managementMode);
-
-      if (!allBuildings) return;
-
-      const { data: managers } = await supabase
-        .from('building_managers')
-        .select('building_id, user_id, profiles:user_id (first_name, last_name)');
-
-      const managerMap: Record<string, { user_id: string; name: string; buildings: number; units: number }> = {};
-      
-      (managers || []).forEach((bm: any) => {
-        const buildingInMode = allBuildings.find(b => b.id === bm.building_id);
-        if (!buildingInMode) return;
-        
-        if (!managerMap[bm.user_id]) {
-          const name = bm.profiles?.first_name && bm.profiles?.last_name
-            ? `${bm.profiles.first_name} ${bm.profiles.last_name}`
-            : 'Unbekannt';
-          managerMap[bm.user_id] = { user_id: bm.user_id, name, buildings: 0, units: 0 };
-        }
-        managerMap[bm.user_id].buildings++;
-        managerMap[bm.user_id].units += buildingInMode.unit_count || 0;
-      });
-
-      setBuildingOverview({
-        totalBuildings: allBuildings.length,
-        totalUnits: allBuildings.reduce((sum, b) => sum + ((b as any).unit_count || 0), 0),
-        managers: Object.values(managerMap).sort((a, b) => b.buildings - a.buildings)
-      });
-    } catch (error) {
-      console.error("Error fetching building overview:", error);
-    }
-  };
-
-  const processMonthlyData = (reports: any[]) => {
-    const months = [];
-    const now = new Date();
-    
-    // Generate last 12 months
-    for (let i = 11; i >= 0; i--) {
-      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      months.push({
-        month: date.toLocaleDateString('de-DE', { month: 'short', year: '2-digit' }),
-        tickets: 0,
-        date: date
-      });
-    }
-
-    // Count reports per month
-    reports.forEach(report => {
-      const reportDate = new Date(report.created_at);
-      const monthIndex = months.findIndex(m => 
-        m.date.getMonth() === reportDate.getMonth() && 
-        m.date.getFullYear() === reportDate.getFullYear()
-      );
-      if (monthIndex >= 0) {
-        months[monthIndex].tickets++;
-      }
-    });
-
-    return months;
-  };
-
-  const processProblemBuildings = async (reports: any[]) => {
-    if (reports.length === 0) return [];
-
-    // Count reports per building
-    const buildingCounts: Record<string, number> = {};
-    reports.forEach(report => {
-      if (report.building_id) {
-        buildingCounts[report.building_id] = (buildingCounts[report.building_id] || 0) + 1;
-      }
-    });
-
-    // Get building names and occupant counts
-    const buildingIds = Object.keys(buildingCounts);
-    if (buildingIds.length === 0) return [];
-
-    const { data: buildingsData } = await supabase
-      .from('buildings')
-      .select('id, name, address')
-      .in('id', buildingIds);
-
-    // Get occupant counts based on management mode
-    const occupantPromises = buildingIds.map(async (buildingId) => {
-      if (managementMode === 'rent') {
-        const { count } = await supabase
-          .from('tenants')
-          .select('*', { count: 'exact', head: true })
-          .eq('building_id', buildingId);
-        return { buildingId, occupants: count || 1 };
-      } else {
-        const { count } = await supabase
-          .from('weg_owner_buildings')
-          .select('*', { count: 'exact', head: true })
-          .eq('building_id', buildingId);
-        return { buildingId, occupants: count || 1 };
-      }
-    });
-
-    const occupantResults = await Promise.all(occupantPromises);
-    const occupantMap = occupantResults.reduce((acc, { buildingId, occupants }) => {
-      acc[buildingId] = occupants;
-      return acc;
-    }, {} as Record<string, number>);
-
-    // Calculate normalized values and create result
-    const result = buildingIds
-      .map(buildingId => {
-        const building = buildingsData?.find(b => b.id === buildingId);
-        const reportCount = buildingCounts[buildingId];
-        const occupants = occupantMap[buildingId] || 1;
-        const normalizedValue = reportCount / occupants;
-
-        return {
-          name: building?.name || 'Unbekannt',
-          value: normalizedValue,
-          rawCount: reportCount,
-          occupants: occupants
-        };
-      })
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 10);
-
-    return result;
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "open":
-        return <Badge variant="destructive">Offen</Badge>;
-      case "in_progress":
-        return <Badge variant="secondary">Bearbeitet</Badge>;
-      case "resolved":
-        return <Badge variant="default">Erledigt</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
+  const activityLabel = (kind: string) => {
+    switch (kind) {
+      case "report": return "Meldung";
+      case "case": return "Vorgang";
+      case "email": return "E-Mail";
+      default: return "Ereignis";
     }
   };
 
   return (
     <div className="space-y-4 md:space-y-6">
+      {/* Header */}
       <div>
-        <h2 className="text-2xl md:text-4xl font-sans font-semibold tracking-tight mb-1 md:mb-2">
-          {managementMode === 'weg' ? 'WEG-Verwaltung' : 'Mietverwaltung'} Dashboard
-        </h2>
-        <p className="body-secondary text-sm md:text-lg">
-          Überblick über Ihre {managementMode === 'weg' ? 'WEG-' : 'Miet-'}Verwaltungsaktivitäten
+        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
+          {managementMode === "weg" ? "WEG-Verwaltung" : "Mietverwaltung"}
+        </h1>
+        <p className="text-sm md:text-base text-muted-foreground mt-1">
+          Tagesübersicht über {stats.building_count} {stats.building_count === 1 ? "Gebäude" : "Gebäude"}
         </p>
       </div>
 
-      {/* Statistik Widgets */}
-      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
-        <DashboardWidget
-          title="Offene Meldungen"
-          value={stats.openReports}
-          description="Neue Meldungen zur Bearbeitung"
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+        <KpiCard
+          label="Offene Meldungen"
+          value={stats.open_reports}
           icon={AlertCircle}
-          trend={stats.openReports > 0 ? `${stats.openReports} offen` : 'Keine offenen'}
-          isLoading={loading}
+          tone={stats.open_reports > 0 ? "destructive" : "neutral"}
+          onClick={() => navigate("/reports")}
+          isLoading={isLoading}
         />
-        <DashboardWidget
-          title="Chatbot Status"
-          value={chatbotStatus.online ? "Online" : "Offline"}
-          description={`${chatbotStatus.conversations} Konversationen`}
-          icon={chatbotStatus.online ? Activity : AlertCircle}
-          trend={chatbotStatus.online ? "Verfügbar" : "Nicht verfügbar"}
-          isLoading={loading}
+        <KpiCard
+          label="Offene Vorgänge"
+          value={stats.open_cases}
+          icon={Briefcase}
+          tone={stats.open_cases > 0 ? "warning" : "neutral"}
+          onClick={() => navigate("/buildings")}
+          isLoading={isLoading}
+        />
+        <KpiCard
+          label="Offene Rechnungen"
+          value={stats.open_invoices}
+          icon={FileText}
+          tone={stats.open_invoices > 0 ? "info" : "neutral"}
+          onClick={() => navigate("/ueberweisungen")}
+          isLoading={isLoading}
+        />
+        <KpiCard
+          label="Neue E-Mails"
+          value={stats.unread_emails}
+          icon={Mail}
+          tone={stats.unread_emails > 0 ? "info" : "neutral"}
+          onClick={() => navigate("/postfach")}
+          isLoading={isLoading}
         />
       </div>
 
-      {/* Gebäude & Einheiten Übersicht */}
-      <Card>
-        <CardHeader className="p-4 md:p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+      {/* Main grid */}
+      <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2">
+        {/* Heute & diese Woche */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center text-base font-semibold">
+              <CalendarClock className="mr-2 h-5 w-5 text-primary" />
+              Heute & diese Woche
+            </CardTitle>
+            <CardDescription>Fällige Aufgaben und anstehende Wartungen</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Tasks */}
             <div>
-              <CardTitle className="heading-primary flex items-center text-base md:text-lg font-semibold">
-                <Home className="mr-2 h-5 w-5" />
-                Gebäude & Einheiten
-              </CardTitle>
-              <CardDescription className="body-secondary text-xs md:text-sm">
-                Übersicht nach Verwalter
-              </CardDescription>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                Aufgaben
+              </p>
+              {isLoading ? (
+                <p className="text-sm text-muted-foreground">Laden…</p>
+              ) : stats.today_tasks.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Keine fälligen Aufgaben</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {stats.today_tasks.slice(0, 5).map(t => (
+                    <li
+                      key={t.id}
+                      className="flex items-center justify-between gap-2 text-sm py-1.5 px-2 rounded hover:bg-muted/50 cursor-pointer"
+                      onClick={() => navigate("/todos")}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <ListTodo className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <span className="truncate">{t.title}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground flex-shrink-0">
+                        {format(new Date(t.due_date), "d. MMM", { locale: de })}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
-            <Select value={overviewManagerFilter} onValueChange={setOverviewManagerFilter}>
-              <SelectTrigger className="w-full sm:w-48 h-11 md:h-10">
-                <SelectValue placeholder="Verwalter filtern" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Alle Verwalter</SelectItem>
-                {buildingOverview.managers.map(m => (
-                  <SelectItem key={m.user_id} value={m.user_id}>{m.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardHeader>
-        <CardContent className="p-4 md:p-6 pt-0 md:pt-0">
-          {(() => {
-            const filtered = overviewManagerFilter === "all"
-              ? buildingOverview.managers
-              : buildingOverview.managers.filter(m => m.user_id === overviewManagerFilter);
-            
-            const totalBuildings = overviewManagerFilter === "all"
-              ? buildingOverview.totalBuildings
-              : filtered.reduce((s, m) => s + m.buildings, 0);
-            const totalUnits = overviewManagerFilter === "all"
-              ? buildingOverview.totalUnits
-              : filtered.reduce((s, m) => s + m.units, 0);
 
-            return (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-3 md:gap-4">
-                  <div className="rounded-lg border p-3 md:p-4 text-center">
-                    <div className="text-xl md:text-2xl font-bold text-primary">{totalBuildings}</div>
-                    <div className="text-xs md:text-sm text-muted-foreground">Gebäude</div>
-                  </div>
-                  <div className="rounded-lg border p-3 md:p-4 text-center">
-                    <div className="text-xl md:text-2xl font-bold text-primary">{totalUnits}</div>
-                    <div className="text-xs md:text-sm text-muted-foreground">Einheiten</div>
-                  </div>
-                </div>
-                {filtered.length > 0 && (
-                  <div className="space-y-2">
-                    {filtered.map(m => (
-                      <div key={m.user_id} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-0 rounded-lg border p-3">
-                        <span className="font-medium text-sm">{m.name}</span>
-                        <div className="flex gap-3 sm:gap-4 text-xs sm:text-sm text-muted-foreground">
-                          <span>{m.buildings} Gebäude</span>
-                          <span>{m.units} Einheiten</span>
+            {/* Maintenance */}
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+                Wartungen (30 Tage)
+              </p>
+              {isLoading ? (
+                <p className="text-sm text-muted-foreground">Laden…</p>
+              ) : stats.upcoming_maintenance.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Keine anstehenden Wartungen</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {stats.upcoming_maintenance.slice(0, 5).map(m => (
+                    <li
+                      key={m.id}
+                      className="flex items-center justify-between gap-2 text-sm py-1.5 px-2 rounded hover:bg-muted/50 cursor-pointer"
+                      onClick={() => navigate(`/buildings/${m.building_id}`)}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Wrench className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <div className="min-w-0">
+                          <div className="truncate">{m.task_name}</div>
+                          <div className="text-xs text-muted-foreground truncate">{m.building_name}</div>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                )}
-                {filtered.length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-2">Keine Verwalter zugewiesen</p>
-                )}
-              </div>
-            );
-          })()}
-        </CardContent>
-      </Card>
-
-      {/* Aufgaben Widget - volle Breite */}
-      <TodoDashboardWidget />
-
-      {/* Charts Section */}
-      <div className="grid gap-4 md:gap-6 grid-cols-1 xl:grid-cols-2">
-        {/* Monthly Tickets Chart */}
-        <Card>
-          <CardHeader className="p-4 md:p-6">
-            <CardTitle className="heading-primary flex items-center text-base md:text-lg font-semibold">
-              <LineChart className="mr-2 h-5 w-5" />
-              Tickets pro Monat
-            </CardTitle>
-            <CardDescription className="body-secondary text-xs md:text-sm">
-              Entwicklung der letzten 12 Monate
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-4 md:p-6 pt-0 md:pt-0">
-            {loading ? (
-              <div className="h-64 flex items-center justify-center body-secondary">Laden...</div>
-            ) : (
-              <ChartContainer
-                config={{
-                  tickets: {
-                    label: "Tickets",
-                    color: "hsl(var(--primary))",
-                  },
-                }}
-                 className="h-48 sm:h-64"
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <RechartsLineChart data={monthlyTicketsData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" />
-                    <YAxis />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <Line 
-                      type="monotone" 
-                      dataKey="tickets" 
-                      stroke="hsl(var(--primary))" 
-                      strokeWidth={2}
-                      dot={{ fill: "hsl(var(--primary))" }}
-                    />
-                  </RechartsLineChart>
-                </ResponsiveContainer>
-              </ChartContainer>
-            )}
+                      <span className="text-xs text-muted-foreground flex-shrink-0">
+                        {format(new Date(m.next_due_date), "d. MMM", { locale: de })}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </CardContent>
         </Card>
 
-        {/* Problem Buildings Chart */}
+        {/* Letzte Aktivität */}
         <Card>
-          <CardHeader className="p-4 md:p-6">
-            <CardTitle className="heading-primary flex items-center text-base md:text-lg font-semibold">
-              <BarChart3 className="mr-2 h-5 w-5" />
-              Meldungen pro Wohnanlage
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center text-base font-semibold">
+              <Activity className="mr-2 h-5 w-5 text-primary" />
+              Letzte Aktivität
             </CardTitle>
-            <CardDescription className="body-secondary">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                <span className="text-xs">Top 10 Häuser mit den meisten Meldungen pro {managementMode === 'weg' ? 'Eigentümer' : 'Mieter'}</span>
-                <Select value={timeframeDays.toString()} onValueChange={(value) => setTimeframeDays(Number(value))}>
-                  <SelectTrigger className="w-full sm:w-24 h-9 sm:h-6 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="30">30 Tage</SelectItem>
-                    <SelectItem value="90">90 Tage</SelectItem>
-                    <SelectItem value="180">180 Tage</SelectItem>
-                    <SelectItem value="365">365 Tage</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardDescription>
+            <CardDescription>Neue Meldungen und Vorgänge</CardDescription>
           </CardHeader>
-          <CardContent className="p-4 md:p-6 pt-0 md:pt-0">
-            {loading ? (
-              <div className="h-64 flex items-center justify-center body-secondary">Laden...</div>
-            ) : topProblemBuildingsData.length === 0 ? (
-              <div className="h-64 flex items-center justify-center body-secondary">
-                Keine Daten im ausgewählten Zeitraum
-              </div>
+          <CardContent>
+            {isLoading ? (
+              <p className="text-sm text-muted-foreground">Laden…</p>
+            ) : stats.recent_activity.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Keine Aktivität</p>
             ) : (
-              <ChartContainer
-                config={{
-                  value: {
-                    label: "Meldungen pro Person",
-                    color: "hsl(22 93% 53%)",
-                  },
-                }}
-                className="h-48 sm:h-64"
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <RechartsBarChart data={topProblemBuildingsData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis 
-                      dataKey="name" 
-                      type="category"
-                      angle={-45}
-                      textAnchor="end"
-                      height={60}
-                      interval={0}
-                      fontSize={10}
-                      tick={{ fontSize: 10 }}
-                    />
-                    <YAxis type="number" />
-                    <ChartTooltip 
-                      content={<ChartTooltipContent />}
-                      formatter={(value: any, name: any, props: any) => [
-                        `${value.toFixed(2)} (${props.payload.rawCount} Meldungen / ${props.payload.occupants} ${managementMode === 'weg' ? 'Eigentümer' : 'Mieter'})`,
-                        "Meldungen pro Person"
-                      ]}
-                    />
-                    <Bar 
-                      dataKey="value" 
-                      fill="hsl(22 93% 53%)"
-                      radius={[4, 4, 0, 0]}
-                    />
-                  </RechartsBarChart>
-                </ResponsiveContainer>
-              </ChartContainer>
+              <ul className="space-y-2">
+                {stats.recent_activity.slice(0, 8).map((a, idx) => {
+                  const Icon = activityIcon(a.kind);
+                  return (
+                    <li
+                      key={`${a.kind}-${a.id}-${idx}`}
+                      className="flex items-start gap-2 text-sm py-1.5 px-2 rounded hover:bg-muted/50 cursor-pointer"
+                      onClick={() => a.building_id && navigate(`/buildings/${a.building_id}`)}
+                    >
+                      <Icon className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4">
+                            {activityLabel(a.kind)}
+                          </Badge>
+                          <span className="truncate font-medium">{a.label}</span>
+                        </div>
+                        {a.building_name && (
+                          <div className="text-xs text-muted-foreground truncate mt-0.5">
+                            {a.building_name} · {formatDistanceToNow(new Date(a.ts), { addSuffix: true, locale: de })}
+                          </div>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
             )}
           </CardContent>
         </Card>
       </div>
+
+      {/* Buildings with open items */}
+      {topProblemBuildings.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center text-base font-semibold">
+              <Building2 className="mr-2 h-5 w-5 text-primary" />
+              Gebäude mit offenen Punkten
+            </CardTitle>
+            <CardDescription>Direkt zum Gebäude springen</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+              {topProblemBuildings.map(b => (
+                <button
+                  key={b.id}
+                  onClick={() => navigate(`/buildings/${b.id}`)}
+                  className="text-left rounded-lg border p-3 hover:bg-muted/50 transition-colors flex items-center justify-between gap-2"
+                >
+                  <div className="min-w-0">
+                    <div className="font-medium truncate">{b.name}</div>
+                    <div className="text-xs text-muted-foreground truncate">{b.address}</div>
+                  </div>
+                  <Badge variant="destructive" className="flex-shrink-0">
+                    {b.open_count}
+                  </Badge>
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };
