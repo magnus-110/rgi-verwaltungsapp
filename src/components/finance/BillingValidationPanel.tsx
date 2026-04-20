@@ -89,6 +89,19 @@ export function BillingValidationPanel({ periodId, buildingId, fiscalYear }: Bil
     },
   });
 
+  const { data: reconciliations = [] } = useQuery({
+    queryKey: ["bank-recon-validation", buildingId, fiscalYear],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bank_reconciliations")
+        .select("period_month, status")
+        .eq("building_id", buildingId)
+        .eq("period_year", fiscalYear);
+      if (error) throw error;
+      return data;
+    },
+  });
+
   // Live-Prüfungen
   type LiveCheck = { name: string; status: "passed" | "warning" | "failed"; message: string };
   const liveChecks: LiveCheck[] = [];
@@ -208,6 +221,27 @@ export function BillingValidationPanel({ periodId, buildingId, fiscalYear }: Bil
   const accrualBookings = bookings.filter((b) => b.booking_category === "accrual");
   if (accrualBookings.length > 0) {
     liveChecks.push({ name: "Abgrenzungen", status: "passed", message: `${accrualBookings.length} Abgrenzungsbuchungen` });
+  }
+
+  // 7. Bankkonten-Abgleich (monatliche Reconciliation)
+  const today = new Date();
+  const isCurrentYear = fiscalYear === today.getFullYear();
+  const lastRelevantMonth = isCurrentYear ? today.getMonth() + 1 : 12;
+  const reconMap = new Map<number, string>();
+  reconciliations.forEach((r: any) => reconMap.set(r.period_month, r.status));
+  const mismatchMonths: number[] = [];
+  const openMonths: number[] = [];
+  for (let m = 1; m <= lastRelevantMonth; m++) {
+    const status = reconMap.get(m);
+    if (status === "mismatch") mismatchMonths.push(m);
+    else if (status !== "confirmed") openMonths.push(m);
+  }
+  if (mismatchMonths.length > 0) {
+    liveChecks.push({ name: "Kontenabgleich Bank", status: "failed", message: `Differenz in Monat(en): ${mismatchMonths.join(", ")}` });
+  } else if (openMonths.length > 0) {
+    liveChecks.push({ name: "Kontenabgleich Bank", status: "warning", message: `${openMonths.length} Monat(e) noch nicht geprüft` });
+  } else if (reconciliations.length > 0) {
+    liveChecks.push({ name: "Kontenabgleich Bank", status: "passed", message: `Alle ${lastRelevantMonth} Monate bestätigt` });
   }
 
   const allChecks = [

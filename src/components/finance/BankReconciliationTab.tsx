@@ -1,0 +1,426 @@
+import { useState, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { CheckCircle2, AlertTriangle, Circle, MinusCircle, Loader2, Landmark } from "lucide-react";
+import { toast } from "sonner";
+
+interface Props {
+  sharedBuildingId?: string | null;
+  onBuildingChange?: (id: string | null) => void;
+}
+
+const MONTHS = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+const MONTH_FULL = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+
+const fmtEur = (v: number | null | undefined) =>
+  v == null ? "—" : new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(Number(v));
+
+const parseNum = (s: string): number | null => {
+  if (!s.trim()) return null;
+  const n = Number(s.replace(/\./g, "").replace(",", "."));
+  return isNaN(n) ? null : n;
+};
+
+export function BankReconciliationTab({ sharedBuildingId, onBuildingChange }: Props) {
+  const queryClient = useQueryClient();
+  const [internalBuilding, setInternalBuilding] = useState<string>("");
+  const buildingId = sharedBuildingId || internalBuilding;
+  const setBuildingId = (id: string) => {
+    setInternalBuilding(id);
+    onBuildingChange?.(id);
+  };
+  const [year, setYear] = useState<number>(new Date().getFullYear());
+  const [bankAccountId, setBankAccountId] = useState<string>("");
+  const [openMonth, setOpenMonth] = useState<number | null>(null);
+
+  const { data: buildings = [] } = useQuery({
+    queryKey: ["buildings-list-recon"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("buildings").select("id, name").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: bankAccounts = [] } = useQuery({
+    queryKey: ["bank-accounts", buildingId],
+    enabled: !!buildingId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("chart_of_accounts")
+        .select("id, account_number, account_name")
+        .eq("category", "bank")
+        .or(`building_id.is.null,building_id.eq.${buildingId}`)
+        .order("account_number");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Auto-pick first bank account
+  if (bankAccounts.length > 0 && !bankAccountId) {
+    setBankAccountId(bankAccounts[0].id);
+  }
+
+  const { data: reconciliations = [], refetch } = useQuery({
+    queryKey: ["bank-reconciliations", buildingId, bankAccountId, year],
+    enabled: !!buildingId && !!bankAccountId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bank_reconciliations")
+        .select("*")
+        .eq("building_id", buildingId)
+        .eq("bank_account_id", bankAccountId)
+        .eq("period_year", year);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Months that have at least one booking on this account
+  const { data: monthsWithBookings = [] } = useQuery({
+    queryKey: ["recon-months-with-bookings", buildingId, bankAccountId, year],
+    enabled: !!buildingId && !!bankAccountId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("booking_date")
+        .eq("building_id", buildingId)
+        .eq("fiscal_year", year)
+        .or(`account_id.eq.${bankAccountId},counter_account_id.eq.${bankAccountId}`)
+        .neq("status", "cancelled");
+      if (error) throw error;
+      const set = new Set<number>();
+      data.forEach((b) => {
+        const m = new Date(b.booking_date).getMonth() + 1;
+        set.add(m);
+      });
+      return Array.from(set);
+    },
+  });
+
+  const reconByMonth = useMemo(() => {
+    const m = new Map<number, any>();
+    reconciliations.forEach((r) => m.set(r.period_month, r));
+    return m;
+  }, [reconciliations]);
+
+  const summary = useMemo(() => {
+    const open = monthsWithBookings.filter((m) => {
+      const r = reconByMonth.get(m);
+      return !r || r.status === "open";
+    }).length;
+    const mismatch = reconciliations.filter((r) => r.status === "mismatch").length;
+    const confirmed = reconciliations.filter((r) => r.status === "confirmed").length;
+    return { open, mismatch, confirmed };
+  }, [monthsWithBookings, reconByMonth, reconciliations]);
+
+  const getStatusInfo = (m: number) => {
+    const r = reconByMonth.get(m);
+    const hasBookings = monthsWithBookings.includes(m);
+    if (!hasBookings && !r) return { color: "bg-muted text-muted-foreground", icon: MinusCircle, label: "Keine Buchungen" };
+    if (!r) return { color: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200", icon: Circle, label: "Offen" };
+    if (r.status === "confirmed") return { color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200", icon: CheckCircle2, label: "Bestätigt" };
+    if (r.status === "mismatch") return { color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200", icon: AlertTriangle, label: "Differenz" };
+    if (r.status === "matched") return { color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200", icon: CheckCircle2, label: "Stimmt überein" };
+    return { color: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200", icon: Circle, label: "Offen" };
+  };
+
+  const years = useMemo(() => {
+    const cur = new Date().getFullYear();
+    return [cur - 2, cur - 1, cur, cur + 1];
+  }, []);
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Landmark className="h-5 w-5" /> Kontenabgleich
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-3 items-end">
+            <div className="flex-1 min-w-[200px]">
+              <Label className="text-xs">Liegenschaft</Label>
+              <Select value={buildingId} onValueChange={setBuildingId}>
+                <SelectTrigger><SelectValue placeholder="Liegenschaft wählen" /></SelectTrigger>
+                <SelectContent>
+                  {buildings.map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-[180px]">
+              <Label className="text-xs">Bankkonto</Label>
+              <Select value={bankAccountId} onValueChange={setBankAccountId} disabled={!buildingId}>
+                <SelectTrigger><SelectValue placeholder="Bankkonto wählen" /></SelectTrigger>
+                <SelectContent>
+                  {bankAccounts.map((a) => (
+                    <SelectItem key={a.id} value={a.id}>{a.account_number} {a.account_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-[120px]">
+              <Label className="text-xs">Jahr</Label>
+              <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {years.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {buildingId && bankAccountId && (
+            <>
+              <div className="flex gap-2 flex-wrap">
+                <Badge variant="outline" className="bg-green-50 text-green-700 dark:bg-green-950">{summary.confirmed} bestätigt</Badge>
+                <Badge variant="outline" className="bg-amber-50 text-amber-700 dark:bg-amber-950">{summary.open} offen</Badge>
+                {summary.mismatch > 0 && (
+                  <Badge variant="outline" className="bg-red-50 text-red-700 dark:bg-red-950">{summary.mismatch} Differenz</Badge>
+                )}
+              </div>
+
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-2">
+                {MONTHS.map((label, i) => {
+                  const m = i + 1;
+                  const info = getStatusInfo(m);
+                  const Icon = info.icon;
+                  const r = reconByMonth.get(m);
+                  return (
+                    <button
+                      key={m}
+                      onClick={() => setOpenMonth(m)}
+                      className={`p-3 rounded-lg border transition hover:scale-105 hover:shadow-md flex flex-col items-center gap-1 ${info.color}`}
+                      title={info.label}
+                    >
+                      <Icon className="h-4 w-4" />
+                      <span className="text-xs font-semibold">{label}</span>
+                      {r?.difference != null && r.status === "mismatch" && (
+                        <span className="text-[10px] font-mono">{Number(r.difference).toFixed(2)} €</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                Klicke auf einen Monat, um Anfangs-/Endsaldo lt. Kontoauszug einzutragen und mit der Buchhaltung zu vergleichen.
+              </p>
+            </>
+          )}
+
+          {!buildingId && (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              Bitte wähle eine Liegenschaft aus.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {openMonth && buildingId && bankAccountId && (
+        <ReconciliationDialog
+          open={!!openMonth}
+          onClose={() => setOpenMonth(null)}
+          buildingId={buildingId}
+          bankAccountId={bankAccountId}
+          bankAccountLabel={bankAccounts.find(a => a.id === bankAccountId)?.account_number + " " + bankAccounts.find(a => a.id === bankAccountId)?.account_name}
+          year={year}
+          month={openMonth}
+          existing={reconByMonth.get(openMonth)}
+          previousMonthRecon={openMonth > 1 ? reconByMonth.get(openMonth - 1) : null}
+          onSaved={() => { refetch(); queryClient.invalidateQueries({ queryKey: ["bank-reconciliations"] }); }}
+        />
+      )}
+    </div>
+  );
+}
+
+interface DialogProps {
+  open: boolean;
+  onClose: () => void;
+  buildingId: string;
+  bankAccountId: string;
+  bankAccountLabel?: string;
+  year: number;
+  month: number;
+  existing?: any;
+  previousMonthRecon?: any;
+  onSaved: () => void;
+}
+
+function ReconciliationDialog({ open, onClose, buildingId, bankAccountId, bankAccountLabel, year, month, existing, previousMonthRecon, onSaved }: DialogProps) {
+  const [openingBank, setOpeningBank] = useState<string>(
+    existing?.opening_balance_bank != null
+      ? String(existing.opening_balance_bank).replace(".", ",")
+      : (previousMonthRecon?.closing_balance_bank != null ? String(previousMonthRecon.closing_balance_bank).replace(".", ",") : "")
+  );
+  const [closingBank, setClosingBank] = useState<string>(
+    existing?.closing_balance_bank != null ? String(existing.closing_balance_bank).replace(".", ",") : ""
+  );
+  const [notes, setNotes] = useState<string>(existing?.notes ?? "");
+  const [saving, setSaving] = useState(false);
+
+  // Compute period dates
+  const firstDay = new Date(year, month - 1, 1);
+  const lastDay = new Date(year, month, 0);
+  const prevDay = new Date(year, month - 1, 0); // last day of previous month
+  const fmtDate = (d: Date) => d.toISOString().slice(0, 10);
+
+  const { data: openingBook } = useQuery({
+    queryKey: ["recon-balance", bankAccountId, buildingId, fmtDate(prevDay)],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("calculate_account_balance_at", {
+        p_account_id: bankAccountId,
+        p_building_id: buildingId,
+        p_date: fmtDate(prevDay),
+      });
+      if (error) throw error;
+      return Number(data ?? 0);
+    },
+  });
+
+  const { data: closingBook } = useQuery({
+    queryKey: ["recon-balance", bankAccountId, buildingId, fmtDate(lastDay)],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("calculate_account_balance_at", {
+        p_account_id: bankAccountId,
+        p_building_id: buildingId,
+        p_date: fmtDate(lastDay),
+      });
+      if (error) throw error;
+      return Number(data ?? 0);
+    },
+  });
+
+  const closingBankNum = parseNum(closingBank);
+  const openingBankNum = parseNum(openingBank);
+
+  const closingDiff = closingBankNum != null && closingBook != null ? Number((closingBook - closingBankNum).toFixed(2)) : null;
+  const openingDiff = openingBankNum != null && openingBook != null ? Number((openingBook - openingBankNum).toFixed(2)) : null;
+
+  const isMatched = closingDiff != null && Math.abs(closingDiff) < 0.01;
+  const canConfirm = isMatched;
+
+  const save = async (confirm: boolean) => {
+    setSaving(true);
+    try {
+      const status = confirm ? "confirmed" : (closingDiff == null ? "open" : (isMatched ? "matched" : "mismatch"));
+      const { data: { user } } = await supabase.auth.getUser();
+      const payload = {
+        building_id: buildingId,
+        bank_account_id: bankAccountId,
+        period_year: year,
+        period_month: month,
+        opening_balance_bank: openingBankNum,
+        closing_balance_bank: closingBankNum,
+        opening_balance_book: openingBook ?? null,
+        closing_balance_book: closingBook ?? null,
+        difference: closingDiff,
+        status,
+        notes: notes || null,
+        confirmed_at: confirm ? new Date().toISOString() : null,
+        confirmed_by: confirm ? user?.id : null,
+      };
+      const { error } = await supabase
+        .from("bank_reconciliations")
+        .upsert(payload, { onConflict: "building_id,bank_account_id,period_year,period_month" });
+      if (error) throw error;
+      toast.success(confirm ? "Monat bestätigt" : "Gespeichert");
+      onSaved();
+      onClose();
+    } catch (e: any) {
+      toast.error(e.message ?? "Fehler beim Speichern");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle>{MONTH_FULL[month - 1]} {year} — {bankAccountLabel}</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Anfangssaldo lt. Kontoauszug (€)</Label>
+              <Input
+                value={openingBank}
+                onChange={(e) => setOpeningBank(e.target.value)}
+                placeholder="0,00"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Endsaldo lt. Kontoauszug (€)</Label>
+              <Input
+                value={closingBank}
+                onChange={(e) => setClosingBank(e.target.value)}
+                placeholder="0,00"
+              />
+            </div>
+          </div>
+
+          <div className="border rounded-md p-3 space-y-2 bg-muted/30">
+            <div className="text-xs font-semibold text-muted-foreground">Vergleich mit Buchhaltung</div>
+            <div className="flex justify-between text-sm">
+              <span>Anfangssaldo lt. Buchhaltung:</span>
+              <span className="font-mono flex items-center gap-2">
+                {fmtEur(openingBook)}
+                {openingDiff != null && Math.abs(openingDiff) < 0.01 && <CheckCircle2 className="h-3 w-3 text-green-600" />}
+              </span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span>Endsaldo lt. Buchhaltung:</span>
+              <span className="font-mono">{fmtEur(closingBook)}</span>
+            </div>
+            <div className="flex justify-between text-sm font-semibold pt-2 border-t">
+              <span>Differenz Endsaldo:</span>
+              <span className={`font-mono flex items-center gap-2 ${
+                closingDiff == null ? "text-muted-foreground" :
+                Math.abs(closingDiff) < 0.01 ? "text-green-600" : "text-destructive"
+              }`}>
+                {closingDiff != null ? `${closingDiff >= 0 ? "+" : ""}${closingDiff.toFixed(2)} €` : "—"}
+                {closingDiff != null && (Math.abs(closingDiff) < 0.01
+                  ? <CheckCircle2 className="h-4 w-4" />
+                  : <AlertTriangle className="h-4 w-4" />)}
+              </span>
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-xs">Notiz</Label>
+            <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Optionale Notiz..." />
+          </div>
+
+          {existing?.confirmed_at && (
+            <div className="text-xs text-green-700 dark:text-green-400">
+              ✓ Bestätigt am {new Date(existing.confirmed_at).toLocaleDateString("de-DE")}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={onClose} disabled={saving}>Abbrechen</Button>
+          <Button variant="secondary" onClick={() => save(false)} disabled={saving}>
+            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Speichern
+          </Button>
+          <Button onClick={() => save(true)} disabled={!canConfirm || saving}>
+            {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Als geprüft markieren
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

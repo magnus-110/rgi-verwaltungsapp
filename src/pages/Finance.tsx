@@ -7,6 +7,7 @@ import { BillingTab } from "@/components/finance/BillingTab";
 import { BillingPeriodSelector } from "@/components/finance/BillingPeriodSelector";
 import { EconomicPlanEditor } from "@/components/finance/EconomicPlanEditor";
 import { CashAuditTab } from "@/components/finance/CashAuditTab";
+import { BankReconciliationTab } from "@/components/finance/BankReconciliationTab";
 import { AssetReportSection } from "@/components/finance/AssetReportSection";
 import { Paragraph35aSection } from "@/components/finance/Paragraph35aSection";
 import { Card, CardContent } from "@/components/ui/card";
@@ -99,7 +100,7 @@ export const Finance = () => {
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList variant="segment" className="grid w-full grid-cols-4 h-auto">
+        <TabsList variant="segment" className="grid w-full grid-cols-5 h-auto">
           {/* Custom Buchen trigger with hover dropdown */}
           <div
             className="relative"
@@ -138,6 +139,7 @@ export const Finance = () => {
             )}
           </div>
 
+          <TabsTrigger variant="segment" value="abgleich" className="min-h-[44px] text-xs md:text-sm px-1 md:px-3"><span className="hidden sm:inline">Kontenabgleich</span><span className="sm:hidden">Abgl.</span></TabsTrigger>
           <TabsTrigger variant="segment" value="abrechnung" className="min-h-[44px] text-xs md:text-sm px-1 md:px-3">Abrechnung</TabsTrigger>
           <TabsTrigger variant="segment" value="planung" className="min-h-[44px] text-xs md:text-sm px-1 md:px-3"><span className="hidden sm:inline">Planung & Berichte</span><span className="sm:hidden">Plan.</span></TabsTrigger>
           <TabsTrigger variant="segment" value="kassenpruefung" className="min-h-[44px] text-xs md:text-sm px-1 md:px-3"><span className="hidden sm:inline">Kassenprüfung</span><span className="sm:hidden">Kasse</span></TabsTrigger>
@@ -159,6 +161,13 @@ export const Finance = () => {
           {activeSubTab === "bookings" && (
             <BookingsTab sharedBuildingId={selectedBuildingId} />
           )}
+        </TabsContent>
+
+        <TabsContent value="abgleich">
+          <BankReconciliationTab
+            sharedBuildingId={selectedBuildingId}
+            onBuildingChange={setSelectedBuildingId}
+          />
         </TabsContent>
 
         <TabsContent value="abrechnung">
