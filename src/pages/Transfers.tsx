@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, isPast, isToday } from "date-fns";
-import { CreditCard, AlertTriangle, Play, StickyNote } from "lucide-react";
+import { CreditCard, AlertTriangle, Play, StickyNote, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -91,6 +91,23 @@ export function Transfers() {
       refetch();
     }
     setEditingNote(null);
+  };
+
+  const handleMarkAsPaid = async (invoiceId: string, currentStatus: string) => {
+    const newStatus = currentStatus === "paid" ? "open" : "paid";
+    const { error } = await supabase
+      .from("invoices")
+      .update({
+        status: newStatus,
+        paid_at: newStatus === "paid" ? new Date().toISOString() : null,
+      } as any)
+      .eq("id", invoiceId);
+    if (error) {
+      toast.error("Fehler beim Aktualisieren");
+    } else {
+      toast.success(newStatus === "paid" ? "Als bezahlt markiert" : "Auf offen zurückgesetzt");
+      refetch();
+    }
   };
 
   const openReviewForInvoice = (inv: any) => {
@@ -262,7 +279,7 @@ export function Transfers() {
                     <TableCell className="text-muted-foreground text-sm">
                       {(inv as any).is_company_invoice ? (
                         <Badge variant="outline" className="text-xs border-primary/40 text-primary bg-primary/10">
-                          RGI Immobilien GmbH & Co. KG
+                          RGI
                         </Badge>
                       ) : (
                         (inv as any).buildings?.name || "–"
@@ -278,37 +295,48 @@ export function Transfers() {
                       )}
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
-                      <Popover
-                        open={editingNote === inv.id}
-                        onOpenChange={(open) => {
-                          if (open) {
-                            setEditingNote(inv.id);
-                            setNoteText((inv as any).payment_notes || "");
-                          } else {
-                            setEditingNote(null);
-                          }
-                        }}
-                      >
-                        <PopoverTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                            <StickyNote className={`h-3.5 w-3.5 ${hasNote ? "text-primary" : "text-muted-foreground"}`} />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-64" align="end">
-                          <div className="space-y-2">
-                            <p className="text-sm font-medium">Notiz</p>
-                            <Textarea
-                              value={noteText}
-                              onChange={(e) => setNoteText(e.target.value)}
-                              placeholder="Zahlungsnotiz..."
-                              rows={3}
-                            />
-                            <Button size="sm" className="w-full" onClick={() => handleSaveNote(inv.id)}>
-                              Speichern
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant={isPaid ? "secondary" : "ghost"}
+                          size="sm"
+                          className="h-8 w-8 p-0"
+                          title={isPaid ? "Als unbezahlt markieren" : "Als bezahlt markieren"}
+                          onClick={() => handleMarkAsPaid(inv.id, inv.status)}
+                        >
+                          <Check className={`h-3.5 w-3.5 ${isPaid ? "text-green-600" : "text-muted-foreground"}`} />
+                        </Button>
+                        <Popover
+                          open={editingNote === inv.id}
+                          onOpenChange={(open) => {
+                            if (open) {
+                              setEditingNote(inv.id);
+                              setNoteText((inv as any).payment_notes || "");
+                            } else {
+                              setEditingNote(null);
+                            }
+                          }}
+                        >
+                          <PopoverTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                              <StickyNote className={`h-3.5 w-3.5 ${hasNote ? "text-primary" : "text-muted-foreground"}`} />
                             </Button>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-64" align="end">
+                            <div className="space-y-2">
+                              <p className="text-sm font-medium">Notiz</p>
+                              <Textarea
+                                value={noteText}
+                                onChange={(e) => setNoteText(e.target.value)}
+                                placeholder="Zahlungsnotiz..."
+                                rows={3}
+                              />
+                              <Button size="sm" className="w-full" onClick={() => handleSaveNote(inv.id)}>
+                                Speichern
+                              </Button>
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      </div>
                     </TableCell>
                   </TableRow>
                   {hasNote && (
