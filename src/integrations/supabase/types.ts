@@ -1747,8 +1747,10 @@ export type Database = {
       }
       comm_campaigns: {
         Row: {
+          attachment_paths: string[]
           body_html_override: string | null
           building_id: string
+          combined_pdf_path: string | null
           completed_at: string | null
           created_at: string
           created_by: string
@@ -1763,6 +1765,7 @@ export type Database = {
           recipient_filter: Json
           result_pdf_path: string | null
           result_zip_path: string | null
+          scheduled_at: string | null
           sent_count: number
           status: string
           subject_override: string | null
@@ -1771,8 +1774,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          attachment_paths?: string[]
           body_html_override?: string | null
           building_id: string
+          combined_pdf_path?: string | null
           completed_at?: string | null
           created_at?: string
           created_by: string
@@ -1787,6 +1792,7 @@ export type Database = {
           recipient_filter?: Json
           result_pdf_path?: string | null
           result_zip_path?: string | null
+          scheduled_at?: string | null
           sent_count?: number
           status?: string
           subject_override?: string | null
@@ -1795,8 +1801,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          attachment_paths?: string[]
           body_html_override?: string | null
           building_id?: string
+          combined_pdf_path?: string | null
           completed_at?: string | null
           created_at?: string
           created_by?: string
@@ -1811,6 +1819,7 @@ export type Database = {
           recipient_filter?: Json
           result_pdf_path?: string | null
           result_zip_path?: string | null
+          scheduled_at?: string | null
           sent_count?: number
           status?: string
           subject_override?: string | null
