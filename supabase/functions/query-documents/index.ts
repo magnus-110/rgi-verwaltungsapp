@@ -61,6 +61,178 @@ function extractMetadataFromQuestion(question: string): {
   return { categories, features };
 }
 
+// ============================================================
+// CATEGORY DETECTOR (LLM-light) — maps question to DMS folders
+// ============================================================
+
+interface TaxonomyEntry {
+  slug: string;
+  name: string;
+  path: string[];
+}
+
+// In-memory cache per invocation (lifetime of single edge function call is short, but helps within batches)
+let _taxonomyCache: { buildingId: string | null; entries: TaxonomyEntry[]; ts: number } | null = null;
+
+async function loadCategoryTaxonomy(supabase: any, buildingId: string | null): Promise<TaxonomyEntry[]> {
+  if (_taxonomyCache && _taxonomyCache.buildingId === buildingId && Date.now() - _taxonomyCache.ts < 60_000) {
+    return _taxonomyCache.entries;
+  }
+  try {
+    const { data, error } = await supabase.rpc('get_category_taxonomy', { p_building_id: buildingId });
+    if (error) {
+      console.error('get_category_taxonomy error:', error);
+      return [];
+    }
+    const entries: TaxonomyEntry[] = (data || []).map((row: any) => ({
+      slug: row.slug,
+      name: row.name,
+      path: Array.isArray(row.path) ? row.path : [],
+    })).filter((e: TaxonomyEntry) => e.slug);
+    _taxonomyCache = { buildingId, entries, ts: Date.now() };
+    return entries;
+  } catch (err) {
+    console.error('Failed to load taxonomy:', err);
+    return [];
+  }
+}
+
+async function detectCategorySlugs(question: string, taxonomy: TaxonomyEntry[]): Promise<string[]> {
+  if (taxonomy.length === 0) return [];
+
+  // Build a compact list for the LLM: "slug | full path"
+  const list = taxonomy
+    .map(t => `${t.slug} | ${t.path.join(' › ') || t.name}`)
+    .join('\n');
+
+  const systemPrompt = `Du bist ein Klassifizierer für Dokumentenordner einer Hausverwaltung.
+Du bekommst eine Frage und eine Liste verfügbarer Ordner (Format: "slug | Pfad").
+Wähle 0 bis 3 slugs, in deren Ordnern die Antwort am wahrscheinlichsten zu finden ist.
+
+REGELN:
+- Antworte AUSSCHLIESSLICH mit JSON-Array von slugs, z.B. ["stammakte-teilungserklaerung"]
+- Wenn die Frage keinem Ordner klar zuzuordnen ist: []
+- Bei Oberbegriffen (z.B. "Verträge") wähle alle relevanten Unterordner
+- KEINE Erklärung, nur das Array`;
+
+  try {
+    const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${MISTRAL_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'mistral-small-latest',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: `Verfügbare Ordner:\n${list}\n\nFrage: ${question}` }
+        ],
+        temperature: 0.1,
+        max_tokens: 150,
+        response_format: { type: 'json_object' },
+      }),
+    });
+    if (!response.ok) {
+      console.error('Category detector failed:', await response.text());
+      return [];
+    }
+    const data = await response.json();
+    const raw = data.choices?.[0]?.message?.content || '[]';
+    let parsed: any;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      // try to extract array from string
+      const match = raw.match(/\[[^\]]*\]/);
+      parsed = match ? JSON.parse(match[0]) : [];
+    }
+    // Accept either array directly, or { slugs: [...] } / { categories: [...] }
+    let slugs: string[] = [];
+    if (Array.isArray(parsed)) slugs = parsed;
+    else if (Array.isArray(parsed.slugs)) slugs = parsed.slugs;
+    else if (Array.isArray(parsed.categories)) slugs = parsed.categories;
+
+    // Validate slugs against taxonomy
+    const validSlugs = new Set(taxonomy.map(t => t.slug));
+    const filtered = slugs.filter(s => typeof s === 'string' && validSlugs.has(s)).slice(0, 3);
+    console.log(`Category detector → [${filtered.join(', ')}]`);
+    return filtered;
+  } catch (err) {
+    console.error('Category detection error:', err);
+    return [];
+  }
+}
+
+// Hybrid retrieval: category-filtered + global fallback + boost
+async function hybridCategoryRetrieval(
+  supabase: any,
+  embedding: number[],
+  buildingId: string | null,
+  categorySlugs: string[],
+  limit: number = 8
+): Promise<any[]> {
+  const seen = new Set<string>();
+  const results: any[] = [];
+
+  // Phase 1: category-filtered search via new RPC
+  if (categorySlugs.length > 0) {
+    try {
+      const { data, error } = await supabase.rpc('search_chunks_by_category', {
+        p_query_embedding: `[${embedding.join(',')}]`,
+        p_building_id: buildingId,
+        p_category_slugs: categorySlugs,
+        p_match_count: limit,
+        p_boost: 0.1,
+      });
+      if (!error && data) {
+        for (const chunk of data) {
+          if (!seen.has(chunk.id)) {
+            seen.add(chunk.id);
+            results.push(chunk);
+          }
+        }
+        console.log(`Phase 1 (category-filtered): ${data.length} chunks`);
+      } else if (error) {
+        console.error('search_chunks_by_category error:', error);
+      }
+    } catch (err) {
+      console.error('Phase 1 retrieval error:', err);
+    }
+  }
+
+  // Phase 2: global fallback if too few hits or low similarity
+  const bestSim = results.length > 0 ? Math.max(...results.map(r => r.similarity || 0)) : 0;
+  if (results.length < 4 || bestSim < 0.65) {
+    console.log(`Phase 2 (global fallback): existing=${results.length} bestSim=${bestSim.toFixed(2)}`);
+    try {
+      const { data, error } = await supabase.rpc('search_chunks_by_category', {
+        p_query_embedding: `[${embedding.join(',')}]`,
+        p_building_id: buildingId,
+        p_category_slugs: null,
+        p_match_count: 4,
+        p_boost: 0,
+      });
+      if (!error && data) {
+        for (const chunk of data) {
+          if (!seen.has(chunk.id)) {
+            seen.add(chunk.id);
+            results.push(chunk);
+          }
+        }
+      } else if (error) {
+        console.error('Fallback search error:', error);
+      }
+    } catch (err) {
+      console.error('Phase 2 retrieval error:', err);
+    }
+  }
+
+  // Sort by similarity (already boosted) and trim
+  results.sort((a, b) => (b.similarity || 0) - (a.similarity || 0));
+  return results.slice(0, limit);
+}
+
 // Default system prompts
 const DEFAULT_DOCUMENT_SYSTEM_PROMPT = `Du bist ein Dokumenten-Assistent für die Immobilienverwaltung.
 
@@ -1137,14 +1309,21 @@ BEISPIELE:
     // NORMAL MODE - Generate embedding for the question
     const questionEmbedding = await generateQuestionEmbedding(question);
 
-    // AUTOMATIC METADATA FILTERING: Extract categories and features from question
-    const autoFilters = extractMetadataFromQuestion(question);
-    console.log(`Auto-detected filters: categories=${JSON.stringify(autoFilters.categories)}, features=${JSON.stringify(autoFilters.features)}`);
+    // CATEGORY DETECTION (DMS folder-aware)
+    let detectedSlugs: string[] = [];
+    try {
+      const taxonomy = await loadCategoryTaxonomy(supabase, effectiveBuildingId);
+      console.log(`Taxonomy loaded: ${taxonomy.length} categories for building ${effectiveBuildingId}`);
+      if (taxonomy.length > 0) {
+        detectedSlugs = await detectCategorySlugs(question, taxonomy);
+      }
+    } catch (err) {
+      console.error('Category detection failed, falling back:', err);
+    }
 
-    // Search for relevant chunks - support multiple building IDs with automatic filtering
-    let relevantChunks;
+    // Search relevant chunks
+    let relevantChunks: any[];
     if (effectiveBuildingIds.length > 1) {
-      // For multiple buildings, search each with filters then combine
       relevantChunks = await searchSimilarChunksMultipleBuildings(
         supabase,
         questionEmbedding,
@@ -1152,8 +1331,17 @@ BEISPIELE:
         includeGeneral,
         10
       );
+    } else if (detectedSlugs.length > 0) {
+      relevantChunks = await hybridCategoryRetrieval(
+        supabase,
+        questionEmbedding,
+        effectiveBuildingId,
+        detectedSlugs,
+        10
+      );
     } else {
-      // Single building or all buildings - use automatic filters
+      const autoFilters = extractMetadataFromQuestion(question);
+      console.log(`Auto-detected filters: categories=${JSON.stringify(autoFilters.categories)}, features=${JSON.stringify(autoFilters.features)}`);
       relevantChunks = await searchSimilarChunks(
         supabase,
         questionEmbedding,
@@ -1188,24 +1376,38 @@ BEISPIELE:
       );
     }
 
-    // Get unique document IDs and fetch document info with signed URLs
-    const uniqueDocumentIds = [...new Set(relevantChunks.map(chunk => chunk.document_id).filter(Boolean))];
-    console.log(`Found ${uniqueDocumentIds.length} unique documents for sources`);
-    
-    const documentMap = await getDocumentInfoWithUrls(supabase, uniqueDocumentIds);
+    // Fetch source info for both legacy (building_documents) and new (building_files) chunks
+    const legacyDocIds = [...new Set(relevantChunks.map(c => c.document_id).filter(Boolean))];
+    const fileIds = [...new Set(relevantChunks.map(c => c.file_id).filter(Boolean))];
+    console.log(`Sources: ${legacyDocIds.length} legacy docs + ${fileIds.length} DMS files`);
 
-    // Build context from chunks
+    const documentMap = await getDocumentInfoWithUrls(supabase, legacyDocIds);
+
+    const fileMap = new Map<string, { display_name: string; file_path: string }>();
+    if (fileIds.length > 0) {
+      const { data: filesData } = await supabase
+        .from('building_files')
+        .select('id, display_name, file_path')
+        .in('id', fileIds);
+      (filesData || []).forEach((f: any) => fileMap.set(f.id, f));
+    }
+
+    // Build context with folder path
     const context = relevantChunks.map((chunk, index) => {
       const metadata = chunk.metadata || {};
-      const docInfo = documentMap.get(chunk.document_id);
+      const fileInfo = chunk.file_id ? fileMap.get(chunk.file_id) : null;
+      const docInfo = chunk.document_id ? documentMap.get(chunk.document_id) : null;
+      const fileName = fileInfo?.display_name || docInfo?.file_name || 'Unbekannt';
+      const folderPath = Array.isArray(chunk.category_path) && chunk.category_path.length > 0
+        ? chunk.category_path.join(' › ')
+        : null;
       const sourceInfo = [
-        docInfo?.file_name && `Dokument: ${docInfo.file_name}`,
+        `Dokument: ${fileName}`,
+        folderPath && `Ordner: ${folderPath}`,
         metadata.section && `Abschnitt: ${metadata.section}`,
         metadata.page && `Seite: ${metadata.page}`,
-        metadata.category && `Kategorie: ${metadata.category}`
       ].filter(Boolean).join(', ');
-      
-      return `[Quelle ${index + 1}${sourceInfo ? ` - ${sourceInfo}` : ''}]\n${chunk.content}`;
+      return `[Quelle ${index + 1} - ${sourceInfo}]\n${chunk.content}`;
     }).join('\n\n---\n\n');
 
     // Generate response
@@ -1214,26 +1416,41 @@ BEISPIELE:
       context,
       conversationHistory,
       chatSettings,
-      false // normal mode
+      false
     );
 
-    // Extract sources from chunks with document URLs
-    const extractedSources = relevantChunks.slice(0, 5).map(chunk => {
-      const docInfo = documentMap.get(chunk.document_id);
-      // Parse page number from metadata - handles formats like "10-11" or "13"
+    // Extract sources for UI
+    const extractedSources = await Promise.all(relevantChunks.slice(0, 5).map(async chunk => {
+      const fileInfo = chunk.file_id ? fileMap.get(chunk.file_id) : null;
+      const docInfo = chunk.document_id ? documentMap.get(chunk.document_id) : null;
       const rawPage = chunk.metadata?.pages || chunk.metadata?.page;
       const pageNumber = rawPage ? parseInt(String(rawPage).split('-')[0], 10) : null;
-      
+
+      let signedUrl: string | null = docInfo?.signedUrl || null;
+      if (!signedUrl && fileInfo?.file_path) {
+        try {
+          const { data } = await supabase.storage
+            .from('building-files')
+            .createSignedUrl(fileInfo.file_path, 3600);
+          signedUrl = data?.signedUrl || null;
+        } catch (err) {
+          console.error(`Failed to sign URL for file ${chunk.file_id}:`, err);
+        }
+      }
+
       return {
         content: chunk.content.slice(0, 200) + '...',
         metadata: chunk.metadata,
         buildingId: chunk.building_id,
-        documentId: chunk.document_id,
-        fileName: docInfo?.file_name || null,
-        documentUrl: docInfo?.signedUrl || null,
+        documentId: chunk.document_id || null,
+        fileId: chunk.file_id || null,
+        fileName: fileInfo?.display_name || docInfo?.file_name || null,
+        folderPath: Array.isArray(chunk.category_path) ? chunk.category_path : [],
+        categorySlug: chunk.category_slug || null,
+        documentUrl: signedUrl,
         pageNumber: pageNumber && !isNaN(pageNumber) ? pageNumber : null
       };
-    });
+    }));
 
     // Save assistant message
     await supabase
