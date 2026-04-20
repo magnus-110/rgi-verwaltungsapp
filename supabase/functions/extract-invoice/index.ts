@@ -351,6 +351,9 @@ Bestimme auch den utility_type wenn es sich um Gas, Strom, Wasser oder Fernwärm
                   fuel_type: { type: "string", enum: ["oil", "pellets", "gas", "district_heating"], description: "Art des Brennstoffs" },
                   fuel_quantity: { type: "number", description: "Gelieferte Menge" },
                   fuel_unit: { type: "string", description: "Einheit (l, kg, kWh)" },
+                  co2_emissions_kg: { type: "number", description: "CO₂-Emissionen in kg (NUR wenn explizit auf Rechnung)" },
+                  co2_tax_amount_eur: { type: "number", description: "CO₂-Preisanteil/BEHG-Steuer in EUR (NUR wenn explizit auf Rechnung)" },
+                  energy_content_kwh: { type: "number", description: "Energiegehalt/Brennwert der Lieferung in kWh (NUR wenn explizit auf Rechnung)" },
                   // Installment / utility fields
                   invoice_type: { type: "string", enum: ["standard", "installment", "annual_settlement"], description: "Rechnungstyp: standard, installment (Abschlag), annual_settlement (Jahresabrechnung)" },
                   utility_type: { type: "string", enum: ["gas", "strom", "wasser", "fernwaerme"], description: "Art des Versorgungsvertrags" },
