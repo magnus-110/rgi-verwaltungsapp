@@ -620,6 +620,7 @@ ${isFirstMessage
 
     return new Response(JSON.stringify({ 
       response: assistantMessage,
+      sources: ragSources,
       usage: data.usage,
       sessionId: currentSessionId
     }), {
