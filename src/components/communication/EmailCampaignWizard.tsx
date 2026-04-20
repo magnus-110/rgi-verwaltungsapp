@@ -114,7 +114,10 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
     setSubject(""); setBody(""); setAccountId(""); setTestEmail("");
     setFilter({ roles: [], contact_ids: [], require_email: true });
     setResultStats(null); setAttachments([]); setScheduledAt("");
-    setBodyFormat("html");
+    setBodyFormat("plain");
+    setViewMode("write");
+    setConfirmOpen(false);
+    setPendingScheduled(false);
   };
 
   const useTemplate = (t: any) => {
@@ -122,7 +125,9 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
     setName(`Rundmail: ${t.name}`);
     setSubject(t.subject || "");
     setBody(t.body_html || "");
-    setBodyFormat((t.body_format as "html" | "plain") || "html");
+    // Only switch to HTML if the template explicitly defines it; otherwise keep plain default
+    if (t.body_format === "html") setBodyFormat("html");
+    else setBodyFormat("plain");
     setStep(2);
   };
 
