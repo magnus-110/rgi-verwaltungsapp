@@ -321,153 +321,81 @@ serve(async (req) => {
       });
     }
 
-    // ===== PERSÖNLICHE & GEBÄUDE-DOKUMENTE FÜR DEN CHATBOT =====
-    // Extract keywords from user message for matching
+    // Extract keywords from user message (used by knowledge_documents scoring below)
     const messageWords = message.toLowerCase()
       .replace(/[^\wäöüß\s]/g, '')
       .split(/\s+/)
       .filter((w: string) => w.length > 2);
 
+    // ===== KATEGORIE-BEWUSSTES RAG (über query-documents) =====
+    // Statt eigener Volltext-Scoring-Logik nutzen wir die einheitliche RAG-Pipeline,
+    // die DMS-Ordnerstruktur (building_files + building_file_categories) berücksichtigt.
     let fileDocContext = "";
-    
-    // Determine the relevant building ID for document access
-    const userBuildingId = profile?.building_id || buildingId;
-    
-    // Personal files (assigned to this user)
-    const { data: personalFiles } = await supabase
-      .from('building_files')
-      .select('display_name, description, extracted_text, created_at, category_id')
-      .eq('assigned_user_id', userId)
-      .eq('visible_to_users', true)
-      .not('extracted_text', 'is', null);
-    
-    // Building files (assigned to user's building, not personal)
-    let buildingFilesList: any[] = [];
-    if (userBuildingId) {
-      const { data } = await supabase
-        .from('building_files')
-        .select('display_name, description, extracted_text, created_at, category_id')
-        .eq('building_id', userBuildingId)
-        .is('assigned_user_id', null)
-        .eq('visible_to_users', true)
-        .not('extracted_text', 'is', null);
-      if (data) buildingFilesList = data;
-    }
+    let ragSources: any[] = [];
 
-    // ===== GEBÄUDEDOKUMENTE (building_documents mit OCR-Text) =====
-    let buildingDocsList: any[] = [];
-    // For tenants: use profile.building_id; for WEG owners: use provided buildingId or their assigned buildings
-    const docBuildingIds: string[] = [];
-    if (profile?.building_id) {
-      docBuildingIds.push(profile.building_id);
-    }
-    if (buildingId && !docBuildingIds.includes(buildingId)) {
-      docBuildingIds.push(buildingId);
-    }
-    // For WEG owners, also include their assigned buildings
+    const userBuildingId = profile?.building_id || buildingId;
+
+    // Sammle alle relevanten Building-IDs für den Nutzer
+    const ragBuildingIds: string[] = [];
+    if (userBuildingId) ragBuildingIds.push(userBuildingId);
     if (managementMode === 'weg') {
       const { data: wegBuildings } = await supabase
         .from('weg_owner_buildings')
         .select('building_id')
         .eq('user_id', userId);
-      if (wegBuildings) {
-        wegBuildings.forEach(wb => {
-          if (!docBuildingIds.includes(wb.building_id)) {
-            docBuildingIds.push(wb.building_id);
+      wegBuildings?.forEach(wb => {
+        if (!ragBuildingIds.includes(wb.building_id)) ragBuildingIds.push(wb.building_id);
+      });
+    }
+
+    if (ragBuildingIds.length > 0) {
+      try {
+        const ragRes = await fetch(`${supabaseUrl}/functions/v1/query-documents`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            sessionId: null,
+            question: message,
+            buildingId: ragBuildingIds[0] || null,
+            buildingIds: ragBuildingIds.length > 1 ? ragBuildingIds : null,
+            includeGeneral: true,
+            userId,
+            internalCall: true, // hint for query-documents to skip session writes if needed
+          }),
+        });
+
+        if (ragRes.ok) {
+          const ragData = await ragRes.json();
+          ragSources = ragData.sources || [];
+          if (ragSources.length > 0) {
+            fileDocContext = "\n\n=== RELEVANTE DOKUMENTE (kategorie-bewusste RAG) ===\n";
+            ragSources.forEach((src: any, idx: number) => {
+              const folderPath = Array.isArray(src.folderPath) && src.folderPath.length > 0
+                ? src.folderPath.join(' › ')
+                : null;
+              const header = [
+                src.fileName || 'Unbekannt',
+                folderPath ? `Ordner: ${folderPath}` : null,
+                src.pageNumber ? `S. ${src.pageNumber}` : null,
+              ].filter(Boolean).join(' — ');
+              fileDocContext += `\n--- [Quelle ${idx + 1}] ${header} ---\n`;
+              fileDocContext += (src.content || '') + "\n";
+            });
+            fileDocContext += "\n=== ENDE DOKUMENTE ===\n";
+            console.log(`RAG context: ${ragSources.length} sources from query-documents`);
+          } else {
+            console.log('RAG returned no sources');
           }
-        });
+        } else {
+          const errText = await ragRes.text();
+          console.error(`query-documents call failed (${ragRes.status}):`, errText.slice(0, 300));
+        }
+      } catch (err) {
+        console.error('Error calling query-documents:', err);
       }
-    }
-
-    if (docBuildingIds.length > 0) {
-      const { data: buildingDocs } = await supabase
-        .from('building_documents')
-        .select('file_name, category, extracted_text, created_at, building_id')
-        .in('building_id', docBuildingIds)
-        .eq('status', 'completed')
-        .not('extracted_text', 'is', null);
-      if (buildingDocs) buildingDocsList = buildingDocs;
-    }
-
-    const allUserFiles = [...(personalFiles || []), ...buildingFilesList];
-    
-    if (allUserFiles.length > 0) {
-      // Score files by keyword relevance to the user's message
-      const scoredFiles = allUserFiles.map(file => {
-        let score = 0;
-        const fileName = file.display_name?.toLowerCase() || '';
-        const fileDesc = file.description?.toLowerCase() || '';
-        const fileText = file.extracted_text?.toLowerCase() || '';
-        
-        messageWords.forEach((word: string) => {
-          if (fileName.includes(word)) score += 3;
-          if (fileDesc.includes(word)) score += 2;
-          if (fileText.includes(word)) score += 1;
-        });
-        
-        return { ...file, score };
-      });
-      
-      // Take top 3 most relevant files with full content
-      const relevantFiles = scoredFiles
-        .filter(f => f.score > 0)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 3);
-      
-      if (relevantFiles.length > 0) {
-        fileDocContext = "\n\n=== PERSÖNLICHE DOKUMENTE DES NUTZERS ===\n";
-        relevantFiles.forEach(file => {
-          fileDocContext += `\n--- ${file.display_name} (${new Date(file.created_at).toLocaleDateString('de-DE')}) ---\n`;
-          fileDocContext += file.extracted_text + "\n";
-        });
-        fileDocContext += "\n=== ENDE PERSÖNLICHE DOKUMENTE ===\n";
-        console.log(`Loaded ${relevantFiles.length} personal/building files as context`);
-      }
-      
-      // Also list all available files (metadata only) so the AI knows what exists
-      contextData += `\n\nVerfügbare Dokumente des Nutzers:\n`;
-      allUserFiles.forEach(file => {
-        contextData += `- ${file.display_name} (hochgeladen am ${new Date(file.created_at).toLocaleDateString('de-DE')})\n`;
-      });
-    }
-
-    // ===== Score and inject building_documents (RAG-Dokumente) =====
-    if (buildingDocsList.length > 0) {
-      const scoredBuildingDocs = buildingDocsList.map(doc => {
-        let score = 0;
-        const docName = doc.file_name?.toLowerCase() || '';
-        const docCategory = doc.category?.toLowerCase() || '';
-        const docText = doc.extracted_text?.toLowerCase() || '';
-
-        messageWords.forEach((word: string) => {
-          if (docName.includes(word)) score += 3;
-          if (docCategory.includes(word)) score += 2;
-          if (docText.includes(word)) score += 1;
-        });
-
-        return { ...doc, score };
-      });
-
-      const relevantBuildingDocs = scoredBuildingDocs
-        .filter(d => d.score > 0)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 3);
-
-      if (relevantBuildingDocs.length > 0) {
-        fileDocContext += "\n\n=== GEBÄUDEDOKUMENTE ===\n";
-        relevantBuildingDocs.forEach(doc => {
-          fileDocContext += `\n--- ${doc.file_name} (${doc.category}, ${new Date(doc.created_at).toLocaleDateString('de-DE')}) ---\n`;
-          const text = doc.extracted_text || '';
-          fileDocContext += text.substring(0, 8000) + (text.length > 8000 ? '\n[... Text gekürzt ...]' : '') + "\n";
-        });
-        fileDocContext += "\n=== ENDE GEBÄUDEDOKUMENTE ===\n";
-        console.log(`Loaded ${relevantBuildingDocs.length} building documents as context`);
-      }
-
-      contextData += `\n\nVerfügbare Gebäudedokumente:\n`;
-      buildingDocsList.forEach(doc => {
-        contextData += `- ${doc.file_name} (${doc.category}, ${new Date(doc.created_at).toLocaleDateString('de-DE')})\n`;
-      });
     }
 
     // Intelligent knowledge document search based on user message
@@ -692,6 +620,7 @@ ${isFirstMessage
 
     return new Response(JSON.stringify({ 
       response: assistantMessage,
+      sources: ragSources,
       usage: data.usage,
       sessionId: currentSessionId
     }), {
