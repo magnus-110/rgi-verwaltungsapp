@@ -16,6 +16,7 @@ import { TemplateList } from "./TemplateList";
 import { RecipientPicker, RecipientFilterValue } from "./RecipientPicker";
 import { VariableHelpSheet } from "./VariableHelpSheet";
 import { VariablePalette } from "./VariablePalette";
+import { usePlaceholderStats } from "./usePlaceholderStats";
 
 interface Props {
   open: boolean;
@@ -43,6 +44,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
   const lastFocused = useRef<"subject" | "body">("body");
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { data: placeholderStats } = usePlaceholderStats(buildingId, filter.contact_ids);
 
   const insertAtCursor = (placeholder: string) => {
     const target = lastFocused.current === "subject" ? subjectRef.current : bodyRef.current;
@@ -308,7 +310,11 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
 
               <aside className="border rounded-md bg-muted/30 p-2 md:sticky md:top-0 self-start">
                 <h4 className="text-xs font-semibold mb-1 px-1">Platzhalter</h4>
-                <VariablePalette onInsert={insertAtCursor} />
+                <VariablePalette onInsert={insertAtCursor} stats={placeholderStats} />
+                <div className="mt-2 px-1 space-y-0.5 text-[10px] text-muted-foreground">
+                  <div className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-destructive" /> Keine Daten</div>
+                  <div className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-amber-500" /> Teilweise leer</div>
+                </div>
               </aside>
             </div>
 

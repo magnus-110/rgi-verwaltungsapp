@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
+import { Search, AlertCircle } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+export type PlaceholderStats = Record<string, { filled: number; total: number }>;
 
 export const VARIABLE_GROUPS: { title: string; vars: { key: string; desc: string }[] }[] = [
   {
@@ -57,9 +60,10 @@ export const VARIABLE_GROUPS: { title: string; vars: { key: string; desc: string
 interface Props {
   onInsert: (placeholder: string) => void;
   className?: string;
+  stats?: PlaceholderStats;
 }
 
-export const VariablePalette = ({ onInsert, className }: Props) => {
+export const VariablePalette = ({ onInsert, className, stats }: Props) => {
   const [q, setQ] = useState("");
 
   const filter = (key: string, desc: string) =>
@@ -95,24 +99,47 @@ export const VariablePalette = ({ onInsert, className }: Props) => {
                 <div className="space-y-0.5">
                   {visible.map((v) => {
                     const ph = `{{${v.key}}}`;
+                    const s = stats?.[v.key];
+                    const allEmpty = s && s.total > 0 && s.filled === 0;
+                    const someEmpty = s && s.total > 0 && s.filled > 0 && s.filled < s.total;
                     return (
-                      <button
-                        key={v.key}
-                        type="button"
-                        draggable
-                        onDragStart={(e) => {
-                          e.dataTransfer.setData("text/plain", ph);
-                          e.dataTransfer.effectAllowed = "copy";
-                        }}
-                        onClick={() => onInsert(ph)}
-                        title={v.desc}
-                        className="w-full text-left px-2 py-1 rounded text-xs hover:bg-accent hover:text-accent-foreground cursor-grab active:cursor-grabbing transition-colors group"
-                      >
-                        <code className="font-mono text-[11px]">{ph}</code>
-                        <span className="block text-[10px] text-muted-foreground group-hover:text-accent-foreground/80 truncate">
-                          {v.desc}
-                        </span>
-                      </button>
+                      <TooltipProvider key={v.key} delayDuration={300}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              type="button"
+                              draggable
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData("text/plain", ph);
+                                e.dataTransfer.effectAllowed = "copy";
+                              }}
+                              onClick={() => onInsert(ph)}
+                              className={`w-full text-left px-2 py-1 rounded text-xs hover:bg-accent hover:text-accent-foreground cursor-grab active:cursor-grabbing transition-colors group ${allEmpty ? "opacity-60" : ""}`}
+                            >
+                              <div className="flex items-center gap-1">
+                                <code className="font-mono text-[11px]">{ph}</code>
+                                {allEmpty && <AlertCircle className="h-3 w-3 text-destructive flex-shrink-0" />}
+                                {someEmpty && <AlertCircle className="h-3 w-3 text-amber-500 flex-shrink-0" />}
+                              </div>
+                              <span className="block text-[10px] text-muted-foreground group-hover:text-accent-foreground/80 truncate">
+                                {v.desc}
+                              </span>
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="left" className="text-xs">
+                            <div className="font-medium">{v.desc}</div>
+                            {s && s.total > 0 && (
+                              <div className={`mt-1 ${allEmpty ? "text-destructive" : someEmpty ? "text-amber-500" : "text-muted-foreground"}`}>
+                                {allEmpty
+                                  ? `Keine Daten (0 / ${s.total})`
+                                  : someEmpty
+                                  ? `Teilweise vorhanden (${s.filled} / ${s.total})`
+                                  : `Vollständig (${s.filled} / ${s.total})`}
+                              </div>
+                            )}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     );
                   })}
                 </div>
