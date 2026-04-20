@@ -281,7 +281,19 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     enabled: open && !!buildingId,
   });
 
-  // Helper: determine fiscal year from billing periods or fallback to calendar year
+  // Heating units for fuel purchase assignment
+  const { data: heatingUnits = [] } = useQuery({
+    queryKey: ["heating-units-review", buildingId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("heating_units")
+        .select("id, name")
+        .eq("building_id", buildingId)
+        .order("created_at");
+      return data || [];
+    },
+    enabled: open && !!buildingId,
+  });
   const getFiscalYearForDate = useCallback((dateStr: string): number => {
     if (!dateStr) return new Date().getFullYear();
     const date = new Date(dateStr);
