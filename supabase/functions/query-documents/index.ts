@@ -61,6 +61,178 @@ function extractMetadataFromQuestion(question: string): {
   return { categories, features };
 }
 
+// ============================================================
+// CATEGORY DETECTOR (LLM-light) — maps question to DMS folders
+// ============================================================
+
+interface TaxonomyEntry {
+  slug: string;
+  name: string;
+  path: string[];
+}
+
+// In-memory cache per invocation (lifetime of single edge function call is short, but helps within batches)
+let _taxonomyCache: { buildingId: string | null; entries: TaxonomyEntry[]; ts: number } | null = null;
+
+async function loadCategoryTaxonomy(supabase: any, buildingId: string | null): Promise<TaxonomyEntry[]> {
+  if (_taxonomyCache && _taxonomyCache.buildingId === buildingId && Date.now() - _taxonomyCache.ts < 60_000) {
+    return _taxonomyCache.entries;
+  }
+  try {
+    const { data, error } = await supabase.rpc('get_category_taxonomy', { p_building_id: buildingId });
+    if (error) {
+      console.error('get_category_taxonomy error:', error);
+      return [];
+    }
+    const entries: TaxonomyEntry[] = (data || []).map((row: any) => ({
+      slug: row.slug,
+      name: row.name,
+      path: Array.isArray(row.path) ? row.path : [],
+    })).filter((e: TaxonomyEntry) => e.slug);
+    _taxonomyCache = { buildingId, entries, ts: Date.now() };
+    return entries;
+  } catch (err) {
+    console.error('Failed to load taxonomy:', err);
+    return [];
+  }
+}
+
+async function detectCategorySlugs(question: string, taxonomy: TaxonomyEntry[]): Promise<string[]> {
+  if (taxonomy.length === 0) return [];
+
+  // Build a compact list for the LLM: "slug | full path"
+  const list = taxonomy
+    .map(t => `${t.slug} | ${t.path.join(' › ') || t.name}`)
+    .join('\n');
+
+  const systemPrompt = `Du bist ein Klassifizierer für Dokumentenordner einer Hausverwaltung.
+Du bekommst eine Frage und eine Liste verfügbarer Ordner (Format: "slug | Pfad").
+Wähle 0 bis 3 slugs, in deren Ordnern die Antwort am wahrscheinlichsten zu finden ist.
+
+REGELN:
+- Antworte AUSSCHLIESSLICH mit JSON-Array von slugs, z.B. ["stammakte-teilungserklaerung"]
+- Wenn die Frage keinem Ordner klar zuzuordnen ist: []
+- Bei Oberbegriffen (z.B. "Verträge") wähle alle relevanten Unterordner
+- KEINE Erklärung, nur das Array`;
+
+  try {
+    const response = await fetch('https://api.mistral.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${MISTRAL_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'mistral-small-latest',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: `Verfügbare Ordner:\n${list}\n\nFrage: ${question}` }
+        ],
+        temperature: 0.1,
+        max_tokens: 150,
+        response_format: { type: 'json_object' },
+      }),
+    });
+    if (!response.ok) {
+      console.error('Category detector failed:', await response.text());
+      return [];
+    }
+    const data = await response.json();
+    const raw = data.choices?.[0]?.message?.content || '[]';
+    let parsed: any;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      // try to extract array from string
+      const match = raw.match(/\[[^\]]*\]/);
+      parsed = match ? JSON.parse(match[0]) : [];
+    }
+    // Accept either array directly, or { slugs: [...] } / { categories: [...] }
+    let slugs: string[] = [];
+    if (Array.isArray(parsed)) slugs = parsed;
+    else if (Array.isArray(parsed.slugs)) slugs = parsed.slugs;
+    else if (Array.isArray(parsed.categories)) slugs = parsed.categories;
+
+    // Validate slugs against taxonomy
+    const validSlugs = new Set(taxonomy.map(t => t.slug));
+    const filtered = slugs.filter(s => typeof s === 'string' && validSlugs.has(s)).slice(0, 3);
+    console.log(`Category detector → [${filtered.join(', ')}]`);
+    return filtered;
+  } catch (err) {
+    console.error('Category detection error:', err);
+    return [];
+  }
+}
+
+// Hybrid retrieval: category-filtered + global fallback + boost
+async function hybridCategoryRetrieval(
+  supabase: any,
+  embedding: number[],
+  buildingId: string | null,
+  categorySlugs: string[],
+  limit: number = 8
+): Promise<any[]> {
+  const seen = new Set<string>();
+  const results: any[] = [];
+
+  // Phase 1: category-filtered search via new RPC
+  if (categorySlugs.length > 0) {
+    try {
+      const { data, error } = await supabase.rpc('search_chunks_by_category', {
+        p_query_embedding: `[${embedding.join(',')}]`,
+        p_building_id: buildingId,
+        p_category_slugs: categorySlugs,
+        p_match_count: limit,
+        p_boost: 0.1,
+      });
+      if (!error && data) {
+        for (const chunk of data) {
+          if (!seen.has(chunk.id)) {
+            seen.add(chunk.id);
+            results.push(chunk);
+          }
+        }
+        console.log(`Phase 1 (category-filtered): ${data.length} chunks`);
+      } else if (error) {
+        console.error('search_chunks_by_category error:', error);
+      }
+    } catch (err) {
+      console.error('Phase 1 retrieval error:', err);
+    }
+  }
+
+  // Phase 2: global fallback if too few hits or low similarity
+  const bestSim = results.length > 0 ? Math.max(...results.map(r => r.similarity || 0)) : 0;
+  if (results.length < 4 || bestSim < 0.65) {
+    console.log(`Phase 2 (global fallback): existing=${results.length} bestSim=${bestSim.toFixed(2)}`);
+    try {
+      const { data, error } = await supabase.rpc('search_chunks_by_category', {
+        p_query_embedding: `[${embedding.join(',')}]`,
+        p_building_id: buildingId,
+        p_category_slugs: null,
+        p_match_count: 4,
+        p_boost: 0,
+      });
+      if (!error && data) {
+        for (const chunk of data) {
+          if (!seen.has(chunk.id)) {
+            seen.add(chunk.id);
+            results.push(chunk);
+          }
+        }
+      } else if (error) {
+        console.error('Fallback search error:', error);
+      }
+    } catch (err) {
+      console.error('Phase 2 retrieval error:', err);
+    }
+  }
+
+  // Sort by similarity (already boosted) and trim
+  results.sort((a, b) => (b.similarity || 0) - (a.similarity || 0));
+  return results.slice(0, limit);
+}
+
 // Default system prompts
 const DEFAULT_DOCUMENT_SYSTEM_PROMPT = `Du bist ein Dokumenten-Assistent für die Immobilienverwaltung.
 
