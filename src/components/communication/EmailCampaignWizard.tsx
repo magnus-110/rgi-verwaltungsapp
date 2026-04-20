@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { HelpCircle, Loader2, Mail, Send, Eye } from "lucide-react";
+import { HelpCircle, Loader2, Mail, Send, Eye, Paperclip, X, CalendarClock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -32,6 +32,8 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
   const [helpOpen, setHelpOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [resultStats, setResultStats] = useState<{ ok: number; failed: number } | null>(null);
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [scheduledAt, setScheduledAt] = useState<string>("");
   const { toast } = useToast();
   const qc = useQueryClient();
 
@@ -50,7 +52,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
     setStep(1); setName(""); setTemplate(null);
     setSubject(""); setBody(""); setAccountId(""); setTestEmail("");
     setFilter({ roles: [], contact_ids: [], require_email: true });
-    setResultStats(null);
+    setResultStats(null); setAttachments([]); setScheduledAt("");
   };
 
   const useTemplate = (t: any) => {
@@ -63,7 +65,18 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
 
   const skipTemplate = () => { setTemplate(null); setName(""); setSubject(""); setBody(""); setStep(2); };
 
-  const createCampaign = async (status: "draft") => {
+  const uploadAttachments = async (campaignId: string): Promise<string[]> => {
+    const paths: string[] = [];
+    for (const f of attachments) {
+      const path = `campaigns/${campaignId}/attachments/${Date.now()}_${f.name}`;
+      const { error } = await supabase.storage.from("comm-assets").upload(path, f, { upsert: true });
+      if (error) throw error;
+      paths.push(path);
+    }
+    return paths;
+  };
+
+  const createCampaign = async (status: "draft" | "scheduled") => {
     const { data: userData } = await supabase.auth.getUser();
     const userId = userData?.user?.id;
     if (!userId) throw new Error("Nicht angemeldet");
@@ -79,9 +92,14 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
       subject_override: subject || null,
       body_html_override: body || null,
       status,
+      scheduled_at: status === "scheduled" && scheduledAt ? new Date(scheduledAt).toISOString() : null,
       created_by: userId,
     }).select().single();
     if (error) throw error;
+    if (attachments.length > 0) {
+      const paths = await uploadAttachments(data.id);
+      await supabase.from("comm_campaigns").update({ attachment_paths: paths }).eq("id", data.id);
+    }
     return data;
   };
 
@@ -106,8 +124,27 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
   const handleSend = async () => {
     if (!accountId) { toast({ title: "E-Mail-Konto wählen", variant: "destructive" }); return; }
     if (!subject.trim() || !body.trim()) { toast({ title: "Betreff und Inhalt erforderlich", variant: "destructive" }); return; }
-    if (!confirm(`Wirklich an alle ausgewählten Empfänger senden?`)) return;
 
+    if (scheduledAt) {
+      const when = new Date(scheduledAt);
+      if (isNaN(when.getTime()) || when <= new Date()) {
+        toast({ title: "Geplanter Zeitpunkt muss in der Zukunft liegen", variant: "destructive" });
+        return;
+      }
+      if (!confirm(`Versand für ${when.toLocaleString("de-DE")} planen?`)) return;
+      setBusy(true);
+      try {
+        await createCampaign("scheduled");
+        toast({ title: "Versand geplant" });
+        qc.invalidateQueries({ queryKey: ["comm-campaigns", buildingId] });
+        onOpenChange(false);
+      } catch (e: any) {
+        toast({ title: "Fehler", description: e?.message || "Planung fehlgeschlagen", variant: "destructive" });
+      } finally { setBusy(false); }
+      return;
+    }
+
+    if (!confirm(`Wirklich an alle ausgewählten Empfänger senden?`)) return;
     setBusy(true);
     try {
       const c = await createCampaign("draft");
@@ -179,6 +216,42 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
               <RecipientPicker buildingId={buildingId} requireEmail value={filter} onChange={setFilter} />
             </div>
 
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs flex items-center gap-1"><Paperclip className="h-3 w-3" /> Anhänge</Label>
+                <Input
+                  type="file"
+                  multiple
+                  onChange={(e) => setAttachments(Array.from(e.target.files || []))}
+                  className="text-xs"
+                />
+                {attachments.length > 0 && (
+                  <div className="mt-1 space-y-1">
+                    {attachments.map((f, i) => (
+                      <div key={i} className="text-xs flex items-center gap-1 text-muted-foreground">
+                        <span className="truncate">{f.name}</span>
+                        <button onClick={() => setAttachments(attachments.filter((_, j) => j !== i))} className="hover:text-destructive">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div>
+                <Label className="text-xs flex items-center gap-1"><CalendarClock className="h-3 w-3" /> Geplanter Versand (optional)</Label>
+                <Input
+                  type="datetime-local"
+                  value={scheduledAt}
+                  onChange={(e) => setScheduledAt(e.target.value)}
+                  min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+                />
+                {scheduledAt && (
+                  <p className="text-[11px] text-muted-foreground mt-1">Wird automatisch um {new Date(scheduledAt).toLocaleString("de-DE")} versendet.</p>
+                )}
+              </div>
+            </div>
+
             <Card className="p-3 bg-muted/40">
               <Label className="text-xs">Test-Mail an mich (optional)</Label>
               <div className="flex gap-2 mt-1">
@@ -209,8 +282,8 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
           {step === 2 && <Button variant="outline" onClick={() => setStep(1)} disabled={busy}>Zurück</Button>}
           {step === 2 && (
             <Button onClick={handleSend} disabled={busy}>
-              {busy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
-              Jetzt senden
+              {busy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : (scheduledAt ? <CalendarClock className="h-4 w-4 mr-2" /> : <Send className="h-4 w-4 mr-2" />)}
+              {scheduledAt ? "Versand planen" : "Jetzt senden"}
             </Button>
           )}
           {step === 3 && <Button onClick={() => onOpenChange(false)}>Schließen</Button>}
