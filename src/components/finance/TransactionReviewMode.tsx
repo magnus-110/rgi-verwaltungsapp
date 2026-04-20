@@ -65,6 +65,8 @@ interface BookingRowData {
   fuel_co2_tax_amount: string;
   fuel_energy_content_kwh: string;
   fuel_heating_unit_id: string;
+  fuel_consumption_from: string;
+  fuel_consumption_to: string;
   line_items_detail: any[] | null;
   accrualHint?: {
     needs_accrual: boolean;
