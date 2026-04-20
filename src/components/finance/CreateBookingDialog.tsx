@@ -212,7 +212,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          <div className="p-4 space-y-3">
+          <div className="p-4 space-y-3" data-booking-form>
             {/* Prefill hint */}
             {prefill && (
               <div className="flex items-center gap-2 text-sm bg-primary/10 text-primary border border-primary/20 rounded-lg px-3 py-2">
@@ -220,23 +220,6 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                 KI-vorausgefüllt – bitte prüfen.
               </div>
             )}
-
-            {/* Building selector */}
-            <div>
-              <label className="text-xs font-bold text-primary mb-1 block">Liegenschaft *</label>
-              <Select value={form.building_id} onValueChange={v => set("building_id", v)}>
-                <SelectTrigger className="h-9 text-sm font-semibold border-primary/30 bg-primary/5">
-                  <SelectValue placeholder="Liegenschaft wählen…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {buildings.map(b => (
-                    <SelectItem key={b.id} value={b.id}>
-                      {b.name} {b.building_code && <span className="text-muted-foreground">({b.building_code})</span>}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
 
             {/* Konto */}
             <div>
@@ -248,6 +231,12 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                   const acc = accounts.find(a => a.id === v);
                   if (acc?.is_35a_relevant) set("is_35a_relevant", true);
                   if (acc && (acc as any).default_vat_rate != null) set("vat_rate", String((acc as any).default_vat_rate));
+                }}
+                onCommit={() => {
+                  // Move focus to amount input
+                  const amt = document.querySelector<HTMLInputElement>('[data-booking-form] input[inputmode="decimal"]');
+                  amt?.focus();
+                  amt?.setSelectionRange(amt.value.length, amt.value.length);
                 }}
                 accounts={accounts}
                 excludeCategory="Bankkonto"
