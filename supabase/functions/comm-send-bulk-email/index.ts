@@ -33,13 +33,19 @@ Deno.serve(async (req) => {
 
     let subject = campaign.subject_override as string | null;
     let bodyHtml = campaign.body_html_override as string | null;
+    let bodyFormat = (campaign.body_format as "html" | "plain") || "html";
     if ((!subject || !bodyHtml) && campaign.template_id) {
       const { data: t } = await admin.from("comm_templates")
-        .select("subject, body_html").eq("id", campaign.template_id).single();
+        .select("subject, body_html, body_format").eq("id", campaign.template_id).single();
       if (!subject) subject = t?.subject || null;
       if (!bodyHtml) bodyHtml = t?.body_html || null;
+      if (!campaign.body_format && t?.body_format) bodyFormat = t.body_format as "html" | "plain";
     }
     if (!subject || !bodyHtml) return json({ error: "Betreff oder Inhalt fehlt" }, 400);
+
+    // Build payload key based on chosen format
+    const buildBody = (rendered: string) =>
+      bodyFormat === "plain" ? { text: rendered } : { html: rendered };
 
     const isSecure = account.smtp_port === 465;
     const transporter = nodemailer.createTransport({
@@ -74,7 +80,7 @@ Deno.serve(async (req) => {
         from: `${account.display_name} <${account.email_address}>`,
         to: test_email,
         subject: `[TEST] ${renderString(subject, sample)}`,
-        html: renderString(bodyHtml, sample),
+        ...buildBody(renderString(bodyHtml, sample)),
         attachments,
       });
       return json({ success: true, test: true });
@@ -112,7 +118,7 @@ Deno.serve(async (req) => {
           from: `${account.display_name} <${account.email_address}>`,
           to: r.email!,
           subject: renderString(subject, r.vars),
-          html: renderString(bodyHtml, r.vars),
+          ...buildBody(renderString(bodyHtml, r.vars)),
           attachments,
         });
         await admin.from("comm_recipients").insert({
