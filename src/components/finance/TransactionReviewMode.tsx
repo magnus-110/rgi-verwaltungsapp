@@ -1184,6 +1184,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                     handleEnterNavigation={handleEnterNavigation}
                     formatCurrency={formatCurrency}
                     invoiceDetail={invoiceDetail}
+                    heatingUnits={heatingUnits}
                   />
                 ))}
 
