@@ -7,16 +7,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { HelpCircle, Loader2, Mail, Send, Eye, Paperclip, X, CalendarClock, Code, Type } from "lucide-react";
+import { HelpCircle, Loader2, Mail, Send, Eye, Paperclip, X, CalendarClock, Code, Type, FileEdit } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { TemplateList } from "./TemplateList";
 import { RecipientPicker, RecipientFilterValue } from "./RecipientPicker";
 import { VariableHelpSheet } from "./VariableHelpSheet";
-import { VariablePalette } from "./VariablePalette";
+import { FriendlyVariablePalette } from "./FriendlyVariablePalette";
 import { usePlaceholderStats } from "./usePlaceholderStats";
+import { usePlaceholderSamples } from "./usePlaceholderSamples";
+import { EmailPreviewPane } from "./EmailPreviewPane";
+import { ConfirmSendDialog } from "./ConfirmSendDialog";
 
 interface Props {
   open: boolean;
@@ -38,13 +42,18 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
   const [resultStats, setResultStats] = useState<{ ok: number; failed: number } | null>(null);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [scheduledAt, setScheduledAt] = useState<string>("");
-  const [bodyFormat, setBodyFormat] = useState<"html" | "plain">("html");
+  const [bodyFormat, setBodyFormat] = useState<"html" | "plain">("plain");
+  const [viewMode, setViewMode] = useState<"write" | "preview">("write");
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingScheduled, setPendingScheduled] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const subjectRef = useRef<HTMLInputElement>(null);
   const lastFocused = useRef<"subject" | "body">("body");
   const { toast } = useToast();
   const qc = useQueryClient();
   const { data: placeholderStats } = usePlaceholderStats(buildingId, filter.contact_ids);
+  const { data: placeholderSamples } = usePlaceholderSamples(buildingId, filter.contact_ids);
+  const recipientCount = (filter.contact_ids || []).filter((id) => id !== "__none__").length;
 
   const insertAtCursor = (placeholder: string) => {
     const target = lastFocused.current === "subject" ? subjectRef.current : bodyRef.current;
@@ -105,7 +114,10 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
     setSubject(""); setBody(""); setAccountId(""); setTestEmail("");
     setFilter({ roles: [], contact_ids: [], require_email: true });
     setResultStats(null); setAttachments([]); setScheduledAt("");
-    setBodyFormat("html");
+    setBodyFormat("plain");
+    setViewMode("write");
+    setConfirmOpen(false);
+    setPendingScheduled(false);
   };
 
   const useTemplate = (t: any) => {
@@ -113,7 +125,9 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
     setName(`Rundmail: ${t.name}`);
     setSubject(t.subject || "");
     setBody(t.body_html || "");
-    setBodyFormat((t.body_format as "html" | "plain") || "html");
+    // Only switch to HTML if the template explicitly defines it; otherwise keep plain default
+    if (t.body_format === "html") setBodyFormat("html");
+    else setBodyFormat("plain");
     setStep(2);
   };
 
@@ -176,7 +190,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
     } finally { setBusy(false); }
   };
 
-  const handleSend = async () => {
+  const requestSend = () => {
     if (!accountId) { toast({ title: "E-Mail-Konto wählen", variant: "destructive" }); return; }
     if (!subject.trim() || !body.trim()) { toast({ title: "Betreff und Inhalt erforderlich", variant: "destructive" }); return; }
 
@@ -186,7 +200,15 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
         toast({ title: "Geplanter Zeitpunkt muss in der Zukunft liegen", variant: "destructive" });
         return;
       }
-      if (!confirm(`Versand für ${when.toLocaleString("de-DE")} planen?`)) return;
+      setPendingScheduled(true);
+    } else {
+      setPendingScheduled(false);
+    }
+    setConfirmOpen(true);
+  };
+
+  const executeSend = async () => {
+    if (pendingScheduled) {
       setBusy(true);
       try {
         await createCampaign("scheduled");
@@ -199,7 +221,6 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
       return;
     }
 
-    if (!confirm(`Wirklich an alle ausgewählten Empfänger senden?`)) return;
     setBusy(true);
     try {
       const c = await createCampaign("draft");
@@ -257,7 +278,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
               </Select>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_240px] gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_280px] gap-4">
               <div className="space-y-4 min-w-0">
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
@@ -268,49 +289,71 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
                     onValueChange={(v) => setBodyFormat(v as "html" | "plain")}
                     className="flex gap-2"
                   >
+                    <label className={`flex-1 flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer text-sm transition-colors ${bodyFormat === "plain" ? "border-primary bg-primary/5" : "border-input hover:bg-accent"}`}>
+                      <RadioGroupItem value="plain" />
+                      <Type className="h-4 w-4" /> Klartext
+                      <span className="text-xs text-muted-foreground ml-auto">Empfohlen</span>
+                    </label>
                     <label className={`flex-1 flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer text-sm transition-colors ${bodyFormat === "html" ? "border-primary bg-primary/5" : "border-input hover:bg-accent"}`}>
                       <RadioGroupItem value="html" />
                       <Code className="h-4 w-4" /> HTML
                       <span className="text-xs text-muted-foreground ml-auto">Formatiert</span>
                     </label>
-                    <label className={`flex-1 flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer text-sm transition-colors ${bodyFormat === "plain" ? "border-primary bg-primary/5" : "border-input hover:bg-accent"}`}>
-                      <RadioGroupItem value="plain" />
-                      <Type className="h-4 w-4" /> Klartext
-                      <span className="text-xs text-muted-foreground ml-auto">Einfach</span>
-                    </label>
                   </RadioGroup>
                 </div>
 
-                <div>
-                  <Label>Betreff *</Label>
-                  <Input
-                    ref={subjectRef}
-                    value={subject}
-                    onChange={(e) => setSubject(e.target.value)}
-                    onFocus={() => { lastFocused.current = "subject"; }}
-                  />
-                </div>
-                <div>
-                  <Label>Inhalt {bodyFormat === "html" ? "(HTML)" : "(Klartext)"} *</Label>
-                  <Textarea
-                    ref={bodyRef}
-                    value={body}
-                    onChange={(e) => setBody(e.target.value)}
-                    onFocus={() => { lastFocused.current = "body"; }}
-                    onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
-                    onDrop={handleDropPlaceholder}
-                    rows={12}
-                    className={bodyFormat === "html" ? "font-mono text-sm" : "text-sm"}
-                    placeholder={bodyFormat === "html"
-                      ? "<p>{{anrede_brief}}</p>\n<p>...</p>"
-                      : "{{anrede_brief}}\n\n..."}
-                  />
-                </div>
+                <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "write" | "preview")}>
+                  <TabsList variant="underline">
+                    <TabsTrigger value="write" variant="underline"><FileEdit className="h-3.5 w-3.5 mr-1" />Schreiben</TabsTrigger>
+                    <TabsTrigger value="preview" variant="underline"><Eye className="h-3.5 w-3.5 mr-1" />Vorschau</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="write" className="space-y-4 mt-4">
+                    <div>
+                      <Label>Betreff *</Label>
+                      <Input
+                        ref={subjectRef}
+                        value={subject}
+                        onChange={(e) => setSubject(e.target.value)}
+                        onFocus={() => { lastFocused.current = "subject"; }}
+                      />
+                    </div>
+                    <div>
+                      <Label>Inhalt {bodyFormat === "html" ? "(HTML)" : "(Klartext)"} *</Label>
+                      <Textarea
+                        ref={bodyRef}
+                        value={body}
+                        onChange={(e) => setBody(e.target.value)}
+                        onFocus={() => { lastFocused.current = "body"; }}
+                        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
+                        onDrop={handleDropPlaceholder}
+                        rows={12}
+                        className={bodyFormat === "html" ? "font-mono text-sm" : "text-sm"}
+                        placeholder={bodyFormat === "html"
+                          ? "<p>{{anrede_brief}}</p>\n<p>...</p>"
+                          : "{{anrede_brief}}\n\n..."}
+                      />
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="preview" className="mt-4">
+                    <EmailPreviewPane
+                      subject={subject}
+                      body={body}
+                      format={bodyFormat}
+                      samples={placeholderSamples}
+                    />
+                  </TabsContent>
+                </Tabs>
               </div>
 
               <aside className="border rounded-md bg-muted/30 p-2 md:sticky md:top-0 self-start">
-                <h4 className="text-xs font-semibold mb-1 px-1">Platzhalter</h4>
-                <VariablePalette onInsert={insertAtCursor} stats={placeholderStats} />
+                <h4 className="text-xs font-semibold mb-1 px-1">Platzhalter einfügen</h4>
+                <FriendlyVariablePalette
+                  onInsert={insertAtCursor}
+                  stats={placeholderStats}
+                  samples={placeholderSamples}
+                />
                 <div className="mt-2 px-1 space-y-0.5 text-[10px] text-muted-foreground">
                   <div className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-destructive" /> Keine Daten</div>
                   <div className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-amber-500" /> Teilweise leer</div>
@@ -388,7 +431,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
         <DialogFooter>
           {step === 2 && <Button variant="outline" onClick={() => setStep(1)} disabled={busy}>Zurück</Button>}
           {step === 2 && (
-            <Button onClick={handleSend} disabled={busy}>
+            <Button onClick={requestSend} disabled={busy}>
               {busy ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : (scheduledAt ? <CalendarClock className="h-4 w-4 mr-2" /> : <Send className="h-4 w-4 mr-2" />)}
               {scheduledAt ? "Versand planen" : "Jetzt senden"}
             </Button>
@@ -397,6 +440,13 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
         </DialogFooter>
 
         <VariableHelpSheet open={helpOpen} onOpenChange={setHelpOpen} />
+        <ConfirmSendDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          recipientCount={recipientCount}
+          scheduledAt={pendingScheduled ? scheduledAt : undefined}
+          onConfirm={executeSend}
+        />
       </DialogContent>
     </Dialog>
   );
