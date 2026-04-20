@@ -5,6 +5,8 @@ interface Props {
   body: string;
   format: "html" | "plain";
   samples?: PlaceholderSamples;
+  subjectOnly?: boolean;
+  bodyOnly?: boolean;
 }
 
 const PLACEHOLDER_REGEX = /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g;
@@ -51,33 +53,43 @@ function renderHtmlBody(body: string, samples?: PlaceholderSamples): string {
   });
 }
 
-export const EmailPreviewPane = ({ subject, body, format, samples }: Props) => {
+export const EmailPreviewPane = ({ subject, body, format, samples, subjectOnly, bodyOnly }: Props) => {
+  if (subjectOnly) {
+    return <span className="text-sm">{renderSubject(subject, samples)}</span>;
+  }
+
+  const bodyBlock = (
+    <div className="rounded-md border bg-card">
+      {!bodyOnly && (
+        <div className="text-[10px] uppercase tracking-wide text-muted-foreground px-3 pt-2">Inhalt</div>
+      )}
+      {format === "plain" ? (
+        <pre className="p-3 text-sm whitespace-pre-wrap font-sans leading-relaxed min-h-[320px]">
+          {body.trim() === "" ? (
+            <span className="text-muted-foreground italic">(noch kein Inhalt — links schreiben)</span>
+          ) : (
+            renderPlainBody(body, samples)
+          )}
+        </pre>
+      ) : (
+        <iframe
+          sandbox=""
+          className="w-full min-h-[320px] rounded-b-md bg-background"
+          srcDoc={`<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.5;padding:12px;color:#0f172a;}</style></head><body>${renderHtmlBody(body, samples) || '<em style="color:#94a3b8">(noch kein Inhalt)</em>'}</body></html>`}
+        />
+      )}
+    </div>
+  );
+
+  if (bodyOnly) return bodyBlock;
+
   return (
     <div className="space-y-3">
       <div className="rounded-md border bg-card p-3">
         <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Betreff</div>
         <div className="text-sm font-medium">{renderSubject(subject, samples)}</div>
       </div>
-
-      <div className="rounded-md border bg-card">
-        <div className="text-[10px] uppercase tracking-wide text-muted-foreground px-3 pt-2">Inhalt</div>
-        {format === "plain" ? (
-          <pre className="p-3 text-sm whitespace-pre-wrap font-sans leading-relaxed">
-            {body.trim() === "" ? (
-              <span className="text-muted-foreground italic">(kein Inhalt)</span>
-            ) : (
-              renderPlainBody(body, samples)
-            )}
-          </pre>
-        ) : (
-          <iframe
-            sandbox=""
-            className="w-full min-h-[320px] rounded-b-md bg-background"
-            srcDoc={`<!doctype html><html><head><meta charset="utf-8"><style>body{font-family:system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.5;padding:12px;color:#0f172a;}</style></head><body>${renderHtmlBody(body, samples) || '<em style="color:#94a3b8">(kein Inhalt)</em>'}</body></html>`}
-          />
-        )}
-      </div>
-
+      {bodyBlock}
       <p className="text-[10px] text-muted-foreground px-1">
         Grau dargestellte Werte sind Platzhalter — bei jedem Empfänger werden die echten Daten eingesetzt.
       </p>

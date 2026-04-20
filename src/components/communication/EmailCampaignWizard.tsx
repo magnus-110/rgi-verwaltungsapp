@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { HelpCircle, Loader2, Mail, Send, Eye, Paperclip, X, CalendarClock, Code, Type, FileEdit } from "lucide-react";
+import { HelpCircle, Loader2, Mail, Send, Eye, Paperclip, X, CalendarClock, Code, Type, FileEdit, Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -43,7 +43,6 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
   const [attachments, setAttachments] = useState<File[]>([]);
   const [scheduledAt, setScheduledAt] = useState<string>("");
   const [bodyFormat, setBodyFormat] = useState<"html" | "plain">("plain");
-  const [viewMode, setViewMode] = useState<"write" | "preview">("write");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingScheduled, setPendingScheduled] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
@@ -115,7 +114,6 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
     setFilter({ roles: [], contact_ids: [], require_email: true });
     setResultStats(null); setAttachments([]); setScheduledAt("");
     setBodyFormat("plain");
-    setViewMode("write");
     setConfirmOpen(false);
     setPendingScheduled(false);
   };
@@ -302,24 +300,25 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
                   </RadioGroup>
                 </div>
 
-                <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "write" | "preview")}>
-                  <TabsList variant="underline">
-                    <TabsTrigger value="write" variant="underline"><FileEdit className="h-3.5 w-3.5 mr-1" />Schreiben</TabsTrigger>
-                    <TabsTrigger value="preview" variant="underline"><Eye className="h-3.5 w-3.5 mr-1" />Vorschau</TabsTrigger>
-                  </TabsList>
-
-                  <TabsContent value="write" className="space-y-4 mt-4">
+                <div className="space-y-4 mt-2">
+                  <div>
+                    <Label className="flex items-center gap-1.5"><Pencil className="h-3.5 w-3.5" />Betreff *</Label>
+                    <Input
+                      ref={subjectRef}
+                      value={subject}
+                      onChange={(e) => setSubject(e.target.value)}
+                      onFocus={() => { lastFocused.current = "subject"; }}
+                    />
+                    {subject && (
+                      <div className="mt-1.5 rounded-md border bg-muted/30 px-2.5 py-1.5 text-xs">
+                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground mr-2">Vorschau:</span>
+                        <EmailPreviewPane subject={subject} body="" format="plain" samples={placeholderSamples} subjectOnly />
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                     <div>
-                      <Label>Betreff *</Label>
-                      <Input
-                        ref={subjectRef}
-                        value={subject}
-                        onChange={(e) => setSubject(e.target.value)}
-                        onFocus={() => { lastFocused.current = "subject"; }}
-                      />
-                    </div>
-                    <div>
-                      <Label>Inhalt {bodyFormat === "html" ? "(HTML)" : "(Klartext)"} *</Label>
+                      <Label className="flex items-center gap-1.5"><Pencil className="h-3.5 w-3.5" />Inhalt {bodyFormat === "html" ? "(HTML)" : "(Klartext)"} *</Label>
                       <Textarea
                         ref={bodyRef}
                         value={body}
@@ -327,24 +326,28 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
                         onFocus={() => { lastFocused.current = "body"; }}
                         onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
                         onDrop={handleDropPlaceholder}
-                        rows={12}
+                        rows={16}
                         className={bodyFormat === "html" ? "font-mono text-sm" : "text-sm"}
                         placeholder={bodyFormat === "html"
                           ? "<p>{{anrede_brief}}</p>\n<p>...</p>"
                           : "{{anrede_brief}}\n\n..."}
                       />
                     </div>
-                  </TabsContent>
-
-                  <TabsContent value="preview" className="mt-4">
-                    <EmailPreviewPane
-                      subject={subject}
-                      body={body}
-                      format={bodyFormat}
-                      samples={placeholderSamples}
-                    />
-                  </TabsContent>
-                </Tabs>
+                    <div>
+                      <Label className="flex items-center gap-1.5"><Eye className="h-3.5 w-3.5" />Live-Vorschau</Label>
+                      <EmailPreviewPane
+                        subject=""
+                        body={body}
+                        format={bodyFormat}
+                        samples={placeholderSamples}
+                        bodyOnly
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground -mt-1">
+                    Links schreiben — rechts erscheint sofort, wie es bei der ersten ausgewählten Person aussieht. Grau dargestellte Werte sind Platzhalter.
+                  </p>
+                </div>
               </div>
 
               <aside className="border rounded-md bg-muted/30 p-2 md:sticky md:top-0 self-start">
