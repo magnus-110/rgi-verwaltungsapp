@@ -278,7 +278,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
                     />
                   </div>
                   <div>
-                    <Label>Inhalt {bodyFormat === "html" ? "(HTML)" : "(Klartext)"} *</Label>
+                    <Label>Inhalt {bodyFormat === "html" ? "(HTML)" : ""} *</Label>
                     <WysiwygPlaceholderEditor
                       ref={bodyRef}
                       value={body}
