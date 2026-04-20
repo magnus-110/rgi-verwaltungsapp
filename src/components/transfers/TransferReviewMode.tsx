@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   X, ChevronLeft, ChevronRight, Copy, CheckCircle, CreditCard,
-  AlertTriangle, FileText, Loader2, Trash2, Save
+  AlertTriangle, FileText, Loader2, Trash2, Save, Flame
 } from "lucide-react";
 
 interface Invoice {
