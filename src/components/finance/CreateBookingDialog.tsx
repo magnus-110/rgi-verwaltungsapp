@@ -307,6 +307,10 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                   const acc = accounts.find((a: any) => a.id === v);
                   if (acc?.account_number?.startsWith("4")) set("vat_rate", "");
                 }}
+                onCommit={() => {
+                  const desc = document.querySelector<HTMLInputElement>('[data-booking-form] input[placeholder^="Beschreibung"]');
+                  desc?.focus();
+                }}
                 accounts={accounts}
                 placeholder="Gegenkonto suchen…"
               />
@@ -315,18 +319,19 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
             {/* Description */}
             <div>
               <label className="text-xs font-medium text-muted-foreground mb-1 block">Buchungstext</label>
-              <Input className="h-9 text-sm" value={form.description} onChange={e => set("description", e.target.value)} placeholder="Beschreibung der Buchung…" />
+              <Input className="h-9 text-sm" value={form.description} onChange={e => set("description", e.target.value)} onKeyDown={handleEnterToNext} placeholder="Beschreibung der Buchung…" />
             </div>
 
             {/* Compact row: Belegnummer, Beleg-Datum, Wirtschaftsjahr, MwSt */}
             <div className="grid grid-cols-4 gap-2">
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Belegnummer</label>
-                <Input className="h-8 text-xs font-mono" value={form.booking_reference} onChange={e => set("booking_reference", e.target.value)} placeholder="MM/JJ" />
+                <Input className="h-8 text-xs font-mono" value={form.booking_reference} onChange={e => set("booking_reference", e.target.value)} onKeyDown={handleEnterToNext} placeholder="MM/JJ" />
               </div>
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Beleg-Datum *</label>
                 <Input type="date" className="h-8 text-xs" value={form.booking_date}
+                  onKeyDown={handleEnterToNext}
                   onChange={e => {
                     const val = e.target.value;
                     setForm(prev => {
@@ -344,7 +349,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
               </div>
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-1 block">Wirtschaftsjahr</label>
-                <Input className="h-8 text-xs font-mono" type="number" value={form.fiscal_year} onChange={e => set("fiscal_year", e.target.value)} />
+                <Input className="h-8 text-xs font-mono" type="number" value={form.fiscal_year} onChange={e => set("fiscal_year", e.target.value)} onKeyDown={handleEnterToNext} />
               </div>
               <div>
                 {(() => {
