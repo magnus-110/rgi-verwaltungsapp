@@ -1748,6 +1748,7 @@ export type Database = {
       comm_campaigns: {
         Row: {
           attachment_paths: string[]
+          body_format: string
           body_html_override: string | null
           building_id: string
           combined_pdf_path: string | null
@@ -1775,6 +1776,7 @@ export type Database = {
         }
         Insert: {
           attachment_paths?: string[]
+          body_format?: string
           body_html_override?: string | null
           building_id: string
           combined_pdf_path?: string | null
@@ -1802,6 +1804,7 @@ export type Database = {
         }
         Update: {
           attachment_paths?: string[]
+          body_format?: string
           body_html_override?: string | null
           building_id?: string
           combined_pdf_path?: string | null
@@ -1916,6 +1919,7 @@ export type Database = {
       }
       comm_templates: {
         Row: {
+          body_format: string
           body_html: string | null
           building_id: string | null
           created_at: string
@@ -1931,6 +1935,7 @@ export type Database = {
           variables: Json
         }
         Insert: {
+          body_format?: string
           body_html?: string | null
           building_id?: string | null
           created_at?: string
@@ -1946,6 +1951,7 @@ export type Database = {
           variables?: Json
         }
         Update: {
+          body_format?: string
           body_html?: string | null
           building_id?: string | null
           created_at?: string
