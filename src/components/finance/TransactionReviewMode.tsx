@@ -1912,6 +1912,54 @@ function BookingRowCard({
                     </div>
                   </div>
 
+                  {/* Verbrauchszeitraum */}
+                  {(row.fuel_type === "gas" || row.fuel_type === "district_heating") ? (
+                    <div className="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-3 space-y-3">
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                        <div className="text-xs text-amber-900 dark:text-amber-200">
+                          <p className="font-medium">Verbrauchszeitraum (Heizjahr)</p>
+                          <p className="opacity-80 mt-0.5">Bei Jahresabrechnungen liegt der Verbrauch meist im Vorjahr. Werte aus Rechnung übernehmen — die Buchung bleibt im Rechnungsjahr, der Verbrauch wandert ins korrekte Heizjahr.</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground mb-1 block">Verbrauch von</label>
+                          <Input className="h-9 text-sm" type="date" value={row.fuel_consumption_from}
+                            onChange={e => onUpdateField("fuel_consumption_from", e.target.value)} />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground mb-1 block">Verbrauch bis</label>
+                          <Input className="h-9 text-sm" type="date" value={row.fuel_consumption_to}
+                            onChange={e => onUpdateField("fuel_consumption_to", e.target.value)} />
+                        </div>
+                      </div>
+                      {row.fuel_consumption_to && (
+                        <div className="text-xs font-medium text-amber-900 dark:text-amber-200">
+                          → Zugeordnet zu Heizjahr <span className="font-bold">{new Date(row.fuel_consumption_to).getFullYear()}</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <details className="text-xs">
+                      <summary className="cursor-pointer text-muted-foreground hover:text-foreground select-none">
+                        Verbrauchszeitraum abweichend? (Standard = Lieferdatum)
+                      </summary>
+                      <div className="grid grid-cols-2 gap-3 mt-2">
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground mb-1 block">Verbrauch von</label>
+                          <Input className="h-9 text-sm" type="date" value={row.fuel_consumption_from}
+                            onChange={e => onUpdateField("fuel_consumption_from", e.target.value)} />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground mb-1 block">Verbrauch bis</label>
+                          <Input className="h-9 text-sm" type="date" value={row.fuel_consumption_to}
+                            onChange={e => onUpdateField("fuel_consumption_to", e.target.value)} />
+                        </div>
+                      </div>
+                    </details>
+                  )}
+
                   {showCo2 && (
                     <div className="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-3 space-y-3">
                       <div className="flex items-start gap-2">
