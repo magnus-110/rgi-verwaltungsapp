@@ -831,7 +831,7 @@ Beschreibung: ${report.description}`;
                 <CollapsibleTrigger asChild>
                   <div className="flex items-center justify-between cursor-pointer group">
                     <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-warning" />
+                      <span className="h-2 w-2 rounded-full bg-muted-foreground/50" />
                       <h2 className="text-base font-semibold text-foreground group-hover:text-primary transition-colors">Bearbeitete Meldungen</h2>
                       <Badge variant="secondary" className="text-xs">{timeFilteredInProgressReports.length}</Badge>
                     </div>
