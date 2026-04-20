@@ -65,17 +65,91 @@ export type Database = {
           },
         ]
       }
+      bank_reconciliations: {
+        Row: {
+          bank_account_id: string
+          building_id: string
+          closing_balance_bank: number | null
+          closing_balance_book: number | null
+          confirmed_at: string | null
+          confirmed_by: string | null
+          created_at: string
+          difference: number | null
+          id: string
+          notes: string | null
+          opening_balance_bank: number | null
+          opening_balance_book: number | null
+          period_month: number
+          period_year: number
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          bank_account_id: string
+          building_id: string
+          closing_balance_bank?: number | null
+          closing_balance_book?: number | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          difference?: number | null
+          id?: string
+          notes?: string | null
+          opening_balance_bank?: number | null
+          opening_balance_book?: number | null
+          period_month: number
+          period_year: number
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          bank_account_id?: string
+          building_id?: string
+          closing_balance_bank?: number | null
+          closing_balance_book?: number | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          created_at?: string
+          difference?: number | null
+          id?: string
+          notes?: string | null
+          opening_balance_bank?: number | null
+          opening_balance_book?: number | null
+          period_month?: number
+          period_year?: number
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_reconciliations_bank_account_id_fkey"
+            columns: ["bank_account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bank_reconciliations_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bank_statements: {
         Row: {
           account_iban: string | null
           account_name: string | null
           building_id: string | null
+          closing_balance: number | null
           created_at: string
           created_by: string | null
           file_name: string
           file_path: string | null
           id: string
           import_date: string
+          opening_balance: number | null
           statement_date_from: string | null
           statement_date_to: string | null
         }
@@ -83,12 +157,14 @@ export type Database = {
           account_iban?: string | null
           account_name?: string | null
           building_id?: string | null
+          closing_balance?: number | null
           created_at?: string
           created_by?: string | null
           file_name: string
           file_path?: string | null
           id?: string
           import_date?: string
+          opening_balance?: number | null
           statement_date_from?: string | null
           statement_date_to?: string | null
         }
@@ -96,12 +172,14 @@ export type Database = {
           account_iban?: string | null
           account_name?: string | null
           building_id?: string | null
+          closing_balance?: number | null
           created_at?: string
           created_by?: string | null
           file_name?: string
           file_path?: string | null
           id?: string
           import_date?: string
+          opening_balance?: number | null
           statement_date_from?: string | null
           statement_date_to?: string | null
         }
@@ -5033,6 +5111,10 @@ export type Database = {
       assign_building_manager: {
         Args: { building_id_param: string; user_id_param: string }
         Returns: undefined
+      }
+      calculate_account_balance_at: {
+        Args: { p_account_id: string; p_building_id: string; p_date: string }
+        Returns: number
       }
       count_building_managers: {
         Args: { building_id_param: string }
