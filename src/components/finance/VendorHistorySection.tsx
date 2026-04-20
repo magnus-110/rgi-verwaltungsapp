@@ -21,57 +21,77 @@ export function VendorHistorySection({ booking }: VendorHistorySectionProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [yearFilter, setYearFilter] = useState<string>("all");
 
-  const exactCreditorAccountId = booking?.counter_account_id || booking?.account_id || null;
+  const invoiceVendorName = booking?.invoices?.vendor_name?.trim() || null;
+  const descriptionVendorText = booking?.description?.trim() || null;
+  const fallbackAccountName = booking?.counter_account?.account_name?.trim() || null;
 
   const vendorName = useMemo(() => {
-    if (booking?.counter_account?.account_name) return booking.counter_account.account_name;
-    if (booking?.invoices?.vendor_name) return booking.invoices.vendor_name;
-    if (booking?.description) {
-      const match = booking.description.match(/^([^,\-–]+)/);
-      return match ? match[1].trim() : booking.description.substring(0, 40);
+    if (invoiceVendorName) return invoiceVendorName;
+    if (descriptionVendorText) {
+      const match = descriptionVendorText.match(/^([^,\-–]+)/);
+      return match ? match[1].trim() : descriptionVendorText.substring(0, 60);
     }
-    return null;
-  }, [booking]);
+    return fallbackAccountName;
+  }, [invoiceVendorName, descriptionVendorText, fallbackAccountName]);
+
+  const searchTokens = useMemo(() => {
+    if (!vendorName) return [] as string[];
+    return vendorName
+      .replace(/[()]/g, " ")
+      .replace(/\b(gmbh|mbh|ug|kg|ag|ohg|eg|ltd|inc|co|und|u\.)\b/gi, " ")
+      .split(/\s+/)
+      .map(token => token.trim())
+      .filter(token => token.length >= 3)
+      .slice(0, 4);
+  }, [vendorName]);
+
+  const exactCreditorAccountId = !invoiceVendorName && fallbackAccountName ? booking?.counter_account_id || null : null;
 
   const { data: historyBookings = [] } = useQuery({
-    queryKey: ["vendor-history", booking?.building_id, booking?.id, exactCreditorAccountId, vendorName],
+    queryKey: ["vendor-history", booking?.building_id, booking?.id, exactCreditorAccountId, vendorName, searchTokens.join("|")],
     queryFn: async () => {
       if (!booking?.building_id) return [];
+
+      const baseSelect = `
+        id, booking_date, amount, booking_type, fiscal_year, status, description,
+        chart_of_accounts!bookings_account_id_fkey(account_number, account_name),
+        invoices(vendor_name)
+      `;
 
       const exactMatchesPromise = exactCreditorAccountId
         ? supabase
             .from("bookings")
-            .select(`
-              id, booking_date, amount, booking_type, fiscal_year, status, description,
-              chart_of_accounts!bookings_account_id_fkey(account_number, account_name),
-              invoices(vendor_name)
-            `)
+            .select(baseSelect)
             .eq("building_id", booking.building_id)
             .neq("id", booking.id)
-            .or(`counter_account_id.eq.${exactCreditorAccountId},account_id.eq.${exactCreditorAccountId}`)
+            .eq("counter_account_id", exactCreditorAccountId)
             .order("booking_date", { ascending: false })
             .limit(100)
         : Promise.resolve({ data: [] as any[], error: null });
 
-      const escaped = vendorName?.replace(/[%_,()]/g, " ").trim() || "";
+      let descriptionQuery = supabase
+        .from("bookings")
+        .select(baseSelect)
+        .eq("building_id", booking.building_id)
+        .neq("id", booking.id)
+        .order("booking_date", { ascending: false })
+        .limit(100);
 
-      const byDescriptionPromise = escaped
-        ? supabase
-            .from("bookings")
-            .select(`
-              id, booking_date, amount, booking_type, fiscal_year, status, description,
-              chart_of_accounts!bookings_account_id_fkey(account_number, account_name),
-              invoices(vendor_name)
-            `)
-            .eq("building_id", booking.building_id)
-            .neq("id", booking.id)
-            .ilike("description", `%${escaped}%`)
-            .order("booking_date", { ascending: false })
-            .limit(100)
+      for (const token of searchTokens.slice(0, 3)) {
+        descriptionQuery = descriptionQuery.ilike("description", `%${token}%`);
+      }
+
+      const byDescriptionPromise = searchTokens.length > 0
+        ? descriptionQuery
         : Promise.resolve({ data: [] as any[], error: null });
 
-      const matchingInvoices = escaped
-        ? await supabase.from("invoices").select("id").ilike("vendor_name", `%${escaped}%`)
+      let invoiceQuery = supabase.from("invoices").select("id");
+      for (const token of searchTokens.slice(0, 3)) {
+        invoiceQuery = invoiceQuery.ilike("vendor_name", `%${token}%`);
+      }
+
+      const matchingInvoices = searchTokens.length > 0
+        ? await invoiceQuery.limit(200)
         : { data: [] as any[], error: null };
 
       if ((matchingInvoices as any).error) throw (matchingInvoices as any).error;
@@ -81,11 +101,7 @@ export function VendorHistorySection({ booking }: VendorHistorySectionProps) {
       const byInvoicePromise = invoiceIds.length > 0
         ? supabase
             .from("bookings")
-            .select(`
-              id, booking_date, amount, booking_type, fiscal_year, status, description,
-              chart_of_accounts!bookings_account_id_fkey(account_number, account_name),
-              invoices(vendor_name)
-            `)
+            .select(baseSelect)
             .eq("building_id", booking.building_id)
             .neq("id", booking.id)
             .in("invoice_id", invoiceIds)
@@ -107,7 +123,7 @@ export function VendorHistorySection({ booking }: VendorHistorySectionProps) {
         (a, b) => new Date(b.booking_date).getTime() - new Date(a.booking_date).getTime()
       );
     },
-    enabled: isOpen && !!booking?.building_id && (!!exactCreditorAccountId || !!vendorName),
+    enabled: isOpen && !!booking?.building_id && (!!exactCreditorAccountId || searchTokens.length > 0),
   });
 
   const availableYears = useMemo(() => {
