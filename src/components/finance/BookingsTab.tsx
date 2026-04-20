@@ -41,7 +41,7 @@ export function BookingsTab({ sharedBuildingId }: { sharedBuildingId?: string | 
   const [createOpen, setCreateOpen] = useState(false);
   const [viewMode, setViewMode] = useState<"list" | "plan">(() => {
     const saved = typeof window !== "undefined" ? localStorage.getItem("bookings-view-mode") : null;
-    return saved === "plan" ? "plan" : "list";
+    return saved === "list" ? "list" : "plan";
   });
   const [showAllAccounts, setShowAllAccounts] = useState(false);
 
