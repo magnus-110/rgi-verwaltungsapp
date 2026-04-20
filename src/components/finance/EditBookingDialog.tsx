@@ -435,15 +435,6 @@ export function EditBookingDialog({ open, onOpenChange, booking, buildingName }:
                     })()}
                   </div>
                 </div>
-
-                {/* Wirtschaftsjahr */}
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-xs font-medium text-muted-foreground mb-1 block">Wirtschaftsjahr</label>
-                    <Input className="h-8 text-xs font-mono" type="number" value={form.fiscal_year} onChange={e => set("fiscal_year", e.target.value)} />
-                  </div>
-                </div>
-
                 {/* §35a & Brennstoff buttons */}
                 <div className="flex items-center gap-2">
                   <button
