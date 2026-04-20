@@ -143,6 +143,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
       recipient_filter: { roles: filter.roles, contact_ids: recipientIds },
       subject_override: subject || null,
       body_html_override: body || null,
+      body_format: bodyFormat,
       status,
       scheduled_at: status === "scheduled" && scheduledAt ? new Date(scheduledAt).toISOString() : null,
       created_by: userId,
