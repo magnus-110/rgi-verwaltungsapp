@@ -1833,7 +1833,7 @@ function BookingRowCard({
 
       {/* Brennstoffkauf Dialog */}
       <Dialog open={showFuelDialog} onOpenChange={setShowFuelDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <Flame className="h-5 w-5 text-orange-500" />
@@ -1845,37 +1845,99 @@ function BookingRowCard({
               <label htmlFor={`fuel-dialog-${index}`} className="text-sm font-medium">Brennstoffkauf erfassen</label>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Art</label>
-                <Select value={row.fuel_type} onValueChange={v => onUpdateField("fuel_type", v)}>
-                  <SelectTrigger className="h-9 text-sm">
-                    <SelectValue placeholder="Wählen…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="oil">Heizöl</SelectItem>
-                    <SelectItem value="pellets">Pellets</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">
-                  Menge ({row.fuel_type === "pellets" ? "kg" : "l"})
-                </label>
-                <Input className="h-9 text-sm" type="number" placeholder="0" value={row.fuel_quantity}
-                  onChange={e => onUpdateField("fuel_quantity", e.target.value)} />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Gesamtpreis (€)</label>
-                <Input className="h-9 text-sm" type="number" step="0.01" placeholder="0,00" value={row.fuel_total_price}
-                  onChange={e => onUpdateField("fuel_total_price", e.target.value)} />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Lieferdatum</label>
-                <Input className="h-9 text-sm" type="date" value={row.fuel_date}
-                  onChange={e => onUpdateField("fuel_date", e.target.value)} />
-              </div>
-            </div>
+            {(() => {
+              const fuelUnit = row.fuel_type === "oil" ? "l"
+                : row.fuel_type === "pellets" ? "kg"
+                : (row.fuel_type === "gas" || row.fuel_type === "district_heating") ? "kWh"
+                : "l";
+              const showCo2 = ["oil", "gas", "district_heating"].includes(row.fuel_type);
+              return (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Art</label>
+                      <Select value={row.fuel_type} onValueChange={v => onUpdateField("fuel_type", v)}>
+                        <SelectTrigger className="h-9 text-sm">
+                          <SelectValue placeholder="Wählen…" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="oil">Heizöl</SelectItem>
+                          <SelectItem value="pellets">Pellets</SelectItem>
+                          <SelectItem value="gas">Gas</SelectItem>
+                          <SelectItem value="district_heating">Fernwärme</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">
+                        Menge ({fuelUnit})
+                      </label>
+                      <Input className="h-9 text-sm" type="number" placeholder="0" value={row.fuel_quantity}
+                        onChange={e => onUpdateField("fuel_quantity", e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Gesamtpreis (€)</label>
+                      <Input className="h-9 text-sm" type="number" step="0.01" placeholder="0,00" value={row.fuel_total_price}
+                        onChange={e => onUpdateField("fuel_total_price", e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Lieferdatum</label>
+                      <Input className="h-9 text-sm" type="date" value={row.fuel_date}
+                        onChange={e => onUpdateField("fuel_date", e.target.value)} />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Energieinhalt (kWh)</label>
+                      <Input className="h-9 text-sm" type="number" step="0.01" placeholder="0" value={row.fuel_energy_content_kwh}
+                        onChange={e => onUpdateField("fuel_energy_content_kwh", e.target.value)} />
+                    </div>
+                  </div>
+
+                  {showCo2 && (
+                    <div className="rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 p-3 space-y-3">
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                        <div className="text-xs text-amber-900 dark:text-amber-200">
+                          <p className="font-medium">CO₂-Daten (BEHG) — für Heizkostenabrechnung</p>
+                          <p className="opacity-80 mt-0.5">Werte aus Rechnung übernehmen, nicht raten.</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground mb-1 block">CO₂-Emissionen (kg)</label>
+                          <Input className="h-9 text-sm" type="number" step="0.01" placeholder="0" value={row.fuel_co2_emissions_kg}
+                            onChange={e => onUpdateField("fuel_co2_emissions_kg", e.target.value)} />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-muted-foreground mb-1 block">CO₂-Steueranteil (€)</label>
+                          <Input className="h-9 text-sm" type="number" step="0.01" placeholder="0,00" value={row.fuel_co2_tax_amount}
+                            onChange={e => onUpdateField("fuel_co2_tax_amount", e.target.value)} />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {heatingUnits && heatingUnits.length > 0 && (
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground mb-1 block">Heizkreis</label>
+                      <Select
+                        value={row.fuel_heating_unit_id || "__none__"}
+                        onValueChange={v => onUpdateField("fuel_heating_unit_id", v === "__none__" ? "" : v)}
+                      >
+                        <SelectTrigger className="h-9 text-sm">
+                          <SelectValue placeholder="Kein Heizkreis" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Kein Heizkreis</SelectItem>
+                          {heatingUnits.map(hu => (
+                            <SelectItem key={hu.id} value={hu.id}>{hu.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
 
             <Button onClick={() => {
               if (row.fuel_type && row.fuel_quantity) onUpdateField("is_fuel_purchase", true);
