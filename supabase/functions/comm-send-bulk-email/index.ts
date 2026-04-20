@@ -1,4 +1,5 @@
 // Send a personalized bulk email campaign via the configured SMTP account.
+// Phase 2: supports retry mode (only failed recipients), attachments, and scheduled execution.
 import { createClient } from "npm:@supabase/supabase-js@2.52.1";
 import nodemailer from "npm:nodemailer@6.9.16";
 import { loadRecipients, renderString, RecipientFilter } from "../_shared/comm-vars.ts";
@@ -12,15 +13,12 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
-
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const { campaign_id, test_email } = await req.json();
+    const { campaign_id, test_email, retry_failed_only } = await req.json();
     if (!campaign_id) return json({ error: "campaign_id required" }, 400);
 
     const { data: campaign, error: cErr } = await admin
@@ -33,7 +31,6 @@ Deno.serve(async (req) => {
       .from("email_accounts").select("*").eq("id", campaign.email_account_id).single();
     if (accErr || !account) return json({ error: "E-Mail-Konto nicht gefunden" }, 404);
 
-    // Resolve subject/body: campaign overrides > template
     let subject = campaign.subject_override as string | null;
     let bodyHtml = campaign.body_html_override as string | null;
     if ((!subject || !bodyHtml) && campaign.template_id) {
@@ -53,87 +50,102 @@ Deno.serve(async (req) => {
       tls: { rejectUnauthorized: false },
     });
 
-    // TEST MODE: send single mail to test_email using first recipient's vars
+    // Pre-load attachments once
+    const attachmentPaths: string[] = (campaign.attachment_paths || []) as string[];
+    const attachments: Array<{ filename: string; content: Uint8Array }> = [];
+    for (const p of attachmentPaths) {
+      const { data: f, error: dlErr } = await admin.storage.from("comm-assets").download(p);
+      if (dlErr || !f) {
+        console.warn("attachment missing", p, dlErr?.message);
+        continue;
+      }
+      const bytes = new Uint8Array(await f.arrayBuffer());
+      const fn = p.split("/").pop() || "anhang";
+      attachments.push({ filename: fn, content: bytes });
+    }
+
+    // TEST MODE
     if (test_email) {
       const filter = (campaign.recipient_filter || {}) as RecipientFilter;
       const freeVars = (campaign.free_vars || {}) as Record<string, string>;
       const recipients = await loadRecipients(admin, campaign.building_id, { ...filter, require_email: false }, freeVars);
       const sample = recipients[0]?.vars || freeVars;
-      const renderedSubject = renderString(subject, sample);
-      const renderedBody = renderString(bodyHtml, sample);
       await transporter.sendMail({
         from: `${account.display_name} <${account.email_address}>`,
         to: test_email,
-        subject: `[TEST] ${renderedSubject}`,
-        html: renderedBody,
+        subject: `[TEST] ${renderString(subject, sample)}`,
+        html: renderString(bodyHtml, sample),
+        attachments,
       });
       return json({ success: true, test: true });
     }
 
     await admin.from("comm_campaigns").update({ status: "sending", error_message: null }).eq("id", campaign_id);
 
-    const filter = (campaign.recipient_filter || {}) as RecipientFilter;
-    const freeVars = (campaign.free_vars || {}) as Record<string, string>;
-    const recipients = await loadRecipients(admin, campaign.building_id, { ...filter, require_email: true }, freeVars);
-
-    if (recipients.length === 0) {
-      await admin.from("comm_campaigns").update({ status: "failed", error_message: "Keine Empfänger mit E-Mail" }).eq("id", campaign_id);
-      return json({ error: "Keine Empfänger mit E-Mail-Adresse" }, 400);
+    let recipients: any[] = [];
+    if (retry_failed_only) {
+      // rebuild from previously failed recipient rows
+      const { data: failed } = await admin.from("comm_recipients")
+        .select("*").eq("campaign_id", campaign_id).eq("status", "failed");
+      recipients = (failed || []).filter((r: any) => r.email).map((r: any) => ({
+        contact_id: r.contact_id, person_id: r.person_id, building_id: r.building_id,
+        display_name: r.display_name, email: r.email, vars: r.resolved_vars || {},
+      }));
+      // delete old failed rows so we can reinsert with fresh status
+      await admin.from("comm_recipients").delete().eq("campaign_id", campaign_id).eq("status", "failed");
+    } else {
+      const filter = (campaign.recipient_filter || {}) as RecipientFilter;
+      const freeVars = (campaign.free_vars || {}) as Record<string, string>;
+      recipients = await loadRecipients(admin, campaign.building_id, { ...filter, require_email: true }, freeVars);
+      await admin.from("comm_recipients").delete().eq("campaign_id", campaign_id);
     }
 
-    // Reset previous recipients
-    await admin.from("comm_recipients").delete().eq("campaign_id", campaign_id);
+    if (recipients.length === 0) {
+      await admin.from("comm_campaigns").update({ status: "failed", error_message: "Keine Empfänger" }).eq("id", campaign_id);
+      return json({ error: "Keine Empfänger" }, 400);
+    }
 
-    let ok = 0;
-    let fail = 0;
-
+    let ok = 0, fail = 0;
     for (const r of recipients) {
-      const renderedSubject = renderString(subject, r.vars);
-      const renderedBody = renderString(bodyHtml, r.vars);
       try {
         await transporter.sendMail({
           from: `${account.display_name} <${account.email_address}>`,
           to: r.email!,
-          subject: renderedSubject,
-          html: renderedBody,
+          subject: renderString(subject, r.vars),
+          html: renderString(bodyHtml, r.vars),
+          attachments,
         });
         await admin.from("comm_recipients").insert({
-          campaign_id,
-          contact_id: r.contact_id,
-          person_id: r.person_id,
-          building_id: r.building_id,
-          display_name: r.display_name,
-          email: r.email,
-          resolved_vars: r.vars,
-          status: "sent",
-          sent_at: new Date().toISOString(),
+          campaign_id, contact_id: r.contact_id, person_id: r.person_id, building_id: r.building_id,
+          display_name: r.display_name, email: r.email, resolved_vars: r.vars,
+          status: "sent", sent_at: new Date().toISOString(),
         });
         ok++;
       } catch (e: any) {
         await admin.from("comm_recipients").insert({
-          campaign_id,
-          contact_id: r.contact_id,
-          person_id: r.person_id,
-          building_id: r.building_id,
-          display_name: r.display_name,
-          email: r.email,
-          resolved_vars: r.vars,
-          status: "failed",
-          error: e?.message || "Send failed",
+          campaign_id, contact_id: r.contact_id, person_id: r.person_id, building_id: r.building_id,
+          display_name: r.display_name, email: r.email, resolved_vars: r.vars,
+          status: "failed", error: e?.message || "Send failed",
         });
         fail++;
       }
-      // throttle ~1/sec to be friendly to SMTP
       await new Promise((res) => setTimeout(res, 1000));
     }
 
-    await admin.from("comm_campaigns").update({
+    // For retries, accumulate counts on the campaign instead of overwriting
+    const updates: any = {
       status: fail === recipients.length ? "failed" : "sent",
-      recipient_count: recipients.length,
-      sent_count: ok,
-      failed_count: fail,
       completed_at: new Date().toISOString(),
-    }).eq("id", campaign_id);
+    };
+    if (retry_failed_only) {
+      updates.sent_count = (campaign.sent_count || 0) + ok;
+      updates.failed_count = fail;
+    } else {
+      updates.recipient_count = recipients.length;
+      updates.sent_count = ok;
+      updates.failed_count = fail;
+    }
+    await admin.from("comm_campaigns").update(updates).eq("id", campaign_id);
 
     return json({ success: true, ok, failed: fail });
   } catch (e: any) {
