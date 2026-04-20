@@ -6,13 +6,16 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { HelpCircle, Loader2, Mail, Send, Eye, Paperclip, X, CalendarClock } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { HelpCircle, Loader2, Mail, Send, Eye, Paperclip, X, CalendarClock, Code, Type } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRef } from "react";
 import { TemplateList } from "./TemplateList";
 import { RecipientPicker, RecipientFilterValue } from "./RecipientPicker";
 import { VariableHelpSheet } from "./VariableHelpSheet";
+import { VariablePalette } from "./VariablePalette";
 
 interface Props {
   open: boolean;
@@ -34,8 +37,55 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
   const [resultStats, setResultStats] = useState<{ ok: number; failed: number } | null>(null);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [scheduledAt, setScheduledAt] = useState<string>("");
+  const [bodyFormat, setBodyFormat] = useState<"html" | "plain">("html");
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const subjectRef = useRef<HTMLInputElement>(null);
+  const lastFocused = useRef<"subject" | "body">("body");
   const { toast } = useToast();
   const qc = useQueryClient();
+
+  const insertAtCursor = (placeholder: string) => {
+    const target = lastFocused.current === "subject" ? subjectRef.current : bodyRef.current;
+    if (!target) return;
+    const start = target.selectionStart ?? target.value.length;
+    const end = target.selectionEnd ?? start;
+    const before = target.value.slice(0, start);
+    const after = target.value.slice(end);
+    const next = before + placeholder + after;
+    if (lastFocused.current === "subject") setSubject(next);
+    else setBody(next);
+    requestAnimationFrame(() => {
+      target.focus();
+      const pos = start + placeholder.length;
+      target.setSelectionRange(pos, pos);
+    });
+  };
+
+  const handleDropPlaceholder = (e: React.DragEvent<HTMLTextAreaElement>) => {
+    e.preventDefault();
+    const ph = e.dataTransfer.getData("text/plain");
+    if (!ph) return;
+    const ta = bodyRef.current;
+    if (!ta) { setBody(body + ph); return; }
+    // Try to use caret position from drop coordinates
+    let pos = ta.selectionStart ?? ta.value.length;
+    const docAny = document as any;
+    if (typeof docAny.caretPositionFromPoint === "function") {
+      const cp = docAny.caretPositionFromPoint(e.clientX, e.clientY);
+      if (cp && cp.offsetNode === ta) pos = cp.offset;
+    } else if (typeof (document as any).caretRangeFromPoint === "function") {
+      // Webkit fallback — works for inputs/textareas via selectionStart after focus
+      ta.focus();
+      pos = ta.selectionStart ?? pos;
+    }
+    const next = ta.value.slice(0, pos) + ph + ta.value.slice(pos);
+    setBody(next);
+    requestAnimationFrame(() => {
+      ta.focus();
+      const p = pos + ph.length;
+      ta.setSelectionRange(p, p);
+    });
+  };
 
   const { data: accounts = [] } = useQuery({
     queryKey: ["email-accounts"],
@@ -53,6 +103,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
     setSubject(""); setBody(""); setAccountId(""); setTestEmail("");
     setFilter({ roles: [], contact_ids: [], require_email: true });
     setResultStats(null); setAttachments([]); setScheduledAt("");
+    setBodyFormat("html");
   };
 
   const useTemplate = (t: any) => {
@@ -60,6 +111,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
     setName(`Rundmail: ${t.name}`);
     setSubject(t.subject || "");
     setBody(t.body_html || "");
+    setBodyFormat((t.body_format as "html" | "plain") || "html");
     setStep(2);
   };
 
@@ -91,6 +143,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
       recipient_filter: { roles: filter.roles, contact_ids: recipientIds },
       subject_override: subject || null,
       body_html_override: body || null,
+      body_format: bodyFormat,
       status,
       scheduled_at: status === "scheduled" && scheduledAt ? new Date(scheduledAt).toISOString() : null,
       created_by: userId,
@@ -164,7 +217,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Neue Rundmail</DialogTitle>
           <DialogDescription>Vorlage wählen oder direkt schreiben, Empfänger filtern, versenden.</DialogDescription>
@@ -202,13 +255,61 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
               </Select>
             </div>
 
-            <div>
-              <Label>Betreff *</Label>
-              <Input value={subject} onChange={(e) => setSubject(e.target.value)} />
-            </div>
-            <div>
-              <Label>Inhalt (HTML) *</Label>
-              <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={10} className="font-mono text-sm" />
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_240px] gap-4">
+              <div className="space-y-4 min-w-0">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <Label>Format</Label>
+                  </div>
+                  <RadioGroup
+                    value={bodyFormat}
+                    onValueChange={(v) => setBodyFormat(v as "html" | "plain")}
+                    className="flex gap-2"
+                  >
+                    <label className={`flex-1 flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer text-sm transition-colors ${bodyFormat === "html" ? "border-primary bg-primary/5" : "border-input hover:bg-accent"}`}>
+                      <RadioGroupItem value="html" />
+                      <Code className="h-4 w-4" /> HTML
+                      <span className="text-xs text-muted-foreground ml-auto">Formatiert</span>
+                    </label>
+                    <label className={`flex-1 flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer text-sm transition-colors ${bodyFormat === "plain" ? "border-primary bg-primary/5" : "border-input hover:bg-accent"}`}>
+                      <RadioGroupItem value="plain" />
+                      <Type className="h-4 w-4" /> Klartext
+                      <span className="text-xs text-muted-foreground ml-auto">Einfach</span>
+                    </label>
+                  </RadioGroup>
+                </div>
+
+                <div>
+                  <Label>Betreff *</Label>
+                  <Input
+                    ref={subjectRef}
+                    value={subject}
+                    onChange={(e) => setSubject(e.target.value)}
+                    onFocus={() => { lastFocused.current = "subject"; }}
+                  />
+                </div>
+                <div>
+                  <Label>Inhalt {bodyFormat === "html" ? "(HTML)" : "(Klartext)"} *</Label>
+                  <Textarea
+                    ref={bodyRef}
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                    onFocus={() => { lastFocused.current = "body"; }}
+                    onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
+                    onDrop={handleDropPlaceholder}
+                    rows={12}
+                    className={bodyFormat === "html" ? "font-mono text-sm" : "text-sm"}
+                    placeholder={bodyFormat === "html"
+                      ? "<p>{{anrede_brief}}</p>\n<p>...</p>"
+                      : "{{anrede_brief}}\n\n..."}
+                  />
+                </div>
+              </div>
+
+              <aside className="border rounded-md bg-muted/30 p-2 md:sticky md:top-0 self-start">
+                <h4 className="text-xs font-semibold mb-1 px-1">Platzhalter</h4>
+                <VariablePalette onInsert={insertAtCursor} />
+              </aside>
             </div>
 
             <div>
