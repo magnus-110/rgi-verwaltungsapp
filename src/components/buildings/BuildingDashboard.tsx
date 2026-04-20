@@ -163,16 +163,14 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
             {[
               { value: "overview", label: "Übersicht" },
               { value: "people", label: "Personen" },
-              { value: "reports", label: "Meldungen" },
               { value: "cases", label: "Vorgänge" },
               { value: "documents", label: "Dokumente" },
               { value: "forum", label: "Schwarzes Brett" },
-              { value: "maintenance", label: "Wartung" },
-              { value: "distribution", label: "Kontenrahmen" },
               { value: "providers", label: "Dienstleister" },
-              { value: "finance", label: "Finanzen" },
               { value: "communication", label: "Kommunikation" },
+              { value: "distribution", label: "Kontenrahmen" },
               ...(building.management_mode === 'weg' ? [{ value: "resolutions", label: "Beschlüsse" }] : []),
+              { value: "maintenance", label: "Wartung" },
             ].map(tab => (
               <TabsTrigger key={tab.value} value={tab.value} variant="underline"
                 className="px-3 md:px-4 py-3 text-xs md:text-sm whitespace-nowrap min-h-[44px]">
@@ -231,11 +229,6 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
           {/* Service Providers Tab */}
           <TabsContent value="providers" className="p-3 md:p-6 mt-0">
             <BuildingServiceProvidersTab buildingId={buildingId} />
-          </TabsContent>
-
-          {/* Finance Tab */}
-          <TabsContent value="finance" className="p-3 md:p-6 mt-0">
-            <BuildingFinanceSummary buildingId={buildingId} buildingName={building.name} />
           </TabsContent>
 
           {/* Communication Tab */}
