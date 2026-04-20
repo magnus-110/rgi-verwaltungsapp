@@ -240,37 +240,55 @@ export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultTy
                   onValueChange={(v) => setBodyFormat(v as "html" | "plain")}
                   className="flex gap-2 mt-1"
                 >
-                  <label className={`flex-1 flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer text-sm transition-colors ${bodyFormat === "html" ? "border-primary bg-primary/5" : "border-input hover:bg-accent"}`}>
-                    <RadioGroupItem value="html" />
-                    <Code className="h-4 w-4" /> HTML
-                  </label>
                   <label className={`flex-1 flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer text-sm transition-colors ${bodyFormat === "plain" ? "border-primary bg-primary/5" : "border-input hover:bg-accent"}`}>
                     <RadioGroupItem value="plain" />
                     <Type className="h-4 w-4" /> Klartext
+                    <span className="text-xs text-muted-foreground ml-auto">Empfohlen</span>
+                  </label>
+                  <label className={`flex-1 flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer text-sm transition-colors ${bodyFormat === "html" ? "border-primary bg-primary/5" : "border-input hover:bg-accent"}`}>
+                    <RadioGroupItem value="html" />
+                    <Code className="h-4 w-4" /> HTML
+                    <span className="text-xs text-muted-foreground ml-auto">Formatiert</span>
                   </label>
                 </RadioGroup>
               </div>
-              <div>
-                <Label>Betreff *</Label>
-                <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="z. B. Wichtige Information zur Hausversammlung" />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-[1fr_220px] gap-3">
-                <div className="min-w-0">
-                  <Label>Inhalt {bodyFormat === "html" ? "(HTML erlaubt)" : "(Klartext)"} *</Label>
-                  <Textarea
-                    ref={bodyRef}
-                    value={bodyHtml}
-                    onChange={(e) => setBodyHtml(e.target.value)}
-                    onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
-                    onDrop={handleDrop}
-                    rows={14}
-                    placeholder={"{{anrede_brief}}\n\nhiermit informieren wir Sie...\n\nMit freundlichen Grüßen\n{{verwalter_name}}"}
-                    className={bodyFormat === "html" ? "font-mono text-sm" : "text-sm"}
-                  />
+
+              <div className="grid grid-cols-1 md:grid-cols-[1fr_260px] gap-3">
+                <div className="space-y-3 min-w-0">
+                  <div>
+                    <Label>Betreff *</Label>
+                    <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="z. B. Wichtige Information zur Hausversammlung" />
+                    {subject && (
+                      <div className="mt-1.5 rounded-md border bg-muted/20 px-2.5 py-1.5 text-xs flex items-baseline gap-2">
+                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Vorschau:</span>
+                        <EmailPreviewPane subject={subject} body="" format="plain" samples={placeholderSamples} subjectOnly />
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <Label>Inhalt {bodyFormat === "html" ? "(HTML erlaubt)" : "(Klartext)"} *</Label>
+                    <InlinePreviewEditor
+                      ref={bodyRef}
+                      value={bodyHtml}
+                      onChange={setBodyHtml}
+                      onDrop={handleDrop}
+                      rows={14}
+                      format={bodyFormat}
+                      samples={placeholderSamples}
+                      placeholder={"{{anrede_brief}}\n\nhiermit informieren wir Sie...\n\nMit freundlichen Grüßen\n{{verwalter_name}}"}
+                    />
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      Oben schreiben — unten siehst du sofort, wie es bei einem echten Empfänger aussieht. Grau = Platzhalter.
+                    </p>
+                  </div>
                 </div>
                 <aside className="border rounded-md bg-muted/30 p-2 self-start">
-                  <h4 className="text-xs font-semibold mb-1 px-1">Platzhalter</h4>
-                  <VariablePalette onInsert={insertPlaceholder} />
+                  <h4 className="text-xs font-semibold mb-1 px-1">Platzhalter einfügen</h4>
+                  <FriendlyVariablePalette
+                    onInsert={insertPlaceholder}
+                    stats={placeholderStats}
+                    samples={placeholderSamples}
+                  />
                 </aside>
               </div>
             </TabsContent>
