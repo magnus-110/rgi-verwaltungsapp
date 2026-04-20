@@ -7,16 +7,20 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { HelpCircle, Loader2, Mail, Send, Eye, Paperclip, X, CalendarClock, Code, Type } from "lucide-react";
+import { HelpCircle, Loader2, Mail, Send, Eye, Paperclip, X, CalendarClock, Code, Type, FileEdit } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { TemplateList } from "./TemplateList";
 import { RecipientPicker, RecipientFilterValue } from "./RecipientPicker";
 import { VariableHelpSheet } from "./VariableHelpSheet";
-import { VariablePalette } from "./VariablePalette";
+import { FriendlyVariablePalette } from "./FriendlyVariablePalette";
 import { usePlaceholderStats } from "./usePlaceholderStats";
+import { usePlaceholderSamples } from "./usePlaceholderSamples";
+import { EmailPreviewPane } from "./EmailPreviewPane";
+import { ConfirmSendDialog } from "./ConfirmSendDialog";
 
 interface Props {
   open: boolean;
