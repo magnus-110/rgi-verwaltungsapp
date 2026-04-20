@@ -41,27 +41,24 @@ export function BankReconciliationTab({ sharedBuildingId, onBuildingChange }: Pr
   const [bankAccountId, setBankAccountId] = useState<string>("");
   const [openMonth, setOpenMonth] = useState<number | null>(null);
 
-  const { data: buildings = [] } = useQuery({
-    queryKey: ["buildings-list-recon"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("buildings").select("id, name").order("name");
-      if (error) throw error;
-      return data;
-    },
-  });
+  // buildings query removed — building is selected at the page level
 
   const { data: bankAccounts = [] } = useQuery({
-    queryKey: ["bank-accounts", buildingId],
+    queryKey: ["bank-accounts-recon", buildingId],
     enabled: !!buildingId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("chart_of_accounts")
         .select("id, account_number, account_name")
-        .eq("category", "bank")
+        .or("account_number.like.18%,account_number.like.10%")
         .or(`building_id.is.null,building_id.eq.${buildingId}`)
         .order("account_number");
       if (error) throw error;
-      return data;
+      // Filter to bank-like accounts (Giro, Rücklagen, Festgeld, Sparbuch, Kasse)
+      return (data ?? []).filter((a: any) => {
+        const n = a.account_name?.toLowerCase() ?? "";
+        return /bank|giro|rücklagen|festgeld|sparbuch|kasse|tagesgeld/.test(n);
+      });
     },
   });
 
@@ -149,16 +146,7 @@ export function BankReconciliationTab({ sharedBuildingId, onBuildingChange }: Pr
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-3 items-end">
-            <div className="flex-1 min-w-[200px]">
-              <Label className="text-xs">Liegenschaft</Label>
-              <Select value={buildingId} onValueChange={setBuildingId}>
-                <SelectTrigger><SelectValue placeholder="Liegenschaft wählen" /></SelectTrigger>
-                <SelectContent>
-                  {buildings.map((b) => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="min-w-[180px]">
+            <div className="flex-1 min-w-[220px]">
               <Label className="text-xs">Bankkonto</Label>
               <Select value={bankAccountId} onValueChange={setBankAccountId} disabled={!buildingId}>
                 <SelectTrigger><SelectValue placeholder="Bankkonto wählen" /></SelectTrigger>
