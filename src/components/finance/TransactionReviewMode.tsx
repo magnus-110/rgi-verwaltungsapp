@@ -61,6 +61,10 @@ interface BookingRowData {
   fuel_quantity: string;
   fuel_total_price: string;
   fuel_date: string;
+  fuel_co2_emissions_kg: string;
+  fuel_co2_tax_amount: string;
+  fuel_energy_content_kwh: string;
+  fuel_heating_unit_id: string;
   line_items_detail: any[] | null;
   accrualHint?: {
     needs_accrual: boolean;
