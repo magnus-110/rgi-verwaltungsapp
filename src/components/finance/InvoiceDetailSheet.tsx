@@ -470,7 +470,15 @@ function FuelDataSection({ invoice, buildingId }: { invoice: any; buildingId: st
   const [fuelQuantity, setFuelQuantity] = useState(extracted?.fuel_quantity?.toString() || "");
   const [fuelUnit, setFuelUnit] = useState(extracted?.fuel_unit || FUEL_TYPES.find(f => f.value === (extracted?.fuel_type || "oil"))?.unit || "l");
   const [fuelPrice, setFuelPrice] = useState(invoice?.gross_amount?.toString() || "");
+  const [co2Emissions, setCo2Emissions] = useState(extracted?.co2_emissions_kg?.toString() || "");
+  const [co2Tax, setCo2Tax] = useState(extracted?.co2_tax_amount_eur?.toString() || "");
+  const [energyKwh, setEnergyKwh] = useState(extracted?.energy_content_kwh?.toString() || "");
   const [saving, setSaving] = useState(false);
+
+  const showCo2Fields = ["oil", "gas", "district_heating"].includes(fuelType);
+  const ocrCo2Detected = extracted?.co2_emissions_kg != null;
+  const ocrTaxDetected = extracted?.co2_tax_amount_eur != null;
+  const ocrEnergyDetected = extracted?.energy_content_kwh != null;
 
   useEffect(() => {
     if (isFuelDetected) setIsOpen(true);
@@ -481,7 +489,6 @@ function FuelDataSection({ invoice, buildingId }: { invoice: any; buildingId: st
     if (!fuelQuantity) { toast.error("Bitte Menge angeben"); return; }
 
     setSaving(true);
-    // Find the billing period for this invoice's date
     const invoiceDate = invoice?.invoice_date;
     let periodId: string | null = null;
     if (invoiceDate && buildingId) {
@@ -496,7 +503,6 @@ function FuelDataSection({ invoice, buildingId }: { invoice: any; buildingId: st
     }
 
     if (!periodId) {
-      // Try to find any period for this building
       const year = invoiceDate ? new Date(invoiceDate).getFullYear() : new Date().getFullYear();
       const { data: periods } = await supabase
         .from("billing_periods")
@@ -521,6 +527,11 @@ function FuelDataSection({ invoice, buildingId }: { invoice: any; buildingId: st
       quantity: parseFloat(fuelQuantity),
       unit: fuelUnit,
       total_price: fuelPrice ? parseFloat(fuelPrice) : null,
+      net_amount: invoice?.net_amount ?? null,
+      vat_amount: invoice?.vat_amount ?? null,
+      co2_emissions_kg: showCo2Fields && co2Emissions ? parseFloat(co2Emissions) : null,
+      co2_tax_amount: showCo2Fields && co2Tax ? parseFloat(co2Tax) : null,
+      energy_content_kwh: energyKwh ? parseFloat(energyKwh) : null,
       entry_date: invoice?.invoice_date || new Date().toISOString().split("T")[0],
       notes: `Aus Rechnung: ${invoice?.file_name || invoice?.invoice_number || ""}`,
     });
@@ -565,10 +576,45 @@ function FuelDataSection({ invoice, buildingId }: { invoice: any; buildingId: st
               <Input className="h-8 text-xs" type="number" step="0.01" value={fuelQuantity} onChange={e => setFuelQuantity(e.target.value)} placeholder="z.B. 3000" />
             </div>
           </div>
-          <div>
-            <Label className="text-xs">Gesamtpreis (€)</Label>
-            <Input className="h-8 text-xs" type="number" step="0.01" value={fuelPrice} onChange={e => setFuelPrice(e.target.value)} />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Gesamtpreis brutto (€)</Label>
+              <Input className="h-8 text-xs" type="number" step="0.01" value={fuelPrice} onChange={e => setFuelPrice(e.target.value)} />
+            </div>
+            <div>
+              <Label className="text-xs flex items-center gap-1">
+                Brennwert (kWh)
+                {ocrEnergyDetected && <Badge className="bg-amber-100 text-amber-800 text-[10px] px-1 py-0">Erkannt</Badge>}
+              </Label>
+              <Input className="h-8 text-xs" type="number" step="0.01" value={energyKwh} onChange={e => setEnergyKwh(e.target.value)} placeholder="aus Rechnung" />
+            </div>
           </div>
+
+          {showCo2Fields && (
+            <div className="rounded-md border border-amber-200 bg-amber-50/50 p-3 space-y-2">
+              <p className="text-[11px] font-medium text-amber-900">CO₂-Daten (BEHG) — für Heizkostenabrechnung</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs flex items-center gap-1">
+                    CO₂-Emissionen (kg)
+                    {ocrCo2Detected && <Badge className="bg-amber-100 text-amber-800 text-[10px] px-1 py-0">Erkannt</Badge>}
+                  </Label>
+                  <Input className="h-8 text-xs" type="number" step="0.01" value={co2Emissions} onChange={e => setCo2Emissions(e.target.value)} placeholder="aus Rechnung" />
+                </div>
+                <div>
+                  <Label className="text-xs flex items-center gap-1">
+                    CO₂-Steueranteil (€)
+                    {ocrTaxDetected && <Badge className="bg-amber-100 text-amber-800 text-[10px] px-1 py-0">Erkannt</Badge>}
+                  </Label>
+                  <Input className="h-8 text-xs" type="number" step="0.01" value={co2Tax} onChange={e => setCo2Tax(e.target.value)} placeholder="aus Rechnung" />
+                </div>
+              </div>
+              <p className="text-[10px] text-amber-800">
+                Nur eintragen, was explizit auf der Rechnung steht. Keine Berechnung — Rechtssicherheit.
+              </p>
+            </div>
+          )}
+
           <Button size="sm" onClick={saveFuelEntry} disabled={saving}>
             {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Fuel className="h-4 w-4 mr-1" />}
             Als Brennstoff-Eintrag speichern
