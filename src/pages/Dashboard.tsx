@@ -173,30 +173,26 @@ export const Dashboard = () => {
       </div>
 
       {/* Main grid */}
-      <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-2">
-        {/* Heute & diese Woche */}
+      <div className="grid gap-4 md:gap-6 grid-cols-1 lg:grid-cols-3">
+        {/* Aufgaben */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center text-base font-semibold">
-              <CalendarClock className="mr-2 h-5 w-5 text-primary" />
-              Heute & diese Woche
+            <CardTitle className="flex items-center justify-between text-base font-semibold">
+              <span className="flex items-center">
+                <ListTodo className="mr-2 h-5 w-5 text-primary" />
+                Aufgaben
+              </span>
+              {stats.today_tasks.some(t => t.is_overdue) && (
+                <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4">überfällig</Badge>
+              )}
             </CardTitle>
-            <CardDescription>Fällige Aufgaben und anstehende Wartungen</CardDescription>
+            <CardDescription>Heute & diese Woche</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-5">
-            {/* HEUTE */}
+          <CardContent className="space-y-4">
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Heute / Überfällig
-                </p>
-                {(stats.today_tasks.some(t => t.is_overdue) || stats.today_maintenance.some(m => m.is_overdue)) && (
-                  <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4">überfällig</Badge>
-                )}
-              </div>
-
-              {/* Tasks heute */}
-              <p className="text-[11px] font-medium text-muted-foreground mb-1 mt-1">Aufgaben</p>
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+                Heute / Überfällig
+              </p>
               {isLoading ? (
                 <p className="text-sm text-muted-foreground">Laden…</p>
               ) : stats.today_tasks.length === 0 ? (
@@ -226,9 +222,57 @@ export const Dashboard = () => {
                   ))}
                 </ul>
               )}
+            </div>
+            <div className="pt-2 border-t">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+                Diese Woche
+              </p>
+              {isLoading ? (
+                <p className="text-sm text-muted-foreground">Laden…</p>
+              ) : stats.week_tasks.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Keine Aufgaben in den nächsten 7 Tagen</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {stats.week_tasks.slice(0, 5).map(t => (
+                    <li
+                      key={t.id}
+                      className="flex items-center justify-between gap-2 text-sm py-1.5 px-2 rounded hover:bg-muted/50 cursor-pointer"
+                      onClick={() => navigate("/todos")}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <ListTodo className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <span className="truncate">{t.title}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground flex-shrink-0">
+                        {format(new Date(t.due_date), "d. MMM", { locale: de })}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </CardContent>
+        </Card>
 
-              {/* Wartungen heute */}
-              <p className="text-[11px] font-medium text-muted-foreground mb-1 mt-3">Wartungen</p>
+        {/* Wartungen */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center justify-between text-base font-semibold">
+              <span className="flex items-center">
+                <Wrench className="mr-2 h-5 w-5 text-primary" />
+                Wartungen
+              </span>
+              {stats.today_maintenance.some(m => m.is_overdue) && (
+                <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4">überfällig</Badge>
+              )}
+            </CardTitle>
+            <CardDescription>Heute & diese Woche</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+                Heute / Überfällig
+              </p>
               {isLoading ? (
                 <p className="text-sm text-muted-foreground">Laden…</p>
               ) : stats.today_maintenance.length === 0 ? (
@@ -262,39 +306,10 @@ export const Dashboard = () => {
                 </ul>
               )}
             </div>
-
-            {/* DIESE WOCHE */}
             <div className="pt-2 border-t">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
+              <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
                 Diese Woche
               </p>
-
-              <p className="text-[11px] font-medium text-muted-foreground mb-1 mt-1">Aufgaben</p>
-              {isLoading ? (
-                <p className="text-sm text-muted-foreground">Laden…</p>
-              ) : stats.week_tasks.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Keine Aufgaben in den nächsten 7 Tagen</p>
-              ) : (
-                <ul className="space-y-1.5">
-                  {stats.week_tasks.slice(0, 5).map(t => (
-                    <li
-                      key={t.id}
-                      className="flex items-center justify-between gap-2 text-sm py-1.5 px-2 rounded hover:bg-muted/50 cursor-pointer"
-                      onClick={() => navigate("/todos")}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <ListTodo className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        <span className="truncate">{t.title}</span>
-                      </div>
-                      <span className="text-xs text-muted-foreground flex-shrink-0">
-                        {format(new Date(t.due_date), "d. MMM", { locale: de })}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              <p className="text-[11px] font-medium text-muted-foreground mb-1 mt-3">Wartungen</p>
               {isLoading ? (
                 <p className="text-sm text-muted-foreground">Laden…</p>
               ) : stats.week_maintenance.length === 0 ? (

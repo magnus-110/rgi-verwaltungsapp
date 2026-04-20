@@ -36,11 +36,17 @@ export function Transfers() {
     queryFn: async () => {
       let query = supabase
         .from("invoices")
-        .select("*, buildings(name, building_code)")
-        .order("due_date", { ascending: true, nullsFirst: false });
+        .select("*, buildings(name, building_code)");
 
-      if (!showPaid) {
-        query = query.neq("status", "paid");
+      if (showPaid) {
+        // Bezahlte zuerst nach Zahlungsdatum (neueste zuerst), dann nach Fälligkeit
+        query = query
+          .order("paid_at", { ascending: false, nullsFirst: false })
+          .order("due_date", { ascending: true, nullsFirst: false });
+      } else {
+        query = query
+          .neq("status", "paid")
+          .order("due_date", { ascending: true, nullsFirst: false });
       }
 
       if (buildingFilter === "company") {
@@ -287,7 +293,14 @@ export function Transfers() {
                     </TableCell>
                     <TableCell>
                       {isPaid ? (
-                        <Badge variant="secondary" className="text-xs">Bezahlt</Badge>
+                        <div className="flex flex-col gap-0.5">
+                          <Badge variant="secondary" className="text-xs w-fit">Bezahlt</Badge>
+                          {(inv as any).paid_at && (
+                            <span className="text-[10px] text-muted-foreground">
+                              {format(new Date((inv as any).paid_at), "dd.MM.yy")}
+                            </span>
+                          )}
+                        </div>
                       ) : inv.review_status === "verified" ? (
                         <Badge variant="default" className="text-xs">Geprüft</Badge>
                       ) : (
