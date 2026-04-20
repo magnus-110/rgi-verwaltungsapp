@@ -288,21 +288,37 @@ export function DocumentChat({
                           Quellen:
                         </p>
                         <div className="space-y-1">
-                          {message.sources.slice(0, 3).map((source, index) => (
-                            <div
-                              key={index}
-                              className="text-xs bg-background/50 rounded p-1.5"
-                            >
-                              {source.metadata?.section && (
-                                <span className="font-medium">{source.metadata.section}</span>
-                              )}
-                              {source.metadata?.page && (
-                                <span className="text-muted-foreground ml-1">
-                                  (Seite {source.metadata.page})
-                                </span>
-                              )}
-                            </div>
-                          ))}
+                          {message.sources.slice(0, 3).map((source, index) => {
+                            const folderPath = Array.isArray(source.folderPath) && source.folderPath.length > 0
+                              ? source.folderPath.join(' › ')
+                              : null;
+                            return (
+                              <div
+                                key={index}
+                                className="text-xs bg-background/50 rounded p-1.5"
+                              >
+                                {source.fileName && (
+                                  <div className="font-medium truncate">
+                                    {source.documentUrl ? (
+                                      <a href={source.documentUrl} target="_blank" rel="noreferrer" className="hover:underline">
+                                        {source.fileName}
+                                      </a>
+                                    ) : source.fileName}
+                                  </div>
+                                )}
+                                {folderPath && (
+                                  <div className="text-muted-foreground text-[10px] truncate">
+                                    📁 {folderPath}
+                                  </div>
+                                )}
+                                {source.pageNumber && (
+                                  <span className="text-muted-foreground text-[10px]">
+                                    Seite {source.pageNumber}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
