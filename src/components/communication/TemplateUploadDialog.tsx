@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Upload, FileText, Mail, Code, Type } from "lucide-react";
+import { Upload, FileText, Mail, Code, Type, X, FileCheck2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -28,9 +28,28 @@ export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultTy
   const [bodyHtml, setBodyHtml] = useState("");
   const [bodyFormat, setBodyFormat] = useState<"html" | "plain">("html");
   const [busy, setBusy] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
+
+  const formatBytes = (b: number): string => {
+    if (b < 1024) return `${b} B`;
+    if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`;
+    return `${(b / 1024 / 1024).toFixed(2)} MB`;
+  };
+
+  const acceptDocxFile = (f: File | null | undefined) => {
+    if (!f) return;
+    const isDocx =
+      f.name.toLowerCase().endsWith(".docx") ||
+      f.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    if (!isDocx) {
+      toast({ title: "Nur Word-Dateien (.docx) erlaubt", variant: "destructive" });
+      return;
+    }
+    setFile(f);
+  };
 
   const reset = () => {
     setName(""); setDescription(""); setFile(null);
@@ -139,22 +158,73 @@ export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultTy
 
             <TabsContent value="letter" className="mt-0 space-y-3">
               <Label>Word-Datei (.docx) *</Label>
-              <div className="border-2 border-dashed rounded-lg p-6 text-center">
-                <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                <input
-                  type="file"
-                  accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                  onChange={(e) => setFile(e.target.files?.[0] || null)}
-                  className="hidden"
-                  id="docx-upload"
-                />
-                <label htmlFor="docx-upload" className="cursor-pointer text-sm text-primary hover:underline">
-                  {file ? file.name : "Datei auswählen"}
-                </label>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Platzhalter wie <code>{"{{vorname}}"}</code> direkt in Word einfügen
-                </p>
-              </div>
+              {file ? (
+                <div className="rounded-lg border-2 border-primary/40 bg-primary/5 p-4 flex items-center gap-4">
+                  <div className="flex-shrink-0 inline-flex h-12 w-12 items-center justify-center rounded-md bg-primary/10">
+                    <FileCheck2 className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-foreground truncate" title={file.name}>
+                      {file.name}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2">
+                      <span>{formatBytes(file.size)}</span>
+                      <span>·</span>
+                      <span className="text-primary font-medium">Bereit zum Hochladen</span>
+                    </div>
+                  </div>
+                  <div className="flex-shrink-0 flex gap-1">
+                    <input
+                      type="file"
+                      accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                      onChange={(e) => acceptDocxFile(e.target.files?.[0])}
+                      className="hidden"
+                      id="docx-upload-replace"
+                    />
+                    <label htmlFor="docx-upload-replace">
+                      <Button variant="outline" size="sm" asChild>
+                        <span className="cursor-pointer">Ersetzen</span>
+                      </Button>
+                    </label>
+                    <Button variant="ghost" size="sm" onClick={() => setFile(null)} title="Entfernen">
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                    isDragging ? "border-primary bg-primary/10" : "border-input hover:border-primary/40 hover:bg-accent/30"
+                  }`}
+                  onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; setIsDragging(true); }}
+                  onDragEnter={(e) => { e.preventDefault(); setIsDragging(true); }}
+                  onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setIsDragging(false);
+                    const f = e.dataTransfer.files?.[0];
+                    if (f) acceptDocxFile(f);
+                  }}
+                >
+                  <Upload className={`h-10 w-10 mx-auto mb-3 ${isDragging ? "text-primary" : "text-muted-foreground"}`} />
+                  <input
+                    type="file"
+                    accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    onChange={(e) => acceptDocxFile(e.target.files?.[0])}
+                    className="hidden"
+                    id="docx-upload"
+                  />
+                  <label htmlFor="docx-upload" className="cursor-pointer">
+                    <div className="text-sm font-medium">
+                      <span className="text-primary hover:underline">Datei auswählen</span>
+                      <span className="text-muted-foreground"> oder hierher ziehen</span>
+                    </div>
+                  </label>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Nur .docx · Platzhalter wie <code className="px-1 py-0.5 rounded bg-muted">{"{{vorname}}"}</code> direkt in Word einfügen
+                  </p>
+                </div>
+              )}
             </TabsContent>
 
             <TabsContent value="email" className="mt-0 space-y-3">

@@ -114,7 +114,8 @@ Deno.serve(async (req) => {
     }
 
     const zipBytes = bundle.generate({ type: "uint8array" });
-    const zipPath = `campaigns/${campaign_id}/serienbrief_${Date.now()}.zip`;
+    const zipFileName = `Serienbrief_${(campaign.name || "Kampagne").replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_").slice(0, 60)}_${new Date().toISOString().slice(0, 10)}.zip`;
+    const zipPath = `campaigns/${campaign_id}/${zipFileName}`;
     const { error: upErr } = await admin.storage.from("comm-assets").upload(zipPath, zipBytes, {
       contentType: "application/zip",
       upsert: true,
@@ -122,6 +123,77 @@ Deno.serve(async (req) => {
     if (upErr) {
       await admin.from("comm_campaigns").update({ status: "failed", error_message: upErr.message }).eq("id", campaign_id);
       return json({ error: upErr.message }, 500);
+    }
+
+    // ===== Auto-file the ZIP into the building DMS (Serienbriefe category) =====
+    let dmsFileId: string | null = null;
+    try {
+      // 1. Find or create a "Serienbriefe" category for this building
+      const { data: building } = await admin
+        .from("buildings").select("management_mode").eq("id", campaign.building_id).maybeSingle();
+      const mode = building?.management_mode || "weg";
+
+      // Look for existing category (building-specific or global) by slug
+      let { data: cat } = await admin
+        .from("building_file_categories")
+        .select("id")
+        .eq("slug", "serienbriefe")
+        .or(`building_id.eq.${campaign.building_id},building_id.is.null`)
+        .order("building_id", { ascending: false, nullsFirst: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!cat) {
+        const { data: created } = await admin
+          .from("building_file_categories")
+          .insert({
+            name: "Serienbriefe",
+            slug: "serienbriefe",
+            building_id: campaign.building_id,
+            management_mode: mode,
+            icon: "mail",
+            color: "#6366F1",
+            sort_order: 60,
+            auto_rag_enabled: false,
+          })
+          .select("id")
+          .single();
+        cat = created;
+      }
+
+      // 2. Copy ZIP from comm-assets to building-files bucket
+      const dmsPath = `serienbriefe/${campaign.building_id}/${campaign_id}/${zipFileName}`;
+      const { error: dmsUpErr } = await admin.storage
+        .from("building-files")
+        .upload(dmsPath, zipBytes, { contentType: "application/zip", upsert: true });
+      if (dmsUpErr) throw dmsUpErr;
+
+      // 3. Insert into building_files
+      const { data: bf, error: bfErr } = await admin
+        .from("building_files")
+        .insert({
+          building_id: campaign.building_id,
+          category_id: cat?.id || null,
+          display_name: zipFileName,
+          description: `Automatisch erstellt aus Serienbrief-Kampagne "${campaign.name || campaign_id}" – ${okCount} Empfänger.`,
+          file_path: dmsPath,
+          file_size: zipBytes.length,
+          mime_type: "application/zip",
+          management_mode: mode,
+          source: "manual",
+          uploaded_by: campaign.created_by,
+          rag_enabled: false,
+          visibility_role: "intern",
+          visible_to_users: false,
+          tags: ["serienbrief", "kampagne"],
+        })
+        .select("id")
+        .single();
+      if (bfErr) throw bfErr;
+      dmsFileId = bf?.id || null;
+      console.log(`Auto-filed letter campaign ${campaign_id} ZIP into DMS as ${dmsFileId}`);
+    } catch (filingError) {
+      console.error("DMS auto-filing error (non-fatal):", filingError);
     }
 
     await admin.from("comm_campaigns").update({
@@ -133,7 +205,7 @@ Deno.serve(async (req) => {
       completed_at: new Date().toISOString(),
     }).eq("id", campaign_id);
 
-    return json({ success: true, recipient_count: recipients.length, ok: okCount, failed: failCount, zip_path: zipPath });
+    return json({ success: true, recipient_count: recipients.length, ok: okCount, failed: failCount, zip_path: zipPath, dms_file_id: dmsFileId });
   } catch (e: any) {
     console.error("comm-render-letters error", e);
     return json({ error: e?.message || "Unknown error" }, 500);

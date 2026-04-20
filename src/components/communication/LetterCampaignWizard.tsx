@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { HelpCircle, Loader2, Download, FileText } from "lucide-react";
+import { HelpCircle, Loader2, Download, FileText, FolderArchive } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -139,6 +139,12 @@ export const LetterCampaignWizard = ({ open, onOpenChange, buildingId }: Props) 
                   {resultStats.ok} erfolgreich, {resultStats.failed} fehlgeschlagen
                 </p>
               )}
+            </div>
+            <div className="mx-auto max-w-sm rounded-md border bg-muted/40 p-3 text-left text-xs flex items-start gap-2">
+              <FolderArchive className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+              <span>
+                Das ZIP-Bundle wurde automatisch im <strong>Dokumentenarchiv (Serienbriefe)</strong> der Liegenschaft abgelegt.
+              </span>
             </div>
             <Button onClick={handleDownload} size="lg">
               <Download className="h-4 w-4 mr-2" /> ZIP herunterladen
