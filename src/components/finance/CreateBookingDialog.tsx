@@ -59,25 +59,38 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
     matched_template_id: "",
   });
 
+  const formatBelegRef = (dateStr: string) => {
+    if (!dateStr) return "";
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "";
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const yy = String(d.getFullYear()).slice(-2);
+    return `${mm}/${yy}`;
+  };
+
   useEffect(() => {
     if (open) {
-      setForm(prev => ({
-        ...prev,
-        building_id: preselectedBuildingId || prev.building_id,
-        fiscal_year: preselectedYear || prev.fiscal_year,
-        ...(prefill ? {
-          account_id: prefill.account_id || prev.account_id,
-          counter_account_id: prefill.counter_account_id || prev.counter_account_id,
-          amount: prefill.amount != null ? String(prefill.amount) : prev.amount,
-          description: prefill.description || prev.description,
-          booking_date: prefill.booking_date || prev.booking_date,
-          fiscal_year: prefill.booking_date ? String(new Date(prefill.booking_date).getFullYear()) : prev.fiscal_year,
-          booking_type: prefill.booking_type || prev.booking_type,
-          receipt_number: prefill.receipt_number || prev.receipt_number,
-          booking_reference: prefill.booking_reference || prev.booking_reference,
-          matched_template_id: prefill.related_template_id || prev.matched_template_id,
-        } : {}),
-      }));
+      setForm(prev => {
+        const baseDate = prefill?.booking_date || prev.booking_date;
+        return {
+          ...prev,
+          building_id: preselectedBuildingId || prev.building_id,
+          fiscal_year: preselectedYear || prev.fiscal_year,
+          booking_reference: prev.booking_reference || formatBelegRef(baseDate),
+          ...(prefill ? {
+            account_id: prefill.account_id || prev.account_id,
+            counter_account_id: prefill.counter_account_id || prev.counter_account_id,
+            amount: prefill.amount != null ? String(prefill.amount) : prev.amount,
+            description: prefill.description || prev.description,
+            booking_date: prefill.booking_date || prev.booking_date,
+            fiscal_year: prefill.booking_date ? String(new Date(prefill.booking_date).getFullYear()) : prev.fiscal_year,
+            booking_type: prefill.booking_type || prev.booking_type,
+            receipt_number: prefill.receipt_number || prev.receipt_number,
+            booking_reference: prefill.booking_reference || formatBelegRef(prefill.booking_date || prev.booking_date) || prev.booking_reference,
+            matched_template_id: prefill.related_template_id || prev.matched_template_id,
+          } : {}),
+        };
+      });
     }
   }, [open, preselectedBuildingId, preselectedYear, prefill]);
 
