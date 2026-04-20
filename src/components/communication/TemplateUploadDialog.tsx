@@ -96,6 +96,7 @@ export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultTy
         docx_path: docxPath,
         subject: type === "email" ? subject.trim() || null : null,
         body_html: type === "email" ? bodyHtml : null,
+        body_format: type === "email" ? bodyFormat : "html",
         variables,
         created_by: userId,
       });
@@ -114,7 +115,7 @@ export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultTy
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) reset(); onOpenChange(o); }}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Neue Vorlage</DialogTitle>
           <DialogDescription>Erstellen Sie eine wiederverwendbare Brief- oder E-Mail-Vorlage mit Platzhaltern.</DialogDescription>
@@ -158,18 +159,44 @@ export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultTy
 
             <TabsContent value="email" className="mt-0 space-y-3">
               <div>
+                <Label>Format</Label>
+                <RadioGroup
+                  value={bodyFormat}
+                  onValueChange={(v) => setBodyFormat(v as "html" | "plain")}
+                  className="flex gap-2 mt-1"
+                >
+                  <label className={`flex-1 flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer text-sm transition-colors ${bodyFormat === "html" ? "border-primary bg-primary/5" : "border-input hover:bg-accent"}`}>
+                    <RadioGroupItem value="html" />
+                    <Code className="h-4 w-4" /> HTML
+                  </label>
+                  <label className={`flex-1 flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer text-sm transition-colors ${bodyFormat === "plain" ? "border-primary bg-primary/5" : "border-input hover:bg-accent"}`}>
+                    <RadioGroupItem value="plain" />
+                    <Type className="h-4 w-4" /> Klartext
+                  </label>
+                </RadioGroup>
+              </div>
+              <div>
                 <Label>Betreff *</Label>
                 <Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="z. B. Wichtige Information zur Hausversammlung" />
               </div>
-              <div>
-                <Label>Inhalt (HTML erlaubt) *</Label>
-                <Textarea
-                  value={bodyHtml}
-                  onChange={(e) => setBodyHtml(e.target.value)}
-                  rows={10}
-                  placeholder={"{{anrede_brief}}\n\nhiermit informieren wir Sie...\n\nMit freundlichen Grüßen\n{{verwalter_name}}"}
-                  className="font-mono text-sm"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-[1fr_220px] gap-3">
+                <div className="min-w-0">
+                  <Label>Inhalt {bodyFormat === "html" ? "(HTML erlaubt)" : "(Klartext)"} *</Label>
+                  <Textarea
+                    ref={bodyRef}
+                    value={bodyHtml}
+                    onChange={(e) => setBodyHtml(e.target.value)}
+                    onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
+                    onDrop={handleDrop}
+                    rows={14}
+                    placeholder={"{{anrede_brief}}\n\nhiermit informieren wir Sie...\n\nMit freundlichen Grüßen\n{{verwalter_name}}"}
+                    className={bodyFormat === "html" ? "font-mono text-sm" : "text-sm"}
+                  />
+                </div>
+                <aside className="border rounded-md bg-muted/30 p-2 self-start">
+                  <h4 className="text-xs font-semibold mb-1 px-1">Platzhalter</h4>
+                  <VariablePalette onInsert={insertPlaceholder} />
+                </aside>
               </div>
             </TabsContent>
           </div>
