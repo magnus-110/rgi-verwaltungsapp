@@ -3,14 +3,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Upload, FileText, Mail, Code, Type, X, FileCheck2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { VariablePalette } from "./VariablePalette";
+import { FriendlyVariablePalette } from "./FriendlyVariablePalette";
+import { usePlaceholderStats } from "./usePlaceholderStats";
+import { usePlaceholderSamples } from "./usePlaceholderSamples";
+import { InlinePreviewEditor } from "./InlinePreviewEditor";
+import { EmailPreviewPane } from "./EmailPreviewPane";
 
 interface Props {
   open: boolean;
@@ -26,12 +29,14 @@ export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultTy
   const [file, setFile] = useState<File | null>(null);
   const [subject, setSubject] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
-  const [bodyFormat, setBodyFormat] = useState<"html" | "plain">("html");
+  const [bodyFormat, setBodyFormat] = useState<"html" | "plain">("plain");
   const [busy, setBusy] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
+  const { data: placeholderStats } = usePlaceholderStats(buildingId, []);
+  const { data: placeholderSamples } = usePlaceholderSamples(buildingId, []);
 
   const formatBytes = (b: number): string => {
     if (b < 1024) return `${b} B`;
@@ -54,7 +59,7 @@ export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultTy
   const reset = () => {
     setName(""); setDescription(""); setFile(null);
     setSubject(""); setBodyHtml(""); setType(defaultType);
-    setBodyFormat("html");
+    setBodyFormat("plain");
   };
 
   const insertPlaceholder = (ph: string) => {

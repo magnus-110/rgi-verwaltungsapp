@@ -20,6 +20,7 @@ import { FriendlyVariablePalette } from "./FriendlyVariablePalette";
 import { usePlaceholderStats } from "./usePlaceholderStats";
 import { usePlaceholderSamples } from "./usePlaceholderSamples";
 import { EmailPreviewPane } from "./EmailPreviewPane";
+import { InlinePreviewEditor } from "./InlinePreviewEditor";
 import { ConfirmSendDialog } from "./ConfirmSendDialog";
 
 interface Props {
@@ -302,7 +303,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
 
                 <div className="space-y-4 mt-2">
                   <div>
-                    <Label className="flex items-center gap-1.5"><Pencil className="h-3.5 w-3.5" />Betreff *</Label>
+                    <Label>Betreff *</Label>
                     <Input
                       ref={subjectRef}
                       value={subject}
@@ -310,43 +311,31 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
                       onFocus={() => { lastFocused.current = "subject"; }}
                     />
                     {subject && (
-                      <div className="mt-1.5 rounded-md border bg-muted/30 px-2.5 py-1.5 text-xs">
-                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground mr-2">Vorschau:</span>
+                      <div className="mt-1.5 rounded-md border bg-muted/20 px-2.5 py-1.5 text-xs flex items-baseline gap-2">
+                        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Vorschau:</span>
                         <EmailPreviewPane subject={subject} body="" format="plain" samples={placeholderSamples} subjectOnly />
                       </div>
                     )}
                   </div>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                    <div>
-                      <Label className="flex items-center gap-1.5"><Pencil className="h-3.5 w-3.5" />Inhalt {bodyFormat === "html" ? "(HTML)" : "(Klartext)"} *</Label>
-                      <Textarea
-                        ref={bodyRef}
-                        value={body}
-                        onChange={(e) => setBody(e.target.value)}
-                        onFocus={() => { lastFocused.current = "body"; }}
-                        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
-                        onDrop={handleDropPlaceholder}
-                        rows={16}
-                        className={bodyFormat === "html" ? "font-mono text-sm" : "text-sm"}
-                        placeholder={bodyFormat === "html"
-                          ? "<p>{{anrede_brief}}</p>\n<p>...</p>"
-                          : "{{anrede_brief}}\n\n..."}
-                      />
-                    </div>
-                    <div>
-                      <Label className="flex items-center gap-1.5"><Eye className="h-3.5 w-3.5" />Live-Vorschau</Label>
-                      <EmailPreviewPane
-                        subject=""
-                        body={body}
-                        format={bodyFormat}
-                        samples={placeholderSamples}
-                        bodyOnly
-                      />
-                    </div>
+                  <div>
+                    <Label>Inhalt {bodyFormat === "html" ? "(HTML)" : "(Klartext)"} *</Label>
+                    <InlinePreviewEditor
+                      ref={bodyRef}
+                      value={body}
+                      onChange={setBody}
+                      onFocus={() => { lastFocused.current = "body"; }}
+                      onDrop={handleDropPlaceholder}
+                      rows={14}
+                      format={bodyFormat}
+                      samples={placeholderSamples}
+                      placeholder={bodyFormat === "html"
+                        ? "<p>{{anrede_brief}}</p>\n<p>...</p>"
+                        : "{{anrede_brief}}\n\n..."}
+                    />
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      Oben schreiben — unten wird sofort gezeigt, wie es bei der ersten ausgewählten Person aussieht. Grau = Platzhalter.
+                    </p>
                   </div>
-                  <p className="text-[11px] text-muted-foreground -mt-1">
-                    Links schreiben — rechts erscheint sofort, wie es bei der ersten ausgewählten Person aussieht. Grau dargestellte Werte sind Platzhalter.
-                  </p>
                 </div>
               </div>
 
