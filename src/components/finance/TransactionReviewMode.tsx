@@ -519,10 +519,14 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       const ocrData = (invoiceDetail as any).ocr_extracted_data;
       if (ocrData?.is_fuel_purchase) {
         row.is_fuel_purchase = true;
-        row.fuel_type = ocrData.fuel_type === "pellets" ? "pellets" : "oil";
+        const ft = ocrData.fuel_type;
+        row.fuel_type = ft === "pellets" ? "pellets" : ft === "gas" ? "gas" : ft === "district_heating" ? "district_heating" : "oil";
         row.fuel_quantity = ocrData.fuel_quantity ? String(ocrData.fuel_quantity) : "";
         row.fuel_total_price = invoiceDetail.gross_amount ? String(invoiceDetail.gross_amount) : "";
         row.fuel_date = invoiceDetail.invoice_date || currentTxn.booking_date || "";
+        if (ocrData.co2_emissions_kg != null) row.fuel_co2_emissions_kg = String(ocrData.co2_emissions_kg);
+        if (ocrData.co2_tax_amount_eur != null) row.fuel_co2_tax_amount = String(ocrData.co2_tax_amount_eur);
+        if (ocrData.energy_content_kwh != null) row.fuel_energy_content_kwh = String(ocrData.energy_content_kwh);
       }
     }
 
