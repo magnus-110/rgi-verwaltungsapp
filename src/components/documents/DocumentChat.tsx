@@ -24,6 +24,11 @@ interface ChatMessage {
     content: string;
     metadata: any;
     buildingId?: string;
+    fileName?: string | null;
+    folderPath?: string[];
+    categorySlug?: string | null;
+    documentUrl?: string | null;
+    pageNumber?: number | null;
   }>;
   created_at: string;
 }
