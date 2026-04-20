@@ -32,6 +32,14 @@ const isPdf = (mimeType: string | null, fileName: string) => {
   return fileName.toLowerCase().endsWith(".pdf");
 };
 
+const isXml = (mimeType: string | null, fileName: string) => {
+  if (mimeType?.includes("xml")) return true;
+  return fileName.toLowerCase().endsWith(".xml");
+};
+
+const isImportableInvoice = (mimeType: string | null, fileName: string) =>
+  isPdf(mimeType, fileName) || isXml(mimeType, fileName);
+
 export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
   const navigate = useNavigate();
   const [importingId, setImportingId] = useState<string | null>(null);
@@ -99,13 +107,14 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
       if (!response.ok) throw new Error("Download fehlgeschlagen");
       const blob = await response.blob();
 
-      // 3. Upload to invoices bucket
+      // 3. Upload to invoices bucket (preserve extension for XML detection)
       const timestamp = Date.now();
       const folder = isCompany ? "company" : "unassigned";
       const invoicePath = `${folder}/${timestamp}_${att.file_name}`;
+      const isXmlFile = att.file_name.toLowerCase().endsWith(".xml");
       const { error: uploadErr } = await supabase.storage
         .from("invoices")
-        .upload(invoicePath, blob, { contentType: "application/pdf" });
+        .upload(invoicePath, blob, { contentType: isXmlFile ? "application/xml" : "application/pdf" });
       if (uploadErr) throw uploadErr;
 
       // 4. Create invoice record
@@ -150,7 +159,7 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
       <div className="flex flex-wrap gap-2">
         {attachments.map((att) => {
           const Icon = getFileIcon(att.mime_type);
-          const canImport = isPdf(att.mime_type, att.file_name);
+          const canImport = isImportableInvoice(att.mime_type, att.file_name);
           const isImporting = importingId === att.id;
           const isImported = importedIds.has(att.id);
 
