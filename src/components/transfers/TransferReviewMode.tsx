@@ -590,6 +590,8 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
 
           <Separator />
 
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Notiz</label>
             <Textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
