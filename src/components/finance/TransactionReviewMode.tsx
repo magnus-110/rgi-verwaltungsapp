@@ -719,7 +719,9 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
       // Save fuel purchase to fuel_inventory
       if (row.is_fuel_purchase && row.fuel_type && row.fuel_quantity) {
-        const fuelUnit = row.fuel_type === "oil" ? "l" : "kg";
+        const fuelUnit = row.fuel_type === "oil" ? "l"
+          : row.fuel_type === "pellets" ? "kg"
+          : "kWh";
         const quantity = parseFloat(row.fuel_quantity) || 0;
         const totalPrice = parseFloat(row.fuel_total_price) || 0;
         const unitPrice = quantity > 0 ? totalPrice / quantity : 0;
@@ -732,6 +734,15 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           return entryDate >= from && entryDate <= to;
         });
 
+        const fuelLabel = row.fuel_type === "oil" ? "Heizöl"
+          : row.fuel_type === "pellets" ? "Pellets"
+          : row.fuel_type === "gas" ? "Gas"
+          : "Fernwärme";
+
+        const co2Emissions = parseFloat(row.fuel_co2_emissions_kg);
+        const co2Tax = parseFloat(row.fuel_co2_tax_amount);
+        const energyKwh = parseFloat(row.fuel_energy_content_kwh);
+
         await supabase.from("fuel_inventory").insert({
           building_id: buildingId,
           fuel_type: row.fuel_type,
@@ -743,7 +754,11 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           unit_price: unitPrice > 0 ? unitPrice : null,
           invoice_id: row.invoice_id || null,
           billing_period_id: matchingPeriod?.id || null,
-          notes: `Brennstoffkauf ${row.fuel_type === "oil" ? "Heizöl" : "Pellets"}: ${quantity} ${fuelUnit}`,
+          heating_unit_id: row.fuel_heating_unit_id || null,
+          co2_emissions_kg: !isNaN(co2Emissions) && co2Emissions > 0 ? co2Emissions : null,
+          co2_tax_amount: !isNaN(co2Tax) && co2Tax > 0 ? co2Tax : null,
+          energy_content_kwh: !isNaN(energyKwh) && energyKwh > 0 ? energyKwh : null,
+          notes: `Brennstoffkauf ${fuelLabel}: ${quantity} ${fuelUnit}`,
         } as any);
       }
 
