@@ -78,6 +78,21 @@ export function HeatingExportSection({ buildingId, periodId, fiscalYear }: Heati
     },
   });
 
+  const { data: heatingUnits = [] } = useQuery({
+    queryKey: ["heating-units", buildingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("heating_units")
+        .select("*")
+        .eq("building_id", buildingId)
+        .order("created_at");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const hasMultipleUnits = heatingUnits.length >= 2;
+
   const getAccountTotal = (accountId: string) =>
     bookings
       .filter((b) => b.account_id === accountId && b.booking_category !== "heating_repost")
@@ -90,31 +105,34 @@ export function HeatingExportSection({ buildingId, periodId, fiscalYear }: Heati
   const formatNum = (n: number) =>
     new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(n);
 
-  const exportCSV = () => {
+  const buildCsvLines = (entries: any[], unitLabel?: string): string[] => {
     const lines: string[] = [];
     lines.push("Heizkosten-Export für Ablesefirma");
     lines.push(`Liegenschaft;${building?.name || ""};${building?.building_code || ""}`);
+    if (unitLabel) lines.push(`Heizkreis;${unitLabel}`);
     lines.push(`Adresse;${building?.address || ""}`);
     lines.push(`Abrechnungszeitraum;${period?.period_from || ""};${period?.period_to || ""}`);
     lines.push(`Ablesefirma;${period?.heating_provider || ""}`);
     lines.push("");
 
-    // Konten
-    lines.push("HEIZKOSTEN-RELEVANTE KONTEN");
-    lines.push("Kontonummer;Kontoname;Jahressumme EUR");
-    heatingAccounts.forEach((acc) => {
-      const total = getAccountTotal(acc.id);
-      lines.push(`${acc.account_number};${acc.account_name};${total.toFixed(2).replace(".", ",")}`);
-    });
-    lines.push(`;;${totalHeating.toFixed(2).replace(".", ",")}`);
-    lines.push("");
+    // Konten (nur beim Gesamt-Export — auf Heizkreise nicht aufteilbar)
+    if (!unitLabel) {
+      lines.push("HEIZKOSTEN-RELEVANTE KONTEN");
+      lines.push("Kontonummer;Kontoname;Jahressumme EUR");
+      heatingAccounts.forEach((acc) => {
+        const total = getAccountTotal(acc.id);
+        lines.push(`${acc.account_number};${acc.account_name};${total.toFixed(2).replace(".", ",")}`);
+      });
+      lines.push(`;;${totalHeating.toFixed(2).replace(".", ",")}`);
+      lines.push("");
+    }
 
     // Brennstoff
-    const fuelTypes = [...new Set(fuelEntries.map((e) => e.fuel_type))];
+    const fuelTypes = [...new Set(entries.map((e) => e.fuel_type))];
     if (fuelTypes.length > 0) {
       lines.push("BRENNSTOFFDATEN");
       fuelTypes.forEach((ft) => {
-        const ftEntries = fuelEntries.filter((e) => e.fuel_type === ft);
+        const ftEntries = entries.filter((e) => e.fuel_type === ft);
         const label = FUEL_LABELS[ft] || ft;
         const opening = ftEntries.find((e) => e.entry_type === "opening_balance");
         const closing = ftEntries.find((e) => e.entry_type === "closing_balance");
@@ -141,15 +159,32 @@ export function HeatingExportSection({ buildingId, periodId, fiscalYear }: Heati
         lines.push("");
       });
     }
+    return lines;
+  };
 
+  const downloadCsv = (lines: string[], filenameSuffix: string) => {
     const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `Heizkosten_${building?.building_code || "export"}_${fiscalYear}.csv`;
+    a.download = `Heizkosten_${building?.building_code || "export"}_${fiscalYear}${filenameSuffix}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const exportAll = () => {
+    downloadCsv(buildCsvLines(fuelEntries), "");
     toast.success("CSV-Export heruntergeladen");
+  };
+
+  const exportPerUnit = (unitId: string, unitName: string) => {
+    const unitEntries = fuelEntries.filter((e: any) => e.heating_unit_id === unitId);
+    if (unitEntries.length === 0) {
+      toast.warning(`Keine Brennstoffdaten für ${unitName}`);
+      return;
+    }
+    downloadCsv(buildCsvLines(unitEntries, unitName), `_${unitName.replace(/[^a-zA-Z0-9]/g, "_")}`);
+    toast.success(`CSV für ${unitName} heruntergeladen`);
   };
 
   return (
@@ -161,10 +196,11 @@ export function HeatingExportSection({ buildingId, periodId, fiscalYear }: Heati
           </CardTitle>
           <p className="text-sm text-muted-foreground mt-1">
             Einzelkonten + Brennstoffdaten als CSV für {period?.heating_provider || "die Ablesefirma"}
+            {hasMultipleUnits && " · pro Heizkreis getrennt"}
           </p>
         </div>
-        <Button size="sm" onClick={exportCSV} disabled={heatingAccounts.length === 0}>
-          <Download className="h-4 w-4 mr-1" /> CSV Export
+        <Button size="sm" onClick={exportAll} disabled={heatingAccounts.length === 0}>
+          <Download className="h-4 w-4 mr-1" /> {hasMultipleUnits ? "Gesamt-CSV" : "CSV Export"}
         </Button>
       </CardHeader>
       <CardContent>
@@ -201,6 +237,34 @@ export function HeatingExportSection({ buildingId, periodId, fiscalYear }: Heati
                 </TableRow>
               </TableBody>
             </Table>
+
+            {hasMultipleUnits && (
+              <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+                <h4 className="text-sm font-medium flex items-center gap-1">
+                  <Flame className="h-4 w-4" /> Pro-Heizkreis-Export für Messdienstleister
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  Die Ablesefirma (Techem/ista) benötigt die Brennstoffdaten getrennt je Haus/Tank.
+                </p>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {heatingUnits.map((u: any) => {
+                    const count = fuelEntries.filter((e: any) => e.heating_unit_id === u.id).length;
+                    return (
+                      <Button
+                        key={u.id}
+                        size="sm"
+                        variant="outline"
+                        onClick={() => exportPerUnit(u.id, u.name)}
+                        disabled={count === 0}
+                      >
+                        <Download className="h-3 w-3 mr-1" />
+                        {u.name} ({count})
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {fuelEntries.length > 0 && (
               <div className="mt-4">

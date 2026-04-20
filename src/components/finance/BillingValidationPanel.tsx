@@ -100,31 +100,53 @@ export function BillingValidationPanel({ periodId, buildingId, fiscalYear }: Bil
     : { name: "Saldenübernahme", status: "warning", message: "Noch keine Salden vom Vorjahr übernommen" }
   );
 
-  // 2. Brennstoff-Plausibilität
-  const fuelTypes = [...new Set(fuelEntries.map((e) => e.fuel_type))];
-  if (fuelTypes.length === 0) {
+  // 2. Brennstoff-Plausibilität (pro Heizkreis × Brennstoff)
+  type Bucket = { key: string; label: string; entries: any[] };
+  const buckets: Bucket[] = [];
+  const unitMap = new Map<string, any>();
+  // Heizkreise aus Einträgen rekonstruieren (sofern gesetzt)
+  fuelEntries.forEach((e: any) => {
+    if (e.heating_unit_id && !unitMap.has(e.heating_unit_id)) {
+      unitMap.set(e.heating_unit_id, true);
+    }
+  });
+  const groupKeys = new Set<string>();
+  fuelEntries.forEach((e: any) => {
+    const k = `${e.heating_unit_id ?? "none"}::${e.fuel_type}`;
+    groupKeys.add(k);
+  });
+  groupKeys.forEach((k) => {
+    const [unitId, ft] = k.split("::");
+    const entries = fuelEntries.filter((e: any) =>
+      (e.heating_unit_id ?? "none") === unitId && e.fuel_type === ft
+    );
+    const unitLabel = unitId === "none" ? "" : ` · Heizkreis`;
+    buckets.push({ key: k, label: `Brennstoff (${ft})${unitLabel}`, entries });
+  });
+
+  if (buckets.length === 0) {
     liveChecks.push({ name: "Brennstoffdaten", status: "warning", message: "Noch keine Brennstoffdaten erfasst" });
   }
-  fuelTypes.forEach((ft) => {
-    const ftEntries = fuelEntries.filter((e) => e.fuel_type === ft);
-    const opening = Number(ftEntries.find((e) => e.entry_type === "opening_balance")?.quantity ?? 0);
-    const closing = Number(ftEntries.find((e) => e.entry_type === "closing_balance")?.quantity ?? 0);
-    const purchases = ftEntries.filter((e) => e.entry_type === "purchase").reduce((s, e) => s + Number(e.quantity), 0);
+  buckets.forEach(({ key, label, entries: bEntries }) => {
+    const ft = key.split("::")[1];
+    const opening = Number(bEntries.find((e) => e.entry_type === "opening_balance")?.quantity ?? 0);
+    const closing = Number(bEntries.find((e) => e.entry_type === "closing_balance")?.quantity ?? 0);
+    const purchases = bEntries.filter((e) => e.entry_type === "purchase").reduce((s, e) => s + Number(e.quantity), 0);
     const consumption = opening + purchases - closing;
-    const hasOpening = ftEntries.some((e) => e.entry_type === "opening_balance");
-    const hasClosing = ftEntries.some((e) => e.entry_type === "closing_balance");
+    const hasOpening = bEntries.some((e) => e.entry_type === "opening_balance");
+    const hasClosing = bEntries.some((e) => e.entry_type === "closing_balance");
 
     if (!hasOpening || !hasClosing) {
-      liveChecks.push({ name: `Brennstoff (${ft})`, status: "warning", message: `${!hasOpening ? "Anfangsbestand" : "Endbestand"} fehlt` });
+      liveChecks.push({ name: label, status: "warning", message: `${!hasOpening ? "Anfangsbestand" : "Endbestand"} fehlt` });
     } else if (consumption < 0) {
-      liveChecks.push({ name: `Brennstoff (${ft})`, status: "failed", message: `Negativer Verbrauch (${consumption.toFixed(1)})` });
+      liveChecks.push({ name: label, status: "failed", message: `Negativer Verbrauch (${consumption.toFixed(1)})` });
     } else {
-      liveChecks.push({ name: `Brennstoff (${ft})`, status: "passed", message: `Verbrauch: ${consumption.toFixed(1)}` });
+      liveChecks.push({ name: label, status: "passed", message: `Verbrauch: ${consumption.toFixed(1)}` });
     }
 
     // CO₂-Check (BEHG, nur fossile Brennstoffe)
-    if (["oil", "gas", "district_heating"].includes(ft as string)) {
-      const purchaseEntries = ftEntries.filter((e) => e.entry_type === "purchase");
+    if (["oil", "gas", "district_heating"].includes(ft)) {
+      const purchaseEntries = bEntries.filter((e) => e.entry_type === "purchase");
       if (purchaseEntries.length > 0) {
         const missingCo2 = purchaseEntries.filter((e: any) => e.co2_emissions_kg == null || e.co2_tax_amount == null);
         if (missingCo2.length === purchaseEntries.length) {

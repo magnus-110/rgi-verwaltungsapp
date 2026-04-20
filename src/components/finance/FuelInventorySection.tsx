@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Trash2, AlertTriangle, Check, Fuel } from "lucide-react";
 import { toast } from "sonner";
 
@@ -34,6 +35,7 @@ interface FuelInventorySectionProps {
 export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelInventorySectionProps) {
   const queryClient = useQueryClient();
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [activeUnitId, setActiveUnitId] = useState<string>("__all__");
   const [newEntry, setNewEntry] = useState({
     fuel_type: "oil",
     entry_type: "purchase",
@@ -45,9 +47,23 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
     co2_tax_amount: "",
     energy_content_kwh: "",
     notes: "",
+    heating_unit_id: "",
   });
 
-  const { data: entries = [] } = useQuery({
+  const { data: heatingUnits = [] } = useQuery({
+    queryKey: ["heating-units", buildingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("heating_units")
+        .select("*")
+        .eq("building_id", buildingId)
+        .order("created_at");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: allEntries = [] } = useQuery({
     queryKey: ["fuel-inventory", buildingId, periodId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -60,6 +76,11 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
       return data;
     },
   });
+
+  const hasMultipleUnits = heatingUnits.length >= 2;
+  const entries = hasMultipleUnits && activeUnitId !== "__all__"
+    ? allEntries.filter((e: any) => e.heating_unit_id === activeUnitId || (activeUnitId === "__none__" && !e.heating_unit_id))
+    : allEntries;
 
   // Plausibilitätsprüfung
   const fuelTypes = [...new Set(entries.map((e) => e.fuel_type))];
@@ -88,10 +109,41 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
     };
   });
 
+  const openAddDialog = () => {
+    // Heizkreis vorausgewählt
+    let preselectedUnit = "";
+    let preselectedFuelType = "oil";
+    if (hasMultipleUnits && activeUnitId !== "__all__" && activeUnitId !== "__none__") {
+      preselectedUnit = activeUnitId;
+      const u = heatingUnits.find((h: any) => h.id === activeUnitId);
+      if (u) preselectedFuelType = u.fuel_type;
+    } else if (heatingUnits.length === 1) {
+      preselectedUnit = heatingUnits[0].id;
+      preselectedFuelType = heatingUnits[0].fuel_type;
+    }
+    setNewEntry({
+      fuel_type: preselectedFuelType,
+      entry_type: "purchase",
+      entry_date: `${fiscalYear}-01-01`,
+      quantity: "",
+      unit: FUEL_TYPES.find(f => f.value === preselectedFuelType)?.unit ?? "l",
+      total_price: "",
+      co2_emissions_kg: "",
+      co2_tax_amount: "",
+      energy_content_kwh: "",
+      notes: "",
+      heating_unit_id: preselectedUnit,
+    });
+    setIsAddOpen(true);
+  };
+
   const addEntry = async () => {
     const qty = parseFloat(newEntry.quantity);
     const price = parseFloat(newEntry.total_price);
     if (isNaN(qty) || qty <= 0) { toast.error("Bitte gültige Menge angeben"); return; }
+    if (hasMultipleUnits && !newEntry.heating_unit_id) {
+      toast.error("Bitte Heizkreis auswählen"); return;
+    }
 
     const fuelUnit = FUEL_TYPES.find((f) => f.value === newEntry.fuel_type)?.unit ?? "l";
     const isPurchase = newEntry.entry_type === "purchase";
@@ -100,6 +152,7 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
     const { error } = await supabase.from("fuel_inventory").insert({
       building_id: buildingId,
       billing_period_id: periodId,
+      heating_unit_id: newEntry.heating_unit_id || null,
       fuel_type: newEntry.fuel_type,
       entry_type: newEntry.entry_type,
       entry_date: newEntry.entry_date,
@@ -115,7 +168,6 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
     if (error) { toast.error("Fehler: " + error.message); return; }
     toast.success("Eintrag hinzugefügt");
     setIsAddOpen(false);
-    setNewEntry({ fuel_type: "oil", entry_type: "purchase", entry_date: `${fiscalYear}-01-01`, quantity: "", unit: "l", total_price: "", co2_emissions_kg: "", co2_tax_amount: "", energy_content_kwh: "", notes: "" });
     queryClient.invalidateQueries({ queryKey: ["fuel-inventory"] });
   };
 
@@ -131,6 +183,11 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
   const formatNum = (n: number) => new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(n);
   const formatCurrency = (n: number) => new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
 
+  const unitName = (id: string | null) => {
+    if (!id) return "—";
+    return heatingUnits.find((u: any) => u.id === id)?.name ?? "?";
+  };
+
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
@@ -138,13 +195,31 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
           <CardTitle className="text-base flex items-center gap-2">
             <Fuel className="h-5 w-5" /> Brennstoffbestand
           </CardTitle>
-          <p className="text-sm text-muted-foreground mt-1">Anfangsbestand, Einkäufe und Endbestand für {fiscalYear}</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Anfangsbestand, Einkäufe und Endbestand für {fiscalYear}
+            {hasMultipleUnits && ` · ${heatingUnits.length} Heizkreise`}
+          </p>
         </div>
-        <Button size="sm" onClick={() => setIsAddOpen(true)}>
+        <Button size="sm" onClick={openAddDialog}>
           <Plus className="h-4 w-4 mr-1" /> Eintrag
         </Button>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Heizkreis-Filter */}
+        {hasMultipleUnits && (
+          <Tabs value={activeUnitId} onValueChange={setActiveUnitId}>
+            <TabsList className="flex-wrap h-auto">
+              <TabsTrigger value="__all__">Alle</TabsTrigger>
+              {heatingUnits.map((u: any) => (
+                <TabsTrigger key={u.id} value={u.id}>{u.name}</TabsTrigger>
+              ))}
+              {allEntries.some((e: any) => !e.heating_unit_id) && (
+                <TabsTrigger value="__none__">Ohne Zuordnung</TabsTrigger>
+              )}
+            </TabsList>
+          </Tabs>
+        )}
+
         {/* Plausibilitäts-Badges */}
         {plausibilityChecks.length > 0 && (
           <div className="flex flex-wrap gap-2">
@@ -165,6 +240,7 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
               <TableRow>
                 <TableHead>Typ</TableHead>
                 <TableHead>Brennstoff</TableHead>
+                {hasMultipleUnits && <TableHead>Heizkreis</TableHead>}
                 <TableHead>Datum</TableHead>
                 <TableHead className="text-right">Menge</TableHead>
                 <TableHead className="text-right">Gesamtpreis</TableHead>
@@ -184,6 +260,9 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
                     </Badge>
                   </TableCell>
                   <TableCell className="text-sm">{FUEL_TYPES.find((f) => f.value === entry.fuel_type)?.label}</TableCell>
+                  {hasMultipleUnits && (
+                    <TableCell className="text-xs text-muted-foreground">{unitName(entry.heating_unit_id)}</TableCell>
+                  )}
                   <TableCell className="text-sm">{new Date(entry.entry_date).toLocaleDateString("de-DE")}</TableCell>
                   <TableCell className="text-right font-mono text-sm">{formatNum(Number(entry.quantity))} {entry.unit}</TableCell>
                   <TableCell className="text-right font-mono text-sm">{formatCurrency(Number(entry.total_price))}</TableCell>
@@ -209,6 +288,29 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
             <DialogTitle>Brennstoff-Eintrag hinzufügen</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            {hasMultipleUnits && (
+              <div>
+                <Label>Heizkreis *</Label>
+                <Select value={newEntry.heating_unit_id} onValueChange={(v) => {
+                  const u = heatingUnits.find((h: any) => h.id === v);
+                  setNewEntry((p) => ({
+                    ...p,
+                    heating_unit_id: v,
+                    fuel_type: u?.fuel_type ?? p.fuel_type,
+                    unit: FUEL_TYPES.find(f => f.value === (u?.fuel_type ?? p.fuel_type))?.unit ?? p.unit,
+                  }));
+                }}>
+                  <SelectTrigger><SelectValue placeholder="Heizkreis auswählen" /></SelectTrigger>
+                  <SelectContent>
+                    {heatingUnits.map((u: any) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {u.name} ({FUEL_TYPES.find(f => f.value === u.fuel_type)?.label})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Brennstoffart</Label>

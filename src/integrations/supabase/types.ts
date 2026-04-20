@@ -3705,6 +3705,7 @@ export type Database = {
           entry_date: string
           entry_type: string
           fuel_type: string
+          heating_unit_id: string | null
           id: string
           invoice_id: string | null
           net_amount: number | null
@@ -3725,6 +3726,7 @@ export type Database = {
           entry_date?: string
           entry_type?: string
           fuel_type?: string
+          heating_unit_id?: string | null
           id?: string
           invoice_id?: string | null
           net_amount?: number | null
@@ -3745,6 +3747,7 @@ export type Database = {
           entry_date?: string
           entry_type?: string
           fuel_type?: string
+          heating_unit_id?: string | null
           id?: string
           invoice_id?: string | null
           net_amount?: number | null
@@ -3768,6 +3771,13 @@ export type Database = {
             columns: ["building_id"]
             isOneToOne: false
             referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fuel_inventory_heating_unit_id_fkey"
+            columns: ["heating_unit_id"]
+            isOneToOne: false
+            referencedRelation: "heating_units"
             referencedColumns: ["id"]
           },
           {
@@ -3827,6 +3837,50 @@ export type Database = {
           },
           {
             foreignKeyName: "heating_distribution_values_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      heating_units: {
+        Row: {
+          building_id: string
+          created_at: string
+          fuel_type: string
+          id: string
+          is_active: boolean
+          name: string
+          notes: string | null
+          tank_capacity: number | null
+          updated_at: string
+        }
+        Insert: {
+          building_id: string
+          created_at?: string
+          fuel_type?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          notes?: string | null
+          tank_capacity?: number | null
+          updated_at?: string
+        }
+        Update: {
+          building_id?: string
+          created_at?: string
+          fuel_type?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          notes?: string | null
+          tank_capacity?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "heating_units_building_id_fkey"
             columns: ["building_id"]
             isOneToOne: false
             referencedRelation: "buildings"

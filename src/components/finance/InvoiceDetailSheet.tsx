@@ -473,7 +473,31 @@ function FuelDataSection({ invoice, buildingId }: { invoice: any; buildingId: st
   const [co2Emissions, setCo2Emissions] = useState(extracted?.co2_emissions_kg?.toString() || "");
   const [co2Tax, setCo2Tax] = useState(extracted?.co2_tax_amount_eur?.toString() || "");
   const [energyKwh, setEnergyKwh] = useState(extracted?.energy_content_kwh?.toString() || "");
+  const [heatingUnitId, setHeatingUnitId] = useState<string>("");
   const [saving, setSaving] = useState(false);
+
+  const { data: heatingUnits = [] } = useQuery({
+    queryKey: ["heating-units", buildingId],
+    enabled: !!buildingId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("heating_units")
+        .select("*")
+        .eq("building_id", buildingId)
+        .order("created_at");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const hasMultipleUnits = heatingUnits.length >= 2;
+
+  // Auto-select wenn nur 1 Heizkreis
+  useEffect(() => {
+    if (heatingUnits.length === 1 && !heatingUnitId) {
+      setHeatingUnitId(heatingUnits[0].id);
+    }
+  }, [heatingUnits, heatingUnitId]);
 
   const showCo2Fields = ["oil", "gas", "district_heating"].includes(fuelType);
   const ocrCo2Detected = extracted?.co2_emissions_kg != null;
@@ -487,6 +511,7 @@ function FuelDataSection({ invoice, buildingId }: { invoice: any; buildingId: st
   const saveFuelEntry = async () => {
     if (!buildingId) { toast.error("Bitte zuerst eine Liegenschaft zuweisen"); return; }
     if (!fuelQuantity) { toast.error("Bitte Menge angeben"); return; }
+    if (hasMultipleUnits && !heatingUnitId) { toast.error("Bitte Heizkreis auswählen"); return; }
 
     setSaving(true);
     const invoiceDate = invoice?.invoice_date;
@@ -522,6 +547,7 @@ function FuelDataSection({ invoice, buildingId }: { invoice: any; buildingId: st
     const { error } = await supabase.from("fuel_inventory").insert({
       building_id: buildingId,
       billing_period_id: periodId,
+      heating_unit_id: heatingUnitId || null,
       fuel_type: fuelType,
       entry_type: "purchase",
       quantity: parseFloat(fuelQuantity),
@@ -557,6 +583,28 @@ function FuelDataSection({ invoice, buildingId }: { invoice: any; buildingId: st
             <p className="text-xs text-muted-foreground bg-muted/50 rounded-md p-2">
               Die OCR hat diese Rechnung als Brennstofflieferung erkannt. Bitte prüfen und ggf. als Eintrag speichern.
             </p>
+          )}
+          {hasMultipleUnits && (
+            <div>
+              <Label className="text-xs">Heizkreis *</Label>
+              <Select value={heatingUnitId} onValueChange={(v) => {
+                setHeatingUnitId(v);
+                const u = heatingUnits.find((h: any) => h.id === v);
+                if (u) {
+                  setFuelType(u.fuel_type);
+                  setFuelUnit(FUEL_TYPES.find(f => f.value === u.fuel_type)?.unit || "l");
+                }
+              }}>
+                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Heizkreis auswählen" /></SelectTrigger>
+                <SelectContent>
+                  {heatingUnits.map((u: any) => (
+                    <SelectItem key={u.id} value={u.id}>
+                      {u.name} ({FUEL_TYPES.find(f => f.value === u.fuel_type)?.label})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           )}
           <div className="grid grid-cols-2 gap-3">
             <div>
