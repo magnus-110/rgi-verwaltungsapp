@@ -1,71 +1,88 @@
 
+## Analyse: Warum die Breite noch immer nicht veränderbar ist
 
-## E-Rechnung (XRechnung & ZUGFeRD) Support
+### Befund
+Das Problem ist sehr wahrscheinlich **nicht**:
+- nicht `minSize`
+- nicht `min-w-0`
+- nicht der Resize-Handle selbst
 
-### Status Quo
-Aktuell akzeptiert die App **nur PDF-Dateien** (`accept=".pdf"`) und verarbeitet diese rein per Mistral-OCR. Das funktioniert für:
-- ✅ Klassische Papier-/PDF-Rechnungen
-- ✅ ZUGFeRD-PDFs **rein optisch** (das sichtbare PDF-Layout wird per OCR gelesen — die strukturierten XML-Daten im Anhang werden ignoriert)
-- ❌ XRechnung (reine `.xml`-Datei) — wird gar nicht akzeptiert
+Denn:
+- Im Session-Replay sieht man, dass der Handle korrekt in `hover` und `drag` geht.
+- Der Drag-Vorgang wird also ausgelöst.
+- Trotzdem verändert sich die sichtbare Breite nicht.
 
-### Warum das wichtig ist
-Ab **2025** müssen Unternehmen E-Rechnungen empfangen können (B2B), ab **2027/2028** auch versenden. Formate:
-- **XRechnung**: reine XML (UBL/CII), kein PDF
-- **ZUGFeRD**: hybrides PDF/A-3 mit eingebettetem XML (`factur-x.xml`)
+### Wahre Ursache
+In `src/pages/Inbox.tsx` hängen auf den beiden `ResizablePanel`-Elementen noch immer harte Flex-Overrides mit `!important`:
 
-Die strukturierten XML-Daten sind **100 % präzise** (Beträge, IBAN, Steuersätze, Positionen) — viel zuverlässiger als OCR und kostenfrei (keine Mistral-API-Calls nötig).
+- linkes Panel:
+  - `!block !flex-[1_1_0]`
+  - `md:!flex-initial`
+- rechtes Panel:
+  - `!block !flex-[1_1_0]`
+  - `md:!flex-initial`
 
-### Lösungsansatz
+`react-resizable-panels` steuert die Panel-Breiten über **Inline-Flex-Styles**.  
+Diese `!important`-Klassen in der Inbox überschreiben genau diese Berechnung auf Desktop. Deshalb:
+- der Handle reagiert,
+- der Cursor ändert sich,
+- aber die Breite bleibt effektiv fix.
 
-**1. Upload-Layer erweitern**
-- `InvoiceDropZone` und `EmailAttachments`: zusätzlich `.xml` akzeptieren (`accept=".pdf,.xml"`)
-- MIME-Check erweitern (`application/xml`, `text/xml`)
+### Warum die bisherigen Fixes nicht gereicht haben
+1. `minSize` kleiner machen:
+   - hilft nur, wenn Resize grundsätzlich funktioniert
+   - hier wird die Flex-Berechnung bereits überschrieben
 
-**2. Neue Edge Function `parse-einvoice`**
-- Erkennt Format anhand Inhalt:
-  - `.xml` → XRechnung (UBL `Invoice` oder CII `CrossIndustryInvoice`)
-  - `.pdf` → prüft, ob ZUGFeRD-Anhang `factur-x.xml` / `ZUGFeRD-invoice.xml` vorhanden (via PDF/A-3 Embedded Files)
-- Parst XML mit `deno-dom` oder simplem XPath/Regex
-- Extrahiert Standardfelder: Vendor, IBAN, Rechnungsnummer, Datum, Netto/MwSt/Brutto, Positionen, Empfängeradresse, Leitweg-ID
-- Schreibt direkt strukturiert in `invoices`-Tabelle — **kein Mistral-Call nötig**
+2. `min-w-0` im shared Resizable:
+   - war sinnvoll
+   - beseitigt nur Shrink-Probleme durch Kind-Content
+   - behebt aber keine `!important`-Flex-Überschreibung
 
-**3. Integration in `extract-invoice` Pipeline**
-- Workflow am Anfang: 
-  1. Wenn Datei `.xml` → direkt `parse-einvoice` und fertig
-  2. Wenn `.pdf` → erst auf eingebettetes ZUGFeRD-XML prüfen
-     - Gefunden → XML parsen (strukturierte Daten als „Source of Truth")
-     - Nicht gefunden → bisheriger Mistral-OCR-Pfad (Fallback)
-- Building-Auto-Match-Logik bleibt identisch
-- Duplikat-Check bleibt identisch
+### Was geändert werden muss
+#### 1. Desktop-Overrides aus den Panels entfernen
+In `src/pages/Inbox.tsx`:
+- alle `md:!flex-initial` von beiden `ResizablePanel` entfernen
+- auch die `!flex-[1_1_0]`-Nutzung so umbauen, dass sie **nur mobile Sichtbarkeit** löst, aber **nie Desktop-Resize** beeinflusst
 
-**4. UI-Hinweise**
-- Badge in der Rechnungsliste „E-Rechnung" (grün) wenn aus XML extrahiert → signalisiert hohe Datenqualität
-- Drop-Zone-Text aktualisieren: „PDF oder XML (XRechnung/ZUGFeRD)"
-- In `Transfers.tsx` und `InvoicesTab.tsx`: kleines Icon (z. B. `FileCode`) bei E-Rechnungen
+#### 2. Mobile/Desktop sauber trennen
+Statt dieselben Panels mit aggressiven Klassen für beide Modi zu verwenden:
+- entweder reine `hidden md:block` / `block md:hidden`-Sichtbarkeitslogik
+- oder besser: Mobile und Desktop Rendering klar trennen, damit Desktop-Panels keine Mobile-Flex-Hacks mehr tragen
 
-**5. Datenbank-Erweiterung (Migration)**
-Neue Spalten in `invoices`:
-- `einvoice_format` (text, nullable): `'xrechnung' | 'zugferd' | null`
-- `einvoice_xml_path` (text, nullable): Pfad zur extrahierten/originalen XML-Datei
-- `leitweg_id` (text, nullable): nur für B2G-Pflicht relevant, aber gut zu speichern
+#### 3. Panel-Inhalt weiter shrink-fähig halten
+Beibehalten:
+- `min-w-0`
+- `min-h-0`
+- `overflow-hidden`
 
-### Geänderte / Neue Dateien
-- **NEU**: `supabase/functions/parse-einvoice/index.ts` — XML-Parser für UBL & CII
-- `supabase/functions/extract-invoice/index.ts` — Format-Detection vorgeschaltet, ZUGFeRD-Extraktion
-- `supabase/config.toml` — `verify_jwt = false` für neue Function
-- `src/components/finance/InvoiceDropZone.tsx` — XML akzeptieren
-- `src/components/email/EmailAttachments.tsx` — XML als Rechnung importierbar
-- `src/pages/Transfers.tsx` — Badge „E-Rechnung"
-- `src/components/finance/InvoicesTab.tsx` — Badge „E-Rechnung"
-- **Migration**: 3 neue Spalten in `invoices`
+Das ist korrekt, aber nur als Ergänzung, nicht als Hauptfix.
 
-### Was unverändert bleibt
-- Building-Auto-Match
-- Duplikat-Schutz
-- Mistral-OCR (als Fallback für klassische PDFs)
-- Make.com-Integration / Buchungs-Workflow
-- Brennstoff-/Abschlags-Erkennung (Regeln auf XML-Beschreibungen anwenden)
+### Konkreter Umsetzungsplan
+1. `src/pages/Inbox.tsx` prüfen und die `ResizablePanel`-Klassen auf Desktop entschlacken
+2. Mobile Sichtbarkeitslogik so umbauen, dass keine `!flex-*` Klassen mehr auf Desktop wirken
+3. Sicherstellen, dass linke E-Mail-Liste und rechter Detailbereich nur über `defaultSize/minSize/maxSize` vom Resizable-System gesteuert werden
+4. Optional die Desktop-Struktur an das funktionierende Muster aus `Contacts.tsx` / `Buildings.tsx` angleichen
+5. Danach End-to-End testen:
+   - Desktop `/postfach`
+   - Liste mehrfach schmaler und breiter ziehen
+   - mit selektierter und nicht selektierter E-Mail
+   - prüfen, dass Mobile-Verhalten unverändert bleibt
 
-### Aufwand
-Mittelgroß — ein Edge Function (~250 Zeilen), eine Migration, kleinere UI-Anpassungen. Beide Formate (XRechnung + ZUGFeRD) werden in einem Aufwasch erschlagen, da beide CII oder UBL nutzen.
+### Betroffene Datei
+- `src/pages/Inbox.tsx`
 
+### Technische Details
+```text
+Aktuell:
+ResizablePanel + !important flex classes
+        -> überschreibt Inline-Flex von react-resizable-panels
+        -> Drag feuert, Breite ändert sich aber nicht sichtbar
+
+Soll:
+ResizablePanel ohne Desktop-Flex-Overrides
+        -> Inline-Flex vom Library-Code greift wieder
+        -> Breite wird normal veränderbar
+```
+
+### Ergebnis nach Umsetzung
+Die E-Mail-Liste lässt sich wieder normal schmaler und breiter ziehen, weil die Resize-Library die Flex-Breiten auf Desktop endlich wieder selbst kontrollieren kann.
