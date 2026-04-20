@@ -858,10 +858,6 @@ Beschreibung: ${report.description}`;
                   ) : (
                     timeFilteredInProgressReports.map(renderReportCard)
                   )}
-                    </Card>
-                  ) : (
-                    timeFilteredInProgressReports.map(renderReportCard)
-                  )}
                 </CollapsibleContent>
               </Collapsible>
             </div>
