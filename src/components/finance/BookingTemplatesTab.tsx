@@ -835,31 +835,32 @@ export function BookingTemplatesTab({ sharedBuildingId, onBuildingChange }: Book
                           <span className="text-muted-foreground">Keine Verknüpfung</span>
                         </CommandItem>
                         {invoices.map((inv: any) => (
-                          <CommandItem
-                            key={inv.id}
-                            value={`${inv.invoice_number || ""} ${inv.vendor_name || ""}`}
-                            onSelect={() => { setForm({ ...form, linked_invoice_id: inv.id }); setInvoiceOpen(false); }}
-                            className="flex items-center gap-2"
-                          >
-                            <Check className={cn("h-4 w-4 shrink-0", form.linked_invoice_id === inv.id ? "opacity-100" : "opacity-0")} />
-                            <div className="flex flex-col flex-1 min-w-0">
-                              <span className="text-sm truncate">{inv.invoice_number || "Ohne Nr."} – {inv.vendor_name || "Unbekannt"}</span>
-                              <span className="text-xs text-muted-foreground">
-                                {inv.invoice_date ? new Date(inv.invoice_date).toLocaleDateString("de-DE") : ""} 
-                                {inv.gross_amount != null ? ` · ${formatCurrency(inv.gross_amount)}` : ""}
-                              </span>
-                            </div>
+                          <div key={inv.id} className="flex items-center gap-1">
+                            <CommandItem
+                              value={`${inv.invoice_number || ""} ${inv.vendor_name || ""}`}
+                              onSelect={() => { setForm({ ...form, linked_invoice_id: inv.id }); setInvoiceOpen(false); }}
+                              className="flex items-center gap-2 flex-1"
+                            >
+                              <Check className={cn("h-4 w-4 shrink-0", form.linked_invoice_id === inv.id ? "opacity-100" : "opacity-0")} />
+                              <div className="flex flex-col flex-1 min-w-0">
+                                <span className="text-sm truncate">{inv.invoice_number || "Ohne Nr."} – {inv.vendor_name || "Unbekannt"}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {inv.invoice_date ? new Date(inv.invoice_date).toLocaleDateString("de-DE") : ""} 
+                                  {inv.gross_amount != null ? ` · ${formatCurrency(inv.gross_amount)}` : ""}
+                                </span>
+                              </div>
+                            </CommandItem>
                             {inv.file_path && (
                               <button
                                 type="button"
-                                onClick={(e) => { e.stopPropagation(); e.preventDefault(); openInvoicePreview(inv.id); }}
-                                className="ml-auto p-1.5 rounded hover:bg-accent shrink-0"
+                                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); openInvoicePreview(inv.id); }}
+                                className="p-1.5 mr-1 rounded hover:bg-accent shrink-0"
                                 title="Rechnung öffnen"
                               >
                                 <Eye className="h-4 w-4 text-muted-foreground" />
                               </button>
                             )}
-                          </CommandItem>
+                          </div>
                         ))}
                       </CommandGroup>
                     </CommandList>
