@@ -419,7 +419,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
             </div>
 
             {/* Save button */}
-            <Button onClick={handleSave} disabled={saving || !form.account_id || !form.building_id} className="w-full h-10 text-sm font-semibold bg-primary hover:bg-primary/90">
+            <Button data-booking-save onClick={handleSave} disabled={saving || !form.account_id || !form.building_id} className="w-full h-10 text-sm font-semibold bg-primary hover:bg-primary/90">
               {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
               Speichern
             </Button>
