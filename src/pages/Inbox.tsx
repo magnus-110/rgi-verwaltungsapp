@@ -833,7 +833,7 @@ export const Inbox = () => {
         {/* Middle: Email List — on mobile: hidden when an email is selected */}
         <ResizablePanel
           defaultSize={35}
-          minSize={20}
+          minSize={12}
           maxSize={75}
           className={cn(selectedEmailId ? "hidden md:!block" : "!block !flex-[1_1_0]", "md:!flex-initial !h-full !overflow-hidden")}
         >
