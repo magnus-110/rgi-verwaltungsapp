@@ -3698,47 +3698,62 @@ export type Database = {
         Row: {
           billing_period_id: string | null
           building_id: string
+          co2_emissions_kg: number | null
+          co2_tax_amount: number | null
           created_at: string
+          energy_content_kwh: number | null
           entry_date: string
           entry_type: string
           fuel_type: string
           id: string
           invoice_id: string | null
+          net_amount: number | null
           notes: string | null
           quantity: number
           total_price: number
           unit: string
           unit_price: number | null
+          vat_amount: number | null
         }
         Insert: {
           billing_period_id?: string | null
           building_id: string
+          co2_emissions_kg?: number | null
+          co2_tax_amount?: number | null
           created_at?: string
+          energy_content_kwh?: number | null
           entry_date?: string
           entry_type?: string
           fuel_type?: string
           id?: string
           invoice_id?: string | null
+          net_amount?: number | null
           notes?: string | null
           quantity?: number
           total_price?: number
           unit?: string
           unit_price?: number | null
+          vat_amount?: number | null
         }
         Update: {
           billing_period_id?: string | null
           building_id?: string
+          co2_emissions_kg?: number | null
+          co2_tax_amount?: number | null
           created_at?: string
+          energy_content_kwh?: number | null
           entry_date?: string
           entry_type?: string
           fuel_type?: string
           id?: string
           invoice_id?: string | null
+          net_amount?: number | null
           notes?: string | null
           quantity?: number
           total_price?: number
           unit?: string
           unit_price?: number | null
+          vat_amount?: number | null
         }
         Relationships: [
           {

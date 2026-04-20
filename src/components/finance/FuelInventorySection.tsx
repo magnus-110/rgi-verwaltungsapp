@@ -41,6 +41,9 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
     quantity: "",
     unit: "l",
     total_price: "",
+    co2_emissions_kg: "",
+    co2_tax_amount: "",
+    energy_content_kwh: "",
     notes: "",
   });
 
@@ -91,6 +94,8 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
     if (isNaN(qty) || qty <= 0) { toast.error("Bitte gültige Menge angeben"); return; }
 
     const fuelUnit = FUEL_TYPES.find((f) => f.value === newEntry.fuel_type)?.unit ?? "l";
+    const isPurchase = newEntry.entry_type === "purchase";
+    const showCo2 = isPurchase && ["oil", "gas", "district_heating"].includes(newEntry.fuel_type);
 
     const { error } = await supabase.from("fuel_inventory").insert({
       building_id: buildingId,
@@ -101,13 +106,16 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
       quantity: qty,
       unit: fuelUnit,
       total_price: isNaN(price) ? 0 : price,
+      co2_emissions_kg: showCo2 && newEntry.co2_emissions_kg ? parseFloat(newEntry.co2_emissions_kg) : null,
+      co2_tax_amount: showCo2 && newEntry.co2_tax_amount ? parseFloat(newEntry.co2_tax_amount) : null,
+      energy_content_kwh: isPurchase && newEntry.energy_content_kwh ? parseFloat(newEntry.energy_content_kwh) : null,
       notes: newEntry.notes || null,
     });
 
     if (error) { toast.error("Fehler: " + error.message); return; }
     toast.success("Eintrag hinzugefügt");
     setIsAddOpen(false);
-    setNewEntry({ fuel_type: "oil", entry_type: "purchase", entry_date: `${fiscalYear}-01-01`, quantity: "", unit: "l", total_price: "", notes: "" });
+    setNewEntry({ fuel_type: "oil", entry_type: "purchase", entry_date: `${fiscalYear}-01-01`, quantity: "", unit: "l", total_price: "", co2_emissions_kg: "", co2_tax_amount: "", energy_content_kwh: "", notes: "" });
     queryClient.invalidateQueries({ queryKey: ["fuel-inventory"] });
   };
 
@@ -160,13 +168,15 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
                 <TableHead>Datum</TableHead>
                 <TableHead className="text-right">Menge</TableHead>
                 <TableHead className="text-right">Gesamtpreis</TableHead>
-                <TableHead className="text-right">Stückpreis</TableHead>
+                <TableHead className="text-right">CO₂ (kg)</TableHead>
+                <TableHead className="text-right">CO₂-Steuer (€)</TableHead>
+                <TableHead className="text-right">Brennwert (kWh)</TableHead>
                 <TableHead>Notiz</TableHead>
                 <TableHead className="w-[40px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {entries.map((entry) => (
+              {entries.map((entry: any) => (
                 <TableRow key={entry.id}>
                   <TableCell>
                     <Badge variant="outline" className="text-xs">
@@ -177,7 +187,9 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
                   <TableCell className="text-sm">{new Date(entry.entry_date).toLocaleDateString("de-DE")}</TableCell>
                   <TableCell className="text-right font-mono text-sm">{formatNum(Number(entry.quantity))} {entry.unit}</TableCell>
                   <TableCell className="text-right font-mono text-sm">{formatCurrency(Number(entry.total_price))}</TableCell>
-                  <TableCell className="text-right font-mono text-sm">{formatCurrency(Number(entry.unit_price))}</TableCell>
+                  <TableCell className="text-right font-mono text-xs text-muted-foreground">{entry.co2_emissions_kg != null ? formatNum(Number(entry.co2_emissions_kg)) : "–"}</TableCell>
+                  <TableCell className="text-right font-mono text-xs text-muted-foreground">{entry.co2_tax_amount != null ? formatCurrency(Number(entry.co2_tax_amount)) : "–"}</TableCell>
+                  <TableCell className="text-right font-mono text-xs text-muted-foreground">{entry.energy_content_kwh != null ? formatNum(Number(entry.energy_content_kwh)) : "–"}</TableCell>
                   <TableCell className="text-xs text-muted-foreground max-w-[150px] truncate">{entry.notes || "–"}</TableCell>
                   <TableCell>
                     <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => deleteEntry(entry.id)}>
@@ -231,6 +243,29 @@ export function FuelInventorySection({ buildingId, periodId, fiscalYear }: FuelI
                 <Input type="number" step="0.01" value={newEntry.total_price} onChange={(e) => setNewEntry((p) => ({ ...p, total_price: e.target.value }))} placeholder="0,00" />
               </div>
             </div>
+            {newEntry.entry_type === "purchase" && (
+              <>
+                <div>
+                  <Label>Brennwert / Energiegehalt (kWh) <span className="text-xs text-muted-foreground">– optional, aus Rechnung</span></Label>
+                  <Input type="number" step="0.01" value={newEntry.energy_content_kwh} onChange={(e) => setNewEntry((p) => ({ ...p, energy_content_kwh: e.target.value }))} placeholder="z.B. 30000" />
+                </div>
+                {["oil", "gas", "district_heating"].includes(newEntry.fuel_type) && (
+                  <div className="rounded-md border border-amber-200 bg-amber-50/50 p-3 space-y-2">
+                    <p className="text-xs font-medium text-amber-900">CO₂-Daten (BEHG) – nur eintragen, was auf Rechnung steht</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <Label className="text-xs">CO₂-Emissionen (kg)</Label>
+                        <Input type="number" step="0.01" value={newEntry.co2_emissions_kg} onChange={(e) => setNewEntry((p) => ({ ...p, co2_emissions_kg: e.target.value }))} placeholder="aus Rechnung" />
+                      </div>
+                      <div>
+                        <Label className="text-xs">CO₂-Steueranteil (€)</Label>
+                        <Input type="number" step="0.01" value={newEntry.co2_tax_amount} onChange={(e) => setNewEntry((p) => ({ ...p, co2_tax_amount: e.target.value }))} placeholder="aus Rechnung" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
             <div>
               <Label>Notiz (optional)</Label>
               <Input value={newEntry.notes} onChange={(e) => setNewEntry((p) => ({ ...p, notes: e.target.value }))} placeholder="z.B. Lieferant, Lieferschein-Nr." />
