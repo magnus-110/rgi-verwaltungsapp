@@ -497,7 +497,7 @@ Beschreibung: ${report.description}`;
   };
 
   const renderReportCard = (report: Report) => {
-    const accent = report.status === "open" ? "border-l-destructive" : "border-l-warning";
+    const accent = report.status === "open" ? "border-l-destructive" : "border-l-muted-foreground/40";
     const managerNames = (report.buildings as any)?.managers?.map((m: any) => m.name).join(', ') || 'Nicht zugewiesen';
     const attachments = attachmentUrls[report.id] || parseAttachments(report.attachments);
 
@@ -664,18 +664,13 @@ Beschreibung: ${report.description}`;
     <div className="min-h-screen bg-background p-0 md:p-6">
       <div className="max-w-6xl mx-auto space-y-4 md:space-y-6">
         {/* Header */}
-        <div className="flex items-start gap-3">
-          <div className="p-2 bg-primary/10 rounded-lg">
-            <InboxIcon className="h-6 w-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="heading-primary text-2xl md:text-3xl">
-              {managementMode === "weg" ? "WEG-" : "Miet-"}Meldungen
-            </h1>
-            <p className="text-muted-foreground text-sm md:text-base">
-              Übersicht aller {managementMode === "weg" ? "WEG-" : "Miet-"}Meldungen
-            </p>
-          </div>
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold">
+            {managementMode === "weg" ? "WEG-" : "Miet-"}Meldungen
+          </h1>
+          <p className="text-muted-foreground text-sm md:text-base">
+            Übersicht aller {managementMode === "weg" ? "WEG-" : "Miet-"}Meldungen
+          </p>
         </div>
 
         {/* Toolbar */}
@@ -715,32 +710,30 @@ Beschreibung: ${report.description}`;
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsContent value="reports" className="space-y-6">
             {/* Summary Cards */}
-            <div className="grid grid-cols-2 gap-3 md:gap-4">
+            <div className="grid grid-cols-2 gap-3">
               <Card className="border-l-4 border-l-destructive">
-                <CardContent className="p-4 md:p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-medium text-muted-foreground">Offen</h3>
-                      <p className="text-3xl font-semibold tracking-tight text-foreground mt-1">{timeFilteredOpenReports.length}</p>
-                      <p className="text-xs text-muted-foreground mt-1">aktueller Zeitraum</p>
+                <CardContent className="p-3 md:p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <h3 className="text-xs font-medium text-muted-foreground">Offen</h3>
+                      <p className="text-2xl font-semibold tracking-tight text-foreground leading-tight">{timeFilteredOpenReports.length}</p>
                     </div>
-                    <div className="p-2.5 bg-destructive/10 rounded-full">
-                      <AlertCircle className="h-5 w-5 md:h-6 md:w-6 text-destructive" />
+                    <div className="p-2 bg-destructive/10 rounded-full shrink-0">
+                      <AlertCircle className="h-4 w-4 text-destructive" />
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="border-l-4 border-l-warning">
-                <CardContent className="p-4 md:p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-sm font-medium text-muted-foreground">Bearbeitet</h3>
-                      <p className="text-3xl font-semibold tracking-tight text-foreground mt-1">{timeFilteredInProgressReports.length}</p>
-                      <p className="text-xs text-muted-foreground mt-1">aktueller Zeitraum</p>
+              <Card className="border-l-4 border-l-muted-foreground/40">
+                <CardContent className="p-3 md:p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <h3 className="text-xs font-medium text-muted-foreground">Bearbeitet</h3>
+                      <p className="text-2xl font-semibold tracking-tight text-foreground leading-tight">{timeFilteredInProgressReports.length}</p>
                     </div>
-                    <div className="p-2.5 bg-warning/10 rounded-full">
-                      <Clock className="h-5 w-5 md:h-6 md:w-6 text-warning" />
+                    <div className="p-2 bg-muted rounded-full shrink-0">
+                      <Clock className="h-4 w-4 text-muted-foreground" />
                     </div>
                   </div>
                 </CardContent>
@@ -838,7 +831,7 @@ Beschreibung: ${report.description}`;
                 <CollapsibleTrigger asChild>
                   <div className="flex items-center justify-between cursor-pointer group">
                     <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-warning" />
+                      <span className="h-2 w-2 rounded-full bg-muted-foreground/50" />
                       <h2 className="text-base font-semibold text-foreground group-hover:text-primary transition-colors">Bearbeitete Meldungen</h2>
                       <Badge variant="secondary" className="text-xs">{timeFilteredInProgressReports.length}</Badge>
                     </div>
