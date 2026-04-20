@@ -99,7 +99,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
     if (!open) return;
     if (prefill?.account_id) return;
     const t = setTimeout(() => {
-      const trigger = document.querySelector<HTMLButtonElement>('[data-booking-form] [data-konto-trigger]');
+      const trigger = document.querySelector<HTMLButtonElement>('[data-booking-form] [role="combobox"]');
       trigger?.click();
     }, 150);
     return () => clearTimeout(t);
@@ -258,8 +258,6 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
                 accounts={accounts}
                 excludeCategory="Bankkonto"
                 placeholder="Konto suchen…"
-                triggerClassName="data-[konto-trigger]"
-                triggerProps={{ "data-konto-trigger": "true" }}
               />
             </div>
 
