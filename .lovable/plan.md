@@ -1,109 +1,77 @@
 
 
-## Praxisnahes Dashboard-Konzept (Gebäude + Allgemein)
+## Verbessertes RAG-System mit DMS-Kategorien
 
-Klare Trennung der zwei Dashboards basierend auf Nutzungskontext:
-- **Allgemeines Dashboard** (`/dashboard`) = Tagesstart-Übersicht über ALLE Gebäude
-- **Gebäude-Dashboard** (Tab "Übersicht" im Gebäude-Hub) = Arbeitsbereich für ein konkretes Gebäude
+### Problem
+- NOVA durchsucht `document_chunks` (Vektorsuche), aber Chunks sind **nicht** mit den DMS-Ordnern verknüpft (`building_documents.category` ist überall `"general"`).
+- Die User-Erwartung: "wenn ich Teilungserklärung sage, soll im Ordner *Teilungserklärung* gesucht werden" — aktuell unmöglich, weil die RAG-Pipeline die Kategorienhierarchie aus `building_file_categories` ignoriert.
+- Hardcodiertes Keyword-Mapping in `query-documents/index.ts` (Zeile 35-51) deckt nur 6 generische Kategorien ab, nicht die echten Ordner ("Teilungserklärung", "Hausordnung", "Versorgerverträge", "Wirtschaftsplan" usw.).
+- `building_files` (DMS) hat `category_id` + `extracted_text`, aber keine Chunks/Embeddings — wird nur als Volltext-Score in `chat-with-ai` durchsucht.
 
----
+### Lösung: Kategorie-bewusste RAG-Pipeline
 
-### A) Gebäude-Dashboard (`BuildingDashboard.tsx`, Tab "overview")
+Eine **einheitliche Vektorsuche über `building_files`** (= das, was im DMS hochgeladen wurde) mit **Ordner-Filter** anhand der echten Kategorienhierarchie.
 
-**1. KPI-Action-Bar (oben, klickbar → springt in passenden Tab)**
-- Offene Meldungen · Offene Vorgänge · Buchungs-Fortschritt %
+#### Schritt 1 — Datenmodell vereinheitlichen
+- `document_chunks` bekommt zusätzliche Spalten: `file_id uuid` (FK auf `building_files`), `category_id uuid` (FK), `category_slug text` (denormalisiert für schnellen Filter), `category_path text[]` (z. B. `['Stammakte','Teilungserklärung']` für Eltern-Filter).
+- Neuer Trigger: Beim Verarbeiten eines `building_files`-Eintrags wird sein `category_id` (+ Eltern + Slug) automatisch in seine Chunks geschrieben.
+- Migration füllt bestehende Chunks rückwirkend, soweit ableitbar (über Datei-Pfad → `building_files`-Lookup).
 
-**2. Buchungs-Fortschritt (neue Karte, prominent)**
-Skala/Progress-Bar: "Letzter Monat: 78 % der Bankbewegungen gebucht (42/54)"
-- Datenquelle: `bank_transactions` WHERE building_id = X AND booking_date BETWEEN [letzter Monat]
-- Berechnung: `count(invoice_id IS NOT NULL OR matched_template_id IS NOT NULL) / count(*)`
-- Klick → Sprung zu Buchhaltung > Kontoauszüge
+#### Schritt 2 — `process-building-file` erweitern: echtes RAG statt nur OCR
+Aktuell macht die Function nur OCR → `extracted_text`. Sie soll künftig zusätzlich:
+1. Semantisches Chunking (analog `process-document`).
+2. Mistral-Embeddings je Chunk.
+3. Insert in `document_chunks` mit `file_id`, `category_id`, `category_slug`, `category_path`, `building_id`.
 
-**3. Eigentümer-Liste mit Schnellaktionen**
-Kompakte Liste aller Eigentümer (`contact_building_assignments` WHERE role='eigentuemer'):
-- Name + Wohneinheit
-- Buttons rechts: ✉ E-Mail (öffnet ComposeEmail mit Empfänger vorausgefüllt), 📞 Tel (tel:-Link)
-- Mobile: kollabierbar, max. 5 sichtbar + "Alle anzeigen"
+So wird **jedes DMS-Dokument** automatisch RAG-fähig — und ist damit über seinen Ordner adressierbar.
 
-**4. Handwerker / Dienstleister-Karte**
-Eigene Sektion (`contact_building_assignments` WHERE role='dienstleister'):
-- Firmenname + Gewerk
-- Schnellaktionen: ✉ Mail, 📞 Anrufen
-- Wird NICHT mehr im Personen-Tab angezeigt (bleibt wie geändert)
+#### Schritt 3 — Slug-Resolver in `query-documents`
+Statt Hardcoded-Mapping eine zweistufige Strategie:
 
-**5. Offene Vorgänge (Cases)**
-Top 5 offene Cases (`cases` WHERE status IN ('open','in_progress','waiting_external')):
-- Titel + Priorität-Badge + Alter
-- Button: "+ Neuer Vorgang" (öffnet `CreateCaseDialog`)
+**A) Kategorie-Detektor (LLM-light, Mistral Small):**
+- Lädt einmalig alle Kategorien-Slugs/Namen aus `building_file_categories`.
+- Mistral Small bekommt Frage + Kategorienliste und gibt 0-3 passende `category_slug`s zurück (JSON, ~200ms).
+- Beispiel: "Was steht in der Teilungserklärung zum Sondernutzungsrecht?" → `["stammakte-teilungserklaerung"]`.
+- Beispiel: "Welche Verträge habe ich?" → `["vertraege-versorger","vertraege-dienstleister","vertraege-bank"]`.
 
-**6. Offene Meldungen**
-Top 5 (`weg_reports`/`miete_reports` WHERE status='open'):
-- Eigentümer-Name + Kurztext + Datum
-- Klick → Sprung in Reports-Tab
+**B) Hybrid-Retrieval:**
+1. **Phase 1 — Kategorie-gefiltert**: Vektorsuche nur in Chunks der erkannten `category_slug`s (oder Eltern-Slug für "alle Verträge"). Limit 8.
+2. **Phase 2 — Globaler Fallback**: Falls weniger als 4 Treffer ODER beste Similarity < 0.65, ergänzende ungefilterte Suche über das Gebäude (Limit 4).
+3. **Re-Ranking**: Chunks aus erkannter Kategorie bekommen Similarity-Boost +0.1 (so dass Teilungserklärungs-Chunks in Teilungserklärungs-Fragen vorne stehen, auch wenn andere Dokumente das Wort enthalten).
 
-**7. Quick-Action-Leiste (unten, 4 Buttons)**
-`+ Vorgang` · `+ Aufgabe` · `+ Schwarzes Brett` · `✉ Rundmail an alle Eigentümer`
+#### Schritt 4 — Quellen-Anzeige verbessern
+Antwort von NOVA nennt künftig den **Ordnerpfad**:
+> _Quelle: Stammakte › Teilungserklärung › "Teilungserklärung Musterstr. 12.pdf", S. 4_
 
----
+Im Frontend (`DocumentChat.tsx` und Nova-Chat) wird die `category_path`-Information aus dem Chunk-Metadata-JSON gerendert.
 
-### B) Allgemeines Dashboard (`pages/Dashboard.tsx`)
-
-Tagesstart-Übersicht über ALLE zugewiesenen Gebäude (für Verwalter-Mitarbeiter):
-
-**1. Big-Number-Cards (4 KPIs oben)**
-- 🔴 Offene Meldungen (Summe über alle Gebäude)
-- 📋 Offene Vorgänge
-- 💰 Offene Rechnungen (`invoices` WHERE status='open')
-- ✉ Neue E-Mails ungelesen (`emails` WHERE is_read=false, building_id IS NOT NULL)
-
-Jede Card klickbar → Sprung zur jeweiligen Seite mit passendem Filter.
-
-**2. "Heute fällig" Liste**
-- Aufgaben mit `due_date = today` aus `todos`
-- Wartungstermine aus `building_maintenance` (next_due in 7 Tagen)
-- Anstehende ETV-Termine
-
-**3. "Letzte Aktivität" Feed**
-Realtime-Stream der letzten 10 Events: neue Meldung, neue E-Mail klassifiziert, Vorgang aktualisiert, Rechnung eingegangen — mit Gebäude-Kontext-Chip.
-
-**4. Gebäude-Schnellzugriff-Grid**
-Bestehende Gebäudekacheln behalten, aber kompakter — mit Mini-Badge bei kritischen Zahlen (z. B. "3 offen").
+#### Schritt 5 — `chat-with-ai` aufräumen
+Die separate Volltext-Scoring-Logik für `building_files` (Zeile 392-432) und `building_documents` (434-...) entfällt. Stattdessen ein einziger Aufruf an `query-documents` (intern, mit Service-Role) — eine Quelle der Wahrheit.
 
 ---
 
-### Technische Umsetzung
+### Komponenten-Übersicht
 
-| Komponente | Datei | Typ |
+| Datei | Typ | Zweck |
 |---|---|---|
-| RPC `get_building_overview(uuid)` | Migration | Konsolidiert alle Counter+Listen in einer Query |
-| RPC `get_dashboard_global_stats(uuid)` | Migration | Für allg. Dashboard, scoped auf zugewiesene Gebäude |
-| `BuildingOverviewTab.tsx` | NEU | Ersetzt Inhalt von Tab "overview" in `BuildingDashboard.tsx` |
-| `BookingProgressCard.tsx` | NEU | Progress-Bar mit Buchungs-% |
-| `OwnerQuickActions.tsx` | NEU | Eigentümer-Liste mit Mail/Tel-Buttons |
-| `ServiceProvidersCard.tsx` | NEU | Handwerker-Schnellzugriff |
-| `Dashboard.tsx` | EDIT | Komplettes Redesign mit KPIs + Activity Feed |
-| Hooks: `useComposeEmail` (existiert) | — | Für „E-Mail an Eigentümer" |
+| Migration | NEU | Spalten `file_id`, `category_id`, `category_slug`, `category_path` an `document_chunks`; Backfill-Script |
+| Migration | NEU | RPC `search_chunks_by_category(query_embedding, building_id, category_slugs[], limit)` |
+| Migration | NEU | RPC `get_category_taxonomy(building_id)` — liefert flache Liste aller Slugs+Namen+Pfaden |
+| `process-building-file/index.ts` | EDIT | OCR + Chunking + Embeddings + Chunk-Insert mit Kategorie-Metadaten |
+| `query-documents/index.ts` | EDIT | Kategorie-Detektor (Mistral Small), Hybrid-Retrieval, Boost-Logik |
+| `chat-with-ai/index.ts` | EDIT | Bestehende Score-Logik raus, intern `query-documents` aufrufen |
+| `DocumentChat.tsx` + Nova Chat-Components | EDIT | Quellen mit Ordnerpfad anzeigen |
 
-### Datenquellen (alle vorhanden)
-- `weg_reports` / `miete_reports` (status=open)
-- `cases` (status IN open/in_progress/waiting_external)
-- `bank_transactions` + `bookings` für Buchungs-Fortschritt
-- `contact_building_assignments` (role: eigentuemer / dienstleister) + `contact_persons` + `contact_emails` + `contact_phones`
-- `invoices`, `emails`, `todos`, `building_maintenance`
-
-### Mobile (411 px)
-- KPI-Bar als 2×2-Grid
-- Eigentümer/Handwerker-Listen kollabierbar
-- Quick-Actions als 2×2-Grid
-- Activity-Feed unter den Listen
-
-### Was bewusst NICHT angezeigt wird
-Vanity-Metriken: Anzahl Kontakte/Dokumente/Forum-Beiträge, Adresse als großes Feld (steht im Header), Kontenrahmen, Gebäudedokumente.
+### Was bleibt unverändert
+- DMS-Upload-UX (Ordnerauswahl beim Hochladen) — nutzt schon `building_files` + `category_id`.
+- Existierende `building_documents` (Legacy-Pfad) bleibt funktionsfähig, neue Uploads laufen aber nur noch über `building_files`.
+- Vektorsuche-Engine (pgvector + Mistral-Embeddings).
 
 ### Reihenfolge der Umsetzung
-1. RPC `get_building_overview` + `BuildingOverviewTab` mit allen Sektionen
-2. `BookingProgressCard` (separater Schritt, weil eigene Berechnung)
-3. RPC `get_dashboard_global_stats` + Redesign `pages/Dashboard.tsx`
+1. **Migration**: Spalten + RPC + Backfill für vorhandene Chunks.
+2. **process-building-file**: Chunking/Embeddings einbauen, alte DMS-Files automatisch nachverarbeiten (Knopf "RAG neu indizieren" pro Datei).
+3. **query-documents**: Kategorie-Detektor + Hybrid-Retrieval.
+4. **chat-with-ai**: Konsolidierung + Source-Path-Anzeige im Frontend.
 
-Starte ich mit Schritt 1 (Gebäude-Dashboard inkl. RPC)?
+Soll ich mit Schritt 1 (Migration + Backfill) starten?
 
