@@ -140,6 +140,12 @@ export const LetterCampaignWizard = ({ open, onOpenChange, buildingId }: Props) 
                 </p>
               )}
             </div>
+            <div className="mx-auto max-w-sm rounded-md border bg-muted/40 p-3 text-left text-xs flex items-start gap-2">
+              <FolderArchive className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+              <span>
+                Das ZIP-Bundle wurde automatisch im <strong>Dokumentenarchiv (Serienbriefe)</strong> der Liegenschaft abgelegt.
+              </span>
+            </div>
             <Button onClick={handleDownload} size="lg">
               <Download className="h-4 w-4 mr-2" /> ZIP herunterladen
             </Button>
