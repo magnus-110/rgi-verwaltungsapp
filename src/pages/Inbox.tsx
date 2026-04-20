@@ -835,7 +835,7 @@ export const Inbox = () => {
           defaultSize={35}
           minSize={20}
           maxSize={75}
-          className={cn(selectedEmailId ? "hidden md:!block" : "!block", "!flex-[1_1_0] md:!flex-initial !h-full !overflow-hidden")}
+          className={cn(selectedEmailId ? "hidden md:!block" : "!block !flex-[1_1_0]", "md:!flex-initial !h-full !overflow-hidden")}
         >
           <div className="flex flex-col h-full min-h-0">
 
@@ -1062,7 +1062,7 @@ export const Inbox = () => {
         {/* Right: Email Detail — on mobile: only visible when an email is selected */}
         <ResizablePanel
           defaultSize={65}
-          className={cn(selectedEmailId ? "!block" : "hidden md:!block", "!flex-[1_1_0] md:!flex-initial !h-full !overflow-hidden")}
+          className={cn(selectedEmailId ? "!block !flex-[1_1_0]" : "hidden md:!block", "md:!flex-initial !h-full !overflow-hidden")}
         >
           <div className="flex flex-col h-full min-h-0 min-w-0">
             {selectedEmail ? (
