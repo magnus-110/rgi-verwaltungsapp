@@ -278,7 +278,7 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
               </Select>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_240px] gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_280px] gap-4">
               <div className="space-y-4 min-w-0">
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
@@ -289,49 +289,71 @@ export const EmailCampaignWizard = ({ open, onOpenChange, buildingId }: Props) =
                     onValueChange={(v) => setBodyFormat(v as "html" | "plain")}
                     className="flex gap-2"
                   >
+                    <label className={`flex-1 flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer text-sm transition-colors ${bodyFormat === "plain" ? "border-primary bg-primary/5" : "border-input hover:bg-accent"}`}>
+                      <RadioGroupItem value="plain" />
+                      <Type className="h-4 w-4" /> Klartext
+                      <span className="text-xs text-muted-foreground ml-auto">Empfohlen</span>
+                    </label>
                     <label className={`flex-1 flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer text-sm transition-colors ${bodyFormat === "html" ? "border-primary bg-primary/5" : "border-input hover:bg-accent"}`}>
                       <RadioGroupItem value="html" />
                       <Code className="h-4 w-4" /> HTML
                       <span className="text-xs text-muted-foreground ml-auto">Formatiert</span>
                     </label>
-                    <label className={`flex-1 flex items-center gap-2 rounded-md border px-3 py-2 cursor-pointer text-sm transition-colors ${bodyFormat === "plain" ? "border-primary bg-primary/5" : "border-input hover:bg-accent"}`}>
-                      <RadioGroupItem value="plain" />
-                      <Type className="h-4 w-4" /> Klartext
-                      <span className="text-xs text-muted-foreground ml-auto">Einfach</span>
-                    </label>
                   </RadioGroup>
                 </div>
 
-                <div>
-                  <Label>Betreff *</Label>
-                  <Input
-                    ref={subjectRef}
-                    value={subject}
-                    onChange={(e) => setSubject(e.target.value)}
-                    onFocus={() => { lastFocused.current = "subject"; }}
-                  />
-                </div>
-                <div>
-                  <Label>Inhalt {bodyFormat === "html" ? "(HTML)" : "(Klartext)"} *</Label>
-                  <Textarea
-                    ref={bodyRef}
-                    value={body}
-                    onChange={(e) => setBody(e.target.value)}
-                    onFocus={() => { lastFocused.current = "body"; }}
-                    onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
-                    onDrop={handleDropPlaceholder}
-                    rows={12}
-                    className={bodyFormat === "html" ? "font-mono text-sm" : "text-sm"}
-                    placeholder={bodyFormat === "html"
-                      ? "<p>{{anrede_brief}}</p>\n<p>...</p>"
-                      : "{{anrede_brief}}\n\n..."}
-                  />
-                </div>
+                <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "write" | "preview")}>
+                  <TabsList variant="underline">
+                    <TabsTrigger value="write" variant="underline"><FileEdit className="h-3.5 w-3.5 mr-1" />Schreiben</TabsTrigger>
+                    <TabsTrigger value="preview" variant="underline"><Eye className="h-3.5 w-3.5 mr-1" />Vorschau</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="write" className="space-y-4 mt-4">
+                    <div>
+                      <Label>Betreff *</Label>
+                      <Input
+                        ref={subjectRef}
+                        value={subject}
+                        onChange={(e) => setSubject(e.target.value)}
+                        onFocus={() => { lastFocused.current = "subject"; }}
+                      />
+                    </div>
+                    <div>
+                      <Label>Inhalt {bodyFormat === "html" ? "(HTML)" : "(Klartext)"} *</Label>
+                      <Textarea
+                        ref={bodyRef}
+                        value={body}
+                        onChange={(e) => setBody(e.target.value)}
+                        onFocus={() => { lastFocused.current = "body"; }}
+                        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
+                        onDrop={handleDropPlaceholder}
+                        rows={12}
+                        className={bodyFormat === "html" ? "font-mono text-sm" : "text-sm"}
+                        placeholder={bodyFormat === "html"
+                          ? "<p>{{anrede_brief}}</p>\n<p>...</p>"
+                          : "{{anrede_brief}}\n\n..."}
+                      />
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="preview" className="mt-4">
+                    <EmailPreviewPane
+                      subject={subject}
+                      body={body}
+                      format={bodyFormat}
+                      samples={placeholderSamples}
+                    />
+                  </TabsContent>
+                </Tabs>
               </div>
 
               <aside className="border rounded-md bg-muted/30 p-2 md:sticky md:top-0 self-start">
-                <h4 className="text-xs font-semibold mb-1 px-1">Platzhalter</h4>
-                <VariablePalette onInsert={insertAtCursor} stats={placeholderStats} />
+                <h4 className="text-xs font-semibold mb-1 px-1">Platzhalter einfügen</h4>
+                <FriendlyVariablePalette
+                  onInsert={insertAtCursor}
+                  stats={placeholderStats}
+                  samples={placeholderSamples}
+                />
                 <div className="mt-2 px-1 space-y-0.5 text-[10px] text-muted-foreground">
                   <div className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-destructive" /> Keine Daten</div>
                   <div className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-amber-500" /> Teilweise leer</div>
