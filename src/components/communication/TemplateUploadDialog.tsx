@@ -1,14 +1,16 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Upload, FileText, Mail } from "lucide-react";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Upload, FileText, Mail, Code, Type } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { VariablePalette } from "./VariablePalette";
 
 interface Props {
   open: boolean;
@@ -24,13 +26,36 @@ export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultTy
   const [file, setFile] = useState<File | null>(null);
   const [subject, setSubject] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
+  const [bodyFormat, setBodyFormat] = useState<"html" | "plain">("html");
   const [busy, setBusy] = useState(false);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
   const { toast } = useToast();
   const qc = useQueryClient();
 
   const reset = () => {
     setName(""); setDescription(""); setFile(null);
     setSubject(""); setBodyHtml(""); setType(defaultType);
+    setBodyFormat("html");
+  };
+
+  const insertPlaceholder = (ph: string) => {
+    const ta = bodyRef.current;
+    if (!ta) { setBodyHtml(bodyHtml + ph); return; }
+    const start = ta.selectionStart ?? ta.value.length;
+    const end = ta.selectionEnd ?? start;
+    const next = ta.value.slice(0, start) + ph + ta.value.slice(end);
+    setBodyHtml(next);
+    requestAnimationFrame(() => {
+      ta.focus();
+      const p = start + ph.length;
+      ta.setSelectionRange(p, p);
+    });
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLTextAreaElement>) => {
+    e.preventDefault();
+    const ph = e.dataTransfer.getData("text/plain");
+    if (ph) insertPlaceholder(ph);
   };
 
   const handleSave = async () => {
