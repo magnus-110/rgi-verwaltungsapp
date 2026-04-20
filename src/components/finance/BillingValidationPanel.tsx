@@ -89,6 +89,19 @@ export function BillingValidationPanel({ periodId, buildingId, fiscalYear }: Bil
     },
   });
 
+  const { data: reconciliations = [] } = useQuery({
+    queryKey: ["bank-recon-validation", buildingId, fiscalYear],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bank_reconciliations")
+        .select("period_month, status")
+        .eq("building_id", buildingId)
+        .eq("period_year", fiscalYear);
+      if (error) throw error;
+      return data;
+    },
+  });
+
   // Live-Prüfungen
   type LiveCheck = { name: string; status: "passed" | "warning" | "failed"; message: string };
   const liveChecks: LiveCheck[] = [];
