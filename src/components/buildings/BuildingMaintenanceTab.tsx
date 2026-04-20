@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { MaintenanceConfigSection, type MaintenanceConfig } from "./MaintenanceConfigSection";
+import { HeatingUnitsManager } from "./HeatingUnitsManager";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Save, Wrench } from "lucide-react";
@@ -91,6 +92,8 @@ export const BuildingMaintenanceTab = ({ buildingId }: BuildingMaintenanceTabPro
       </div>
 
       <MaintenanceConfigSection configs={configs} onChange={setConfigs} />
+
+      <HeatingUnitsManager buildingId={buildingId} />
     </div>
   );
 };
