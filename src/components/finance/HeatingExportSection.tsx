@@ -122,10 +122,22 @@ export function HeatingExportSection({ buildingId, periodId, fiscalYear }: Heati
 
         lines.push(`Brennstoffart;${label}`);
         if (opening) lines.push(`Anfangsbestand;${Number(opening.quantity).toFixed(2).replace(".", ",")};${opening.unit}`);
-        purchases.forEach((p, i) => {
-          lines.push(`Einkauf ${i + 1};${Number(p.quantity).toFixed(2).replace(".", ",")};${p.unit};${Number(p.total_price).toFixed(2).replace(".", ",")} EUR;${p.entry_date}`);
+        lines.push(`Einkauf-Nr;Menge;Einheit;Gesamtpreis EUR;Datum;Brennwert kWh;CO2-Emissionen kg;CO2-Steuer EUR`);
+        purchases.forEach((p: any, i) => {
+          const co2 = p.co2_emissions_kg != null ? Number(p.co2_emissions_kg).toFixed(2).replace(".", ",") : "";
+          const co2tax = p.co2_tax_amount != null ? Number(p.co2_tax_amount).toFixed(2).replace(".", ",") : "";
+          const kwh = p.energy_content_kwh != null ? Number(p.energy_content_kwh).toFixed(2).replace(".", ",") : "";
+          lines.push(`Einkauf ${i + 1};${Number(p.quantity).toFixed(2).replace(".", ",")};${p.unit};${Number(p.total_price).toFixed(2).replace(".", ",")};${p.entry_date};${kwh};${co2};${co2tax}`);
         });
         if (closing) lines.push(`Endbestand;${Number(closing.quantity).toFixed(2).replace(".", ",")};${closing.unit}`);
+
+        // Aggregat pro Energieträger
+        const totalCo2 = purchases.reduce((s, p: any) => s + Number(p.co2_emissions_kg ?? 0), 0);
+        const totalCo2Tax = purchases.reduce((s, p: any) => s + Number(p.co2_tax_amount ?? 0), 0);
+        const totalKwh = purchases.reduce((s, p: any) => s + Number(p.energy_content_kwh ?? 0), 0);
+        if (totalCo2 > 0 || totalCo2Tax > 0 || totalKwh > 0) {
+          lines.push(`Jahressumme;;;;;${totalKwh.toFixed(2).replace(".", ",")};${totalCo2.toFixed(2).replace(".", ",")};${totalCo2Tax.toFixed(2).replace(".", ",")}`);
+        }
         lines.push("");
       });
     }
