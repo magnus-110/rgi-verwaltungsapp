@@ -121,6 +121,22 @@ export function BillingValidationPanel({ periodId, buildingId, fiscalYear }: Bil
     } else {
       liveChecks.push({ name: `Brennstoff (${ft})`, status: "passed", message: `Verbrauch: ${consumption.toFixed(1)}` });
     }
+
+    // CO₂-Check (BEHG, nur fossile Brennstoffe)
+    if (["oil", "gas", "district_heating"].includes(ft as string)) {
+      const purchaseEntries = ftEntries.filter((e) => e.entry_type === "purchase");
+      if (purchaseEntries.length > 0) {
+        const missingCo2 = purchaseEntries.filter((e: any) => e.co2_emissions_kg == null || e.co2_tax_amount == null);
+        if (missingCo2.length === purchaseEntries.length) {
+          liveChecks.push({ name: `CO₂-Daten (${ft})`, status: "warning", message: `BEHG: Keine CO₂-Daten erfasst (${purchaseEntries.length} Einkäufe)` });
+        } else if (missingCo2.length > 0) {
+          liveChecks.push({ name: `CO₂-Daten (${ft})`, status: "warning", message: `${missingCo2.length} von ${purchaseEntries.length} Einkäufen ohne CO₂-Daten` });
+        } else {
+          const totalCo2 = purchaseEntries.reduce((s, e: any) => s + Number(e.co2_emissions_kg ?? 0), 0);
+          liveChecks.push({ name: `CO₂-Daten (${ft})`, status: "passed", message: `${totalCo2.toFixed(0)} kg CO₂ erfasst` });
+        }
+      }
+    }
   });
 
   // 3. HK-Umbuchungen
