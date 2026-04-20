@@ -32,11 +32,15 @@ export function VendorHistorySection({ booking }: VendorHistorySectionProps) {
   }, [booking]);
 
   const { data: historyBookings = [] } = useQuery({
-    queryKey: ["vendor-history", booking?.building_id, vendorName],
+    queryKey: ["vendor-history", booking?.building_id, vendorName, booking?.id],
     queryFn: async () => {
       if (!vendorName || !booking?.building_id) return [];
 
-      const { data, error } = await supabase
+      const escaped = vendorName.replace(/[%_,()]/g, " ").trim();
+      if (!escaped) return [];
+
+      // Query 1: bookings in this building whose description matches the vendor name
+      const byDescriptionPromise = supabase
         .from("bookings")
         .select(`
           id, booking_date, amount, booking_type, fiscal_year, status, description,
@@ -45,12 +49,44 @@ export function VendorHistorySection({ booking }: VendorHistorySectionProps) {
         `)
         .eq("building_id", booking.building_id)
         .neq("id", booking.id)
-        .or(`description.ilike.%${vendorName}%`)
+        .ilike("description", `%${escaped}%`)
         .order("booking_date", { ascending: false })
-        .limit(50);
+        .limit(100);
 
-      if (error) throw error;
-      return data || [];
+      // Query 2: bookings whose linked invoice has the same vendor_name
+      const { data: matchingInvoices } = await supabase
+        .from("invoices")
+        .select("id")
+        .ilike("vendor_name", `%${escaped}%`);
+
+      const invoiceIds = (matchingInvoices || []).map((i: any) => i.id);
+
+      const byInvoicePromise = invoiceIds.length > 0
+        ? supabase
+            .from("bookings")
+            .select(`
+              id, booking_date, amount, booking_type, fiscal_year, status, description,
+              chart_of_accounts!bookings_account_id_fkey(account_number, account_name),
+              invoices(vendor_name)
+            `)
+            .eq("building_id", booking.building_id)
+            .neq("id", booking.id)
+            .in("invoice_id", invoiceIds)
+            .order("booking_date", { ascending: false })
+            .limit(100)
+        : Promise.resolve({ data: [] as any[], error: null });
+
+      const [descRes, invRes] = await Promise.all([byDescriptionPromise, byInvoicePromise]);
+      if (descRes.error) throw descRes.error;
+      if ((invRes as any).error) throw (invRes as any).error;
+
+      const merged = new Map<string, any>();
+      [...(descRes.data || []), ...((invRes as any).data || [])].forEach((b: any) => {
+        merged.set(b.id, b);
+      });
+      return Array.from(merged.values()).sort(
+        (a, b) => new Date(b.booking_date).getTime() - new Date(a.booking_date).getTime()
+      );
     },
     enabled: isOpen && !!vendorName && !!booking?.building_id,
   });
