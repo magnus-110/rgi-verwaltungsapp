@@ -102,3 +102,12 @@ verify_jwt = false
 [functions.parse-einvoice]
 verify_jwt = false
 
+[functions.comm-parse-template]
+verify_jwt = false
+
+[functions.comm-render-letters]
+verify_jwt = false
+
+[functions.comm-send-bulk-email]
+verify_jwt = false
+
