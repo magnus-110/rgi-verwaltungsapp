@@ -17,8 +17,11 @@ export function InvoiceDropZone({ buildings }: Props) {
   const [selectedBuilding, setSelectedBuilding] = useState<string>("");
 
   const uploadFile = useCallback(async (file: File) => {
-    if (!file.type.includes("pdf")) {
-      toast.error(`"${file.name}" ist keine PDF-Datei`);
+    const lowerName = file.name.toLowerCase();
+    const isPdf = file.type.includes("pdf") || lowerName.endsWith(".pdf");
+    const isXml = file.type.includes("xml") || lowerName.endsWith(".xml");
+    if (!isPdf && !isXml) {
+      toast.error(`"${file.name}" ist keine PDF- oder XML-Datei`);
       return;
     }
 
@@ -146,7 +149,7 @@ export function InvoiceDropZone({ buildings }: Props) {
       >
         <input
           type="file"
-          accept=".pdf"
+          accept=".pdf,.xml,application/pdf,application/xml,text/xml"
           multiple
           className="hidden"
           onChange={handleFileInput}
@@ -159,11 +162,11 @@ export function InvoiceDropZone({ buildings }: Props) {
           )}
           <div className="text-center">
             <p className="text-sm font-medium">
-              PDF-Rechnungen hierher ziehen oder klicken
+              Rechnungen hierher ziehen oder klicken
             </p>
             <p className="text-xs text-muted-foreground mt-1 flex items-center justify-center gap-1">
               <Sparkles className="h-3 w-3" />
-              Mehrere Dateien gleichzeitig möglich • Liegenschaft wird automatisch erkannt
+              PDF oder XML (XRechnung/ZUGFeRD) • Liegenschaft wird automatisch erkannt
             </p>
           </div>
         </div>
