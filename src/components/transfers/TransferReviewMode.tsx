@@ -38,6 +38,7 @@ interface Invoice {
   payment_purpose?: string | null;
   building_id?: string | null;
   is_company_invoice?: boolean;
+  ocr_extracted_data?: any;
   buildings?: { name: string; building_code: string } | null;
 }
 
