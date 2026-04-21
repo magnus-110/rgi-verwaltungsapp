@@ -15,19 +15,23 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear }: AssetRe
   const formatCurrency = (n: number) =>
     new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
 
-  // Bank account balances (category contains "Bank")
+  // Bank account balances — robust via settlement_section="bank" mit Fallback auf 1800–1899
   const { data: bankAccounts = [] } = useQuery({
     queryKey: ["asset-bank-accounts", buildingId, fiscalYear],
     queryFn: async () => {
       const { data: accounts, error: accErr } = await supabase
         .from("chart_of_accounts")
-        .select("id, account_number, account_name, category")
-        .or(`building_id.is.null,building_id.eq.${buildingId}`)
-        .ilike("category", "%Bank%");
+        .select("id, account_number, account_name, category, settlement_section")
+        .or(`building_id.is.null,building_id.eq.${buildingId}`);
       if (accErr) throw accErr;
-      if (!accounts?.length) return [];
+      const bankAccs = (accounts || []).filter((a: any) => {
+        if (a.settlement_section === "bank") return true;
+        const num = Number(a.account_number);
+        return num >= 1800 && num < 1900;
+      });
+      if (!bankAccs.length) return [];
 
-      const accountIds = accounts.map(a => a.id);
+      const accountIds = bankAccs.map(a => a.id);
       const { data: balances, error: balErr } = await supabase
         .from("account_balances")
         .select("*")
@@ -36,7 +40,7 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear }: AssetRe
         .in("account_id", accountIds);
       if (balErr) throw balErr;
 
-      return accounts.map(acc => {
+      return bankAccs.map(acc => {
         const bal = balances?.find(b => b.account_id === acc.id);
         return {
           ...acc,
