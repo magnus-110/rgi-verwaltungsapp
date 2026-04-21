@@ -823,6 +823,9 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         ...(pendingBookingIdsRef.current[currentTxn.id] || []),
         booking.id,
       ];
+      // Map row → booking for individual undo
+      if (!rowBookingMapRef.current[currentTxn.id]) rowBookingMapRef.current[currentTxn.id] = {};
+      rowBookingMapRef.current[currentTxn.id][rowId] = booking.id;
 
       // Mark this row as booked
       setFormRows(rows => rows.map(r => r.id === rowId ? { ...r, booked: true } : r));
