@@ -1,69 +1,35 @@
 
 
 ## Ziel
+Die Sektion „Heizkosten-relevante Konten" zeigt für Birkenweg 6 0,00 €, obwohl auf den Heizkonten (1440 Heizungswartung, 1470 Vorauszahlungen Gas usw.) Buchungen existieren – sie liegen nur auf der **Gegenkonto**-Seite (Bank 1800 ist das Hauptkonto, das Heizkonto das Gegenkonto). Die Auswertung muss beide Seiten berücksichtigen.
 
-1. **Enter** im Prüfmodus bestätigt nur die **aktuell aufgeklappte Buchungszeile** – nicht mehr alle ungebuchten Zeilen einer Transaktion auf einmal.
-2. **Bereits gebuchte Teilbuchungen** lassen sich anklicken, **erneut öffnen und bearbeiten** (Konto, Betrag, Buchungstext, MwSt usw.). Beim erneuten „Buchen" wird die bestehende Buchung in der DB **aktualisiert** statt eine neue zu erzeugen.
+## Ursache
+In `HeatingAccountsSection.tsx` filtert `getAccountTotal` ausschließlich auf `account_id`. Bei der „Bank-zentrierten" Buchungsweise (eine Buchung pro Bankbewegung mit Aufwandskonto im Feld `counter_account_id`) wird das Heizkonto nie getroffen → Summe = 0.
 
-## Ursachen
-
-### Enter bestätigt alles
-In `TransactionReviewMode.tsx` (Zeile ~1012) ist die globale Enter-Tastenkombination an `confirmAndNext` gebunden, das in einer Schleife `handleBookRow` für **jede** ungebuchte Zeile aufruft. Folge: Bei einer Split-Transaktion mit 3 Zeilen werden alle drei mit einem Enter gebucht.
-
-### Gebuchte Zeilen nicht editierbar
-- `BookingRowCard` zwingt das `Collapsible` mit `open={isExpanded && !row.booked}` zu, der Header-Button ist `disabled={row.booked}`. Klicks werden ignoriert.
-- `handleBookRow` hat ein hartes `if (row.booked) return;` (Zeile 719) und führt grundsätzlich `INSERT` durch – kein Update-Pfad.
-- `rowBookingMapRef` kennt zwar die `bookingId` jeder gebuchten Zeile (für Undo), wird aber für ein Update nicht genutzt.
+Das Screenshot bestätigt: Sämtliche Heizungs-/Versorger-Buchungen (1440, 1470, 1473) stehen in der Spalte „G-Kto.-Nr.", nicht in „Kto.-Nr.".
 
 ## Umsetzung
 
-### 1. Enter nur für die aktuell offene Zeile (`TransactionReviewMode.tsx`)
+### 1. Buchungs-Query um Gegenkonto erweitern
+In beiden Queries (`heating-bookings` aktuelles + Vorjahr) zusätzlich `counter_account_id` selektieren.
 
-- Globale Enter-Behandlung im `keydown`-Effekt umstellen:
-  - Wenn `expandedRowId` gesetzt ist und die Zeile **nicht gebucht** ist → `handleBookRow(expandedRowId)` (einzeln).
-  - Wenn alle Zeilen gebucht sind oder keine Zeile offen ist → `handleNext()` (zur nächsten Transaktion springen).
-  - `confirmAndNext` (Schleife) wird dadurch durch ein einzelnes-Booking-Verhalten ersetzt; die alte Funktion bleibt nur falls weitere Aufrufer existieren, sonst entfernen.
-- Hinweis-Tooltip oben links (`Enter Buchen & weiter`) bleibt korrekt – Verhalten wird einfach präzisiert auf „aktuelle Zeile buchen, dann nächste offene Zeile fokussieren bzw. nächste Transaktion".
+### 2. Aggregations-Logik anpassen
+`getAccountTotal(accountId, bookings)` zählt eine Buchung, wenn:
+- `account_id === accountId` **ODER**
+- `counter_account_id === accountId`
 
-### 2. Gebuchte Zeile wieder bearbeitbar (`BookingRowCard`)
+Beträge werden weiterhin per `Math.abs(amount)` summiert; `booking_category !== "heating_repost"` bleibt als Filter, damit die internen Heizkosten-Umbuchungen nicht doppelt zählen.
 
-- `Collapsible open` auf `isExpanded` ändern (ohne `&& !row.booked`); Header-Button nicht mehr `disabled` setzen.
-- Visuell: Bei `row.booked` weiterhin grün hinterlegt + grünes CheckCircle-Icon, zusätzlich kleiner Hinweis „Bearbeiten" beim Hover.
-- Klick auf den Header öffnet die Zeile wieder, alle Eingabefelder werden editierbar (sind bereits dynamisch nicht disabled, nur das Collapsible verbirgt sie).
-- Der bestehende **RotateCcw**-Undo-Button bleibt; daneben ein **„Aktualisieren"**-Button (statt „Buchen"), wenn die Zeile schon gebucht ist – derselbe Style wie der Buchen-Button, aber Text „Aktualisieren" und Icon `RefreshCw`.
+Doppelzählung ist ausgeschlossen, weil die heizkosten-relevanten Konten (1400er) und das Bankkonto (1800) disjunkt sind – eine Buchung kann also nie auf beiden Seiten gleichzeitig ein Heizkonto haben.
 
-### 3. Update-Pfad in `handleBookRow` (`TransactionReviewMode.tsx`)
+### 3. Optional: Mini-Diagnosehinweis
+Falls weiterhin 0 € herauskommt, kleiner Hinweistext unter der Tabelle: „Keine Heiz-Buchungen 2025 gefunden – prüfe Buchungstexte mit Schlagworten Heizöl, Gas, Wartung, Techem im Buchungstab."
 
-- `if (row.booked) return;` entfernen.
-- Vor dem Insert prüfen: `const existingBookingId = rowBookingMapRef.current[currentTxn.id]?.[rowId];`
-  - Wenn vorhanden → `supabase.from("bookings").update(payload).eq("id", existingBookingId)`.
-  - Wenn nicht vorhanden → bestehender Insert-Pfad.
-- Nach erfolgreichem Update:
-  - `setFormRows` lässt `booked: true` (bleibt grün).
-  - Map-Eintrag bleibt auf derselben `bookingId`.
-  - Toast „Teilbuchung aktualisiert ✓".
-  - Kein `bank_transactions.update` (Status bleibt wie er war), keine Veränderung von `undoStack` / `bookedCount`.
-  - Query-Invalidate wie bisher (`bookings-all`, `bank-transactions-*`).
-- Beim Update-Pfad **nicht** automatisch zur nächsten Transaktion springen – Nutzer hat bewusst korrigiert, soll das Ergebnis sehen.
-
-### 4. Sicherheitsnetz
-
-- Vor dem Update prüfen, ob die Buchung in der DB noch existiert (kurzer `select id`); falls weg (z. B. parallel gelöscht) → Toast-Fehler und Map-Eintrag entfernen, Zeile auf `booked: false` zurücksetzen, damit Insert-Pfad greift.
-- Doppelklick-Schutz über bestehendes `bookingSingle`-State.
-
-## Betroffene Dateien
-
-- `src/components/finance/TransactionReviewMode.tsx`
-  - Globale Enter-Handler-Logik vereinfachen (eine Zeile statt Schleife).
-  - `handleBookRow`: Update-Zweig ergänzen, `if booked return` entfernen.
-  - `BookingRowCard`: Collapsible/Button auch für gebuchte Zeilen aktiv; Buchen-Button-Label dynamisch („Buchen" / „Aktualisieren").
+## Betroffene Datei
+- `src/components/finance/HeatingAccountsSection.tsx`
 
 ## QA
-
-- Split mit 3 Zeilen anlegen, erste Zeile aufklappen → Enter → nur Zeile 1 wird gebucht (grün), Zeile 2 wird automatisch aufgeklappt.
-- Enter erneut → Zeile 2 gebucht usw. – nie alle gleichzeitig.
-- Gebuchte Zeile (grün) anklicken → klappt auf, Felder editierbar, Buchen-Button zeigt „Aktualisieren".
-- Konto/Betrag ändern → „Aktualisieren" → Toast „Teilbuchung aktualisiert", Zeile bleibt grün, Werte sind in DB überschrieben (überprüfbar im Bookings-Tab).
-- Undo (RotateCcw) funktioniert weiterhin und löscht die Buchung komplett.
-- Cmd+Z bleibt unverändert.
+- Birkenweg 6, Jahr 2025: Sektion zeigt jetzt Werte auf 1440 (Heizungswartung 375,15 €), 1470 (Vorauszahlungen Gas 622,00 €), 1473 (Vorauszahlungen Wasser 87,00 €) usw.
+- Andere Liegenschaften, bei denen das Heizkonto als Hauptkonto gebucht wird, zeigen weiterhin korrekte Werte (keine Regression).
+- Vorjahresvergleich + YoY-% funktionieren analog.
 
