@@ -670,30 +670,42 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     if (expandedRowId === rowId) setExpandedRowId(null);
   };
 
+  const focusFieldByName = useCallback((nextField: string) => {
+    const el = fieldRefs.current[nextField];
+    if (!el) return;
+    if (nextField === "__book__") {
+      const btn = el as HTMLButtonElement;
+      btn.focus();
+      if (!btn.disabled) setTimeout(() => btn.click(), 0);
+      return;
+    }
+    if (el instanceof HTMLButtonElement && el.getAttribute("role") === "combobox") {
+      el.focus();
+      return;
+    }
+    if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement) {
+      el.focus();
+      if (el instanceof HTMLInputElement && (el.type === "text" || el.type === "number")) {
+        el.select?.();
+      }
+      return;
+    }
+    const trigger = el.querySelector('button[role="combobox"], button, input') as HTMLElement | null;
+    trigger?.focus();
+  }, []);
+
+  const focusNextOf = useCallback((currentField: string) => {
+    const idx = FIELD_ORDER.indexOf(currentField);
+    if (idx < 0) return;
+    const nextField = FIELD_ORDER[idx + 1];
+    if (!nextField) return;
+    focusFieldByName(nextField);
+  }, [focusFieldByName]);
+
   const handleEnterNavigation = (e: React.KeyboardEvent, currentField: string) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      const idx = FIELD_ORDER.indexOf(currentField);
-      if (idx < 0) return;
-      const nextField = FIELD_ORDER[idx + 1];
-      if (!nextField) return;
-      const el = fieldRefs.current[nextField];
-      if (!el) return;
-      if (nextField === "__book__") {
-        const btn = el as HTMLButtonElement;
-        btn.focus();
-        if (!btn.disabled) setTimeout(() => btn.click(), 0);
-        return;
-      }
-      if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement) {
-        el.focus();
-        if (el instanceof HTMLInputElement && (el.type === "text" || el.type === "number")) {
-          el.select?.();
-        }
-      } else {
-        const trigger = el.querySelector('button[role="combobox"], button') as HTMLElement | null;
-        trigger?.focus();
-      }
+      focusNextOf(currentField);
     }
   };
 
