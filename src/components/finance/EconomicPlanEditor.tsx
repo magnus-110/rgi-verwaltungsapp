@@ -10,6 +10,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Sparkles, Loader2, Check, Save, ChevronDown, ChevronRight, Info, FileText, Shield, PiggyBank, Users, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { EconomicPlanPreview } from "./EconomicPlanPreview";
+import { sumForAccount } from "./lib/bookingAggregation";
 
 interface EconomicPlanEditorProps {
   buildingId: string;
@@ -149,14 +150,9 @@ export function EconomicPlanEditor({ buildingId, periodId, fiscalYear }: Economi
 
   const items: any[] = existingPlan?.economic_plan_items || [];
 
-  // Group accounts by category — bank-zentrisch: account_id ODER counter_account_id berücksichtigen
+  // Group accounts by category — bank-zentrisch via Helper (Haupt- und Gegenkonto)
   const prevYearTotals = accounts.map((acc) => {
-    const total = prevBookings.reduce((s, b: any) => {
-      const amt = Number(b.amount) || 0;
-      if (b.account_id === acc.id) return s + amt;
-      if (b.counter_account_id === acc.id) return s - amt;
-      return s;
-    }, 0);
+    const total = sumForAccount(acc.id, prevBookings as any);
     return { ...acc, previousAmount: Math.abs(total) };
   }).filter((a) => a.previousAmount > 0 || items.some((i: any) => i.account_id === a.id));
 

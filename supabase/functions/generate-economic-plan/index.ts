@@ -6,6 +6,24 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+/**
+ * Bank-zentrische Aggregation: Beträge können entweder auf account_id (Hauptkonto)
+ * oder auf counter_account_id (Gegenkonto) liegen. Beide Seiten müssen berücksichtigt
+ * und in entgegengesetzter Richtung verrechnet werden.
+ *
+ * Heizungs-Umbuchungen (booking_category = "heating_repost") werden ausgeschlossen,
+ * damit Heizkosten nicht doppelt gezählt werden.
+ */
+function sumForAccount(bookings: any[], accountId: string): number {
+  return (bookings || []).reduce((s: number, b: any) => {
+    if (b.booking_category === "heating_repost") return s;
+    const amt = Number(b.amount) || 0;
+    if (b.account_id === accountId) return s + amt;
+    if (b.counter_account_id === accountId) return s - amt;
+    return s;
+  }, 0);
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -26,10 +44,10 @@ serve(async (req) => {
       .or(`building_id.is.null,building_id.eq.${buildingId}`)
       .order("account_number");
 
-    // Fetch bookings for last 2 years
+    // Fetch bookings for last 2 years — INCLUDE counter_account_id for bank-centric aggregation
     const { data: bookings } = await supabase
       .from("bookings")
-      .select("account_id, amount, fiscal_year, description")
+      .select("account_id, counter_account_id, amount, fiscal_year, description, booking_category")
       .eq("building_id", buildingId)
       .gte("fiscal_year", fiscalYear - 1)
       .lte("fiscal_year", fiscalYear)
@@ -50,15 +68,13 @@ serve(async (req) => {
       .eq("id", buildingId)
       .single();
 
-    // Calculate per-account totals for each year
+    // Calculate per-account totals for each year using bank-centric aggregation
+    const currentYearBookings = (bookings || []).filter((b: any) => b.fiscal_year === fiscalYear);
+    const prevYearBookings = (bookings || []).filter((b: any) => b.fiscal_year === fiscalYear - 1);
+
     const accountSummaries = (accounts || []).map((acc: any) => {
-      const currentYear = (bookings || [])
-        .filter((b: any) => b.account_id === acc.id && b.fiscal_year === fiscalYear)
-        .reduce((s: number, b: any) => s + Math.abs(Number(b.amount)), 0);
-      
-      const prevYear = (bookings || [])
-        .filter((b: any) => b.account_id === acc.id && b.fiscal_year === fiscalYear - 1)
-        .reduce((s: number, b: any) => s + Math.abs(Number(b.amount)), 0);
+      const currentYear = Math.abs(sumForAccount(currentYearBookings, acc.id));
+      const prevYear = Math.abs(sumForAccount(prevYearBookings, acc.id));
 
       return {
         account_id: acc.id,
