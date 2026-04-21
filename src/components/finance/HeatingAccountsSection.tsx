@@ -73,12 +73,54 @@ export function HeatingAccountsSection({ buildingId, fiscalYear }: HeatingAccoun
     enabled: heatingAccounts.length > 0,
   });
 
+  const isHeatingRange = (accountNumber?: string | null) => {
+    if (!accountNumber) return false;
+    const parsed = Number(accountNumber);
+    return Number.isFinite(parsed) && parsed >= 1400 && parsed < 1500;
+  };
+
+  const accountRows = useMemo(() => {
+    const rows = new Map<string, { id: string; account_number: string; account_name: string }>();
+
+    heatingAccounts.forEach((account: any) => {
+      rows.set(account.id, {
+        id: account.id,
+        account_number: account.account_number,
+        account_name: account.account_name,
+      });
+    });
+
+    [...bookings, ...prevBookings].forEach((booking: any) => {
+      const mainAccount = booking.chart_of_accounts;
+      const counterAccount = booking.counter_account;
+
+      if (booking.account_id && isHeatingRange(mainAccount?.account_number)) {
+        rows.set(booking.account_id, {
+          id: booking.account_id,
+          account_number: mainAccount?.account_number ?? "–",
+          account_name: mainAccount?.account_name ?? "–",
+        });
+      }
+
+      if (booking.counter_account_id && isHeatingRange(counterAccount?.account_number)) {
+        rows.set(booking.counter_account_id, {
+          id: booking.counter_account_id,
+          account_number: counterAccount?.account_number ?? "–",
+          account_name: counterAccount?.account_name ?? "–",
+        });
+      }
+    });
+
+    return Array.from(rows.values()).sort((a, b) => a.account_number.localeCompare(b.account_number, "de"));
+  }, [heatingAccounts, bookings, prevBookings]);
+
   const getAccountTotal = (accountId: string, bkgs: typeof bookings) =>
-    bkgs.filter((b) => (b.account_id === accountId || b.counter_account_id === accountId) && b.booking_category !== "heating_repost")
+    bkgs
+      .filter((b) => (b.account_id === accountId || b.counter_account_id === accountId) && b.booking_category !== "heating_repost")
       .reduce((s, b) => s + Math.abs(Number(b.amount)), 0);
 
-  const totalCurrent = heatingAccounts.reduce((s, a) => s + getAccountTotal(a.id, bookings), 0);
-  const totalPrev = heatingAccounts.reduce((s, a) => s + getAccountTotal(a.id, prevBookings), 0);
+  const totalCurrent = accountRows.reduce((s, a) => s + getAccountTotal(a.id, bookings), 0);
+  const totalPrev = accountRows.reduce((s, a) => s + getAccountTotal(a.id, prevBookings), 0);
   const yoyChange = totalPrev > 0 ? ((totalCurrent - totalPrev) / totalPrev) * 100 : 0;
 
   const formatCurrency = (n: number) => new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
@@ -90,7 +132,7 @@ export function HeatingAccountsSection({ buildingId, fiscalYear }: HeatingAccoun
           <Flame className="h-5 w-5" /> Heizkosten-relevante Konten
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          {heatingAccounts.length} Konten markiert — Gesamt: {formatCurrency(totalCurrent)}
+          {accountRows.length} Konten sichtbar — Gesamt: {formatCurrency(totalCurrent)}
           {totalPrev > 0 && (
             <span className={`ml-2 ${Math.abs(yoyChange) > 10 ? "text-amber-600 font-medium" : "text-muted-foreground"}`}>
               ({yoyChange > 0 ? "+" : ""}{yoyChange.toFixed(1)}% vs. Vorjahr)
@@ -99,7 +141,7 @@ export function HeatingAccountsSection({ buildingId, fiscalYear }: HeatingAccoun
         </p>
       </CardHeader>
       <CardContent>
-        {heatingAccounts.length === 0 ? (
+        {accountRows.length === 0 ? (
           <p className="text-sm text-muted-foreground py-4 text-center">
             Keine Konten als heizkosten-relevant markiert. Aktiviere "HK-relevant" im Kontenrahmen.
           </p>
@@ -115,7 +157,7 @@ export function HeatingAccountsSection({ buildingId, fiscalYear }: HeatingAccoun
               </TableRow>
             </TableHeader>
             <TableBody>
-              {heatingAccounts.map((acc) => {
+              {accountRows.map((acc) => {
                 const curr = getAccountTotal(acc.id, bookings);
                 const prev = getAccountTotal(acc.id, prevBookings);
                 const diff = prev > 0 ? ((curr - prev) / prev) * 100 : 0;
