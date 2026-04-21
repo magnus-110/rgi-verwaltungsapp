@@ -155,7 +155,15 @@ export const Dashboard = () => {
           {managementMode === "weg" ? "WEG-Verwaltung" : "Mietverwaltung"}
         </h1>
         <p className="text-sm md:text-base text-muted-foreground mt-1">
-          Tagesübersicht über {stats.building_count} {stats.building_count === 1 ? "Gebäude" : "Gebäude"}
+          Tagesübersicht über{" "}
+          <span className="font-medium text-foreground">
+            {isAdmin && portfolio
+              ? (managementMode === "weg" ? portfolio.weg.buildings : portfolio.rent.buildings)
+              : stats.building_count}
+          </span>{" "}
+          {((isAdmin && portfolio
+            ? (managementMode === "weg" ? portfolio.weg.buildings : portfolio.rent.buildings)
+            : stats.building_count) === 1) ? "Gebäude" : "Gebäude"}
           {isAdmin && portfolio && (
             <>
               {" "}·{" "}
