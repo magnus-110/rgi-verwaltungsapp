@@ -64,18 +64,18 @@ export function BillingValidationPanel({ periodId, buildingId, fiscalYear }: Bil
     },
   });
 
-  const { data: heatingAccounts = [] } = useQuery({
-    queryKey: ["heating-accounts", buildingId],
+  const { data: allAccounts = [] } = useQuery({
+    queryKey: ["validation-all-accounts", buildingId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("chart_of_accounts")
-        .select("id")
-        .eq("is_heating_relevant", true)
+        .select("id, account_number, is_heating_relevant")
         .or(`building_id.is.null,building_id.eq.${buildingId}`);
       if (error) throw error;
       return data;
     },
   });
+  const heatingAccounts = allAccounts.filter((a: any) => a.is_heating_relevant);
 
   const { data: shares = [] } = useQuery({
     queryKey: ["validation-shares", buildingId],
@@ -227,7 +227,7 @@ export function BillingValidationPanel({ periodId, buildingId, fiscalYear }: Bil
   });
 
   // 6. Abgrenzungen — Kategorie ODER 4xxx-Konto auf einer der beiden Buchungsseiten
-  const accountById = new Map((heatingAccounts as any[]).map((a: any) => [a.id, a]));
+  const accountById = new Map((allAccounts as any[]).map((a: any) => [a.id, a]));
   const isAccrualAccountId = (id?: string | null) => {
     if (!id) return false;
     const acc = accountById.get(id);
