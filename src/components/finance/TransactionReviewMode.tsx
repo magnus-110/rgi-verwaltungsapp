@@ -1838,8 +1838,7 @@ function BookingRowCard({
                         MwSt % {isAccrual && <span className="text-orange-500">*</span>}
                       </label>
                       <Select value={row.vat_rate} onValueChange={v => { onUpdateField("vat_rate", v); setTimeout(() => focusFieldByName("__book__"), 50); }}>
-                        <SelectTrigger className={cn("h-8 text-xs", vatMissing && "border-orange-400 ring-1 ring-orange-300")} ref={el => fieldRefs.current["vat_rate"] = el}
-                          onKeyDown={e => handleEnterNavigation(e, "vat_rate")}>
+                        <SelectTrigger className={cn("h-8 text-xs", vatMissing && "border-orange-400 ring-1 ring-orange-300")} ref={el => fieldRefs.current["vat_rate"] = el}>
                           <SelectValue placeholder="Wählen…" />
                         </SelectTrigger>
                         <SelectContent>
