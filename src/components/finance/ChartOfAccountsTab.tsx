@@ -29,10 +29,12 @@ const SETTLEMENT_SECTIONS = [
   { value: "income", label: "Einnahmen" },
   { value: "operating_distributable", label: "Umlagefähige Ausgaben" },
   { value: "operating_non_distributable", label: "Nicht umlagefähige Ausgaben" },
+  { value: "heating_prepayment", label: "Heizkosten-Vorauszahlung (Durchlauf)" },
   { value: "accrual", label: "Abgrenzungen" },
   { value: "reserve", label: "Rücklage (IHR)" },
   { value: "reserve_withdrawal", label: "RL-Entnahme" },
   { value: "bank", label: "Bankkonto" },
+  { value: "opening", label: "Eröffnungsbuchung" },
 ];
 
 const SETTLEMENT_35A_TYPES = [
