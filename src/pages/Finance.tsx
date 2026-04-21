@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BankStatementsTab } from "@/components/finance/BankStatementsTab";
 import { BookingTemplatesTab } from "@/components/finance/BookingTemplatesTab";
@@ -26,14 +26,46 @@ const SUB_TABS = [
 
 type SubTab = typeof SUB_TABS[number]["value"];
 
+const STORAGE_KEY = "finance:tab-state:v1";
+
+type PersistedState = {
+  selectedBuildingId: string | null;
+  selectedPeriodId: string | null;
+  activeTab: string;
+  activeSubTab: SubTab;
+  expandedSections: string[];
+};
+
+const loadPersisted = (): Partial<PersistedState> => {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+};
+
 export const Finance = () => {
-  const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(null);
-  const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState("buchen");
-  const [activeSubTab, setActiveSubTab] = useState<SubTab>("statements");
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(["wirtschaftsplan"]));
+  const persisted = useRef(loadPersisted()).current;
+  const [selectedBuildingId, setSelectedBuildingId] = useState<string | null>(persisted.selectedBuildingId ?? null);
+  const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(persisted.selectedPeriodId ?? null);
+  const [activeTab, setActiveTab] = useState(persisted.activeTab ?? "buchen");
+  const [activeSubTab, setActiveSubTab] = useState<SubTab>(persisted.activeSubTab ?? "statements");
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(persisted.expandedSections ?? ["wirtschaftsplan"]));
   const [buchenHover, setBuchenHover] = useState(false);
   const hoverTimeout = useRef<ReturnType<typeof setTimeout>>();
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({
+        selectedBuildingId,
+        selectedPeriodId,
+        activeTab,
+        activeSubTab,
+        expandedSections: Array.from(expandedSections),
+      }));
+    } catch {}
+  }, [selectedBuildingId, selectedPeriodId, activeTab, activeSubTab, expandedSections]);
 
   const showPeriod = NEEDS_PERIOD.includes(activeTab);
 
