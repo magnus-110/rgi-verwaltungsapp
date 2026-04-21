@@ -264,6 +264,62 @@ export function BillingValidationPanel({ periodId, buildingId, fiscalYear }: Bil
     liveChecks.push({ name: "Kontenabgleich Bank", status: "passed", message: `Alle ${lastRelevantMonth} Monate bestätigt` });
   }
 
+  // 8. Konten als 'bank' klassifiziert, aber mit Aufwandsbewegungen → wahrscheinlich falsch eingestellt
+  const accountsWithMovement = new Set<string>();
+  bookings.forEach((b: any) => {
+    if (b.account_id) accountsWithMovement.add(b.account_id);
+    if (b.counter_account_id) accountsWithMovement.add(b.counter_account_id);
+  });
+  const misclassifiedBank = (allAccounts as any[]).filter((a: any) =>
+    a.settlement_section === "bank" &&
+    accountsWithMovement.has(a.id) &&
+    // Echte Bankkonten haben Nummer 1800–1899
+    !(Number(a.account_number) >= 1800 && Number(a.account_number) < 1900)
+  );
+  if (misclassifiedBank.length > 0) {
+    liveChecks.push({
+      name: "Kontenklassifizierung",
+      status: "warning",
+      message: `${misclassifiedBank.length} Konto/Konten als 'Bank' klassifiziert, hat/haben aber Bewegungen: ${misclassifiedBank.map((a: any) => a.account_number).join(", ")}`,
+    });
+  }
+
+  // 9. Anfangsbestände für saldovortragspflichtige Konten
+  const carryForwardAccounts = (allAccounts as any[]).filter((a: any) => a.carry_forward_balance);
+  const accountsWithBalance = new Set(balances.map((b: any) => b.account_id));
+  const missingOpenings = carryForwardAccounts.filter((a: any) =>
+    !accountsWithBalance.has(a.id) && accountsWithMovement.has(a.id)
+  );
+  if (missingOpenings.length > 0) {
+    liveChecks.push({
+      name: "Anfangsbestände",
+      status: "warning",
+      message: `${missingOpenings.length} Konto/Konten ohne Anfangsbestand: ${missingOpenings.map((a: any) => a.account_number).join(", ")}`,
+    });
+  }
+
+  // 10. Heiz-Vorauszahlungen ohne Repost auf Heizkostenkonto
+  const heatingPrepayAccounts = (allAccounts as any[]).filter((a: any) => a.settlement_section === "heating_prepayment");
+  const prepayTotal = heatingPrepayAccounts.reduce((s, a) => {
+    const t = bookings
+      .filter((b: any) => (b.account_id === a.id || b.counter_account_id === a.id) && b.booking_category !== "heating_repost")
+      .reduce((ss, b: any) => {
+        const amt = Number(b.amount) || 0;
+        if (b.account_id === a.id) return ss + amt;
+        if (b.counter_account_id === a.id) return ss - amt;
+        return ss;
+      }, 0);
+    return s + Math.abs(t);
+  }, 0);
+  const hasRepost = bookings.some((b: any) => b.booking_category === "heating_repost");
+  if (prepayTotal > 0 && !hasRepost) {
+    liveChecks.push({
+      name: "Heiz-VZ ohne Repost",
+      status: "warning",
+      message: `${prepayTotal.toFixed(2)} € Vorauszahlungen erfasst — Heizkostenabrechnung der Ablesefirma noch nicht auf 1400 umgebucht (werden NICHT umgelegt)`,
+    });
+  }
+
   const allChecks = [
     ...liveChecks,
     ...validations.map((v) => ({ name: v.check_name, status: v.status as LiveCheck["status"], message: v.message || "" })),
