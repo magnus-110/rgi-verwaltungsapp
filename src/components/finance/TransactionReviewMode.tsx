@@ -674,16 +674,25 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     if (e.key === "Enter") {
       e.preventDefault();
       const idx = FIELD_ORDER.indexOf(currentField);
-      if (idx >= 0 && idx < FIELD_ORDER.length - 1) {
-        const nextField = FIELD_ORDER[idx + 1];
-        const el = fieldRefs.current[nextField];
-        if (el) {
-          if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement) el.focus();
-          else el.querySelector('button')?.focus();
+      if (idx < 0) return;
+      const nextField = FIELD_ORDER[idx + 1];
+      if (!nextField) return;
+      const el = fieldRefs.current[nextField];
+      if (!el) return;
+      if (nextField === "__book__") {
+        const btn = el as HTMLButtonElement;
+        btn.focus();
+        if (!btn.disabled) setTimeout(() => btn.click(), 0);
+        return;
+      }
+      if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement) {
+        el.focus();
+        if (el instanceof HTMLInputElement && (el.type === "text" || el.type === "number")) {
+          el.select?.();
         }
-      } else if (idx === FIELD_ORDER.length - 1) {
-        // Last field → book this row
-        if (expandedRowId) handleBookRow(expandedRowId);
+      } else {
+        const trigger = el.querySelector('button[role="combobox"], button') as HTMLElement | null;
+        trigger?.focus();
       }
     }
   };
