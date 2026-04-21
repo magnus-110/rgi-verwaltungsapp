@@ -55,7 +55,7 @@ export function BillingValidationPanel({ periodId, buildingId, fiscalYear }: Bil
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bookings")
-        .select("account_id, amount, booking_category, booking_type")
+        .select("account_id, counter_account_id, amount, booking_category, booking_type")
         .eq("building_id", buildingId)
         .eq("fiscal_year", fiscalYear)
         .neq("status", "cancelled");
@@ -64,18 +64,18 @@ export function BillingValidationPanel({ periodId, buildingId, fiscalYear }: Bil
     },
   });
 
-  const { data: heatingAccounts = [] } = useQuery({
-    queryKey: ["heating-accounts", buildingId],
+  const { data: allAccounts = [] } = useQuery({
+    queryKey: ["validation-all-accounts", buildingId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("chart_of_accounts")
-        .select("id")
-        .eq("is_heating_relevant", true)
+        .select("id, account_number, is_heating_relevant")
         .or(`building_id.is.null,building_id.eq.${buildingId}`);
       if (error) throw error;
       return data;
     },
   });
+  const heatingAccounts = allAccounts.filter((a: any) => a.is_heating_relevant);
 
   const { data: shares = [] } = useQuery({
     queryKey: ["validation-shares", buildingId],
@@ -174,12 +174,21 @@ export function BillingValidationPanel({ periodId, buildingId, fiscalYear }: Bil
     }
   });
 
-  // 3. HK-Umbuchungen
+  // 3. HK-Umbuchungen — bank-zentrisch: Heizkonto kann account_id ODER counter_account_id sein
   if (heatingAccounts.length > 0) {
     const heatingTotal = heatingAccounts.reduce((s, a) => {
-      return s + Math.abs(bookings
-        .filter((b) => b.account_id === a.id && b.booking_category !== "heating_repost")
-        .reduce((ss, b) => ss + Number(b.amount), 0));
+      const accTotal = bookings
+        .filter((b) =>
+          (b.account_id === a.id || (b as any).counter_account_id === a.id) &&
+          b.booking_category !== "heating_repost"
+        )
+        .reduce((ss, b) => {
+          const amt = Number(b.amount) || 0;
+          if (b.account_id === a.id) return ss + amt;
+          if ((b as any).counter_account_id === a.id) return ss - amt;
+          return ss;
+        }, 0);
+      return s + Math.abs(accTotal);
     }, 0);
     const rebookingTotal = bookings
       .filter((b) => b.booking_category === "heating_repost")
@@ -217,8 +226,19 @@ export function BillingValidationPanel({ periodId, buildingId, fiscalYear }: Bil
     }
   });
 
-  // 6. Abgrenzungen
-  const accrualBookings = bookings.filter((b) => b.booking_category === "accrual");
+  // 6. Abgrenzungen — Kategorie ODER 4xxx-Konto auf einer der beiden Buchungsseiten
+  const accountById = new Map((allAccounts as any[]).map((a: any) => [a.id, a]));
+  const isAccrualAccountId = (id?: string | null) => {
+    if (!id) return false;
+    const acc = accountById.get(id);
+    const num = Number(acc?.account_number);
+    return Number.isFinite(num) && num >= 4000 && num < 5000;
+  };
+  const accrualBookings = bookings.filter((b) =>
+    b.booking_category === "accrual" ||
+    isAccrualAccountId(b.account_id) ||
+    isAccrualAccountId((b as any).counter_account_id)
+  );
   if (accrualBookings.length > 0) {
     liveChecks.push({ name: "Abgrenzungen", status: "passed", message: `${accrualBookings.length} Abgrenzungsbuchungen` });
   }

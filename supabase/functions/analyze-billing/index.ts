@@ -210,7 +210,7 @@ async function handleFullAnalysis(body: any, apiKey: string) {
     supabase.from("billing_periods").select("*").eq("id", periodId).single(),
     supabase.from("chart_of_accounts").select("*").or(`building_id.is.null,building_id.eq.${buildingId}`).order("account_number"),
     supabase.from("bookings").select("*, chart_of_accounts!bookings_account_id_fkey(account_number, account_name)").eq("building_id", buildingId).eq("fiscal_year", fiscalYear).neq("status", "cancelled"),
-    supabase.from("bookings").select("account_id, amount, booking_category").eq("building_id", buildingId).eq("fiscal_year", fiscalYear - 1).neq("status", "cancelled"),
+    supabase.from("bookings").select("account_id, counter_account_id, amount, booking_category").eq("building_id", buildingId).eq("fiscal_year", fiscalYear - 1).neq("status", "cancelled"),
     supabase.from("account_balances").select("*, chart_of_accounts(account_number, account_name)").eq("building_id", buildingId).eq("fiscal_year", fiscalYear),
     supabase.from("account_balances").select("*, chart_of_accounts(account_number, account_name)").eq("building_id", buildingId).eq("fiscal_year", fiscalYear - 1),
     supabase.from("fuel_inventory").select("*").eq("building_id", buildingId).eq("billing_period_id", periodId),
@@ -219,13 +219,19 @@ async function handleFullAnalysis(body: any, apiKey: string) {
 
   const heatingAccounts = (accounts || []).filter((a: any) => a.is_heating_relevant);
 
+  // Bank-zentrisch: Beträge können auf account_id ODER counter_account_id liegen.
+  const sumBoth = (rows: any[], accId: string) =>
+    rows.reduce((s: number, b: any) => {
+      if (b.booking_category === "heating_repost") return s;
+      const amt = Number(b.amount) || 0;
+      if (b.account_id === accId) return s + amt;
+      if (b.counter_account_id === accId) return s - amt;
+      return s;
+    }, 0);
+
   const accountSummary = (accounts || []).map((a: any) => {
-    const total = (bookings || [])
-      .filter((b: any) => b.account_id === a.id && b.booking_category !== "heating_repost")
-      .reduce((s: number, b: any) => s + Number(b.amount), 0);
-    const prevTotal = (prevBookings || [])
-      .filter((b: any) => b.account_id === a.id && b.booking_category !== "heating_repost")
-      .reduce((s: number, b: any) => s + Number(b.amount), 0);
+    const total = sumBoth(bookings || [], a.id);
+    const prevTotal = sumBoth(prevBookings || [], a.id);
     return {
       number: a.account_number, name: a.account_name, category: a.category,
       is_heating: a.is_heating_relevant, is_billing: a.is_billing_relevant,
@@ -252,7 +258,7 @@ async function handleFullAnalysis(body: any, apiKey: string) {
 
   const rebookings = (bookings || []).filter((b: any) => b.booking_category === "heating_repost");
   const heatingTotal = heatingAccounts.reduce((s: number, a: any) =>
-    s + Math.abs((bookings || []).filter((b: any) => b.account_id === a.id && b.booking_category !== "heating_repost").reduce((ss: number, b: any) => ss + Number(b.amount), 0)), 0);
+    s + Math.abs(sumBoth(bookings || [], a.id)), 0);
   const rebookingTotal = rebookings.reduce((s: number, b: any) => s + Math.abs(Number(b.amount)), 0);
 
   const balanceSummary = (balances || []).map((b: any) => ({

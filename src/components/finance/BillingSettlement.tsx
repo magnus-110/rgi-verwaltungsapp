@@ -88,13 +88,13 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     },
   });
 
-  // All bookings for the year
+  // All bookings for the year — include counter_account_id for bank-centric aggregation
   const { data: rawBookings = [] } = useQuery({
     queryKey: ["settlement-bookings", buildingId, fiscalYear],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bookings")
-        .select("account_id, amount, booking_type, booking_category, description, is_35a_relevant")
+        .select("account_id, counter_account_id, amount, booking_type, booking_category, description, is_35a_relevant")
         .eq("building_id", buildingId)
         .eq("fiscal_year", fiscalYear)
         .neq("status", "cancelled");
@@ -103,9 +103,13 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     },
   });
 
-  // Defense-in-depth: filter out bookings referencing accounts from other buildings
+  // Defense-in-depth: keep bookings that touch a known account on either side
   const validAccountIds = new Set(accounts.map(a => a.id));
-  const bookings = rawBookings.filter(b => !b.account_id || validAccountIds.has(b.account_id));
+  const bookings = rawBookings.filter(b =>
+    (!b.account_id && !b.counter_account_id) ||
+    (b.account_id && validAccountIds.has(b.account_id)) ||
+    (b.counter_account_id && validAccountIds.has(b.counter_account_id))
+  );
 
   // IST-payments on person accounts (for SOLL/IST toggle)
   const { data: istPayments = [] } = useQuery({
@@ -210,10 +214,22 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     return override?.distribution_key || defaultKey || "mea";
   };
 
-  const getAccountBookingTotal = (accountId: string) =>
-    bookings
-      .filter((b) => b.account_id === accountId && b.booking_category !== "heating_repost")
-      .reduce((s, b) => s + Math.abs(Number(b.amount)), 0);
+  // Bank-zentrische Buchhaltung: Beträge können auf account_id ODER counter_account_id liegen.
+  // Wir summieren beide Seiten und nehmen den Absolutwert (Anzeige als positive Kostensumme).
+  const getAccountBookingTotal = (accountId: string) => {
+    const total = bookings
+      .filter((b) =>
+        (b.account_id === accountId || (b as any).counter_account_id === accountId) &&
+        b.booking_category !== "heating_repost"
+      )
+      .reduce((s, b) => {
+        const amt = Number(b.amount) || 0;
+        if (b.account_id === accountId) return s + amt;
+        if ((b as any).counter_account_id === accountId) return s - amt;
+        return s;
+      }, 0);
+    return Math.abs(total);
+  };
 
   const getWpAmount = (accountId: string) => {
     const item = wpItems.find((w: any) => w.account_id === accountId);

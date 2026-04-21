@@ -5117,7 +5117,25 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      v_account_movements: {
+        Row: {
+          account_id: string | null
+          amount: number | null
+          amount_35a: number | null
+          booking_category: string | null
+          booking_date: string | null
+          booking_id: string | null
+          building_id: string | null
+          description: string | null
+          fiscal_year: number | null
+          is_35a_relevant: boolean | null
+          receipt_number: string | null
+          side: string | null
+          source: string | null
+          status: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       assign_building_manager: {
