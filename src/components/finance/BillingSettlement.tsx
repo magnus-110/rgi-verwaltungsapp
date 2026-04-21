@@ -402,7 +402,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     let owner35aHandwerker = 0;
 
     // Distributable accounts
-    const distributableAccounts = accounts.filter((a) => a.is_distributable);
+    const distributableAccounts = accounts.filter((a) => a.is_distributable && !isAccrualBalanceAccount(a));
     distributableAccounts.forEach((acc) => {
       const total = getAccountBookingTotal(acc.id);
       if (total === 0) return;
@@ -604,36 +604,45 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   };
 
   // --- Closing balance calculation ---
+  // Nutzt den Helper (Anfangsbestand aus 4000-Buchung oder manuell + alle Bewegungen);
+  // Manueller Eintrag bleibt als Override im UI editierbar.
   const calculateClosingBalances = async () => {
     setCalculatingSalden(true);
     try {
       const carryForwardAccounts = accounts.filter(a => a.carry_forward_balance);
       let updated = 0;
-      
+
       for (const acc of carryForwardAccounts) {
-        const accountBookings = bookings.filter(b => b.account_id === acc.id);
-        const bookingSum = accountBookings.reduce((s, b) => s + Number(b.amount), 0);
-        
+        const eff = getEffectiveClosingBalance(
+          acc.id,
+          bookings as any[],
+          flatBalances,
+          fiscalYear,
+          opening4000Id,
+        );
+        const closing = eff.amount;
+        const opening = eff.opening;
+
         const existingBalance = balances.find((bal: any) => bal.account_id === acc.id);
-        const opening = existingBalance ? Number(existingBalance.opening_balance) : 0;
-        const closing = opening + bookingSum;
-        
         if (existingBalance) {
-          await supabase.from("account_balances").update({ closing_balance: closing }).eq("id", existingBalance.id);
+          await supabase.from("account_balances").update({
+            opening_balance: opening,
+            closing_balance: closing,
+          }).eq("id", existingBalance.id);
         } else {
           await supabase.from("account_balances").insert({
             account_id: acc.id,
             building_id: buildingId,
             fiscal_year: fiscalYear,
-            opening_balance: 0,
+            opening_balance: opening,
             closing_balance: closing,
           });
         }
         updated++;
       }
-      
+
       queryClient.invalidateQueries({ queryKey: ["account-balances-settlement"] });
-      toast.success(`${updated} Kontensalden aktualisiert`);
+      toast.success(`${updated} Kontensalden automatisch berechnet`);
     } catch (e: any) {
       toast.error("Fehler: " + (e.message || "Unbekannt"));
     } finally {
