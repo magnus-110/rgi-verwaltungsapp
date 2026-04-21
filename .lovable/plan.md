@@ -1,84 +1,61 @@
 
 
 ## Ziel
+Drei Verbesserungen im Buchungs-Workflow für eine flüssigere "Buchungs-Pipeline".
 
-Bei Jahresabrechnungen für **Gas / Fernwärme** muss der Brennstoffverbrauch (kWh, CO₂-Emissionen, CO₂-Steuer) ins **Verbrauchsjahr** gebucht werden — nicht ins Rechnungsjahr. Bei **Heizöl / Pellets** bleibt die heutige Logik (Rechnungs-/Lieferdatum = Verbrauchsperiode).
+---
 
-## Konzept: „Verbrauchszeitraum vs. Rechnungsdatum"
+### 1. Manuelle Rechnungs-Zuordnung → großer Review-Modus rechts
 
-Wir trennen sauber:
+**Problem:** Wenn man im `AssignmentDialog` eine Rechnung manuell mit einer Kontoauszugs-Position verknüpft, landet die Transaktion in der "Zugeordnet"-Liste — aber man muss separat auf die Zeile klicken, um sie wie eine automatisch gematchte Transaktion im Vollbild-Review zu sehen.
 
-- **Buchung in `bookings`** → bleibt am `booking_date` (Rechnungs-/Zahlungsjahr) → korrekt für Liquidität & §35a
-- **Brennstoff-Eintrag in `fuel_inventory`** → bekommt einen eigenen **Verbrauchszeitraum** (`consumption_period_from` / `consumption_period_to`), der bei Gas/Fernwärme aus der Jahresabrechnung kommt → korrekt für Heizkostenabrechnung
+**Lösung in `BankStatementsTab.tsx`:**
+- Nach erfolgreichem `handleManualAssign` (Zeile ~322 + ~670) wird die Liste invalidiert. Direkt danach:
+  1. Index der manuell zugeordneten Transaktion in `allUnbookedForReview` ermitteln (über `manualAssignTxn.id`).
+  2. `setReviewInitialIndex(idx)` + `setReviewModeOpen(true)` aufrufen.
+- Die Transaktion zeigt sich dadurch sofort im großen Vollbild-Review mit Rechnungs-PDF rechts — identisch zu automatisch gematchten Transaktionen.
+- Da `match_status: "manually_matched"` bereits in `matchedTransactions` aufgenommen wird, ist die Logik im `TransactionReviewMode` schon kompatibel (es lädt `invoiceDetail` über `matched_invoice_id`, siehe Zeile 148–160).
 
-So wandert die Liquidität ins Jahr, in dem bezahlt wurde, der Verbrauch landet aber im richtigen Heizjahr.
+---
 
-## Umsetzung
+### 2. Schnellbuchen: Nach Bestätigung Konto-Picker erneut öffnen
 
-### 1. DB-Migration: `fuel_inventory` erweitern
-- `consumption_period_from DATE` (nullable)
-- `consumption_period_to DATE` (nullable)
-- `consumption_year INTEGER GENERATED ALWAYS AS (EXTRACT(YEAR FROM consumption_period_to))` — als bequemes Filter-Feld für die Heizkostenabrechnung
-- Index auf `(building_id, consumption_year)`
+**Problem:** In `CreateBookingDialog.tsx` bleibt die Maske nach Speichern offen (`resetForm()` Zeile 166), aber der `useEffect`, der den Konto-Picker automatisch öffnet (Zeile 98–106), reagiert nur auf `open`-Änderungen — nach einem Save passiert nichts.
 
-Backfill: für bestehende Einträge `consumption_period_to = delivery_date` setzen (rückwärtskompatibel).
+**Lösung in `CreateBookingDialog.tsx`:**
+- Neuen State `saveCounter` einführen, der bei jedem erfolgreichen Save inkrementiert wird.
+- Den Auto-Open-`useEffect` (Zeile 98–106) auf `[open, prefill, saveCounter]` umstellen.
+- In `handleSave` direkt nach `resetForm()`: `setSaveCounter(c => c + 1)` aufrufen.
+- Effekt: Nach jedem Speichern wird der Cursor wieder direkt im Konto-Suchfeld platziert → reines Tippen für die nächste Buchung möglich.
 
-### 2. OCR-Prefill erweitern (`TransactionReviewMode.tsx`)
-Im Brennstoff-Prefill (~Zeile 533) zusätzlich:
-- Wenn `ocr.invoice_type === "annual_settlement"` **UND** `fuel_type ∈ {gas, district_heating}`:
-  - `fuel_consumption_from` ← `billing_period_from`
-  - `fuel_consumption_to` ← `billing_period_to`
-- Sonst (Öl/Pellets oder einfache Lieferung): `fuel_consumption_from/to` = `delivery_date`
+---
 
-### 3. UI „Brennstoffkauf"-Dialog (`TransactionReviewMode.tsx`, ~Zeile 1789)
-Neuer Abschnitt **„Verbrauchszeitraum"** direkt unter „Lieferdatum":
+### 3. Rückgängig-Button in der Buchungsliste / Kontenplan
 
-- Bei `gas` / `district_heating`:
-  - **Auffällige amber Hinweisbox**: „Bei Jahresabrechnungen liegt der Verbrauchszeitraum meist im Vorjahr. Werte aus der Rechnung übernehmen — die Buchung bleibt im Rechnungsjahr, der Verbrauch wird dem korrekten Heizjahr zugeordnet."
-  - Zwei Date-Inputs: **Verbrauch von** / **Verbrauch bis** (vorbefüllt aus OCR `billing_period_*`)
-  - Anzeige: „→ Zugeordnet zu Heizjahr **2024**" (aus `consumption_period_to`)
-- Bei `oil` / `pellets`:
-  - Standardmäßig versteckt; ein dezenter Toggle „Verbrauchszeitraum abweichend?" blendet die Felder ein (für Edge Cases). Default = `delivery_date`.
+**Problem:** Wenn man eine Buchung aus dem Kontoauszug versehentlich falsch verbucht hat, gibt es im `BookingsTab` keinen Weg zurück — die Transaktion ist als gebucht markiert und verschwindet aus dem Kontoauszug.
 
-### 4. Speicherlogik (`TransactionReviewMode.tsx`, ~Zeile 705)
-Beim Insert in `fuel_inventory`:
-- `consumption_period_from`: aus State, Fallback `delivery_date`
-- `consumption_period_to`: aus State, Fallback `delivery_date`
+**Lösung in `BookingsTab.tsx`:**
+- Neue Spalte/Aktion in `renderRow` (ganz rechts neben den Status-Icons): kleiner `RotateCcw`-Button mit Tooltip "Buchung rückgängig — zurück zum Kontoauszug".
+- Sichtbar nur, wenn Buchung aus Bank-Import stammt (`b.source === "bank_import"`) und eine zugehörige `bank_transaction` existiert.
+- Klick öffnet kompakte Bestätigung (AlertDialog): „Buchung löschen und Transaktion wieder zur Verarbeitung freigeben?"
+- Ablauf bei Bestätigung:
+  1. `bank_transactions` mit `booking_id = b.id` finden.
+  2. `bank_transactions.update({ booked_at: null, booking_id: null })`.
+  3. `bookings.delete().eq("id", b.id)`.
+  4. Toast „Buchung rückgängig — Transaktion zurück im Kontoauszug" + Query-Invalidierung (`bookings-*`, `bank-transactions-*`).
+- Auch im Kontenplan-View (`AccountPlanView`) wird derselbe Button durchgereicht (sofern dort Zeilen gerendert werden — alternativ nur in der Listen-Ansicht).
 
-`booking_date` der Buchung selbst bleibt unverändert (Rechnungsdatum).
-
-### 5. Anzeige in `TransferReviewMode.tsx` (Brennstoff-Box)
-Brennstoff-Info-Block ergänzen:
-- Zeile **„Verbrauchszeitraum"** (aus `ocr.billing_period_from` / `_to`, falls vorhanden)
-- Hinweis-Badge **„Heizjahr 2024"** wenn `billing_period_to` im Vorjahr liegt
-- Klare visuelle Trennung: „Rechnungsdatum 2025-02-04 · Heizjahr 2024"
-
-### 6. Heizkostenabrechnung / Auswertungen
-- Überall, wo aktuell `delivery_date` für Jahresfilter verwendet wird, auf `COALESCE(consumption_period_to, delivery_date)` umstellen.
-- Konkret prüfen: `FuelInventorySection`, `HeatingExportSection`, CO₂-CSV-Export für die Ablesefirma.
-
-## Bewusst NICHT geändert
-- `bookings.booking_date` und `fiscal_year`: bleiben auf Rechnungsdatum → korrekt für GuV/Liquidität
-- `fuel_inventory.delivery_date`: bleibt als „physisches Lieferdatum" erhalten (= Rechnungsdatum bei Jahresabrechnungen, = Lieferdatum bei Öl/Pellets)
-- OCR-Prompt: bereits korrekt, extrahiert `billing_period_*` schon heute
+---
 
 ## Betroffene Dateien
-- **Migration** (neu): `fuel_inventory` + 2 Spalten + Index + Backfill
-- `src/components/finance/TransactionReviewMode.tsx`
-- `src/components/transfers/TransferReviewMode.tsx`
-- `src/components/finance/FuelInventorySection.tsx` (Anzeige + Jahresfilter)
-- `src/components/finance/HeatingExportSection.tsx` (CSV-Filter auf `consumption_year`)
-
-## Beispiel anhand des Screenshots
-- Rechnung eao Gas: Rechnungsdatum **04.02.2025**, Verbrauchszeitraum **20.12.2023 – 31.12.2024**
-- → Buchung in `bookings`: `booking_date = 2025-02-04`, `fiscal_year = 2025` ✅
-- → `fuel_inventory`: `delivery_date = 2025-02-04`, `consumption_period_from = 2023-12-20`, `consumption_period_to = 2024-12-31`, `consumption_year = 2024` ✅
-- → Heizkostenabrechnung 2024 sieht 26.751 kWh + 4.852,63 kg CO₂ ✅
-- → Liquiditätsbericht 2025 sieht den Zahlungsabfluss ✅
+- `src/components/finance/BankStatementsTab.tsx` — Auto-Sprung in Review-Modus nach manueller Zuordnung
+- `src/components/finance/CreateBookingDialog.tsx` — Konto-Picker nach Save erneut öffnen
+- `src/components/finance/BookingsTab.tsx` — Rückgängig-Button + AlertDialog
+- ggf. `src/components/finance/AccountPlanView.tsx` — Rückgängig-Aktion in Kontenplan-Zeilen
 
 ## QA
-- Gas-Jahresabrechnung 2024 (kommt 2025) buchen → Verbrauch erscheint in Heizjahr 2024
-- Heizöl-Lieferung März 2025 buchen → Verbrauchszeitraum = 2025 (Default)
-- CO₂-CSV-Export für Ablesefirma 2024 enthält den Gas-Verbrauch korrekt
-- `FuelInventorySection`-Filter „2024" zeigt die Gas-Lieferung trotz Rechnungsdatum 2025
+- Rechnung im AssignmentDialog manuell verknüpfen → Vollbild-Review öffnet sich automatisch mit PDF rechts.
+- Neue Buchung anlegen, mit Enter speichern → Konto-Suchfeld ist sofort wieder fokussiert und geöffnet.
+- Buchung aus Bank-Import in Buchungsliste rückgängig machen → Buchung weg, Transaktion erscheint wieder in „Zugeordnet" im Kontoauszug.
+- Manuelle Buchungen ohne `bank_transaction` zeigen keinen Rückgängig-Button.
 
