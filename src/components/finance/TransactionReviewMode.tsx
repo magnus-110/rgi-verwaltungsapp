@@ -797,8 +797,16 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         booking = data;
       }
 
-      const bookingError = null as any;
-      if (bookingError) throw bookingError;
+      // Update path: row already booked → only update DB record, keep state green, don't advance
+      if (isUpdate) {
+        toast.success("Teilbuchung aktualisiert ✓", { duration: 1500 });
+        queryClient.invalidateQueries({ queryKey: ["bookings-all"] });
+        queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
+        queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+        setBookingSingle(null);
+        return;
+      }
+
 
       // Save fuel purchase to fuel_inventory
       if (row.is_fuel_purchase && row.fuel_type && row.fuel_quantity) {
