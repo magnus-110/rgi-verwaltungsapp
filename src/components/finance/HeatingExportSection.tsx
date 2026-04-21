@@ -191,107 +191,37 @@ export function HeatingExportSection({ buildingId, periodId, fiscalYear }: Heati
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
         <div>
           <CardTitle className="text-base flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5" /> Export für Ablesefirma
           </CardTitle>
           <p className="text-sm text-muted-foreground mt-1">
-            Einzelkonten + Brennstoffdaten als CSV für {period?.heating_provider || "die Ablesefirma"}
-            {hasMultipleUnits && " · pro Heizkreis getrennt"}
+            {heatingAccounts.length} Konten · {fuelEntries.length} Brennstoff-Einträge
+            {hasMultipleUnits && " · pro Heizkreis getrennt verfügbar"}
           </p>
         </div>
-        <Button size="sm" onClick={exportAll} disabled={heatingAccounts.length === 0}>
-          <Download className="h-4 w-4 mr-1" /> {hasMultipleUnits ? "Gesamt-CSV" : "CSV Export"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" onClick={exportAll} disabled={heatingAccounts.length === 0}>
+            <Download className="h-4 w-4 mr-1" /> {hasMultipleUnits ? "Gesamt-CSV" : "CSV Export"}
+          </Button>
+          {hasMultipleUnits && heatingUnits.map((u: any) => {
+            const count = fuelEntries.filter((e: any) => e.heating_unit_id === u.id).length;
+            return (
+              <Button
+                key={u.id}
+                size="sm"
+                variant="outline"
+                onClick={() => exportPerUnit(u.id, u.name)}
+                disabled={count === 0}
+              >
+                <Flame className="h-3 w-3 mr-1" />
+                {u.name} ({count})
+              </Button>
+            );
+          })}
+        </div>
       </CardHeader>
-      <CardContent>
-        {heatingAccounts.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">
-            Keine heizkosten-relevanten Konten markiert.
-          </p>
-        ) : (
-          <div className="space-y-4">
-            <div className="text-sm text-muted-foreground">
-              Vorschau: {heatingAccounts.length} Konten, Gesamtsumme {formatCurrency(totalHeating)}
-              {fuelEntries.length > 0 && `, ${fuelEntries.length} Brennstoff-Einträge`}
-            </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[100px]">Konto</TableHead>
-                  <TableHead>Bezeichnung</TableHead>
-                  <TableHead className="text-right">Betrag</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {heatingAccounts.map((acc) => (
-                  <TableRow key={acc.id}>
-                    <TableCell className="font-mono text-xs">{acc.account_number}</TableCell>
-                    <TableCell className="text-sm">{acc.account_name}</TableCell>
-                    <TableCell className="text-right font-mono text-sm">{formatCurrency(getAccountTotal(acc.id))}</TableCell>
-                  </TableRow>
-                ))}
-                <TableRow className="font-medium border-t-2">
-                  <TableCell></TableCell>
-                  <TableCell>Gesamt</TableCell>
-                  <TableCell className="text-right font-mono">{formatCurrency(totalHeating)}</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-
-            {hasMultipleUnits && (
-              <div className="rounded-md border bg-muted/30 p-3 space-y-2">
-                <h4 className="text-sm font-medium flex items-center gap-1">
-                  <Flame className="h-4 w-4" /> Pro-Heizkreis-Export für Messdienstleister
-                </h4>
-                <p className="text-xs text-muted-foreground">
-                  Die Ablesefirma (Techem/ista) benötigt die Brennstoffdaten getrennt je Haus/Tank.
-                </p>
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {heatingUnits.map((u: any) => {
-                    const count = fuelEntries.filter((e: any) => e.heating_unit_id === u.id).length;
-                    return (
-                      <Button
-                        key={u.id}
-                        size="sm"
-                        variant="outline"
-                        onClick={() => exportPerUnit(u.id, u.name)}
-                        disabled={count === 0}
-                      >
-                        <Download className="h-3 w-3 mr-1" />
-                        {u.name} ({count})
-                      </Button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {fuelEntries.length > 0 && (
-              <div className="mt-4">
-                <h4 className="text-sm font-medium mb-2 flex items-center gap-1">
-                  <Flame className="h-4 w-4" /> Brennstoffdaten im Export
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {[...new Set(fuelEntries.map((e) => e.fuel_type))].map((ft) => {
-                    const entries = fuelEntries.filter((e) => e.fuel_type === ft);
-                    const opening = entries.find((e) => e.entry_type === "opening_balance");
-                    const closing = entries.find((e) => e.entry_type === "closing_balance");
-                    const purchases = entries.filter((e) => e.entry_type === "purchase");
-                    return (
-                      <Badge key={ft} variant="outline" className="text-xs">
-                        {FUEL_LABELS[ft] || ft}: {opening ? formatNum(Number(opening.quantity)) : "?"} →{" "}
-                        {purchases.length} Käufe → {closing ? formatNum(Number(closing.quantity)) : "?"}
-                      </Badge>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </CardContent>
     </Card>
   );
 }

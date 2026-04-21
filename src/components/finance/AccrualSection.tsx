@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,7 +43,11 @@ export function AccrualSection({ buildingId, fiscalYear, periodFrom, periodTo }:
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bookings")
-        .select("*, chart_of_accounts!bookings_account_id_fkey(account_number, account_name)")
+        .select(`
+          *,
+          chart_of_accounts!bookings_account_id_fkey(account_number, account_name),
+          counter_account:chart_of_accounts!bookings_counter_account_id_fkey(account_number, account_name)
+        `)
         .eq("building_id", buildingId)
         .eq("fiscal_year", fiscalYear)
         .eq("booking_category", "accrual")
@@ -53,6 +57,43 @@ export function AccrualSection({ buildingId, fiscalYear, periodFrom, periodTo }:
       return data;
     },
   });
+
+  // Zusätzlich: Buchungen, die Abgrenzungskonten (1900-1999) als Haupt- oder Gegenkonto nutzen
+  const { data: accountBasedAccruals = [] } = useQuery({
+    queryKey: ["account-based-accruals", buildingId, fiscalYear],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bookings")
+        .select(`
+          *,
+          chart_of_accounts!bookings_account_id_fkey(account_number, account_name),
+          counter_account:chart_of_accounts!bookings_counter_account_id_fkey(account_number, account_name)
+        `)
+        .eq("building_id", buildingId)
+        .eq("fiscal_year", fiscalYear)
+        .neq("status", "cancelled")
+        .order("booking_date");
+      if (error) throw error;
+      const isAccrualAccount = (n?: string | null) => {
+        if (!n) return false;
+        const x = Number(n);
+        return Number.isFinite(x) && x >= 1900 && x < 2000;
+      };
+      return (data || []).filter((b: any) =>
+        isAccrualAccount(b.chart_of_accounts?.account_number) ||
+        isAccrualAccount(b.counter_account?.account_number)
+      );
+    },
+  });
+
+  // Vereinigung beider Listen (dedupliziert per id)
+  const allAccrualBookings = useMemo(() => {
+    const map = new Map<string, any>();
+    [...accrualBookings, ...accountBasedAccruals].forEach((b: any) => map.set(b.id, b));
+    return Array.from(map.values()).sort((a, b) =>
+      (a.booking_date ?? "").localeCompare(b.booking_date ?? "")
+    );
+  }, [accrualBookings, accountBasedAccruals]);
 
   const potentialAccruals = bookings.filter((b: any) => {
     if (b.booking_category === "accrual" || b.booking_category === "heating_repost") return false;
@@ -72,7 +113,7 @@ export function AccrualSection({ buildingId, fiscalYear, periodFrom, periodTo }:
   const formatCurrency = (n: number) =>
     new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
 
-  const totalAccruals = accrualBookings.reduce((s: number, b: any) => s + Math.abs(Number(b.amount)), 0);
+  const totalAccruals = allAccrualBookings.reduce((s: number, b: any) => s + Math.abs(Number(b.amount)), 0);
 
   const suggestAccruals = async () => {
     setAiSuggesting(true);
@@ -132,9 +173,9 @@ export function AccrualSection({ buildingId, fiscalYear, periodFrom, periodTo }:
               {wrongYearBookings.length} Buchungen mit abweichendem Buchungsjahr
             </Badge>
           )}
-          {accrualBookings.length > 0 && (
+          {allAccrualBookings.length > 0 && (
             <Badge variant="outline">
-              {accrualBookings.length} Abgrenzungsbuchungen — {formatCurrency(totalAccruals)}
+              {allAccrualBookings.length} Abgrenzungsbuchungen — {formatCurrency(totalAccruals)}
             </Badge>
           )}
         </div>
@@ -196,7 +237,7 @@ export function AccrualSection({ buildingId, fiscalYear, periodFrom, periodTo }:
           </div>
         )}
 
-        {accrualBookings.length > 0 && (
+        {allAccrualBookings.length > 0 && (
           <div>
             <h4 className="text-sm font-medium mb-2">Vorhandene Abgrenzungsbuchungen</h4>
             <Table>
@@ -210,7 +251,7 @@ export function AccrualSection({ buildingId, fiscalYear, periodFrom, periodTo }:
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {accrualBookings.map((b: any) => (
+                {allAccrualBookings.map((b: any) => (
                   <TableRow key={b.id}>
                     <TableCell className="text-sm">
                       {format(new Date(b.booking_date), "dd.MM.yyyy", { locale: de })}
@@ -233,7 +274,7 @@ export function AccrualSection({ buildingId, fiscalYear, periodFrom, periodTo }:
           </div>
         )}
 
-        {potentialAccruals.length === 0 && accrualBookings.length === 0 && wrongYearBookings.length === 0 && (
+        {potentialAccruals.length === 0 && allAccrualBookings.length === 0 && wrongYearBookings.length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-4">
             Keine abgrenzungsrelevanten Buchungen gefunden.
           </p>
