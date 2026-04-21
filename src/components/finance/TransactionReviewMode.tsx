@@ -1414,7 +1414,12 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                               )}
                             </div>
                             {showLinkedInvoicePdf && linkedInvoicePdfUrl && (
-                              <iframe src={linkedInvoicePdfUrl} className="w-full border-0 rounded-md min-h-[400px]" title="Verknüpfte Rechnung PDF" />
+                              <iframe
+                                src={`${linkedInvoicePdfUrl}#view=FitH`}
+                                className="w-full border-0 rounded-md"
+                                style={{ height: "calc(100vh - 200px)", minHeight: "800px" }}
+                                title="Verknüpfte Rechnung PDF"
+                              />
                             )}
                           </div>
                         )}
