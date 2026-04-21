@@ -1046,11 +1046,20 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       if (isInput) return;
       if (e.key === "ArrowRight") { e.preventDefault(); handleNext(); }
       if (e.key === "ArrowLeft") { e.preventDefault(); handlePrev(); }
-      if (e.key === "Enter") { e.preventDefault(); confirmAndNext(); }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        // Only book the currently expanded, unbooked row; otherwise advance
+        const expanded = expandedRowId ? formRows.find(r => r.id === expandedRowId) : null;
+        if (expanded && !expanded.booked) {
+          handleBookRow(expanded.id);
+        } else {
+          handleNext();
+        }
+      }
     };
     window.addEventListener("keydown", keyDown);
     return () => window.removeEventListener("keydown", keyDown);
-  }, [open, handleNext, handlePrev, confirmAndNext, undoLast, undoStack.length]);
+  }, [open, handleNext, handlePrev, handleBookRow, expandedRowId, formRows, undoLast, undoStack.length]);
 
   const amountMatch = useMemo(() => {
     if (!currentTxn) return false;
