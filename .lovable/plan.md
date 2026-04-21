@@ -1,61 +1,63 @@
 
-
 ## Ziel
-Drei Verbesserungen im Buchungs-Workflow für eine flüssigere "Buchungs-Pipeline".
+Den Rückgängig-Button im Kontenplan genau dort sichtbar machen, wo die Buchungszeile im Screenshot angezeigt wird – auch bei Personenkonten/Hausgeld-Zeilen.
 
----
+## Ursache
+Im `AccountPlanView.tsx` wird jede Buchung doppelt dargestellt:
+- einmal auf der eigentlichen Kontoseite (`_side: "primary"`)
+- einmal gespiegelt auf dem Gegenkonto (`_side: "counter"`)
 
-### 1. Manuelle Rechnungs-Zuordnung → großer Review-Modus rechts
+Der Rückgängig-Button rendert aktuell nur bei:
+- `source === "bank_import"`
+- `bank_transaction_id` vorhanden
+- `_side === "primary"`
 
-**Problem:** Wenn man im `AssignmentDialog` eine Rechnung manuell mit einer Kontoauszugs-Position verknüpft, landet die Transaktion in der "Zugeordnet"-Liste — aber man muss separat auf die Zeile klicken, um sie wie eine automatisch gematchte Transaktion im Vollbild-Review zu sehen.
+Im Screenshot sind die sichtbaren Hausgeld-/Personenkonto-Zeilen sehr wahrscheinlich die Gegenkonto-Ansicht (`_side === "counter"`). Deshalb erscheint dort kein Button, obwohl die Buchung selbst rückgängig gemacht werden kann.
 
-**Lösung in `BankStatementsTab.tsx`:**
-- Nach erfolgreichem `handleManualAssign` (Zeile ~322 + ~670) wird die Liste invalidiert. Direkt danach:
-  1. Index der manuell zugeordneten Transaktion in `allUnbookedForReview` ermitteln (über `manualAssignTxn.id`).
-  2. `setReviewInitialIndex(idx)` + `setReviewModeOpen(true)` aufrufen.
-- Die Transaktion zeigt sich dadurch sofort im großen Vollbild-Review mit Rechnungs-PDF rechts — identisch zu automatisch gematchten Transaktionen.
-- Da `match_status: "manually_matched"` bereits in `matchedTransactions` aufgenommen wird, ist die Logik im `TransactionReviewMode` schon kompatibel (es lädt `invoiceDetail` über `matched_invoice_id`, siehe Zeile 148–160).
+## Umsetzung
 
----
+### 1. Button-Bedingung im Kontenplan korrigieren
+In `src/components/finance/AccountPlanView.tsx`:
+- die Bedingung `b._side === "primary"` entfernen
+- den Button stattdessen für jede Buchungszeile anzeigen, wenn die Buchung tatsächlich rückgängig gemacht werden kann:
+  - `b.source === "bank_import"`
+  - verknüpfte Banktransaktion vorhanden (`b.bank_transaction_id` oder alternativ vorhandene Zuordnung über `booking_id`)
 
-### 2. Schnellbuchen: Nach Bestätigung Konto-Picker erneut öffnen
+Ergebnis:
+- derselbe Rückgängig-Button erscheint auch in den roten Hausgeld-Zeilen im Personenkonto-Bereich.
 
-**Problem:** In `CreateBookingDialog.tsx` bleibt die Maske nach Speichern offen (`resetForm()` Zeile 166), aber der `useEffect`, der den Konto-Picker automatisch öffnet (Zeile 98–106), reagiert nur auf `open`-Änderungen — nach einem Save passiert nichts.
+### 2. Doppelte Buttons bei derselben Buchung vermeiden
+Da dieselbe Buchung in mehreren Konten auftauchen kann, wird der Button zwar in jeder sichtbaren Zeile erlaubt, aber die Aktion bleibt immer identisch:
+- Dialog öffnet mit derselben Buchung
+- Rückgängig macht weiterhin genau diese eine Buchung
+- verknüpfte `bank_transactions` werden wieder freigegeben
+- Buchung wird gelöscht
 
-**Lösung in `CreateBookingDialog.tsx`:**
-- Neuen State `saveCounter` einführen, der bei jedem erfolgreichen Save inkrementiert wird.
-- Den Auto-Open-`useEffect` (Zeile 98–106) auf `[open, prefill, saveCounter]` umstellen.
-- In `handleSave` direkt nach `resetForm()`: `setSaveCounter(c => c + 1)` aufrufen.
-- Effekt: Nach jedem Speichern wird der Cursor wieder direkt im Konto-Suchfeld platziert → reines Tippen für die nächste Buchung möglich.
+Falls nötig, wird zusätzlich sichergestellt, dass nur echte bankverknüpfte Buchungen einen Button bekommen.
 
----
+### 3. Platzierung exakt an der markierten Stelle beibehalten
+Der Button bleibt direkt im Betrag-Feld rechts neben dem Betrag:
+- keine neue Extra-Spalte
+- keine Verschiebung der restlichen Tabelle
+- gleiche Tooltip-/Icon-Logik wie bisher
 
-### 3. Rückgängig-Button in der Buchungsliste / Kontenplan
+### 4. Bestehende Undo-Logik unverändert weiterverwenden
+Die vorhandene Logik in `handleUndoBooking` bleibt fachlich gleich:
+1. `bank_transactions` zurücksetzen (`booked_at = null`, `booking_id = null`)
+2. `bookings`-Datensatz löschen
+3. relevante Queries invalidieren
+4. Toast anzeigen
 
-**Problem:** Wenn man eine Buchung aus dem Kontoauszug versehentlich falsch verbucht hat, gibt es im `BookingsTab` keinen Weg zurück — die Transaktion ist als gebucht markiert und verschwindet aus dem Kontoauszug.
+Es wird nur die Sichtbarkeit im Kontenplan korrigiert, nicht der eigentliche Undo-Ablauf.
 
-**Lösung in `BookingsTab.tsx`:**
-- Neue Spalte/Aktion in `renderRow` (ganz rechts neben den Status-Icons): kleiner `RotateCcw`-Button mit Tooltip "Buchung rückgängig — zurück zum Kontoauszug".
-- Sichtbar nur, wenn Buchung aus Bank-Import stammt (`b.source === "bank_import"`) und eine zugehörige `bank_transaction` existiert.
-- Klick öffnet kompakte Bestätigung (AlertDialog): „Buchung löschen und Transaktion wieder zur Verarbeitung freigeben?"
-- Ablauf bei Bestätigung:
-  1. `bank_transactions` mit `booking_id = b.id` finden.
-  2. `bank_transactions.update({ booked_at: null, booking_id: null })`.
-  3. `bookings.delete().eq("id", b.id)`.
-  4. Toast „Buchung rückgängig — Transaktion zurück im Kontoauszug" + Query-Invalidierung (`bookings-*`, `bank-transactions-*`).
-- Auch im Kontenplan-View (`AccountPlanView`) wird derselbe Button durchgereicht (sofern dort Zeilen gerendert werden — alternativ nur in der Listen-Ansicht).
-
----
-
-## Betroffene Dateien
-- `src/components/finance/BankStatementsTab.tsx` — Auto-Sprung in Review-Modus nach manueller Zuordnung
-- `src/components/finance/CreateBookingDialog.tsx` — Konto-Picker nach Save erneut öffnen
-- `src/components/finance/BookingsTab.tsx` — Rückgängig-Button + AlertDialog
-- ggf. `src/components/finance/AccountPlanView.tsx` — Rückgängig-Aktion in Kontenplan-Zeilen
+## Betroffene Datei
+- `src/components/finance/AccountPlanView.tsx`
 
 ## QA
-- Rechnung im AssignmentDialog manuell verknüpfen → Vollbild-Review öffnet sich automatisch mit PDF rechts.
-- Neue Buchung anlegen, mit Enter speichern → Konto-Suchfeld ist sofort wieder fokussiert und geöffnet.
-- Buchung aus Bank-Import in Buchungsliste rückgängig machen → Buchung weg, Transaktion erscheint wieder in „Zugeordnet" im Kontoauszug.
-- Manuelle Buchungen ohne `bank_transaction` zeigen keinen Rückgängig-Button.
-
+- Kontenplan öffnen
+- Personenkonto/Hausgeld-Konto wie im Screenshot aufklappen
+- prüfen, dass der Rückgängig-Button rechts neben dem Betrag sichtbar ist
+- Klick auf Button öffnet Bestätigungsdialog
+- nach Bestätigung verschwindet die Buchung aus dem Kontenplan
+- die zugehörige Transaktion erscheint wieder im Kontoauszug
+- manuelle Buchungen ohne Bankverknüpfung zeigen weiterhin keinen Rückgängig-Button
