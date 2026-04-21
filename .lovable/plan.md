@@ -1,73 +1,52 @@
 
 
 ## Ziel
-Claudes Beobachtung beruht auf einem Missverständnis: Alle 96 Buchungen 2025 haben ein Kostenkonto – es steht im Feld `counter_account_id` (Gegenkonto), weil das System "bank-zentrisch" bucht (eine Buchung pro Bankbewegung: Soll 1800 / Haben Aufwandskonto). Die Daten sind WEG-konform vorhanden. Was fehlt, ist die **konsistente Berücksichtigung beider Buchungsseiten** in allen Auswertungen, damit sowohl unsere Abrechnungs-Engine als auch externe Tools (Claude/MCP) die Kosten korrekt aggregieren.
+Eröffnungsbuchungen via Konto 4000 (Saldenvortragskonto) als gleichwertige Quelle für Jahresanfangsbestände nutzen – so wie in jeder professionellen Buchhaltung üblich. Die separate Tabelle `account_balances` bleibt als Fallback / explizite Übersteuerung erhalten, ist aber nicht mehr Pflicht.
 
-## Diagnose (anhand Birkenweg 6, 2025)
-Bestätigte Verteilung der 96 Buchungen:
-- 30× Hausgeld (Konten 0001–0003) – Einnahmen
-- 5× Müll 1010, 10× Allgemeinstrom 1050, 1× Versicherung 1300/1301
-- 1× Gerätemiete 1431, 1× Heizungswartung 1440, 10× Gas 1470, 7× Wasser 1473
-- 9× Verwaltervergütung 1500, 12× Bankgebühren 1520
-- 1× Rücklagenübertrag 1810, Vorjahr-Abgrenzungen 4110/4130
+## Praxis-Hintergrund
+In der Hausverwaltung/SKR-Buchhaltung gibt es zwei legitime Wege, einen Anfangsbestand zu erfassen:
 
-→ Vollständige WEG-Abrechnung **ist** möglich. Logikfehler liegt im Frontend.
+1. **Saldenvortrag (dein Weg, Standard)**: Buchung gegen Konto 4000 „Eröffnungsbuchungen" zum 01.01. – z. B. `1800 an 4000: 3.510 €`. Vorteil: Alles lebt im Buchungsjournal, voll nachvollziehbar, kein Doppelpflege-Risiko.
+2. **Stammdaten-Eintrag**: Manueller Eintrag in `account_balances.opening_balance`. Sinnvoll nur, wenn keine Eröffnungsbuchung existiert (z. B. ganz neue Liegenschaft ohne Vorjahresdaten).
 
-## Umsetzung
+Aktuell verlangt das System Variante 2, obwohl Variante 1 schon vorhanden ist → unnötige Doppelarbeit.
 
-### 1. Settlement-Engine: beide Buchungsseiten auswerten
-`BillingSettlement.tsx` und Abhängigkeiten so anpassen, dass für jedes Kostenkonto die Summe aus Buchungen mit
-`account_id = X` **ODER** `counter_account_id = X` (mit Vorzeichen-Konvention: Gegenkonto-Beträge invertiert) gebildet wird. Gleiche Korrektur für:
-- `BookingReviewSection.tsx` (Vollständigkeitscheck pro Konto)
-- `BillingValidationPanel.tsx` (Kostensummen-Check)
-- `BillingAiAnalysis.tsx` (Kontextdaten für Mistral)
-- `EconomicPlanEditor.tsx` / `Section35aEditor.tsx` (Ist-Werte)
-- `AssetReportSection.tsx` (Vermögensbericht)
+## Lösung
 
-### 2. Vorzeichen-Helper zentralisieren
-Neue Util `src/components/finance/lib/bookingAggregation.ts`:
-```ts
-export function sumForAccount(accountId, bookings) {
-  return bookings.reduce((s, b) => {
-    if (b.account_id === accountId) return s + Number(b.amount);
-    if (b.counter_account_id === accountId) return s - Number(b.amount);
-    return s;
-  }, 0);
-}
-```
-Alle obigen Komponenten nutzen diesen Helper → eine Wahrheitsquelle.
+### 1. Effektiven Anfangsbestand zentral berechnen
+Neue Helper-Funktion `getEffectiveOpeningBalance(accountId, bookings, accountBalances, fiscalYear)`:
+- **Priorität A**: Wenn Buchungen am 01.01. (oder erstem Tag des Wirtschaftsjahres) gegen Konto 4000 existieren, summiere diese als Anfangsbestand (über `sumForAccount`-Logik).
+- **Priorität B**: Wenn `account_balances.opening_balance` gesetzt ist, nutze diesen Wert (manueller Override).
+- **Fallback**: 0 €.
 
-### 3. SQL-View für externe Tools (MCP / Claude)
-Neue Datenbank-View `v_account_movements`, die jede Buchung in zwei Zeilen splittet (Soll/Haben) – damit kann jedes externe Tool ohne Spezialwissen über die bank-zentrische Logik korrekt aggregieren:
-```sql
-CREATE VIEW v_account_movements AS
-SELECT id booking_id, building_id, fiscal_year, booking_date, account_id, amount, ...
-FROM bookings
-UNION ALL
-SELECT id, building_id, fiscal_year, booking_date, counter_account_id, -amount, ...
-FROM bookings WHERE counter_account_id IS NOT NULL;
-```
-RLS analog zu `bookings`.
+Diese Funktion lebt in `src/components/finance/lib/bookingAggregation.ts` (neben `sumForAccount`).
 
-### 4. Memory-Update
-Neuer Eintrag `mem://features/finance/bank-centric-booking-logic`:
-> Buchungen werden bank-zentrisch erfasst (Hauptkonto Bank 1800, Aufwand im Gegenkonto). Auswertungen MÜSSEN immer beide Felder (`account_id` + `counter_account_id`) berücksichtigen. Nutze `sumForAccount()` oder die View `v_account_movements`.
+### 2. UI: BalanceCarryForward umbauen
+- Neue Spalte „Quelle": zeigt automatisch erkannt, ob Anfangsbestand aus **Eröffnungsbuchung 4000** (grünes Badge + Datum/Betrag), aus **manuellem Eintrag** (graues Badge) oder **fehlend** (rotes Badge) kommt.
+- Wenn Eröffnungsbuchung erkannt: Input-Feld read-only mit Hinweis „Aus Buchung 01.01. übernommen" + Link „manuell überschreiben".
+- Hinweistext am Anfang des Cards: „Anfangsbestände werden bevorzugt aus Eröffnungsbuchungen (Gegenkonto 4000) ermittelt. Manuelle Einträge nur, wenn keine Eröffnungsbuchung existiert."
+- „Salden übernehmen"-Button bleibt als Komfort für den Fall, dass weder Eröffnungsbuchung noch Vorjahresdaten existieren.
 
-### 5. QA
-- Birkenweg 6 / 2025 Abrechnung erstellen → Kostenpositionen Müll, Strom, Gas, Wasser, Verwaltung, Bankgebühren, Versicherung erscheinen mit korrekten Summen.
-- Heizkosten-Sektion zeigt weiterhin Werte (bereits gefixt, profitiert vom neuen Helper).
-- Abgrenzungen 4110/4130 erscheinen korrekt.
-- Validation Panel: keine "fehlenden Kosten"-Falschmeldungen mehr.
-- Claude/MCP-Abfrage über `v_account_movements` liefert direkt zuordenbare Kostendaten.
+### 3. Asset Report & Settlement angleichen
+`AssetReportSection.tsx` und `BillingSettlement.tsx` nutzen ebenfalls `getEffectiveOpeningBalance` statt direkt `account_balances.opening_balance`. So zeigen Vermögensbericht und Abrechnung automatisch den korrekten Wert (z. B. 3.510 € für dein Bankkonto), ohne dass du noch etwas eintragen musst.
+
+### 4. Validation Panel ergänzen
+`BillingValidationPanel.tsx`: Check „Anfangsbestände vorhanden" prüft beide Quellen. Solange entweder eine Eröffnungsbuchung gegen 4000 oder ein manueller Eintrag existiert, ist der Check grün.
+
+### 5. Memory-Update
+Neuer Eintrag `mem://features/finance/anfangsbestand-quellen`:
+> Jahresanfangsbestände werden in 2 Varianten unterstützt: (1) Eröffnungsbuchung gegen Konto 4000 am ersten Tag des Wirtschaftsjahres (Standard, SKR-konform), (2) Manueller Eintrag in `account_balances.opening_balance`. Helper `getEffectiveOpeningBalance` priorisiert (1) vor (2). UI zeigt erkannte Quelle transparent an.
 
 ## Betroffene Dateien
-- `src/components/finance/lib/bookingAggregation.ts` (neu)
-- `src/components/finance/BillingSettlement.tsx`
-- `src/components/finance/BookingReviewSection.tsx`
-- `src/components/finance/BillingValidationPanel.tsx`
-- `src/components/finance/BillingAiAnalysis.tsx`
-- `src/components/finance/EconomicPlanEditor.tsx`
-- `src/components/finance/Section35aEditor.tsx`
-- `src/components/finance/AssetReportSection.tsx`
-- DB-Migration: View `v_account_movements` + RLS
+- `src/components/finance/lib/bookingAggregation.ts` (Helper ergänzen)
+- `src/components/finance/BalanceCarryForward.tsx` (UI mit Quellen-Erkennung)
+- `src/components/finance/AssetReportSection.tsx` (Helper nutzen)
+- `src/components/finance/BillingSettlement.tsx` (Helper nutzen)
+- `src/components/finance/BillingValidationPanel.tsx` (Check anpassen)
+
+## Konkretes Ergebnis für deine Liegenschaft
+Nach Umsetzung erscheint im BalanceCarryForward für Konto 1800 automatisch:
+- **Anfangsbestand 2025**: 3.510,00 € ✓ (aus Eröffnungsbuchung 01.01.25)
+- Quelle-Badge: „Buchung 4000"
+- Kein manueller Eintrag mehr nötig.
 
