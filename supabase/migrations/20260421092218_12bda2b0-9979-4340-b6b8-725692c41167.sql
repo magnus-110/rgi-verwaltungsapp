@@ -1,0 +1,1 @@
+ALTER TABLE public.bank_transactions ADD COLUMN IF NOT EXISTS ai_analysis_error TEXT NULL;
