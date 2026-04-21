@@ -1659,11 +1659,14 @@ function BookingRowCard({
                   }
                   handleEnterNavigation(e as any, "amount");
                 }}
+                onFocus={e => {
+                  const input = e.target as HTMLInputElement;
+                  // Select numeric portion (skip the sign char at index 0) so typing overrides
+                  setTimeout(() => input.setSelectionRange(1, input.value.length), 0);
+                }}
                 onClick={e => {
                   const input = e.target as HTMLInputElement;
-                  if (input.selectionStart !== null && input.selectionStart < 1) {
-                    input.setSelectionRange(1, 1);
-                  }
+                  input.setSelectionRange(1, input.value.length);
                 }}
                 onWheel={e => (e.target as HTMLElement).blur()} />
               <Button type="button" size="icon" variant={row.booking_type === "expense" ? "default" : "outline"}
