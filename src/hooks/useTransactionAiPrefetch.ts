@@ -123,17 +123,25 @@ export function useTransactionAiPrefetch(
                   .update({
                     ai_suggestion: data,
                     ai_analysis_status: "success",
+                    ai_analysis_error: null,
                   } as any)
                   .eq("id", txn.id);
               } else {
                 await supabase.from("bank_transactions")
-                  .update({ ai_analysis_status: "failed" } as any)
+                  .update({
+                    ai_analysis_status: "failed",
+                    ai_analysis_error: "Leere KI-Antwort (kein Vorschlag erhalten)",
+                  } as any)
                   .eq("id", txn.id);
                 throw new Error("Empty AI response");
               }
-            } catch (err) {
+            } catch (err: any) {
+              const msg = String(err?.message || err || "Unbekannter Fehler").slice(0, 500);
               await supabase.from("bank_transactions")
-                .update({ ai_analysis_status: "failed" } as any)
+                .update({
+                  ai_analysis_status: "failed",
+                  ai_analysis_error: msg,
+                } as any)
                 .eq("id", txn.id);
               throw err;
             }
