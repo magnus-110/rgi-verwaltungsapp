@@ -69,7 +69,7 @@ export function BillingValidationPanel({ periodId, buildingId, fiscalYear }: Bil
     queryFn: async () => {
       const { data, error } = await supabase
         .from("chart_of_accounts")
-        .select("id, account_number, is_heating_relevant")
+        .select("id, account_number, account_name, is_heating_relevant, settlement_section, carry_forward_balance")
         .or(`building_id.is.null,building_id.eq.${buildingId}`);
       if (error) throw error;
       return data;
