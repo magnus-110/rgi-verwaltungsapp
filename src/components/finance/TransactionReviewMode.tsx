@@ -716,7 +716,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     if (!currentTxn || bookingSingle || !user) return;
 
     const row = formRows.find(r => r.id === rowId);
-    if (!row || row.booked) return;
+    if (!row) return;
 
     if (!row.account_id) {
       toast.error("Bitte ein Konto auswählen");
@@ -739,7 +739,22 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       const totalParts = formRows.length;
       const partIndex = formRows.findIndex(r => r.id === rowId) + 1;
 
-      const { data: booking, error: bookingError } = await supabase.from("bookings").insert({
+      const existingBookingId = rowBookingMapRef.current[currentTxn.id]?.[rowId];
+      const isUpdate = row.booked && !!existingBookingId;
+
+      // Safety net: if marked as booked but DB record gone, fall back to insert
+      if (isUpdate) {
+        const { data: check } = await supabase.from("bookings").select("id").eq("id", existingBookingId).maybeSingle();
+        if (!check) {
+          if (rowBookingMapRef.current[currentTxn.id]) delete rowBookingMapRef.current[currentTxn.id][rowId];
+          setFormRows(rows => rows.map(r => r.id === rowId ? { ...r, booked: false } : r));
+          toast.error("Buchung nicht mehr vorhanden – bitte erneut buchen");
+          setBookingSingle(null);
+          return;
+        }
+      }
+
+      const payload: any = {
         building_id: buildingId,
         account_id: row.account_id,
         counter_account_id: row.counter_account_id || null,
@@ -756,20 +771,42 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         matched_template_id: row.matched_template_id,
         is_35a_relevant: row.is_35a_relevant,
         amount_35a: amount35a,
-        source: "bank_import",
-        status: "confirmed",
-        confirmed_at: new Date().toISOString(),
-        confirmed_by: user.id,
-        created_by: user.id,
-        bank_transaction_id: currentTxn.id,
-        split_part: totalParts > 1 ? partIndex : null,
-        split_parts_total: totalParts > 1 ? totalParts : null,
         needs_review: row.needs_review,
         review_note: row.review_note || null,
         line_items_detail: row.line_items_detail || null,
-      } as any).select("id").single();
+      };
 
-      if (bookingError) throw bookingError;
+      let booking: { id: string };
+      if (isUpdate) {
+        const { data, error } = await supabase.from("bookings").update(payload).eq("id", existingBookingId).select("id").single();
+        if (error) throw error;
+        booking = data;
+      } else {
+        const { data, error } = await supabase.from("bookings").insert({
+          ...payload,
+          source: "bank_import",
+          status: "confirmed",
+          confirmed_at: new Date().toISOString(),
+          confirmed_by: user.id,
+          created_by: user.id,
+          bank_transaction_id: currentTxn.id,
+          split_part: totalParts > 1 ? partIndex : null,
+          split_parts_total: totalParts > 1 ? totalParts : null,
+        } as any).select("id").single();
+        if (error) throw error;
+        booking = data;
+      }
+
+      // Update path: row already booked → only update DB record, keep state green, don't advance
+      if (isUpdate) {
+        toast.success("Teilbuchung aktualisiert ✓", { duration: 1500 });
+        queryClient.invalidateQueries({ queryKey: ["bookings-all"] });
+        queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
+        queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+        setBookingSingle(null);
+        return;
+      }
+
 
       // Save fuel purchase to fuel_inventory
       if (row.is_fuel_purchase && row.fuel_type && row.fuel_quantity) {
@@ -1009,11 +1046,20 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       if (isInput) return;
       if (e.key === "ArrowRight") { e.preventDefault(); handleNext(); }
       if (e.key === "ArrowLeft") { e.preventDefault(); handlePrev(); }
-      if (e.key === "Enter") { e.preventDefault(); confirmAndNext(); }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        // Only book the currently expanded, unbooked row; otherwise advance
+        const expanded = expandedRowId ? formRows.find(r => r.id === expandedRowId) : null;
+        if (expanded && !expanded.booked) {
+          handleBookRow(expanded.id);
+        } else {
+          handleNext();
+        }
+      }
     };
     window.addEventListener("keydown", keyDown);
     return () => window.removeEventListener("keydown", keyDown);
-  }, [open, handleNext, handlePrev, confirmAndNext, undoLast, undoStack.length]);
+  }, [open, handleNext, handlePrev, handleBookRow, expandedRowId, formRows, undoLast, undoStack.length]);
 
   const amountMatch = useMemo(() => {
     if (!currentTxn) return false;
@@ -1613,7 +1659,7 @@ function BookingRowCard({
 
   return (
     <>
-    <Collapsible open={isExpanded && !row.booked} onOpenChange={() => !row.booked && onToggle()}>
+    <Collapsible open={isExpanded} onOpenChange={() => onToggle()}>
       <div className={cn(
         "rounded-lg border transition-colors",
         row.booked
@@ -1625,7 +1671,7 @@ function BookingRowCard({
         <CollapsibleTrigger asChild>
           <button
             className="w-full flex items-center justify-between px-3 py-2.5 text-left"
-            disabled={row.booked}
+            title={row.booked ? "Klicken zum Bearbeiten" : undefined}
           >
             <div className="flex items-center gap-2 min-w-0">
               {row.booked ? (
@@ -1909,10 +1955,10 @@ function BookingRowCard({
             {/* Vendor History */}
             <VendorHistorySection booking={{ building_id: buildingId, id: undefined, description: row.description, counter_account_id: row.counter_account_id, account_id: row.account_id, counter_account: accounts.find((a: any) => a.id === row.counter_account_id) || null, invoices: invoiceDetail ? { vendor_name: invoiceDetail.vendor_name } : null }} />
 
-            {/* Book button */}
+            {/* Book / Update button */}
             <Button ref={el => { fieldRefs.current["__book__"] = el; }} onClick={onBook} disabled={isBooking || !row.account_id} className="w-full h-9 text-sm">
-              {isBooking ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
-              {row.needs_review ? "Buchen & Zur Prüfung" : "Buchen"}
+              {isBooking ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : row.booked ? <RefreshCw className="h-4 w-4 mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
+              {row.booked ? "Aktualisieren" : (row.needs_review ? "Buchen & Zur Prüfung" : "Buchen")}
             </Button>
           </div>
         </CollapsibleContent>
