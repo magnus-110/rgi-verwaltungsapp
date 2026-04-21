@@ -276,10 +276,29 @@ export function AccountPlanView({ bookings, fiscalYear, buildingId, onRowClick, 
                                     )}
                                   </TableCell>
                                   <TableCell className={cn(
-                                    "py-1.5 px-3 text-right font-mono tabular-nums font-semibold whitespace-nowrap",
+                                    "py-1.5 px-3 font-mono tabular-nums font-semibold whitespace-nowrap",
                                     isIncome ? "text-green-600" : "text-destructive"
                                   )}>
-                                    {isIncome ? "+" : ""}{formatCurrency(Number(b.amount))}
+                                    <div className="flex items-center justify-end gap-2">
+                                      <span>{isIncome ? "+" : ""}{formatCurrency(Number(b.amount))}</span>
+                                      {b.source === "bank_import" && b.bank_transaction_id && b._side === "primary" && (
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                className="h-5 w-5 p-0"
+                                                onClick={(e) => { e.stopPropagation(); setUndoBooking(b); }}
+                                              >
+                                                <RotateCcw className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                                              </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent><p className="text-xs">Buchung rückgängig – zurück zum Kontoauszug</p></TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      )}
+                                    </div>
                                   </TableCell>
                                   <TableCell className="py-1.5 px-3" onClick={(e) => e.stopPropagation()}>
                                     <div className="flex items-center gap-1">
@@ -311,23 +330,6 @@ export function AccountPlanView({ bookings, fiscalYear, buildingId, onRowClick, 
                                         </TooltipProvider>
                                       )}
                                       {b.ai_warning && <AlertTriangle className="h-3 w-3 text-amber-500" />}
-                                      {b.source === "bank_import" && b.bank_transaction_id && b._side === "primary" && (
-                                        <TooltipProvider>
-                                          <Tooltip>
-                                            <TooltipTrigger asChild>
-                                              <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                className="h-5 w-5 p-0"
-                                                onClick={(e) => { e.stopPropagation(); setUndoBooking(b); }}
-                                              >
-                                                <RotateCcw className="h-3 w-3 text-muted-foreground hover:text-destructive" />
-                                              </Button>
-                                            </TooltipTrigger>
-                                            <TooltipContent><p className="text-xs">Buchung rückgängig – zurück zum Kontoauszug</p></TooltipContent>
-                                          </Tooltip>
-                                        </TooltipProvider>
-                                      )}
                                     </div>
                                   </TableCell>
                                 </TableRow>
