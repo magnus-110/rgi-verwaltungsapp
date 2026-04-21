@@ -268,13 +268,26 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const totalReserve = getSectionTotal("reserve");
   const totalReserveWithdrawal = getSectionTotal("reserve_withdrawal");
 
-  // Opening balances
-  const openingGiro = balances
-    .filter((b: any) => b.chart_of_accounts?.category !== "ruecklage" && b.chart_of_accounts?.carry_forward_balance)
-    .reduce((s, b) => s + Number(b.opening_balance), 0);
-  const openingReserve = balances
-    .filter((b: any) => b.chart_of_accounts?.category === "ruecklage")
-    .reduce((s, b) => s + Number(b.opening_balance), 0);
+  // Opening balances — bevorzugt aus Eröffnungsbuchungen gegen Konto 4000,
+  // Fallback auf manuellen Eintrag in account_balances.
+  const opening4000Account = accounts.find((a: any) => a.account_number === "4000");
+  const opening4000Id = opening4000Account?.id || null;
+  const carryAccounts = accounts.filter((a: any) => a.carry_forward_balance);
+  const flatBalances = balances.map((b: any) => ({
+    account_id: b.account_id,
+    opening_balance: b.opening_balance,
+  }));
+  const openingByAccount: Record<string, number> = {};
+  carryAccounts.forEach((acc: any) => {
+    const eff = getEffectiveOpeningBalance(acc.id, bookings as any[], flatBalances, fiscalYear, opening4000Id);
+    openingByAccount[acc.id] = eff.amount;
+  });
+  const openingGiro = carryAccounts
+    .filter((a: any) => a.category !== "ruecklage")
+    .reduce((s: number, a: any) => s + (openingByAccount[a.id] || 0), 0);
+  const openingReserve = carryAccounts
+    .filter((a: any) => a.category === "ruecklage")
+    .reduce((s: number, a: any) => s + (openingByAccount[a.id] || 0), 0);
   const openingTotal = openingGiro + openingReserve;
 
   // Closing balances
