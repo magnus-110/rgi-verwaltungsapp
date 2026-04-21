@@ -151,16 +151,6 @@ export const Dashboard = () => {
         </h1>
         <p className="text-sm md:text-base text-muted-foreground mt-1">
           Tagesübersicht über {stats.building_count} {stats.building_count === 1 ? "Gebäude" : "Gebäude"}
-        </p>
-      </div>
-
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
-          {managementMode === "weg" ? "WEG-Verwaltung" : "Mietverwaltung"}
-        </h1>
-        <p className="text-sm md:text-base text-muted-foreground mt-1">
-          Tagesübersicht über {stats.building_count} {stats.building_count === 1 ? "Gebäude" : "Gebäude"}
           {isAdmin && unitsTotal !== undefined && (
             <>
               {" "}· <span className="font-medium text-foreground">{unitsTotal}</span>{" "}
