@@ -10,7 +10,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { BookOpen, AlertTriangle, FileText, ChevronDown, ChevronRight, Search, LayoutTemplate, Flag, Plus, List, LayoutGrid, Eye, EyeOff } from "lucide-react";
+import { BookOpen, AlertTriangle, FileText, ChevronDown, ChevronRight, Search, LayoutTemplate, Flag, Plus, List, LayoutGrid, Eye, EyeOff, RotateCcw } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { AccountPlanView } from "./AccountPlanView";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
@@ -44,6 +45,37 @@ export function BookingsTab({ sharedBuildingId }: { sharedBuildingId?: string | 
     return saved === "list" ? "list" : "plan";
   });
   const [showAllAccounts, setShowAllAccounts] = useState(false);
+  const [undoBooking, setUndoBooking] = useState<any>(null);
+  const [undoing, setUndoing] = useState(false);
+
+  const handleUndoBooking = async () => {
+    if (!undoBooking) return;
+    setUndoing(true);
+    try {
+      // Free linked bank_transaction(s)
+      const { error: txError } = await supabase
+        .from("bank_transactions")
+        .update({ booked_at: null, booking_id: null })
+        .eq("booking_id", undoBooking.id);
+      if (txError) throw txError;
+      // Delete the booking
+      const { error: delError } = await supabase
+        .from("bookings")
+        .delete()
+        .eq("id", undoBooking.id);
+      if (delError) throw delError;
+      toast.success("Buchung rückgängig – Transaktion zurück im Kontoauszug");
+      setUndoBooking(null);
+      queryClient.invalidateQueries({ predicate: (q) => {
+        const k = q.queryKey[0] as string;
+        return typeof k === "string" && (k.startsWith("bookings") || k.startsWith("bank-transactions"));
+      }});
+    } catch (err: any) {
+      toast.error("Fehler: " + (err.message || "Unbekannt"));
+    } finally {
+      setUndoing(false);
+    }
+  };
 
   const handleViewModeChange = (v: string) => {
     if (v !== "list" && v !== "plan") return;
@@ -250,6 +282,23 @@ export function BookingsTab({ sharedBuildingId }: { sharedBuildingId?: string | 
                 <Tooltip>
                   <TooltipTrigger><AlertTriangle className="h-3.5 w-3.5 text-amber-500" /></TooltipTrigger>
                   <TooltipContent className="max-w-xs"><p className="text-xs">{b.ai_warning}</p></TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            {b.source === "bank_import" && b.bank_transaction_id && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-5 w-5 p-0"
+                      onClick={(e) => { e.stopPropagation(); setUndoBooking(b); }}
+                    >
+                      <RotateCcw className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p className="text-xs">Buchung rückgängig – zurück zum Kontoauszug</p></TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             )}
