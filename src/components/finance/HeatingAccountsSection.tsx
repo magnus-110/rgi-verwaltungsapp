@@ -1,10 +1,11 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Flame, AlertTriangle } from "lucide-react";
+import { Flame, AlertTriangle, Eye, EyeOff } from "lucide-react";
 
 interface HeatingAccountsSectionProps {
   buildingId: string;
@@ -12,6 +13,7 @@ interface HeatingAccountsSectionProps {
 }
 
 export function HeatingAccountsSection({ buildingId, fiscalYear }: HeatingAccountsSectionProps) {
+  const [showAll, setShowAll] = useState(false);
   // Heizkosten-relevante Konten
   const { data: heatingAccounts = [] } = useQuery({
     queryKey: ["heating-accounts", buildingId],
@@ -121,29 +123,44 @@ export function HeatingAccountsSection({ buildingId, fiscalYear }: HeatingAccoun
       .filter((b) => (b.account_id === accountId || b.counter_account_id === accountId) && b.booking_category !== "heating_repost")
       .reduce((s, b) => s + Math.abs(Number(b.amount)), 0);
 
-  const totalCurrent = accountRows.reduce((s, a) => s + getAccountTotal(a.id, bookings), 0);
-  const totalPrev = accountRows.reduce((s, a) => s + getAccountTotal(a.id, prevBookings), 0);
+  const visibleRows = useMemo(() => {
+    if (showAll) return accountRows;
+    return accountRows.filter(
+      (a) => getAccountTotal(a.id, bookings) > 0 || getAccountTotal(a.id, prevBookings) > 0
+    );
+  }, [accountRows, bookings, prevBookings, showAll]);
+
+  const hiddenCount = accountRows.length - visibleRows.length;
+  const totalCurrent = visibleRows.reduce((s, a) => s + getAccountTotal(a.id, bookings), 0);
+  const totalPrev = visibleRows.reduce((s, a) => s + getAccountTotal(a.id, prevBookings), 0);
   const yoyChange = totalPrev > 0 ? ((totalCurrent - totalPrev) / totalPrev) * 100 : 0;
 
   const formatCurrency = (n: number) => new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
-          <Flame className="h-5 w-5" /> Heizkosten-relevante Konten
-        </CardTitle>
-        <p className="text-sm text-muted-foreground">
-          {accountRows.length} Konten sichtbar — Gesamt: {formatCurrency(totalCurrent)}
-          {totalPrev > 0 && (
-            <span className={`ml-2 ${Math.abs(yoyChange) > 10 ? "text-amber-600 font-medium" : "text-muted-foreground"}`}>
-              ({yoyChange > 0 ? "+" : ""}{yoyChange.toFixed(1)}% vs. Vorjahr)
-            </span>
-          )}
-        </p>
+      <CardHeader className="flex flex-row items-start justify-between gap-2">
+        <div>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Flame className="h-5 w-5" /> Heizkosten-relevante Konten
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            {visibleRows.length} Konten — Gesamt: {formatCurrency(totalCurrent)}
+            {totalPrev > 0 && (
+              <span className={`ml-2 ${Math.abs(yoyChange) > 10 ? "text-amber-600 font-medium" : "text-muted-foreground"}`}>
+                ({yoyChange > 0 ? "+" : ""}{yoyChange.toFixed(1)}% vs. Vorjahr)
+              </span>
+            )}
+          </p>
+        </div>
+        {accountRows.length > 0 && (hiddenCount > 0 || showAll) && (
+          <Button size="sm" variant="outline" onClick={() => setShowAll((v) => !v)}>
+            {showAll ? <><EyeOff className="h-4 w-4 mr-1" /> Nur mit Buchungen</> : <><Eye className="h-4 w-4 mr-1" /> Alle anzeigen ({hiddenCount})</>}
+          </Button>
+        )}
       </CardHeader>
       <CardContent>
-        {accountRows.length === 0 ? (
+        {visibleRows.length === 0 ? (
           <p className="text-sm text-muted-foreground py-4 text-center">
             Keine Konten als heizkosten-relevant markiert. Aktiviere "HK-relevant" im Kontenrahmen.
           </p>
@@ -159,7 +176,7 @@ export function HeatingAccountsSection({ buildingId, fiscalYear }: HeatingAccoun
               </TableRow>
             </TableHeader>
             <TableBody>
-              {accountRows.map((acc) => {
+              {visibleRows.map((acc) => {
                 const curr = getAccountTotal(acc.id, bookings);
                 const prev = getAccountTotal(acc.id, prevBookings);
                 const diff = prev > 0 ? ((curr - prev) / prev) * 100 : 0;
