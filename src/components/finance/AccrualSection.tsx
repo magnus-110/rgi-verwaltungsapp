@@ -113,7 +113,7 @@ export function AccrualSection({ buildingId, fiscalYear, periodFrom, periodTo }:
   const formatCurrency = (n: number) =>
     new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
 
-  const totalAccruals = accrualBookings.reduce((s: number, b: any) => s + Math.abs(Number(b.amount)), 0);
+  const totalAccruals = allAccrualBookings.reduce((s: number, b: any) => s + Math.abs(Number(b.amount)), 0);
 
   const suggestAccruals = async () => {
     setAiSuggesting(true);
@@ -173,9 +173,9 @@ export function AccrualSection({ buildingId, fiscalYear, periodFrom, periodTo }:
               {wrongYearBookings.length} Buchungen mit abweichendem Buchungsjahr
             </Badge>
           )}
-          {accrualBookings.length > 0 && (
+          {allAccrualBookings.length > 0 && (
             <Badge variant="outline">
-              {accrualBookings.length} Abgrenzungsbuchungen — {formatCurrency(totalAccruals)}
+              {allAccrualBookings.length} Abgrenzungsbuchungen — {formatCurrency(totalAccruals)}
             </Badge>
           )}
         </div>
@@ -237,7 +237,7 @@ export function AccrualSection({ buildingId, fiscalYear, periodFrom, periodTo }:
           </div>
         )}
 
-        {accrualBookings.length > 0 && (
+        {allAccrualBookings.length > 0 && (
           <div>
             <h4 className="text-sm font-medium mb-2">Vorhandene Abgrenzungsbuchungen</h4>
             <Table>
@@ -251,7 +251,7 @@ export function AccrualSection({ buildingId, fiscalYear, periodFrom, periodTo }:
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {accrualBookings.map((b: any) => (
+                {allAccrualBookings.map((b: any) => (
                   <TableRow key={b.id}>
                     <TableCell className="text-sm">
                       {format(new Date(b.booking_date), "dd.MM.yyyy", { locale: de })}
@@ -274,7 +274,7 @@ export function AccrualSection({ buildingId, fiscalYear, periodFrom, periodTo }:
           </div>
         )}
 
-        {potentialAccruals.length === 0 && accrualBookings.length === 0 && wrongYearBookings.length === 0 && (
+        {potentialAccruals.length === 0 && allAccrualBookings.length === 0 && wrongYearBookings.length === 0 && (
           <p className="text-sm text-muted-foreground text-center py-4">
             Keine abgrenzungsrelevanten Buchungen gefunden.
           </p>
