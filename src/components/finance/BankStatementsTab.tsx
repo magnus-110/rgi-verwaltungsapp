@@ -569,25 +569,118 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
                 {matchedTransactions.length > 0 && <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-950">{matchedTransactions.length} zugeordnet</Badge>}
                 {ignoredTransactions.length > 0 && <Badge variant="outline" className="text-xs bg-muted">{ignoredTransactions.length} ignoriert</Badge>}
                 {bookedTransactions.length > 0 && <Badge variant="outline" className="text-xs">{bookedTransactions.length} gebucht</Badge>}
-                {aiPrefetchState.running && (
-                  <Badge variant="outline" className="text-xs bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 gap-1">
-                    <Sparkles className="h-3 w-3 animate-pulse" />
-                    KI analysiert {aiPrefetchState.completed}/{aiPrefetchState.total}
-                    {aiPrefetchState.errors > 0 && <span className="text-destructive ml-1">({aiPrefetchState.errors} Fehler)</span>}
-                  </Badge>
-                )}
-                {!aiPrefetchState.running && aiPrefetchState.abortReason && (
-                  <Badge variant="outline" className="text-xs bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300 gap-1">
-                    <FileWarning className="h-3 w-3" />
-                    {aiPrefetchState.abortReason}
-                  </Badge>
-                )}
-                {!aiPrefetchState.running && !aiPrefetchState.abortReason && aiPrefetchState.completed > 0 && (
-                  <Badge variant="outline" className="text-xs bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300">
-                    <Sparkles className="h-3 w-3 mr-1" />
-                    {aiPrefetchState.completed} KI-Vorschläge
-                  </Badge>
-                )}
+                {(() => {
+                  const failedTxns = allBuildingTxns.filter((t: any) => t.ai_analysis_status === "failed");
+                  const renderErrorPopoverContent = () => (
+                    <PopoverContent className="w-[420px] p-0" align="start">
+                      <div className="p-3 border-b">
+                        <h4 className="text-sm font-semibold flex items-center gap-2">
+                          <AlertCircle className="h-4 w-4 text-destructive" />
+                          KI-Analyse-Fehler ({failedTxns.length})
+                        </h4>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Diese Transaktionen konnten nicht analysiert werden.
+                        </p>
+                      </div>
+                      <ScrollArea className="max-h-[400px]">
+                        <div className="p-2 space-y-2">
+                          {failedTxns.map((t: any) => (
+                            <div key={t.id} className="text-xs border rounded p-2 space-y-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-medium">{format(new Date(t.booking_date), "dd.MM.yyyy")}</span>
+                                <span className={`font-mono font-semibold ${Number(t.amount) < 0 ? "text-destructive" : "text-green-600"}`}>
+                                  {Number(t.amount).toLocaleString("de-DE", { style: "currency", currency: "EUR" })}
+                                </span>
+                              </div>
+                              <div className="text-muted-foreground line-clamp-2">{t.purpose || t.creditor_name || t.debtor_name || "—"}</div>
+                              <div className="text-destructive bg-destructive/5 rounded px-2 py-1 text-[11px]">
+                                {t.ai_analysis_error || "Unbekannter Fehler"}
+                              </div>
+                              <div className="flex items-center justify-between gap-2 pt-1">
+                                <span className="text-[10px] text-muted-foreground">Versuche: {t.ai_analysis_attempts ?? 0}</span>
+                                <div className="flex gap-1">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-xs"
+                                    onClick={async () => {
+                                      await supabase.from("bank_transactions")
+                                        .update({ ai_analysis_status: null, ai_analysis_attempts: 0, ai_analysis_error: null } as any)
+                                        .eq("id", t.id);
+                                      resetAiPrefetch();
+                                      queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
+                                      toast.success("Transaktion wird erneut analysiert");
+                                    }}
+                                  >
+                                    <RotateCw className="h-3 w-3 mr-1" />Erneut
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-xs"
+                                    onClick={() => {
+                                      setManualAssignTxn(t);
+                                      setManualAssignType("invoice");
+                                      setManualAssignId("");
+                                    }}
+                                  >
+                                    Zuordnen
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </PopoverContent>
+                  );
+
+                  return (
+                    <>
+                      {aiPrefetchState.running && (
+                        <Badge variant="outline" className="text-xs bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 gap-1">
+                          <Sparkles className="h-3 w-3 animate-pulse" />
+                          KI analysiert {aiPrefetchState.completed}/{aiPrefetchState.total}
+                          {failedTxns.length > 0 && (
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <button className="text-destructive ml-1 underline underline-offset-2 hover:text-destructive/80 cursor-pointer">
+                                  ({failedTxns.length} Fehler)
+                                </button>
+                              </PopoverTrigger>
+                              {renderErrorPopoverContent()}
+                            </Popover>
+                          )}
+                        </Badge>
+                      )}
+                      {!aiPrefetchState.running && aiPrefetchState.abortReason && (
+                        <Badge variant="outline" className="text-xs bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300 gap-1">
+                          <FileWarning className="h-3 w-3" />
+                          {aiPrefetchState.abortReason}
+                        </Badge>
+                      )}
+                      {!aiPrefetchState.running && !aiPrefetchState.abortReason && aiPrefetchState.completed > 0 && (
+                        <Badge variant="outline" className="text-xs bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300">
+                          <Sparkles className="h-3 w-3 mr-1" />
+                          {aiPrefetchState.completed} KI-Vorschläge
+                        </Badge>
+                      )}
+                      {!aiPrefetchState.running && failedTxns.length > 0 && (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button>
+                              <Badge variant="outline" className="text-xs bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300 gap-1 cursor-pointer hover:bg-red-100 dark:hover:bg-red-900">
+                                <AlertCircle className="h-3 w-3" />
+                                {failedTxns.length} KI-Fehler
+                              </Badge>
+                            </button>
+                          </PopoverTrigger>
+                          {renderErrorPopoverContent()}
+                        </Popover>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
 
               {/* Matched (not yet booked) transactions - ABOVE unmatched */}
