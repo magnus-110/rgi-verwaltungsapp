@@ -1659,7 +1659,7 @@ function BookingRowCard({
 
   return (
     <>
-    <Collapsible open={isExpanded && !row.booked} onOpenChange={() => !row.booked && onToggle()}>
+    <Collapsible open={isExpanded} onOpenChange={() => onToggle()}>
       <div className={cn(
         "rounded-lg border transition-colors",
         row.booked
@@ -1671,7 +1671,7 @@ function BookingRowCard({
         <CollapsibleTrigger asChild>
           <button
             className="w-full flex items-center justify-between px-3 py-2.5 text-left"
-            disabled={row.booked}
+            title={row.booked ? "Klicken zum Bearbeiten" : undefined}
           >
             <div className="flex items-center gap-2 min-w-0">
               {row.booked ? (
