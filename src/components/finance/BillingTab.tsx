@@ -9,6 +9,7 @@ import { BillingSettlement } from "./BillingSettlement";
 import { BillingValidationPanel } from "./BillingValidationPanel";
 import { BillingAiAnalysis } from "./BillingAiAnalysis";
 import { BookingReviewSection } from "./BookingReviewSection";
+import { BalanceCarryForward } from "./BalanceCarryForward";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -202,12 +203,19 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
                   <div className="px-4 pb-4 border-t">
                     <div className="pt-4">
                       {step.id === "review" && (
-                        <BookingReviewSection
-                          buildingId={selectedBuildingId}
-                          fiscalYear={period.fiscal_year}
-                          periodFrom={period.period_from}
-                          periodTo={period.period_to}
-                        />
+                        <div className="space-y-4">
+                          <BalanceCarryForward
+                            buildingId={selectedBuildingId}
+                            fiscalYear={period.fiscal_year}
+                            periodId={selectedPeriodId}
+                          />
+                          <BookingReviewSection
+                            buildingId={selectedBuildingId}
+                            fiscalYear={period.fiscal_year}
+                            periodFrom={period.period_from}
+                            periodTo={period.period_to}
+                          />
+                        </div>
                       )}
                       {step.id === "heating" && (
                         <div className="space-y-4">
