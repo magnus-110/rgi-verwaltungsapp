@@ -57,9 +57,10 @@ export function VendorHistorySection({ booking }: VendorHistorySectionProps) {
       if (!booking?.building_id) return [];
 
       const baseSelect = `
-        id, booking_date, amount, booking_type, fiscal_year, status, description,
+        id, booking_date, amount, booking_type, fiscal_year, status, description, booking_reference, vat_rate,
         chart_of_accounts!bookings_account_id_fkey(account_number, account_name),
-        invoices(vendor_name)
+        counter_account:chart_of_accounts!bookings_counter_account_id_fkey(account_number, account_name),
+        invoices(vendor_name, invoice_number)
       `;
 
       const applyExclude = (q: any) => (currentBookingId ? q.neq("id", currentBookingId) : q);
@@ -187,27 +188,55 @@ export function VendorHistorySection({ booking }: VendorHistorySectionProps) {
           <p className="text-xs text-muted-foreground py-2">Keine weiteren Buchungen gefunden.</p>
         ) : (
           <>
-            <div className="max-h-[200px] overflow-y-auto border rounded">
+            <div className="max-h-[280px] overflow-auto border rounded">
               <Table>
                 <TableHeader>
                   <TableRow className="text-xs">
                     <TableHead className="h-7 px-2 text-xs">Datum</TableHead>
-                    <TableHead className="h-7 px-2 text-xs">Betrag</TableHead>
+                    <TableHead className="h-7 px-2 text-xs">Beleg-Nr.</TableHead>
+                    <TableHead className="h-7 px-2 text-xs text-right">Betrag</TableHead>
+                    <TableHead className="h-7 px-2 text-xs">MwSt</TableHead>
                     <TableHead className="h-7 px-2 text-xs">Konto</TableHead>
+                    <TableHead className="h-7 px-2 text-xs">Gegenkonto</TableHead>
+                    <TableHead className="h-7 px-2 text-xs">Buchungstext</TableHead>
+                    <TableHead className="h-7 px-2 text-xs">Rechnung</TableHead>
                     <TableHead className="h-7 px-2 text-xs">Status</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredBookings.map((b: any) => (
-                    <TableRow key={b.id} className="text-xs">
-                      <TableCell className="px-2 py-1">
-                        {format(new Date(b.booking_date), "dd.MM.yy", { locale: de })}
+                    <TableRow key={b.id} className="text-xs align-top">
+                      <TableCell className="px-2 py-1 whitespace-nowrap">
+                        {format(new Date(b.booking_date), "dd.MM.yyyy", { locale: de })}
                       </TableCell>
-                      <TableCell className={cn("px-2 py-1 font-medium", b.booking_type === "income" ? "text-green-600" : "")}>
+                      <TableCell className="px-2 py-1 font-mono text-[10px]">
+                        {b.booking_reference || "–"}
+                      </TableCell>
+                      <TableCell className={cn("px-2 py-1 font-medium font-mono text-right whitespace-nowrap", b.booking_type === "income" ? "text-foreground" : "")}>
                         {b.booking_type === "income" ? "+" : ""}{formatCurrency(b.amount)}
                       </TableCell>
-                      <TableCell className="px-2 py-1 truncate max-w-[120px]">
-                        {b.chart_of_accounts ? `${b.chart_of_accounts.account_number}` : "–"}
+                      <TableCell className="px-2 py-1 whitespace-nowrap">
+                        {b.vat_rate != null ? `${b.vat_rate}%` : "–"}
+                      </TableCell>
+                      <TableCell className="px-2 py-1 whitespace-nowrap">
+                        {b.chart_of_accounts ? (
+                          <span title={b.chart_of_accounts.account_name}>
+                            {b.chart_of_accounts.account_number} <span className="text-muted-foreground">{b.chart_of_accounts.account_name}</span>
+                          </span>
+                        ) : "–"}
+                      </TableCell>
+                      <TableCell className="px-2 py-1 whitespace-nowrap">
+                        {b.counter_account ? (
+                          <span title={b.counter_account.account_name}>
+                            {b.counter_account.account_number} <span className="text-muted-foreground">{b.counter_account.account_name}</span>
+                          </span>
+                        ) : "–"}
+                      </TableCell>
+                      <TableCell className="px-2 py-1 max-w-[260px]">
+                        <span className="line-clamp-2" title={b.description || ""}>{b.description || "–"}</span>
+                      </TableCell>
+                      <TableCell className="px-2 py-1 whitespace-nowrap">
+                        {b.invoices?.invoice_number || b.invoices?.vendor_name || "–"}
                       </TableCell>
                       <TableCell className="px-2 py-1">
                         <Badge variant={b.status === "confirmed" ? "default" : "outline"} className="text-[10px] px-1 py-0">
