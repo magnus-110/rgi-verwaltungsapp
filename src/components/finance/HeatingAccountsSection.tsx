@@ -32,7 +32,7 @@ export function HeatingAccountsSection({ buildingId, fiscalYear }: HeatingAccoun
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bookings")
-        .select("account_id, amount, booking_category")
+        .select("account_id, counter_account_id, amount, booking_category")
         .eq("building_id", buildingId)
         .eq("fiscal_year", fiscalYear)
         .neq("status", "cancelled");
@@ -48,7 +48,7 @@ export function HeatingAccountsSection({ buildingId, fiscalYear }: HeatingAccoun
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bookings")
-        .select("account_id, amount, booking_category")
+        .select("account_id, counter_account_id, amount, booking_category")
         .eq("building_id", buildingId)
         .eq("fiscal_year", fiscalYear - 1)
         .neq("status", "cancelled");
@@ -59,7 +59,7 @@ export function HeatingAccountsSection({ buildingId, fiscalYear }: HeatingAccoun
   });
 
   const getAccountTotal = (accountId: string, bkgs: typeof bookings) =>
-    bkgs.filter((b) => b.account_id === accountId && b.booking_category !== "heating_repost")
+    bkgs.filter((b) => (b.account_id === accountId || b.counter_account_id === accountId) && b.booking_category !== "heating_repost")
       .reduce((s, b) => s + Math.abs(Number(b.amount)), 0);
 
   const totalCurrent = heatingAccounts.reduce((s, a) => s + getAccountTotal(a.id, bookings), 0);
