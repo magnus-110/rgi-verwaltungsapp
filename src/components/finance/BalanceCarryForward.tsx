@@ -165,6 +165,21 @@ export function BalanceCarryForward({ buildingId, fiscalYear, periodId }: Balanc
         </div>
       </CardHeader>
       <CardContent>
+        {!hasPrevData && carryAccounts.length > 0 && (
+          <div className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 p-3 text-sm mb-4">
+            <div className="flex gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-medium text-amber-900 dark:text-amber-100">Keine Vorjahresdaten</p>
+                <p className="text-amber-800 dark:text-amber-200 text-xs leading-relaxed">
+                  Für {prevYear} existieren keine Schlusssalden im System. Trage die Anfangsbestände
+                  für {fiscalYear} direkt in der Spalte „Eröffnung {fiscalYear}" manuell ein
+                  (z.&nbsp;B. Giro-/Rücklagen-Stand am {fiscalYear}-01-01).
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
         {carryAccounts.length === 0 ? (
           <div className="space-y-2">
             <p className="text-sm text-muted-foreground">
@@ -182,7 +197,7 @@ export function BalanceCarryForward({ buildingId, fiscalYear, periodId }: Balanc
                 <TableHead>Bezeichnung</TableHead>
                 <TableHead className="text-right w-[150px]">Schluss {prevYear}</TableHead>
                 <TableHead className="w-[40px]"></TableHead>
-                <TableHead className="text-right w-[150px]">Eröffnung {fiscalYear}</TableHead>
+                <TableHead className="text-right w-[180px]">Eröffnung {fiscalYear}</TableHead>
                 <TableHead className="text-right w-[180px]">Schluss {fiscalYear}</TableHead>
                 <TableHead className="w-[60px]"></TableHead>
               </TableRow>
@@ -203,10 +218,18 @@ export function BalanceCarryForward({ buildingId, fiscalYear, periodId }: Balanc
                       {hasPrevData ? formatCurrency(prevClose) : "–"}
                     </TableCell>
                     <TableCell><ArrowRight className="h-4 w-4 text-muted-foreground" /></TableCell>
-                    <TableCell className="text-right font-mono text-sm">
-                      {currOpen !== null ? (
-                        <span className={carried ? "text-green-700" : ""}>{formatCurrency(currOpen)}</span>
-                      ) : "–"}
+                    <TableCell>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        className="h-7 text-xs text-right w-full"
+                        defaultValue={currOpen ?? ""}
+                        placeholder="0,00"
+                        onBlur={(e) => {
+                          const val = parseFloat(e.target.value);
+                          if (!isNaN(val) && val !== currOpen) updateOpeningBalance(acc.id, val);
+                        }}
+                      />
                       {mismatch && <AlertTriangle className="h-3 w-3 text-amber-600 inline ml-1" />}
                     </TableCell>
                     <TableCell>
