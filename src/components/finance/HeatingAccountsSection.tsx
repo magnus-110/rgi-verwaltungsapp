@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,7 +33,14 @@ export function HeatingAccountsSection({ buildingId, fiscalYear }: HeatingAccoun
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bookings")
-        .select("account_id, counter_account_id, amount, booking_category")
+        .select(`
+          account_id,
+          counter_account_id,
+          amount,
+          booking_category,
+          chart_of_accounts!bookings_account_id_fkey(account_number, account_name),
+          counter_account:chart_of_accounts!bookings_counter_account_id_fkey(account_number, account_name)
+        `)
         .eq("building_id", buildingId)
         .eq("fiscal_year", fiscalYear)
         .neq("status", "cancelled");
@@ -48,7 +56,14 @@ export function HeatingAccountsSection({ buildingId, fiscalYear }: HeatingAccoun
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bookings")
-        .select("account_id, counter_account_id, amount, booking_category")
+        .select(`
+          account_id,
+          counter_account_id,
+          amount,
+          booking_category,
+          chart_of_accounts!bookings_account_id_fkey(account_number, account_name),
+          counter_account:chart_of_accounts!bookings_counter_account_id_fkey(account_number, account_name)
+        `)
         .eq("building_id", buildingId)
         .eq("fiscal_year", fiscalYear - 1)
         .neq("status", "cancelled");
