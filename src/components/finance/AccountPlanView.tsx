@@ -281,7 +281,7 @@ export function AccountPlanView({ bookings, fiscalYear, buildingId, onRowClick, 
                                   )}>
                                     <div className="flex items-center justify-end gap-2">
                                       <span>{isIncome ? "+" : ""}{formatCurrency(Number(b.amount))}</span>
-                                      {b.source === "bank_import" && b.bank_transaction_id && b._side === "primary" && (
+                                      {b.source === "bank_import" && b.bank_transaction_id && (
                                         <TooltipProvider>
                                           <Tooltip>
                                             <TooltipTrigger asChild>
