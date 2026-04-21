@@ -1792,6 +1792,7 @@ function BookingRowCard({
                 placeholder="Gegenkonto suchen…"
                 showCreateOption
                 onCreateClick={() => { setCreateAccountTarget("counter_account_id"); setCreateAccountOpen(true); }}
+                onCommit={() => focusFieldByName("description")}
               />
             </div>
 
