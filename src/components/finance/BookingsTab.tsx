@@ -537,6 +537,27 @@ export function BookingsTab({ sharedBuildingId }: { sharedBuildingId?: string | 
           queryClient.invalidateQueries({ queryKey: ["bookings-manual"] });
         }}
       />
+
+      <AlertDialog open={!!undoBooking} onOpenChange={(o) => !o && setUndoBooking(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Buchung rückgängig machen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Die Buchung wird gelöscht und die zugehörige Bank-Transaktion erscheint wieder im Kontoauszug zur Verarbeitung.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={undoing}>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={undoing}
+              onClick={(e) => { e.preventDefault(); handleUndoBooking(); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {undoing ? "Wird rückgängig gemacht…" : "Rückgängig machen"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
