@@ -895,6 +895,56 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
   }, [currentTxn, bookingSingle, formRows, handleBookRow]);
 
   // Undo last confirmed booking(s)
+  const undoSingleRow = useCallback(async (rowId: string) => {
+    if (!currentTxn || undoingRowId) return;
+    const bookingId = rowBookingMapRef.current[currentTxn.id]?.[rowId];
+    if (!bookingId) {
+      toast.error("Buchung nicht gefunden");
+      return;
+    }
+    setUndoingRowId(rowId);
+    try {
+      const { error: delErr } = await supabase.from("bookings").delete().eq("id", bookingId);
+      if (delErr) throw delErr;
+
+      // If the txn was already marked fully booked (last split), reset it
+      await supabase.from("bank_transactions").update({
+        booked_at: null,
+        booking_id: null,
+      }).eq("id", currentTxn.id);
+
+      // Remove from undoStack if this booking was part of the last entry
+      setUndoStack(stack => stack
+        .map(e => e.txnId === currentTxn.id ? { ...e, bookingIds: e.bookingIds.filter(id => id !== bookingId) } : e)
+        .filter(e => e.bookingIds.length > 0));
+
+      // Remove from pendingBookingIdsRef and rowBookingMap
+      if (pendingBookingIdsRef.current[currentTxn.id]) {
+        pendingBookingIdsRef.current[currentTxn.id] = pendingBookingIdsRef.current[currentTxn.id].filter(id => id !== bookingId);
+      }
+      if (rowBookingMapRef.current[currentTxn.id]) {
+        delete rowBookingMapRef.current[currentTxn.id][rowId];
+      }
+
+      // Reset row state
+      setFormRows(rows => {
+        const next = rows.map(r => r.id === rowId ? { ...r, booked: false } : r);
+        editsCacheRef.current[currentTxn.id] = next;
+        return next;
+      });
+      setExpandedRowId(rowId);
+
+      toast.success("Teilbuchung rückgängig gemacht", { duration: 1500 });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+      queryClient.invalidateQueries({ queryKey: ["bookings-all"] });
+    } catch (err: any) {
+      toast.error("Rückgängig fehlgeschlagen: " + (err.message || "Unbekannt"));
+    } finally {
+      setUndoingRowId(null);
+    }
+  }, [currentTxn, undoingRowId, queryClient]);
+
   const undoLast = useCallback(async () => {
     if (undoing || undoStack.length === 0) return;
     setUndoing(true);
