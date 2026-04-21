@@ -1706,6 +1706,7 @@ function BookingRowCard({
                 placeholder="Konto suchen…"
                 showCreateOption
                 onCreateClick={() => { setCreateAccountTarget("account_id"); setCreateAccountOpen(true); }}
+                onCommit={() => focusFieldByName("amount")}
               />
             </div>
 
