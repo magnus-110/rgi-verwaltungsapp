@@ -197,6 +197,7 @@ export type Database = {
         Row: {
           ai_analysis_attempted_at: string | null
           ai_analysis_attempts: number
+          ai_analysis_error: string | null
           ai_analysis_status: string | null
           ai_suggestion: Json | null
           amount: number
@@ -223,6 +224,7 @@ export type Database = {
         Insert: {
           ai_analysis_attempted_at?: string | null
           ai_analysis_attempts?: number
+          ai_analysis_error?: string | null
           ai_analysis_status?: string | null
           ai_suggestion?: Json | null
           amount: number
@@ -249,6 +251,7 @@ export type Database = {
         Update: {
           ai_analysis_attempted_at?: string | null
           ai_analysis_attempts?: number
+          ai_analysis_error?: string | null
           ai_analysis_status?: string | null
           ai_suggestion?: Json | null
           amount?: number
