@@ -95,16 +95,21 @@ export const Dashboard = () => {
     refetchInterval: 60_000,
   });
 
-  // Admin-only: total managed units for the current management mode
-  const { data: unitsTotal } = useQuery({
-    queryKey: ["dashboard-units-total", managementMode],
+  // Admin-only: portfolio totals (buildings + units) per management mode
+  const { data: portfolio } = useQuery({
+    queryKey: ["dashboard-portfolio-totals"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("buildings")
-        .select("unit_count")
-        .eq("management_mode", managementMode);
+        .select("unit_count, management_mode");
       if (error) throw error;
-      return (data || []).reduce((sum, b) => sum + (b.unit_count || 0), 0);
+      const init = { weg: { buildings: 0, units: 0 }, rent: { buildings: 0, units: 0 } };
+      return (data || []).reduce((acc, b: any) => {
+        const key = b.management_mode === "weg" ? "weg" : "rent";
+        acc[key].buildings += 1;
+        acc[key].units += b.unit_count || 0;
+        return acc;
+      }, init);
     },
     enabled: isAdmin,
     staleTime: 5 * 60_000,
@@ -151,14 +156,46 @@ export const Dashboard = () => {
         </h1>
         <p className="text-sm md:text-base text-muted-foreground mt-1">
           Tagesübersicht über {stats.building_count} {stats.building_count === 1 ? "Gebäude" : "Gebäude"}
-          {isAdmin && unitsTotal !== undefined && (
-            <>
-              {" "}· <span className="font-medium text-foreground">{unitsTotal}</span>{" "}
-              {unitsTotal === 1 ? "Einheit" : "Einheiten"} ({managementMode === "weg" ? "WEG" : "Miete"}) verwaltet
-            </>
-          )}
         </p>
       </div>
+
+      {/* Portfolio overview — Admin only */}
+      {isAdmin && portfolio && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+          <KpiCard
+            label="WEG-Gebäude"
+            value={portfolio.weg.buildings}
+            icon={Building2}
+            tone="info"
+            onClick={() => navigate("/buildings")}
+            isLoading={false}
+          />
+          <KpiCard
+            label="WEG-Einheiten"
+            value={portfolio.weg.units}
+            icon={Home}
+            tone="info"
+            onClick={() => navigate("/buildings")}
+            isLoading={false}
+          />
+          <KpiCard
+            label="Miet-Gebäude"
+            value={portfolio.rent.buildings}
+            icon={Building2}
+            tone="neutral"
+            onClick={() => navigate("/buildings")}
+            isLoading={false}
+          />
+          <KpiCard
+            label="Miet-Einheiten"
+            value={portfolio.rent.units}
+            icon={Home}
+            tone="neutral"
+            onClick={() => navigate("/buildings")}
+            isLoading={false}
+          />
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
