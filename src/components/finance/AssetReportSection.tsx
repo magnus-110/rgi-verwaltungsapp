@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Landmark, Droplets, Flame, Package } from "lucide-react";
 
+
 interface AssetReportSectionProps {
   buildingId: string;
   periodId: string;

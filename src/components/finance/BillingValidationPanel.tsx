@@ -284,17 +284,38 @@ export function BillingValidationPanel({ periodId, buildingId, fiscalYear }: Bil
     });
   }
 
-  // 9. Anfangsbestände für saldovortragspflichtige Konten
+  // 9. Anfangsbestände — entweder aus account_balances ODER aus Eröffnungsbuchung gegen 4000
+  const opening4000 = (allAccounts as any[]).find((a: any) => a.account_number === "4000");
+  const opening4000Id = opening4000?.id;
+  const accountsWithOpeningBooking = new Set<string>();
+  if (opening4000Id) {
+    bookings.forEach((b: any) => {
+      const date: string = b.booking_date || "";
+      if (!date.startsWith(`${fiscalYear}-01-`)) return;
+      const touchesOpening = b.account_id === opening4000Id || b.counter_account_id === opening4000Id;
+      if (!touchesOpening) return;
+      if (b.account_id && b.account_id !== opening4000Id) accountsWithOpeningBooking.add(b.account_id);
+      if (b.counter_account_id && b.counter_account_id !== opening4000Id) accountsWithOpeningBooking.add(b.counter_account_id);
+    });
+  }
   const carryForwardAccounts = (allAccounts as any[]).filter((a: any) => a.carry_forward_balance);
   const accountsWithBalance = new Set(balances.map((b: any) => b.account_id));
   const missingOpenings = carryForwardAccounts.filter((a: any) =>
-    !accountsWithBalance.has(a.id) && accountsWithMovement.has(a.id)
+    !accountsWithBalance.has(a.id) &&
+    !accountsWithOpeningBooking.has(a.id) &&
+    accountsWithMovement.has(a.id)
   );
   if (missingOpenings.length > 0) {
     liveChecks.push({
       name: "Anfangsbestände",
       status: "warning",
       message: `${missingOpenings.length} Konto/Konten ohne Anfangsbestand: ${missingOpenings.map((a: any) => a.account_number).join(", ")}`,
+    });
+  } else if (accountsWithOpeningBooking.size > 0) {
+    liveChecks.push({
+      name: "Anfangsbestände",
+      status: "passed",
+      message: `${accountsWithOpeningBooking.size} Konto/Konten via Eröffnungsbuchung 4000 erkannt`,
     });
   }
 

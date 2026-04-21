@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { ArrowRight, Check, RefreshCw, AlertTriangle } from "lucide-react";
+import { ArrowRight, Check, RefreshCw, AlertTriangle, Info } from "lucide-react";
 import { toast } from "sonner";
+import { getEffectiveOpeningBalance } from "./lib/bookingAggregation";
 
 interface BalanceCarryForwardProps {
   buildingId: string;
@@ -18,14 +19,9 @@ interface BalanceCarryForwardProps {
 export function BalanceCarryForward({ buildingId, fiscalYear, periodId }: BalanceCarryForwardProps) {
   const queryClient = useQueryClient();
   const [isCarrying, setIsCarrying] = useState(false);
+  const [overrideMode, setOverrideMode] = useState<Record<string, boolean>>({});
   const prevYear = fiscalYear - 1;
 
-  // Praxisrelevante Konten für Saldenübernahme:
-  // - Bankkonten (settlement_section='bank' oder Nummer 1800–1899)
-  // - Rücklagenkonten (settlement_section='reserve')
-  // Vorauszahlungs-/Abgrenzungskonten (1470–1473, 4000) sind hier NICHT relevant —
-  // ihr Saldo ergibt sich aus Buchungen, nicht aus manuellem Vortrag.
-  // Brennstoffbestände werden separat in „Brennstoffe" (Mengen × Preis) erfasst.
   const { data: carryAccounts = [] } = useQuery({
     queryKey: ["carry-forward-accounts-relevant", buildingId],
     queryFn: async () => {
@@ -44,7 +40,36 @@ export function BalanceCarryForward({ buildingId, fiscalYear, periodId }: Balanc
     },
   });
 
-  // Vorjahres-Salden
+  // Konto 4000 (Eröffnungsbuchungen) ID ermitteln
+  const { data: openingAccountId } = useQuery({
+    queryKey: ["opening-account-id", buildingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("chart_of_accounts")
+        .select("id")
+        .eq("account_number", "4000")
+        .or(`building_id.is.null,building_id.eq.${buildingId}`)
+        .maybeSingle();
+      if (error) throw error;
+      return (data?.id as string) || null;
+    },
+  });
+
+  // Buchungen des aktuellen WJ — nötig für Erkennung von Eröffnungsbuchungen gegen 4000
+  const { data: bookings = [] } = useQuery({
+    queryKey: ["carry-bookings", buildingId, fiscalYear],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("account_id, counter_account_id, amount, booking_date")
+        .eq("building_id", buildingId)
+        .eq("fiscal_year", fiscalYear)
+        .neq("status", "cancelled");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   const { data: prevBalances = [] } = useQuery({
     queryKey: ["account-balances", buildingId, prevYear],
     queryFn: async () => {
@@ -58,7 +83,6 @@ export function BalanceCarryForward({ buildingId, fiscalYear, periodId }: Balanc
     },
   });
 
-  // Aktuelle Salden
   const { data: currentBalances = [], refetch: refetchCurrent } = useQuery({
     queryKey: ["account-balances", buildingId, fiscalYear],
     queryFn: async () => {
@@ -174,6 +198,18 @@ export function BalanceCarryForward({ buildingId, fiscalYear, periodId }: Balanc
         </div>
       </CardHeader>
       <CardContent>
+        {/* Hinweis: bevorzugte Quelle ist die Eröffnungsbuchung gegen 4000 */}
+        <div className="rounded-md border border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-900 p-3 text-sm mb-4">
+          <div className="flex gap-2">
+            <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+            <p className="text-blue-900 dark:text-blue-100 text-xs leading-relaxed">
+              Anfangsbestände werden bevorzugt aus <strong>Eröffnungsbuchungen gegen Konto 4000</strong> ermittelt
+              (SKR-Standard, z. B. <code className="font-mono">1800 an 4000: 3.510 €</code> zum 01.01.).
+              Manuelle Einträge sind nur nötig, wenn keine Eröffnungsbuchung existiert.
+            </p>
+          </div>
+        </div>
+
         {!hasPrevData && carryAccounts.length > 0 && (
           <div className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 p-3 text-sm mb-4">
             <div className="flex gap-2">
@@ -181,10 +217,9 @@ export function BalanceCarryForward({ buildingId, fiscalYear, periodId }: Balanc
               <div className="space-y-1">
                 <p className="font-medium text-amber-900 dark:text-amber-100">Keine Vorjahresdaten</p>
                 <p className="text-amber-800 dark:text-amber-200 text-xs leading-relaxed">
-                  Für {prevYear} existieren keine Schlusssalden im System. Trage die Anfangsbestände
-                  für {fiscalYear} (Stand {fiscalYear}-01-01) direkt in der Spalte „Eröffnung {fiscalYear}" ein
-                  — nur für Giro- und Rücklagenkonten relevant. Brennstoffbestände (Heizöl/Pellets) werden
-                  separat im Schritt „Heizkosten → Brennstoffe" erfasst.
+                  Für {prevYear} existieren keine Schlusssalden. Wenn du eine Eröffnungsbuchung gegen Konto 4000
+                  erfasst hast, wird der Anfangsbestand automatisch erkannt (siehe Spalte „Quelle"). Andernfalls
+                  kannst du den Wert manuell in der Spalte „Eröffnung {fiscalYear}" eintragen.
                 </p>
               </div>
             </div>
@@ -205,23 +240,34 @@ export function BalanceCarryForward({ buildingId, fiscalYear, periodId }: Balanc
               <TableRow>
                 <TableHead className="w-[100px]">Konto</TableHead>
                 <TableHead>Bezeichnung</TableHead>
-                <TableHead className="text-right w-[150px]">Schluss {prevYear}</TableHead>
+                <TableHead className="text-right w-[140px]">Schluss {prevYear}</TableHead>
                 <TableHead className="w-[40px]"></TableHead>
-                <TableHead className="text-right w-[180px]">Eröffnung {fiscalYear}</TableHead>
-                <TableHead className="text-right w-[180px]">Schluss {fiscalYear}</TableHead>
+                <TableHead className="text-right w-[200px]">Eröffnung {fiscalYear}</TableHead>
+                <TableHead className="w-[140px]">Quelle</TableHead>
+                <TableHead className="text-right w-[160px]">Schluss {fiscalYear}</TableHead>
                 <TableHead className="w-[60px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {carryAccounts.map((acc) => {
                 const prevClose = getPrevClosing(acc.id);
-                const currOpen = getCurrentOpening(acc.id);
                 const carried = isCarriedForward(acc.id);
-                const mismatch = carried && currOpen !== null && Math.abs(currOpen - prevClose) > 0.01;
                 const currentBal = currentBalances.find((b) => b.account_id === acc.id);
 
+                const effective = getEffectiveOpeningBalance(
+                  acc.id,
+                  bookings,
+                  currentBalances,
+                  fiscalYear,
+                  openingAccountId,
+                );
+
+                const isOverridden = !!overrideMode[acc.id];
+                const showInputReadonly = effective.source === "booking_4000" && !isOverridden;
+                const displayedOpening = effective.source !== "none" ? effective.amount : (currentBal?.opening_balance ?? null);
+
                 return (
-                  <TableRow key={acc.id} className={mismatch ? "bg-amber-50" : ""}>
+                  <TableRow key={acc.id}>
                     <TableCell className="font-mono text-xs">{acc.account_number}</TableCell>
                     <TableCell className="text-sm">{acc.account_name}</TableCell>
                     <TableCell className="text-right font-mono text-sm">
@@ -229,18 +275,53 @@ export function BalanceCarryForward({ buildingId, fiscalYear, periodId }: Balanc
                     </TableCell>
                     <TableCell><ArrowRight className="h-4 w-4 text-muted-foreground" /></TableCell>
                     <TableCell>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        className="h-7 text-xs text-right w-full"
-                        defaultValue={currOpen ?? ""}
-                        placeholder="0,00"
-                        onBlur={(e) => {
-                          const val = parseFloat(e.target.value);
-                          if (!isNaN(val) && val !== currOpen) updateOpeningBalance(acc.id, val);
-                        }}
-                      />
-                      {mismatch && <AlertTriangle className="h-3 w-3 text-amber-600 inline ml-1" />}
+                      {showInputReadonly ? (
+                        <div className="flex items-center justify-end gap-2">
+                          <span className="font-mono text-sm">{formatCurrency(effective.amount)}</span>
+                        </div>
+                      ) : (
+                        <Input
+                          type="number"
+                          step="0.01"
+                          className="h-7 text-xs text-right w-full"
+                          defaultValue={displayedOpening ?? ""}
+                          placeholder="0,00"
+                          onBlur={(e) => {
+                            const val = parseFloat(e.target.value);
+                            if (!isNaN(val) && val !== displayedOpening) updateOpeningBalance(acc.id, val);
+                          }}
+                        />
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {effective.source === "booking_4000" && (
+                        <div className="flex flex-col gap-0.5">
+                          <Badge className="bg-green-100 text-green-800 hover:bg-green-100 w-fit">
+                            <Check className="h-3 w-3 mr-1" /> Buchung 4000
+                          </Badge>
+                          {effective.bookingDate && (
+                            <span className="text-[10px] text-muted-foreground">
+                              {new Date(effective.bookingDate).toLocaleDateString("de-DE")}
+                              {effective.bookingCount && effective.bookingCount > 1 ? ` · ${effective.bookingCount}×` : ""}
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            className="text-[10px] text-blue-600 hover:underline text-left"
+                            onClick={() => setOverrideMode((m) => ({ ...m, [acc.id]: !isOverridden }))}
+                          >
+                            {isOverridden ? "Auto übernehmen" : "Manuell überschreiben"}
+                          </button>
+                        </div>
+                      )}
+                      {effective.source === "manual" && (
+                        <Badge variant="secondary" className="w-fit">Manuell</Badge>
+                      )}
+                      {effective.source === "none" && (
+                        <Badge variant="destructive" className="w-fit">
+                          <AlertTriangle className="h-3 w-3 mr-1" /> Fehlt
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Input
