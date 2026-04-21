@@ -1280,6 +1280,9 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                     isBooking={bookingSingle === row.id}
                     fieldRefs={fieldRefs}
                     handleEnterNavigation={handleEnterNavigation}
+                    focusFieldByName={focusFieldByName}
+                    onUndoRow={row.booked ? () => undoSingleRow(row.id) : undefined}
+                    isUndoing={undoingRowId === row.id}
                     formatCurrency={formatCurrency}
                     invoiceDetail={invoiceDetail}
                     heatingUnits={heatingUnits}
