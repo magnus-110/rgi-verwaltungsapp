@@ -118,6 +118,9 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
   const previousTxnIdRef = useRef<string | null>(null);
   // Track booking ids created for the current txn, used for undo
   const pendingBookingIdsRef = useRef<Record<string, string[]>>({});
+  // Map row.id → bookingId per txn, for individual undo
+  const rowBookingMapRef = useRef<Record<string, Record<string, string>>>({});
+  const [undoingRowId, setUndoingRowId] = useState<string | null>(null);
 
   // Undo stack: last up to 10 confirmed bookings
   type UndoEntry = {
