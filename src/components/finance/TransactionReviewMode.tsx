@@ -716,7 +716,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     if (!currentTxn || bookingSingle || !user) return;
 
     const row = formRows.find(r => r.id === rowId);
-    if (!row || row.booked) return;
+    if (!row) return;
 
     if (!row.account_id) {
       toast.error("Bitte ein Konto auswählen");
