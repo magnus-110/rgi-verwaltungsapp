@@ -590,7 +590,7 @@ export const Inbox = () => {
   };
 
   return (
-    <div className="h-[calc(100dvh-8rem)] md:h-[calc(100vh-8rem)] min-h-0 flex flex-col md:flex-row rounded-lg border bg-background overflow-hidden">
+    <div className="h-[calc(100dvh-8rem)] md:h-[calc(100vh-8rem)] min-h-0 flex flex-col md:flex-row rounded-lg border bg-background overflow-hidden touch-pan-y">
       {/* Mobile-only header bar — shows hamburger + back button + sync */}
       <div className="md:hidden flex items-center justify-between px-2 py-2 border-b shrink-0 gap-2">
         {selectedEmailId ? (
@@ -1062,12 +1062,12 @@ export const Inbox = () => {
         {/* Right: Email Detail — on mobile: only visible when an email is selected */}
         <ResizablePanel
           defaultSize={65}
-          className={cn(selectedEmailId ? "block" : "hidden md:block", "h-full overflow-hidden")}
+          className={cn(selectedEmailId ? "block" : "hidden md:block", "h-full overflow-hidden min-h-0")}
         >
           <div className="flex flex-col h-full min-h-0 min-w-0">
             {selectedEmail ? (
               <>
-                <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+                <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain touch-pan-y" style={{ WebkitOverflowScrolling: 'touch' }}>
                   <div className="p-4 space-y-2">
                     <div className="flex items-start justify-between gap-4">
                       <h2 className="text-lg font-semibold truncate">{selectedEmail.subject || "(Kein Betreff)"}</h2>
