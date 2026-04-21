@@ -77,7 +77,7 @@ export function AccrualSection({ buildingId, fiscalYear, periodFrom, periodTo }:
       const isAccrualAccount = (n?: string | null) => {
         if (!n) return false;
         const x = Number(n);
-        return Number.isFinite(x) && x >= 1900 && x < 2000;
+        return Number.isFinite(x) && x >= 4000 && x < 5000;
       };
       return (data || []).filter((b: any) =>
         isAccrualAccount(b.chart_of_accounts?.account_number) ||
