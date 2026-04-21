@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ChevronDown, ChevronRight, Flag, AlertTriangle, BookOpen } from "lucide-react";
+import { ChevronDown, ChevronRight, Flag, AlertTriangle, BookOpen, RotateCcw } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -38,6 +39,35 @@ const formatCurrency = (amount: number) =>
 export function AccountPlanView({ bookings, fiscalYear, buildingId, onRowClick, showAllAccounts }: Props) {
   const queryClient = useQueryClient();
   const [openAccounts, setOpenAccounts] = useState<Record<string, boolean>>({});
+  const [undoBooking, setUndoBooking] = useState<any>(null);
+  const [undoing, setUndoing] = useState(false);
+
+  const handleUndoBooking = async () => {
+    if (!undoBooking) return;
+    setUndoing(true);
+    try {
+      const { error: txError } = await supabase
+        .from("bank_transactions")
+        .update({ booked_at: null, booking_id: null })
+        .eq("booking_id", undoBooking.id);
+      if (txError) throw txError;
+      const { error: delError } = await supabase
+        .from("bookings")
+        .delete()
+        .eq("id", undoBooking.id);
+      if (delError) throw delError;
+      toast.success("Buchung rückgängig – Transaktion zurück im Kontoauszug");
+      setUndoBooking(null);
+      queryClient.invalidateQueries({ predicate: (q) => {
+        const k = q.queryKey[0] as string;
+        return typeof k === "string" && (k.startsWith("bookings") || k.startsWith("bank-transactions"));
+      }});
+    } catch (err: any) {
+      toast.error("Fehler: " + (err.message || "Unbekannt"));
+    } finally {
+      setUndoing(false);
+    }
+  };
 
   // Load all accounts (filtered by building when possible)
   const { data: accounts = [] } = useQuery({
@@ -281,6 +311,23 @@ export function AccountPlanView({ bookings, fiscalYear, buildingId, onRowClick, 
                                         </TooltipProvider>
                                       )}
                                       {b.ai_warning && <AlertTriangle className="h-3 w-3 text-amber-500" />}
+                                      {b.source === "bank_import" && b.bank_transaction_id && b._side === "primary" && (
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                className="h-5 w-5 p-0"
+                                                onClick={(e) => { e.stopPropagation(); setUndoBooking(b); }}
+                                              >
+                                                <RotateCcw className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                                              </Button>
+                                            </TooltipTrigger>
+                                            <TooltipContent><p className="text-xs">Buchung rückgängig – zurück zum Kontoauszug</p></TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      )}
                                     </div>
                                   </TableCell>
                                 </TableRow>
@@ -297,6 +344,27 @@ export function AccountPlanView({ bookings, fiscalYear, buildingId, onRowClick, 
           </Card>
         </div>
       ))}
+
+      <AlertDialog open={!!undoBooking} onOpenChange={(o) => !o && setUndoBooking(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Buchung rückgängig machen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Die Buchung wird gelöscht und die zugehörige Bank-Transaktion erscheint wieder im Kontoauszug zur Verarbeitung.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={undoing}>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={undoing}
+              onClick={(e) => { e.preventDefault(); handleUndoBooking(); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {undoing ? "Wird rückgängig gemacht…" : "Rückgängig machen"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
