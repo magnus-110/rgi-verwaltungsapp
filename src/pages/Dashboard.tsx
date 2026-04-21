@@ -8,11 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   AlertCircle, Briefcase, FileText, Mail, ListTodo, Wrench,
-  ChevronRight, Building2, Activity, CalendarClock,
+  ChevronRight, Building2, Activity, CalendarClock, Home,
 } from "lucide-react";
 import { formatDistanceToNow, format } from "date-fns";
 import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 
 interface TaskItem { id: string; title: string; priority: string; due_date: string; status: string; is_overdue?: boolean }
 interface MaintenanceItem { id: string; building_id: string; building_name: string; task_name: string; next_due_date: string; category: string; is_overdue?: boolean }
@@ -79,6 +80,8 @@ const KpiCard = ({
 export const Dashboard = () => {
   const { managementMode } = useManagementMode();
   const navigate = useNavigate();
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === "admin";
 
   const { data, isLoading } = useQuery({
     queryKey: ["dashboard-global-stats", managementMode],
@@ -90,6 +93,21 @@ export const Dashboard = () => {
       return data as unknown as GlobalStats;
     },
     refetchInterval: 60_000,
+  });
+
+  // Admin-only: total managed units for the current management mode
+  const { data: unitsTotal } = useQuery({
+    queryKey: ["dashboard-units-total", managementMode],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("buildings")
+        .select("unit_count")
+        .eq("management_mode", managementMode);
+      if (error) throw error;
+      return (data || []).reduce((sum, b) => sum + (b.unit_count || 0), 0);
+    },
+    enabled: isAdmin,
+    staleTime: 5 * 60_000,
   });
 
   const stats: GlobalStats = data || {
