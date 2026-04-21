@@ -1564,7 +1564,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
 function BookingRowCard({
   row, index, isExpanded, onToggle, accounts, buildingId, onAccountCreated, onUpdateField, onBook, onRemove,
-  isBooking, fieldRefs, handleEnterNavigation, formatCurrency, invoiceDetail, heatingUnits,
+  isBooking, fieldRefs, handleEnterNavigation, focusFieldByName, onUndoRow, isUndoing, formatCurrency, invoiceDetail, heatingUnits,
 }: {
   row: BookingRowData;
   index: number;
@@ -1579,6 +1579,9 @@ function BookingRowCard({
   isBooking: boolean;
   fieldRefs: React.MutableRefObject<Record<string, HTMLElement | null>>;
   handleEnterNavigation: (e: React.KeyboardEvent, field: string) => void;
+  focusFieldByName: (name: string) => void;
+  onUndoRow?: () => void;
+  isUndoing?: boolean;
   formatCurrency: (amount: number | null) => string;
   invoiceDetail?: any;
   heatingUnits?: Array<{ id: string; name: string }>;
