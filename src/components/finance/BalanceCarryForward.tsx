@@ -20,9 +20,14 @@ export function BalanceCarryForward({ buildingId, fiscalYear, periodId }: Balanc
   const [isCarrying, setIsCarrying] = useState(false);
   const prevYear = fiscalYear - 1;
 
-  // Konten mit carry_forward_balance = true
+  // Praxisrelevante Konten für Saldenübernahme:
+  // - Bankkonten (settlement_section='bank' oder Nummer 1800–1899)
+  // - Rücklagenkonten (settlement_section='reserve')
+  // Vorauszahlungs-/Abgrenzungskonten (1470–1473, 4000) sind hier NICHT relevant —
+  // ihr Saldo ergibt sich aus Buchungen, nicht aus manuellem Vortrag.
+  // Brennstoffbestände werden separat in „Brennstoffe" (Mengen × Preis) erfasst.
   const { data: carryAccounts = [] } = useQuery({
-    queryKey: ["carry-forward-accounts", buildingId],
+    queryKey: ["carry-forward-accounts-relevant", buildingId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("chart_of_accounts")
@@ -31,7 +36,11 @@ export function BalanceCarryForward({ buildingId, fiscalYear, periodId }: Balanc
         .or(`building_id.is.null,building_id.eq.${buildingId}`)
         .order("account_number");
       if (error) throw error;
-      return data;
+      return (data || []).filter((a: any) => {
+        if (a.settlement_section === "bank" || a.settlement_section === "reserve") return true;
+        const num = Number(a.account_number);
+        return num >= 1800 && num < 1900;
+      });
     },
   });
 
@@ -173,8 +182,9 @@ export function BalanceCarryForward({ buildingId, fiscalYear, periodId }: Balanc
                 <p className="font-medium text-amber-900 dark:text-amber-100">Keine Vorjahresdaten</p>
                 <p className="text-amber-800 dark:text-amber-200 text-xs leading-relaxed">
                   Für {prevYear} existieren keine Schlusssalden im System. Trage die Anfangsbestände
-                  für {fiscalYear} direkt in der Spalte „Eröffnung {fiscalYear}" manuell ein
-                  (z.&nbsp;B. Giro-/Rücklagen-Stand am {fiscalYear}-01-01).
+                  für {fiscalYear} (Stand {fiscalYear}-01-01) direkt in der Spalte „Eröffnung {fiscalYear}" ein
+                  — nur für Giro- und Rücklagenkonten relevant. Brennstoffbestände (Heizöl/Pellets) werden
+                  separat im Schritt „Heizkosten → Brennstoffe" erfasst.
                 </p>
               </div>
             </div>
@@ -183,10 +193,10 @@ export function BalanceCarryForward({ buildingId, fiscalYear, periodId }: Balanc
         {carryAccounts.length === 0 ? (
           <div className="space-y-2">
             <p className="text-sm text-muted-foreground">
-              Keine Konten mit Saldenübernahme markiert.
+              Keine Bank- oder Rücklagenkonten mit Saldovortrag konfiguriert.
             </p>
             <p className="text-xs text-muted-foreground bg-muted/50 rounded-md p-3">
-              Die Einstellung „Saldovortrag" wird pro Konto im <strong>Kontenrahmen</strong>-Tab konfiguriert (Spalte „Saldo"). Im Gebäude-Hub finden Sie den Kontenrahmen ebenfalls unter dem gleichnamigen Tab.
+              Aktiviere im <strong>Kontenrahmen</strong>-Tab den Saldovortrag für deine Giro- und Rücklagenkonten (Spalte „Saldo"). Andere Konten (Vorauszahlungen, Abgrenzungen) brauchen keinen manuellen Anfangsbestand — ihr Saldo ergibt sich aus den Buchungen.
             </p>
           </div>
         ) : (
