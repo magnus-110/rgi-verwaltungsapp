@@ -1,63 +1,49 @@
 
+
 ## Ziel
-Den Rückgängig-Button im Kontenplan genau dort sichtbar machen, wo die Buchungszeile im Screenshot angezeigt wird – auch bei Personenkonten/Hausgeld-Zeilen.
+Den "(1 Fehler)"-Hinweis in der KI-Analyse-Badge anklickbar machen, damit der Nutzer sieht, **welche** Transaktionen fehlgeschlagen sind, **warum** und sie ggf. erneut analysieren kann.
 
 ## Ursache
-Im `AccountPlanView.tsx` wird jede Buchung doppelt dargestellt:
-- einmal auf der eigentlichen Kontoseite (`_side: "primary"`)
-- einmal gespiegelt auf dem Gegenkonto (`_side: "counter"`)
-
-Der Rückgängig-Button rendert aktuell nur bei:
-- `source === "bank_import"`
-- `bank_transaction_id` vorhanden
-- `_side === "primary"`
-
-Im Screenshot sind die sichtbaren Hausgeld-/Personenkonto-Zeilen sehr wahrscheinlich die Gegenkonto-Ansicht (`_side === "counter"`). Deshalb erscheint dort kein Button, obwohl die Buchung selbst rückgängig gemacht werden kann.
+In `BankStatementsTab.tsx` ist der Fehler-Hinweis aktuell nur ein `<span>` ohne Klick-Handler. In `useTransactionAiPrefetch.ts` wird beim Fehler nur `ai_analysis_status = "failed"` gespeichert, aber **keine Fehlermeldung**. Deshalb gibt es nichts Anklickbares und nichts Anzeigbares.
 
 ## Umsetzung
 
-### 1. Button-Bedingung im Kontenplan korrigieren
-In `src/components/finance/AccountPlanView.tsx`:
-- die Bedingung `b._side === "primary"` entfernen
-- den Button stattdessen für jede Buchungszeile anzeigen, wenn die Buchung tatsächlich rückgängig gemacht werden kann:
-  - `b.source === "bank_import"`
-  - verknüpfte Banktransaktion vorhanden (`b.bank_transaction_id` oder alternativ vorhandene Zuordnung über `booking_id`)
+### 1. Fehlermeldung in DB persistieren
+In `src/hooks/useTransactionAiPrefetch.ts`:
+- beim Fehler nicht nur `ai_analysis_status: "failed"` schreiben, sondern auch `ai_analysis_error: <message>` (Spalte ggf. als optionales Feld, falls nicht vorhanden Migration anlegen).
+- Fehlertext: `err?.message || "Unbekannter Fehler"`, max. 500 Zeichen.
 
-Ergebnis:
-- derselbe Rückgängig-Button erscheint auch in den roten Hausgeld-Zeilen im Personenkonto-Bereich.
+### 2. DB-Migration (falls nötig)
+Spalte hinzufügen:
+- `bank_transactions.ai_analysis_error TEXT NULL`
 
-### 2. Doppelte Buttons bei derselben Buchung vermeiden
-Da dieselbe Buchung in mehreren Konten auftauchen kann, wird der Button zwar in jeder sichtbaren Zeile erlaubt, aber die Aktion bleibt immer identisch:
-- Dialog öffnet mit derselben Buchung
-- Rückgängig macht weiterhin genau diese eine Buchung
-- verknüpfte `bank_transactions` werden wieder freigegeben
-- Buchung wird gelöscht
+### 3. Badge anklickbar machen
+In `src/components/finance/BankStatementsTab.tsx`:
+- den `<span>({errors} Fehler)</span>` durch einen `<Popover>`-Trigger ersetzen.
+- Popover-Inhalt: Liste aller Transaktionen aus `allBuildingTxns` mit `ai_analysis_status === "failed"`:
+  - Datum, Betrag, Verwendungszweck (gekürzt)
+  - Fehlertext aus `ai_analysis_error`
+  - Anzahl Versuche `ai_analysis_attempts`
+  - Button "Erneut analysieren" → setzt `ai_analysis_status = null`, `ai_analysis_attempts = 0`, invalidiert Query → Hook startet automatisch neu.
+  - Button "Manuell zuordnen" → öffnet vorhandenen `AssignmentDialog` für diese Transaktion.
 
-Falls nötig, wird zusätzlich sichergestellt, dass nur echte bankverknüpfte Buchungen einen Button bekommen.
+### 4. Visuelles Feedback
+- Badge bekommt `cursor-pointer` und Hover-State.
+- Fehler-Span bekommt Underline + Tooltip "Details anzeigen".
 
-### 3. Platzierung exakt an der markierten Stelle beibehalten
-Der Button bleibt direkt im Betrag-Feld rechts neben dem Betrag:
-- keine neue Extra-Spalte
-- keine Verschiebung der restlichen Tabelle
-- gleiche Tooltip-/Icon-Logik wie bisher
+### 5. Auch nach Abschluss anzeigen
+Aktuell wird die Badge ausgeblendet, sobald `running = false`. Damit Nutzer Fehler **nach** Abschluss sehen:
+- Wenn `!running && errors > 0` → eigene rote Badge "X KI-Fehler" (anklickbar, gleicher Popover-Inhalt) anzeigen, parallel zur grünen "X KI-Vorschläge"-Badge.
 
-### 4. Bestehende Undo-Logik unverändert weiterverwenden
-Die vorhandene Logik in `handleUndoBooking` bleibt fachlich gleich:
-1. `bank_transactions` zurücksetzen (`booked_at = null`, `booking_id = null`)
-2. `bookings`-Datensatz löschen
-3. relevante Queries invalidieren
-4. Toast anzeigen
-
-Es wird nur die Sichtbarkeit im Kontenplan korrigiert, nicht der eigentliche Undo-Ablauf.
-
-## Betroffene Datei
-- `src/components/finance/AccountPlanView.tsx`
+## Betroffene Dateien
+- `src/hooks/useTransactionAiPrefetch.ts` (Fehler speichern)
+- `src/components/finance/BankStatementsTab.tsx` (Popover + Retry-Logik)
+- neue Migration: `bank_transactions.ai_analysis_error`
 
 ## QA
-- Kontenplan öffnen
-- Personenkonto/Hausgeld-Konto wie im Screenshot aufklappen
-- prüfen, dass der Rückgängig-Button rechts neben dem Betrag sichtbar ist
-- Klick auf Button öffnet Bestätigungsdialog
-- nach Bestätigung verschwindet die Buchung aus dem Kontenplan
-- die zugehörige Transaktion erscheint wieder im Kontoauszug
-- manuelle Buchungen ohne Bankverknüpfung zeigen weiterhin keinen Rückgängig-Button
+- Transaktion ohne mögliches AI-Match importieren → Fehler erscheint
+- Auf "(X Fehler)" klicken → Popover zeigt Liste mit Datum, Betrag, Fehlertext
+- "Erneut analysieren" klicken → Status wird zurückgesetzt, KI startet neu
+- Auch nach Abschluss bleibt anklickbarer Fehler-Badge sichtbar
+- Tooltip auf Badge "Details anzeigen" funktioniert
+
