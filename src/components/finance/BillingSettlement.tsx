@@ -11,7 +11,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Switch } from "@/components/ui/switch";
 import { BarChart3, ChevronDown, ChevronRight, Download, Users, PiggyBank, AlertTriangle, Check, FileText, Building2, Loader2, Search, Calculator, Sparkles } from "lucide-react";
 import { toast } from "sonner";
-import { getEffectiveOpeningBalance } from "./lib/bookingAggregation";
+import { getEffectiveOpeningBalance, getEffectiveClosingBalance } from "./lib/bookingAggregation";
 
 interface BillingSettlementProps {
   buildingId: string;
@@ -279,9 +279,12 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     opening_balance: b.opening_balance,
   }));
   const openingByAccount: Record<string, number> = {};
+  const closingByAccount: Record<string, number> = {};
   carryAccounts.forEach((acc: any) => {
     const eff = getEffectiveOpeningBalance(acc.id, bookings as any[], flatBalances, fiscalYear, opening4000Id);
     openingByAccount[acc.id] = eff.amount;
+    const close = getEffectiveClosingBalance(acc.id, bookings as any[], flatBalances, fiscalYear, opening4000Id);
+    closingByAccount[acc.id] = close.amount;
   });
   const openingGiro = carryAccounts
     .filter((a: any) => a.category !== "ruecklage")
@@ -291,18 +294,27 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     .reduce((s: number, a: any) => s + (openingByAccount[a.id] || 0), 0);
   const openingTotal = openingGiro + openingReserve;
 
-  // Closing balances
-  const closingGiro = balances
-    .filter((b: any) => b.chart_of_accounts?.category !== "ruecklage" && b.chart_of_accounts?.carry_forward_balance)
-    .reduce((s, b) => s + Number(b.closing_balance), 0);
-  const closingReserve = balances
-    .filter((b: any) => b.chart_of_accounts?.category === "ruecklage")
-    .reduce((s, b) => s + Number(b.closing_balance), 0);
+  // Closing balances — automatisch via Helper, manueller closing_balance als Override
+  const getClosing = (acc: any) => {
+    const manual = balances.find((b: any) => b.account_id === acc.id);
+    if (manual && manual.closing_balance !== null && manual.closing_balance !== undefined && Number(manual.closing_balance) !== 0) {
+      return Number(manual.closing_balance);
+    }
+    return closingByAccount[acc.id] || 0;
+  };
+  const closingGiro = carryAccounts
+    .filter((a: any) => a.category !== "ruecklage")
+    .reduce((s: number, a: any) => s + getClosing(a), 0);
+  const closingReserve = carryAccounts
+    .filter((a: any) => a.category === "ruecklage")
+    .reduce((s: number, a: any) => s + getClosing(a), 0);
   const closingTotal = closingGiro + closingReserve;
 
-  // Distributable total (for Einzelabrechnung)
+  // Distributable total (for Einzelabrechnung) — exclude ARAP/PRAP (4110/4130 = Bilanzkonten, kein Aufwand)
+  const isAccrualBalanceAccount = (a: any) =>
+    a.account_number === "4110" || a.account_number === "4130" || a.settlement_section === "accrual";
   const totalDistributable = accounts
-    .filter((a) => a.is_distributable)
+    .filter((a) => a.is_distributable && !isAccrualBalanceAccount(a))
     .reduce((s, a) => s + getAccountBookingTotal(a.id), 0);
 
   // Abrechnungssumme
