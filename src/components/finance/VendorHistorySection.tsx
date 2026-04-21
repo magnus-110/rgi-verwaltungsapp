@@ -45,10 +45,14 @@ export function VendorHistorySection({ booking }: VendorHistorySectionProps) {
       .slice(0, 4);
   }, [vendorName]);
 
-  const exactCreditorAccountId = !invoiceVendorName && fallbackAccountName ? booking?.counter_account_id || null : null;
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const currentBookingId = typeof booking?.id === "string" && UUID_RE.test(booking.id) ? booking.id : null;
+
+  // Always use counter_account_id for exact match when available — covers Personenkonten (Hausgeld) and Kreditoren ohne Rechnung
+  const exactCreditorAccountId = booking?.counter_account_id || null;
 
   const { data: historyBookings = [] } = useQuery({
-    queryKey: ["vendor-history", booking?.building_id, booking?.id, exactCreditorAccountId, vendorName, searchTokens.join("|")],
+    queryKey: ["vendor-history", booking?.building_id, currentBookingId, exactCreditorAccountId, vendorName, searchTokens.join("|")],
     queryFn: async () => {
       if (!booking?.building_id) return [];
 
@@ -58,22 +62,26 @@ export function VendorHistorySection({ booking }: VendorHistorySectionProps) {
         invoices(vendor_name)
       `;
 
+      const applyExclude = (q: any) => (currentBookingId ? q.neq("id", currentBookingId) : q);
+
       const exactMatchesPromise = exactCreditorAccountId
-        ? supabase
-            .from("bookings")
-            .select(baseSelect)
-            .eq("building_id", booking.building_id)
-            .neq("id", booking.id)
-            .eq("counter_account_id", exactCreditorAccountId)
+        ? applyExclude(
+            supabase
+              .from("bookings")
+              .select(baseSelect)
+              .eq("building_id", booking.building_id)
+              .eq("counter_account_id", exactCreditorAccountId)
+          )
             .order("booking_date", { ascending: false })
             .limit(100)
         : Promise.resolve({ data: [] as any[], error: null });
 
-      let descriptionQuery = supabase
-        .from("bookings")
-        .select(baseSelect)
-        .eq("building_id", booking.building_id)
-        .neq("id", booking.id)
+      let descriptionQuery = applyExclude(
+        supabase
+          .from("bookings")
+          .select(baseSelect)
+          .eq("building_id", booking.building_id)
+      )
         .order("booking_date", { ascending: false })
         .limit(100);
 
@@ -99,12 +107,13 @@ export function VendorHistorySection({ booking }: VendorHistorySectionProps) {
       const invoiceIds = ((matchingInvoices as any).data || []).map((i: any) => i.id);
 
       const byInvoicePromise = invoiceIds.length > 0
-        ? supabase
-            .from("bookings")
-            .select(baseSelect)
-            .eq("building_id", booking.building_id)
-            .neq("id", booking.id)
-            .in("invoice_id", invoiceIds)
+        ? applyExclude(
+            supabase
+              .from("bookings")
+              .select(baseSelect)
+              .eq("building_id", booking.building_id)
+              .in("invoice_id", invoiceIds)
+          )
             .order("booking_date", { ascending: false })
             .limit(100)
         : Promise.resolve({ data: [] as any[], error: null });
