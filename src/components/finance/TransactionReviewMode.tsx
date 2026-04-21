@@ -90,7 +90,7 @@ const formatMonthYearRef = (dateStr: string | null | undefined): string => {
 
 const FIELD_ORDER = [
   "account_id", "amount", "counter_account_id", "description",
-  "booking_reference", "booking_date", "receipt_number", "vat_rate"
+  "booking_reference", "booking_date", "fiscal_year", "vat_rate", "__book__"
 ];
 
 let rowIdCounter = 0;
@@ -674,16 +674,25 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     if (e.key === "Enter") {
       e.preventDefault();
       const idx = FIELD_ORDER.indexOf(currentField);
-      if (idx >= 0 && idx < FIELD_ORDER.length - 1) {
-        const nextField = FIELD_ORDER[idx + 1];
-        const el = fieldRefs.current[nextField];
-        if (el) {
-          if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement) el.focus();
-          else el.querySelector('button')?.focus();
+      if (idx < 0) return;
+      const nextField = FIELD_ORDER[idx + 1];
+      if (!nextField) return;
+      const el = fieldRefs.current[nextField];
+      if (!el) return;
+      if (nextField === "__book__") {
+        const btn = el as HTMLButtonElement;
+        btn.focus();
+        if (!btn.disabled) setTimeout(() => btn.click(), 0);
+        return;
+      }
+      if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement) {
+        el.focus();
+        if (el instanceof HTMLInputElement && (el.type === "text" || el.type === "number")) {
+          el.select?.();
         }
-      } else if (idx === FIELD_ORDER.length - 1) {
-        // Last field → book this row
-        if (expandedRowId) handleBookRow(expandedRowId);
+      } else {
+        const trigger = el.querySelector('button[role="combobox"], button') as HTMLElement | null;
+        trigger?.focus();
       }
     }
   };
@@ -1650,11 +1659,14 @@ function BookingRowCard({
                   }
                   handleEnterNavigation(e as any, "amount");
                 }}
+                onFocus={e => {
+                  const input = e.target as HTMLInputElement;
+                  // Select numeric portion (skip the sign char at index 0) so typing overrides
+                  setTimeout(() => input.setSelectionRange(1, input.value.length), 0);
+                }}
                 onClick={e => {
                   const input = e.target as HTMLInputElement;
-                  if (input.selectionStart !== null && input.selectionStart < 1) {
-                    input.setSelectionRange(1, 1);
-                  }
+                  input.setSelectionRange(1, input.value.length);
                 }}
                 onWheel={e => (e.target as HTMLElement).blur()} />
               <Button type="button" size="icon" variant={row.booking_type === "expense" ? "default" : "outline"}
@@ -1808,10 +1820,10 @@ function BookingRowCard({
             </div>
 
             {/* Vendor History */}
-            <VendorHistorySection booking={{ building_id: buildingId, id: row.id, description: row.description, counter_account_id: row.counter_account_id, account_id: row.account_id, counter_account: accounts.find((a: any) => a.id === row.counter_account_id) || null, invoices: invoiceDetail ? { vendor_name: invoiceDetail.vendor_name } : null }} />
+            <VendorHistorySection booking={{ building_id: buildingId, id: undefined, description: row.description, counter_account_id: row.counter_account_id, account_id: row.account_id, counter_account: accounts.find((a: any) => a.id === row.counter_account_id) || null, invoices: invoiceDetail ? { vendor_name: invoiceDetail.vendor_name } : null }} />
 
             {/* Book button */}
-            <Button onClick={onBook} disabled={isBooking || !row.account_id} className="w-full h-9 text-sm">
+            <Button ref={el => { fieldRefs.current["__book__"] = el; }} onClick={onBook} disabled={isBooking || !row.account_id} className="w-full h-9 text-sm">
               {isBooking ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
               {row.needs_review ? "Buchen & Zur Prüfung" : "Buchen"}
             </Button>
