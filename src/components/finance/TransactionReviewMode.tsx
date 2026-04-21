@@ -1664,8 +1664,19 @@ function BookingRowCard({
                 <button
                   onClick={e => { e.stopPropagation(); onRemove(); }}
                   className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                  title="Zeile entfernen"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
+              {row.booked && onUndoRow && (
+                <button
+                  onClick={e => { e.stopPropagation(); onUndoRow(); }}
+                  disabled={isUndoing}
+                  className="p-1 rounded hover:bg-amber-100 dark:hover:bg-amber-900/30 text-muted-foreground hover:text-amber-700 disabled:opacity-50"
+                  title="Teilbuchung rückgängig machen"
+                >
+                  {isUndoing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
                 </button>
               )}
             </div>
