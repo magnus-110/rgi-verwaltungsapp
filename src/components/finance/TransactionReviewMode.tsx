@@ -846,6 +846,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         const createdIds = pendingBookingIdsRef.current[currentTxn.id] || [];
         delete pendingBookingIdsRef.current[currentTxn.id];
         delete editsCacheRef.current[currentTxn.id];
+        delete rowBookingMapRef.current[currentTxn.id];
         setUndoStack(stack => {
           const next: UndoEntry[] = [
             ...stack,
