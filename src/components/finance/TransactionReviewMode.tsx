@@ -118,6 +118,9 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
   const previousTxnIdRef = useRef<string | null>(null);
   // Track booking ids created for the current txn, used for undo
   const pendingBookingIdsRef = useRef<Record<string, string[]>>({});
+  // Map row.id → bookingId per txn, for individual undo
+  const rowBookingMapRef = useRef<Record<string, Record<string, string>>>({});
+  const [undoingRowId, setUndoingRowId] = useState<string | null>(null);
 
   // Undo stack: last up to 10 confirmed bookings
   type UndoEntry = {
@@ -670,30 +673,42 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     if (expandedRowId === rowId) setExpandedRowId(null);
   };
 
+  const focusFieldByName = useCallback((nextField: string) => {
+    const el = fieldRefs.current[nextField];
+    if (!el) return;
+    if (nextField === "__book__") {
+      const btn = el as HTMLButtonElement;
+      btn.focus();
+      if (!btn.disabled) setTimeout(() => btn.click(), 0);
+      return;
+    }
+    if (el instanceof HTMLButtonElement && el.getAttribute("role") === "combobox") {
+      el.focus();
+      return;
+    }
+    if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement) {
+      el.focus();
+      if (el instanceof HTMLInputElement && (el.type === "text" || el.type === "number")) {
+        el.select?.();
+      }
+      return;
+    }
+    const trigger = el.querySelector('button[role="combobox"], button, input') as HTMLElement | null;
+    trigger?.focus();
+  }, []);
+
+  const focusNextOf = useCallback((currentField: string) => {
+    const idx = FIELD_ORDER.indexOf(currentField);
+    if (idx < 0) return;
+    const nextField = FIELD_ORDER[idx + 1];
+    if (!nextField) return;
+    focusFieldByName(nextField);
+  }, [focusFieldByName]);
+
   const handleEnterNavigation = (e: React.KeyboardEvent, currentField: string) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      const idx = FIELD_ORDER.indexOf(currentField);
-      if (idx < 0) return;
-      const nextField = FIELD_ORDER[idx + 1];
-      if (!nextField) return;
-      const el = fieldRefs.current[nextField];
-      if (!el) return;
-      if (nextField === "__book__") {
-        const btn = el as HTMLButtonElement;
-        btn.focus();
-        if (!btn.disabled) setTimeout(() => btn.click(), 0);
-        return;
-      }
-      if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement || el instanceof HTMLTextAreaElement) {
-        el.focus();
-        if (el instanceof HTMLInputElement && (el.type === "text" || el.type === "number")) {
-          el.select?.();
-        }
-      } else {
-        const trigger = el.querySelector('button[role="combobox"], button') as HTMLElement | null;
-        trigger?.focus();
-      }
+      focusNextOf(currentField);
     }
   };
 
@@ -808,6 +823,9 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         ...(pendingBookingIdsRef.current[currentTxn.id] || []),
         booking.id,
       ];
+      // Map row → booking for individual undo
+      if (!rowBookingMapRef.current[currentTxn.id]) rowBookingMapRef.current[currentTxn.id] = {};
+      rowBookingMapRef.current[currentTxn.id][rowId] = booking.id;
 
       // Mark this row as booked
       setFormRows(rows => rows.map(r => r.id === rowId ? { ...r, booked: true } : r));
@@ -828,6 +846,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         const createdIds = pendingBookingIdsRef.current[currentTxn.id] || [];
         delete pendingBookingIdsRef.current[currentTxn.id];
         delete editsCacheRef.current[currentTxn.id];
+        delete rowBookingMapRef.current[currentTxn.id];
         setUndoStack(stack => {
           const next: UndoEntry[] = [
             ...stack,
@@ -876,6 +895,56 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
   }, [currentTxn, bookingSingle, formRows, handleBookRow]);
 
   // Undo last confirmed booking(s)
+  const undoSingleRow = useCallback(async (rowId: string) => {
+    if (!currentTxn || undoingRowId) return;
+    const bookingId = rowBookingMapRef.current[currentTxn.id]?.[rowId];
+    if (!bookingId) {
+      toast.error("Buchung nicht gefunden");
+      return;
+    }
+    setUndoingRowId(rowId);
+    try {
+      const { error: delErr } = await supabase.from("bookings").delete().eq("id", bookingId);
+      if (delErr) throw delErr;
+
+      // If the txn was already marked fully booked (last split), reset it
+      await supabase.from("bank_transactions").update({
+        booked_at: null,
+        booking_id: null,
+      }).eq("id", currentTxn.id);
+
+      // Remove from undoStack if this booking was part of the last entry
+      setUndoStack(stack => stack
+        .map(e => e.txnId === currentTxn.id ? { ...e, bookingIds: e.bookingIds.filter(id => id !== bookingId) } : e)
+        .filter(e => e.bookingIds.length > 0));
+
+      // Remove from pendingBookingIdsRef and rowBookingMap
+      if (pendingBookingIdsRef.current[currentTxn.id]) {
+        pendingBookingIdsRef.current[currentTxn.id] = pendingBookingIdsRef.current[currentTxn.id].filter(id => id !== bookingId);
+      }
+      if (rowBookingMapRef.current[currentTxn.id]) {
+        delete rowBookingMapRef.current[currentTxn.id][rowId];
+      }
+
+      // Reset row state
+      setFormRows(rows => {
+        const next = rows.map(r => r.id === rowId ? { ...r, booked: false } : r);
+        editsCacheRef.current[currentTxn.id] = next;
+        return next;
+      });
+      setExpandedRowId(rowId);
+
+      toast.success("Teilbuchung rückgängig gemacht", { duration: 1500 });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
+      queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+      queryClient.invalidateQueries({ queryKey: ["bookings-all"] });
+    } catch (err: any) {
+      toast.error("Rückgängig fehlgeschlagen: " + (err.message || "Unbekannt"));
+    } finally {
+      setUndoingRowId(null);
+    }
+  }, [currentTxn, undoingRowId, queryClient]);
+
   const undoLast = useCallback(async () => {
     if (undoing || undoStack.length === 0) return;
     setUndoing(true);
@@ -1211,6 +1280,9 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                     isBooking={bookingSingle === row.id}
                     fieldRefs={fieldRefs}
                     handleEnterNavigation={handleEnterNavigation}
+                    focusFieldByName={focusFieldByName}
+                    onUndoRow={row.booked ? () => undoSingleRow(row.id) : undefined}
+                    isUndoing={undoingRowId === row.id}
                     formatCurrency={formatCurrency}
                     invoiceDetail={invoiceDetail}
                     heatingUnits={heatingUnits}
@@ -1492,7 +1564,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
 function BookingRowCard({
   row, index, isExpanded, onToggle, accounts, buildingId, onAccountCreated, onUpdateField, onBook, onRemove,
-  isBooking, fieldRefs, handleEnterNavigation, formatCurrency, invoiceDetail, heatingUnits,
+  isBooking, fieldRefs, handleEnterNavigation, focusFieldByName, onUndoRow, isUndoing, formatCurrency, invoiceDetail, heatingUnits,
 }: {
   row: BookingRowData;
   index: number;
@@ -1507,6 +1579,9 @@ function BookingRowCard({
   isBooking: boolean;
   fieldRefs: React.MutableRefObject<Record<string, HTMLElement | null>>;
   handleEnterNavigation: (e: React.KeyboardEvent, field: string) => void;
+  focusFieldByName: (name: string) => void;
+  onUndoRow?: () => void;
+  isUndoing?: boolean;
   formatCurrency: (amount: number | null) => string;
   invoiceDetail?: any;
   heatingUnits?: Array<{ id: string; name: string }>;
@@ -1589,8 +1664,19 @@ function BookingRowCard({
                 <button
                   onClick={e => { e.stopPropagation(); onRemove(); }}
                   className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                  title="Zeile entfernen"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
+              {row.booked && onUndoRow && (
+                <button
+                  onClick={e => { e.stopPropagation(); onUndoRow(); }}
+                  disabled={isUndoing}
+                  className="p-1 rounded hover:bg-amber-100 dark:hover:bg-amber-900/30 text-muted-foreground hover:text-amber-700 disabled:opacity-50"
+                  title="Teilbuchung rückgängig machen"
+                >
+                  {isUndoing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
                 </button>
               )}
             </div>
@@ -1620,6 +1706,7 @@ function BookingRowCard({
                 placeholder="Konto suchen…"
                 showCreateOption
                 onCreateClick={() => { setCreateAccountTarget("account_id"); setCreateAccountOpen(true); }}
+                onCommit={() => focusFieldByName("amount")}
               />
             </div>
 
@@ -1705,6 +1792,7 @@ function BookingRowCard({
                 placeholder="Gegenkonto suchen…"
                 showCreateOption
                 onCreateClick={() => { setCreateAccountTarget("counter_account_id"); setCreateAccountOpen(true); }}
+                onCommit={() => focusFieldByName("description")}
               />
             </div>
 
@@ -1749,7 +1837,7 @@ function BookingRowCard({
                       <label className={cn("text-xs font-medium mb-1 block", vatMissing ? "text-orange-600 dark:text-orange-400" : "text-muted-foreground")}>
                         MwSt % {isAccrual && <span className="text-orange-500">*</span>}
                       </label>
-                      <Select value={row.vat_rate} onValueChange={v => onUpdateField("vat_rate", v)}>
+                      <Select value={row.vat_rate} onValueChange={v => { onUpdateField("vat_rate", v); setTimeout(() => focusFieldByName("__book__"), 50); }}>
                         <SelectTrigger className={cn("h-8 text-xs", vatMissing && "border-orange-400 ring-1 ring-orange-300")} ref={el => fieldRefs.current["vat_rate"] = el}
                           onKeyDown={e => handleEnterNavigation(e, "vat_rate")}>
                           <SelectValue placeholder="Wählen…" />
