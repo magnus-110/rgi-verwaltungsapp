@@ -160,3 +160,52 @@ export function getEffectiveOpeningBalance(
 
   return { amount: 0, source: "none" };
 }
+
+export interface ClosingBalanceResult {
+  amount: number;
+  opening: number;
+  movements: number;
+  openingSource: OpeningBalanceSource;
+}
+
+/**
+ * Effektiver Schlusssaldo eines Kontos:
+ *   = Anfangsbestand (aus Eröffnungsbuchung 4000 oder manuell)
+ *   + Σ aller Bewegungen auf dem Konto im Wirtschaftsjahr (bank-zentrisch über sumForAccount,
+ *     Eröffnungsbuchungen werden ausgeschlossen, damit sie nicht doppelt zählen).
+ *
+ * Damit entfällt die Pflicht, `account_balances.closing_balance` manuell zu pflegen.
+ */
+export function getEffectiveClosingBalance(
+  accountId: string,
+  bookings: OpeningBookingLike[],
+  accountBalances: AccountBalanceLike[],
+  fiscalYear: number,
+  openingAccountId: string | null | undefined,
+): ClosingBalanceResult {
+  const opening = getEffectiveOpeningBalance(
+    accountId,
+    bookings,
+    accountBalances,
+    fiscalYear,
+    openingAccountId,
+  );
+
+  // Bewegungen ohne Eröffnungsbuchungen, sonst doppelte Zählung
+  const movementBookings = bookings.filter((b) => {
+    if (!openingAccountId) return true;
+    const isOpening =
+      isFirstDayOfFiscalYear(b.booking_date, fiscalYear) &&
+      (b.account_id === openingAccountId || b.counter_account_id === openingAccountId);
+    return !isOpening;
+  });
+
+  const movements = sumForAccount(accountId, movementBookings);
+
+  return {
+    amount: opening.amount + movements,
+    opening: opening.amount,
+    movements,
+    openingSource: opening.source,
+  };
+}

@@ -75,7 +75,8 @@ export function BillingValidationPanel({ periodId, buildingId, fiscalYear }: Bil
       return data;
     },
   });
-  const heatingAccounts = allAccounts.filter((a: any) => a.is_heating_relevant);
+  // 1400 ist Repost-Ziel (Heizkostenabrechnung), nicht Quellkonto → ausschließen
+  const heatingAccounts = allAccounts.filter((a: any) => a.is_heating_relevant && a.account_number !== "1400");
 
   const { data: shares = [] } = useQuery({
     queryKey: ["validation-shares", buildingId],
@@ -241,6 +242,29 @@ export function BillingValidationPanel({ periodId, buildingId, fiscalYear }: Bil
   );
   if (accrualBookings.length > 0) {
     liveChecks.push({ name: "Abgrenzungen", status: "passed", message: `${accrualBookings.length} Abgrenzungsbuchungen` });
+  }
+
+  // 6b. ARAP/PRAP-Bilanzposten (4110/4130) — Hinweis, dass periodenfremde Beträge zu prüfen sind
+  const arapAcc = (allAccounts as any[]).find((a: any) => a.account_number === "4110");
+  const prapAcc = (allAccounts as any[]).find((a: any) => a.account_number === "4130");
+  const sumOnAccount = (accountId: string) =>
+    bookings.reduce((s, b: any) => {
+      const amt = Number(b.amount) || 0;
+      if (b.account_id === accountId) return s + amt;
+      if (b.counter_account_id === accountId) return s - amt;
+      return s;
+    }, 0);
+  const arapSaldo = arapAcc ? Math.abs(sumOnAccount(arapAcc.id)) : 0;
+  const prapSaldo = prapAcc ? Math.abs(sumOnAccount(prapAcc.id)) : 0;
+  if (arapSaldo > 0 || prapSaldo > 0) {
+    const parts: string[] = [];
+    if (arapSaldo > 0) parts.push(`ARAP ${arapSaldo.toFixed(2)} €`);
+    if (prapSaldo > 0) parts.push(`PRAP ${prapSaldo.toFixed(2)} €`);
+    liveChecks.push({
+      name: "Rechnungsabgrenzung (RAP)",
+      status: "warning",
+      message: `${parts.join(" · ")} — periodenfremd, Auflösung im Folgejahr prüfen`,
+    });
   }
 
   // 7. Bankkonten-Abgleich (monatliche Reconciliation)
