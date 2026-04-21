@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ChevronDown, ChevronRight, Flag, AlertTriangle, BookOpen, RotateCcw } from "lucide-react";
+import { ChevronDown, ChevronRight, Flag, AlertTriangle, BookOpen, RotateCcw, Trash2 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -41,6 +41,35 @@ export function AccountPlanView({ bookings, fiscalYear, buildingId, onRowClick, 
   const [openAccounts, setOpenAccounts] = useState<Record<string, boolean>>({});
   const [undoBooking, setUndoBooking] = useState<any>(null);
   const [undoing, setUndoing] = useState(false);
+  const [deleteBooking, setDeleteBooking] = useState<any>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeleteBooking = async () => {
+    if (!deleteBooking) return;
+    setDeleting(true);
+    try {
+      // Free any linked bank transactions (best effort)
+      await supabase
+        .from("bank_transactions")
+        .update({ booked_at: null, booking_id: null })
+        .eq("booking_id", deleteBooking.id);
+      const { error: delError } = await supabase
+        .from("bookings")
+        .delete()
+        .eq("id", deleteBooking.id);
+      if (delError) throw delError;
+      toast.success("Buchung gelöscht");
+      setDeleteBooking(null);
+      queryClient.invalidateQueries({ predicate: (q) => {
+        const k = q.queryKey[0] as string;
+        return typeof k === "string" && (k.startsWith("bookings") || k.startsWith("bank-transactions"));
+      }});
+    } catch (err: any) {
+      toast.error("Fehler: " + (err.message || "Unbekannt"));
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const handleUndoBooking = async () => {
     if (!undoBooking) return;
@@ -259,7 +288,7 @@ export function AccountPlanView({ bookings, fiscalYear, buildingId, onRowClick, 
                                 <TableRow
                                   key={b.id}
                                   className={cn(
-                                    "cursor-pointer text-[13px] hover:bg-muted/60",
+                                    "group cursor-pointer text-[13px] hover:bg-muted/60",
                                     b.needs_review && "bg-orange-50 dark:bg-orange-950/20"
                                   )}
                                   onClick={() => onRowClick(b)}
@@ -281,7 +310,24 @@ export function AccountPlanView({ bookings, fiscalYear, buildingId, onRowClick, 
                                   )}>
                                     <div className="flex items-center justify-end gap-2">
                                       <span>{isIncome ? "+" : ""}{formatCurrency(Number(b.amount))}</span>
-                                      {b.source === "bank_import" && b.bank_transaction_id && (
+                                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        {b.source === "bank_import" && b.bank_transaction_id && (
+                                          <TooltipProvider>
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <Button
+                                                  size="sm"
+                                                  variant="ghost"
+                                                  className="h-5 w-5 p-0"
+                                                  onClick={(e) => { e.stopPropagation(); setUndoBooking(b); }}
+                                                >
+                                                  <RotateCcw className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                                                </Button>
+                                              </TooltipTrigger>
+                                              <TooltipContent><p className="text-xs">Buchung rückgängig – zurück zum Kontoauszug</p></TooltipContent>
+                                            </Tooltip>
+                                          </TooltipProvider>
+                                        )}
                                         <TooltipProvider>
                                           <Tooltip>
                                             <TooltipTrigger asChild>
@@ -289,15 +335,15 @@ export function AccountPlanView({ bookings, fiscalYear, buildingId, onRowClick, 
                                                 size="sm"
                                                 variant="ghost"
                                                 className="h-5 w-5 p-0"
-                                                onClick={(e) => { e.stopPropagation(); setUndoBooking(b); }}
+                                                onClick={(e) => { e.stopPropagation(); setDeleteBooking(b); }}
                                               >
-                                                <RotateCcw className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                                                <Trash2 className="h-3 w-3 text-muted-foreground hover:text-destructive" />
                                               </Button>
                                             </TooltipTrigger>
-                                            <TooltipContent><p className="text-xs">Buchung rückgängig – zurück zum Kontoauszug</p></TooltipContent>
+                                            <TooltipContent><p className="text-xs">Buchung löschen</p></TooltipContent>
                                           </Tooltip>
                                         </TooltipProvider>
-                                      )}
+                                      </div>
                                     </div>
                                   </TableCell>
                                   <TableCell className="py-1.5 px-3" onClick={(e) => e.stopPropagation()}>
@@ -363,6 +409,27 @@ export function AccountPlanView({ bookings, fiscalYear, buildingId, onRowClick, 
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {undoing ? "Wird rückgängig gemacht…" : "Rückgängig machen"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!deleteBooking} onOpenChange={(o) => !o && setDeleteBooking(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Buchung endgültig löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Die Buchung wird unwiderruflich gelöscht. Eventuell verknüpfte Bank-Transaktionen werden wieder freigegeben.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting}
+              onClick={(e) => { e.preventDefault(); handleDeleteBooking(); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "Wird gelöscht…" : "Löschen"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
