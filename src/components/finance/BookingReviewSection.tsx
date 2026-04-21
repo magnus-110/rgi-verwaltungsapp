@@ -23,13 +23,17 @@ export function BookingReviewSection({ buildingId, fiscalYear, periodFrom, perio
   const [aiChecking, setAiChecking] = useState(false);
   const [aiResults, setAiResults] = useState<any[] | null>(null);
 
-  // All confirmed bookings for this building/year
+  // All confirmed bookings — include counter account for bank-zentrische Erfassung
   const { data: bookings = [], isLoading } = useQuery({
     queryKey: ["booking-review", buildingId, fiscalYear],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bookings")
-        .select("*, chart_of_accounts!bookings_account_id_fkey(id, account_number, account_name, category)")
+        .select(`
+          *,
+          chart_of_accounts!bookings_account_id_fkey(id, account_number, account_name, category),
+          counter_account:chart_of_accounts!bookings_counter_account_id_fkey(id, account_number, account_name, category)
+        `)
         .eq("building_id", buildingId)
         .eq("fiscal_year", fiscalYear)
         .neq("status", "cancelled")
@@ -55,26 +59,33 @@ export function BookingReviewSection({ buildingId, fiscalYear, periodFrom, perio
   const formatCurrency = (n: number) =>
     new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
 
-  // Group bookings by account category
+  // Group bookings by account category — Bank 1800 ist nur Durchlaufkonto, daher
+  // gruppieren wir Buchungen nach dem ECHTEN Kostenkonto: bevorzugt das Konto, das KEIN
+  // Bankkonto ist. Bei reinen Bank-Bank-Buchungen fallen wir auf account_id zurück.
   const categoryMap = new Map<string, { accounts: Map<string, { account: any; bookings: any[]; total: number }> }>();
 
+  const isBankAccount = (acc: any) =>
+    acc?.category?.toLowerCase().includes("bank") ||
+    /^18\d{2}$/.test(acc?.account_number || "");
+
   bookings.forEach((b: any) => {
-    const cat = b.chart_of_accounts?.category || "Ohne Kategorie";
-    const accId = b.account_id || "unknown";
-    if (!categoryMap.has(cat)) {
-      categoryMap.set(cat, { accounts: new Map() });
-    }
+    const main = b.chart_of_accounts;
+    const counter = b.counter_account;
+    // Pick the cost account (non-bank). Fall back to main account if both are bank or counter missing.
+    const useCounter = counter && isBankAccount(main) && !isBankAccount(counter);
+    const acc = useCounter ? counter : main;
+    const accId = acc?.id || b.account_id || b.counter_account_id || "unknown";
+    const cat = acc?.category || "Ohne Kategorie";
+
+    if (!categoryMap.has(cat)) categoryMap.set(cat, { accounts: new Map() });
     const catData = categoryMap.get(cat)!;
     if (!catData.accounts.has(accId)) {
-      catData.accounts.set(accId, {
-        account: b.chart_of_accounts,
-        bookings: [],
-        total: 0,
-      });
+      catData.accounts.set(accId, { account: acc, bookings: [], total: 0 });
     }
     const accData = catData.accounts.get(accId)!;
     accData.bookings.push(b);
-    accData.total += Number(b.amount);
+    // Sign: if we used the counter account, invert the amount so the cost shows as positive
+    accData.total += useCounter ? -Number(b.amount) : Number(b.amount);
   });
 
   // Calculate expected count from templates

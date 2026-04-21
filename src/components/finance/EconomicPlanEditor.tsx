@@ -78,13 +78,13 @@ export function EconomicPlanEditor({ buildingId, periodId, fiscalYear }: Economi
     },
   });
 
-  // Previous year bookings
+  // Previous year bookings — include counter_account_id for bank-centric aggregation
   const { data: prevBookings = [] } = useQuery({
     queryKey: ["prev-bookings-plan", buildingId, fiscalYear],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bookings")
-        .select("account_id, amount")
+        .select("account_id, counter_account_id, amount")
         .eq("building_id", buildingId)
         .eq("fiscal_year", fiscalYear)
         .neq("status", "cancelled");
@@ -149,12 +149,15 @@ export function EconomicPlanEditor({ buildingId, periodId, fiscalYear }: Economi
 
   const items: any[] = existingPlan?.economic_plan_items || [];
 
-  // Group accounts by category
+  // Group accounts by category — bank-zentrisch: account_id ODER counter_account_id berücksichtigen
   const prevYearTotals = accounts.map((acc) => {
-    const total = prevBookings
-      .filter((b) => b.account_id === acc.id)
-      .reduce((s, b) => s + Math.abs(Number(b.amount)), 0);
-    return { ...acc, previousAmount: total };
+    const total = prevBookings.reduce((s, b: any) => {
+      const amt = Number(b.amount) || 0;
+      if (b.account_id === acc.id) return s + amt;
+      if (b.counter_account_id === acc.id) return s - amt;
+      return s;
+    }, 0);
+    return { ...acc, previousAmount: Math.abs(total) };
   }).filter((a) => a.previousAmount > 0 || items.some((i: any) => i.account_id === a.id));
 
   const categoryGroups = prevYearTotals.reduce<Record<string, typeof prevYearTotals>>((groups, acc) => {
