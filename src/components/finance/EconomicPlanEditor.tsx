@@ -8,9 +8,10 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Sparkles, Loader2, Check, Save, ChevronDown, ChevronRight, Info, FileText, Shield, PiggyBank, Users, Eye } from "lucide-react";
+import { Fragment } from "react";
 import { toast } from "sonner";
 import { EconomicPlanPreview } from "./EconomicPlanPreview";
-import { sumForAccount } from "./lib/bookingAggregation";
+import { sumForAccount, getEffectiveClosingBalance } from "./lib/bookingAggregation";
 
 interface EconomicPlanEditorProps {
   buildingId: string;
@@ -114,38 +115,53 @@ export function EconomicPlanEditor({ buildingId, periodId, fiscalYear }: Economi
     },
   });
 
-  // Current reserve balance
+  // Current reserve balance — robust via settlement_section='reserve' + Helper
+  // (Anfangsbestand aus Eröffnungsbuchung 4000 + Bewegungen)
   const { data: reserveBalance } = useQuery({
     queryKey: ["reserve-balance", buildingId, fiscalYear],
     queryFn: async () => {
-      // Get all balances for this building/year, then filter for reserve accounts
       const { data: balances, error: bErr } = await supabase
         .from("account_balances")
-        .select("closing_balance, account_id")
+        .select("account_id, opening_balance, closing_balance")
         .eq("building_id", buildingId)
         .eq("fiscal_year", fiscalYear);
       if (bErr) throw bErr;
 
       const { data: accs, error: aErr } = await supabase
         .from("chart_of_accounts")
-        .select("id, account_name")
-        .eq("carry_forward_balance", true);
+        .select("id, account_number, account_name, settlement_section, category")
+        .or(`building_id.is.null,building_id.eq.${buildingId}`);
       if (aErr) throw aErr;
 
-      const reserveIds = new Set(
-        (accs || [])
-          .filter((a) =>
-            a.account_name?.toLowerCase().includes("rücklage") ||
-            a.account_name?.toLowerCase().includes("rucklage") ||
-            a.account_name?.toLowerCase().includes("erhaltung")
-          )
-          .map((a) => a.id)
+      const reserveAccs = (accs || []).filter((a: any) =>
+        a.settlement_section === "reserve" ||
+        a.category === "ruecklage" ||
+        a.account_name?.toLowerCase().includes("rücklage") ||
+        a.account_name?.toLowerCase().includes("rucklage") ||
+        a.account_name?.toLowerCase().includes("erhaltung"),
       );
+      if (reserveAccs.length === 0) return 0;
 
-      return (balances || [])
-        .filter((b) => reserveIds.has(b.account_id))
-        .reduce((s, a) => s + Number(a.closing_balance || 0), 0);
+      const opening4000 = (accs || []).find((a: any) => a.account_number === "4000");
+      const opening4000Id = opening4000?.id || null;
+
+      const flatBalances = (balances || []).map((b: any) => ({
+        account_id: b.account_id,
+        opening_balance: b.opening_balance,
+      }));
+
+      return reserveAccs.reduce((s: number, acc: any) => {
+        const eff = getEffectiveClosingBalance(
+          acc.id,
+          prevBookings as any,
+          flatBalances,
+          fiscalYear,
+          opening4000Id,
+        );
+        return s + eff.amount;
+      }, 0);
     },
+    enabled: prevBookings.length > 0,
   });
 
   const items: any[] = existingPlan?.economic_plan_items || [];
@@ -530,8 +546,8 @@ function GesamtplanStep({
           </TableHeader>
           <TableBody>
             {Object.entries(categoryGroups).map(([category, accs]) => (
-              <>
-                <TableRow key={`cat-${category}`} className="bg-muted/30">
+              <Fragment key={`cat-${category}`}>
+                <TableRow className="bg-muted/30">
                   <TableCell colSpan={6} className="font-semibold text-xs uppercase tracking-wider text-muted-foreground py-2">
                     {category}
                   </TableCell>
@@ -565,7 +581,7 @@ function GesamtplanStep({
                     </TableRow>
                   );
                 })}
-              </>
+              </Fragment>
             ))}
             <TableRow className="font-medium border-t-2">
               <TableCell></TableCell>

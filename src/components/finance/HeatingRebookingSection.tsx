@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { ArrowRightLeft, AlertTriangle, Check, RefreshCw, Trash2, Upload, Users } from "lucide-react";
+import { sumForAccount } from "./lib/bookingAggregation";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -56,13 +57,13 @@ export function HeatingRebookingSection({ buildingId, periodId, fiscalYear }: He
     },
   });
 
-  // Current bookings for totals
+  // Current bookings for totals — include counter_account_id for bank-centric aggregation
   const { data: bookings = [] } = useQuery({
     queryKey: ["heating-bookings", buildingId, fiscalYear],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bookings")
-        .select("account_id, amount, booking_category")
+        .select("account_id, counter_account_id, amount, booking_category")
         .eq("building_id", buildingId)
         .eq("fiscal_year", fiscalYear)
         .neq("status", "cancelled");
@@ -116,10 +117,12 @@ export function HeatingRebookingSection({ buildingId, periodId, fiscalYear }: He
     },
   });
 
-  const getAccountTotal = (accountId: string) =>
-    bookings
-      .filter((b) => b.account_id === accountId && b.booking_category !== "heating_repost")
-      .reduce((s, b) => s + Math.abs(Number(b.amount)), 0);
+  // Bank-zentrisch: Heizkonten können auf account_id ODER counter_account_id liegen.
+  // sumForAccount summiert beide Seiten korrekt; Eröffnungs-Repost ausschließen.
+  const getAccountTotal = (accountId: string) => {
+    const filtered = bookings.filter((b) => b.booking_category !== "heating_repost");
+    return Math.abs(sumForAccount(accountId, filtered as any));
+  };
 
   const totalHeating = heatingAccounts.reduce((s, a) => s + getAccountTotal(a.id), 0);
   const totalRebooked = existingRebookings.reduce((s, b) => s + Math.abs(Number(b.amount)), 0);
