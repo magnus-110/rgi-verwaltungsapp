@@ -34,13 +34,18 @@ const SECTION_LABELS: Record<string, string> = {
   income: "Einnahmen",
   operating_distributable: "Umlagefähige Bewirtschaftungskosten",
   operating_non_distributable: "Nicht umlagefähige Kosten",
+  heating_prepayment: "Heizkosten-Vorauszahlungen (Durchlauf)",
   accrual: "Abgrenzungen",
   reserve: "Instandhaltungsrücklage",
   reserve_withdrawal: "Entnahme aus Rücklage",
   bank: "Bankkonten",
+  opening: "Eröffnungsbuchungen",
 };
 
-const SECTION_ORDER = ["income", "operating_distributable", "operating_non_distributable", "accrual", "reserve", "reserve_withdrawal"];
+// Note: heating_prepayment is shown informatively but NOT included in the Abrechnungssumme.
+// It only becomes part of the settlement after being reposted to account 1400 (Heizkostenabrechnung).
+// 'opening' (Eröffnungsbuchungen) and 'bank' are excluded from the settlement display entirely.
+const SECTION_ORDER = ["income", "operating_distributable", "operating_non_distributable", "heating_prepayment", "accrual", "reserve", "reserve_withdrawal"];
 
 export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingSettlementProps) {
   const queryClient = useQueryClient();
