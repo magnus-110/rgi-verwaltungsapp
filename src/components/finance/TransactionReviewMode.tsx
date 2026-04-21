@@ -739,7 +739,22 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       const totalParts = formRows.length;
       const partIndex = formRows.findIndex(r => r.id === rowId) + 1;
 
-      const { data: booking, error: bookingError } = await supabase.from("bookings").insert({
+      const existingBookingId = rowBookingMapRef.current[currentTxn.id]?.[rowId];
+      const isUpdate = row.booked && !!existingBookingId;
+
+      // Safety net: if marked as booked but DB record gone, fall back to insert
+      if (isUpdate) {
+        const { data: check } = await supabase.from("bookings").select("id").eq("id", existingBookingId).maybeSingle();
+        if (!check) {
+          if (rowBookingMapRef.current[currentTxn.id]) delete rowBookingMapRef.current[currentTxn.id][rowId];
+          setFormRows(rows => rows.map(r => r.id === rowId ? { ...r, booked: false } : r));
+          toast.error("Buchung nicht mehr vorhanden – bitte erneut buchen");
+          setBookingSingle(null);
+          return;
+        }
+      }
+
+      const payload: any = {
         building_id: buildingId,
         account_id: row.account_id,
         counter_account_id: row.counter_account_id || null,
@@ -756,19 +771,33 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         matched_template_id: row.matched_template_id,
         is_35a_relevant: row.is_35a_relevant,
         amount_35a: amount35a,
-        source: "bank_import",
-        status: "confirmed",
-        confirmed_at: new Date().toISOString(),
-        confirmed_by: user.id,
-        created_by: user.id,
-        bank_transaction_id: currentTxn.id,
-        split_part: totalParts > 1 ? partIndex : null,
-        split_parts_total: totalParts > 1 ? totalParts : null,
         needs_review: row.needs_review,
         review_note: row.review_note || null,
         line_items_detail: row.line_items_detail || null,
-      } as any).select("id").single();
+      };
 
+      let booking: { id: string };
+      if (isUpdate) {
+        const { data, error } = await supabase.from("bookings").update(payload).eq("id", existingBookingId).select("id").single();
+        if (error) throw error;
+        booking = data;
+      } else {
+        const { data, error } = await supabase.from("bookings").insert({
+          ...payload,
+          source: "bank_import",
+          status: "confirmed",
+          confirmed_at: new Date().toISOString(),
+          confirmed_by: user.id,
+          created_by: user.id,
+          bank_transaction_id: currentTxn.id,
+          split_part: totalParts > 1 ? partIndex : null,
+          split_parts_total: totalParts > 1 ? totalParts : null,
+        } as any).select("id").single();
+        if (error) throw error;
+        booking = data;
+      }
+
+      const bookingError = null as any;
       if (bookingError) throw bookingError;
 
       // Save fuel purchase to fuel_inventory
