@@ -1820,10 +1820,10 @@ function BookingRowCard({
             </div>
 
             {/* Vendor History */}
-            <VendorHistorySection booking={{ building_id: buildingId, id: row.id, description: row.description, counter_account_id: row.counter_account_id, account_id: row.account_id, counter_account: accounts.find((a: any) => a.id === row.counter_account_id) || null, invoices: invoiceDetail ? { vendor_name: invoiceDetail.vendor_name } : null }} />
+            <VendorHistorySection booking={{ building_id: buildingId, id: undefined, description: row.description, counter_account_id: row.counter_account_id, account_id: row.account_id, counter_account: accounts.find((a: any) => a.id === row.counter_account_id) || null, invoices: invoiceDetail ? { vendor_name: invoiceDetail.vendor_name } : null }} />
 
             {/* Book button */}
-            <Button onClick={onBook} disabled={isBooking || !row.account_id} className="w-full h-9 text-sm">
+            <Button ref={el => { fieldRefs.current["__book__"] = el; }} onClick={onBook} disabled={isBooking || !row.account_id} className="w-full h-9 text-sm">
               {isBooking ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle className="h-4 w-4 mr-2" />}
               {row.needs_review ? "Buchen & Zur Prüfung" : "Buchen"}
             </Button>
