@@ -68,3 +68,95 @@ export function amountOnAccount(accountId: string, booking: BookingLike): number
   if (booking.counter_account_id === accountId) return -amt;
   return 0;
 }
+
+/**
+ * Quelle des Anfangsbestands eines Kontos für ein Wirtschaftsjahr.
+ *  - "booking_4000": Erkannt aus Eröffnungsbuchung gegen Konto 4000 (SKR-Standard).
+ *  - "manual":       Manueller Eintrag in account_balances.opening_balance.
+ *  - "none":         Weder Buchung noch manueller Eintrag vorhanden.
+ */
+export type OpeningBalanceSource = "booking_4000" | "manual" | "none";
+
+export interface OpeningBalanceResult {
+  amount: number;
+  source: OpeningBalanceSource;
+  /** Anzahl Eröffnungsbuchungen gegen 4000, falls source='booking_4000' */
+  bookingCount?: number;
+  /** Datum der letzten erkannten Eröffnungsbuchung (ISO) */
+  bookingDate?: string;
+}
+
+interface OpeningBookingLike extends BookingLike {
+  booking_date?: string | null;
+}
+
+interface AccountBalanceLike {
+  account_id: string;
+  opening_balance: number | string | null;
+}
+
+/**
+ * Erster Tag des Wirtschaftsjahres (vereinfacht: 01.01.YYYY).
+ * Hinweis: bei abweichendem Wirtschaftsjahr ggf. erweitern.
+ */
+function isFirstDayOfFiscalYear(dateStr: string | null | undefined, fiscalYear: number): boolean {
+  if (!dateStr) return false;
+  // Akzeptiere alle Buchungen im Januar des Wirtschaftsjahres als Eröffnungsbuchung,
+  // wenn sie das Saldovortragskonto 4000 berühren — praxisnah, da Eröffnungen
+  // oft nicht exakt am 01.01. gebucht werden.
+  return dateStr.startsWith(`${fiscalYear}-01-`);
+}
+
+/**
+ * Ermittelt den effektiven Anfangsbestand eines Kontos.
+ * Priorität: (A) Eröffnungsbuchungen gegen Konto 4000 im Januar des WJ,
+ *            (B) manueller Eintrag in account_balances,
+ *            (C) 0.
+ *
+ * @param accountId       Konto, für das der Anfangsbestand gesucht wird
+ * @param bookings        Alle Buchungen des WJ (account_id, counter_account_id, amount, booking_date)
+ * @param accountBalances Einträge aus account_balances für das WJ
+ * @param fiscalYear      Wirtschaftsjahr
+ * @param openingAccountId  ID des Kontos 4000 (Eröffnungsbuchungen)
+ */
+export function getEffectiveOpeningBalance(
+  accountId: string,
+  bookings: OpeningBookingLike[],
+  accountBalances: AccountBalanceLike[],
+  fiscalYear: number,
+  openingAccountId: string | null | undefined,
+): OpeningBalanceResult {
+  // Priorität A: Eröffnungsbuchungen gegen Konto 4000
+  if (openingAccountId && accountId !== openingAccountId) {
+    const openingBookings = bookings.filter((b) => {
+      if (!isFirstDayOfFiscalYear(b.booking_date, fiscalYear)) return false;
+      const touchesAccount = b.account_id === accountId || b.counter_account_id === accountId;
+      const touchesOpening = b.account_id === openingAccountId || b.counter_account_id === openingAccountId;
+      return touchesAccount && touchesOpening;
+    });
+    if (openingBookings.length > 0) {
+      const amount = openingBookings.reduce((s, b) => s + amountOnAccount(accountId, b), 0);
+      const lastDate = openingBookings
+        .map((b) => b.booking_date || "")
+        .sort()
+        .reverse()[0];
+      return {
+        amount,
+        source: "booking_4000",
+        bookingCount: openingBookings.length,
+        bookingDate: lastDate || undefined,
+      };
+    }
+  }
+
+  // Priorität B: manueller Eintrag
+  const manual = accountBalances.find((b) => b.account_id === accountId);
+  if (manual && manual.opening_balance !== null && manual.opening_balance !== undefined) {
+    const amount = Number(manual.opening_balance) || 0;
+    if (amount !== 0) {
+      return { amount, source: "manual" };
+    }
+  }
+
+  return { amount: 0, source: "none" };
+}
