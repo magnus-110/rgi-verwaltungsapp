@@ -11,6 +11,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Switch } from "@/components/ui/switch";
 import { BarChart3, ChevronDown, ChevronRight, Download, Users, PiggyBank, AlertTriangle, Check, FileText, Building2, Loader2, Search, Calculator, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { getEffectiveOpeningBalance } from "./lib/bookingAggregation";
 
 interface BillingSettlementProps {
   buildingId: string;
