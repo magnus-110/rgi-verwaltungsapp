@@ -1,69 +1,87 @@
 
 
 ## Ziel
-1. **Enter-Navigation im Prüfmodus** komplett durchspielen, Amount-Feld mit Auto-Select beim Klick, nach **MwSt** direkt zum **Buchen**-Button (§35a, Brennstoff, Kreditor-Historie überspringen).
-2. **Kreditor-Historie reparieren**, sodass bei Personenkonten (z. B. „Hausgeld Gottfried") die bestehenden Buchungen tatsächlich angezeigt werden.
+
+1. **Enter-Navigation** für Konto, Gegenkonto und Wirtschaftsjahr reparieren – Enter im jeweiligen Feld muss ins nächste Feld springen (bisher bleibt der Fokus stehen, weil `AccountSearchSelect` keinen Commit-Handler bekommt und das Wirtschaftsjahr-Feld ein number-Input mit Sonderverhalten ist).
+2. **Teilbuchungen können einzeln rückgängig gemacht werden**, direkt aus der gebuchten Zeile – nicht erst nachdem alle Splits gebucht sind.
 
 ## Ursachen
 
 ### Enter-Navigation
-In `TransactionReviewMode.tsx`:
-- `FIELD_ORDER` enthält `receipt_number`, das gar nicht im Formular gerendert wird, und übergeht `fiscal_year`. Nach MwSt (`vat_rate`) wird zwar gebucht, aber die Reihenfolge passt nicht zur tatsächlichen UI (Belegnummer → Beleg-Datum → Wirtschaftsjahr → MwSt).
-- Klick ins Betrags-Feld setzt nur den Cursor hinter das Vorzeichen, markiert aber nicht den vorhandenen Wert → Tippen ergänzt statt zu überschreiben.
-- `handleEnterNavigation` setzt Fokus nicht zuverlässig in das Select-Trigger und die letzte Aktion ruft `handleBookRow` direkt – statt die Buchung über den sichtbaren Button-Zustand mit Validierung auszulösen.
+- **Konto / Gegenkonto** (`AccountSearchSelect`): Beim Auswählen via Maus/Enter wird zwar `onChange` ausgelöst, aber kein `onCommit` weitergegeben. In `BookingRowCard` ist die Komponente ohne `onCommit`-Prop eingebunden → kein Sprung zum nächsten Feld. Auch wenn der Trigger fokussiert ist und Enter gedrückt wird (ohne Popover zu öffnen), fehlt der Sprung.
+- **Wirtschaftsjahr**: Ist als `<Input type="number">` korrekt verdrahtet, aber `handleEnterNavigation` springt zwar ins MwSt-Feld – das funktioniert. Problem: Der Nutzer beschreibt, dass auch hier Enter nichts tut. Ursache: `Select` ohne offenem Menü konsumiert Enter nicht; Fokus liegt nach Tab oft auf dem Trigger des Vorgängers. Wir verstärken das Verhalten durch konsistenten `onCommit`-Sprung.
+- **`pendingBookingIdsRef` Bug bei Splits**: `booking.id` ist beim Split mehrfach derselbe (insert returns single), wird in undo benötigt – muss korrekt pro Row gehalten werden.
 
-### Kreditor-Historie
-In `VendorHistorySection.tsx`:
-- `booking.id` ist im Prüfmodus ein synthetischer String wie `"row-1"` (kein UUID).
-- Die Query `…neq("id", booking.id)` läuft gegen eine UUID-Spalte → PostgREST-Fehler → `Promise.all` schlägt fehl → keine Daten, Anzeige „Keine weiteren Buchungen gefunden".
-- Zusätzlich wird `vendorName` aus dem Buchungstext abgeleitet („Hausgeld 0002 Whg. 2 / OG …"), wodurch die Tokens (`Hausgeld`, `0002`, `Whg`) keine Treffer in den realen Buchungen liefern. Die exakte Suche per `counter_account_id` greift nur, wenn der UUID-Filter nicht crasht.
+### Teilbuchung rückgängig
+- Aktuell wird `undoStack` erst gepusht, wenn **alle** Splits gebucht sind (Zweig `if (allBooked)`). Eine einzelne Teilbuchung (ein Split-Part von mehreren) lässt sich nicht zurückrollen.
+- In der gebuchten Zeile ist nur `Trash2` für *unbooked* Rows sichtbar. Für `booked === true` gibt es keinen Undo-Button.
 
 ## Umsetzung
 
-### 1. Enter-Navigation & Tastatur-Flow (`TransactionReviewMode.tsx`)
+### 1. AccountSearchSelect → Enter springt zum nächsten Feld
 
-- `FIELD_ORDER` neu definieren, exakt in der UI-Reihenfolge inkl. „Buchen"-Sentinel:
-  ```
-  ["account_id", "amount", "counter_account_id", "description",
-   "booking_reference", "booking_date", "fiscal_year", "vat_rate", "__book__"]
-  ```
-- `handleEnterNavigation`:
-  - Beim Sprung in das nächste Feld konsequent `focus()` für Inputs und für Select-Trigger (`button[role=combobox]`) aufrufen.
-  - Wenn `nextField === "__book__"`: den Buchen-Button direkt fokussieren und klicken (nicht §35a/Brennstoff/Kreditor-Historie anspringen).
-- Buchen-Button mit `ref` versehen (`fieldRefs.current["__book__"]`), damit Fokus + Klick deterministisch funktionieren.
-- `MwSt`-Select: nach Auswahl per Maus oder per Pfeil + Enter ebenfalls direkt zum Buchen-Button springen (über bestehendes `handleEnterNavigation`).
+**`src/components/finance/AccountSearchSelect.tsx`**
+- Schon vorhandene `onCommit`-Prop wird in `handleSelect` (Maus/Enter im Popover) und im Trigger-`onKeyDown` aufgerufen → **keine Änderung nötig**.
 
-### 2. Betrags-Feld Auto-Select (`TransactionReviewMode.tsx`)
+**`src/components/finance/TransactionReviewMode.tsx` – `BookingRowCard`**
+- `AccountSearchSelect` für **Konto** bekommt `onCommit={() => focusField("amount")}`.
+- `AccountSearchSelect` für **Gegenkonto** bekommt `onCommit={() => focusField("description")}`.
+- Neue lokale Helper-Funktion `focusField(name)` (oder `handleEnterNavigation` mit synthetischem Event): fokussiert das Element aus `fieldRefs.current[name]`, selektiert bei Inputs den Inhalt; bei Select-Triggern `.focus()`.
 
-- `onFocus` und `onClick` am Amount-Input ändern:
-  - Beim Fokus: den Zahlenteil markieren (Position 1 bis Ende), sodass die nächste Eingabe den alten Wert ersetzt.
-- Klick-Logik vereinfachen: nicht den Cursor manuell auf 1 setzen, sondern `setSelectionRange(1, value.length)` aufrufen.
-- Vorzeichen bleibt geschützt (bestehende Backspace/Delete/Home-Logik bleibt).
+### 2. Wirtschaftsjahr → Enter springt zu MwSt zuverlässig
 
-### 3. Kreditor-Historie reparieren (`VendorHistorySection.tsx`)
+- Im `Input` für `fiscal_year` ist `handleEnterNavigation` schon registriert; wir stellen sicher, dass `fieldRefs.current["vat_rate"]` (Select-Trigger) tatsächlich `.focus()` annimmt. In `handleEnterNavigation` zusätzlich: wenn Element ein `button[role="combobox"]` ist, `el.focus()` direkt aufrufen (statt nur über `querySelector`). Damit funktioniert auch Enter aus dem Wirtschaftsjahr-Feld.
 
-- `neq("id", booking.id)` nur ausführen, wenn `booking.id` ein gültiger UUID ist (Regex-Check). Andernfalls weglassen.
-- Optional Prop `currentBookingId?: string` einführen, die im Prüfmodus weggelassen werden kann (kein synthetischer String mehr).
-- Die exakte Suche per `counter_account_id` zusätzlich aktivieren, wenn ein Personenkonto (Kontonummer beginnt mit `0` und Kategorie „Personenkonto" o. ä.) als Gegenkonto vorliegt – nicht nur wenn `description` leer ist.
-- Der Aufruf in `BookingRowCard` übergibt:
-  - `id: undefined` (statt `row.id`)
-  - weiterhin `counter_account_id`, `counter_account`, `building_id`, `description`, `invoices`
-- Damit liefert die Historie für „Hausgeld Gottfried" alle drei vorhandenen Buchungen (Jan/Feb/Mär 2025).
+### 3. MwSt → Buchen weiterhin via Enter
 
-### 4. Sichtbarer Hinweis in der UI
+- Bestehende Logik (`__book__` Sentinel) bleibt; nach Auswahl im MwSt-Select wird der Buchen-Button fokussiert und geklickt.
 
-- Header der Kreditor-Historie zeigt weiterhin den Vendor- bzw. Kontonamen, jetzt aber mit korrekter Trefferzahl.
-- Keine zusätzlichen Felder, keine Layout-Änderungen.
+### 4. Teilbuchung einzeln rückgängig machen
+
+**`TransactionReviewMode.tsx`**
+- `pendingBookingIdsRef` schon vorhanden – pro `currentTxn.id` wird Liste gepflegt. Diese erweitern auf **Map row.id → bookingId**, damit wir wissen, welche DB-Buchung zu welcher Zeile gehört.
+- Neuer State/Ref: `rowBookingMap: Record<txnId, Record<rowId, bookingId>>`. Beim erfolgreichen Insert eintragen.
+- Neue Funktion `undoSingleRow(rowId)`:
+  1. Lookup `bookingId` aus `rowBookingMap[currentTxn.id][rowId]`.
+  2. `supabase.from("bookings").delete().eq("id", bookingId)`.
+  3. Wenn die Transaktion bereits als komplett gebucht markiert war (`booked_at` gesetzt, weil es die letzte Teilbuchung war), `bank_transactions.update({ booked_at: null, booking_id: null })`.
+  4. Lokal: `setFormRows(rows => rows.map(r => r.id === rowId ? { ...r, booked: false } : r))`.
+  5. Map-Eintrag löschen, ggf. aus `undoStack` den entsprechenden Eintrag entfernen.
+  6. Toast „Teilbuchung rückgängig gemacht“; Query-Invalidate (`bookings-all`, `bank-transactions-*`).
+- Bestehender `undoLast` (Cmd+Z) bleibt unverändert für komplette Transaktionen.
+
+**UI in `BookingRowCard`**
+- Neben/statt des `Trash2`-Buttons in der Kopfzeile: wenn `row.booked === true`, einen `RotateCcw`-Button rendern, Tooltip „Teilbuchung rückgängig machen“. Klick ruft neue Prop `onUndoRow?.()` auf.
+- Wenn `row.booked === false`, weiterhin `Trash2` für „Zeile entfernen“ (bestehend).
+- Visuell: gebuchte Zeile bleibt grün hinterlegt (bestehend), Undo-Button rechts oben.
+
+**Props-Verdrahtung**
+- `BookingRowCard` bekommt zusätzliche Prop `onUndoRow?: () => void`.
+- In der `formRows.map(...)`-Schleife: `onUndoRow={() => undoSingleRow(row.id)}`.
+
+### 5. Robustheit
+
+- Vor Delete der Buchung prüfen, ob die zugeordnete Bank-Transaktion noch existiert; falls sie schon weiter verarbeitet wurde, Toast-Fehler.
+- Doppelklicks verhindern via `undoingRowId` State.
+- Cmd+Z bleibt unverändert (komplettes Tx-Undo).
 
 ## Betroffene Dateien
+
 - `src/components/finance/TransactionReviewMode.tsx`
-- `src/components/finance/VendorHistorySection.tsx`
+  - `handleEnterNavigation`: Combobox-Fokus verbessern.
+  - `BookingRowCard`: `onCommit` an beide `AccountSearchSelect` anhängen, neuer Undo-Button für gebuchte Zeilen.
+  - Neuer State `rowBookingMap`, neue Funktion `undoSingleRow`.
+  - In `handleBookRow`: `rowBookingMap` füllen.
+- `src/components/finance/AccountSearchSelect.tsx`: keine Änderung nötig (`onCommit` bereits vorhanden).
 
 ## QA
-- Prüfmodus öffnen, Hausgeld-Transaktion auswählen.
-- In Konto-Feld klicken → Enter springt nacheinander: Konto → Betrag → Gegenkonto → Buchungstext → Belegnummer → Beleg-Datum → Wirtschaftsjahr → MwSt → Buchen-Button.
-- Im Betrag-Feld: Klick markiert vorhandenen Wert, Tippen überschreibt sofort.
-- §35a, Brennstoff und Kreditor-Historie werden im Tab-/Enter-Flow übersprungen.
-- Kreditor-Historie aufklappen bei „Hausgeld Gottfried" → zeigt 3 Buchungen (01/25, 02/25, 03/25), Summe korrekt.
-- Bei realen (gespeicherten) Buchungen mit echter UUID funktioniert die Historie weiterhin.
+
+- Prüfmodus öffnen, Zeile expandieren.
+- Konto auswählen (Maus oder Enter im Popover) → Fokus springt automatisch in Betrag, Inhalt markiert.
+- Im Betrag Enter → springt zu Gegenkonto.
+- Gegenkonto auswählen → Fokus springt in Buchungstext.
+- Enter durchlaufen bis Wirtschaftsjahr → Enter springt in MwSt-Select.
+- MwSt wählen → Fokus & Auto-Klick auf Buchen-Button.
+- Split-Buchung mit 2 Teilen erstellen, ersten Teil buchen → grüne Zeile zeigt Undo-Button (RotateCcw). Klick → Buchung wird gelöscht, Zeile wieder editierbar, Toast „Teilbuchung rückgängig gemacht“.
+- Beide Teile buchen → Cmd+Z macht komplette Transaktion rückgängig (bestehendes Verhalten).
 
