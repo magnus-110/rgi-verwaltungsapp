@@ -111,7 +111,9 @@ export function HeatingAccountsSection({ buildingId, fiscalYear }: HeatingAccoun
       }
     });
 
-    return Array.from(rows.values()).sort((a, b) => a.account_number.localeCompare(b.account_number, "de"));
+    return Array.from(rows.values()).sort((a, b) =>
+      (a.account_number ?? "").localeCompare(b.account_number ?? "", "de")
+    );
   }, [heatingAccounts, bookings, prevBookings]);
 
   const getAccountTotal = (accountId: string, bkgs: typeof bookings) =>
