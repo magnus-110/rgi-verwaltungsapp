@@ -121,6 +121,24 @@ export function BalanceCarryForward({ buildingId, fiscalYear, periodId }: Balanc
     }
   };
 
+  const updateOpeningBalance = async (accountId: string, value: number) => {
+    const existing = currentBalances.find((b) => b.account_id === accountId);
+    const { error } = await supabase.from("account_balances").upsert({
+      building_id: buildingId,
+      account_id: accountId,
+      fiscal_year: fiscalYear,
+      opening_balance: value,
+      closing_balance: existing?.closing_balance ?? value,
+      is_carried_forward: true,
+    }, { onConflict: "building_id,account_id,fiscal_year" });
+
+    if (error) toast.error("Fehler beim Speichern");
+    else {
+      toast.success("Anfangsbestand gespeichert");
+      refetchCurrent();
+    }
+  };
+
   const allCarried = carryAccounts.length > 0 && carryAccounts.every((acc) => isCarriedForward(acc.id));
   const hasPrevData = prevBalances.length > 0;
 
