@@ -156,64 +156,17 @@ export const Dashboard = () => {
         </h1>
         <p className="text-sm md:text-base text-muted-foreground mt-1">
           Tagesübersicht über {stats.building_count} {stats.building_count === 1 ? "Gebäude" : "Gebäude"}
+          {isAdmin && portfolio && (
+            <>
+              {" "}·{" "}
+              <span className="font-medium text-foreground">
+                {(managementMode === "weg" ? portfolio.weg.units : portfolio.rent.units)}
+              </span>{" "}
+              {managementMode === "weg" ? "WEG-Einheiten" : "Miet-Einheiten"} verwaltet
+            </>
+          )}
         </p>
       </div>
-
-      {/* Portfolio overview — Admin only, mode-aware */}
-      {isAdmin && portfolio && (() => {
-        const current = managementMode === "weg" ? portfolio.weg : portfolio.rent;
-        const modeLabel = managementMode === "weg" ? "WEG" : "Miete";
-        const accent = managementMode === "weg"
-          ? "from-primary/10 via-primary/5 to-transparent border-primary/20"
-          : "from-orange-500/10 via-orange-500/5 to-transparent border-orange-500/20";
-        const iconBg = managementMode === "weg"
-          ? "bg-primary/15 text-primary"
-          : "bg-orange-500/15 text-orange-600 dark:text-orange-400";
-        return (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
-            <button
-              onClick={() => navigate("/buildings")}
-              className={cn(
-                "group text-left rounded-xl border bg-gradient-to-br p-5 transition-all hover:shadow-md hover:-translate-y-0.5",
-                accent
-              )}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={cn("h-11 w-11 rounded-lg flex items-center justify-center", iconBg)}>
-                    <Building2 className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{modeLabel}-Gebäude</p>
-                    <p className="text-3xl font-bold tabular-nums leading-none mt-1">{current.buildings}</p>
-                  </div>
-                </div>
-                <ChevronRight className="h-5 w-5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-            </button>
-            <button
-              onClick={() => navigate("/buildings")}
-              className={cn(
-                "group text-left rounded-xl border bg-gradient-to-br p-5 transition-all hover:shadow-md hover:-translate-y-0.5",
-                accent
-              )}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={cn("h-11 w-11 rounded-lg flex items-center justify-center", iconBg)}>
-                    <Home className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{modeLabel}-Einheiten</p>
-                    <p className="text-3xl font-bold tabular-nums leading-none mt-1">{current.units}</p>
-                  </div>
-                </div>
-                <ChevronRight className="h-5 w-5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-            </button>
-          </div>
-        );
-      })()}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
