@@ -42,6 +42,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
+  const [saveCounter, setSaveCounter] = useState(0);
 
   const [form, setForm] = useState({
     building_id: "",
@@ -103,7 +104,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
       trigger?.click();
     }, 150);
     return () => clearTimeout(t);
-  }, [open, prefill]);
+  }, [open, prefill, saveCounter]);
 
   const { data: accounts = [] } = useQuery({
     queryKey: ["chart-of-accounts", form.building_id],
@@ -164,6 +165,7 @@ export function CreateBookingDialog({ open, onOpenChange, buildings, preselected
     }});
     // Maske bleibt offen – nur Felder leeren, damit sofort die nächste Buchung erfasst werden kann
     resetForm();
+    setSaveCounter(c => c + 1);
   };
 
   const resetForm = () => {
