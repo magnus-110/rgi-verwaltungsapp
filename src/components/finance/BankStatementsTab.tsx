@@ -320,6 +320,20 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     }
   };
 
+  const openReviewForTxn = (txnId: string) => {
+    // Recompute the order to mirror allUnbookedForReview, marking the just-assigned txn as matched
+    const matched = allBuildingTxns.filter((t: any) =>
+      t.id === txnId || (["matched_invoice", "matched_template", "manually_matched"].includes(t.match_status) && !t.booked_at)
+    );
+    const unmatched = allBuildingTxns.filter((t: any) =>
+      t.id !== txnId && (t.match_status === "unmatched" || t.match_status === "invoice_pending") && !t.booked_at
+    );
+    const ordered = [...matched, ...unmatched];
+    const idx = ordered.findIndex((t: any) => t.id === txnId);
+    setReviewInitialIndex(idx >= 0 ? idx : 0);
+    setReviewModeOpen(true);
+  };
+
   const handleManualAssign = async () => {
     if (!manualAssignTxn || !manualAssignId) return;
     const updateData: any = {
@@ -330,7 +344,8 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
     };
     if (manualAssignType === "invoice") { updateData.matched_invoice_id = manualAssignId; }
     else { updateData.matched_template_id = manualAssignId; }
-    const { error } = await supabase.from("bank_transactions").update(updateData).eq("id", manualAssignTxn.id);
+    const txnId = manualAssignTxn.id;
+    const { error } = await supabase.from("bank_transactions").update(updateData).eq("id", txnId);
     if (error) { toast.error("Fehler beim Zuordnen"); }
     else {
       toast.success("Transaktion manuell zugeordnet");
@@ -340,6 +355,7 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
       resetAiPrefetch();
       queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
       queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+      openReviewForTxn(txnId);
     }
   };
 
@@ -680,12 +696,14 @@ export function BankStatementsTab({ sharedBuildingId, onBuildingChange }: BankSt
           const { error } = await supabase.from("bank_transactions").update(updateData).eq("id", manualAssignTxn.id);
           if (error) { toast.error("Fehler beim Zuordnen"); }
           else {
+            const txnId = manualAssignTxn.id;
             toast.success("Transaktion manuell zugeordnet");
             setManualAssignTxn(null);
             setManualAssignId("");
             resetAiPrefetch();
             queryClient.invalidateQueries({ queryKey: ["bank-transactions-building"] });
             queryClient.invalidateQueries({ queryKey: ["bank-transactions-all"] });
+            openReviewForTxn(txnId);
           }
         }}
         onOpenBookingDialog={(prefill, hintIndex) => {
