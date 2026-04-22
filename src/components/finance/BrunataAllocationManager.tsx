@@ -221,6 +221,21 @@ export function BrunataAllocationManager({ buildingId, periodId, fiscalYear }: B
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Gating: erst nach Umbuchung auf 1400 freigeben */}
+        {account1400Total <= 0 && (
+          <div className="flex items-start gap-2 p-3 rounded-lg border border-amber-300 bg-amber-50 text-sm">
+            <AlertTriangle className="h-4 w-4 mt-0.5 text-amber-600 flex-shrink-0" />
+            <div className="text-amber-900">
+              <p className="font-medium">Bitte zuerst Heizkosten auf Konto 1400 umbuchen</p>
+              <p className="text-xs mt-1 text-amber-800">
+                Die Brunata-Werte können erst eingetragen werden, wenn die Brennstoff- und Wartungsrechnungen
+                über die Umbuchung (vorheriger Abschnitt „Heizkosten umbuchen") auf das Sammelkonto 1400
+                übertragen wurden. Aktueller Saldo Konto 1400: {formatCurrency(account1400Total)}.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Beleg-Upload */}
         <div className="flex items-center justify-between p-3 rounded-lg border border-dashed">
           <div className="flex items-center gap-2 text-sm">
@@ -273,6 +288,7 @@ export function BrunataAllocationManager({ buildingId, periodId, fiscalYear }: B
                         className="text-right font-mono h-8 w-32 ml-auto"
                         placeholder="0,00"
                         value={getDraftValue(a.id)}
+                        disabled={account1400Total <= 0}
                         onChange={(e) => setDrafts({ ...drafts, [a.id]: e.target.value })}
                       />
                     </TableCell>
@@ -300,7 +316,7 @@ export function BrunataAllocationManager({ buildingId, periodId, fiscalYear }: B
                   )
                 )}
               </div>
-              <Button size="sm" onClick={handleSave} disabled={saving || Object.keys(drafts).length === 0}>
+              <Button size="sm" onClick={handleSave} disabled={saving || account1400Total <= 0 || Object.keys(drafts).length === 0}>
                 {saving ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
                 Speichern
               </Button>
