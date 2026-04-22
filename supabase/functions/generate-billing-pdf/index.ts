@@ -1,6 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.52.1";
-import { sumForAccount } from "../_shared/booking-aggregation.ts";
+import {
+  sumForAccount,
+  getEffectiveOpeningBalance,
+  getEffectiveClosingBalance,
+} from "../_shared/booking-aggregation.ts";
+
+// Account-Number-Patterns (Single Source of Truth, gleich wie Frontend)
+const BANK_ACCOUNT_PATTERN = /^18\d{2}$/;        // 1800-1899 Banken (1800 Giro, 1810 Festgeld)
+const RESERVE_ACCOUNT_PATTERN = /^17[0-9]\d$/;   // 1700-1799 Rücklagen-Bilanzkonten
+const PERSONAL_ACCOUNT_PATTERN = /^0\d{3}$/;     // 0000-0999 Personenkonten
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
