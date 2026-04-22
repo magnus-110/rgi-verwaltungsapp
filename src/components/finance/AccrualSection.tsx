@@ -155,6 +155,74 @@ export function AccrualSection({ buildingId, fiscalYear, periodFrom, periodTo }:
     }
   };
 
+  /**
+   * Akzeptiert einen KI-Vorschlag und legt automatisch die Abgrenzungsbuchung
+   * gegen Konto 4900 (ARA, aktiv) bzw. 4910 (PRA, passiv) an.
+   *
+   * Erwartete Felder im Vorschlag (defensive Verarbeitung):
+   *   - bookingId / id: Quellbuchung
+   *   - amount: abzugrenzender Betrag (positiv)
+   *   - type: 'ara' | 'pra' (Default: 'ara' = aktiv = Aufwand reduzieren / ins Folgejahr)
+   *   - expenseAccountId: Aufwandskonto (optional, sonst account_id der Quellbuchung)
+   *   - description: Buchungstext
+   */
+  const acceptSuggestion = async (s: any, idx: number) => {
+    setAcceptingIdx(idx);
+    try {
+      const sourceId = s.bookingId || s.id || s.source_id;
+      const source = sourceId ? bookings.find((b: any) => b.id === sourceId) : null;
+      const amount = Math.abs(Number(s.amount ?? source?.amount ?? 0));
+      if (!amount || !source) {
+        toast.error("Vorschlag unvollständig — bitte manuell buchen");
+        return;
+      }
+      const type: "ara" | "pra" = (s.type === "pra" ? "pra" : "ara");
+      const accrualAccountNumber = type === "ara" ? "4900" : "4910";
+      const accrualAccount = accrualAccounts.find((a: any) => a.account_number === accrualAccountNumber);
+      if (!accrualAccount) {
+        toast.error(`Konto ${accrualAccountNumber} nicht gefunden`);
+        return;
+      }
+      const expenseAccountId = s.expenseAccountId || source.account_id;
+      if (!expenseAccountId) {
+        toast.error("Aufwandskonto unbekannt");
+        return;
+      }
+
+      // ARA: 4900 an Aufwandskonto (Aufwand reduzieren, Aktivposten aufbauen)
+      // PRA: Aufwandskonto an 4910 (Aufwand erhöhen, Passivposten aufbauen)
+      const accountId = type === "ara" ? accrualAccount.id : expenseAccountId;
+      const counterAccountId = type === "ara" ? expenseAccountId : accrualAccount.id;
+
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await supabase.from("bookings").insert({
+        building_id: buildingId,
+        fiscal_year: fiscalYear,
+        booking_date: yearEnd,
+        amount,
+        account_id: accountId,
+        counter_account_id: counterAccountId,
+        booking_category: "accrual",
+        booking_type: "abgrenzung",
+        description: s.description || `Abgrenzung ${type.toUpperCase()} aus Buchung vom ${source.booking_date}`,
+        status: "confirmed",
+        source: "manual",
+        created_by: user?.id,
+      });
+      if (error) throw error;
+
+      toast.success(`Abgrenzungsbuchung (${type.toUpperCase()}) angelegt`);
+      // Vorschlag entfernen
+      setAiSuggestions((prev) => (prev || []).filter((_, i) => i !== idx));
+      queryClient.invalidateQueries({ queryKey: ["accrual-bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["account-based-accruals"] });
+      queryClient.invalidateQueries({ queryKey: ["accrual-check-bookings"] });
+    } catch (e: any) {
+      toast.error("Fehler: " + (e.message || "Unbekannt"));
+    } finally {
+      setAcceptingIdx(null);
+    }
+  };
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
