@@ -203,6 +203,13 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
                 {isExpanded && (
                   <div className="px-4 pb-4 border-t">
                     <div className="pt-4">
+                      {step.id === "basics" && (
+                        <SettlementBasicsStep
+                          buildingId={selectedBuildingId}
+                          periodId={selectedPeriodId}
+                          fiscalYear={period.fiscal_year}
+                        />
+                      )}
                       {step.id === "review" && (
                         <div className="space-y-4">
                           <BalanceCarryForward
@@ -222,7 +229,7 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
                         <div className="space-y-4">
                           <HeatingAccountsSection buildingId={selectedBuildingId} fiscalYear={period.fiscal_year} />
                           <FuelInventorySection buildingId={selectedBuildingId} periodId={selectedPeriodId} fiscalYear={period.fiscal_year} />
-                          <HeatingExportSection buildingId={selectedBuildingId} periodId={selectedPeriodId} fiscalYear={period.fiscal_year} />
+                          <BrunataAllocationManager buildingId={selectedBuildingId} periodId={selectedPeriodId} fiscalYear={period.fiscal_year} />
                           <HeatingRebookingSection buildingId={selectedBuildingId} periodId={selectedPeriodId} fiscalYear={period.fiscal_year} />
                         </div>
                       )}
@@ -239,11 +246,6 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
             );
           })}
 
-          <BillingValidationPanel
-            periodId={selectedPeriodId}
-            buildingId={selectedBuildingId}
-            fiscalYear={period.fiscal_year}
-          />
           <BillingAiAnalysis
             buildingId={selectedBuildingId}
             periodId={selectedPeriodId}
