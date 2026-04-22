@@ -213,7 +213,7 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
           {STEPS.map((step, index) => {
             const isExpanded = expandedSteps.has(step.id);
             return (
-              <Card key={step.id} className="overflow-hidden">
+              <Card key={step.id} id={`billing-step-${step.id}`} className="overflow-hidden scroll-mt-24">
                 <button
                   onClick={() => toggleStep(step.id)}
                   className="w-full flex items-center gap-3 p-4 hover:bg-muted/30 text-left transition-colors"
