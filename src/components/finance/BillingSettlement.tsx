@@ -1065,9 +1065,35 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
             {generatingPdf ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />}
             Alle PDFs
           </Button>
-          <Button size="sm" variant="outline" onClick={exportCsv} disabled={ownerResults.length === 0}>
-            <Download className="h-4 w-4 mr-1" /> CSV
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline" disabled={ownerResults.length === 0}>
+                <Download className="h-4 w-4 mr-1" /> CSV <ChevronDown className="h-3 w-3 ml-1" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64 max-h-[400px] overflow-y-auto bg-popover">
+              <DropdownMenuItem onClick={exportOverallCsv}>
+                <FileText className="h-4 w-4 mr-2" /> Gesamtabrechnung
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportAllOwnersZip}>
+                <Download className="h-4 w-4 mr-2" /> Alle Einzelabrechnungen (ZIP)
+              </DropdownMenuItem>
+              {ownerResults.length > 0 && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">
+                    Einzelne Eigentümer
+                  </DropdownMenuLabel>
+                  {ownerResults.map((o) => (
+                    <DropdownMenuItem key={o.assignmentId} onClick={() => exportSingleOwnerCsv(o)}>
+                      <Users className="h-4 w-4 mr-2" />
+                      <span className="truncate">Einheit {o.unitNumber} — {o.name}</span>
+                    </DropdownMenuItem>
+                  ))}
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </CardHeader>
       <CardContent>
