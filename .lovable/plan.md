@@ -1,64 +1,233 @@
 
+## Ziel
+Die Abrechnung für **Birkenweg 6 / WJ 2025** soll aus den in Supabase hinterlegten Daten **rechnerisch auf dieselben Werte wie HV Office** kommen — nicht nur optisch ähnlich.
 
-# Plan: Kontenrahmen-Korrektur für saubere Jahres- und Einzelabrechnung
+## Warum das Ergebnis aktuell noch abweicht
 
-Vollständiger Audit aller 95 Konten im globalen Kontenrahmen + 3 Liegenschafts-Overrides für Birkenweg 6. Ziel: Jedes Konto hat konsistente, fachlich korrekte Settings.
+### 1) UI und PDF rechnen nicht mit derselben Datenbasis
+Die App-UI lädt Buchungen aktuell über `fiscal_year = 2025`, die PDF-Function dagegen über `booking_date` im Abrechnungszeitraum.  
+Dadurch fehlen in der UI periodisch relevante Buchungen, z. B. die **Gas-Rückerstattung 427,68 € auf 4130** mit `booking_date = 2025-02-18`, aber `fiscal_year = 2024`.
 
-## Was korrigiert wird (Daten-Migration, kein Code)
+Folge:
+- Abgrenzungen/Einnahmen weichen ab
+- UI und PDF können trotz identischer Daten unterschiedliche Werte zeigen
 
-### A) Müllkonten — §35a-Flags entfernen
-Müllabfuhr ist nach BFH-Rechtsprechung **keine** §35a-Leistung (kein Personeneinsatz im Haushalt).
-- **1010 Müllabfuhr**: `is_35a_relevant=false`, `settlement_35a_type=null`
+### 2) Die Kontensalden werden für Bank-/Bestandskonten fachlich falsch aggregiert
+Der aktuelle Helper `sumForAccount()` behandelt:
+- `account_id` immer als `+amount`
+- `counter_account_id` immer als `-amount`
 
-### B) Vermieter-/Leerstandskonten — richtige Sektion
-Diese Konten erfassen Kosten, die **nicht** auf Eigentümer/Mieter verteilt werden, sondern beim Vermieter bleiben.
-- **1031 Wasser Vermieteranteil**, **1051 Allgemeinstrom Vermieteranteil**, **1461 CO2 Vermieteranteil**: `settlement_section=operating_non_distributable` (statt distributable, da `vr=0` schon korrekt war)
+Das funktioniert für viele **Kostenkonten**, aber **nicht** für:
+- **1800 Giro**
+- **1810 Rücklage**
+- Personenkonten
+- Salden-/Bilanzkonten allgemein
 
-### C) Heizungs-Wartungskonten — saubere Trennung
-- **1431 Gerätemiete**: `is_35a_relevant=false`, `settlement_35a_type=null` (Miete, kein Handwerker)
-- **1430 Messdienst**: `is_35a_relevant=false` (Dienstleistung ohne Vor-Ort-Personal-Einsatz im Haushalt)
+Denn dort muss die Richtung von `booking_type` bzw. der fachlichen Kontoart abhängen.  
+Darum entstehen falsche Endbestände.
 
-### D) Instandhaltung 1600–1610 — für WEG umlagefähig
-In der WEG-Gesamtabrechnung wird laufende Instandhaltung auf alle Eigentümer nach MEA verteilt.
-- **1600, 1601, 1602, 1603, 1610**: `settlement_section=operating_distributable`
+### 3) Die Rücklagen-Zuführung wird nicht wie HV Office hergeleitet
+HV Office weist für 2025 eine **Zuführung zur Rücklage von 3.600,00 €** aus (im PDF als **1720**).  
+In der App fehlt dafür aktuell eine belastbare Quelle:
+- `economic_plans.total_reserve` ist leer
+- auf `1710/1720` liegt keine verwertbare Buchung
+- in `contact_building_costs` gibt es nur **Hausgeld**, aber keine getrennte **Rücklage**
 
-### E) Zinsen & Steuern auf Rücklage
-- **1840 Zinseinnahmen**: `settlement_section=reserve`, `is_distributable=false` (erhöht direkt die Rücklage, wird nicht verteilt)
-- 1850/1860 sind bereits korrekt
+Folge:
+- Reserveblock wird in der App zu klein oder 0
+- daraus folgen falsche Einzelabrechnung, falsche Abrechnungsspitze und falsche Rücklagen-Endstände
 
-### F) Mitteilungs-/Memo-Konten — aus der Abrechnung raus
-Reine Reportingkonten dürfen weder in Bewirtschaftung noch verteilt werden.
-- **1900, 1910, 1930**: `settlement_section=null`, `is_distributable=false`, `is_billing_relevant=false`, `default_vat_rate=0`
-- **7100, 7120 §35a-Bescheinigung**: `settlement_section=null`
+### 4) Die HV-Office-Logik trennt Hausgeld intern in Betriebskosten-Vorschuss und Rücklagen-Vorschuss
+HV Office zeigt:
+- Vorschüsse zur Kostendeckung
+- Vorschüsse auf EHR
 
-### G) 1920 Reparaturen aus Rücklage — Neutralisierung sicherstellen
-Damit die `is_reserve_funded`-Logik im PDF/Settlement greift, muss das Konto in der Bewirtschaftung erscheinen.
-- **1920**: `settlement_section=operating_distributable`, `is_distributable=true`, `default_vat_rate=0`
+In Supabase liegen die Zahlungen aber aktuell nur als **Hausgeld auf Personenkonten** vor.  
+Damit die App exakt gleich rechnet, muss sie diese Zahlungen **synthetisch in Betriebskostenanteil und Rücklagenanteil aufteilen**.
 
-### H) Summen-/System-Konten — keine Buchungen, keine MwSt
-- **1700, 1730, 1740, 1770, 1780**: `settlement_section=null`, `is_distributable=false`, `default_vat_rate=0` (reine Aggregat-Etiketten)
-- **00000, 09999.998, 09999.999**: `default_vat_rate=0` (System-Marker)
+### 5) Mindestens ein Building-Override ist noch falsch
+Für Birkenweg 6 sind noch Overrides aktiv, die nicht zu HV Office passen:
+- **1010** ist noch überschrieben
+- **1011** ist ebenfalls überschrieben, obwohl die HV-Abrechnung hier praktisch nach **MEA** verteilt
 
-### I) Verrechnungs-/Abgrenzungskonten — MwSt 0 %
-- **4000, 4010, 4020, 4021, 4025, 4030, 4040, 4100, 4110–4180, 4900, 4910, 9000**: `default_vat_rate=0`
+Folge:
+- Einzelabrechnung weicht je Einheit ab, obwohl die Buchungen identisch sind
 
-### J) Birkenweg 6 — falsche Overrides bereinigen
-- Override 1010 → `heizkostenverordnung` **löschen** (Müll nach Heizkostenverordnung ist sinnlos; fällt zurück auf Standard `mea`)
-- Overrides 1011 → `einheiten` und 1470 → `einheiten` **bestehen lassen** (waren bewusst gesetzt)
+### 6) Die Abrechnung enthält HV-Office-Synthesepositionen, die die App noch nicht sauber modelliert
+Dazu gehören insbesondere:
+- **Rücklagenzuführung (1720 / 1710-Äquivalent)**
+- **Vorschuss-Split Betrieb / EHR**
+- **WEG-Abrech.-Sollstellung (4020)**
+- saubere HV-konforme Behandlung von **4110 / 4130 / 4160 / 4180**
 
-## Was unverändert bleibt
-- Alle korrekt konfigurierten Aufwandskonten (1000, 1030–1090, 1100–1130, 1200, 1300–1303, 1400–1420, 1440, 1450, 1460, 1470–1473, 1500–1540, 1800, 1810)
-- Personenkonten 0001/0002/0003 (gestern bereits korrigiert)
+Diese Werte sind nicht einfach „gebuchte Kontensummen“, sondern teils **abgeleitete Jahresabrechnungswerte**.
 
-## Test nach Migration
-Birkenweg 6 / Abrechnung 2025 neu laden:
-- Warnung „Kein Verteilerschlüssel hinterlegt" sollte komplett leer sein
-- §35a-Bescheinigung enthält nur noch echte Handwerker-/Dienstleister-Konten
-- 1900/1910 erscheinen nirgends mehr in der Bewirtschaftung
-- Zinsen 1840 erhöhen die Rücklage statt verteilt zu werden
+---
 
-## Reihenfolge nach Approval
-1. Eine SQL-Migration mit allen `UPDATE chart_of_accounts SET …` und einem `DELETE FROM building_account_overrides WHERE id='ec30c219-…'`
-2. User testet Birkenweg 6 → Banner muss leer sein
-3. Falls weitere Inkonsistenzen auftauchen, Nachzieh-Migration
+## Was umgesetzt werden muss
 
+### A) Eine zentrale Abrechnungs-Engine bauen
+Die Logik darf nicht mehr doppelt existieren.
+
+Es wird eine gemeinsame Engine eingeführt, die von:
+- `src/components/finance/BillingSettlement.tsx`
+- `supabase/functions/generate-billing-pdf/index.ts`
+
+gleichermaßen verwendet wird.
+
+Diese Engine liefert:
+1. Gesamtabrechnung
+2. Einzelabrechnungen je Einheit
+3. Rücklagenentwicklung
+4. Vorschuss-Soll / Ist / Abrechnungsspitze
+5. HV-Office-kompatible synthetische Zeilen
+
+### B) Buchungen künftig immer periodisch statt nur per fiscal_year ziehen
+Für die Abrechnung werden Buchungen primär über:
+
+- `booking_date >= period_from`
+- `booking_date <= period_to`
+
+geladen.
+
+`fiscal_year` bleibt nur noch Kontroll-/Diagnosefeld, nicht Hauptfilter.
+
+### C) Bewegungslogik fachlich korrekt aufbauen
+Statt `sumForAccount()` für alles zu missbrauchen, wird ein normalisierter Bewegungsstrom eingeführt:
+
+```text
+Buchung
+→ fachlicher Bewegungsvektor je Konto
+→ je nach Kontoart / booking_type anders signiert
+```
+
+Getrennte Regeln für:
+- Aufwand/Ertrag
+- Bankkonten
+- Rücklagenkonten
+- Personenkonten
+- Abgrenzungskonten
+
+Damit werden Anfangs- und Endbestände endlich korrekt.
+
+### D) Rücklagenlogik HV-Office-konform machen
+Die Engine bekommt eine feste Prioritätslogik für die **jährliche Rücklagenzuführung**:
+
+1. expliziter Wirtschaftsplan (`economic_plans.total_reserve`)
+2. vorhandenes Plan-/Systemkonto (`1710/1720`)
+3. abgeleitete Rücklagen-Sollstellung aus Hausgeldstruktur / Stammdaten
+
+Zusätzlich wird die **Rücklagenentnahme 1920** weiterhin neutralisiert, aber nun gegen die korrekt ermittelte Zuführung gerechnet.
+
+### E) Vorschüsse in zwei Ebenen berechnen
+Die Engine berechnet getrennt:
+
+- **Vorschuss-Soll laut WPL**
+- **tatsächlich gezahlte Vorschüsse**
+- davon **Betriebskostenanteil**
+- davon **Rücklagenanteil**
+
+So können exakt die HV-Office-Zeilen erzeugt werden:
+- Vorschüsse zur Kostendeckung
+- Vorschüsse auf EHR
+- Abrechnungsspitze
+- Abrechnungssaldo
+
+### F) Konten- und Override-Fixes für Birkenweg 6 nachziehen
+Zusätzlich zur bisherigen Kontenrahmen-Korrektur werden die noch abweichenden Birkenweg-Overrides bereinigt, insbesondere:
+- 1010 nicht auf falschen Verteiler
+- 1011 nicht auf falschen Verteiler
+- Heiz-/Rücklagen-/Abgrenzungskonten nochmals gegen HV-Ergebnis prüfen
+
+---
+
+## Konkrete Bugs, die ich fixen werde
+
+1. `BillingSettlement.tsx` nutzt falschen Hauptfilter (`fiscal_year`) statt Periodenlogik
+2. `sumForAccount()` wird für Bank-/Saldo-Konten falsch verwendet
+3. Anfangs-/Endbestände 1800/1810 werden dadurch falsch berechnet
+4. Rücklagenzuführung fehlt, wenn `economic_plans.total_reserve` leer ist
+5. UI und PDF nutzen unterschiedliche Abrechnungslogik
+6. Vorschuss-Split Betrieb/EHR fehlt
+7. HV-Office-Synthesekonto 4020 wird nicht korrekt hergeleitet
+8. Building-Overrides für Birkenweg 6 sind noch nicht vollständig HV-konform
+9. Die PDF-Engine nutzt teilweise andere Reserve-/Kontenklassifikation als das Frontend
+10. Abgrenzungskonten 4110/4130/4160/4180 werden nicht strikt HV-konform periodisiert/dargestellt
+
+---
+
+## Zielbild des Systems nach dem Fix
+
+```text
+Supabase Buchungen + Stammdaten + Shares + Kosten + Heizwerte
+            ↓
+   Shared Settlement Engine
+            ↓
+  1. periodische Bewegungen
+  2. HV-konforme Ableitungen
+     - Betriebskosten
+     - Rücklagenzuführung
+     - Rücklagenentnahme
+     - Vorschuss Soll/Ist
+     - Abgrenzungen
+     - 4020 / Spitzenausweis
+            ↓
+  UI = PDF = CSV = exakt gleiche Zahlenbasis
+```
+
+---
+
+## Technische Umsetzung
+
+### Dateien
+- `src/components/finance/BillingSettlement.tsx`
+- `src/components/finance/lib/bookingAggregation.ts`
+- neue Shared-Settlement-Helpers im Frontend
+- `supabase/functions/_shared/booking-aggregation.ts`
+- `supabase/functions/generate-billing-pdf/index.ts`
+- ggf. neue Migration für korrigierte `building_account_overrides`
+
+### Rechenmodell
+Es werden drei getrennte Rechenebenen eingeführt:
+
+1. **Bewegungsrechnung**
+   - aus realen Buchungen
+   - streng nach `booking_date`
+
+2. **Plan-/Sollrechnung**
+   - Hausgeld-Soll
+   - Rücklagen-Soll
+   - Eigentümerverpflichtung
+
+3. **Abrechnungsableitung**
+   - HV-konforme Gesamtabrechnung
+   - HV-konforme Einzelabrechnung
+   - Abrechnungsspitze / Abrechnungssaldo
+   - synthetische Abrechnungszeilen
+
+### Validierung gegen Birkenweg 6
+Nach Umsetzung wird Birkenweg 6 / 2025 explizit gegen die beigefügten PDFs geprüft:
+
+- Anfangsbestand Giro
+- Anfangsbestand Rücklage
+- Heizkosten gesamt
+- nicht umlagefähige Kosten
+- Rücklagenzuführung
+- Rücklagenentnahme
+- Abgrenzungen
+- Abrechnungssumme gesamt
+- Vorschussverpflichtung gesamt
+- Abrechnungsspitze gesamt
+- Einzelwerte Einheit 0001 / 0002 / 0003
+
+---
+
+## Reihenfolge
+1. Shared-Settlement-Engine definieren
+2. Periodenfilter und Bewegungslogik korrigieren
+3. Bank-/Saldo-Logik für 1800/1810 fachlich richtig machen
+4. Reserve-Soll und Vorschuss-Split implementieren
+5. 4020 / Abgrenzungslogik HV-konform ergänzen
+6. Building-Overrides Birkenweg 6 korrigieren
+7. UI, PDF und CSV vollständig auf dieselbe Engine umstellen
+8. Birkenweg 6 / 2025 gegen die HV-Office-PDFs numerisch abgleichen
