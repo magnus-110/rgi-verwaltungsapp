@@ -20,9 +20,9 @@ interface BillingSettlementProps {
 }
 
 const DIST_KEY_TO_SHARE: Record<string, string> = {
-  mea: "mea", einheiten: "einheit", qm: "qm", personen: "personen",
+  mea: "mea", einheiten: "einheit", units: "einheit", qm: "qm", personen: "personen",
   verbrauch_wasser: "wasser", verbrauch_warmwasser: "warmwasser",
-  heizkostenverordnung: "heizkosten",
+  heizkostenverordnung: "heizkosten", heating_individual: "heizkosten",
 };
 
 const SHARE_LABELS: Record<string, string> = {
