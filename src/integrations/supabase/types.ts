@@ -1142,6 +1142,7 @@ export type Database = {
           name: string
           type: string | null
           unit_count: number
+          unit_count_for_billing: number | null
           updated_at: string | null
         }
         Insert: {
@@ -1155,6 +1156,7 @@ export type Database = {
           name: string
           type?: string | null
           unit_count?: number
+          unit_count_for_billing?: number | null
           updated_at?: string | null
         }
         Update: {
@@ -1168,6 +1170,7 @@ export type Database = {
           name?: string
           type?: string | null
           unit_count?: number
+          unit_count_for_billing?: number | null
           updated_at?: string | null
         }
         Relationships: []
