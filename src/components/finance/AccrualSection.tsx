@@ -274,10 +274,22 @@ export function AccrualSection({ buildingId, fiscalYear, periodFrom, periodTo }:
             </CardHeader>
             <CardContent className="pt-0 space-y-2">
               {aiSuggestions.map((s: any, i: number) => (
-                <div key={i} className="text-sm p-2 rounded bg-background border">
-                  <div className="font-medium">{s.title || s.description}</div>
-                  {s.suggestion && <div className="text-muted-foreground mt-1">{s.suggestion}</div>}
-                  {s.amount && <div className="font-mono text-xs mt-1">Betrag: {new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(s.amount)}</div>}
+                <div key={i} className="text-sm p-2 rounded bg-background border flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium">{s.title || s.description}</div>
+                    {s.suggestion && <div className="text-muted-foreground mt-1">{s.suggestion}</div>}
+                    {s.amount && <div className="font-mono text-xs mt-1">Betrag: {new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(s.amount)}</div>}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => acceptSuggestion(s, i)}
+                    disabled={acceptingIdx === i}
+                    className="flex-shrink-0"
+                  >
+                    {acceptingIdx === i ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Check className="h-3.5 w-3.5 mr-1" />}
+                    Buchen
+                  </Button>
                 </div>
               ))}
             </CardContent>
