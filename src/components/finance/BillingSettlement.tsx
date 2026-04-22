@@ -326,11 +326,17 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     const close = getEffectiveClosingBalance(acc.id, bookings as any[], flatBalances, fiscalYear, opening4000Id);
     closingByAccount[acc.id] = close.amount;
   });
+  // Rücklagenkonten anhand der Kontonummer erkennen (DATEV: 1810/1820 = IHR/Sparbuch).
+  // Die category-Spalte enthält UI-Labels wie "4. WEG-Systemkonten & Rücklagen" und
+  // ist deshalb für die Aggregation ungeeignet.
+  const isReserveAccount = (a: any) =>
+    a.account_number === "1810" || a.account_number === "1820";
+
   const openingGiro = carryAccounts
-    .filter((a: any) => a.category !== "ruecklage")
+    .filter((a: any) => !isReserveAccount(a))
     .reduce((s: number, a: any) => s + (openingByAccount[a.id] || 0), 0);
   const openingReserve = carryAccounts
-    .filter((a: any) => a.category === "ruecklage")
+    .filter((a: any) => isReserveAccount(a))
     .reduce((s: number, a: any) => s + (openingByAccount[a.id] || 0), 0);
   const openingTotal = openingGiro + openingReserve;
 
@@ -343,10 +349,10 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     return closingByAccount[acc.id] || 0;
   };
   const closingGiro = carryAccounts
-    .filter((a: any) => a.category !== "ruecklage")
+    .filter((a: any) => !isReserveAccount(a))
     .reduce((s: number, a: any) => s + getClosing(a), 0);
   const closingReserve = carryAccounts
-    .filter((a: any) => a.category === "ruecklage")
+    .filter((a: any) => isReserveAccount(a))
     .reduce((s: number, a: any) => s + getClosing(a), 0);
   const closingTotal = closingGiro + closingReserve;
 
