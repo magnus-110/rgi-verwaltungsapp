@@ -310,11 +310,14 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     .reduce((s: number, a: any) => s + getClosing(a), 0);
   const closingTotal = closingGiro + closingReserve;
 
-  // Distributable total (for Einzelabrechnung) — exclude ARAP/PRAP (4110/4130 = Bilanzkonten, kein Aufwand)
+  // Distributable total (für Einzelabrechnung) — exclude:
+  //  - ARAP/PRAP (4110/4130 = Bilanzkonten, kein Aufwand)
+  //  - heating_prepayment Vorauszahlungskonten (1470–1473): reine Durchlaufkonten
   const isAccrualBalanceAccount = (a: any) =>
     a.account_number === "4110" || a.account_number === "4130" || a.settlement_section === "accrual";
+  const isHeatingPrepayAccount = (a: any) => a.settlement_section === "heating_prepayment";
   const totalDistributable = accounts
-    .filter((a) => a.is_distributable && !isAccrualBalanceAccount(a))
+    .filter((a) => a.is_distributable && !isAccrualBalanceAccount(a) && !isHeatingPrepayAccount(a))
     .reduce((s, a) => s + getAccountBookingTotal(a.id), 0);
 
   // Abrechnungssumme
