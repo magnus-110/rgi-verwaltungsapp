@@ -568,9 +568,18 @@ serve(async (req) => {
             <tr><td>Ihr Kostenanteil (brutto)</td><td class="r mono">${formatCurrency(owner.totalOwnerCost)}</td></tr>
             ${reserveLine}
             <tr><td><strong>Ihr Kostenanteil (netto)</strong></td><td class="r mono"><strong>${formatCurrency(owner.netOwnerCost)}</strong></td></tr>
-            <tr><td>./. Hausgeld-Vorauszahlungen</td><td class="r mono">- ${formatCurrency(owner.annualHausgeld)}</td></tr>
-            ${owner.annualReserve > 0 ? `<tr><td>./. Rücklagenzuführung</td><td class="r mono">- ${formatCurrency(owner.annualReserve)}</td></tr>` : ""}
-            <tr class="grand-total"><td><strong>${resultLabel}</strong></td><td class="r mono"><strong>${formatCurrency(Math.abs(owner.result))}</strong></td></tr>
+            <tr><td>./. Geleistete Vorauszahlungen</td><td class="r mono">- ${formatCurrency(owner.totalPaid)}</td></tr>
+            <tr class="grand-total"><td><strong>${resultLabel} (Abrechnungssaldo)</strong></td><td class="r mono"><strong>${formatCurrency(Math.abs(owner.result))}</strong></td></tr>
+          </table>
+
+          <h2>Vorschuss-Soll & Abrechnungsspitze</h2>
+          <table>
+            <tr><td>Vorschussverpflichtung lt. Wirtschaftsplan (Soll)</td><td class="r mono">${formatCurrency(owner.totalVorschuss)}</td></tr>
+            <tr><td>Tatsächlich geleistete Vorauszahlungen</td><td class="r mono">${formatCurrency(owner.totalPaid)}</td></tr>
+            <tr class="section-total">
+              <td><strong>Abrechnungsspitze</strong> (${owner.abrechnungsspitze >= 0 ? "Nachzahlung Vorschuss" : "Guthaben Vorschuss"})</td>
+              <td class="r mono"><strong>${formatCurrency(Math.abs(owner.abrechnungsspitze))}</strong></td>
+            </tr>
           </table>
 
           <div class="result-box ${resultClass}">
