@@ -757,6 +757,14 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     ];
     if (subtitle) lines.push(row(subtitle));
     lines.push("");
+    // Warnblock bei fehlenden Verteilerschlüsseln
+    if (distributionWarnings.length > 0) {
+      lines.push(row("WARNUNG", "Folgende Konten konnten nicht verteilt werden:"));
+      distributionWarnings.forEach((w) => {
+        lines.push(row("", `${w.accountNumber} ${w.accountName}`, fmtNum(w.amount), w.reason));
+      });
+      lines.push("");
+    }
     return lines;
   };
 
