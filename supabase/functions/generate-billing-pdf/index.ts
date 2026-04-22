@@ -1,6 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.52.1";
-import { sumForAccount } from "../_shared/booking-aggregation.ts";
+import {
+  sumForAccount,
+  getEffectiveOpeningBalance,
+  getEffectiveClosingBalance,
+} from "../_shared/booking-aggregation.ts";
+
+// Account-Number-Patterns (Single Source of Truth, gleich wie Frontend)
+const BANK_ACCOUNT_PATTERN = /^18\d{2}$/;        // 1800-1899 Banken (1800 Giro, 1810 Festgeld)
+const RESERVE_ACCOUNT_PATTERN = /^17[0-9]\d$/;   // 1700-1799 Rücklagen-Bilanzkonten
+const PERSONAL_ACCOUNT_PATTERN = /^0\d{3}$/;     // 0000-0999 Personenkonten
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -93,6 +102,15 @@ serve(async (req) => {
       ? Number((planItems as any).total_reserve)
       : 0;
 
+    // Bug 4 fix: heating_repost-Buchungen rausfiltern (sonst doppelte Heizkosten auf 1400)
+    const bookingsExclHeatingRepost = allBookings.filter(
+      (b: any) => b.booking_category !== "heating_repost",
+    );
+
+    // Eröffnungskonto 4000 — wird für getEffective*Balance gebraucht
+    const openingAccount = allAccounts.find((a: any) => a.account_number === "4000");
+    const openingAccountId = openingAccount?.id ?? null;
+
     // Helpers
     const getDistKey = (accountId: string, defaultKey: string | null) => {
       const override = (overrides || []).find((o: any) => o.account_id === accountId);
@@ -111,25 +129,34 @@ serve(async (req) => {
       return Math.max(0, (effectiveEnd - effectiveStart) / 86400000 + 1) / totalDays;
     };
 
-    // Bug 1 fix: bank-centric aggregation via sumForAccount (account_id OR counter_account_id)
+    // Day-precision Annualisierung (Bug 8): genaue Tage statt grober 12/4/1-Faktoren
+    const periodDays = (() => {
+      const s = new Date(period.period_from).getTime();
+      const e = new Date(period.period_to).getTime();
+      return (e - s) / 86400000 + 1;
+    })();
+
+    // Bug 1 fix: bank-zentrische Aggregation; heating_repost rausgefiltert für Heizkonto 1400
     const billingAccounts = allAccounts.filter((a: any) => a.is_billing_relevant || a.settlement_section);
     const accountTotals = billingAccounts.map((acc: any) => {
       const distKey = getDistKey(acc.id, acc.default_distribution_key);
-      const total = sumForAccount(acc.id, allBookings as any);
+      const sourceBookings = acc.is_heating_relevant
+        ? bookingsExclHeatingRepost
+        : allBookings;
+      const total = sumForAccount(acc.id, sourceBookings as any);
       const absTotal = Math.abs(total);
       const wpItem = (planItems as any)?.economic_plan_items?.find((i: any) => i.account_id === acc.id);
       const wpAmount = wpItem ? Number(wpItem.planned_amount || 0) : 0;
       return { ...acc, total, absTotal, distKey, wpAmount };
     });
 
-    // Bug 3 fix: heating_prepayment is a Durchlaufkonto — exclude from totalExpenses
+    // Sektionen — Bug 5: WP hat Vorrang, Buchungs-Summe als Fallback wenn Plan = 0
     const sectionOrder = ["income", "operating_distributable", "operating_non_distributable", "accrual", "reserve", "reserve_withdrawal"];
     const sections = sectionOrder.map(sec => {
       const accountsInSec = accountTotals.filter((a: any) => a.settlement_section === sec && a.absTotal > 0);
-      // For "reserve" section: use planned amount from economic_plans (Bug 4 fix)
       let total = accountsInSec.reduce((s: number, a: any) => s + a.absTotal, 0);
       if (sec === "reserve" && totalReserveFromPlan > 0) {
-        total = totalReserveFromPlan;
+        total = totalReserveFromPlan; // WP-Override
       }
       return {
         id: sec,
@@ -140,19 +167,25 @@ serve(async (req) => {
       };
     }).filter(s => s.accounts.length > 0 || (s.id === "reserve" && s.total > 0));
 
-    // Bug 4 fix: identify reserve-funded accounts via flag (no hard-coded account number)
+    // Reserve-finanzierte Aufwände (1920 etc.) — Neutralisation auf Gesamt- und Eigentümerebene
     const reserveFundedAccounts = allAccounts.filter((a: any) => a.is_reserve_funded);
     const totalReserveWithdrawal = reserveFundedAccounts.reduce(
       (s: number, a: any) => s + Math.abs(sumForAccount(a.id, allBookings as any)),
       0,
     );
 
-    // Distributable accounts for Einzelabrechnung (exclude heating_prepayment, accrual balance accounts)
+    // Bug 2 fix: Personenkonten + income-Sektion + Abgrenzungs-Bilanzkonten ausschließen
     const isAccrualBalanceAccount = (a: any) =>
       a.account_number === "4110" || a.account_number === "4130" || a.settlement_section === "accrual";
     const isHeatingPrepayAccount = (a: any) => a.settlement_section === "heating_prepayment";
+    const isPersonalAccount = (a: any) => PERSONAL_ACCOUNT_PATTERN.test(a.account_number || "");
     const distributableAccounts = accountTotals.filter((a: any) =>
-      a.is_distributable && !isAccrualBalanceAccount(a) && !isHeatingPrepayAccount(a) && a.absTotal > 0
+      a.is_distributable
+      && !isPersonalAccount(a)                  // Bug 2: 0001-0999 raus
+      && a.settlement_section !== "income"      // Bug 2: Einnahmen-Sektion raus
+      && !isAccrualBalanceAccount(a)
+      && !isHeatingPrepayAccount(a)
+      && a.absTotal > 0
     );
 
     const getShareTotal = (shareType: string) => {
@@ -166,28 +199,41 @@ serve(async (req) => {
       }, 0);
     };
 
-    // Opening / closing balances (carry-forward accounts)
-    const openingGiro = (balances || [])
-      .filter((b: any) => b.chart_of_accounts?.category === "bank")
-      .reduce((s: number, b: any) => s + Number(b.opening_balance), 0);
-    const openingRL = (balances || [])
-      .filter((b: any) => b.chart_of_accounts?.category === "ruecklage")
-      .reduce((s: number, b: any) => s + Number(b.opening_balance), 0);
-    const closingGiro = (balances || [])
-      .filter((b: any) => b.chart_of_accounts?.category === "bank")
-      .reduce((s: number, b: any) => s + Number(b.closing_balance), 0);
-    const closingRL = (balances || [])
-      .filter((b: any) => b.chart_of_accounts?.category === "ruecklage")
-      .reduce((s: number, b: any) => s + Number(b.closing_balance), 0);
+    // Bugs 1+3 fix: Anfangs-/Schlussbestände via getEffective*Balance + settlement_section + Pattern-Backup
+    const isBankAccount = (a: any) =>
+      a.settlement_section === "bank" || BANK_ACCOUNT_PATTERN.test(a.account_number || "");
+    const isReserveBalanceAccount = (a: any) =>
+      // Reserve-Bilanzkonto im Sinne von Vermögensbestand (Festgeld 1810 etc.) — NICHT Personenkonten/Aufwände
+      (a.settlement_section === "reserve" || RESERVE_ACCOUNT_PATTERN.test(a.account_number || ""))
+      && a.carry_forward_balance === true
+      && !isPersonalAccount(a);
+
+    const bankAccountsForBalance = allAccounts.filter(isBankAccount);
+    const reserveAccountsForBalance = allAccounts.filter(isReserveBalanceAccount);
+    const balancesArr = (balances || []) as any[];
+
+    const sumOpening = (accs: any[]) =>
+      accs.reduce((s, a) => s + getEffectiveOpeningBalance(a.id, allBookings as any, balancesArr, fiscalYear, openingAccountId).amount, 0);
+    const sumClosing = (accs: any[]) =>
+      accs.reduce((s, a) => {
+        // Manueller closing_balance als Override, sonst berechnet
+        const manual = balancesArr.find(b => b.account_id === a.id);
+        if (manual && manual.closing_balance != null && Number(manual.closing_balance) !== 0) {
+          return s + Number(manual.closing_balance);
+        }
+        return s + getEffectiveClosingBalance(a.id, allBookings as any, balancesArr, fiscalYear, openingAccountId).amount;
+      }, 0);
+
+    const openingGiro = sumOpening(bankAccountsForBalance);
+    const openingRL = sumOpening(reserveAccountsForBalance);
+    const closingGiro = sumClosing(bankAccountsForBalance);
+    const closingRL = sumClosing(reserveAccountsForBalance);
 
     const totalIncome = sections.find(s => s.id === "income")?.total || 0;
-    // Bug 3 fix: exclude income AND heating_prepayment (already excluded in sectionOrder)
     const totalExpenses = sections.filter(s => s.id !== "income").reduce((s, sec) => s + sec.total, 0);
 
-    // Bug 2 fix: Personenkonten-Pattern (0001..0999, ≠ 0000)
-    const personalAccountPattern = /^0\d{3}$/;
     const personalAccounts = allAccounts.filter(
-      (a: any) => personalAccountPattern.test(a.account_number) && a.account_number !== "0000"
+      (a: any) => PERSONAL_ACCOUNT_PATTERN.test(a.account_number) && a.account_number !== "0000"
     );
     const padUnit = (n: string | number | null | undefined) => {
       const s = String(n ?? "").replace(/\D/g, "");
@@ -272,16 +318,20 @@ serve(async (req) => {
         (a: any) => a.account_number === padUnit(assignment.unit_number)
       );
 
+      // Bug 8 fix: Day-precision Annualisierung statt grober 12/4/1-Faktoren
       const calcAnnual = (types: string[]) => costs
         .filter((c: any) => types.includes(c.cost_type))
         .reduce((s: number, c: any) => {
           const amount = Number(c.amount);
+          // Tagesäquivalent pro Intervall: monatlich ≈ 365/12, quartal ≈ 365/4, jährlich = 365
+          let perDay = 0;
           switch (c.interval) {
-            case "monatlich": return s + amount * 12;
-            case "quartal": return s + amount * 4;
-            case "jaehrlich": return s + amount;
-            default: return s + amount * 12;
+            case "monatlich": perDay = amount * 12 / 365; break;
+            case "quartal":   perDay = amount * 4  / 365; break;
+            case "jaehrlich": perDay = amount      / 365; break;
+            default:          perDay = amount * 12 / 365; break;
           }
+          return s + perDay * periodDays;
         }, 0) * timeProportion;
 
       const annualHausgeld = ownerAccount
@@ -290,10 +340,17 @@ serve(async (req) => {
       const annualReserve = ownerAccount ? 0 : calcAnnual(["ruecklage"]);
       const totalPaid = annualHausgeld + annualReserve;
 
+      // Bug 7: Vorschussverpflichtung (SOLL laut Stammdaten) — gleiche Formel wie totalPaid,
+      // unabhängig von tatsächlichen Buchungen. Damit lässt sich die Abrechnungsspitze ausweisen.
+      const totalVorschuss = calcAnnual(["hausgeld", "nebenkosten", "ruecklage"]);
+
       // Bug 4 neutralization: subtract owner's share of reserve-funded expense from cost
-      // (cost remains in breakdown for transparency, but doesn't double-charge)
       const netOwnerCost = totalOwnerCost - ownerReserveWithdrawal;
       const result = totalPaid - netOwnerCost;
+
+      // Bug 7: Abrechnungsspitze = Soll-Vorschuss − geleistete Vorauszahlungen
+      // (positiv = Eigentümer hat zu wenig gezahlt, negativ = zu viel)
+      const abrechnungsspitze = totalVorschuss - totalPaid;
 
       return {
         assignmentId: assignment.id,
@@ -308,6 +365,8 @@ serve(async (req) => {
         annualHausgeld,
         annualReserve,
         totalPaid,
+        totalVorschuss,
+        abrechnungsspitze,
         result,
         total35aDienste,
         total35aHandwerker,
@@ -380,6 +439,8 @@ serve(async (req) => {
       const totalOwnerCosts = ownerResults.reduce((s, o) => s + o.netOwnerCost, 0);
       const totalOwnerPaid = ownerResults.reduce((s, o) => s + o.totalPaid, 0);
       const totalOwnerResult = ownerResults.reduce((s, o) => s + o.result, 0);
+      const totalOwnerVorschuss = ownerResults.reduce((s, o) => s + o.totalVorschuss, 0);
+      const totalAbrechnungsspitze = totalOwnerVorschuss - totalOwnerPaid;
 
       return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${sharedStyles}</style></head><body>
         <div class="page">
@@ -422,6 +483,16 @@ serve(async (req) => {
               <td class="r mono">${formatCurrency(totalOwnerCosts)}</td>
               <td class="r mono">${formatCurrency(totalOwnerPaid)}</td>
               <td class="r mono">${formatCurrency(totalOwnerResult)}</td>
+            </tr>
+          </table>
+
+          <h2>Vorschuss-Soll & Abrechnungsspitze (WEG-weit)</h2>
+          <table>
+            <tr><td>Vorschussverpflichtung lt. Wirtschaftsplan (Soll)</td><td class="r mono">${formatCurrency(totalOwnerVorschuss)}</td></tr>
+            <tr><td>Tatsächlich geleistete Vorauszahlungen</td><td class="r mono">${formatCurrency(totalOwnerPaid)}</td></tr>
+            <tr class="section-total">
+              <td><strong>Abrechnungsspitze WEG</strong> (${totalAbrechnungsspitze >= 0 ? "Nachzahlung" : "Guthaben"})</td>
+              <td class="r mono"><strong>${formatCurrency(Math.abs(totalAbrechnungsspitze))}</strong></td>
             </tr>
           </table>
 
@@ -509,9 +580,18 @@ serve(async (req) => {
             <tr><td>Ihr Kostenanteil (brutto)</td><td class="r mono">${formatCurrency(owner.totalOwnerCost)}</td></tr>
             ${reserveLine}
             <tr><td><strong>Ihr Kostenanteil (netto)</strong></td><td class="r mono"><strong>${formatCurrency(owner.netOwnerCost)}</strong></td></tr>
-            <tr><td>./. Hausgeld-Vorauszahlungen</td><td class="r mono">- ${formatCurrency(owner.annualHausgeld)}</td></tr>
-            ${owner.annualReserve > 0 ? `<tr><td>./. Rücklagenzuführung</td><td class="r mono">- ${formatCurrency(owner.annualReserve)}</td></tr>` : ""}
-            <tr class="grand-total"><td><strong>${resultLabel}</strong></td><td class="r mono"><strong>${formatCurrency(Math.abs(owner.result))}</strong></td></tr>
+            <tr><td>./. Geleistete Vorauszahlungen</td><td class="r mono">- ${formatCurrency(owner.totalPaid)}</td></tr>
+            <tr class="grand-total"><td><strong>${resultLabel} (Abrechnungssaldo)</strong></td><td class="r mono"><strong>${formatCurrency(Math.abs(owner.result))}</strong></td></tr>
+          </table>
+
+          <h2>Vorschuss-Soll & Abrechnungsspitze</h2>
+          <table>
+            <tr><td>Vorschussverpflichtung lt. Wirtschaftsplan (Soll)</td><td class="r mono">${formatCurrency(owner.totalVorschuss)}</td></tr>
+            <tr><td>Tatsächlich geleistete Vorauszahlungen</td><td class="r mono">${formatCurrency(owner.totalPaid)}</td></tr>
+            <tr class="section-total">
+              <td><strong>Abrechnungsspitze</strong> (${owner.abrechnungsspitze >= 0 ? "Nachzahlung Vorschuss" : "Guthaben Vorschuss"})</td>
+              <td class="r mono"><strong>${formatCurrency(Math.abs(owner.abrechnungsspitze))}</strong></td>
+            </tr>
           </table>
 
           <div class="result-box ${resultClass}">
