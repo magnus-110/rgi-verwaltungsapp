@@ -1,15 +1,15 @@
-import { useState, useEffect } from "react";
-import { BillingPeriodSelector } from "./BillingPeriodSelector";
+import { useState, useEffect, useMemo } from "react";
 import { FuelInventorySection } from "./FuelInventorySection";
 import { HeatingAccountsSection } from "./HeatingAccountsSection";
-import { HeatingExportSection } from "./HeatingExportSection";
 import { HeatingRebookingSection } from "./HeatingRebookingSection";
 import { AccrualSection } from "./AccrualSection";
 import { BillingSettlement } from "./BillingSettlement";
-import { BillingValidationPanel } from "./BillingValidationPanel";
 import { BillingAiAnalysis } from "./BillingAiAnalysis";
 import { BookingReviewSection } from "./BookingReviewSection";
 import { BalanceCarryForward } from "./BalanceCarryForward";
+import { SettlementBasicsStep } from "./SettlementBasicsStep";
+import { SettlementStatusBar, type SettlementStep } from "./SettlementStatusBar";
+import { BrunataAllocationManager } from "./BrunataAllocationManager";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,10 +17,11 @@ import { Badge } from "@/components/ui/badge";
 import { ChevronDown, ChevronRight, Check, AlertTriangle } from "lucide-react";
 
 const STEPS = [
-  { id: "review", label: "Buchungsprüfung", description: "Buchungen je Konto prüfen und Vollständigkeit kontrollieren" },
-  { id: "heating", label: "Heizkosten", description: "Heizkonten, Brennstoff und Umbuchung auf Heizkostenkonto" },
-  { id: "accruals", label: "Abgrenzungen", description: "Jahresübergreifende Leistungszeiträume prüfen" },
-  { id: "settlement", label: "Gesamtabrechnung", description: "Kosten verteilen und Einzelabrechnungen erstellen" },
+  { id: "basics", label: "Grundlagen", description: "Anfangsbestände, Hausgelder & IHR-Plan" },
+  { id: "review", label: "Buchungen prüfen", description: "Vollständigkeit und Kategorisierung" },
+  { id: "heating", label: "Heizkosten", description: "Brennstoff, Brunata-Werte, Umbuchung" },
+  { id: "accruals", label: "Abgrenzungen", description: "Jahresübergreifende Leistungszeiträume" },
+  { id: "settlement", label: "Abrechnung erzeugen", description: "Gesamt & Einzel + PDF" },
 ];
 
 interface BillingTabProps {
@@ -202,6 +203,13 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
                 {isExpanded && (
                   <div className="px-4 pb-4 border-t">
                     <div className="pt-4">
+                      {step.id === "basics" && (
+                        <SettlementBasicsStep
+                          buildingId={selectedBuildingId}
+                          periodId={selectedPeriodId}
+                          fiscalYear={period.fiscal_year}
+                        />
+                      )}
                       {step.id === "review" && (
                         <div className="space-y-4">
                           <BalanceCarryForward
@@ -221,7 +229,7 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
                         <div className="space-y-4">
                           <HeatingAccountsSection buildingId={selectedBuildingId} fiscalYear={period.fiscal_year} />
                           <FuelInventorySection buildingId={selectedBuildingId} periodId={selectedPeriodId} fiscalYear={period.fiscal_year} />
-                          <HeatingExportSection buildingId={selectedBuildingId} periodId={selectedPeriodId} fiscalYear={period.fiscal_year} />
+                          <BrunataAllocationManager buildingId={selectedBuildingId} periodId={selectedPeriodId} fiscalYear={period.fiscal_year} />
                           <HeatingRebookingSection buildingId={selectedBuildingId} periodId={selectedPeriodId} fiscalYear={period.fiscal_year} />
                         </div>
                       )}
@@ -238,11 +246,6 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
             );
           })}
 
-          <BillingValidationPanel
-            periodId={selectedPeriodId}
-            buildingId={selectedBuildingId}
-            fiscalYear={period.fiscal_year}
-          />
           <BillingAiAnalysis
             buildingId={selectedBuildingId}
             periodId={selectedPeriodId}
