@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Wallet, PiggyBank, Users, Info, AlertTriangle, Check } from "lucide-react";
+import { Wallet, PiggyBank, Users, Info, AlertTriangle, Check, FileClock } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { getEffectiveOpeningBalance } from "./lib/bookingAggregation";
