@@ -1,0 +1,568 @@
+/**
+ * ManualEconomicPlanEditor — Wirtschaftsplan ohne Vorjahresperiode anlegen.
+ *
+ * Workflow:
+ *  1. Lädt alle wirtschaftsplanrelevanten Konten der Liegenschaft
+ *  2. Lädt (oder erzeugt) Plan-Datensatz mit source='manual'
+ *  3. Inline-Edit pro Konto, Auto-Save (debounced)
+ *  4. Tab "Einzelpläne": Live-Berechnung über MEA + Override pro Zelle
+ *  5. Aktivieren-Button → status='active' (Trigger archiviert alte aktive)
+ */
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Loader2, RotateCcw, CheckCircle2, Eye, Edit3, AlertTriangle, Save } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
+import { EconomicPlanLayout, PlanRow } from "./EconomicPlanLayout";
+import { cn } from "@/lib/utils";
+
+interface Props {
+  buildingId: string;
+  fiscalYear: number;
+}
+
+const formatCurrency = (n: number) =>
+  new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n || 0);
+
+export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const [mode, setMode] = useState<"edit" | "preview">("edit");
+  const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
+
+  // Local edit cache (account_id → planned_amount)
+  const [drafts, setDrafts] = useState<Record<string, number>>({});
+  // Local edit cache for unit overrides ("unit:account" → amount)
+  const [unitDrafts, setUnitDrafts] = useState<Record<string, number>>({});
+
+  // ── Building info ─────────────────────────────────────────────────
+  const { data: building } = useQuery({
+    queryKey: ["building-info-mep", buildingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("buildings").select("name, address").eq("id", buildingId).single();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // ── Plan (find or create) ─────────────────────────────────────────
+  const { data: plan, isLoading: loadingPlan } = useQuery({
+    queryKey: ["manual-plan", buildingId, fiscalYear],
+    queryFn: async () => {
+      // 1. Try find existing draft/active plan for this year
+      const { data: existing } = await supabase
+        .from("economic_plans" as any)
+        .select("*, economic_plan_items(*)")
+        .eq("building_id", buildingId)
+        .eq("fiscal_year", fiscalYear)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (existing) return existing as any;
+
+      // 2. None → create new draft
+      const { data: created, error } = await supabase
+        .from("economic_plans" as any)
+        .insert({
+          building_id: buildingId,
+          fiscal_year: fiscalYear,
+          source: "manual",
+          status: "draft",
+          total_costs: 0,
+          total_reserve: 0,
+        } as any)
+        .select("*, economic_plan_items(*)")
+        .single();
+      if (error) throw error;
+      return created as any;
+    },
+  });
+
+  // ── Wirtschaftsplan-relevant accounts ─────────────────────────────
+  const { data: accounts = [] } = useQuery({
+    queryKey: ["wp-accounts-manual", buildingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("chart_of_accounts")
+        .select("id, account_number, account_name, category, default_distribution_key, settlement_section")
+        .eq("is_wirtschaftsplan_relevant", true)
+        .or(`building_id.is.null,building_id.eq.${buildingId}`)
+        .order("account_number");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // ── Owner/Unit assignments + MEA ──────────────────────────────────
+  const { data: assignments = [] } = useQuery({
+    queryKey: ["mep-assignments", buildingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("contact_building_assignments")
+        .select(`
+          id, unit_number,
+          contacts(first_name, last_name, company_name),
+          contact_building_shares(share_type, share_value)
+        `)
+        .eq("building_id", buildingId)
+        .eq("is_active", true)
+        .in("role_in_building", ["eigentuemer"]);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // ── Unit overrides ────────────────────────────────────────────────
+  const { data: unitItems = [] } = useQuery({
+    queryKey: ["mep-unit-items", plan?.id],
+    queryFn: async () => {
+      if (!plan?.id) return [];
+      const { data, error } = await supabase
+        .from("economic_plan_unit_items" as any)
+        .select("*")
+        .eq("plan_id", plan.id);
+      if (error) throw error;
+      return (data as any) || [];
+    },
+    enabled: !!plan?.id,
+  });
+
+  // ── Build rows: merged plan items + accounts ──────────────────────
+  const rows: PlanRow[] = useMemo(() => {
+    const items = (plan?.economic_plan_items || []) as any[];
+    return accounts.map((acc: any) => {
+      const item = items.find((i) => i.account_id === acc.id);
+      const draft = drafts[acc.id];
+      return {
+        account_id: acc.id,
+        account_number: acc.account_number,
+        account_name: acc.account_name,
+        category: acc.settlement_section || acc.category || "Sonstige",
+        distribution_key: item?.distribution_key || acc.default_distribution_key || "mea",
+        planned_amount: draft !== undefined ? draft : Number(item?.planned_amount || 0),
+        manually_overridden: draft !== undefined || !!item?.manually_overridden,
+      };
+    });
+  }, [accounts, plan, drafts]);
+
+  const totalPlanned = rows.reduce((s, r) => s + r.planned_amount, 0);
+
+  // ── Auto-save (debounced) ─────────────────────────────────────────
+  const saveTimer = useRef<NodeJS.Timeout | null>(null);
+  const [savingState, setSavingState] = useState<"idle" | "pending" | "saved">("idle");
+
+  const flushSave = async () => {
+    if (!plan?.id) return;
+    setSavingState("pending");
+
+    const items = (plan.economic_plan_items || []) as any[];
+    const ops: Promise<any>[] = [];
+    for (const acc of accounts as any[]) {
+      const draftVal = drafts[acc.id];
+      if (draftVal === undefined) continue;
+      const existing = items.find((i) => i.account_id === acc.id);
+      if (existing) {
+        ops.push(
+          supabase.from("economic_plan_items" as any)
+            .update({ planned_amount: draftVal, manually_overridden: true } as any)
+            .eq("id", existing.id),
+        );
+      } else {
+        ops.push(
+          supabase.from("economic_plan_items" as any).insert({
+            plan_id: plan.id,
+            account_id: acc.id,
+            previous_amount: 0,
+            planned_amount: draftVal,
+            distribution_key: acc.default_distribution_key || "mea",
+            manually_overridden: true,
+          } as any),
+        );
+      }
+    }
+
+    // Update plan totals
+    const newTotal = rows.reduce((s, r) => s + r.planned_amount, 0);
+    ops.push(
+      supabase.from("economic_plans" as any)
+        .update({ total_costs: newTotal } as any)
+        .eq("id", plan.id),
+    );
+
+    await Promise.all(ops);
+    setDrafts({});
+    qc.invalidateQueries({ queryKey: ["manual-plan", buildingId, fiscalYear] });
+    setSavingState("saved");
+    setTimeout(() => setSavingState("idle"), 1500);
+  };
+
+  useEffect(() => {
+    if (Object.keys(drafts).length === 0) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => { flushSave(); }, 800);
+    return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drafts]);
+
+  // ── Auto-save unit overrides (debounced) ──────────────────────────
+  const unitSaveTimer = useRef<NodeJS.Timeout | null>(null);
+
+  const flushUnitSave = async () => {
+    if (!plan?.id) return;
+    const ops: Promise<any>[] = [];
+    Object.entries(unitDrafts).forEach(([key, amount]) => {
+      const [unitId, accountId] = key.split("|");
+      const existing = unitItems.find((u: any) => u.unit_id === unitId && u.account_id === accountId);
+      if (existing) {
+        ops.push(
+          supabase.from("economic_plan_unit_items" as any)
+            .update({ amount, manually_overridden: true, updated_by: user?.id } as any)
+            .eq("id", existing.id),
+        );
+      } else {
+        ops.push(
+          supabase.from("economic_plan_unit_items" as any).insert({
+            plan_id: plan.id,
+            unit_id: unitId,
+            account_id: accountId,
+            amount,
+            manually_overridden: true,
+            created_by: user?.id,
+          } as any),
+        );
+      }
+    });
+    await Promise.all(ops);
+    setUnitDrafts({});
+    qc.invalidateQueries({ queryKey: ["mep-unit-items", plan.id] });
+  };
+
+  useEffect(() => {
+    if (Object.keys(unitDrafts).length === 0) return;
+    if (unitSaveTimer.current) clearTimeout(unitSaveTimer.current);
+    unitSaveTimer.current = setTimeout(() => { flushUnitSave(); }, 800);
+    return () => { if (unitSaveTimer.current) clearTimeout(unitSaveTimer.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unitDrafts]);
+
+  // ── Activate plan ─────────────────────────────────────────────────
+  const activate = useMutation({
+    mutationFn: async () => {
+      if (!plan?.id) throw new Error("Kein Plan zum Aktivieren");
+      // Flush pending edits first
+      if (Object.keys(drafts).length > 0) await flushSave();
+      if (Object.keys(unitDrafts).length > 0) await flushUnitSave();
+      const { error } = await supabase
+        .from("economic_plans" as any)
+        .update({ status: "active", activated_by: user?.id } as any)
+        .eq("id", plan.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Wirtschaftsplan aktiviert");
+      qc.invalidateQueries({ queryKey: ["manual-plan", buildingId, fiscalYear] });
+    },
+    onError: (e: any) => toast.error("Aktivierung fehlgeschlagen: " + e.message),
+  });
+
+  // ── Reset single value to 0 ───────────────────────────────────────
+  const resetValue = async (accountId: string) => {
+    const items = (plan?.economic_plan_items || []) as any[];
+    const existing = items.find((i) => i.account_id === accountId);
+    if (existing) {
+      await supabase.from("economic_plan_items" as any).delete().eq("id", existing.id);
+      qc.invalidateQueries({ queryKey: ["manual-plan", buildingId, fiscalYear] });
+    }
+    setDrafts((p) => {
+      const n = { ...p }; delete n[accountId]; return n;
+    });
+  };
+
+  // ── Owner plan calculations ───────────────────────────────────────
+  const ownerData = useMemo(() => {
+    const meaTotal = assignments.reduce((s: number, a: any) => {
+      const mea = (a.contact_building_shares || []).find((sh: any) => sh.share_type === "mea");
+      return s + (mea ? Number(mea.share_value) : 0);
+    }, 0);
+
+    return assignments.map((a: any) => {
+      const c = a.contacts;
+      const name = c?.company_name || [c?.first_name, c?.last_name].filter(Boolean).join(" ") || "–";
+      const mea = (a.contact_building_shares || []).find((sh: any) => sh.share_type === "mea");
+      const meaValue = mea ? Number(mea.share_value) : 0;
+      const proportion = meaTotal > 0 ? meaValue / meaTotal : 0;
+      return { id: a.id, name, unitNumber: a.unit_number || "–", meaValue, proportion };
+    });
+  }, [assignments]);
+
+  // ── Unit-row builder (with override merge) ────────────────────────
+  const buildUnitRows = (unitId: string, proportion: number): PlanRow[] => {
+    return rows.map((r) => {
+      const overrideKey = `${unitId}|${r.account_id}`;
+      const draftOverride = unitDrafts[overrideKey];
+      const dbOverride = unitItems.find((u: any) => u.unit_id === unitId && u.account_id === r.account_id);
+      const overrideAmount = draftOverride !== undefined ? draftOverride : (dbOverride ? Number(dbOverride.amount) : null);
+      const isOverridden = overrideAmount !== null;
+      return {
+        ...r,
+        planned_amount: isOverridden ? overrideAmount! : r.planned_amount * proportion,
+        manually_overridden: isOverridden,
+      };
+    });
+  };
+
+  // ── Render ────────────────────────────────────────────────────────
+  if (loadingPlan || !plan) {
+    return (
+      <Card>
+        <CardContent className="py-12 flex items-center justify-center text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin mr-2" /> Lade Wirtschaftsplan…
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const isActive = plan.status === "active";
+  const periodLabel = `01.01.${fiscalYear} – 31.12.${fiscalYear}`;
+
+  return (
+    <TooltipProvider>
+      <div className="space-y-4">
+        {/* Header bar */}
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-semibold">Wirtschaftsplan {fiscalYear}</h2>
+            <Badge variant={isActive ? "default" : "outline"}>
+              {isActive ? "Aktiv" : plan.status === "archived" ? "Archiviert" : "Entwurf"}
+            </Badge>
+            <Badge variant="secondary" className="text-xs">
+              {plan.source === "manual" ? "Manuell erstellt" : plan.source === "previous_year" ? "Aus Vorjahr" : "ETV-Beschluss"}
+            </Badge>
+          </div>
+          <div className="flex items-center gap-2">
+            {savingState === "pending" && (
+              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" /> Speichern…
+              </span>
+            )}
+            {savingState === "saved" && (
+              <span className="text-xs text-emerald-600 flex items-center gap-1">
+                <CheckCircle2 className="h-3 w-3" /> Gespeichert
+              </span>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setMode(mode === "edit" ? "preview" : "edit")}
+            >
+              {mode === "edit" ? <Eye className="h-4 w-4 mr-1" /> : <Edit3 className="h-4 w-4 mr-1" />}
+              {mode === "edit" ? "Vorschau" : "Bearbeiten"}
+            </Button>
+            {!isActive && (
+              <Button
+                size="sm"
+                onClick={() => activate.mutate()}
+                disabled={activate.isPending || totalPlanned === 0}
+              >
+                {activate.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <CheckCircle2 className="h-4 w-4 mr-1" />}
+                Plan aktivieren
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <Tabs defaultValue="gesamt">
+          <TabsList>
+            <TabsTrigger value="gesamt">Gesamtwirtschaftsplan</TabsTrigger>
+            <TabsTrigger value="einzel">Einzelwirtschaftspläne ({ownerData.length})</TabsTrigger>
+          </TabsList>
+
+          {/* ── Tab: Gesamtplan ─────────────────────────────────── */}
+          <TabsContent value="gesamt" className="mt-4">
+            <EconomicPlanLayout
+              title={`Gesamtwirtschaftsplan ${fiscalYear}`}
+              subtitle={`Wirtschaftszeitraum: ${periodLabel}`}
+              buildingName={building?.name}
+              rows={rows}
+              renderAmountCell={mode === "edit" ? (row) => (
+                <div className="flex items-center gap-1 justify-end">
+                  <Input
+                    type="number"
+                    step="0.01"
+                    inputMode="decimal"
+                    value={row.planned_amount === 0 ? "" : row.planned_amount}
+                    placeholder="0,00"
+                    className="h-7 w-28 text-right font-mono text-xs"
+                    onChange={(e) => {
+                      const v = parseFloat(e.target.value.replace(",", ".")) || 0;
+                      setDrafts((p) => ({ ...p, [row.account_id]: v }));
+                    }}
+                  />
+                  <span className="text-muted-foreground text-xs">€</span>
+                </div>
+              ) : undefined}
+              renderActionCell={mode === "edit" ? (row) => (
+                row.manually_overridden && row.planned_amount > 0 ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => resetValue(row.account_id)}>
+                        <RotateCcw className="h-3 w-3 text-muted-foreground" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Auf 0 zurücksetzen</TooltipContent>
+                  </Tooltip>
+                ) : null
+              ) : undefined}
+              secondaryColumn={{
+                label: "€/Monat",
+                render: (row) => formatCurrency(row.planned_amount / 12),
+              }}
+            />
+
+            {totalPlanned === 0 && mode === "edit" && (
+              <Card className="mt-3 border-amber-200 bg-amber-50 dark:bg-amber-950/20">
+                <CardContent className="py-3 px-4 flex items-start gap-2 text-sm">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-amber-900 dark:text-amber-200">Plan ist leer</p>
+                    <p className="text-xs text-amber-800 dark:text-amber-300">
+                      Trage in jeder Zeile den geplanten Jahresbetrag ein. Auto-Save speichert nach 0,8 s.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* ── Tab: Einzelpläne ────────────────────────────────── */}
+          <TabsContent value="einzel" className="mt-4">
+            {ownerData.length === 0 ? (
+              <Card>
+                <CardContent className="py-8 text-center text-muted-foreground text-sm">
+                  Keine Eigentümer mit MEA hinterlegt. Bitte zuerst im Adressbereich pflegen.
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] gap-4">
+                {/* Owner list */}
+                <Card>
+                  <CardContent className="p-2 space-y-1">
+                    {ownerData.map((o) => {
+                      const sel = selectedUnitId === o.id || (selectedUnitId === null && o === ownerData[0]);
+                      return (
+                        <button
+                          key={o.id}
+                          onClick={() => setSelectedUnitId(o.id)}
+                          className={cn(
+                            "w-full text-left rounded-md px-3 py-2 text-sm hover:bg-muted transition-colors",
+                            sel && "bg-muted font-medium",
+                          )}
+                        >
+                          <div className="font-medium truncate">{o.name}</div>
+                          <div className="text-xs text-muted-foreground">
+                            WE {o.unitNumber} · {(o.proportion * 100).toFixed(2)}% MEA
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </CardContent>
+                </Card>
+
+                {/* Owner detail */}
+                {(() => {
+                  const owner = ownerData.find((o) => o.id === selectedUnitId) || ownerData[0];
+                  if (!owner) return null;
+                  const unitRows = buildUnitRows(owner.id, owner.proportion);
+                  const ownerTotal = unitRows.reduce((s, r) => s + r.planned_amount, 0);
+                  const calculatedTotal = totalPlanned * owner.proportion;
+                  const deviation = ownerTotal - calculatedTotal;
+
+                  return (
+                    <div className="space-y-3">
+                      {Math.abs(deviation) > 0.01 && (
+                        <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20">
+                          <CardContent className="py-2 px-3 flex items-center gap-2 text-xs">
+                            <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                            <span className="text-amber-900 dark:text-amber-200">
+                              Σ Einzelplan ({formatCurrency(ownerTotal)}) weicht von berechnetem Anteil
+                              ({formatCurrency(calculatedTotal)}) um {formatCurrency(deviation)} ab.
+                            </span>
+                          </CardContent>
+                        </Card>
+                      )}
+
+                      <EconomicPlanLayout
+                        title={`Einzelwirtschaftsplan – ${owner.name}`}
+                        subtitle={`WE ${owner.unitNumber} · ${(owner.proportion * 100).toFixed(2)}% MEA · ${periodLabel}`}
+                        buildingName={building?.name}
+                        rows={unitRows}
+                        renderAmountCell={mode === "edit" ? (row) => (
+                          <div className="flex items-center gap-1 justify-end">
+                            <Input
+                              type="number"
+                              step="0.01"
+                              inputMode="decimal"
+                              value={row.planned_amount === 0 ? "" : Number(row.planned_amount.toFixed(2))}
+                              placeholder="0,00"
+                              className={cn(
+                                "h-7 w-28 text-right font-mono text-xs",
+                                !row.manually_overridden && "text-muted-foreground italic",
+                              )}
+                              onChange={(e) => {
+                                const v = parseFloat(e.target.value.replace(",", ".")) || 0;
+                                setUnitDrafts((p) => ({ ...p, [`${owner.id}|${row.account_id}`]: v }));
+                              }}
+                            />
+                            <span className="text-muted-foreground text-xs">€</span>
+                          </div>
+                        ) : undefined}
+                        renderActionCell={mode === "edit" ? (row) => (
+                          row.manually_overridden ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 w-6 p-0"
+                                  onClick={async () => {
+                                    const dbOverride = unitItems.find((u: any) => u.unit_id === owner.id && u.account_id === row.account_id);
+                                    if (dbOverride) {
+                                      await supabase.from("economic_plan_unit_items" as any).delete().eq("id", dbOverride.id);
+                                      qc.invalidateQueries({ queryKey: ["mep-unit-items", plan.id] });
+                                    }
+                                    setUnitDrafts((p) => {
+                                      const n = { ...p }; delete n[`${owner.id}|${row.account_id}`]; return n;
+                                    });
+                                  }}
+                                >
+                                  <RotateCcw className="h-3 w-3 text-muted-foreground" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Override entfernen → berechneter Anteil</TooltipContent>
+                            </Tooltip>
+                          ) : null
+                        ) : undefined}
+                        secondaryColumn={{
+                          label: "€/Monat",
+                          render: (row) => formatCurrency(row.planned_amount / 12),
+                        }}
+                      />
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
+      </div>
+    </TooltipProvider>
+  );
+}
