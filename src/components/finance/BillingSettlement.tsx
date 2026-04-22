@@ -613,7 +613,18 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     });
   };
 
-  // PDF generation
+  // PDF generation — öffnet HTML als Blob in neuem Tab (umgeht Storage-MIME-Probleme)
+  const openHtmlInNewTab = (html: string) => {
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, "_blank");
+    if (!win) {
+      toast.error("Popup blockiert — bitte Popups erlauben");
+      return;
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  };
+
   const generatePdfs = async () => {
     setGeneratingPdf(true);
     try {
@@ -621,7 +632,8 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
         body: { buildingId, periodId, fiscalYear },
       });
       if (error) throw error;
-      if (data?.url) { window.open(data.url, "_blank"); toast.success("PDF erstellt"); }
+      if (data?.html) { openHtmlInNewTab(data.html); toast.success("Abrechnung erstellt — Strg+P für PDF-Druck"); }
+      else if (data?.url) { window.open(data.url, "_blank"); toast.success("Abrechnung erstellt"); }
     } catch (e: any) {
       toast.error("Fehler: " + (e.message || "Unbekannt"));
     } finally { setGeneratingPdf(false); }
@@ -634,7 +646,8 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
         body: { buildingId, periodId, fiscalYear, ownerId },
       });
       if (error) throw error;
-      if (data?.url) { window.open(data.url, "_blank"); toast.success(`PDF für ${ownerName} erstellt`); }
+      if (data?.html) { openHtmlInNewTab(data.html); toast.success(`Abrechnung für ${ownerName} — Strg+P für PDF-Druck`); }
+      else if (data?.url) { window.open(data.url, "_blank"); toast.success(`Abrechnung für ${ownerName} erstellt`); }
     } catch (e: any) {
       toast.error("Fehler: " + (e.message || "Unbekannt"));
     } finally { setGeneratingPdf(false); }
