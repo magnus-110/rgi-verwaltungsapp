@@ -40,13 +40,27 @@ export function SettlementBasicsStep({ buildingId, periodId, fiscalYear }: Settl
     },
   });
 
+  // Period (für Datumsbereich-Filter)
+  const { data: period } = useQuery({
+    queryKey: ["basics-period", periodId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("billing_periods")
+        .select("period_from, period_to")
+        .eq("id", periodId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
+
   // Carry-forward accounts + bookings + balances → Anfangsbestände
   const { data: accounts = [] } = useQuery({
     queryKey: ["basics-accounts", buildingId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("chart_of_accounts")
-        .select("id, account_number, account_name, category, carry_forward_balance")
+        .select("id, account_number, account_name, category, settlement_section, carry_forward_balance")
         .or(`building_id.is.null,building_id.eq.${buildingId}`);
       if (error) throw error;
       return data;
@@ -54,13 +68,15 @@ export function SettlementBasicsStep({ buildingId, periodId, fiscalYear }: Settl
   });
 
   const { data: bookings = [] } = useQuery({
-    queryKey: ["basics-bookings", buildingId, fiscalYear],
+    queryKey: ["basics-bookings", buildingId, period?.period_from, period?.period_to],
+    enabled: !!period,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bookings")
         .select("account_id, counter_account_id, amount, booking_date, booking_type")
         .eq("building_id", buildingId)
-        .eq("fiscal_year", fiscalYear)
+        .gte("booking_date", period!.period_from)
+        .lte("booking_date", period!.period_to)
         .neq("status", "cancelled");
       if (error) throw error;
       return data;
