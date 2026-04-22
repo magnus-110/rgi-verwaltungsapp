@@ -1190,6 +1190,31 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
 
           {/* ===== TAB 1: GESAMTABRECHNUNG ===== */}
           <TabsContent value="total" className="space-y-3">
+            {distributionWarnings.length > 0 && (
+              <Alert variant="destructive" className="border-destructive/50 bg-destructive/5 text-foreground">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>
+                  Verteilung unvollständig — {distributionWarnings.length}{" "}
+                  {distributionWarnings.length === 1 ? "Konto wird" : "Konten werden"} nicht verteilt
+                </AlertTitle>
+                <AlertDescription className="mt-2">
+                  <ul className="space-y-1 text-sm">
+                    {distributionWarnings.map((w) => (
+                      <li key={w.accountNumber}>
+                        <span className="font-mono">{w.accountNumber}</span>{" "}
+                        <span className="font-medium">{w.accountName}</span>{" "}
+                        <span className="text-muted-foreground">({formatCurrency(w.amount)})</span>
+                        {" — "}
+                        {w.reason}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    → Verteilerschlüssel im Kontenrahmen oder per Building-Override anpassen, dann Abrechnung neu laden.
+                  </p>
+                </AlertDescription>
+              </Alert>
+            )}
             {/* Anfangsbestände */}
             <div className="p-3 rounded-lg bg-muted/30 space-y-1">
               <div className="text-sm font-medium mb-1">Anfangsbestände zum {period ? new Date(period.period_from).toLocaleDateString("de-DE") : "–"}</div>
