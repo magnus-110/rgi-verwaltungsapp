@@ -324,6 +324,10 @@ export function SettlementBasicsStep({ buildingId, periodId, fiscalYear }: Settl
         </Card>
       )}
 
+      <div className="flex items-start gap-2 p-3 rounded-md border border-dashed text-xs text-muted-foreground">
+        <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+        <span>
+          Diese Grundlagen werden automatisch aus den Stammdaten gelesen und sind read-only. Sie ändern sich,
           sobald du Eröffnungsbuchungen erfasst, den Wirtschaftsplan aktualisierst oder Eigentümer-Zuordnungen anpasst.
         </span>
       </div>
