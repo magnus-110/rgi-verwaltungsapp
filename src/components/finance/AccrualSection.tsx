@@ -18,10 +18,26 @@ interface AccrualSectionProps {
 }
 
 export function AccrualSection({ buildingId, fiscalYear, periodFrom, periodTo }: AccrualSectionProps) {
+  const queryClient = useQueryClient();
   const [aiSuggesting, setAiSuggesting] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<any[] | null>(null);
+  const [acceptingIdx, setAcceptingIdx] = useState<number | null>(null);
   const yearStart = periodFrom || `${fiscalYear}-01-01`;
   const yearEnd = periodTo || `${fiscalYear}-12-31`;
+
+  // Abgrenzungskonten 4900 (ARA) / 4910 (PRA) für Auto-Buchung
+  const { data: accrualAccounts = [] } = useQuery({
+    queryKey: ["accrual-accounts", buildingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("chart_of_accounts")
+        .select("id, account_number, account_name")
+        .in("account_number", ["4900", "4910"])
+        .or(`building_id.is.null,building_id.eq.${buildingId}`);
+      if (error) throw error;
+      return data || [];
+    },
+  });
 
   const { data: bookings = [] } = useQuery({
     queryKey: ["accrual-check-bookings", buildingId, fiscalYear],
