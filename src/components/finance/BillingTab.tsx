@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { FuelInventorySection } from "./FuelInventorySection";
 import { HeatingAccountsSection } from "./HeatingAccountsSection";
 import { HeatingRebookingSection } from "./HeatingRebookingSection";
@@ -6,7 +6,6 @@ import { AccrualSection } from "./AccrualSection";
 import { BillingSettlement } from "./BillingSettlement";
 import { BillingAiAnalysis } from "./BillingAiAnalysis";
 import { BookingReviewSection } from "./BookingReviewSection";
-import { BalanceCarryForward } from "./BalanceCarryForward";
 import { SettlementBasicsStep } from "./SettlementBasicsStep";
 import { SettlementStatusBar, type SettlementStep } from "./SettlementStatusBar";
 import { BrunataAllocationManager } from "./BrunataAllocationManager";
@@ -44,7 +43,6 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
     onPeriodChange?.(id);
   };
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set(["review"]));
-  const [balanceStatus, setBalanceStatus] = useState<"idle" | "done" | "no_data">("idle");
 
   const { data: period } = useQuery({
     queryKey: ["billing-period-detail", selectedPeriodId],
@@ -60,78 +58,6 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
     },
     enabled: !!selectedPeriodId,
   });
-
-  // Auto balance carry-forward when period is selected
-  useEffect(() => {
-    if (!selectedBuildingId || !period) {
-      setBalanceStatus("idle");
-      return;
-    }
-
-    const autoCarryForward = async () => {
-      const fiscalYear = period.fiscal_year;
-      const prevYear = fiscalYear - 1;
-
-      // Get carry-forward accounts
-      const { data: carryAccounts } = await supabase
-        .from("chart_of_accounts")
-        .select("id")
-        .eq("carry_forward_balance", true)
-        .or(`building_id.is.null,building_id.eq.${selectedBuildingId}`);
-
-      if (!carryAccounts?.length) {
-        setBalanceStatus("no_data");
-        return;
-      }
-
-      // Check if already carried forward
-      const { data: existing } = await supabase
-        .from("account_balances")
-        .select("id")
-        .eq("building_id", selectedBuildingId)
-        .eq("fiscal_year", fiscalYear)
-        .eq("is_carried_forward", true)
-        .limit(1);
-
-      if (existing?.length) {
-        setBalanceStatus("done");
-        return;
-      }
-
-      // Get previous year balances
-      const { data: prevBalances } = await supabase
-        .from("account_balances")
-        .select("*")
-        .eq("building_id", selectedBuildingId)
-        .eq("fiscal_year", prevYear);
-
-      if (!prevBalances?.length) {
-        setBalanceStatus("no_data");
-        return;
-      }
-
-      // Upsert balances
-      const upserts = carryAccounts.map(acc => {
-        const prev = prevBalances.find(b => b.account_id === acc.id);
-        return {
-          building_id: selectedBuildingId,
-          account_id: acc.id,
-          fiscal_year: fiscalYear,
-          opening_balance: prev?.closing_balance ?? 0,
-          closing_balance: prev?.closing_balance ?? 0,
-          is_carried_forward: true,
-        };
-      });
-
-      await supabase.from("account_balances").upsert(upserts, {
-        onConflict: "building_id,account_id,fiscal_year",
-      });
-
-      setBalanceStatus("done");
-    };
-
-    autoCarryForward();
-  }, [selectedBuildingId, period]);
 
   const toggleStep = (stepId: string) => {
     setExpandedSteps((prev) => {
@@ -150,8 +76,8 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
         return { id: s.id, label: s.label, status: "todo", hint: s.description };
       }
       if (s.id === "basics") {
-        status = balanceStatus === "done" ? "ok" : balanceStatus === "no_data" ? "warning" : "todo";
-        hint = balanceStatus === "done" ? "Salden übernommen" : "Vorjahresdaten prüfen";
+        status = "todo";
+        hint = s.description;
       } else if (s.id === "review") {
         status = "todo";
         hint = "Buchungen prüfen";
@@ -167,7 +93,7 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
       }
       return { id: s.id, label: s.label, status, hint };
     });
-  }, [selectedBuildingId, selectedPeriodId, period, balanceStatus]);
+  }, [selectedBuildingId, selectedPeriodId, period]);
 
   const handleStepJump = (stepId: string) => {
     setExpandedSteps((prev) => {
@@ -240,26 +166,19 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
                         />
                       )}
                       {step.id === "review" && (
-                        <div className="space-y-4">
-                          <BalanceCarryForward
-                            buildingId={selectedBuildingId}
-                            fiscalYear={period.fiscal_year}
-                            periodId={selectedPeriodId}
-                          />
-                          <BookingReviewSection
-                            buildingId={selectedBuildingId}
-                            fiscalYear={period.fiscal_year}
-                            periodFrom={period.period_from}
-                            periodTo={period.period_to}
-                          />
-                        </div>
+                        <BookingReviewSection
+                          buildingId={selectedBuildingId}
+                          fiscalYear={period.fiscal_year}
+                          periodFrom={period.period_from}
+                          periodTo={period.period_to}
+                        />
                       )}
                       {step.id === "heating" && (
                         <div className="space-y-4">
                           <HeatingAccountsSection buildingId={selectedBuildingId} fiscalYear={period.fiscal_year} />
                           <FuelInventorySection buildingId={selectedBuildingId} periodId={selectedPeriodId} fiscalYear={period.fiscal_year} />
-                          <BrunataAllocationManager buildingId={selectedBuildingId} periodId={selectedPeriodId} fiscalYear={period.fiscal_year} />
                           <HeatingRebookingSection buildingId={selectedBuildingId} periodId={selectedPeriodId} fiscalYear={period.fiscal_year} />
+                          <BrunataAllocationManager buildingId={selectedBuildingId} periodId={selectedPeriodId} fiscalYear={period.fiscal_year} />
                         </div>
                       )}
                       {step.id === "accruals" && (

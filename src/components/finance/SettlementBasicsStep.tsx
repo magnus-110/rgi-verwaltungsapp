@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Wallet, PiggyBank, Users, Info, AlertTriangle, Check } from "lucide-react";
+import { Wallet, PiggyBank, Users, Info, AlertTriangle, Check, FileClock } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { getEffectiveOpeningBalance } from "./lib/bookingAggregation";
@@ -96,7 +96,22 @@ export function SettlementBasicsStep({ buildingId, periodId, fiscalYear }: Settl
     },
   });
 
-  // Wirtschaftsplan → IHR-Zuführung
+  // Vorjahres-Schlussbestände der Abgrenzungskonten (4900 ARA / 4910 PRA)
+  // → werden zu Beginn des Wirtschaftsjahres aufgelöst
+  const { data: prevAccrualBalances = [] } = useQuery({
+    queryKey: ["basics-prev-accruals", buildingId, fiscalYear],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("account_balances")
+        .select("closing_balance, chart_of_accounts!inner(account_number, account_name, settlement_section)")
+        .eq("building_id", buildingId)
+        .eq("fiscal_year", fiscalYear - 1)
+        .eq("chart_of_accounts.settlement_section", "accrual");
+      if (error) return [];
+      return data || [];
+    },
+  });
+
   const { data: economicPlan } = useQuery({
     queryKey: ["basics-economic-plan", buildingId, fiscalYear],
     queryFn: async () => {
@@ -274,6 +289,40 @@ export function SettlementBasicsStep({ buildingId, periodId, fiscalYear }: Settl
           </div>
         </CardContent>
       </Card>
+
+      {/* Offene Abgrenzungen aus Vorjahr (4900 ARA / 4910 PRA) */}
+      {prevAccrualBalances.length > 0 && (
+        <Card>
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-start gap-2">
+              <FileClock className="h-4 w-4 mt-0.5 text-primary" />
+              <div className="flex-1">
+                <p className="text-sm font-medium">Offene Abgrenzungen aus {fiscalYear - 1}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Diese Schlussbestände sind zu Beginn des Wirtschaftsjahres aufzulösen
+                  (Aufwandskonto an 4900 bzw. 4910 an Aufwandskonto).
+                </p>
+                <div className="mt-2 space-y-1">
+                  {prevAccrualBalances.map((b: any, i: number) => {
+                    const acc = b.chart_of_accounts;
+                    const value = Number(b.closing_balance) || 0;
+                    if (value === 0) return null;
+                    return (
+                      <div key={i} className="flex items-center justify-between text-sm">
+                        <span>
+                          <span className="font-mono text-xs text-muted-foreground mr-2">{acc?.account_number}</span>
+                          {acc?.account_name}
+                        </span>
+                        <span className="font-mono font-medium">{formatCurrency(value)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex items-start gap-2 p-3 rounded-md border border-dashed text-xs text-muted-foreground">
         <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />

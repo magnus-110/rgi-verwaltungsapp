@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,10 +18,26 @@ interface AccrualSectionProps {
 }
 
 export function AccrualSection({ buildingId, fiscalYear, periodFrom, periodTo }: AccrualSectionProps) {
+  const queryClient = useQueryClient();
   const [aiSuggesting, setAiSuggesting] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<any[] | null>(null);
+  const [acceptingIdx, setAcceptingIdx] = useState<number | null>(null);
   const yearStart = periodFrom || `${fiscalYear}-01-01`;
   const yearEnd = periodTo || `${fiscalYear}-12-31`;
+
+  // Abgrenzungskonten 4900 (ARA) / 4910 (PRA) für Auto-Buchung
+  const { data: accrualAccounts = [] } = useQuery({
+    queryKey: ["accrual-accounts", buildingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("chart_of_accounts")
+        .select("id, account_number, account_name")
+        .in("account_number", ["4900", "4910"])
+        .or(`building_id.is.null,building_id.eq.${buildingId}`);
+      if (error) throw error;
+      return data || [];
+    },
+  });
 
   const { data: bookings = [] } = useQuery({
     queryKey: ["accrual-check-bookings", buildingId, fiscalYear],
@@ -139,6 +155,74 @@ export function AccrualSection({ buildingId, fiscalYear, periodFrom, periodTo }:
     }
   };
 
+  /**
+   * Akzeptiert einen KI-Vorschlag und legt automatisch die Abgrenzungsbuchung
+   * gegen Konto 4900 (ARA, aktiv) bzw. 4910 (PRA, passiv) an.
+   *
+   * Erwartete Felder im Vorschlag (defensive Verarbeitung):
+   *   - bookingId / id: Quellbuchung
+   *   - amount: abzugrenzender Betrag (positiv)
+   *   - type: 'ara' | 'pra' (Default: 'ara' = aktiv = Aufwand reduzieren / ins Folgejahr)
+   *   - expenseAccountId: Aufwandskonto (optional, sonst account_id der Quellbuchung)
+   *   - description: Buchungstext
+   */
+  const acceptSuggestion = async (s: any, idx: number) => {
+    setAcceptingIdx(idx);
+    try {
+      const sourceId = s.bookingId || s.id || s.source_id;
+      const source = sourceId ? bookings.find((b: any) => b.id === sourceId) : null;
+      const amount = Math.abs(Number(s.amount ?? source?.amount ?? 0));
+      if (!amount || !source) {
+        toast.error("Vorschlag unvollständig — bitte manuell buchen");
+        return;
+      }
+      const type: "ara" | "pra" = (s.type === "pra" ? "pra" : "ara");
+      const accrualAccountNumber = type === "ara" ? "4900" : "4910";
+      const accrualAccount = accrualAccounts.find((a: any) => a.account_number === accrualAccountNumber);
+      if (!accrualAccount) {
+        toast.error(`Konto ${accrualAccountNumber} nicht gefunden`);
+        return;
+      }
+      const expenseAccountId = s.expenseAccountId || source.account_id;
+      if (!expenseAccountId) {
+        toast.error("Aufwandskonto unbekannt");
+        return;
+      }
+
+      // ARA: 4900 an Aufwandskonto (Aufwand reduzieren, Aktivposten aufbauen)
+      // PRA: Aufwandskonto an 4910 (Aufwand erhöhen, Passivposten aufbauen)
+      const accountId = type === "ara" ? accrualAccount.id : expenseAccountId;
+      const counterAccountId = type === "ara" ? expenseAccountId : accrualAccount.id;
+
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await supabase.from("bookings").insert({
+        building_id: buildingId,
+        fiscal_year: fiscalYear,
+        booking_date: yearEnd,
+        amount,
+        account_id: accountId,
+        counter_account_id: counterAccountId,
+        booking_category: "accrual",
+        booking_type: "abgrenzung",
+        description: s.description || `Abgrenzung ${type.toUpperCase()} aus Buchung vom ${source.booking_date}`,
+        status: "confirmed",
+        source: "manual",
+        created_by: user?.id,
+      });
+      if (error) throw error;
+
+      toast.success(`Abgrenzungsbuchung (${type.toUpperCase()}) angelegt`);
+      // Vorschlag entfernen
+      setAiSuggestions((prev) => (prev || []).filter((_, i) => i !== idx));
+      queryClient.invalidateQueries({ queryKey: ["accrual-bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["account-based-accruals"] });
+      queryClient.invalidateQueries({ queryKey: ["accrual-check-bookings"] });
+    } catch (e: any) {
+      toast.error("Fehler: " + (e.message || "Unbekannt"));
+    } finally {
+      setAcceptingIdx(null);
+    }
+  };
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-2">
@@ -190,10 +274,22 @@ export function AccrualSection({ buildingId, fiscalYear, periodFrom, periodTo }:
             </CardHeader>
             <CardContent className="pt-0 space-y-2">
               {aiSuggestions.map((s: any, i: number) => (
-                <div key={i} className="text-sm p-2 rounded bg-background border">
-                  <div className="font-medium">{s.title || s.description}</div>
-                  {s.suggestion && <div className="text-muted-foreground mt-1">{s.suggestion}</div>}
-                  {s.amount && <div className="font-mono text-xs mt-1">Betrag: {new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(s.amount)}</div>}
+                <div key={i} className="text-sm p-2 rounded bg-background border flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium">{s.title || s.description}</div>
+                    {s.suggestion && <div className="text-muted-foreground mt-1">{s.suggestion}</div>}
+                    {s.amount && <div className="font-mono text-xs mt-1">Betrag: {new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(s.amount)}</div>}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => acceptSuggestion(s, i)}
+                    disabled={acceptingIdx === i}
+                    className="flex-shrink-0"
+                  >
+                    {acceptingIdx === i ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Check className="h-3.5 w-3.5 mr-1" />}
+                    Buchen
+                  </Button>
                 </div>
               ))}
             </CardContent>
