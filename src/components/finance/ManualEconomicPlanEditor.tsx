@@ -222,13 +222,13 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
       const [unitId, accountId] = key.split("|");
       const existing = unitItems.find((u: any) => u.unit_id === unitId && u.account_id === accountId);
       if (existing) {
-        ops.push(
+        ops.push(Promise.resolve(
           supabase.from("economic_plan_unit_items" as any)
             .update({ amount, manually_overridden: true, updated_by: user?.id } as any)
             .eq("id", existing.id),
-        );
+        ));
       } else {
-        ops.push(
+        ops.push(Promise.resolve(
           supabase.from("economic_plan_unit_items" as any).insert({
             plan_id: plan.id,
             unit_id: unitId,
@@ -237,7 +237,7 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
             manually_overridden: true,
             created_by: user?.id,
           } as any),
-        );
+        ));
       }
     });
     await Promise.all(ops);
