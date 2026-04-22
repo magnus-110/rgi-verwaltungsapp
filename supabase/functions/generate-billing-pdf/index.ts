@@ -439,6 +439,8 @@ serve(async (req) => {
       const totalOwnerCosts = ownerResults.reduce((s, o) => s + o.netOwnerCost, 0);
       const totalOwnerPaid = ownerResults.reduce((s, o) => s + o.totalPaid, 0);
       const totalOwnerResult = ownerResults.reduce((s, o) => s + o.result, 0);
+      const totalOwnerVorschuss = ownerResults.reduce((s, o) => s + o.totalVorschuss, 0);
+      const totalAbrechnungsspitze = totalOwnerVorschuss - totalOwnerPaid;
 
       return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${sharedStyles}</style></head><body>
         <div class="page">
