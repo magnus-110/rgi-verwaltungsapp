@@ -299,7 +299,13 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   // Fallback: Bewegungen auf Konto „reserve" (z. B. wenn noch kein WP existiert).
   const reserveFromBookings = getSectionTotal("reserve");
   const totalReserve = economicPlan?.total_reserve != null ? Number(economicPlan.total_reserve) : reserveFromBookings;
-  const totalReserveWithdrawal = getSectionTotal("reserve_withdrawal");
+  // Bug 4 fix: rücklagenfinanzierte Aufwandskonten via Flag erkennen (z. B. Konto 1920),
+  // statt fragiler reserve_withdrawal-Section. Skaliert auf zukünftige Konten (z. B. 1921).
+  const reserveFundedAccounts = accounts.filter((a: any) => a.is_reserve_funded);
+  const totalReserveWithdrawal = reserveFundedAccounts.reduce(
+    (s, a: any) => s + Math.abs(getAccountBookingTotal(a.id)),
+    0,
+  ) || getSectionTotal("reserve_withdrawal");
 
   // Opening balances — bevorzugt aus Eröffnungsbuchungen gegen Konto 4000,
   // Fallback auf manuellen Eintrag in account_balances.

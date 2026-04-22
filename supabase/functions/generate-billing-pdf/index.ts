@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.52.1";
+import { sumForAccount } from "../_shared/booking-aggregation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,20 +12,20 @@ const formatCurrency = (n: number) =>
 
 const formatDate = (d: string) => new Date(d).toLocaleDateString("de-DE");
 
-// Distribution key label mapping
 const DIST_KEY_LABELS: Record<string, string> = {
-  mea: "MEA", einheiten: "Einheiten", qm: "Fläche (qm)", personen: "Personen",
+  mea: "MEA", einheiten: "Einheiten", einheit: "Einheiten", units: "Einheiten",
+  qm: "Fläche (qm)", personen: "Personen",
   verbrauch_wasser: "Wasser", verbrauch_warmwasser: "Warmwasser",
-  heizkostenverordnung: "Heizk.Abr.", direkt: "direkt",
+  heizkostenverordnung: "Heizk.Abr.", heating_individual: "Heizk.Abr.",
+  direkt: "direkt",
 };
 
 const DIST_KEY_TO_SHARE: Record<string, string> = {
-  mea: "mea", einheiten: "einheit", qm: "qm", personen: "personen",
+  mea: "mea", einheiten: "einheit", units: "einheit", qm: "qm", personen: "personen",
   verbrauch_wasser: "wasser", verbrauch_warmwasser: "warmwasser",
-  heizkostenverordnung: "heizkosten",
+  heizkostenverordnung: "heizkosten", heating_individual: "heizkosten",
 };
 
-// Section labels for the Gesamtabrechnung
 const SECTION_LABELS: Record<string, string> = {
   income: "Einnahmen",
   operating_distributable: "Umlagefähige Ausgaben",
@@ -45,11 +46,24 @@ serve(async (req) => {
 
     const { buildingId, periodId, fiscalYear, ownerId } = await req.json();
 
-    // Fetch all data in parallel
+    // Step 1: load period first to get exact date range (Bug 5 fix)
+    const { data: period } = await supabase
+      .from("billing_periods")
+      .select("*")
+      .eq("id", periodId)
+      .single();
+
+    if (!period) {
+      return new Response(JSON.stringify({ error: "Abrechnungszeitraum nicht gefunden" }), {
+        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Step 2: load all data in parallel
     const [
       { data: building },
-      { data: period },
       { data: accounts },
+      // Bug 1 fix: include counter_account_id; Bug 5 fix: filter by booking_date range
       { data: bookings },
       { data: overrides },
       { data: assignments },
@@ -57,27 +71,34 @@ serve(async (req) => {
       { data: heatingValues },
       { data: planItems },
     ] = await Promise.all([
-      supabase.from("buildings").select("name, address, manager_name").eq("id", buildingId).single(),
-      supabase.from("billing_periods").select("*").eq("id", periodId).single(),
+      supabase.from("buildings").select("name, address, manager_name, unit_count, unit_count_for_billing").eq("id", buildingId).single(),
       supabase.from("chart_of_accounts").select("*").or(`building_id.is.null,building_id.eq.${buildingId}`).order("account_number"),
-      supabase.from("bookings").select("account_id, amount, booking_category, is_35a_relevant, description").eq("building_id", buildingId).eq("fiscal_year", fiscalYear).neq("status", "cancelled"),
+      supabase.from("bookings")
+        .select("id, account_id, counter_account_id, amount, booking_date, description, booking_category, is_35a_relevant, status")
+        .eq("building_id", buildingId)
+        .gte("booking_date", period.period_from)
+        .lte("booking_date", period.period_to)
+        .neq("status", "cancelled"),
       supabase.from("building_account_overrides").select("*").eq("building_id", buildingId),
       supabase.from("contact_building_assignments").select(`*, contacts(first_name, last_name, company_name, salutation, address_street, address_zip, address_city), contact_building_shares(*), contact_building_costs(*)`).eq("building_id", buildingId).eq("is_active", true).in("role_in_building", ["eigentuemer", "mieter"]),
       supabase.from("account_balances").select("*, chart_of_accounts(account_number, account_name, category, carry_forward_balance)").eq("building_id", buildingId).eq("fiscal_year", fiscalYear),
       supabase.from("heating_distribution_values").select("*").eq("building_id", buildingId).eq("billing_period_id", periodId),
-      // Get economic plan items for WP column
       supabase.from("economic_plans" as any).select("*, economic_plan_items(*)").eq("building_id", buildingId).eq("fiscal_year", fiscalYear).maybeSingle(),
     ]);
 
     const periodLabel = `${formatDate(period.period_from)} – ${formatDate(period.period_to)}`;
+    const allBookings = bookings || [];
+    const allAccounts = accounts || [];
+    const totalReserveFromPlan = (planItems as any)?.total_reserve != null
+      ? Number((planItems as any).total_reserve)
+      : 0;
 
-    // Helper: get distribution key for an account
+    // Helpers
     const getDistKey = (accountId: string, defaultKey: string | null) => {
       const override = (overrides || []).find((o: any) => o.account_id === accountId);
       return override?.distribution_key || defaultKey || "mea";
     };
 
-    // Helper: time proportion for an assignment within the period
     const getTimeProportion = (assignment: any) => {
       if (!period) return 1;
       const periodStart = new Date(period.period_from).getTime();
@@ -90,45 +111,62 @@ serve(async (req) => {
       return Math.max(0, (effectiveEnd - effectiveStart) / 86400000 + 1) / totalDays;
     };
 
-    // Build account totals with section info
-    const billingAccounts = (accounts || []).filter((a: any) => a.is_billing_relevant || a.settlement_section);
+    // Bug 1 fix: bank-centric aggregation via sumForAccount (account_id OR counter_account_id)
+    const billingAccounts = allAccounts.filter((a: any) => a.is_billing_relevant || a.settlement_section);
     const accountTotals = billingAccounts.map((acc: any) => {
       const distKey = getDistKey(acc.id, acc.default_distribution_key);
-      const total = (bookings || [])
-        .filter((b: any) => b.account_id === acc.id)
-        .reduce((s: number, b: any) => s + Number(b.amount), 0);
+      const total = sumForAccount(acc.id, allBookings as any);
       const absTotal = Math.abs(total);
-      // Get WP planned amount
       const wpItem = (planItems as any)?.economic_plan_items?.find((i: any) => i.account_id === acc.id);
       const wpAmount = wpItem ? Number(wpItem.planned_amount || 0) : 0;
       return { ...acc, total, absTotal, distKey, wpAmount };
     });
 
-    // Group accounts by settlement_section
+    // Bug 3 fix: heating_prepayment is a Durchlaufkonto — exclude from totalExpenses
     const sectionOrder = ["income", "operating_distributable", "operating_non_distributable", "accrual", "reserve", "reserve_withdrawal"];
-    const sections = sectionOrder.map(sec => ({
-      id: sec,
-      label: SECTION_LABELS[sec] || sec,
-      accounts: accountTotals.filter((a: any) => a.settlement_section === sec && a.absTotal > 0),
-      total: accountTotals.filter((a: any) => a.settlement_section === sec && a.absTotal > 0)
-        .reduce((s: number, a: any) => s + a.absTotal, 0),
-      wpTotal: accountTotals.filter((a: any) => a.settlement_section === sec)
-        .reduce((s: number, a: any) => s + a.wpAmount, 0),
-    })).filter(s => s.accounts.length > 0);
+    const sections = sectionOrder.map(sec => {
+      const accountsInSec = accountTotals.filter((a: any) => a.settlement_section === sec && a.absTotal > 0);
+      // For "reserve" section: use planned amount from economic_plans (Bug 4 fix)
+      let total = accountsInSec.reduce((s: number, a: any) => s + a.absTotal, 0);
+      if (sec === "reserve" && totalReserveFromPlan > 0) {
+        total = totalReserveFromPlan;
+      }
+      return {
+        id: sec,
+        label: SECTION_LABELS[sec] || sec,
+        accounts: accountsInSec,
+        total,
+        wpTotal: accountTotals.filter((a: any) => a.settlement_section === sec).reduce((s: number, a: any) => s + a.wpAmount, 0),
+      };
+    }).filter(s => s.accounts.length > 0 || (s.id === "reserve" && s.total > 0));
 
-    // Distributable accounts for Einzelabrechnung
-    const distributableAccounts = accountTotals.filter((a: any) => a.is_distributable && a.absTotal > 0);
+    // Bug 4 fix: identify reserve-funded accounts via flag (no hard-coded account number)
+    const reserveFundedAccounts = allAccounts.filter((a: any) => a.is_reserve_funded);
+    const totalReserveWithdrawal = reserveFundedAccounts.reduce(
+      (s: number, a: any) => s + Math.abs(sumForAccount(a.id, allBookings as any)),
+      0,
+    );
 
-    // Share totals per distribution key
+    // Distributable accounts for Einzelabrechnung (exclude heating_prepayment, accrual balance accounts)
+    const isAccrualBalanceAccount = (a: any) =>
+      a.account_number === "4110" || a.account_number === "4130" || a.settlement_section === "accrual";
+    const isHeatingPrepayAccount = (a: any) => a.settlement_section === "heating_prepayment";
+    const distributableAccounts = accountTotals.filter((a: any) =>
+      a.is_distributable && !isAccrualBalanceAccount(a) && !isHeatingPrepayAccount(a) && a.absTotal > 0
+    );
+
     const getShareTotal = (shareType: string) => {
       const mapped = DIST_KEY_TO_SHARE[shareType] || shareType;
+      if (mapped === "einheit") {
+        return building?.unit_count_for_billing ?? building?.unit_count ?? (assignments || []).length;
+      }
       return (assignments || []).reduce((s: number, a: any) => {
         const share = (a.contact_building_shares || []).find((sh: any) => sh.share_type === mapped);
         return s + (share ? Number(share.share_value) : 0);
       }, 0);
     };
 
-    // Opening/closing balances
+    // Opening / closing balances (carry-forward accounts)
     const openingGiro = (balances || [])
       .filter((b: any) => b.chart_of_accounts?.category === "bank")
       .reduce((s: number, b: any) => s + Number(b.opening_balance), 0);
@@ -142,19 +180,21 @@ serve(async (req) => {
       .filter((b: any) => b.chart_of_accounts?.category === "ruecklage")
       .reduce((s: number, b: any) => s + Number(b.closing_balance), 0);
 
-    // Calculate total distributable costs
-    const totalDistributable = distributableAccounts.reduce((s: number, a: any) => s + a.absTotal, 0);
-
-    // Total income
     const totalIncome = sections.find(s => s.id === "income")?.total || 0;
-
-    // Total expenses (all non-income sections)
+    // Bug 3 fix: exclude income AND heating_prepayment (already excluded in sectionOrder)
     const totalExpenses = sections.filter(s => s.id !== "income").reduce((s, sec) => s + sec.total, 0);
 
-    // Abrechnungsspitze (building level)
-    const buildingSpitze = totalIncome - totalExpenses;
+    // Bug 2 fix: Personenkonten-Pattern (0001..0999, ≠ 0000)
+    const personalAccountPattern = /^0\d{3}$/;
+    const personalAccounts = allAccounts.filter(
+      (a: any) => personalAccountPattern.test(a.account_number) && a.account_number !== "0000"
+    );
+    const padUnit = (n: string | number | null | undefined) => {
+      const s = String(n ?? "").replace(/\D/g, "");
+      return s ? s.padStart(4, "0") : "";
+    };
 
-    // Calculate per-owner results
+    // Per-owner results
     const ownerResults = (assignments || []).map((assignment: any) => {
       const contact = assignment.contacts;
       const name = contact?.company_name || [contact?.first_name, contact?.last_name].filter(Boolean).join(" ") || "Unbekannt";
@@ -163,17 +203,21 @@ serve(async (req) => {
       const costs = assignment.contact_building_costs || [];
       const timeProportion = getTimeProportion(assignment);
 
-      // Per-account breakdown for Einzelabrechnung
       const accountBreakdown: any[] = [];
       let totalOwnerCost = 0;
       let total35aDienste = 0;
       let total35aHandwerker = 0;
+      let ownerReserveWithdrawal = 0;
 
       distributableAccounts.forEach((acc: any) => {
-        const isHeating = acc.is_heating_relevant;
+        const isHeating = acc.is_heating_relevant && acc.account_number === "1400";
         const heatingVal = isHeating
           ? (heatingValues || []).find((hv: any) => hv.assignment_id === assignment.id)
           : null;
+
+        // Bug 4 fix: for reserve-funded expense accounts use distributable total; we'll neutralize at owner level
+        const isReserveAcc = acc.settlement_section === "reserve";
+        const total = isReserveAcc && totalReserveFromPlan > 0 ? totalReserveFromPlan : acc.absTotal;
 
         let ownerCost: number;
         let distLabel: string;
@@ -181,23 +225,24 @@ serve(async (req) => {
         let ownerShareValue: number;
 
         if (heatingVal) {
-          // Direct heating value from external provider
           ownerCost = Number(heatingVal.amount);
           distLabel = "Heizk.Abr.";
-          totalShares = acc.absTotal;
+          totalShares = total;
           ownerShareValue = ownerCost;
         } else {
-          // Standard distribution
           const distKey = acc.distKey;
           const shareType = DIST_KEY_TO_SHARE[distKey] || distKey;
-          const ownerShare = shares.find((s: any) => s.share_type === shareType);
           totalShares = getShareTotal(distKey);
-          ownerShareValue = ownerShare ? Number(ownerShare.share_value) : 0;
 
-          if (totalShares > 0 && ownerShareValue > 0) {
-            ownerCost = acc.absTotal * (ownerShareValue / totalShares) * timeProportion;
+          if (shareType === "einheit") {
+            ownerShareValue = 1;
+            ownerCost = totalShares > 0 ? (total / totalShares) * timeProportion : 0;
           } else {
-            ownerCost = 0;
+            const ownerShare = shares.find((s: any) => s.share_type === shareType);
+            ownerShareValue = ownerShare ? Number(ownerShare.share_value) : 0;
+            ownerCost = totalShares > 0 && ownerShareValue > 0
+              ? total * (ownerShareValue / totalShares) * timeProportion
+              : 0;
           }
           distLabel = DIST_KEY_LABELS[distKey] || distKey;
         }
@@ -206,7 +251,7 @@ serve(async (req) => {
           accountBreakdown.push({
             accountNumber: acc.account_number,
             accountName: acc.account_name,
-            distributableAmount: acc.absTotal,
+            distributableAmount: total,
             distLabel,
             totalShares,
             ownerShare: ownerShareValue,
@@ -214,16 +259,19 @@ serve(async (req) => {
           });
           totalOwnerCost += ownerCost;
 
-          // §35a calculation
-          if (acc.settlement_35a_type === "dienste") {
-            total35aDienste += ownerCost;
-          } else if (acc.settlement_35a_type === "handwerker") {
-            total35aHandwerker += ownerCost;
-          }
+          if (acc.settlement_35a_type === "dienste") total35aDienste += ownerCost;
+          else if (acc.settlement_35a_type === "handwerker") total35aHandwerker += ownerCost;
+
+          // Track owner share of reserve-funded expense (1920 etc.) for neutralization
+          if (acc.is_reserve_funded) ownerReserveWithdrawal += ownerCost;
         }
       });
 
-      // Annual prepayments from recurring costs
+      // Bug 2 fix: Hausgeld bevorzugt aus Personenkonten-Buchungen (bank-zentrisch)
+      const ownerAccount = personalAccounts.find(
+        (a: any) => a.account_number === padUnit(assignment.unit_number)
+      );
+
       const calcAnnual = (types: string[]) => costs
         .filter((c: any) => types.includes(c.cost_type))
         .reduce((s: number, c: any) => {
@@ -236,10 +284,16 @@ serve(async (req) => {
           }
         }, 0) * timeProportion;
 
-      const annualHausgeld = calcAnnual(["hausgeld", "nebenkosten"]);
-      const annualReserve = calcAnnual(["ruecklage"]);
+      const annualHausgeld = ownerAccount
+        ? Math.abs(sumForAccount(ownerAccount.id, allBookings as any))
+        : calcAnnual(["hausgeld", "nebenkosten"]);
+      const annualReserve = ownerAccount ? 0 : calcAnnual(["ruecklage"]);
       const totalPaid = annualHausgeld + annualReserve;
-      const result = totalPaid - totalOwnerCost;
+
+      // Bug 4 neutralization: subtract owner's share of reserve-funded expense from cost
+      // (cost remains in breakdown for transparency, but doesn't double-charge)
+      const netOwnerCost = totalOwnerCost - ownerReserveWithdrawal;
+      const result = totalPaid - netOwnerCost;
 
       return {
         assignmentId: assignment.id,
@@ -249,6 +303,8 @@ serve(async (req) => {
         unitNumber: assignment.unit_number || "–",
         accountBreakdown,
         totalOwnerCost,
+        ownerReserveWithdrawal,
+        netOwnerCost,
         annualHausgeld,
         annualReserve,
         totalPaid,
@@ -277,6 +333,7 @@ serve(async (req) => {
       .mono { font-family: 'Courier New', monospace; font-size: 9px; }
       .section-total td { font-weight: 700; border-top: 1px solid #999; border-bottom: 1px solid #999; background: #fafafa; }
       .grand-total td { font-weight: 700; border-top: 2px solid #333; font-size: 10.5px; }
+      .neutralize td { color: #166534; font-style: italic; }
       .result-box { margin: 12px 0; padding: 10px 14px; border-radius: 4px; font-size: 12px; font-weight: 700; }
       .result-positive { background: #ecfdf5; border: 1px solid #86efac; color: #166534; }
       .result-negative { background: #fef2f2; border: 1px solid #fca5a5; color: #991b1b; }
@@ -293,9 +350,7 @@ serve(async (req) => {
       let sectionRows = "";
 
       sections.forEach(sec => {
-        // Section header
         sectionRows += `<tr><td colspan="4" style="font-weight:700; padding-top:8px; font-size:10px;">${sec.label}</td></tr>`;
-
         sec.accounts.forEach(acc => {
           sectionRows += `<tr>
             <td class="kto">${acc.account_number}</td>
@@ -304,8 +359,6 @@ serve(async (req) => {
             <td class="r mono">${formatCurrency(acc.absTotal)}</td>
           </tr>`;
         });
-
-        // Section subtotal
         sectionRows += `<tr class="section-total">
           <td></td>
           <td>Summe ${sec.label}</td>
@@ -314,18 +367,17 @@ serve(async (req) => {
         </tr>`;
       });
 
-      // Owner summary table
       const ownerRows = ownerResults.map(o =>
         `<tr>
           <td>${o.unitNumber}</td>
           <td>${o.name}</td>
-          <td class="r mono">${formatCurrency(o.totalOwnerCost)}</td>
+          <td class="r mono">${formatCurrency(o.netOwnerCost)}</td>
           <td class="r mono">${formatCurrency(o.totalPaid)}</td>
           <td class="r mono" style="color:${o.result >= 0 ? '#166534' : '#991b1b'}">${formatCurrency(o.result)}</td>
         </tr>`
       ).join("");
 
-      const totalOwnerCosts = ownerResults.reduce((s, o) => s + o.totalOwnerCost, 0);
+      const totalOwnerCosts = ownerResults.reduce((s, o) => s + o.netOwnerCost, 0);
       const totalOwnerPaid = ownerResults.reduce((s, o) => s + o.totalPaid, 0);
       const totalOwnerResult = ownerResults.reduce((s, o) => s + o.result, 0);
 
@@ -346,6 +398,12 @@ serve(async (req) => {
           <table>
             <tr><th class="kto">Konto</th><th>Bezeichnung</th><th class="r">Wirtschaftsplan</th><th class="r">Ist-Betrag</th></tr>
             ${sectionRows}
+            ${totalReserveWithdrawal > 0 ? `
+            <tr class="neutralize">
+              <td></td>
+              <td colspan="2">./. Entnahme aus Erhaltungsrücklage (Neutralisation)</td>
+              <td class="r mono">- ${formatCurrency(totalReserveWithdrawal)}</td>
+            </tr>` : ""}
           </table>
 
           <h2>Endbestände</h2>
@@ -377,7 +435,6 @@ serve(async (req) => {
       const resultLabel = owner.result >= 0 ? "Guthaben" : "Nachzahlung";
       const resultClass = owner.result >= 0 ? "result-positive" : "result-negative";
 
-      // Account breakdown rows (7-column)
       const breakdownRows = owner.accountBreakdown.map((row: any) =>
         `<tr>
           <td class="kto">${row.accountNumber}</td>
@@ -390,7 +447,6 @@ serve(async (req) => {
         </tr>`
       ).join("");
 
-      // §35a section
       let para35a = "";
       if (owner.total35aDienste > 0 || owner.total35aHandwerker > 0) {
         const diensteBonus = Math.min(owner.total35aDienste * 0.2, 4000);
@@ -410,6 +466,11 @@ serve(async (req) => {
           <p style="font-size:8px; color:#666; margin-top:4px;">Die Steuerermäßigung für haushaltsnahe Dienstleistungen beträgt max. 4.000 €, für Handwerkerleistungen max. 1.200 € pro Jahr.</p>
         `;
       }
+
+      // Bug 4 fix: explicit reserve-funded neutralization line
+      const reserveLine = owner.ownerReserveWithdrawal > 0
+        ? `<tr class="neutralize"><td>./. Entnahme aus Erhaltungsrücklage (Reparatur aus Rücklage)</td><td class="r mono">- ${formatCurrency(owner.ownerReserveWithdrawal)}</td></tr>`
+        : "";
 
       return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${sharedStyles}</style></head><body>
         <div class="page">
@@ -438,16 +499,18 @@ serve(async (req) => {
             ${breakdownRows}
             <tr class="grand-total">
               <td></td>
-              <td colspan="5"><strong>Summe Kostenanteil</strong></td>
+              <td colspan="5"><strong>Summe Kostenanteil (brutto)</strong></td>
               <td class="r mono"><strong>${formatCurrency(owner.totalOwnerCost)}</strong></td>
             </tr>
           </table>
 
           <h2>Abrechnungsergebnis</h2>
           <table>
-            <tr><td>Ihr Kostenanteil</td><td class="r mono">${formatCurrency(owner.totalOwnerCost)}</td></tr>
+            <tr><td>Ihr Kostenanteil (brutto)</td><td class="r mono">${formatCurrency(owner.totalOwnerCost)}</td></tr>
+            ${reserveLine}
+            <tr><td><strong>Ihr Kostenanteil (netto)</strong></td><td class="r mono"><strong>${formatCurrency(owner.netOwnerCost)}</strong></td></tr>
             <tr><td>./. Hausgeld-Vorauszahlungen</td><td class="r mono">- ${formatCurrency(owner.annualHausgeld)}</td></tr>
-            <tr><td>./. Rücklagenzuführung</td><td class="r mono">- ${formatCurrency(owner.annualReserve)}</td></tr>
+            ${owner.annualReserve > 0 ? `<tr><td>./. Rücklagenzuführung</td><td class="r mono">- ${formatCurrency(owner.annualReserve)}</td></tr>` : ""}
             <tr class="grand-total"><td><strong>${resultLabel}</strong></td><td class="r mono"><strong>${formatCurrency(Math.abs(owner.result))}</strong></td></tr>
           </table>
 
@@ -490,7 +553,6 @@ serve(async (req) => {
       return storeAndRespond(html, `Einzelabrechnung_${fiscalYear}_${owner.name}.html`);
     }
 
-    // If ownerId === "all", generate combined document with all Einzelabrechnungen
     const html = generateGesamtHtml();
     return storeAndRespond(html, `Gesamtabrechnung_${fiscalYear}_${building?.name || "Liegenschaft"}.html`);
 

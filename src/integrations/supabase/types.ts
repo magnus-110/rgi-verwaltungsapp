@@ -1609,6 +1609,7 @@ export type Database = {
           is_billing_relevant: boolean
           is_distributable: boolean
           is_heating_relevant: boolean
+          is_reserve_funded: boolean
           is_system_account: boolean | null
           is_wirtschaftsplan_relevant: boolean
           settlement_35a_type: string | null
@@ -1630,6 +1631,7 @@ export type Database = {
           is_billing_relevant?: boolean
           is_distributable?: boolean
           is_heating_relevant?: boolean
+          is_reserve_funded?: boolean
           is_system_account?: boolean | null
           is_wirtschaftsplan_relevant?: boolean
           settlement_35a_type?: string | null
@@ -1651,6 +1653,7 @@ export type Database = {
           is_billing_relevant?: boolean
           is_distributable?: boolean
           is_heating_relevant?: boolean
+          is_reserve_funded?: boolean
           is_system_account?: boolean | null
           is_wirtschaftsplan_relevant?: boolean
           settlement_35a_type?: string | null
