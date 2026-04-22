@@ -438,13 +438,14 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     distributableAccounts.forEach((acc) => {
       const total = getAccountBookingTotal(acc.id);
       if (total === 0) return;
-      if (total === 0) return;
 
       const distKey = getDistKey(acc.id, acc.default_distribution_key);
       const shareType = DIST_KEY_TO_SHARE[distKey] || distKey;
 
       // Special handling for heating account (1400) — use heating_distribution_values if available
       const isHeatingAccount = acc.is_heating_relevant && acc.account_number === "1400";
+      // Special handling for "einheit" share — total = building unit count, owner share = 1
+      const isUnitsKey = shareType === "einheit";
       let ownerCost = 0;
       let ownerShareValue = 0;
       let totalSharesValue = 0;
@@ -454,6 +455,12 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
         ownerCost = hdv ? Number(hdv.amount) : 0;
         ownerShareValue = ownerCost;
         totalSharesValue = total;
+      } else if (isUnitsKey) {
+        // Verwalter & Co.: 1 Einheit = 1 Anteil. Override via buildings.unit_count_for_billing möglich.
+        const totalUnits = building?.unit_count_for_billing ?? building?.unit_count ?? assignments.length;
+        totalSharesValue = totalUnits;
+        ownerShareValue = 1;
+        ownerCost = totalUnits > 0 ? (total / totalUnits) * timeProp : 0;
       } else {
         const ownerShare = shares.find((s: any) => s.share_type === shareType);
         totalSharesValue = getShareTotal(distKey);
