@@ -318,16 +318,20 @@ serve(async (req) => {
         (a: any) => a.account_number === padUnit(assignment.unit_number)
       );
 
+      // Bug 8 fix: Day-precision Annualisierung statt grober 12/4/1-Faktoren
       const calcAnnual = (types: string[]) => costs
         .filter((c: any) => types.includes(c.cost_type))
         .reduce((s: number, c: any) => {
           const amount = Number(c.amount);
+          // Tagesäquivalent pro Intervall: monatlich ≈ 365/12, quartal ≈ 365/4, jährlich = 365
+          let perDay = 0;
           switch (c.interval) {
-            case "monatlich": return s + amount * 12;
-            case "quartal": return s + amount * 4;
-            case "jaehrlich": return s + amount;
-            default: return s + amount * 12;
+            case "monatlich": perDay = amount * 12 / 365; break;
+            case "quartal":   perDay = amount * 4  / 365; break;
+            case "jaehrlich": perDay = amount      / 365; break;
+            default:          perDay = amount * 12 / 365; break;
           }
+          return s + perDay * periodDays;
         }, 0) * timeProportion;
 
       const annualHausgeld = ownerAccount
@@ -336,10 +340,17 @@ serve(async (req) => {
       const annualReserve = ownerAccount ? 0 : calcAnnual(["ruecklage"]);
       const totalPaid = annualHausgeld + annualReserve;
 
+      // Bug 7: Vorschussverpflichtung (SOLL laut Stammdaten) — gleiche Formel wie totalPaid,
+      // unabhängig von tatsächlichen Buchungen. Damit lässt sich die Abrechnungsspitze ausweisen.
+      const totalVorschuss = calcAnnual(["hausgeld", "nebenkosten", "ruecklage"]);
+
       // Bug 4 neutralization: subtract owner's share of reserve-funded expense from cost
-      // (cost remains in breakdown for transparency, but doesn't double-charge)
       const netOwnerCost = totalOwnerCost - ownerReserveWithdrawal;
       const result = totalPaid - netOwnerCost;
+
+      // Bug 7: Abrechnungsspitze = Soll-Vorschuss − geleistete Vorauszahlungen
+      // (positiv = Eigentümer hat zu wenig gezahlt, negativ = zu viel)
+      const abrechnungsspitze = totalVorschuss - totalPaid;
 
       return {
         assignmentId: assignment.id,
@@ -354,6 +365,8 @@ serve(async (req) => {
         annualHausgeld,
         annualReserve,
         totalPaid,
+        totalVorschuss,
+        abrechnungsspitze,
         result,
         total35aDienste,
         total35aHandwerker,
