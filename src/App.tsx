@@ -31,7 +31,7 @@ const Calendar = lazy(() => import("./pages/Calendar").then(m => ({ default: m.C
 const Contacts = lazy(() => import("./pages/Contacts").then(m => ({ default: m.Contacts })));
 const Finance = lazy(() => import("./pages/Finance").then(m => ({ default: m.Finance })));
 const Billing = lazy(() => import("./pages/Billing").then(m => ({ default: m.Billing })));
-const EconomicPlan = lazy(() => import("./pages/EconomicPlan").then(m => ({ default: m.EconomicPlan })));
+
 const Inbox = lazy(() => import("./pages/Inbox").then(m => ({ default: m.Inbox })));
 const Meetings = lazy(() => import("./pages/Meetings").then(m => ({ default: m.Meetings })));
 const EtvProxy = lazy(() => import("./pages/EtvProxy").then(m => ({ default: m.EtvProxy })));
@@ -109,7 +109,7 @@ const App = () => (
               <Route path="/contacts" element={<AdminLayout><Contacts /></AdminLayout>} />
               <Route path="/finanzen" element={<AdminLayout><Finance /></AdminLayout>} />
               <Route path="/finanzen/abrechnung" element={<AdminLayout><Billing /></AdminLayout>} />
-              <Route path="/finanzen/wirtschaftsplan" element={<AdminLayout><EconomicPlan /></AdminLayout>} />
+              <Route path="/finanzen/wirtschaftsplan" element={<Navigate to="/finanzen" replace />} />
               <Route path="/postfach" element={<AdminLayout><Inbox /></AdminLayout>} />
               <Route path="/versammlungen" element={<AdminLayout><Meetings /></AdminLayout>} />
               <Route path="/ueberweisungen" element={<AdminLayout><Transfers /></AdminLayout>} />
