@@ -13,8 +13,7 @@ import { BrunataAllocationManager } from "./BrunataAllocationManager";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ChevronDown, ChevronRight, Check, AlertTriangle } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
 const STEPS = [
   { id: "basics", label: "Grundlagen", description: "Anfangsbestände, Hausgelder & IHR-Plan" },
@@ -142,24 +141,54 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
     });
   };
 
+  // Live-Status pro Schritt (für Sticky-StatusBar)
+  const stepStatuses = useMemo<SettlementStep[]>(() => {
+    return STEPS.map((s) => {
+      let status: "ok" | "warning" | "todo" = "todo";
+      let hint: string | undefined;
+      if (!selectedBuildingId || !selectedPeriodId || !period) {
+        return { id: s.id, label: s.label, status: "todo", hint: s.description };
+      }
+      if (s.id === "basics") {
+        status = balanceStatus === "done" ? "ok" : balanceStatus === "no_data" ? "warning" : "todo";
+        hint = balanceStatus === "done" ? "Salden übernommen" : "Vorjahresdaten prüfen";
+      } else if (s.id === "review") {
+        status = "todo";
+        hint = "Buchungen prüfen";
+      } else if (s.id === "heating") {
+        status = "todo";
+        hint = "Brunata-Werte eintragen";
+      } else if (s.id === "accruals") {
+        status = "todo";
+        hint = "Abgrenzungen bestätigen";
+      } else if (s.id === "settlement") {
+        status = "todo";
+        hint = "PDF erzeugen";
+      }
+      return { id: s.id, label: s.label, status, hint };
+    });
+  }, [selectedBuildingId, selectedPeriodId, period, balanceStatus]);
+
+  const handleStepJump = (stepId: string) => {
+    setExpandedSteps((prev) => {
+      const next = new Set(prev);
+      next.add(stepId);
+      return next;
+    });
+    // Smooth-scroll to anchor
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`billing-step-${stepId}`);
+      el?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
   return (
     <div className="space-y-4">
       {/* BillingPeriodSelector is now rendered globally in Finance.tsx */}
 
-      {/* Balance carry-forward status */}
-      {selectedBuildingId && selectedPeriodId && balanceStatus !== "idle" && (
-        <div className="flex items-center gap-2">
-          {balanceStatus === "done" && (
-            <Badge className="bg-green-100 text-green-800 hover:bg-green-100">
-              <Check className="h-3 w-3 mr-1" /> Salden übernommen
-            </Badge>
-          )}
-          {balanceStatus === "no_data" && (
-            <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
-              <AlertTriangle className="h-3 w-3 mr-1" /> Keine Vorjahresdaten
-            </Badge>
-          )}
-        </div>
+      {/* Sticky Status-Ampel über alle 5 Schritte */}
+      {selectedBuildingId && selectedPeriodId && period && (
+        <SettlementStatusBar steps={stepStatuses} onStepClick={handleStepJump} />
       )}
 
       {!selectedBuildingId && (
@@ -183,7 +212,7 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
           {STEPS.map((step, index) => {
             const isExpanded = expandedSteps.has(step.id);
             return (
-              <Card key={step.id} className="overflow-hidden">
+              <Card key={step.id} id={`billing-step-${step.id}`} className="overflow-hidden scroll-mt-24">
                 <button
                   onClick={() => toggleStep(step.id)}
                   className="w-full flex items-center gap-3 p-4 hover:bg-muted/30 text-left transition-colors"

@@ -35,8 +35,8 @@ export function SettlementStatusBar({ steps, activeStepId, onStepClick }: Settle
             step.status === "ok" ? Check :
             step.status === "warning" ? AlertTriangle : Clock;
           const colorClasses =
-            step.status === "ok" ? "text-green-700 bg-green-50 border-green-200" :
-            step.status === "warning" ? "text-amber-700 bg-amber-50 border-amber-200" :
+            step.status === "ok" ? "text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-300 dark:bg-emerald-950/30 dark:border-emerald-900" :
+            step.status === "warning" ? "text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-300 dark:bg-amber-950/30 dark:border-amber-900" :
             "text-muted-foreground bg-muted/30 border-border";
 
           return (

@@ -20,9 +20,9 @@ interface BillingSettlementProps {
 }
 
 const DIST_KEY_TO_SHARE: Record<string, string> = {
-  mea: "mea", einheiten: "einheit", qm: "qm", personen: "personen",
+  mea: "mea", einheiten: "einheit", units: "einheit", qm: "qm", personen: "personen",
   verbrauch_wasser: "wasser", verbrauch_warmwasser: "warmwasser",
-  heizkostenverordnung: "heizkosten",
+  heizkostenverordnung: "heizkosten", heating_individual: "heizkosten",
 };
 
 const SHARE_LABELS: Record<string, string> = {
@@ -152,6 +152,35 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     },
   });
 
+  // Building (for unit_count / unit_count_for_billing)
+  const { data: building } = useQuery({
+    queryKey: ["settlement-building", buildingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("buildings")
+        .select("unit_count, unit_count_for_billing")
+        .eq("id", buildingId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Economic plan (for IHR contribution as planned reserve)
+  const { data: economicPlan } = useQuery({
+    queryKey: ["settlement-economic-plan", buildingId, fiscalYear],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("economic_plans" as any)
+        .select("total_reserve")
+        .eq("building_id", buildingId)
+        .eq("fiscal_year", fiscalYear)
+        .maybeSingle();
+      if (error) return null;
+      return data as any;
+    },
+  });
+
   // Account balances
   const { data: balances = [] } = useQuery({
     queryKey: ["account-balances-settlement", buildingId, fiscalYear],
@@ -266,7 +295,10 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const totalOperatingDist = getSectionTotal("operating_distributable");
   const totalOperatingNonDist = getSectionTotal("operating_non_distributable");
   const totalAccrual = getSectionTotal("accrual");
-  const totalReserve = getSectionTotal("reserve");
+  // IHR-Zuführung kommt 1:1 aus dem Wirtschaftsplan (Beschluss der ETV).
+  // Fallback: Bewegungen auf Konto „reserve" (z. B. wenn noch kein WP existiert).
+  const reserveFromBookings = getSectionTotal("reserve");
+  const totalReserve = economicPlan?.total_reserve != null ? Number(economicPlan.total_reserve) : reserveFromBookings;
   const totalReserveWithdrawal = getSectionTotal("reserve_withdrawal");
 
   // Opening balances — bevorzugt aus Eröffnungsbuchungen gegen Konto 4000,
@@ -380,6 +412,10 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   // --- Owner calculation ---
   const getShareTotal = (shareType: string) => {
     const mapped = DIST_KEY_TO_SHARE[shareType] || shareType;
+    // For "einheit" (1 Einheit = 1 Anteil) use building unit count, override-aware.
+    if (mapped === "einheit") {
+      return building?.unit_count_for_billing ?? building?.unit_count ?? assignments.length;
+    }
     return assignments.reduce((s, a: any) => {
       const share = (a.contact_building_shares || []).find((sh: any) => sh.share_type === mapped);
       return s + (share ? Number(share.share_value) : 0);
@@ -407,7 +443,11 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     // Distributable accounts
     const distributableAccounts = accounts.filter((a) => a.is_distributable && !isAccrualBalanceAccount(a));
     distributableAccounts.forEach((acc) => {
-      const total = getAccountBookingTotal(acc.id);
+      // IHR-Zuführung (reserve section): nimm WP-Wert 1:1 statt Buchungs-Summe
+      const isReserveAcc = acc.settlement_section === "reserve";
+      const total = isReserveAcc && economicPlan?.total_reserve != null
+        ? Number(economicPlan.total_reserve)
+        : getAccountBookingTotal(acc.id);
       if (total === 0) return;
 
       const distKey = getDistKey(acc.id, acc.default_distribution_key);
@@ -415,6 +455,8 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
 
       // Special handling for heating account (1400) — use heating_distribution_values if available
       const isHeatingAccount = acc.is_heating_relevant && acc.account_number === "1400";
+      // Special handling for "einheit" share — total = building unit count, owner share = 1
+      const isUnitsKey = shareType === "einheit";
       let ownerCost = 0;
       let ownerShareValue = 0;
       let totalSharesValue = 0;
@@ -424,6 +466,12 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
         ownerCost = hdv ? Number(hdv.amount) : 0;
         ownerShareValue = ownerCost;
         totalSharesValue = total;
+      } else if (isUnitsKey) {
+        // Verwalter & Co.: 1 Einheit = 1 Anteil. Override via buildings.unit_count_for_billing möglich.
+        const totalUnits = building?.unit_count_for_billing ?? building?.unit_count ?? assignments.length;
+        totalSharesValue = totalUnits;
+        ownerShareValue = 1;
+        ownerCost = totalUnits > 0 ? (total / totalUnits) * timeProp : 0;
       } else {
         const ownerShare = shares.find((s: any) => s.share_type === shareType);
         totalSharesValue = getShareTotal(distKey);
