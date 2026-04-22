@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { FuelInventorySection } from "./FuelInventorySection";
 import { HeatingAccountsSection } from "./HeatingAccountsSection";
 import { HeatingRebookingSection } from "./HeatingRebookingSection";
@@ -76,8 +76,8 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
         return { id: s.id, label: s.label, status: "todo", hint: s.description };
       }
       if (s.id === "basics") {
-        status = balanceStatus === "done" ? "ok" : balanceStatus === "no_data" ? "warning" : "todo";
-        hint = balanceStatus === "done" ? "Salden übernommen" : "Vorjahresdaten prüfen";
+        status = "todo";
+        hint = s.description;
       } else if (s.id === "review") {
         status = "todo";
         hint = "Buchungen prüfen";
@@ -93,7 +93,7 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
       }
       return { id: s.id, label: s.label, status, hint };
     });
-  }, [selectedBuildingId, selectedPeriodId, period, balanceStatus]);
+  }, [selectedBuildingId, selectedPeriodId, period]);
 
   const handleStepJump = (stepId: string) => {
     setExpandedSteps((prev) => {
@@ -166,26 +166,19 @@ export function BillingTab({ sharedBuildingId, onBuildingChange, sharedPeriodId,
                         />
                       )}
                       {step.id === "review" && (
-                        <div className="space-y-4">
-                          <BalanceCarryForward
-                            buildingId={selectedBuildingId}
-                            fiscalYear={period.fiscal_year}
-                            periodId={selectedPeriodId}
-                          />
-                          <BookingReviewSection
-                            buildingId={selectedBuildingId}
-                            fiscalYear={period.fiscal_year}
-                            periodFrom={period.period_from}
-                            periodTo={period.period_to}
-                          />
-                        </div>
+                        <BookingReviewSection
+                          buildingId={selectedBuildingId}
+                          fiscalYear={period.fiscal_year}
+                          periodFrom={period.period_from}
+                          periodTo={period.period_to}
+                        />
                       )}
                       {step.id === "heating" && (
                         <div className="space-y-4">
                           <HeatingAccountsSection buildingId={selectedBuildingId} fiscalYear={period.fiscal_year} />
                           <FuelInventorySection buildingId={selectedBuildingId} periodId={selectedPeriodId} fiscalYear={period.fiscal_year} />
-                          <BrunataAllocationManager buildingId={selectedBuildingId} periodId={selectedPeriodId} fiscalYear={period.fiscal_year} />
                           <HeatingRebookingSection buildingId={selectedBuildingId} periodId={selectedPeriodId} fiscalYear={period.fiscal_year} />
+                          <BrunataAllocationManager buildingId={selectedBuildingId} periodId={selectedPeriodId} fiscalYear={period.fiscal_year} />
                         </div>
                       )}
                       {step.id === "accruals" && (
