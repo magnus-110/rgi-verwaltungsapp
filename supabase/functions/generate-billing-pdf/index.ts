@@ -486,6 +486,16 @@ serve(async (req) => {
             </tr>
           </table>
 
+          <h2>Vorschuss-Soll & Abrechnungsspitze (WEG-weit)</h2>
+          <table>
+            <tr><td>Vorschussverpflichtung lt. Wirtschaftsplan (Soll)</td><td class="r mono">${formatCurrency(totalOwnerVorschuss)}</td></tr>
+            <tr><td>Tatsächlich geleistete Vorauszahlungen</td><td class="r mono">${formatCurrency(totalOwnerPaid)}</td></tr>
+            <tr class="section-total">
+              <td><strong>Abrechnungsspitze WEG</strong> (${totalAbrechnungsspitze >= 0 ? "Nachzahlung" : "Guthaben"})</td>
+              <td class="r mono"><strong>${formatCurrency(Math.abs(totalAbrechnungsspitze))}</strong></td>
+            </tr>
+          </table>
+
           ${footerHtml}
         </div>
       </body></html>`;
