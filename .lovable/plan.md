@@ -1,80 +1,64 @@
 
 
-# Plan: Verteilerschlüssel-Warnung + Code-Fix für Hausgeld-Großschreibung
+# Plan: Kontenrahmen-Korrektur für saubere Jahres- und Einzelabrechnung
 
-Die Claude-Analyse ist fundiert und deckt sich mit dem, was wir im Code sehen. Davon kann ich **zwei Punkte sofort umsetzen** (Code-seitig). Die anderen sind reine Stammdaten-Lücken, die du in der UI pflegen musst — dafür liefern wir die Warnung.
+Vollständiger Audit aller 95 Konten im globalen Kontenrahmen + 3 Liegenschafts-Overrides für Birkenweg 6. Ziel: Jedes Konto hat konsistente, fachlich korrekte Settings.
 
-## Was umgebaut wird
+## Was korrigiert wird (Daten-Migration, kein Code)
 
-### A) Datei: `src/components/finance/BillingSettlement.tsx` — Warnung bei fehlenden Stammdaten
+### A) Müllkonten — §35a-Flags entfernen
+Müllabfuhr ist nach BFH-Rechtsprechung **keine** §35a-Leistung (kein Personeneinsatz im Haushalt).
+- **1010 Müllabfuhr**: `is_35a_relevant=false`, `settlement_35a_type=null`
 
-#### 1. Helper `getDistributionWarnings()`
-Iteriert nach Berechnung über alle distributionsrelevanten Konten der Abrechnung und prüft:
-- Hat das Konto einen Betrag ≠ 0?
-- Liefert der Schlüssel verwertbare Anteile? (Personen-Anteile vorhanden, `heating_distribution_values` für die Periode vorhanden, MEA-Summe > 0)
-- Wird der Konto-Anteil aller Eigentümer in Summe = 0, obwohl absTotal ≠ 0?
+### B) Vermieter-/Leerstandskonten — richtige Sektion
+Diese Konten erfassen Kosten, die **nicht** auf Eigentümer/Mieter verteilt werden, sondern beim Vermieter bleiben.
+- **1031 Wasser Vermieteranteil**, **1051 Allgemeinstrom Vermieteranteil**, **1461 CO2 Vermieteranteil**: `settlement_section=operating_non_distributable` (statt distributable, da `vr=0` schon korrekt war)
 
-Gibt eine Liste `{ accountNumber, accountName, amount, distributionKey, reason }` zurück.
+### C) Heizungs-Wartungskonten — saubere Trennung
+- **1431 Gerätemiete**: `is_35a_relevant=false`, `settlement_35a_type=null` (Miete, kein Handwerker)
+- **1430 Messdienst**: `is_35a_relevant=false` (Dienstleistung ohne Vor-Ort-Personal-Einsatz im Haushalt)
 
-Mögliche `reason`-Werte:
-- `"Kein Verteilerschlüssel hinterlegt"`
-- `"Verteilerschlüssel 'personen', aber keine Personen-Anteile gepflegt"`
-- `"Verteilerschlüssel 'heizkostenverordnung', aber keine Brunata-Werte für diese Periode"`
-- `"Verteilerschlüssel 'mea', aber MEA-Summe = 0"`
-- `"Unbekannter Verteilerschlüssel '<key>'"`
+### D) Instandhaltung 1600–1610 — für WEG umlagefähig
+In der WEG-Gesamtabrechnung wird laufende Instandhaltung auf alle Eigentümer nach MEA verteilt.
+- **1600, 1601, 1602, 1603, 1610**: `settlement_section=operating_distributable`
 
-**Kein automatischer Fallback** auf MEA — Werte bleiben 0,00 €, damit nichts „still" falsch verteilt wird (Müll nach MEA wäre z. B. juristisch anfechtbar).
+### E) Zinsen & Steuern auf Rücklage
+- **1840 Zinseinnahmen**: `settlement_section=reserve`, `is_distributable=false` (erhöht direkt die Rücklage, wird nicht verteilt)
+- 1850/1860 sind bereits korrekt
 
-#### 2. UI: Warn-Banner über der Eigentümer-Tabelle
-Direkt unter dem Abrechnungs-Header ein gelbes `Alert`-Panel mit `AlertTriangle`-Icon, sobald `getDistributionWarnings().length > 0`:
+### F) Mitteilungs-/Memo-Konten — aus der Abrechnung raus
+Reine Reportingkonten dürfen weder in Bewirtschaftung noch verteilt werden.
+- **1900, 1910, 1930**: `settlement_section=null`, `is_distributable=false`, `is_billing_relevant=false`, `default_vat_rate=0`
+- **7100, 7120 §35a-Bescheinigung**: `settlement_section=null`
 
-```
-⚠ Verteilung unvollständig — 3 Konten werden nicht verteilt:
-   • 1010 Müll (378,60 €) — Verteilerschlüssel 'personen' ohne Personen-Anteile
-   • 1011 Papiertonne (27,84 €) — Verteilerschlüssel 'personen' ohne Personen-Anteile
-   • 1431 Gerätemiete (389,54 €) — Verteilerschlüssel 'heizkostenverordnung' ohne Brunata-Werte
-   
-   → Verteilerschlüssel im Kontenrahmen oder per Building-Override anpassen, dann Abrechnung neu laden.
-```
+### G) 1920 Reparaturen aus Rücklage — Neutralisierung sicherstellen
+Damit die `is_reserve_funded`-Logik im PDF/Settlement greift, muss das Konto in der Bewirtschaftung erscheinen.
+- **1920**: `settlement_section=operating_distributable`, `is_distributable=true`, `default_vat_rate=0`
 
-#### 3. CSV-Export: Warnblock
-- **Gesamt-CSV**: Am Ende des Header-Blocks (vor der ersten Sektion) Warnzeilen einfügen.
-- **Einzelabrechnungs-CSV**: gleicher Block am Anfang jeder Eigentümer-CSV.
+### H) Summen-/System-Konten — keine Buchungen, keine MwSt
+- **1700, 1730, 1740, 1770, 1780**: `settlement_section=null`, `is_distributable=false`, `default_vat_rate=0` (reine Aggregat-Etiketten)
+- **00000, 09999.998, 09999.999**: `default_vat_rate=0` (System-Marker)
 
-Format:
-```
-WARNUNG;Folgende Konten konnten nicht verteilt werden:
-;1010 Müll;378,60;Verteilerschlüssel 'personen' ohne Personen-Anteile
-;1431 Gerätemiete;389,54;Verteilerschlüssel 'heizkostenverordnung' ohne Brunata-Werte
-```
+### I) Verrechnungs-/Abgrenzungskonten — MwSt 0 %
+- **4000, 4010, 4020, 4021, 4025, 4030, 4040, 4100, 4110–4180, 4900, 4910, 9000**: `default_vat_rate=0`
 
-### B) Datei: `src/components/finance/BillingSettlement.tsx` — Code-Fix `cost_type` Case-Insensitive
+### J) Birkenweg 6 — falsche Overrides bereinigen
+- Override 1010 → `heizkostenverordnung` **löschen** (Müll nach Heizkostenverordnung ist sinnlos; fällt zurück auf Standard `mea`)
+- Overrides 1011 → `einheiten` und 1470 → `einheiten` **bestehen lassen** (waren bewusst gesetzt)
 
-`calcAnnual(types: string[])` macht aktuell exact-match auf `c.cost_type` → bei „Hausgeld" (groß) schlägt der Filter fehl, `totalVorschuss` = 0 → Abrechnungsspitze stimmt nicht. Fix: `c.cost_type?.toLowerCase()` gegen Lowercase-Liste vergleichen (deckt auch zukünftige Inkonsistenzen ab, ohne Daten anfassen zu müssen).
+## Was unverändert bleibt
+- Alle korrekt konfigurierten Aufwandskonten (1000, 1030–1090, 1100–1130, 1200, 1300–1303, 1400–1420, 1440, 1450, 1460, 1470–1473, 1500–1540, 1800, 1810)
+- Personenkonten 0001/0002/0003 (gestern bereits korrigiert)
 
-## Was Stammdaten-Pflege bleibt (nicht im Code lösbar)
-
-Diese fünf Punkte aus der Claude-Analyse sind **bewusst keine Code-Änderungen**, weil sie buchhalterische Entscheidungen sind und je Liegenschaft variieren können:
-
-| # | Lücke | Wo pflegen |
-|---|---|---|
-| 1 | 1010/1011 Verteilerschlüssel | Kontenrahmen oder `building_account_overrides` → MEA |
-| 2 | 1431/1440 Verteilerschlüssel | Kontenrahmen oder `building_account_overrides` → MEA, `is_heating_relevant=false` |
-| 3 | 1850/1860 `is_billing_relevant` | Kontenrahmen |
-| 4 | Wirtschaftsplan 2025 mit `total_reserve = 3.600 €` | Wirtschaftsplan-Wizard |
-| 5 | EWR-Jahresabrechnung 2025 auf 1050 buchen | Buchhaltung |
-
-Die neue Warnung macht **Lücken 1, 2 und 4** sofort sichtbar, sodass du sie nicht mehr beim PDF-Vergleich entdecken musst.
-
-## Konsistenz mit dem System
-- Liest nur bereits geladene Daten (`sectionAccounts`, `personShares`, `heatingDistValues`, `meaShares`) — keine zusätzlichen Queries.
-- Keine neue Berechnungslogik — nur Validierung der bestehenden Verteilung.
-- UI, PDF und CSV bleiben automatisch synchron.
+## Test nach Migration
+Birkenweg 6 / Abrechnung 2025 neu laden:
+- Warnung „Kein Verteilerschlüssel hinterlegt" sollte komplett leer sein
+- §35a-Bescheinigung enthält nur noch echte Handwerker-/Dienstleister-Konten
+- 1900/1910 erscheinen nirgends mehr in der Bewirtschaftung
+- Zinsen 1840 erhöhen die Rücklage statt verteilt zu werden
 
 ## Reihenfolge nach Approval
-1. `calcAnnual` auf case-insensitive `cost_type` umstellen
-2. Helper `getDistributionWarnings()` implementieren
-3. Warn-Banner über der Eigentümer-Tabelle einbauen
-4. Warnblock in `buildOverallCsvLines()` und `buildOwnerCsvLines()` ergänzen
-5. Test: Birkenweg 6 / 2025 → Banner muss 1010/1011/1431/1440 listen, Abrechnungsspitze muss jetzt mit gezahltem Hausgeld rechnen
+1. Eine SQL-Migration mit allen `UPDATE chart_of_accounts SET …` und einem `DELETE FROM building_account_overrides WHERE id='ec30c219-…'`
+2. User testet Birkenweg 6 → Banner muss leer sein
+3. Falls weitere Inkonsistenzen auftauchen, Nachzieh-Migration
 
