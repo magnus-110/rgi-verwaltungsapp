@@ -13,8 +13,7 @@ import { BrunataAllocationManager } from "./BrunataAllocationManager";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ChevronDown, ChevronRight, Check, AlertTriangle } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 
 const STEPS = [
   { id: "basics", label: "Grundlagen", description: "Anfangsbestände, Hausgelder & IHR-Plan" },
