@@ -290,10 +290,40 @@ export function SettlementBasicsStep({ buildingId, periodId, fiscalYear }: Settl
         </CardContent>
       </Card>
 
-      <div className="flex items-start gap-2 p-3 rounded-md border border-dashed text-xs text-muted-foreground">
-        <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
-        <span>
-          Diese Grundlagen werden automatisch aus den Stammdaten gelesen und sind read-only. Sie ändern sich,
+      {/* Offene Abgrenzungen aus Vorjahr (4900 ARA / 4910 PRA) */}
+      {prevAccrualBalances.length > 0 && (
+        <Card>
+          <CardContent className="pt-4 pb-4">
+            <div className="flex items-start gap-2">
+              <FileClock className="h-4 w-4 mt-0.5 text-primary" />
+              <div className="flex-1">
+                <p className="text-sm font-medium">Offene Abgrenzungen aus {fiscalYear - 1}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Diese Schlussbestände sind zu Beginn des Wirtschaftsjahres aufzulösen
+                  (Aufwandskonto an 4900 bzw. 4910 an Aufwandskonto).
+                </p>
+                <div className="mt-2 space-y-1">
+                  {prevAccrualBalances.map((b: any, i: number) => {
+                    const acc = b.chart_of_accounts;
+                    const value = Number(b.closing_balance) || 0;
+                    if (value === 0) return null;
+                    return (
+                      <div key={i} className="flex items-center justify-between text-sm">
+                        <span>
+                          <span className="font-mono text-xs text-muted-foreground mr-2">{acc?.account_number}</span>
+                          {acc?.account_name}
+                        </span>
+                        <span className="font-mono font-medium">{formatCurrency(value)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
           sobald du Eröffnungsbuchungen erfasst, den Wirtschaftsplan aktualisierst oder Eigentümer-Zuordnungen anpasst.
         </span>
       </div>
