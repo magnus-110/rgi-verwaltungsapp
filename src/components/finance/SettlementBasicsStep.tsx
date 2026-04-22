@@ -198,9 +198,9 @@ export function SettlementBasicsStep({ buildingId, periodId, fiscalYear }: Settl
             </div>
             <p className="text-lg font-semibold font-mono">{formatCurrency(reserveOpening)}</p>
             <p className="text-[11px] text-muted-foreground mt-1">
-              {openings.filter((o) => o.acc.category === "ruecklage" && o.source === "booking_4000").length > 0
+              {openings.filter((o) => o.acc.settlement_section === "reserve" && o.source === "booking_4000").length > 0
                 ? "aus Eröffnungsbuchung 4000"
-                : openings.filter((o) => o.acc.category === "ruecklage" && o.source === "manual").length > 0
+                : openings.filter((o) => o.acc.settlement_section === "reserve" && o.source === "manual").length > 0
                   ? "manuell hinterlegt"
                   : "keine Daten"}
             </p>
