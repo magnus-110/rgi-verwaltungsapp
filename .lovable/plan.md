@@ -1,233 +1,116 @@
 
+
+# Plan: Wirtschaftsplan-Editor mit manueller Erfassung
+
 ## Ziel
-Die Abrechnung für **Birkenweg 6 / WJ 2025** soll aus den in Supabase hinterlegten Daten **rechnerisch auf dieselben Werte wie HV Office** kommen — nicht nur optisch ähnlich.
+Wirtschaftsplan in 3 Quellen befüllbar machen — **Vorjahr**, **ETV-Beschluss**, **manuell** — damit auch neu übernommene Liegenschaften ohne Vorjahresdaten einen vollständigen Plan haben. Editor zeigt das gleiche Layout wie das spätere PDF. Sowohl Gesamt- als auch Einzelwirtschaftspläne sind editierbar.
 
-## Warum das Ergebnis aktuell noch abweicht
+## Konzept: Gesamt → Einzel (mit Override-Möglichkeit)
 
-### 1) UI und PDF rechnen nicht mit derselben Datenbasis
-Die App-UI lädt Buchungen aktuell über `fiscal_year = 2025`, die PDF-Function dagegen über `booking_date` im Abrechnungszeitraum.  
-Dadurch fehlen in der UI periodisch relevante Buchungen, z. B. die **Gas-Rückerstattung 427,68 € auf 4130** mit `booking_date = 2025-02-18`, aber `fiscal_year = 2024`.
-
-Folge:
-- Abgrenzungen/Einnahmen weichen ab
-- UI und PDF können trotz identischer Daten unterschiedliche Werte zeigen
-
-### 2) Die Kontensalden werden für Bank-/Bestandskonten fachlich falsch aggregiert
-Der aktuelle Helper `sumForAccount()` behandelt:
-- `account_id` immer als `+amount`
-- `counter_account_id` immer als `-amount`
-
-Das funktioniert für viele **Kostenkonten**, aber **nicht** für:
-- **1800 Giro**
-- **1810 Rücklage**
-- Personenkonten
-- Salden-/Bilanzkonten allgemein
-
-Denn dort muss die Richtung von `booking_type` bzw. der fachlichen Kontoart abhängen.  
-Darum entstehen falsche Endbestände.
-
-### 3) Die Rücklagen-Zuführung wird nicht wie HV Office hergeleitet
-HV Office weist für 2025 eine **Zuführung zur Rücklage von 3.600,00 €** aus (im PDF als **1720**).  
-In der App fehlt dafür aktuell eine belastbare Quelle:
-- `economic_plans.total_reserve` ist leer
-- auf `1710/1720` liegt keine verwertbare Buchung
-- in `contact_building_costs` gibt es nur **Hausgeld**, aber keine getrennte **Rücklage**
-
-Folge:
-- Reserveblock wird in der App zu klein oder 0
-- daraus folgen falsche Einzelabrechnung, falsche Abrechnungsspitze und falsche Rücklagen-Endstände
-
-### 4) Die HV-Office-Logik trennt Hausgeld intern in Betriebskosten-Vorschuss und Rücklagen-Vorschuss
-HV Office zeigt:
-- Vorschüsse zur Kostendeckung
-- Vorschüsse auf EHR
-
-In Supabase liegen die Zahlungen aber aktuell nur als **Hausgeld auf Personenkonten** vor.  
-Damit die App exakt gleich rechnet, muss sie diese Zahlungen **synthetisch in Betriebskostenanteil und Rücklagenanteil aufteilen**.
-
-### 5) Mindestens ein Building-Override ist noch falsch
-Für Birkenweg 6 sind noch Overrides aktiv, die nicht zu HV Office passen:
-- **1010** ist noch überschrieben
-- **1011** ist ebenfalls überschrieben, obwohl die HV-Abrechnung hier praktisch nach **MEA** verteilt
-
-Folge:
-- Einzelabrechnung weicht je Einheit ab, obwohl die Buchungen identisch sind
-
-### 6) Die Abrechnung enthält HV-Office-Synthesepositionen, die die App noch nicht sauber modelliert
-Dazu gehören insbesondere:
-- **Rücklagenzuführung (1720 / 1710-Äquivalent)**
-- **Vorschuss-Split Betrieb / EHR**
-- **WEG-Abrech.-Sollstellung (4020)**
-- saubere HV-konforme Behandlung von **4110 / 4130 / 4160 / 4180**
-
-Diese Werte sind nicht einfach „gebuchte Kontensummen“, sondern teils **abgeleitete Jahresabrechnungswerte**.
-
----
-
-## Was umgesetzt werden muss
-
-### A) Eine zentrale Abrechnungs-Engine bauen
-Die Logik darf nicht mehr doppelt existieren.
-
-Es wird eine gemeinsame Engine eingeführt, die von:
-- `src/components/finance/BillingSettlement.tsx`
-- `supabase/functions/generate-billing-pdf/index.ts`
-
-gleichermaßen verwendet wird.
-
-Diese Engine liefert:
-1. Gesamtabrechnung
-2. Einzelabrechnungen je Einheit
-3. Rücklagenentwicklung
-4. Vorschuss-Soll / Ist / Abrechnungsspitze
-5. HV-Office-kompatible synthetische Zeilen
-
-### B) Buchungen künftig immer periodisch statt nur per fiscal_year ziehen
-Für die Abrechnung werden Buchungen primär über:
-
-- `booking_date >= period_from`
-- `booking_date <= period_to`
-
-geladen.
-
-`fiscal_year` bleibt nur noch Kontroll-/Diagnosefeld, nicht Hauptfilter.
-
-### C) Bewegungslogik fachlich korrekt aufbauen
-Statt `sumForAccount()` für alles zu missbrauchen, wird ein normalisierter Bewegungsstrom eingeführt:
+Der Nutzer pflegt primär den **Gesamtwirtschaftsplan** (Beträge pro Konto auf Gebäudeebene). Die Einzelwirtschaftspläne pro Eigentümer werden **automatisch berechnet** über die hinterlegten Umlageschlüssel — können aber **pro Eigentümer/Konto manuell überschrieben** werden (z. B. bei Sondervereinbarungen, abweichenden Schlüsseln, Mieter-Umlagen).
 
 ```text
-Buchung
-→ fachlicher Bewegungsvektor je Konto
-→ je nach Kontoart / booking_type anders signiert
+GESAMTWIRTSCHAFTSPLAN 2025 — Birkenweg 6
+Konto                     Plan €    Schlüssel
+1010 Müll                  480,00   Personen
+1050 Allgemeinstrom        720,00   MEA
+1400 Heizung             5.149,00   Brunata
+1620 Verwaltervergütung  2.880,00   pro Einheit
+…
+Σ Hausgeld gesamt       22.320,00
+
+   ↓  automatische Berechnung über Umlageschlüssel  ↓
+
+EINZELWIRTSCHAFTSPLAN — Wohnung 0001 (Wollmann/Deng)  [bearbeitbar]
+Konto                Anteil    Plan €/Jahr  €/Monat   Override
+1010 Müll          2/5 Pers.    192,00       16,00      –
+1050 Allgemstr.   325/1000      234,00       19,50      –
+1400 Heizung      Brunata     2.536,64      211,39    ✏️ manuell
+…
+Σ Hausgeld                    4.860,00      405,00
 ```
 
-Getrennte Regeln für:
-- Aufwand/Ertrag
-- Bankkonten
-- Rücklagenkonten
-- Personenkonten
-- Abgrenzungskonten
+## Was gebaut wird
 
-Damit werden Anfangs- und Endbestände endlich korrekt.
+### 1. Datenbank
+- `economic_plans.source` neu: `'previous_year' | 'etv_resolution' | 'manual'`
+- `economic_plans.status`: `'draft' | 'active' | 'archived'` (nur ein aktiver pro Gebäude/Jahr)
+- `economic_plan_items.manually_overridden` neu (boolean)
+- **Neue Tabelle** `economic_plan_unit_items` für Einzelplan-Overrides:
+  - `plan_id`, `unit_id`, `account_id`, `amount`, `manually_overridden`, `override_reason`
+  - Ohne Override-Eintrag → Wert wird live aus Gesamtplan + Schlüssel berechnet
+  - Mit Override → fester Wert wird verwendet
 
-### D) Rücklagenlogik HV-Office-konform machen
-Die Engine bekommt eine feste Prioritätslogik für die **jährliche Rücklagenzuführung**:
+### 2. Seite `/wirtschaftsplan`
+Neuer Button **„Manuell anlegen"** neben „Aus Vorjahr generieren". Erscheint immer, ist besonders prominent wenn keine Vorjahresperiode existiert.
 
-1. expliziter Wirtschaftsplan (`economic_plans.total_reserve`)
-2. vorhandenes Plan-/Systemkonto (`1710/1720`)
-3. abgeleitete Rücklagen-Sollstellung aus Hausgeldstruktur / Stammdaten
+### 3. Komponente `EconomicPlanEditor` (erweitert) — Tab „Gesamtplan"
+- **PDF-Look-Layout** — gleiche Sektionen, Spalten und Summen wie das spätere PDF
+- **Inline-Edit** direkt in den Tabellenzellen
+- **Auto-Save als Entwurf** (debounced 800ms)
+- **Toggle-Button**: „Bearbeiten" ↔ „Vorschau"
+- Geänderte Werte zeigen Reset-Icon zur Wiederherstellung des Original-Wertes
 
-Zusätzlich wird die **Rücklagenentnahme 1920** weiterhin neutralisiert, aber nun gegen die korrekt ermittelte Zuführung gerechnet.
+### 4. Komponente `UnitEconomicPlanEditor` (neu) — Tab „Einzelpläne"
+- Liste aller Einheiten links, Detail rechts (oder Akkordeon mobil)
+- Pro Einheit: Tabelle wie Einzelplan-PDF
+- Jede Zelle hat **Edit-Modus**:
+  - Standard: live berechneter Wert (grau, Tooltip „berechnet aus Gesamtplan × Schlüssel")
+  - Edit: User trägt eigenen Wert ein → wird als `manually_overridden=true` gespeichert
+  - Visueller Marker (Stift-Icon) für überschriebene Werte
+  - Reset-Button pro Zelle: zurück zum berechneten Wert
+- **Abweichungs-Warnung** unten: „Σ Einzelpläne weicht von Σ Gesamtplan ab um X €" — als bewusste Hinweis-Zeile, nicht als Fehler (manche Sondervereinbarungen sind legitim)
 
-### E) Vorschüsse in zwei Ebenen berechnen
-Die Engine berechnet getrennt:
+### 5. Komponente `EconomicPlanLayout` (neu)
+Single Source of Truth für das Layout — wird genutzt von:
+- Gesamtplan-Editor (Inline-Edit)
+- Einzelplan-Editor (Inline-Edit)
+- Vorschau-Modus (read-only)
+- PDF-Export
 
-- **Vorschuss-Soll laut WPL**
-- **tatsächlich gezahlte Vorschüsse**
-- davon **Betriebskostenanteil**
-- davon **Rücklagenanteil**
+So sind Bildschirm und PDF 1:1 identisch.
 
-So können exakt die HV-Office-Zeilen erzeugt werden:
-- Vorschüsse zur Kostendeckung
-- Vorschüsse auf EHR
-- Abrechnungsspitze
-- Abrechnungssaldo
+### 6. Aktivierung & Versionierung
+- Status: `draft` → `active` (nur ein aktiver Plan pro Gebäude/Jahr)
+- Beim Aktivieren: alter aktiver Plan → `archived`
+- Audit pro Änderung (`updated_by`, `updated_at`)
 
-### F) Konten- und Override-Fixes für Birkenweg 6 nachziehen
-Zusätzlich zur bisherigen Kontenrahmen-Korrektur werden die noch abweichenden Birkenweg-Overrides bereinigt, insbesondere:
-- 1010 nicht auf falschen Verteiler
-- 1011 nicht auf falschen Verteiler
-- Heiz-/Rücklagen-/Abgrenzungskonten nochmals gegen HV-Ergebnis prüfen
+### 7. Anschluss an Abrechnung
+- Abrechnungs-Engine liest den **aktiven Wirtschaftsplan** für die „Plan"-Spalte
+- Bei Einzelabrechnung: ggf. Overrides aus `economic_plan_unit_items` berücksichtigen
 
----
-
-## Konkrete Bugs, die ich fixen werde
-
-1. `BillingSettlement.tsx` nutzt falschen Hauptfilter (`fiscal_year`) statt Periodenlogik
-2. `sumForAccount()` wird für Bank-/Saldo-Konten falsch verwendet
-3. Anfangs-/Endbestände 1800/1810 werden dadurch falsch berechnet
-4. Rücklagenzuführung fehlt, wenn `economic_plans.total_reserve` leer ist
-5. UI und PDF nutzen unterschiedliche Abrechnungslogik
-6. Vorschuss-Split Betrieb/EHR fehlt
-7. HV-Office-Synthesekonto 4020 wird nicht korrekt hergeleitet
-8. Building-Overrides für Birkenweg 6 sind noch nicht vollständig HV-konform
-9. Die PDF-Engine nutzt teilweise andere Reserve-/Kontenklassifikation als das Frontend
-10. Abgrenzungskonten 4110/4130/4160/4180 werden nicht strikt HV-konform periodisiert/dargestellt
-
----
-
-## Zielbild des Systems nach dem Fix
+## UI-Flow
 
 ```text
-Supabase Buchungen + Stammdaten + Shares + Kosten + Heizwerte
-            ↓
-   Shared Settlement Engine
-            ↓
-  1. periodische Bewegungen
-  2. HV-konforme Ableitungen
-     - Betriebskosten
-     - Rücklagenzuführung
-     - Rücklagenentnahme
-     - Vorschuss Soll/Ist
-     - Abgrenzungen
-     - 4020 / Spitzenausweis
-            ↓
-  UI = PDF = CSV = exakt gleiche Zahlenbasis
+/wirtschaftsplan
+   │
+   ├─ Liegenschaft + Jahr wählen
+   │
+   ├─ Hat Vorjahres-Plan?
+   │     ja  → [Aus Vorjahr] [Manuell] [Bestehenden bearbeiten]
+   │     nein → [Manuell anlegen] (Hinweis: kein Vorjahr verfügbar)
+   │
+   ├─ Editor öffnet sich
+   │     ├─ Tab „Gesamtplan" — Inline-Edit, Auto-Save
+   │     ├─ Tab „Einzelpläne" — Live-Berechnung + Override pro Zelle
+   │     └─ Toggle: Bearbeiten ↔ Vorschau
+   │
+   └─ Button „Plan aktivieren"
+         ├─ Status: Entwurf → aktiv
+         ├─ Vorheriger aktiver Plan → archiviert
+         └─ Plan steht für Abrechnung bereit
 ```
 
----
+## Reihenfolge der Umsetzung
 
-## Technische Umsetzung
+1. **Schritt 1** — Datenbank-Migration (neue Felder + `economic_plan_unit_items`)
+2. **Schritt 2** — `EconomicPlanLayout` als gemeinsame Layout-Komponente extrahieren
+3. **Schritt 3** — `EconomicPlanEditor` Tab „Gesamtplan" mit Inline-Edit + Auto-Save + „Manuell anlegen"
+4. **Schritt 4** — `UnitEconomicPlanEditor` Tab „Einzelpläne" mit Live-Berechnung + Override
+5. **Schritt 5** — „Aktivieren"-Button + Versionierung
+6. **Schritt 6** — PDF-Export auf gemeinsame Layout-Komponente umstellen
+7. **Direkt im Anschluss**: Plan für **Birkenweg 6 / 2025** manuell anlegen + aktivieren → dann Abrechnung bauen (Schritt A)
 
-### Dateien
-- `src/components/finance/BillingSettlement.tsx`
-- `src/components/finance/lib/bookingAggregation.ts`
-- neue Shared-Settlement-Helpers im Frontend
-- `supabase/functions/_shared/booking-aggregation.ts`
-- `supabase/functions/generate-billing-pdf/index.ts`
-- ggf. neue Migration für korrigierte `building_account_overrides`
+## Hinweis
+Die Buchhaltung BW6/2025 ist abgeschlossen (Konto 1400 = 5.149,00 € bestätigt). Der manuelle Plan ändert daran nichts — er liefert nur die Plan-Spalte für die Gesamt- und Einzelabrechnung.
 
-### Rechenmodell
-Es werden drei getrennte Rechenebenen eingeführt:
-
-1. **Bewegungsrechnung**
-   - aus realen Buchungen
-   - streng nach `booking_date`
-
-2. **Plan-/Sollrechnung**
-   - Hausgeld-Soll
-   - Rücklagen-Soll
-   - Eigentümerverpflichtung
-
-3. **Abrechnungsableitung**
-   - HV-konforme Gesamtabrechnung
-   - HV-konforme Einzelabrechnung
-   - Abrechnungsspitze / Abrechnungssaldo
-   - synthetische Abrechnungszeilen
-
-### Validierung gegen Birkenweg 6
-Nach Umsetzung wird Birkenweg 6 / 2025 explizit gegen die beigefügten PDFs geprüft:
-
-- Anfangsbestand Giro
-- Anfangsbestand Rücklage
-- Heizkosten gesamt
-- nicht umlagefähige Kosten
-- Rücklagenzuführung
-- Rücklagenentnahme
-- Abgrenzungen
-- Abrechnungssumme gesamt
-- Vorschussverpflichtung gesamt
-- Abrechnungsspitze gesamt
-- Einzelwerte Einheit 0001 / 0002 / 0003
-
----
-
-## Reihenfolge
-1. Shared-Settlement-Engine definieren
-2. Periodenfilter und Bewegungslogik korrigieren
-3. Bank-/Saldo-Logik für 1800/1810 fachlich richtig machen
-4. Reserve-Soll und Vorschuss-Split implementieren
-5. 4020 / Abgrenzungslogik HV-konform ergänzen
-6. Building-Overrides Birkenweg 6 korrigieren
-7. UI, PDF und CSV vollständig auf dieselbe Engine umstellen
-8. Birkenweg 6 / 2025 gegen die HV-Office-PDFs numerisch abgleichen
