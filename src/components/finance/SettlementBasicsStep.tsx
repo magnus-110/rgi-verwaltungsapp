@@ -146,12 +146,15 @@ export function SettlementBasicsStep({ buildingId, periodId, fiscalYear }: Settl
     return { acc, amount: eff.amount, source: eff.source };
   });
 
+  // Anfangsbestände sind per Konvention positive Aktivposten. Je nach Buchungs-
+  // richtung der Eröffnungsbuchung (4000 als account_id ODER counter_account_id)
+  // liefert sumForAccount ein negatives Vorzeichen — wir normalisieren über Math.abs.
   const giroOpening = openings
     .filter((o) => o.acc.settlement_section === "bank")
-    .reduce((s, o) => s + o.amount, 0);
+    .reduce((s, o) => s + Math.abs(o.amount), 0);
   const reserveOpening = openings
     .filter((o) => o.acc.settlement_section === "reserve")
-    .reduce((s, o) => s + o.amount, 0);
+    .reduce((s, o) => s + Math.abs(o.amount), 0);
 
   // Hausgeldsumme (Bewegungen auf Personenkonten) – Pattern ^0\d{3}$, ohne 0000
   const personalAccountPattern = /^0\d{3}$/;
