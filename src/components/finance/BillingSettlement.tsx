@@ -102,7 +102,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bookings")
-        .select("account_id, counter_account_id, amount, booking_type, booking_category, description, is_35a_relevant")
+        .select("account_id, counter_account_id, amount, booking_date, booking_type, booking_category, description, is_35a_relevant")
         .eq("building_id", buildingId)
         .eq("fiscal_year", fiscalYear)
         .neq("status", "cancelled");
