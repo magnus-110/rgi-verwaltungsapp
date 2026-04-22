@@ -96,15 +96,19 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     },
   });
 
-  // All bookings for the year — include counter_account_id for bank-centric aggregation
+  // All bookings in the period — HV-Office-konform per booking_date filtern
+  // (NICHT per fiscal_year, sonst fehlen Buchungen wie die Gas-Rückerstattung
+  // 427,68 € vom 18.02.2025 mit fiscal_year=2024).
   const { data: rawBookings = [] } = useQuery({
-    queryKey: ["settlement-bookings", buildingId, fiscalYear],
+    queryKey: ["settlement-bookings", buildingId, periodId],
+    enabled: !!period,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bookings")
-        .select("account_id, counter_account_id, amount, booking_date, booking_type, booking_category, description, is_35a_relevant")
+        .select("account_id, counter_account_id, amount, booking_date, booking_type, booking_category, description, is_35a_relevant, fiscal_year")
         .eq("building_id", buildingId)
-        .eq("fiscal_year", fiscalYear)
+        .gte("booking_date", period!.period_from)
+        .lte("booking_date", period!.period_to)
         .neq("status", "cancelled");
       if (error) throw error;
       return data;
