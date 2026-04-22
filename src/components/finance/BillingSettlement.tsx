@@ -152,13 +152,13 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     },
   });
 
-  // Building (for unit_count / unit_count_for_billing)
+  // Building (for unit_count / unit_count_for_billing + CSV header)
   const { data: building } = useQuery({
     queryKey: ["settlement-building", buildingId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("buildings")
-        .select("unit_count, unit_count_for_billing")
+        .select("name, address, building_code, unit_count, unit_count_for_billing")
         .eq("id", buildingId)
         .single();
       if (error) throw error;
