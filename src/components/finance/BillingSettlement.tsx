@@ -443,7 +443,11 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     // Distributable accounts
     const distributableAccounts = accounts.filter((a) => a.is_distributable && !isAccrualBalanceAccount(a));
     distributableAccounts.forEach((acc) => {
-      const total = getAccountBookingTotal(acc.id);
+      // IHR-Zuführung (reserve section): nimm WP-Wert 1:1 statt Buchungs-Summe
+      const isReserveAcc = acc.settlement_section === "reserve";
+      const total = isReserveAcc && economicPlan?.total_reserve != null
+        ? Number(economicPlan.total_reserve)
+        : getAccountBookingTotal(acc.id);
       if (total === 0) return;
 
       const distKey = getDistKey(acc.id, acc.default_distribution_key);
