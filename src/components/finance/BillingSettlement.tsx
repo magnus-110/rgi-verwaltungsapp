@@ -670,7 +670,13 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const distributionWarnings: DistWarning[] = (() => {
     const warnings: DistWarning[] = [];
     const distributableAccounts = accounts.filter(
-      (a: any) => a.is_distributable && !isAccrualBalanceAccount(a) && !isHeatingPrepayAccount(a),
+      (a: any) =>
+        a.is_distributable &&
+        !isAccrualBalanceAccount(a) &&
+        !isHeatingPrepayAccount(a) &&
+        // Personenkonten (Debitoren, Kontonr. beginnt mit "0") überspringen — sie haben
+        // konzeptionell keinen Verteilerschlüssel, sondern sind das Soll-/Ist-Ziel der Verteilung.
+        !String(a.account_number || "").startsWith("0"),
     );
 
     for (const acc of distributableAccounts) {
