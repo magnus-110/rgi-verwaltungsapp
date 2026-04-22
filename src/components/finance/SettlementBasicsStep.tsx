@@ -147,14 +147,17 @@ export function SettlementBasicsStep({ buildingId, periodId, fiscalYear }: Settl
   });
 
   const giroOpening = openings
-    .filter((o) => o.acc.category !== "ruecklage")
+    .filter((o) => o.acc.settlement_section === "bank")
     .reduce((s, o) => s + o.amount, 0);
   const reserveOpening = openings
-    .filter((o) => o.acc.category === "ruecklage")
+    .filter((o) => o.acc.settlement_section === "reserve")
     .reduce((s, o) => s + o.amount, 0);
 
-  // Hausgeldsumme (Bewegungen auf Personenkonten)
-  const personAccounts = accounts.filter((a: any) => a.account_number?.startsWith("0000"));
+  // Hausgeldsumme (Bewegungen auf Personenkonten) – Pattern ^0\d{3}$, ohne 0000
+  const personalAccountPattern = /^0\d{3}$/;
+  const personAccounts = accounts.filter(
+    (a: any) => personalAccountPattern.test(a.account_number) && a.account_number !== "0000",
+  );
   const hausgeldTotal = personAccounts.reduce((s: number, acc: any) => {
     const total = bookings.reduce((bs, b: any) => {
       const amt = Number(b.amount) || 0;
