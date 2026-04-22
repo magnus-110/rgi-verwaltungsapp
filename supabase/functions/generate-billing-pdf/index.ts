@@ -530,10 +530,15 @@ serve(async (req) => {
 
     // ─── RESPONSE ───
     const storeAndRespond = async (html: string, fileName: string) => {
-      const filePath = `billing-pdfs/${buildingId}/${fiscalYear}/${fileName.replace(/[^a-zA-Z0-9äöüÄÖÜ._-]/g, "_")}`;
-      await supabase.storage
+      const safeName = fileName.replace(/[^a-zA-Z0-9äöüÄÖÜ._-]/g, "_");
+      const filePath = `billing-pdfs/${buildingId}/${fiscalYear}/${safeName}`;
+      const { error: uploadError } = await supabase.storage
         .from("building-documents")
-        .upload(filePath, new Blob([html], { type: "text/html" }), { upsert: true });
+        .upload(filePath, new Blob([html], { type: "text/html; charset=utf-8" }), {
+          upsert: true,
+          contentType: "text/html; charset=utf-8",
+        });
+      if (uploadError) console.error("upload error:", uploadError);
       const { data: signedUrl } = await supabase.storage
         .from("building-documents")
         .createSignedUrl(filePath, 3600);
