@@ -1,90 +1,55 @@
 
 
-# Antwort + Umbau-Plan: Konten 1700/1710, Schritt 2 entfernen, Brunata-Gating, Abgrenzungen
+# Plan: PDF-Abrechnung an Frontend angleichen (8 Bugs aus Claude-Analyse)
 
-## Teil A — Erklärung der Konten 1700 und 1710
+## Bewertung der Claude-Analyse
 
-| Konto | Aktuelle Bezeichnung | Realer Zweck | Beispiele für Buchungen |
-|---|---|---|---|
-| **1700** | „Summe I. Bewirtschaftungskosten" | **Falsch verwendet.** Es ist im SKR-Verwaltungsmodell ein **Summenausweis-Etikett** für die Gesamtabrechnung — kein Buchungskonto. In unserer DB ist es zusätzlich `settlement_section = 'reserve'` gesetzt, was inhaltlich nicht passt. | **Hier wird/sollte gar nicht gebucht werden.** Der Summenwert entsteht rechnerisch aus den Konten 1000–1499. |
-| **1710** | „II. Beitragsverpflichtung IHR" | Sollkonto für die **planmäßige Zuführung zur Erhaltungsrücklage** laut Wirtschaftsplan (Forderung an die Eigentümer). | Beispiel WP 2025: 12.000 € IHR-Soll → 1710 an 0001/0002/0003 (Personenkonten, anteilig nach MEA). Bei Eingang Zahlung: 1800 (Bank) an 1710. |
+**Fundiert und korrekt.** Die Analyse identifiziert echte Diskrepanzen zwischen `generate-billing-pdf/index.ts` (Edge-Function) und `BillingSettlement.tsx` (Frontend). Die UI nutzt bereits die korrekten Helper (`getEffectiveOpeningBalance`, `getEffectiveClosingBalance`, `settlement_section`-Filter), die PDF-Funktion hängt mehrere Refactor-Runden zurück.
 
-**Echtes Rücklagenvermögen** liegt auf **1810** („Festgeld/Sparbuch"). **1800** ist das Girokonto. **1920** ist die rücklagenfinanzierte Reparatur (mit `is_reserve_funded=true`).
+Bestätigt per Code-Inspektion:
+- PDF-Function filtert Anfangsbestände noch über `category === "bank"/"ruecklage"` (Zeilen 170-181) — gleicher Bug wie damals in `SettlementBasicsStep`. In der DB heißt die Kategorie freier Text wie „4. WEG-Systemkonten & Rücklagen", greift also nie → Anfangs-/Schlussbestände immer 0.
+- Personenkonten 0001-0003 haben `is_distributable=true` und werden als Verteilungskosten umgelegt, weil der Filter in `distributableAccounts` (Zeile 154) sie nicht ausschließt. Pattern existiert zwar weiter unten (Z. 188), wird aber nur fürs Hausgeld benutzt.
+- Reserve-Section nutzt `totalReserveFromPlan` als Override (Z. 131), aber kein expliziter „WP hat Vorrang vor Buchungen"-Fallback, wenn Plan = 0 ist (Buchungs-Fallback fehlt).
+- Vorschussverpflichtung + Abrechnungsspitze tauchen im PDF-Code aktuell nicht auf — UI berechnet beides (Z. 686+), PDF nicht.
 
-Beide Konten (1700, 1710) tauchen in der Saldenübernahme nur deswegen auf, weil sie versehentlich `carry_forward_balance=true` UND `settlement_section='reserve'` haben. Sie verfälschen die Übersicht und bringen den Nutzer zum Eintragen sinnloser Werte.
+## Was umgebaut wird
 
-→ **Empfehlung: 1700 wird zu einem reinen Anzeige-/Pseudo-Konto. `carry_forward_balance` deaktivieren.** 1710 bleibt buchbar (Sollstellung IHR), aber `carry_forward_balance` ebenfalls deaktivieren — der Saldo ergibt sich aus Buchungen, nicht aus einem Vortrag.
+### A) `supabase/functions/generate-billing-pdf/index.ts` (Hauptarbeit)
 
----
+| # | Bug | Fix |
+|---|---|---|
+| 1 | Anfangs-/Schlussbestände via `category === "bank"/"ruecklage"` (immer 0) | Umstellen auf `getEffectiveOpeningBalance` / `getEffectiveClosingBalance` aus `_shared/booking-aggregation.ts` (4000-Eröffnungsbuchung priorisiert). Filter über `settlement_section === "bank"/"reserve"` mit Account-Number-Range `/^18\d{2}$/` als Backup. |
+| 2 | Personenkonten 0001-0003 werden als Verteilungskosten umgelegt | `distributableAccounts`-Filter um `!personalAccountPattern.test(a.account_number)` und `a.settlement_section !== "income"` ergänzen. |
+| 3 | (= Teil von Bug 1) | mitkorrigiert |
+| 4 | Heating-Repost-Buchungen zählen Heizkosten doppelt | Wo `sumForAccount` für 1400 etc. genutzt wird, vorgefilterte Liste `bookingsExclHeatingRepost = allBookings.filter(b => b.booking_category !== "heating_repost")` verwenden. |
+| 5 | IHR-Zuführung: WP-Beschluss vs. Buchungen | Logik beibehalten (`totalReserveFromPlan` hat Vorrang), aber sauberen Fallback auf Buchungs-Summe der Reserve-Sektion ergänzen, wenn Plan = 0 → kein „leere Reserve trotz Buchungen". |
+| 6 | Reserve-finanzierte Aufwände (1920) doppelt | Bereits über `is_reserve_funded` in Z. 144-148 + Z. 266/295 gehandhabt — verifizieren, dass der Abzug auf Eigentümerebene tatsächlich greift, und die Neutralisation auch in der Gesamtabrechnung sichtbar machen (Sektion „Rücklagenentnahme" mit `totalReserveWithdrawal`). |
+| 7 | Vorschussverpflichtung & Abrechnungsspitze fehlen im PDF | `totalVorschuss` (zeitanteilig + interval-aware analog `calcAnnual`) pro Eigentümer berechnen, in Owner-Result aufnehmen; in der HTML-Vorlage als Zeile „./. geleistete Vorauszahlungen" + „Abrechnungsspitze" ausgeben (Guthaben/Nachzahlung). |
+| 8 | Kostenzeitachse grobe Faktoren 12/4/1 | `getTimeProportion` ist bereits day-precision (Z. 102-112) — `calcAnnual` auf gleiche Day-Precision umstellen statt fester Faktoren. |
 
-## Teil B — Was umgebaut wird
+### B) Datenkorrekturen (per Migration-Tool)
+Claude meldet zwei Dateninkonsistenzen — die fixen wir ebenfalls:
+- **Eröffnungsbuchung 1800 umkehren**: Buchung am 01.01.2025 (Birkenweg 6) hat `account_id=4000, counter_account_id=1800` → bank-zentrische Konvention liefert -3.510 €. Korrekt: `account_id=1800, counter_account_id=4000`. Per UPDATE auf die eine Booking-Zeile.
+- **`is_distributable` für 1850/1860 (KapErtSt + Soli) auf `false`**: das sind keine Eigentümer-Kosten, sondern Kapitalertragsteuern auf Rücklagen-Zinsen.
 
-### 1) Schritt 2 „Saldenübernahme" entfernen
-Die Komponente `BalanceCarryForward` ist redundant: Die Grundlagen-Karten (Schritt 1) lesen Anfangsbestände bereits aus der Eröffnungsbuchung 4000 (oder manuell aus `account_balances`). Ein zweites Eingabe-UI verwirrt nur und führt zu doppelter Pflege.
+### C) Memory-Update
+Ergänzung zu `mem://features/finance/pdf-aggregation-shared`:
+- Anfangs-/Schlussbestände in Edge-Function MÜSSEN über `getEffective*Balance`-Helper laufen, nie über `category`.
+- Verteilungs-Filter MUSS Personenkonten (`/^0\d{3}$/`) und `settlement_section==="income"` ausschließen.
+- `heating_repost`-Buchungen MÜSSEN bei Heizkosten-Aggregation rausgefiltert werden.
 
-- Aus `BillingTab.tsx` entfernen:
-  - Import `BalanceCarryForward`
-  - Den Block unter `step.id === "review"`, der `<BalanceCarryForward …/>` rendert, ersatzlos streichen. `BookingReviewSection` bleibt.
-- Auto-Carry-Forward-Effekt (`useEffect` in `BillingTab.tsx`, Z. 65–134) entfernen — er kopiert nur Vorjahres-Closing-Balances ohne Mehrwert; die echte Quelle ist die 4000-Eröffnungsbuchung.
-- `balanceStatus` und das daran gekoppelte Status-Hint im Sticky-StatusBar entfernen. Schritt „basics" zeigt grünen Status, sobald für alle relevanten Konten ein Anfangsbestand erkannt wurde.
-- Die Datei `BalanceCarryForward.tsx` selbst behalten wir vorerst (keine harten Abhängigkeiten in anderen Tabs prüfen wir vor Löschung), aber sie wird nicht mehr eingebunden.
-
-### 2) Konten 1700/1710 in der UI bereinigen (Datenpflege, keine Migration)
-- `chart_of_accounts.carry_forward_balance` für **1700** und **1710** auf `false` setzen.
-- 1700 zusätzlich `settlement_section = NULL` (es ist kein Rücklagen-, sondern ein Summenetikett).
-- Damit verschwinden beide automatisch aus der Saldenübernahme-Tabelle und aus `SettlementBasicsStep` / `BillingSettlement` (Aggregationen filtern ohnehin auf `settlement_section`).
-
-### 3) Brunata-Gating in Schritt 3
-Aktuell kann der Nutzer Brunata-Werte eintragen, bevor die Brennstoffrechnungen vom Gegenkonto (z. B. 1410 Brennstoffkauf) auf **Konto 1400** (Sammelkonto Heizung/Warmwasser) umgebucht wurden. Folge: Die Summen-Prüfung „Brunata vs. 1400" schlägt fehl oder ergibt 0 €.
-
-Neue Reihenfolge in `BillingTab.tsx` und Sperre im `BrunataAllocationManager`:
-1. `HeatingAccountsSection` (Übersicht)
-2. `FuelInventorySection` (Brennstoffrestbestände)
-3. **`HeatingRebookingSection`** (Umbuchung 1410/1420/1430/… → 1400) — **wird vor Brunata gerendert**
-4. **`BrunataAllocationManager`** — gesperrt, solange Konto **1400** keinen Saldo > 0 hat (per `sumForAccount(1400, bookings)`).
-   - UI: Inputs disabled + Hinweisbanner „Bitte zuerst Heizkosten auf Konto 1400 umbuchen (Schritt 3.3)."
-   - Sobald 1400 > 0 → Inputs aktiv, Summen-Check gegen 1400 läuft wie bisher.
-
-### 4) Umgang mit Abgrenzungen (Schritt 4 „Accruals")
-Status quo:
-- `AccrualSection` zeigt Buchungen mit `service_period_from / service_period_to`, die das Wirtschaftsjahr überschreiten (z. B. Versicherungsprämie Nov 2025 – Okt 2026), und schlägt per KI Abgrenzungssplits vor.
-- Dafür existieren `accrual_bookings`-Einträge sowie das Konto-Pattern `settlement_section = 'accrual'`.
-
-Was fehlt / wird ergänzt:
-- **Konto 4900 „Aktive Rechnungsabgrenzung (ARA)"** und **4910 „Passive Rechnungsabgrenzung (PRA)"** als Standardkonten anlegen, falls nicht vorhanden, mit `settlement_section='accrual'`, `carry_forward_balance=true`. Vorabprüfung nötig.
-- Workflow: KI-Vorschlag akzeptieren → System bucht automatisch
-  - Aufwand-Splittung: 4900 an Aufwandskonto (für den Anteil, der ins Folgejahr gehört)
-  - Im Folgejahr automatischer Auflösungs-Booking-Vorschlag: Aufwandskonto an 4900
-- In Schritt 1 (Grundlagen) zusätzlich Karte „Offene Abgrenzungen aus Vorjahr" anzeigen (Saldo 4900/4910 aus Vorjahresende), damit der Nutzer sieht, was zu Beginn des WJ aufzulösen ist.
-- In `BillingSettlement` werden ARA/PRA-Konten beim Aufwand neutral ausgewiesen (keine Verteilung an Eigentümer, da bereits im Vorjahr/Folgejahr verteilt).
-
----
-
-## Betroffene Dateien
-
-**Bearbeitet**
-- `src/components/finance/BillingTab.tsx` — Schritt 2 entfernen, Reihenfolge Schritt 3 ändern, Status-Logik anpassen
-- `src/components/finance/BrunataAllocationManager.tsx` — Sperre + Hinweisbanner, wenn Saldo Konto 1400 = 0
-- `src/components/finance/SettlementBasicsStep.tsx` — neue Karte „Offene Abgrenzungen Vorjahr" (Saldo 4900/4910)
-- `src/components/finance/AccrualSection.tsx` — Auto-Booking beim Akzeptieren eines KI-Vorschlags (Buchung gegen 4900/4910)
-- `src/components/finance/BillingSettlement.tsx` — ARA/PRA aus Aufwandsverteilung ausschließen
-
-**Datenpflege (insert tool, keine Migration)**
-- UPDATE `chart_of_accounts` SET `carry_forward_balance=false`, `settlement_section=NULL` WHERE `account_number='1700'`
-- UPDATE `chart_of_accounts` SET `carry_forward_balance=false` WHERE `account_number='1710'`
-- INSERT Standardkonten 4900 (ARA) und 4910 (PRA), falls nicht vorhanden, `settlement_section='accrual'`, `carry_forward_balance=true`
-
-**Memory-Update**
-- `mem://features/finance/abrechnungs-workflow-v5` — neue 4-Schritt-Reihenfolge (basics → review → heating mit Gating → accruals → settlement), Erklärung 1700/1710, ARA/PRA-Logik
-
----
+### D) Hinweise an den User (kein Code, nur Anzeige nach Implementation)
+Die folgenden Stammdaten-Lücken bleiben Aufgabe des Users (System kann sie nicht raten):
+- Personen-Anteile für 1010 Müll / 1011 Papiertonne pflegen
+- `heating_distribution_values` für FY 2025 erfassen
+- Wirtschaftsplan 2025 mit `total_reserve` anlegen
 
 ## Reihenfolge nach Approval
-1. Datenpflege 1700/1710 + ARA/PRA prüfen/anlegen
-2. `BillingTab.tsx` umbauen (Schritt 2 raus, Heizkosten-Reihenfolge)
-3. `BrunataAllocationManager` Gating
-4. `AccrualSection` Auto-Booking gegen 4900/4910
-5. `SettlementBasicsStep` Karte „Offene Abgrenzungen"
-6. `BillingSettlement` ARA/PRA-Ausschluss
-7. Memory aktualisieren
+1. Migration: Eröffnungsbuchung 1800 umkehren + `is_distributable` 1850/1860 = false
+2. Edge-Function `generate-billing-pdf` umbauen (Bugs 1-8)
+3. PDF generieren für Birkenweg 6 / 2025 → Werte gegen Claudes Soll-Tabelle prüfen
+4. Memory aktualisieren
+
+## Nicht übernommen
+Claudes vorgefertigte `generate-billing-pdf-index.ts` aus dem `/sessions/...`-Pfad ist nicht direkt zugänglich und wäre auch riskant ohne Code-Review. Wir schreiben die Fixes inkrementell in unseren Code, behalten die bestehende HTML-Struktur und den Shared-Helper, und verifizieren jede Änderung gegen Claudes Soll-Werte.
 
