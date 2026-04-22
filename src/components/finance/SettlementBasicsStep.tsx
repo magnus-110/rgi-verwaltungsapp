@@ -284,7 +284,7 @@ export function SettlementBasicsStep({ buildingId, periodId, fiscalYear }: Settl
               </div>
             </div>
             <Button asChild size="sm" variant="outline">
-              <Link to="/finanzen/wirtschaftsplan">Wirtschaftsplan öffnen</Link>
+              <Link to="/finanzen">Wirtschaftsplan öffnen</Link>
             </Button>
           </div>
         </CardContent>

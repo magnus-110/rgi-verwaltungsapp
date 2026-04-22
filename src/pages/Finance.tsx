@@ -5,7 +5,7 @@ import { BookingTemplatesTab } from "@/components/finance/BookingTemplatesTab";
 import { BookingsTab } from "@/components/finance/BookingsTab";
 import { BillingTab } from "@/components/finance/BillingTab";
 import { BillingPeriodSelector } from "@/components/finance/BillingPeriodSelector";
-import { EconomicPlanEditor } from "@/components/finance/EconomicPlanEditor";
+import { EconomicPlanSection } from "@/components/finance/EconomicPlanSection";
 import { CashAuditTab } from "@/components/finance/CashAuditTab";
 import { BankReconciliationTab } from "@/components/finance/BankReconciliationTab";
 import { AssetReportSection } from "@/components/finance/AssetReportSection";
@@ -252,7 +252,7 @@ export const Finance = () => {
                       <div className="px-4 pb-4 border-t">
                         <div className="pt-4">
                           {section.id === "wirtschaftsplan" && (
-                            <EconomicPlanEditor
+                            <EconomicPlanSection
                               buildingId={selectedBuildingId}
                               periodId={selectedPeriodId}
                               fiscalYear={period.fiscal_year}
