@@ -526,7 +526,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       } else {
         // Fallback to SOLL
         hausgeld = costs
-          .filter((c: any) => c.cost_type === "hausgeld" || c.cost_type === "nebenkosten")
+          .filter((c: any) => ["hausgeld", "nebenkosten"].includes((c.cost_type || "").toLowerCase()))
           .reduce((s: number, c: any) => {
             if (period) return s + getCostAnnualAmount(c, period.period_from, period.period_to);
             const a = Number(c.amount);
@@ -538,7 +538,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
             }
           }, 0) * timeProp;
         reserve = costs
-          .filter((c: any) => c.cost_type === "ruecklage")
+          .filter((c: any) => (c.cost_type || "").toLowerCase() === "ruecklage")
           .reduce((s: number, c: any) => {
             if (period) return s + getCostAnnualAmount(c, period.period_from, period.period_to);
             const a = Number(c.amount);
@@ -553,7 +553,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     } else {
       // SOLL: from contact_building_costs
       hausgeld = costs
-        .filter((c: any) => c.cost_type === "hausgeld" || c.cost_type === "nebenkosten")
+        .filter((c: any) => ["hausgeld", "nebenkosten"].includes((c.cost_type || "").toLowerCase()))
         .reduce((s: number, c: any) => {
           if (period) return s + getCostAnnualAmount(c, period.period_from, period.period_to);
           const a = Number(c.amount);
@@ -565,7 +565,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
           }
         }, 0) * timeProp;
       reserve = costs
-        .filter((c: any) => c.cost_type === "ruecklage")
+        .filter((c: any) => (c.cost_type || "").toLowerCase() === "ruecklage")
         .reduce((s: number, c: any) => {
           if (period) return s + getCostAnnualAmount(c, period.period_from, period.period_to);
           const a = Number(c.amount);
