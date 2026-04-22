@@ -97,6 +97,12 @@ const SETTINGS_FIELDS: SettingsField[] = [
     info: "Enthält haushaltsnahe Dienstleistungen oder Handwerkerleistungen nach §35a EStG. 20% der Arbeitskosten können Eigentümer steuerlich geltend machen.",
     type: "checkbox",
   },
+  {
+    key: "is_reserve_funded",
+    label: "Aus Rücklage finanziert (RL)",
+    info: "Aufwandskonto, dessen Kosten aus der Erhaltungsrücklage bezahlt werden (z. B. 1920 Reparatur aus Rücklage). In der Einzelabrechnung erscheint der Betrag als Aufwand UND als Negativposten im IHR-Block — neutralisiert sich, sodass der Eigentümer nicht doppelt belastet wird.",
+    type: "checkbox",
+  },
 ];
 
 interface AccountSettings {
@@ -106,6 +112,7 @@ interface AccountSettings {
   is_wirtschaftsplan_relevant: boolean;
   carry_forward_balance: boolean;
   is_35a_relevant: boolean;
+  is_reserve_funded?: boolean;
   settlement_section: string | null;
   settlement_35a_type: string | null;
   default_vat_rate: number | null;
