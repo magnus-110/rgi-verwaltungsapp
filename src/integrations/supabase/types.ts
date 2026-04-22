@@ -2683,6 +2683,7 @@ export type Database = {
           created_at: string | null
           distribution_key: string | null
           id: string
+          manually_overridden: boolean
           plan_id: string
           planned_amount: number | null
           previous_amount: number | null
@@ -2694,6 +2695,7 @@ export type Database = {
           created_at?: string | null
           distribution_key?: string | null
           id?: string
+          manually_overridden?: boolean
           plan_id: string
           planned_amount?: number | null
           previous_amount?: number | null
@@ -2705,6 +2707,7 @@ export type Database = {
           created_at?: string | null
           distribution_key?: string | null
           id?: string
+          manually_overridden?: boolean
           plan_id?: string
           planned_amount?: number | null
           previous_amount?: number | null
@@ -2727,8 +2730,60 @@ export type Database = {
           },
         ]
       }
+      economic_plan_unit_items: {
+        Row: {
+          account_id: string
+          amount: number
+          created_at: string
+          created_by: string | null
+          id: string
+          manually_overridden: boolean
+          override_reason: string | null
+          plan_id: string
+          unit_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          account_id: string
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          manually_overridden?: boolean
+          override_reason?: string | null
+          plan_id: string
+          unit_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          account_id?: string
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          manually_overridden?: boolean
+          override_reason?: string | null
+          plan_id?: string
+          unit_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "economic_plan_unit_items_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "economic_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       economic_plans: {
         Row: {
+          activated_at: string | null
+          activated_by: string | null
           adjustments: Json | null
           approved_at: string | null
           approved_by: string | null
@@ -2737,12 +2792,16 @@ export type Database = {
           created_at: string | null
           fiscal_year: number
           id: string
+          notes: string | null
+          source: string
           status: string
           total_costs: number | null
           total_reserve: number | null
           updated_at: string | null
         }
         Insert: {
+          activated_at?: string | null
+          activated_by?: string | null
           adjustments?: Json | null
           approved_at?: string | null
           approved_by?: string | null
@@ -2751,12 +2810,16 @@ export type Database = {
           created_at?: string | null
           fiscal_year: number
           id?: string
+          notes?: string | null
+          source?: string
           status?: string
           total_costs?: number | null
           total_reserve?: number | null
           updated_at?: string | null
         }
         Update: {
+          activated_at?: string | null
+          activated_by?: string | null
           adjustments?: Json | null
           approved_at?: string | null
           approved_by?: string | null
@@ -2765,6 +2828,8 @@ export type Database = {
           created_at?: string | null
           fiscal_year?: number
           id?: string
+          notes?: string | null
+          source?: string
           status?: string
           total_costs?: number | null
           total_reserve?: number | null
