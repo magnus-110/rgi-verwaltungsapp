@@ -152,6 +152,35 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     },
   });
 
+  // Building (for unit_count / unit_count_for_billing)
+  const { data: building } = useQuery({
+    queryKey: ["settlement-building", buildingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("buildings")
+        .select("unit_count, unit_count_for_billing")
+        .eq("id", buildingId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Economic plan (for IHR contribution as planned reserve)
+  const { data: economicPlan } = useQuery({
+    queryKey: ["settlement-economic-plan", buildingId, fiscalYear],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("economic_plans" as any)
+        .select("total_reserve")
+        .eq("building_id", buildingId)
+        .eq("fiscal_year", fiscalYear)
+        .maybeSingle();
+      if (error) return null;
+      return data as any;
+    },
+  });
+
   // Account balances
   const { data: balances = [] } = useQuery({
     queryKey: ["account-balances-settlement", buildingId, fiscalYear],
