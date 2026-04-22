@@ -1,77 +1,80 @@
 
 
-# CSV-Export im HV-Office-Format (Gesamt + Einzelabrechnungen)
+# Plan: Verteilerschlüssel-Warnung + Code-Fix für Hausgeld-Großschreibung
 
-## Logik der HV-Office-CSV — verstanden
-
-Die beigefügten PDFs zeigen das HV-Office-Format. Es gibt zwei Dokument-Typen, die wir beide als CSV abbilden:
-
-### 1. Gesamtabrechnung (Building-weit, einmal pro WEG)
-Spaltenstruktur (5 Spalten): `Konto | Bezeichnung | Wirtschaftsplan | Einnahmen-/Ausgabenrechnung | Verteilungsrelevante Beträge`
-
-Sektionen in fester Reihenfolge:
-1. **Geld- und Bestandskonten** — Anfangsbestände 1800 + 1810 + Summenzeile
-2. **Einnahmen** — inkl. Vorschüsse zur Kostendeckung, Vorschüsse auf EHR, Zinseinnahmen 1840 → Zwischensumme
-3. **Ausgaben → umlagefähige Beträge** — Konten mit `is_distributable=true` aus `operating_distributable` → Zwischensumme
-4. **Ausgaben → nicht umlagefähige Beträge** — `operating_non_distributable` (inkl. 1500/1520/1850/1860/1920) → Zwischensumme
-5. **Abgrenzungen / Sollstellungen** — Konten 4020, 4110, 4130, 4160, 4180 → Zwischensumme
-6. **Zuweisung und Entnahme aus der Rücklage** — 1720 (Plan IHR) + 1920-Gegenbuchung
-7. **Wirtschaftsplansumme / Abrechnungssumme** (Fettzeile)
-8. **Vorschussverpflichtung gem. WPL** + **Abrechnungsspitze** (Fettzeile)
-9. **Geldkonten Endbestand gesamt** + **Kontrolle Endbestände** (1800/1810) + Kontrollsumme
-
-### 2. Einzelabrechnung (eine pro Eigentümer)
-7-Spalten-Struktur: `Konto | Bezeichnung | Verteilungsrelevant Ges. | Verteiler | Gesamt-Anteil | Ihr Anteil | Ihre Kosten`
-
-Gleiche Sektionen wie Gesamt, aber mit zusätzlichen Spalten für Verteilungsschlüssel und Eigentümeranteil. Plus Schlusszeilen pro Eigentümer:
-- Abrechnungssumme · Vorschussverpflichtung WPL · Abrechnungsspitze (GH) · Vorschussverpflichtung IST · Unterzahlung WPL · Abrechnungssaldo (GH)
+Die Claude-Analyse ist fundiert und deckt sich mit dem, was wir im Code sehen. Davon kann ich **zwei Punkte sofort umsetzen** (Code-seitig). Die anderen sind reine Stammdaten-Lücken, die du in der UI pflegen musst — dafür liefern wir die Warnung.
 
 ## Was umgebaut wird
 
-### Datei: `src/components/finance/BillingSettlement.tsx`
+### A) Datei: `src/components/finance/BillingSettlement.tsx` — Warnung bei fehlenden Stammdaten
 
-Die bestehende `exportCsv`-Funktion (Z. 656-674) wird ersetzt. Statt einer flachen Tabelle wird eine HV-Office-konforme CSV erzeugt — alles Daten, die in der Komponente bereits berechnet sind (`sectionAccounts`, `getSectionTotal`, `getOpeningTotal`, `getClosingTotal`, `ownerResults`, `economicPlan`, `totalVorschuss`, `abrechnungssumme`, `abrechnungsspitze`).
+#### 1. Helper `getDistributionWarnings()`
+Iteriert nach Berechnung über alle distributionsrelevanten Konten der Abrechnung und prüft:
+- Hat das Konto einen Betrag ≠ 0?
+- Liefert der Schlüssel verwertbare Anteile? (Personen-Anteile vorhanden, `heating_distribution_values` für die Periode vorhanden, MEA-Summe > 0)
+- Wird der Konto-Anteil aller Eigentümer in Summe = 0, obwohl absTotal ≠ 0?
 
-#### Neue Funktion `buildOverallCsvLines()` — Gesamtabrechnung
-Generiert in der oben beschriebenen Sektionsreihenfolge alle Zeilen mit korrekten Zwischensummen und Schlussblock (Wirtschaftsplansumme, Abrechnungsspitze, Endbestände).
+Gibt eine Liste `{ accountNumber, accountName, amount, distributionKey, reason }` zurück.
 
-#### Neue Funktion `buildOwnerCsvLines(owner)` — eine Einzelabrechnung
-Iteriert über `owner.accountBreakdown` (existiert bereits), gruppiert nach Sektion (`distributable` → umlagefähig, `non_distributable` → nicht umlagefähig, `reserve` → Rücklage), gibt 7-Spalten-Format aus, hängt Schlussblock an (Abrechnungssumme, WPL-Vorschuss, Abrechnungsspitze, IST-Vorschuss, Saldo).
+Mögliche `reason`-Werte:
+- `"Kein Verteilerschlüssel hinterlegt"`
+- `"Verteilerschlüssel 'personen', aber keine Personen-Anteile gepflegt"`
+- `"Verteilerschlüssel 'heizkostenverordnung', aber keine Brunata-Werte für diese Periode"`
+- `"Verteilerschlüssel 'mea', aber MEA-Summe = 0"`
+- `"Unbekannter Verteilerschlüssel '<key>'"`
 
-#### Neue UI: Dropdown-Menü statt einzelnem CSV-Button
-Der bestehende „CSV"-Button (Z. 830) wird zu einem Dropdown mit drei Optionen (analog zu `HeatingExportSection`):
-- **CSV: Gesamtabrechnung** → `Abrechnung_Gesamt_<Building>_<FY>.csv`
-- **CSV: Alle Einzelabrechnungen (ZIP)** → eine ZIP-Datei mit je einer CSV pro Eigentümer (`Einzelabrechnung_Einheit-XXXX_<Name>_<FY>.csv`)
-- **CSV: Einzelner Eigentümer** → Untermenü mit allen Eigentümern, einzelne CSV-Datei
+**Kein automatischer Fallback** auf MEA — Werte bleiben 0,00 €, damit nichts „still" falsch verteilt wird (Müll nach MEA wäre z. B. juristisch anfechtbar).
 
-Für ZIP wird `jszip` (bereits via npm verfügbar in vergleichbaren Projekten) verwendet. Falls nicht vorhanden, alternativ: einzelne Downloads sequentiell triggern.
+#### 2. UI: Warn-Banner über der Eigentümer-Tabelle
+Direkt unter dem Abrechnungs-Header ein gelbes `Alert`-Panel mit `AlertTriangle`-Icon, sobald `getDistributionWarnings().length > 0`:
 
-### Detail-Format pro Zeile
-
-Trennzeichen `;`, Zahlen deutsches Format (`1.234,56`), Vorzeichen `-` für Ausgaben, UTF-8 BOM (für Excel-DE), Sektionsüberschriften als Header-Zeile (z. B. `;UMLAGEFÄHIGE BETRÄGE;;;;;`), Zwischensummen mit Label `Zwischensumme` in Spalte 2.
-
-### Header-Block jeder CSV
 ```
-WEG <Building Name>
-Adresse: <building.address>
-Jahresabrechnung <FY>
-Abrechnungszeitraum: <period_from> – <period_to>
-Erstellt am: <heute>
-[Bei Einzelabrechnung:] Einheit: <unit_number> · Eigentümer: <name>
-[Leerzeile]
+⚠ Verteilung unvollständig — 3 Konten werden nicht verteilt:
+   • 1010 Müll (378,60 €) — Verteilerschlüssel 'personen' ohne Personen-Anteile
+   • 1011 Papiertonne (27,84 €) — Verteilerschlüssel 'personen' ohne Personen-Anteile
+   • 1431 Gerätemiete (389,54 €) — Verteilerschlüssel 'heizkostenverordnung' ohne Brunata-Werte
+   
+   → Verteilerschlüssel im Kontenrahmen oder per Building-Override anpassen, dann Abrechnung neu laden.
 ```
 
-## Konsistenz mit dem bestehenden System
-- Alle Werte stammen aus den **bereits berechneten Variablen** in `BillingSettlement.tsx` — keine neue Berechnungslogik, keine Edge-Function. Damit sind UI, PDF und CSV automatisch synchron.
-- §35a-Beträge erscheinen pro Eigentümer als zusätzliche Info-Zeilen am Ende der Einzelabrechnung.
-- Heizkosten 1400 nutzen `heatingDistValues` analog zur PDF-/UI-Verteilung.
+#### 3. CSV-Export: Warnblock
+- **Gesamt-CSV**: Am Ende des Header-Blocks (vor der ersten Sektion) Warnzeilen einfügen.
+- **Einzelabrechnungs-CSV**: gleicher Block am Anfang jeder Eigentümer-CSV.
+
+Format:
+```
+WARNUNG;Folgende Konten konnten nicht verteilt werden:
+;1010 Müll;378,60;Verteilerschlüssel 'personen' ohne Personen-Anteile
+;1431 Gerätemiete;389,54;Verteilerschlüssel 'heizkostenverordnung' ohne Brunata-Werte
+```
+
+### B) Datei: `src/components/finance/BillingSettlement.tsx` — Code-Fix `cost_type` Case-Insensitive
+
+`calcAnnual(types: string[])` macht aktuell exact-match auf `c.cost_type` → bei „Hausgeld" (groß) schlägt der Filter fehl, `totalVorschuss` = 0 → Abrechnungsspitze stimmt nicht. Fix: `c.cost_type?.toLowerCase()` gegen Lowercase-Liste vergleichen (deckt auch zukünftige Inkonsistenzen ab, ohne Daten anfassen zu müssen).
+
+## Was Stammdaten-Pflege bleibt (nicht im Code lösbar)
+
+Diese fünf Punkte aus der Claude-Analyse sind **bewusst keine Code-Änderungen**, weil sie buchhalterische Entscheidungen sind und je Liegenschaft variieren können:
+
+| # | Lücke | Wo pflegen |
+|---|---|---|
+| 1 | 1010/1011 Verteilerschlüssel | Kontenrahmen oder `building_account_overrides` → MEA |
+| 2 | 1431/1440 Verteilerschlüssel | Kontenrahmen oder `building_account_overrides` → MEA, `is_heating_relevant=false` |
+| 3 | 1850/1860 `is_billing_relevant` | Kontenrahmen |
+| 4 | Wirtschaftsplan 2025 mit `total_reserve = 3.600 €` | Wirtschaftsplan-Wizard |
+| 5 | EWR-Jahresabrechnung 2025 auf 1050 buchen | Buchhaltung |
+
+Die neue Warnung macht **Lücken 1, 2 und 4** sofort sichtbar, sodass du sie nicht mehr beim PDF-Vergleich entdecken musst.
+
+## Konsistenz mit dem System
+- Liest nur bereits geladene Daten (`sectionAccounts`, `personShares`, `heatingDistValues`, `meaShares`) — keine zusätzlichen Queries.
+- Keine neue Berechnungslogik — nur Validierung der bestehenden Verteilung.
+- UI, PDF und CSV bleiben automatisch synchron.
 
 ## Reihenfolge nach Approval
-1. `exportCsv` durch `buildOverallCsvLines` + `buildOwnerCsvLines` ersetzen
-2. Dropdown-Menü mit drei Optionen einbauen (DropdownMenu aus shadcn)
-3. ZIP-Erzeugung via `jszip` (Install bei Bedarf)
-4. Test-Download für Birkenweg 6 / 2025 → Vergleich gegen die beigefügten HV-Office-PDFs
-
-## Hinweis
-Wenn die Werte in der CSV abweichen (z. B. Müll wird laut PDF mit 354,610/1000 verteilt — bei dir aber leer), liegt das an Stammdaten-Lücken (Personen-Anteile, `heating_distribution_values`, Wirtschaftsplan), nicht am CSV-Generator. Die wurden bereits in der vorherigen Session adressiert.
+1. `calcAnnual` auf case-insensitive `cost_type` umstellen
+2. Helper `getDistributionWarnings()` implementieren
+3. Warn-Banner über der Eigentümer-Tabelle einbauen
+4. Warnblock in `buildOverallCsvLines()` und `buildOwnerCsvLines()` ergänzen
+5. Test: Birkenweg 6 / 2025 → Banner muss 1010/1011/1431/1440 listen, Abrechnungsspitze muss jetzt mit gezahltem Hausgeld rechnen
 
