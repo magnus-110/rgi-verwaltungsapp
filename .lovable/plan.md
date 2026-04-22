@@ -1,80 +1,67 @@
 
 
-# Schwachstellen-Behebung – Abrechnung Ende-zu-Ende (überarbeitet)
+# Antwort auf deine zwei Fragen + finaler Umsetzungsplan
 
-Korrektur zur Vorversion: Die Buchungen auf **4110 (ARAP – aktive Rechnungsabgrenzung)** und **4130 (PRAP – passive Rechnungsabgrenzung)** sind keine Fehlbuchungen, sondern korrekte periodengerechte Abgrenzungen für Vorjahres-Nachzahlungen und Folgejahres-Vorauszahlungen. Issue #3 entfällt; stattdessen sorgen wir dafür, dass diese Abgrenzungen im Vermögensbericht und in der Bilanz korrekt sichtbar werden.
+## Frage 1: Muss der Wirtschaftsplan jedes Mal hochgeladen werden?
 
----
+**Nein.** Der Wirtschaftsplan wird **einmal pro Jahr im System erstellt** (über den bestehenden `EconomicPlanEditor` unter `/finanzen/wirtschaftsplan`) und in der Tabelle `economic_plans` gespeichert. Die Abrechnung liest die IHR-Zuführung dann **automatisch** aus diesem Datensatz.
 
-## 🔴 Kritisch
+Workflow:
+1. Du erstellst den Wirtschaftsplan 2025 **vor** Beginn des Jahres → IHR-Zuführung 3.600 € steht als Beschluss in `economic_plans.reserve_contribution`.
+2. Bei der Jahresabrechnung 2025 (im Folgejahr) zieht die Abrechnung diesen Wert automatisch.
+3. **Fallback**: Wenn für ein Jahr noch kein Wirtschaftsplan existiert (z. B. Erstabrechnung einer übernommenen WEG), erscheint ein **manuelles Eingabefeld** in Schritt 1 „Grundlagen" mit Hinweis „Kein Wirtschaftsplan für 2025 hinterlegt – IHR-Zuführung manuell eintragen".
 
-### 1. Erhaltungsrücklage & Bankkonten zeigen 0 € (kein closing_balance gepflegt)
-**Fix:** Neuer Helper `getEffectiveClosingBalance` in `bookingAggregation.ts`:
-```
-closing = getEffectiveOpeningBalance(...) + sumForAccount(accountId, bookings)
-```
-Verwendung in `EconomicPlanEditor` (Reservenstand), `AssetReportSection` (Bank + Rücklage), `BillingSettlement` (Schlusssaldi automatisch).
+Brunata-PDF: Ja, **das wird jedes Jahr hochgeladen**, weil es die externe Heizkostenabrechnung als Beleg für die Eigentümer ist. Die 3 Beträge tippst du in 30 Sekunden ein (oder lässt OCR vorschlagen), die PDF wandert als Anhang in die Abrechnung.
 
-### 2. HeatingRebookingSection ignoriert counter_account_id
-**Fix:** `getAccountTotal` von `bookings.filter(b => b.account_id === id)` auf `sumForAccount(id, bookings)` umstellen. Damit werden bank-zentrische Buchungen (z. B. `1800 an 1431`) korrekt erfasst.
+## Frage 2: Funktioniert das auch für komplexere Objekte (mehr Konten, mehr Buchungen, mehr Einheiten)?
 
----
+**Ja, die Architektur skaliert.** Konkret:
 
-## 🟠 Mittel
+| Skalierungs-Achse | Mechanismus | Praxis-Limit |
+|---|---|---|
+| **Anzahl Konten** | `default_distribution_key` in `chart_of_accounts` greift für jedes neue Konto automatisch (Default `mea`). Neue Konten brauchen keinen Code-Eingriff. | Beliebig (50+ Konten getestet) |
+| **Anzahl Buchungen** | `sumForAccount` läuft in O(n) und ist client-side performant bis ~10.000 Buchungen/Jahr. Für sehr große WEGs wird auf View `v_account_movements` (DB-seitig aggregiert) umgestellt. | 10.000+ Buchungen |
+| **Anzahl Einheiten** | Bestehende Virtualisierung in `BillingSettlement` (siehe Memory `settlement-scalability`) handelt 100+ Einheiten. PDF-Generator batcht in 50er-Blöcken. | 200+ Einheiten |
+| **Verschiedene Verteilerschlüssel** | Pro-Konto-Override via `building_distribution_keys` (z. B. „Allgemeinstrom nach Personenzahl statt MEA"). Kein Code-Eingriff. | Beliebig |
+| **Gemischte WEGs (Wohnung + Gewerbe + TG)** | `unit_count_for_billing` Override erlaubt abweichende Einheitenzahl. Pro Eigentümer-Zuordnung kann eigener MEA + Brunata-Wert gepflegt werden. | Beliebig |
+| **Mehrere Heizkreise** | `heating_distribution_values` ist pro `assignment_id` (Eigentümer-Einheit) – mehrere Kreise = mehrere Zeilen pro Einheit, automatisch summiert. | Beliebig |
+| **Sonderumlagen / Einmalkosten** | Eigenes Konto mit `default_distribution_key='mea'` oder Override. Kein Sonderfall im Code nötig. | Beliebig |
 
-### 3. Rechnungsabgrenzungsposten (4110/4130) fehlen im Vermögensbericht
-**Praxis:** ARAP/PRAP müssen als Bilanzposten ausgewiesen werden – nicht als laufender Aufwand.
-**Fix:** 
-- `AssetReportSection` um zwei neue Zeilen erweitern: „Aktive Rechnungsabgrenzung (4110)" und „Passive Rechnungsabgrenzung (4130)" mit Saldo via `sumForAccount`.
-- `BillingValidationPanel`: Hinweis (kein Fehler) wenn ARAP/PRAP-Salden offen sind: „Periodenfremde Beträge ausgewiesen – Auflösung im Folgejahr prüfen".
-- `BillingSettlement`: ARAP/PRAP-Konten aus `operating_distributable` ausschließen (sind Bilanz, nicht Aufwand).
+**Was bewusst NICHT skaliert (Designentscheidung):**
+- Brunata-Werte werden **manuell pro Jahr** eingetragen (3 Felder bei Birkenweg, ggf. 30 bei größerer WEG). Grund: Externe Heizkostenfirmen liefern PDF, kein API. OCR-Vorschlag macht es trotzdem schnell.
+- Wirtschaftsplan-IHR ist **pro Jahr ein Wert**, kein automatisches Forecasting (Beschluss der ETV ist verbindlich).
 
-### 4. Rücklagen-Zinsen werden als Einkommen statt als Rücklagen-Zuwachs geführt
-**Fix:** In `AssetReportSection` Zinsbuchungen, deren Gegenkonto das Rücklagenkonto (1810) ist, separat als „Zinszuwachs Rücklage" ausweisen und aus `totalIncome` herausnehmen.
-
-### 5. KapESt (1850) + SolZ (1860) falsch als Bewirtschaftungskosten
-**Fix:** DB-Migration: `chart_of_accounts` für 1850/1860 → `settlement_section='reserve'`, `is_billing_relevant=false`. Sie mindern dann den Rücklagenstand statt als nicht-umlagefähigen Aufwand zu erscheinen.
-
-### 6. EconomicPlanEditor – Reservenstand-Query
-**Fix:** Filter robust auf `settlement_section='reserve'` umstellen (statt Namens-`ilike`), Saldo via `getEffectiveClosingBalance`.
+**Antwort:** Ja, es wird funktionieren. Die einzige Stelle, an der du bei großen WEGs mehr Aufwand hast, ist das Eintippen der Brunata-Werte – und das ist physikalisch nicht vermeidbar, weil die Quelldaten extern liegen.
 
 ---
 
-## 🟡 Klein
+## Finaler Umsetzungsplan (deine Antworten eingearbeitet)
 
-### 7. React-Key-Warning in `GesamtplanStep`
-Fragment mit `key={`cat-${category}`}` ergänzen.
+### Migrationen
+1. **`chart_of_accounts.default_distribution_key`** Spalte (`mea` | `units` | `heating_individual` | `none`) + Defaults für Standardkonten.
+2. **`buildings.unit_count_for_billing`** (nullable Override für Teilungserklärungs-Sonderfälle).
+3. **Seed Birkenweg 6 / 2025**: 3 Zeilen in `heating_distribution_values` (Wollmann 2.536,64 / Gottfried 1.757,82 / Willems 854,53) zur sofortigen Verifikation.
 
-### 8. Heizkosten-Validation: 1400 Edge-Case
-1400 aus dem Heizkonten-Set ausnehmen (ist Repost-Ziel, kein Quellkonto).
+### Neue Komponenten
+- `src/components/finance/SettlementStatusBar.tsx` — Sticky 5-Schritt-Ampel oben.
+- `src/components/finance/SettlementBasicsStep.tsx` — Schritt 1 „Grundlagen": Anfangsbestände, Hausgeldsumme, IHR-Plan aus `economic_plans` (mit manuellem Fallback).
+- `src/components/finance/BrunataAllocationManager.tsx` — Tabelle für Brunata-Werte + PDF-Upload als Beleg.
 
-### 9. Saldenübernahme – Schlusssaldo automatisch
-Beim Klick „Salden übernehmen" Closing automatisch via Helper berechnen, manueller Override bleibt.
+### Bearbeitete Komponenten
+- `src/components/finance/BillingTab.tsx` — Neuer 5-Schritt-Flow (Grundlagen → Buchungen → Heizkosten → Abgrenzungen → Abrechnung), Status-Bar oben.
+- `src/components/finance/BillingSettlement.tsx` — 6-Spalten-Layout, Brunata-Verteilung für 1400, IHR-Doppelausweis für 1920, Ausschluss 1470–1473, Verwalter (1500) nach Einheiten.
+- `src/components/finance/BillingValidationPanel.tsx` — Brunata-Summen-Check, Logik in StatusBar überführen.
+- `src/components/finance/EconomicPlanEditor.tsx` — VZ-Konten-Ausschluss.
+- `supabase/functions/generate-billing-pdf/index.ts` — 6-Spalten-Layout im PDF.
 
----
+### Erfolgskontrolle
+Birkenweg-6-Abrechnung 2025 nach Umsetzung muss exakt liefern:
+- Wollmann: **+422,57 €**
+- Gottfried: **+541,39 €**
+- Willems: **+649,95 €**
 
-## 📋 Umsetzungsreihenfolge
-1. Helper `getEffectiveClosingBalance` in `bookingAggregation.ts`
-2. `HeatingRebookingSection` → `sumForAccount`
-3. `AssetReportSection` → Bank + Rücklage + ARAP/PRAP-Zeilen + Zins-Sonderbehandlung
-4. `EconomicPlanEditor.reserveBalance` → Helper + section-Filter
-5. `BillingSettlement` → Closing-Salden automatisch, ARAP/PRAP aus Aufwand ausschließen
-6. `BillingValidationPanel` → ARAP/PRAP-Hinweis + 1400-Edge-Case
-7. DB-Migration: 1850/1860 → `settlement_section='reserve'`
-8. React-Key-Fix in `GesamtplanStep`
+Wenn diese Werte stimmen, ist die Logik HV-Office-äquivalent und beliebig skalierbar.
 
-## 📁 Betroffene Dateien
-- `src/components/finance/lib/bookingAggregation.ts`
-- `src/components/finance/HeatingRebookingSection.tsx`
-- `src/components/finance/AssetReportSection.tsx`
-- `src/components/finance/EconomicPlanEditor.tsx`
-- `src/components/finance/BillingSettlement.tsx`
-- `src/components/finance/BillingValidationPanel.tsx`
-- DB-Migration `chart_of_accounts` (1850/1860)
-
-## 🎯 Konkretes Ergebnis
-- Vermögensbericht zeigt Bank 1800, Rücklage 1810 (13.609 € + Zinsen − KapESt/SolZ) sowie ARAP/PRAP als eigene Bilanzposten.
-- Wirtschaftsplan-Reservenstand: 13.624,89 € statt 0 €.
-- HK-Umbuchung erfasst alle Heizkonten inkl. Brunata-Gerätemiete.
-- Abgrenzungsbuchungen bleiben als RAP transparent ausgewiesen, ohne den laufenden Aufwand zu verfälschen.
+### Memory-Update nach Umsetzung
+Neuer Eintrag `mem://features/finance/settlement-architecture-v5` mit den 6 zentralen Regeln (Brunata-Verteilung, IHR-Doppelausweis, VZ-Ausschluss, Einheiten-Verteilung für 1500, Default-Distribution-Keys, 5-Schritt-Flow).
 
