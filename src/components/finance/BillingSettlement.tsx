@@ -438,6 +438,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     distributableAccounts.forEach((acc) => {
       const total = getAccountBookingTotal(acc.id);
       if (total === 0) return;
+      if (total === 0) return;
 
       const distKey = getDistKey(acc.id, acc.default_distribution_key);
       const shareType = DIST_KEY_TO_SHARE[distKey] || distKey;
