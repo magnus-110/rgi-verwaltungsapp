@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { BarChart3, ChevronDown, ChevronRight, Download, Users, PiggyBank, AlertTriangle, Check, FileText, Building2, Loader2, Search, Calculator, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { getEffectiveOpeningBalance, getEffectiveClosingBalance } from "./lib/bookingAggregation";
@@ -526,7 +527,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       } else {
         // Fallback to SOLL
         hausgeld = costs
-          .filter((c: any) => c.cost_type === "hausgeld" || c.cost_type === "nebenkosten")
+          .filter((c: any) => ["hausgeld", "nebenkosten"].includes((c.cost_type || "").toLowerCase()))
           .reduce((s: number, c: any) => {
             if (period) return s + getCostAnnualAmount(c, period.period_from, period.period_to);
             const a = Number(c.amount);
@@ -538,7 +539,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
             }
           }, 0) * timeProp;
         reserve = costs
-          .filter((c: any) => c.cost_type === "ruecklage")
+          .filter((c: any) => (c.cost_type || "").toLowerCase() === "ruecklage")
           .reduce((s: number, c: any) => {
             if (period) return s + getCostAnnualAmount(c, period.period_from, period.period_to);
             const a = Number(c.amount);
@@ -553,7 +554,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     } else {
       // SOLL: from contact_building_costs
       hausgeld = costs
-        .filter((c: any) => c.cost_type === "hausgeld" || c.cost_type === "nebenkosten")
+        .filter((c: any) => ["hausgeld", "nebenkosten"].includes((c.cost_type || "").toLowerCase()))
         .reduce((s: number, c: any) => {
           if (period) return s + getCostAnnualAmount(c, period.period_from, period.period_to);
           const a = Number(c.amount);
@@ -565,7 +566,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
           }
         }, 0) * timeProp;
       reserve = costs
-        .filter((c: any) => c.cost_type === "ruecklage")
+        .filter((c: any) => (c.cost_type || "").toLowerCase() === "ruecklage")
         .reduce((s: number, c: any) => {
           if (period) return s + getCostAnnualAmount(c, period.period_from, period.period_to);
           const a = Number(c.amount);
@@ -655,6 +656,76 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   };
 
   // ============================================================
+  //  Verteilerschlüssel-Warnungen — meldet Konten, die nicht
+  //  korrekt verteilt werden können (fehlende Stammdaten).
+  // ============================================================
+  type DistWarning = {
+    accountNumber: string;
+    accountName: string;
+    amount: number;
+    distributionKey: string;
+    reason: string;
+  };
+
+  const distributionWarnings: DistWarning[] = (() => {
+    const warnings: DistWarning[] = [];
+    const distributableAccounts = accounts.filter(
+      (a: any) => a.is_distributable && !isAccrualBalanceAccount(a) && !isHeatingPrepayAccount(a),
+    );
+
+    for (const acc of distributableAccounts) {
+      const isReserveAcc = acc.settlement_section === "reserve";
+      const total = isReserveAcc && economicPlan?.total_reserve != null
+        ? Number(economicPlan.total_reserve)
+        : getAccountBookingTotal(acc.id);
+      const absTotal = Math.abs(total);
+      if (absTotal < 0.005) continue;
+
+      const distKey = getDistKey(acc.id, acc.default_distribution_key);
+      const isHeating1400 = acc.is_heating_relevant && acc.account_number === "1400";
+
+      let reason: string | null = null;
+
+      if (!acc.default_distribution_key && !overrides.find((o: any) => o.account_id === acc.id)) {
+        reason = "Kein Verteilerschlüssel hinterlegt";
+      } else if (isHeating1400 && heatingDistValues.length === 0) {
+        reason = "Verteilerschlüssel 'heizkostenverordnung', aber keine Brunata-Werte für diese Periode";
+      } else {
+        const shareType = DIST_KEY_TO_SHARE[distKey];
+        if (!shareType) {
+          reason = `Unbekannter Verteilerschlüssel '${distKey}'`;
+        } else if (shareType === "einheit") {
+          const totalUnits = building?.unit_count_for_billing ?? building?.unit_count ?? assignments.length;
+          if (!totalUnits) reason = "Verteilerschlüssel 'einheiten', aber keine Einheitenzahl gepflegt";
+        } else if (shareType === "heizkosten") {
+          if (heatingDistValues.length === 0) {
+            reason = "Verteilerschlüssel 'heizkostenverordnung', aber keine Brunata-Werte für diese Periode";
+          }
+        } else {
+          const totalShares = assignments.reduce((s: number, a: any) => {
+            const share = (a.contact_building_shares || []).find((sh: any) => sh.share_type === shareType);
+            return s + (share ? Number(share.share_value) || 0 : 0);
+          }, 0);
+          if (totalShares <= 0) {
+            reason = `Verteilerschlüssel '${distKey}', aber keine ${SHARE_LABELS[shareType] || shareType}-Anteile gepflegt`;
+          }
+        }
+      }
+
+      if (reason) {
+        warnings.push({
+          accountNumber: acc.account_number,
+          accountName: acc.account_name,
+          amount: absTotal,
+          distributionKey: distKey,
+          reason,
+        });
+      }
+    }
+    return warnings;
+  })();
+
+
   //  HV-Office-konformer CSV-Export (Gesamt + Einzelabrechnungen)
   // ============================================================
 
@@ -686,6 +757,14 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     ];
     if (subtitle) lines.push(row(subtitle));
     lines.push("");
+    // Warnblock bei fehlenden Verteilerschlüsseln
+    if (distributionWarnings.length > 0) {
+      lines.push(row("WARNUNG", "Folgende Konten konnten nicht verteilt werden:"));
+      distributionWarnings.forEach((w) => {
+        lines.push(row("", `${w.accountNumber} ${w.accountName}`, fmtNum(w.amount), w.reason));
+      });
+      lines.push("");
+    }
     return lines;
   };
 
@@ -1111,6 +1190,31 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
 
           {/* ===== TAB 1: GESAMTABRECHNUNG ===== */}
           <TabsContent value="total" className="space-y-3">
+            {distributionWarnings.length > 0 && (
+              <Alert variant="destructive" className="border-destructive/50 bg-destructive/5 text-foreground">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>
+                  Verteilung unvollständig — {distributionWarnings.length}{" "}
+                  {distributionWarnings.length === 1 ? "Konto wird" : "Konten werden"} nicht verteilt
+                </AlertTitle>
+                <AlertDescription className="mt-2">
+                  <ul className="space-y-1 text-sm">
+                    {distributionWarnings.map((w) => (
+                      <li key={w.accountNumber}>
+                        <span className="font-mono">{w.accountNumber}</span>{" "}
+                        <span className="font-medium">{w.accountName}</span>{" "}
+                        <span className="text-muted-foreground">({formatCurrency(w.amount)})</span>
+                        {" — "}
+                        {w.reason}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    → Verteilerschlüssel im Kontenrahmen oder per Building-Override anpassen, dann Abrechnung neu laden.
+                  </p>
+                </AlertDescription>
+              </Alert>
+            )}
             {/* Anfangsbestände */}
             <div className="p-3 rounded-lg bg-muted/30 space-y-1">
               <div className="text-sm font-medium mb-1">Anfangsbestände zum {period ? new Date(period.period_from).toLocaleDateString("de-DE") : "–"}</div>
