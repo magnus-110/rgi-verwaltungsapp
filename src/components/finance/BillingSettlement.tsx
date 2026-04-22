@@ -656,6 +656,76 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   };
 
   // ============================================================
+  //  Verteilerschlüssel-Warnungen — meldet Konten, die nicht
+  //  korrekt verteilt werden können (fehlende Stammdaten).
+  // ============================================================
+  type DistWarning = {
+    accountNumber: string;
+    accountName: string;
+    amount: number;
+    distributionKey: string;
+    reason: string;
+  };
+
+  const distributionWarnings: DistWarning[] = (() => {
+    const warnings: DistWarning[] = [];
+    const distributableAccounts = accounts.filter(
+      (a: any) => a.is_distributable && !isAccrualBalanceAccount(a) && !isHeatingPrepayAccount(a),
+    );
+
+    for (const acc of distributableAccounts) {
+      const isReserveAcc = acc.settlement_section === "reserve";
+      const total = isReserveAcc && economicPlan?.total_reserve != null
+        ? Number(economicPlan.total_reserve)
+        : getAccountBookingTotal(acc.id);
+      const absTotal = Math.abs(total);
+      if (absTotal < 0.005) continue;
+
+      const distKey = getDistKey(acc.id, acc.default_distribution_key);
+      const isHeating1400 = acc.is_heating_relevant && acc.account_number === "1400";
+
+      let reason: string | null = null;
+
+      if (!acc.default_distribution_key && !overrides.find((o: any) => o.account_id === acc.id)) {
+        reason = "Kein Verteilerschlüssel hinterlegt";
+      } else if (isHeating1400 && heatingDistValues.length === 0) {
+        reason = "Verteilerschlüssel 'heizkostenverordnung', aber keine Brunata-Werte für diese Periode";
+      } else {
+        const shareType = DIST_KEY_TO_SHARE[distKey];
+        if (!shareType) {
+          reason = `Unbekannter Verteilerschlüssel '${distKey}'`;
+        } else if (shareType === "einheit") {
+          const totalUnits = building?.unit_count_for_billing ?? building?.unit_count ?? assignments.length;
+          if (!totalUnits) reason = "Verteilerschlüssel 'einheiten', aber keine Einheitenzahl gepflegt";
+        } else if (shareType === "heizkosten") {
+          if (heatingDistValues.length === 0) {
+            reason = "Verteilerschlüssel 'heizkostenverordnung', aber keine Brunata-Werte für diese Periode";
+          }
+        } else {
+          const totalShares = assignments.reduce((s: number, a: any) => {
+            const share = (a.contact_building_shares || []).find((sh: any) => sh.share_type === shareType);
+            return s + (share ? Number(share.share_value) || 0 : 0);
+          }, 0);
+          if (totalShares <= 0) {
+            reason = `Verteilerschlüssel '${distKey}', aber keine ${SHARE_LABELS[shareType] || shareType}-Anteile gepflegt`;
+          }
+        }
+      }
+
+      if (reason) {
+        warnings.push({
+          accountNumber: acc.account_number,
+          accountName: acc.account_name,
+          amount: absTotal,
+          distributionKey: distKey,
+          reason,
+        });
+      }
+    }
+    return warnings;
+  })();
+
+
   //  HV-Office-konformer CSV-Export (Gesamt + Einzelabrechnungen)
   // ============================================================
 
