@@ -96,7 +96,22 @@ export function SettlementBasicsStep({ buildingId, periodId, fiscalYear }: Settl
     },
   });
 
-  // Wirtschaftsplan → IHR-Zuführung
+  // Vorjahres-Schlussbestände der Abgrenzungskonten (4900 ARA / 4910 PRA)
+  // → werden zu Beginn des Wirtschaftsjahres aufgelöst
+  const { data: prevAccrualBalances = [] } = useQuery({
+    queryKey: ["basics-prev-accruals", buildingId, fiscalYear],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("account_balances")
+        .select("closing_balance, chart_of_accounts!inner(account_number, account_name, settlement_section)")
+        .eq("building_id", buildingId)
+        .eq("fiscal_year", fiscalYear - 1)
+        .eq("chart_of_accounts.settlement_section", "accrual");
+      if (error) return [];
+      return data || [];
+    },
+  });
+
   const { data: economicPlan } = useQuery({
     queryKey: ["basics-economic-plan", buildingId, fiscalYear],
     queryFn: async () => {
