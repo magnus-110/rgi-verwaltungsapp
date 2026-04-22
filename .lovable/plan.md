@@ -1,55 +1,77 @@
 
 
-# Plan: PDF-Abrechnung an Frontend angleichen (8 Bugs aus Claude-Analyse)
+# CSV-Export im HV-Office-Format (Gesamt + Einzelabrechnungen)
 
-## Bewertung der Claude-Analyse
+## Logik der HV-Office-CSV — verstanden
 
-**Fundiert und korrekt.** Die Analyse identifiziert echte Diskrepanzen zwischen `generate-billing-pdf/index.ts` (Edge-Function) und `BillingSettlement.tsx` (Frontend). Die UI nutzt bereits die korrekten Helper (`getEffectiveOpeningBalance`, `getEffectiveClosingBalance`, `settlement_section`-Filter), die PDF-Funktion hängt mehrere Refactor-Runden zurück.
+Die beigefügten PDFs zeigen das HV-Office-Format. Es gibt zwei Dokument-Typen, die wir beide als CSV abbilden:
 
-Bestätigt per Code-Inspektion:
-- PDF-Function filtert Anfangsbestände noch über `category === "bank"/"ruecklage"` (Zeilen 170-181) — gleicher Bug wie damals in `SettlementBasicsStep`. In der DB heißt die Kategorie freier Text wie „4. WEG-Systemkonten & Rücklagen", greift also nie → Anfangs-/Schlussbestände immer 0.
-- Personenkonten 0001-0003 haben `is_distributable=true` und werden als Verteilungskosten umgelegt, weil der Filter in `distributableAccounts` (Zeile 154) sie nicht ausschließt. Pattern existiert zwar weiter unten (Z. 188), wird aber nur fürs Hausgeld benutzt.
-- Reserve-Section nutzt `totalReserveFromPlan` als Override (Z. 131), aber kein expliziter „WP hat Vorrang vor Buchungen"-Fallback, wenn Plan = 0 ist (Buchungs-Fallback fehlt).
-- Vorschussverpflichtung + Abrechnungsspitze tauchen im PDF-Code aktuell nicht auf — UI berechnet beides (Z. 686+), PDF nicht.
+### 1. Gesamtabrechnung (Building-weit, einmal pro WEG)
+Spaltenstruktur (5 Spalten): `Konto | Bezeichnung | Wirtschaftsplan | Einnahmen-/Ausgabenrechnung | Verteilungsrelevante Beträge`
+
+Sektionen in fester Reihenfolge:
+1. **Geld- und Bestandskonten** — Anfangsbestände 1800 + 1810 + Summenzeile
+2. **Einnahmen** — inkl. Vorschüsse zur Kostendeckung, Vorschüsse auf EHR, Zinseinnahmen 1840 → Zwischensumme
+3. **Ausgaben → umlagefähige Beträge** — Konten mit `is_distributable=true` aus `operating_distributable` → Zwischensumme
+4. **Ausgaben → nicht umlagefähige Beträge** — `operating_non_distributable` (inkl. 1500/1520/1850/1860/1920) → Zwischensumme
+5. **Abgrenzungen / Sollstellungen** — Konten 4020, 4110, 4130, 4160, 4180 → Zwischensumme
+6. **Zuweisung und Entnahme aus der Rücklage** — 1720 (Plan IHR) + 1920-Gegenbuchung
+7. **Wirtschaftsplansumme / Abrechnungssumme** (Fettzeile)
+8. **Vorschussverpflichtung gem. WPL** + **Abrechnungsspitze** (Fettzeile)
+9. **Geldkonten Endbestand gesamt** + **Kontrolle Endbestände** (1800/1810) + Kontrollsumme
+
+### 2. Einzelabrechnung (eine pro Eigentümer)
+7-Spalten-Struktur: `Konto | Bezeichnung | Verteilungsrelevant Ges. | Verteiler | Gesamt-Anteil | Ihr Anteil | Ihre Kosten`
+
+Gleiche Sektionen wie Gesamt, aber mit zusätzlichen Spalten für Verteilungsschlüssel und Eigentümeranteil. Plus Schlusszeilen pro Eigentümer:
+- Abrechnungssumme · Vorschussverpflichtung WPL · Abrechnungsspitze (GH) · Vorschussverpflichtung IST · Unterzahlung WPL · Abrechnungssaldo (GH)
 
 ## Was umgebaut wird
 
-### A) `supabase/functions/generate-billing-pdf/index.ts` (Hauptarbeit)
+### Datei: `src/components/finance/BillingSettlement.tsx`
 
-| # | Bug | Fix |
-|---|---|---|
-| 1 | Anfangs-/Schlussbestände via `category === "bank"/"ruecklage"` (immer 0) | Umstellen auf `getEffectiveOpeningBalance` / `getEffectiveClosingBalance` aus `_shared/booking-aggregation.ts` (4000-Eröffnungsbuchung priorisiert). Filter über `settlement_section === "bank"/"reserve"` mit Account-Number-Range `/^18\d{2}$/` als Backup. |
-| 2 | Personenkonten 0001-0003 werden als Verteilungskosten umgelegt | `distributableAccounts`-Filter um `!personalAccountPattern.test(a.account_number)` und `a.settlement_section !== "income"` ergänzen. |
-| 3 | (= Teil von Bug 1) | mitkorrigiert |
-| 4 | Heating-Repost-Buchungen zählen Heizkosten doppelt | Wo `sumForAccount` für 1400 etc. genutzt wird, vorgefilterte Liste `bookingsExclHeatingRepost = allBookings.filter(b => b.booking_category !== "heating_repost")` verwenden. |
-| 5 | IHR-Zuführung: WP-Beschluss vs. Buchungen | Logik beibehalten (`totalReserveFromPlan` hat Vorrang), aber sauberen Fallback auf Buchungs-Summe der Reserve-Sektion ergänzen, wenn Plan = 0 → kein „leere Reserve trotz Buchungen". |
-| 6 | Reserve-finanzierte Aufwände (1920) doppelt | Bereits über `is_reserve_funded` in Z. 144-148 + Z. 266/295 gehandhabt — verifizieren, dass der Abzug auf Eigentümerebene tatsächlich greift, und die Neutralisation auch in der Gesamtabrechnung sichtbar machen (Sektion „Rücklagenentnahme" mit `totalReserveWithdrawal`). |
-| 7 | Vorschussverpflichtung & Abrechnungsspitze fehlen im PDF | `totalVorschuss` (zeitanteilig + interval-aware analog `calcAnnual`) pro Eigentümer berechnen, in Owner-Result aufnehmen; in der HTML-Vorlage als Zeile „./. geleistete Vorauszahlungen" + „Abrechnungsspitze" ausgeben (Guthaben/Nachzahlung). |
-| 8 | Kostenzeitachse grobe Faktoren 12/4/1 | `getTimeProportion` ist bereits day-precision (Z. 102-112) — `calcAnnual` auf gleiche Day-Precision umstellen statt fester Faktoren. |
+Die bestehende `exportCsv`-Funktion (Z. 656-674) wird ersetzt. Statt einer flachen Tabelle wird eine HV-Office-konforme CSV erzeugt — alles Daten, die in der Komponente bereits berechnet sind (`sectionAccounts`, `getSectionTotal`, `getOpeningTotal`, `getClosingTotal`, `ownerResults`, `economicPlan`, `totalVorschuss`, `abrechnungssumme`, `abrechnungsspitze`).
 
-### B) Datenkorrekturen (per Migration-Tool)
-Claude meldet zwei Dateninkonsistenzen — die fixen wir ebenfalls:
-- **Eröffnungsbuchung 1800 umkehren**: Buchung am 01.01.2025 (Birkenweg 6) hat `account_id=4000, counter_account_id=1800` → bank-zentrische Konvention liefert -3.510 €. Korrekt: `account_id=1800, counter_account_id=4000`. Per UPDATE auf die eine Booking-Zeile.
-- **`is_distributable` für 1850/1860 (KapErtSt + Soli) auf `false`**: das sind keine Eigentümer-Kosten, sondern Kapitalertragsteuern auf Rücklagen-Zinsen.
+#### Neue Funktion `buildOverallCsvLines()` — Gesamtabrechnung
+Generiert in der oben beschriebenen Sektionsreihenfolge alle Zeilen mit korrekten Zwischensummen und Schlussblock (Wirtschaftsplansumme, Abrechnungsspitze, Endbestände).
 
-### C) Memory-Update
-Ergänzung zu `mem://features/finance/pdf-aggregation-shared`:
-- Anfangs-/Schlussbestände in Edge-Function MÜSSEN über `getEffective*Balance`-Helper laufen, nie über `category`.
-- Verteilungs-Filter MUSS Personenkonten (`/^0\d{3}$/`) und `settlement_section==="income"` ausschließen.
-- `heating_repost`-Buchungen MÜSSEN bei Heizkosten-Aggregation rausgefiltert werden.
+#### Neue Funktion `buildOwnerCsvLines(owner)` — eine Einzelabrechnung
+Iteriert über `owner.accountBreakdown` (existiert bereits), gruppiert nach Sektion (`distributable` → umlagefähig, `non_distributable` → nicht umlagefähig, `reserve` → Rücklage), gibt 7-Spalten-Format aus, hängt Schlussblock an (Abrechnungssumme, WPL-Vorschuss, Abrechnungsspitze, IST-Vorschuss, Saldo).
 
-### D) Hinweise an den User (kein Code, nur Anzeige nach Implementation)
-Die folgenden Stammdaten-Lücken bleiben Aufgabe des Users (System kann sie nicht raten):
-- Personen-Anteile für 1010 Müll / 1011 Papiertonne pflegen
-- `heating_distribution_values` für FY 2025 erfassen
-- Wirtschaftsplan 2025 mit `total_reserve` anlegen
+#### Neue UI: Dropdown-Menü statt einzelnem CSV-Button
+Der bestehende „CSV"-Button (Z. 830) wird zu einem Dropdown mit drei Optionen (analog zu `HeatingExportSection`):
+- **CSV: Gesamtabrechnung** → `Abrechnung_Gesamt_<Building>_<FY>.csv`
+- **CSV: Alle Einzelabrechnungen (ZIP)** → eine ZIP-Datei mit je einer CSV pro Eigentümer (`Einzelabrechnung_Einheit-XXXX_<Name>_<FY>.csv`)
+- **CSV: Einzelner Eigentümer** → Untermenü mit allen Eigentümern, einzelne CSV-Datei
+
+Für ZIP wird `jszip` (bereits via npm verfügbar in vergleichbaren Projekten) verwendet. Falls nicht vorhanden, alternativ: einzelne Downloads sequentiell triggern.
+
+### Detail-Format pro Zeile
+
+Trennzeichen `;`, Zahlen deutsches Format (`1.234,56`), Vorzeichen `-` für Ausgaben, UTF-8 BOM (für Excel-DE), Sektionsüberschriften als Header-Zeile (z. B. `;UMLAGEFÄHIGE BETRÄGE;;;;;`), Zwischensummen mit Label `Zwischensumme` in Spalte 2.
+
+### Header-Block jeder CSV
+```
+WEG <Building Name>
+Adresse: <building.address>
+Jahresabrechnung <FY>
+Abrechnungszeitraum: <period_from> – <period_to>
+Erstellt am: <heute>
+[Bei Einzelabrechnung:] Einheit: <unit_number> · Eigentümer: <name>
+[Leerzeile]
+```
+
+## Konsistenz mit dem bestehenden System
+- Alle Werte stammen aus den **bereits berechneten Variablen** in `BillingSettlement.tsx` — keine neue Berechnungslogik, keine Edge-Function. Damit sind UI, PDF und CSV automatisch synchron.
+- §35a-Beträge erscheinen pro Eigentümer als zusätzliche Info-Zeilen am Ende der Einzelabrechnung.
+- Heizkosten 1400 nutzen `heatingDistValues` analog zur PDF-/UI-Verteilung.
 
 ## Reihenfolge nach Approval
-1. Migration: Eröffnungsbuchung 1800 umkehren + `is_distributable` 1850/1860 = false
-2. Edge-Function `generate-billing-pdf` umbauen (Bugs 1-8)
-3. PDF generieren für Birkenweg 6 / 2025 → Werte gegen Claudes Soll-Tabelle prüfen
-4. Memory aktualisieren
+1. `exportCsv` durch `buildOverallCsvLines` + `buildOwnerCsvLines` ersetzen
+2. Dropdown-Menü mit drei Optionen einbauen (DropdownMenu aus shadcn)
+3. ZIP-Erzeugung via `jszip` (Install bei Bedarf)
+4. Test-Download für Birkenweg 6 / 2025 → Vergleich gegen die beigefügten HV-Office-PDFs
 
-## Nicht übernommen
-Claudes vorgefertigte `generate-billing-pdf-index.ts` aus dem `/sessions/...`-Pfad ist nicht direkt zugänglich und wäre auch riskant ohne Code-Review. Wir schreiben die Fixes inkrementell in unseren Code, behalten die bestehende HTML-Struktur und den Shared-Helper, und verifizieren jede Änderung gegen Claudes Soll-Werte.
+## Hinweis
+Wenn die Werte in der CSV abweichen (z. B. Müll wird laut PDF mit 354,610/1000 verteilt — bei dir aber leer), liegt das an Stammdaten-Lücken (Personen-Anteile, `heating_distribution_values`, Wirtschaftsplan), nicht am CSV-Generator. Die wurden bereits in der vorherigen Session adressiert.
 
