@@ -295,7 +295,10 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const totalOperatingDist = getSectionTotal("operating_distributable");
   const totalOperatingNonDist = getSectionTotal("operating_non_distributable");
   const totalAccrual = getSectionTotal("accrual");
-  const totalReserve = getSectionTotal("reserve");
+  // IHR-Zuführung kommt 1:1 aus dem Wirtschaftsplan (Beschluss der ETV).
+  // Fallback: Bewegungen auf Konto „reserve" (z. B. wenn noch kein WP existiert).
+  const reserveFromBookings = getSectionTotal("reserve");
+  const totalReserve = economicPlan?.total_reserve != null ? Number(economicPlan.total_reserve) : reserveFromBookings;
   const totalReserveWithdrawal = getSectionTotal("reserve_withdrawal");
 
   // Opening balances — bevorzugt aus Eröffnungsbuchungen gegen Konto 4000,
