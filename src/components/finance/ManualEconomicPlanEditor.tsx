@@ -170,13 +170,13 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
       if (draftVal === undefined) continue;
       const existing = items.find((i) => i.account_id === acc.id);
       if (existing) {
-        ops.push(
+        ops.push(Promise.resolve(
           supabase.from("economic_plan_items" as any)
             .update({ planned_amount: draftVal, manually_overridden: true } as any)
             .eq("id", existing.id),
-        );
+        ));
       } else {
-        ops.push(
+        ops.push(Promise.resolve(
           supabase.from("economic_plan_items" as any).insert({
             plan_id: plan.id,
             account_id: acc.id,
@@ -185,17 +185,17 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
             distribution_key: acc.default_distribution_key || "mea",
             manually_overridden: true,
           } as any),
-        );
+        ));
       }
     }
 
     // Update plan totals
     const newTotal = rows.reduce((s, r) => s + r.planned_amount, 0);
-    ops.push(
+    ops.push(Promise.resolve(
       supabase.from("economic_plans" as any)
         .update({ total_costs: newTotal } as any)
         .eq("id", plan.id),
-    );
+    ));
 
     await Promise.all(ops);
     setDrafts({});
