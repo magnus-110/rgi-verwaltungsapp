@@ -1,92 +1,96 @@
 
 
-# Plan: Abrechnung Birkenweg 6 / 2025 mit HV Office abgleichen
+# Plan: Heizkosten-Workflow vollständig umsetzen — Konto 1400 als „Sammelkonto Brunata"
 
-## Diagnose
+## Verstandenes Ziel (User-Workflow)
 
-Vergleich App vs. HV Office hat 4 Abweichungen ergeben:
+```text
+Schritt 1 — Heizkosten-Umbuchung
+  alle HK-Vorauszahlungs- & Aufwandskonten  →  1400
+  (1410, 1431, 1440, 1470, 1471, 1472)
+  Salden danach: 0 €    1400 = Summe ALLER HK-Bewegungen
 
-| # | Position | App zeigt | HV zeigt | Ursache |
-|---|---|---|---|---|
-| 1 | 1400 Heizung/Warmwasser | 1.276,30 € | 5.148,99 € | `getAccountBookingTotal` filtert ALLE Buchungen mit `category='heating_repost'` raus → die 3.537,68 € Gas-Umbuchung + 167,51 € Strom-Umbuchung kommen nie auf 1400 an |
-| 2 | 1600 Lfd. Instandhaltung | umlagefähig | nicht umlagefähig | Konto-Setting falsch klassifiziert |
-| 3 | 1920 Rep. aus Entnahme RL | umlagefähig | nicht umlagefähig | Konto-Setting falsch klassifiziert |
-| 4 | 1431/1440/1470/1472 Durchlaufkonten | werden in Abrechnung gelistet | nicht enthalten | Section `heating_prepayment` wird im UI noch dargestellt |
-| 5 | Rücklagen-Block (Plan IHR 3.600 + Entnahme 7.293,51 + Zinsen/Steuern) | unvollständig | komplett mit Zinsen/KESt/Soli | Konten 1840/1850/1860 (`section='reserve'`) tauchen in der Abrechnung nirgends auf, weil `SECTION_ORDER` die Reserve-Bewegungen nicht zeigt |
+Schritt 2 — Strom-Splitt nach Brunata-Bescheid
+  Brunata sagt: vom Allgemeinstrom (1472) sind X € heizungsrelevant,
+                                            Y € Allgemeinstrom (Treppenhaus etc.)
+  Buchung:  1400 → 1050   in Höhe von Y €  (Allgemeinstrom-Anteil raus aus 1400)
+  Konto 1050 zeigt am Ende den NICHT-heizungsrelevanten Stromanteil
+
+Schritt 3 — Abrechnung
+  In der Jahresabrechnung erscheint NUR Konto 1400 (Heizung/Warmwasser)
+  als HK-Position mit Brunata-Verteilung, plus Konto 1050 als allg. Strom.
+  Konten 1410/1431/1440/1470/1471/1472 sind nicht sichtbar (Saldo 0).
+```
+
+## Diagnose des aktuellen Zustands (Birkenweg 6 / 2025)
+
+| Konto | Saldo aktuell | Repost? | Kommentar |
+|---|---|---|---|
+| 1400 Heizung/WW | −423,89 € | hat 4 Reposts | aber UI zeigt nur 1.443,81 € weil `heating_repost`-Filter aktiv |
+| 1410 Brennstoffkauf | 0 € ✓ | ja | OK |
+| 1431 Gerätemiete | −389,54 € | **nein** | nicht heizungsrelevant markiert, kein Repost erstellt |
+| 1440 Heizungswartung | −134,17 € | **nein** | dito |
+| 1470 VZ Gas | 0 € ✓ | ja | OK |
+| 1472 VZ Strom | 0 € ✓ | ja | komplette 390,87 € auf 1400 umgebucht — Splitt fehlt |
+| 1050 Allgemeinstrom | −111,68 € | – | nur direkte Stromrechnung, kein Anteil aus 1472 |
+
+**Brunata-Soll: 5.148,99 €**. Aktuell auf 1400 nach Repost: 423,89 € + die durch Filter ausgeblendeten ~3.700 € = ~4.150 €. Es fehlen Wartung/Gerätemiete (523,71 €), und der Strom-Splitt 1400→1050 fehlt komplett. Daher matcht weder 5.148,99 € noch zeigt die UI den korrekten Wert.
 
 ## Lösung
 
-### A) Code-Fix in `BillingSettlement.tsx` — Repost-Logik (Bug #1)
-
-`getAccountBookingTotal(accountId)` so umstellen, dass `heating_repost`-Buchungen nur dann ignoriert werden, wenn das Konto **Quelle** (Vorauszahlungskonto 1470er) ist — nicht wenn es **Ziel** (1400) ist. Konkret: Filter entfernen, stattdessen pro Buchung prüfen — wenn die Buchung `heating_repost` ist und `accountId` = die Quelle (counter_account in unserer Konvention bei diesen Buchungen ist 1400 als Ziel, account_id ist 1470 als Quelle) → Beitrag der Quelle weglassen, Ziel zählt voll.
-
-Einfacher: heating_prepayment-Konten werden ohnehin aus der Abrechnung ausgeblendet (siehe C), daher reicht es, den Repost-Filter komplett zu entfernen. Dann zeigt 1400 korrekt 5.148,99 € (1443,81 + 167,51 + 3537,68), und die Quellkonten 1470/1472 werden gar nicht mehr dargestellt.
-
-### B) Daten-Fix `chart_of_accounts` — HV-konforme Klassifizierung (Bugs #2, #3)
-
-Migration mit Updates:
-
-| Konto | Feld | Alt → Neu |
-|---|---|---|
-| 1600 Lfd. Instandhaltung | `settlement_section` | `operating_distributable` → `operating_non_distributable` |
-| 1600 | `is_distributable` | `true` → `false` |
-| 1920 Rep. aus Entnahme RL | `settlement_section` | `operating_distributable` → `operating_non_distributable` |
-| 1920 | `is_distributable` | `true` → `false` |
-| 1920 | `is_reserve_funded` | bleibt `true` (für Neutralisierung) |
-
-### C) Code-Fix `BillingSettlement.tsx` — Durchlaufkonten ausblenden (Bug #4)
-
-`SECTION_ORDER` die Sektion `heating_prepayment` entfernen. Diese Konten dienen nur der Buchhaltung (Vorauszahlungen → Umbuchung auf 1400) und gehören nach HV-WEG-Logik nicht in die Eigentümerabrechnung. Ihr Saldo landet ohnehin per Repost auf 1400.
-
-### D) Code-Fix `BillingSettlement.tsx` — Reserve-Sektion vollständig (Bug #5)
-
-Im aktuellen Code wird `getSectionTotal('reserve')` nur als Fallback genutzt. Stattdessen analog zu HV Office:
-
-- **Zuführung Plan IHR**: aus `economic_plan.total_reserve` (3.600 €) — bleibt
-- **Entnahme aus Rücklage**: `totalReserveWithdrawal` aus `is_reserve_funded`-Konten — bleibt
-- **Zinsen/KESt/Soli auf RL**: aktuell `section='reserve'`. Diese in einem eigenen Block „Bewegungen Rücklagenkonto" im Reserve-Abschnitt darstellen (Zinsertrag 37,56 + KESt -9,39 + Soli -0,50). Sie sind **nicht abrechnungswirksam für Eigentümer**, beeinflussen aber den Endbestand und tauchen bei HV unter „nicht umlagefähig" auf.
-- Die Konten 1840/1850/1860 zusätzlich in `operating_non_distributable` ausweisen (analog HV) — am sinnvollsten Konto-Setting umstellen: `1850/1860` → `settlement_section='operating_non_distributable'`, `is_distributable=true` (nur als Aufwand, der per is_reserve_funded neutralisiert würde — alternativ: nur informativ ohne Verteilung). 1840 (Zinsertrag) → bleibt `reserve`, wird im Reserve-Block angezeigt.
-
-### E) Verifikation
-
-Nach Fix muss die Abrechnung exakt zeigen:
+### A) `chart_of_accounts` — Klassifizierung korrigieren (Migration)
 
 ```text
-Umlagefähig (operating_distributable):
-  1010 Müllabfuhr           378,60
-  1030 Wasser/Abwasser       27,84
-  1050 Allgemeinstrom       111,68
-  1300 Versicherungen       895,97
-  1400 Heizung/Warmwasser 5.148,99   ← Fix #1
-  Σ                       6.563,08
-
-Nicht umlagefähig:
-  1500 Verwaltervergütung 1.927,80
-  1520 Kontogebühren        144,32
-  1600 Lfd. Instandhaltung  240,98   ← Fix #2
-  1850 KESt                   9,39
-  1860 Soli                   0,50
-  1920 Rep. aus Entnahme  7.293,51   ← Fix #3
-  Σ                       9.616,50
-
-Abgrenzungen Σ            -755,99
-
-Rücklage:
-  Plan IHR Zuführung     -3.600,00
-  Entnahme RL (1920)     +7.293,51
-
-Abrechnungssumme       -12.486,07 € ✓ (matcht HV exakt)
+1431 Gerätemiete       → is_heating_relevant=true,  settlement_section=heating_prepayment (bleibt)
+1440 Heizungswartung   → is_heating_relevant=true,  settlement_section=heating_prepayment (bleibt)
 ```
+
+Damit werden sie beim nächsten „Umbuchung erstellen" automatisch mit auf 1400 gebucht.
+
+### B) `HeatingRebookingSection.tsx` — bestehende Reposts beim Re-Generieren idempotent löschen
+
+Aktueller Code löscht `booking_category='heating_repost'`-Buchungen vor Neugenerierung — das ist korrekt, ABER `getAccountTotal` filtert genau diese auch raus, daher wird beim 2. Lauf nicht doppelt gezählt. ✓ — kein Code-Fix nötig, nur Klassifizierung A) anwenden, dann „Neu generieren" klicken → alle 6 HK-Konten landen sauber auf 1400.
+
+### C) Neuer Block in `HeatingRebookingSection.tsx` — „Strom-Splitt 1400 → 1050"
+
+Nach erfolgter HK-Umbuchung erscheint ein zweiter Bereich:
+
+```text
+┌─ Strom-Splitt nach Brunata ───────────────────────────────┐
+│ Konto 1400 enthält aktuell 5.148,99 €                     │
+│ davon Allgemeinstrom-Anteil (lt. Brunata): [____] €       │
+│ Zielkonto: [1050 Allgemeinstrom ▾]                        │
+│ [Splitt-Buchung erstellen]                                │
+└────────────────────────────────────────────────────────────┘
+```
+
+Erzeugt eine Buchung `account_id=1050, counter_account_id=1400, amount=Y, booking_category='heating_split'` zum Stichtag 31.12.
+
+Danach: 1400 = 5.148,99 − Y (= Brunata-relevante Summe), 1050 = bisheriger Saldo + Y.
+
+### D) `BillingSettlement.tsx` & `HeatingAccountsSection.tsx` — Repost-Filter erweitern
+
+Filter `b.booking_category !== 'heating_repost'` ergänzen um `&& b.booking_category !== 'heating_split'`, damit der Strom-Splitt nicht doppelt zählt.
+
+Anzeige in der Abrechnung: Konto 1400 zeigt jetzt korrekt den **Netto-Heizkostentopf nach Splitt** (= Brunata-Summe), Konto 1050 zeigt den vollen Allgemeinstrom inkl. Splittanteil.
+
+### E) Validierung in `BrunataAllocationManager.tsx`
+
+Statt „Σ Brunata-Werte vs. Konto 1400" die Differenz erst nach Strom-Splitt prüfen. Toleranz: < 0,50 €. Bei Treffer grüner Badge „Brunata = Konto 1400 ✓".
+
+### F) Datenbank — neue `booking_category` Enum-Wert
+
+`heating_split` zu enum hinzufügen (falls Constraint vorhanden) oder Constraint erweitern.
 
 ## Schritte
 
-1. **Migration** `chart_of_accounts` — Klassifizierung 1600, 1920, 1850, 1860 anpassen
-2. **`BillingSettlement.tsx`** — `heating_repost`-Filter aus `getAccountBookingTotal` entfernen
-3. **`BillingSettlement.tsx`** — `SECTION_ORDER` ohne `heating_prepayment`
-4. **`BillingSettlement.tsx`** — Reserve-Block um Zinsen/KESt/Soli-Anzeige erweitern (informativ)
-5. **Verifikation** — Werte gegen HV-PDF prüfen, Ziel: Abrechnungssumme = -12.486,07 €, Abrechnungsspitze = +1.613,93 €
-6. **Konsistenz-Check** — `EconomicPlanSection`, `BookingReviewSection`, `HeatingAccountsSection` lesen dieselben Konten — keine Änderung nötig, da Repost-Filter dort bereits korrekt nur die Quellseite ausschließt
+1. **Migration**: `chart_of_accounts` 1431/1440 → `is_heating_relevant=true`. Enum/Constraint `booking_category` um `heating_split` erweitern.
+2. **HeatingRebookingSection.tsx**: Neuer Splitt-Block (Section C) mit Zielkonto-Auswahl und Betragseingabe.
+3. **BillingSettlement.tsx + HeatingAccountsSection.tsx**: Filter um `heating_split` erweitern.
+4. **BrunataAllocationManager.tsx**: Validierung nach Splitt.
+5. **User-Aktion danach**: in der App „Umbuchungen löschen" → „Neu generieren" → Strom-Splitt 167,51 € (oder lt. Brunata) auf 1050 buchen → 1400 sollte exakt 5.148,99 € zeigen.
 
 ## Hinweis
-Nach diesen Fixes ist die Gesamtabrechnung deckungsgleich mit HV Office. Anschließend folgt die Einzelabrechnung pro Eigentümer (MEA-Verteilung, Heizkosten gem. Brunata, Abrechnungsspitze) — das ist bereits implementiert und sollte automatisch stimmen, sobald die Gesamtspalte korrekt ist.
+
+Der Workflow funktioniert dann komplett wie beschrieben: HK-Konten werden auf 0 gesetzt, 1400 sammelt alles, der Brunata-irrelevante Stromanteil wird per zweiter Umbuchung auf 1050 geschoben, und die Abrechnung zeigt genau die zwei Endkonten 1400 (= Brunata) und 1050 (= Allgemeinstrom).
 
