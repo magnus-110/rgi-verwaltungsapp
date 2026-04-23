@@ -855,7 +855,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
             lines.push(row("1720", "Zuweisung Erhaltungsrücklage (lt. WP)", fmtNum(Number(economicPlan.total_reserve)), fmtNum(reserveFromBookings), fmtNum(totalReserve)));
           } else {
             accs.forEach((acc: any) => {
-              lines.push(row(acc.account_number, acc.account_name, acc.wpAmount > 0 ? fmtNum(acc.wpAmount) : "", fmtNum(acc.total), acc.is_distributable ? fmtNum(acc.total) : ""));
+              lines.push(row(acc.account_number, acc.account_name, acc.wpAmount > 0 ? fmtNum(acc.wpAmount) : "", fmtNum(acc.totalAbs), acc.is_distributable ? fmtNum(acc.totalAbs) : ""));
             });
           }
         }
