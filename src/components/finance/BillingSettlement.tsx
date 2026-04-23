@@ -1111,10 +1111,27 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const renderSection = (section: string) => {
     const accs = sectionAccounts[section] || [];
     if (accs.length === 0 && section !== "reserve") return null;
-    const total = getSectionTotal(section);
+    const signedTotal = getSectionSignedTotal(section);
     const wpTotal = accs.reduce((s, a) => s + a.wpAmount, 0);
-    const distTotal = accs.filter(a => a.is_distributable).reduce((s, a) => s + a.total, 0);
+    // Verteilungsrelevante Summe nutzt Magnitude (Kostensumme zur Verteilung)
+    const distTotal = accs.filter(a => a.is_distributable).reduce((s, a) => s + a.totalAbs, 0);
     const isExpanded = expandedSections.has(section);
+    const isIncomeSection = section === "income";
+
+    // Anzeigewert pro Konto: signiert. Für Einnahmen-Sektion drehen wir das
+    // Vorzeichen, damit Erträge mit + erscheinen (intern liegen sie als +amount
+    // auf account_id mit booking_type=income, also bereits positiv —
+    // expense-Konten kommen entsprechend negativ).
+    const renderSigned = (n: number) => {
+      const v = Math.round(n * 100) / 100;
+      if (v === 0) return <span className="font-mono">{formatCurrency(0)}</span>;
+      const isPos = v > 0;
+      return (
+        <span className={cn("font-mono", isPos ? "text-emerald-600 dark:text-emerald-400" : "text-foreground")}>
+          {isPos ? "+" : "−"}{formatCurrency(Math.abs(v))}
+        </span>
+      );
+    };
 
     return (
       <Collapsible key={section} open={isExpanded} onOpenChange={() => toggleSection(section)}>
@@ -1124,10 +1141,12 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
             <span className="font-medium text-sm">{SECTION_LABELS[section] || section}</span>
             <Badge variant="outline" className="text-xs">{accs.length}</Badge>
           </div>
-          <div className="flex gap-4 text-sm font-mono">
-            {wpTotal > 0 && <span className="text-muted-foreground">{formatCurrency(wpTotal)}</span>}
-            <span className="font-medium">{formatCurrency(total)}</span>
-            {distTotal > 0 && distTotal !== total && <span className="text-muted-foreground">{formatCurrency(distTotal)}</span>}
+          <div className="flex gap-4 text-sm">
+            {wpTotal > 0 && <span className="font-mono text-muted-foreground">{formatCurrency(wpTotal)}</span>}
+            <span className="font-medium">{renderSigned(signedTotal)}</span>
+            {distTotal > 0 && Math.abs(distTotal - Math.abs(signedTotal)) > 0.005 && (
+              <span className="font-mono text-muted-foreground">{formatCurrency(distTotal)}</span>
+            )}
           </div>
         </CollapsibleTrigger>
         <CollapsibleContent>
@@ -1137,7 +1156,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                 <TableHead className="w-[80px]">Konto</TableHead>
                 <TableHead>Bezeichnung</TableHead>
                 <TableHead className="text-right w-[120px]">Wirtschaftsplan</TableHead>
-                <TableHead className="text-right w-[120px]">Einnahmen/Ausgaben</TableHead>
+                <TableHead className="text-right w-[140px]">Einnahme/Ausgabe</TableHead>
                 <TableHead className="text-right w-[120px]">Verteilungsrel.</TableHead>
               </TableRow>
             </TableHeader>
@@ -1149,9 +1168,9 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                   <TableCell className="text-right font-mono text-sm text-muted-foreground">
                     {acc.wpAmount > 0 ? formatCurrency(acc.wpAmount) : "–"}
                   </TableCell>
-                  <TableCell className="text-right font-mono text-sm">{formatCurrency(acc.total)}</TableCell>
+                  <TableCell className="text-right text-sm">{renderSigned(acc.total)}</TableCell>
                   <TableCell className="text-right font-mono text-sm">
-                    {acc.is_distributable ? formatCurrency(acc.total) : "–"}
+                    {acc.is_distributable ? formatCurrency(acc.totalAbs) : "–"}
                   </TableCell>
                 </TableRow>
               ))}
