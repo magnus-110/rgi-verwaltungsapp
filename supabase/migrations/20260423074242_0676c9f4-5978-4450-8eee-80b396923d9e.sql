@@ -1,0 +1,3 @@
+UPDATE chart_of_accounts SET settlement_section='operating_non_distributable', is_distributable=false WHERE account_number='1600';
+UPDATE chart_of_accounts SET settlement_section='operating_non_distributable', is_distributable=false, is_reserve_funded=true WHERE account_number='1920';
+UPDATE chart_of_accounts SET settlement_section='operating_non_distributable', is_distributable=true WHERE account_number IN ('1850','1860');
