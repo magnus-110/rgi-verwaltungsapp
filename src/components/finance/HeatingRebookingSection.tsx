@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { ArrowRightLeft, AlertTriangle, Check, RefreshCw, Trash2, Upload, Users } from "lucide-react";
+import { ArrowRightLeft, AlertTriangle, Check, RefreshCw, Trash2, Upload, Users, Split, Plus, X } from "lucide-react";
 import { sumForAccount } from "./lib/bookingAggregation";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -27,6 +27,11 @@ export function HeatingRebookingSection({ buildingId, periodId, fiscalYear }: He
   const [showDistribution, setShowDistribution] = useState(false);
   const [distributionValues, setDistributionValues] = useState<Record<string, number>>({});
   const csvInputRef = useRef<HTMLInputElement>(null);
+  // Strom-Splitt: 1400 → 1050 (oder andere Konten) für nicht-heizungsrelevante Anteile
+  const [splitRows, setSplitRows] = useState<Array<{ targetAccountId: string; amount: string; description: string }>>([
+    { targetAccountId: "", amount: "", description: "Allgemeinstrom-Anteil aus 1472 (lt. Brunata)" },
+  ]);
+  const [isSplitting, setIsSplitting] = useState(false);
 
   // All accounts for this building (target selection)
   const { data: allAccounts = [] } = useQuery({
@@ -88,7 +93,21 @@ export function HeatingRebookingSection({ buildingId, periodId, fiscalYear }: He
     },
   });
 
-  // Owner assignments for distribution
+  // Existing splits (1400 → 1050 etc.)
+  const { data: existingSplits = [] } = useQuery({
+    queryKey: ["heating-splits", buildingId, fiscalYear],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("*, target:chart_of_accounts!bookings_account_id_fkey(account_number, account_name), source:chart_of_accounts!bookings_counter_account_id_fkey(account_number, account_name)")
+        .eq("building_id", buildingId)
+        .eq("fiscal_year", fiscalYear)
+        .eq("booking_category", "heating_split")
+        .neq("status", "cancelled");
+      if (error) throw error;
+      return data;
+    },
+  });
   const { data: ownerAssignments = [] } = useQuery({
     queryKey: ["owner-assignments-heating", buildingId],
     queryFn: async () => {
@@ -118,10 +137,20 @@ export function HeatingRebookingSection({ buildingId, periodId, fiscalYear }: He
   });
 
   // Bank-zentrisch: Heizkonten können auf account_id ODER counter_account_id liegen.
-  // sumForAccount summiert beide Seiten korrekt; Eröffnungs-Repost ausschließen.
+  // sumForAccount summiert beide Seiten korrekt; Reposts UND Splitt-Buchungen ausschließen,
+  // damit beim erneuten Generieren keine Doppelzählung entsteht.
   const getAccountTotal = (accountId: string) => {
-    const filtered = bookings.filter((b) => b.booking_category !== "heating_repost");
+    const filtered = bookings.filter(
+      (b) => b.booking_category !== "heating_repost" && b.booking_category !== "heating_split"
+    );
     return Math.abs(sumForAccount(accountId, filtered as any));
+  };
+
+  // Aktueller Saldo des Ziel-Sammelkontos (z. B. 1400) NACH Repost, VOR/NACH Splitt.
+  // Hier wollen wir alle Bewegungen sehen — auch Reposts (gehen rein) und Splitts (gehen raus).
+  const getTargetAccountBalance = (accountId: string) => {
+    if (!accountId) return 0;
+    return Math.abs(sumForAccount(accountId, bookings as any));
   };
 
   const totalHeating = heatingAccounts.reduce((s, a) => s + getAccountTotal(a.id), 0);
@@ -287,6 +316,95 @@ export function HeatingRebookingSection({ buildingId, periodId, fiscalYear }: He
     }
   };
 
+  // ── Strom-Splitt: Buchungen 1400 → 1050 (oder andere Konten) erstellen ──
+  const totalSplit = existingSplits.reduce((s: number, b: any) => s + Math.abs(Number(b.amount)), 0);
+  const targetBalanceBeforeSplit = targetAccountId ? getTargetAccountBalance(targetAccountId) + totalSplit : 0;
+  const targetBalanceAfterSplit = targetAccountId ? getTargetAccountBalance(targetAccountId) : 0;
+  const splitSum = splitRows.reduce((s, r) => s + (parseFloat(r.amount.replace(",", ".")) || 0), 0);
+
+  const addSplitRow = () =>
+    setSplitRows((prev) => [...prev, { targetAccountId: "", amount: "", description: "" }]);
+
+  const removeSplitRow = (idx: number) =>
+    setSplitRows((prev) => prev.filter((_, i) => i !== idx));
+
+  const updateSplitRow = (idx: number, field: "targetAccountId" | "amount" | "description", value: string) =>
+    setSplitRows((prev) => prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r)));
+
+  const generateSplits = async () => {
+    if (!targetAccountId) {
+      toast.error("Erst Heizkostenkonto (oben) wählen — von dort wird abgesplittet");
+      return;
+    }
+    const validRows = splitRows.filter((r) => {
+      const amt = parseFloat(r.amount.replace(",", "."));
+      return r.targetAccountId && amt > 0;
+    });
+    if (validRows.length === 0) {
+      toast.error("Mindestens ein Zielkonto und Betrag erforderlich");
+      return;
+    }
+    setIsSplitting(true);
+    try {
+      // Bestehende Splits dieses Jahres löschen (idempotent)
+      if (existingSplits.length > 0) {
+        const { error: delError } = await supabase
+          .from("bookings")
+          .delete()
+          .eq("building_id", buildingId)
+          .eq("fiscal_year", fiscalYear)
+          .eq("booking_category", "heating_split");
+        if (delError) throw delError;
+      }
+
+      const splits = validRows.map((r) => {
+        const amt = parseFloat(r.amount.replace(",", "."));
+        return {
+          building_id: buildingId,
+          // ZIEL = Konto, das den Anteil bekommt (z. B. 1050)
+          account_id: r.targetAccountId,
+          // QUELLE = Heizkostenkonto (z. B. 1400) — wird entlastet
+          counter_account_id: targetAccountId,
+          booking_date: `${fiscalYear}-12-31`,
+          amount: amt,
+          description: r.description || "Splitt aus Heizkostenkonto",
+          fiscal_year: fiscalYear,
+          booking_type: "expense",
+          booking_category: "heating_split",
+          source: "manual",
+          status: "pending",
+          created_by: user?.id,
+        };
+      });
+
+      const { error } = await supabase.from("bookings").insert(splits);
+      if (error) throw error;
+
+      toast.success(`${splits.length} Splitt-Buchung(en) erstellt`);
+      queryClient.invalidateQueries({ queryKey: ["heating-splits"] });
+      queryClient.invalidateQueries({ queryKey: ["heating-bookings"] });
+    } catch (e: any) {
+      toast.error("Fehler: " + e.message);
+    } finally {
+      setIsSplitting(false);
+    }
+  };
+
+  const deleteSplits = async () => {
+    const { error } = await supabase
+      .from("bookings")
+      .delete()
+      .eq("building_id", buildingId)
+      .eq("fiscal_year", fiscalYear)
+      .eq("booking_category", "heating_split");
+    if (error) toast.error("Fehler beim Löschen");
+    else {
+      toast.success("Splitt-Buchungen gelöscht");
+      queryClient.invalidateQueries({ queryKey: ["heating-splits"] });
+      queryClient.invalidateQueries({ queryKey: ["heating-bookings"] });
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -406,7 +524,120 @@ export function HeatingRebookingSection({ buildingId, periodId, fiscalYear }: He
           </div>
         )}
 
-        {/* Heizkosten-Verteilungswerte pro Eigentümer */}
+        {/* ─── Strom-/Splitt-Buchungen vom Heizkostenkonto ─────────────────── */}
+        {existingRebookings.length > 0 && targetAccountId && (
+          <Card className="border-dashed">
+            <CardHeader className="py-3">
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div className="space-y-1">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Split className="h-4 w-4" /> Splitt vom Heizkostenkonto (z. B. Allgemeinstrom-Anteil)
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground max-w-xl">
+                    Falls Brunata einen Teil des Stromverbrauchs als Allgemeinstrom (nicht heizungsrelevant)
+                    ausweist, hier vom Heizkostenkonto auf z. B. <strong>1050 Allgemeinstrom</strong> umbuchen.
+                    Konto bleibt am Ende = Brunata-Gesamtsumme.
+                  </p>
+                </div>
+                <div className="text-right text-xs space-y-0.5 font-mono">
+                  <div className="text-muted-foreground">Vor Splitt: {formatCurrency(targetBalanceBeforeSplit)}</div>
+                  <div className="font-semibold">Nach Splitt: {formatCurrency(targetBalanceAfterSplit)}</div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0 space-y-2">
+              {splitRows.map((row, idx) => (
+                <div key={idx} className="flex items-end gap-2 flex-wrap">
+                  <div className="flex-1 min-w-[180px]">
+                    {idx === 0 && <Label className="text-xs">Zielkonto</Label>}
+                    <Select
+                      value={row.targetAccountId}
+                      onValueChange={(v) => updateSplitRow(idx, "targetAccountId", v)}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Konto wählen..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {allAccounts
+                          .filter((a) => a.id !== targetAccountId)
+                          .map((a) => (
+                            <SelectItem key={a.id} value={a.id}>
+                              {a.account_number} — {a.account_name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex-1 min-w-[200px]">
+                    {idx === 0 && <Label className="text-xs">Beschreibung</Label>}
+                    <Input
+                      className="h-9"
+                      value={row.description}
+                      onChange={(e) => updateSplitRow(idx, "description", e.target.value)}
+                      placeholder="z. B. Allgemeinstrom-Anteil lt. Brunata"
+                    />
+                  </div>
+                  <div className="w-[140px]">
+                    {idx === 0 && <Label className="text-xs">Betrag (€)</Label>}
+                    <Input
+                      className="h-9 text-right font-mono"
+                      type="text"
+                      inputMode="decimal"
+                      value={row.amount}
+                      onChange={(e) => updateSplitRow(idx, "amount", e.target.value)}
+                      placeholder="0,00"
+                    />
+                  </div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => removeSplitRow(idx)}
+                    disabled={splitRows.length === 1}
+                    className="h-9 w-9"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+
+              <div className="flex items-center justify-between gap-2 pt-2">
+                <Button size="sm" variant="ghost" onClick={addSplitRow}>
+                  <Plus className="h-3 w-3 mr-1" /> Weitere Zeile
+                </Button>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono text-muted-foreground">
+                    Σ Splitt: {formatCurrency(splitSum)}
+                  </span>
+                  {existingSplits.length > 0 && (
+                    <Button size="sm" variant="outline" onClick={deleteSplits}>
+                      <Trash2 className="h-3 w-3 mr-1 text-destructive" /> Splitts löschen
+                    </Button>
+                  )}
+                  <Button size="sm" onClick={generateSplits} disabled={isSplitting || splitSum <= 0}>
+                    <RefreshCw className={`h-3 w-3 mr-1 ${isSplitting ? "animate-spin" : ""}`} />
+                    {existingSplits.length > 0 ? "Neu generieren" : "Splitt-Buchung(en) erstellen"}
+                  </Button>
+                </div>
+              </div>
+
+              {existingSplits.length > 0 && (
+                <div className="mt-3 rounded-md border bg-muted/30 p-2 text-xs space-y-1">
+                  <div className="font-medium text-foreground">Bestehende Splitt-Buchungen ({fiscalYear}):</div>
+                  {existingSplits.map((s: any) => (
+                    <div key={s.id} className="flex justify-between font-mono">
+                      <span>
+                        {s.source?.account_number} → {s.target?.account_number} {s.target?.account_name}
+                      </span>
+                      <span>{formatCurrency(Math.abs(Number(s.amount)))}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+
         {existingRebookings.length > 0 && ownerAssignments.length > 0 && (
           <Card className="border-dashed">
             <CardHeader className="py-3">
