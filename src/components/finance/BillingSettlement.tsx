@@ -257,33 +257,36 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     return override?.distribution_key || defaultKey || "mea";
   };
 
-  // Bank-zentrische Buchhaltung: Beträge können auf account_id ODER counter_account_id liegen.
-  // Wir summieren beide Seiten und nehmen den Absolutwert (Anzeige als positive Kostensumme).
+  // Doppelte Buchführung — IDENTISCH zu useAccountAggregation / AccountPlanView,
+  // damit beide Ansichten zwingend dieselben Zahlen liefern.
   //
-  // Heizkosten-Repost-Logik (Umbuchung Vorauszahlungskonto → 1400):
-  //  - QUELLE (heating_prepayment, z. B. 1470/1472): Repost-Buchung NICHT mitzählen,
-  //    damit der Saldo des Vorauszahlungskontos sauber auf 0 läuft.
-  //  - ZIEL (z. B. 1400 Heizung): Repost-Buchung mit Absolutbetrag aufaddieren, damit
-  //    die umgebuchten Heizkostenbeträge in der Abrechnung erscheinen. Vorzeichen-Korrektur,
-  //    weil die Repost-Buchungen historisch invers gebucht wurden (account_id=Quelle).
-  const isHeatingPrepaySection = (id: string) =>
-    accounts.find((a) => a.id === id)?.settlement_section === "heating_prepayment";
-
-  const getAccountBookingTotal = (accountId: string) => {
-    const total = bookings
-      .filter((b) => b.account_id === accountId || (b as any).counter_account_id === accountId)
-      .reduce((s, b) => {
-        const amt = Number(b.amount) || 0;
-        if (b.booking_category === "heating_repost") {
-          if (isHeatingPrepaySection(accountId)) return s; // Quelle ignorieren
-          return s + Math.abs(amt); // Ziel: Absolutbetrag aufaddieren
-        }
-        if (b.account_id === accountId) return s + amt;
-        if ((b as any).counter_account_id === accountId) return s - amt;
-        return s;
-      }, 0);
-    return Math.abs(total);
+  //   account_id-Seite:         sign = booking_type === "income" ? +1 : -1
+  //   counter_account_id-Seite: booking_type wird gedreht, dann derselbe Vorzeichen-Mapper
+  //
+  // Konvention der Rückgabe: signiert.
+  //   - Aufwandskonten (1xxx): negativer Wert (z. B. Allgemeinstrom = -155,68)
+  //   - Ertragskonten:         positiver Wert
+  //   - Erstattungen / Umbuchungen wirken automatisch auf BEIDEN Konten korrekt
+  //     (z. B. Heizungsstrom-Repost: −167,51 auf 1050, +167,51 auf 1400) — KEIN Sonderpfad nötig.
+  const getAccountBookingTotal = (accountId: string): number => {
+    return bookings.reduce((s, b: any) => {
+      const amt = Number(b.amount) || 0;
+      if (b.account_id === accountId) {
+        const sign = b.booking_type === "income" ? 1 : -1;
+        return s + sign * amt;
+      }
+      if (b.counter_account_id === accountId) {
+        const flipped = b.booking_type === "income" ? "expense" : "income";
+        const sign = flipped === "income" ? 1 : -1;
+        return s + sign * amt;
+      }
+      return s;
+    }, 0);
   };
+
+  // Anzeigewert für klassische „Kostensumme" — Magnitude, ohne Vorzeichen.
+  // Wird für Verteilungsrechnung, Warnungen, Schwellwerte und Legacy-Aufrufer genutzt.
+  const getAccountAbsTotal = (accountId: string) => Math.abs(getAccountBookingTotal(accountId));
 
   const getWpAmount = (accountId: string) => {
     const item = wpItems.find((w: any) => w.account_id === accountId);
@@ -291,23 +294,29 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   };
 
   // Group accounts by settlement_section
-  const sectionAccounts: Record<string, Array<any & { total: number; wpAmount: number; distKey: string }>> = {};
+  // total = signiert (so kommt's aus der Aggregation), totalAbs = Magnitude für Verteilung/Anzeige
+  const sectionAccounts: Record<string, Array<any & { total: number; totalAbs: number; wpAmount: number; distKey: string }>> = {};
   accounts.forEach((acc) => {
     const section = acc.settlement_section;
     if (!section) return;
     const total = getAccountBookingTotal(acc.id);
-    if (total === 0 && section !== "reserve") return; // Show reserve even if 0
+    if (Math.abs(total) < 0.005 && section !== "reserve") return; // Show reserve even if 0
     if (!sectionAccounts[section]) sectionAccounts[section] = [];
     sectionAccounts[section].push({
       ...acc,
       total,
+      totalAbs: Math.abs(total),
       wpAmount: getWpAmount(acc.id),
       distKey: getDistKey(acc.id, acc.default_distribution_key),
     });
   });
 
-  // Calculate totals per section
+  // Calculate totals per section — Magnitude (für Abrechnungssumme & klassische Anzeige)
   const getSectionTotal = (section: string) =>
+    (sectionAccounts[section] || []).reduce((s, a) => s + a.totalAbs, 0);
+
+  // Signierte Sektionssumme (Income +, Expense -) — für Anzeige mit + / − Präfix
+  const getSectionSignedTotal = (section: string) =>
     (sectionAccounts[section] || []).reduce((s, a) => s + a.total, 0);
 
   const totalIncome = getSectionTotal("income");
