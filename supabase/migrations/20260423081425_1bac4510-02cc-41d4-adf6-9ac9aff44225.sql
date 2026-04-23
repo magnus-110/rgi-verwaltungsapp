@@ -1,0 +1,1 @@
+UPDATE public.chart_of_accounts SET is_heating_relevant = true WHERE account_number IN ('1431','1440');
