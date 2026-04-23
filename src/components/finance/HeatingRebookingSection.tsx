@@ -404,6 +404,8 @@ export function HeatingRebookingSection({ buildingId, periodId, fiscalYear }: He
       queryClient.invalidateQueries({ queryKey: ["heating-bookings"] });
     }
   };
+
+  return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
