@@ -873,18 +873,18 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       }
 
       accs.forEach((acc: any) => {
-        const amt = signFlip ? -acc.total : acc.total;
+        const amt = signFlip ? -acc.totalAbs : acc.totalAbs;
         lines.push(row(
           acc.account_number,
           acc.account_name,
           acc.wpAmount > 0 ? fmtNum(acc.wpAmount) : "",
           fmtNum(amt),
-          acc.is_distributable ? fmtNum(acc.total) : "",
+          acc.is_distributable ? fmtNum(acc.totalAbs) : "",
         ));
       });
-      const sum = accs.reduce((s: number, a: any) => s + a.total, 0);
+      const sum = accs.reduce((s: number, a: any) => s + a.totalAbs, 0);
       const sumWp = accs.reduce((s: number, a: any) => s + (a.wpAmount || 0), 0);
-      const sumDist = accs.filter((a: any) => a.is_distributable).reduce((s: number, a: any) => s + a.total, 0);
+      const sumDist = accs.filter((a: any) => a.is_distributable).reduce((s: number, a: any) => s + a.totalAbs, 0);
       lines.push(row("", "Zwischensumme", sumWp > 0 ? fmtNum(sumWp) : "", fmtNum(signFlip ? -sum : sum), sumDist > 0 ? fmtNum(sumDist) : ""));
       lines.push("");
     });
