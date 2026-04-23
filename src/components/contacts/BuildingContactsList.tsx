@@ -127,7 +127,7 @@ interface ContactAssignment {
   shares: { id: string; share_type: string; share_value: number }[];
   phones: { id: string; phone_number: string; label: string; contact_id: string }[];
   emails: { id: string; email: string; label: string; contact_id: string }[];
-  costs: { id: string; cost_type: string; amount: number; interval: string; valid_from: string | null; valid_to: string | null }[];
+  costs: { id: string; cost_type: string; amount: number; reserve_share_monthly: number | null; interval: string; valid_from: string | null; valid_to: string | null }[];
   bankAccounts: { id: string; iban: string | null; bic: string | null; bank_name: string | null; account_holder: string | null; sepa_mandate_ref: string | null }[];
 }
 
@@ -869,6 +869,27 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                             className="w-24 h-8 text-sm"
                           />
                           <span className="text-xs text-muted-foreground">€</span>
+                          {c.cost_type.toLowerCase().includes("hausgeld") && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-xs text-muted-foreground whitespace-nowrap">davon EHR</span>
+                                    <BufferedNumberInput
+                                      value={c.reserve_share_monthly ?? 0}
+                                      onSave={(val) => updateCost(c.id, "reserve_share_monthly", val)}
+                                      placeholder="0,00"
+                                      className="w-20 h-8 text-sm"
+                                    />
+                                    <span className="text-xs text-muted-foreground">€</span>
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs">
+                                  Anteil des monatlichen Hausgelds für die Erhaltungsrücklage. Wird in der Abrechnung separat als „Vorschüsse auf EHR" ausgewiesen. Leer / 0 = keine Aufteilung.
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
                           <Select value={c.interval} onValueChange={(v) => updateCost(c.id, "interval", v)}>
                             <SelectTrigger className="w-32 h-8 text-sm"><SelectValue /></SelectTrigger>
                             <SelectContent>

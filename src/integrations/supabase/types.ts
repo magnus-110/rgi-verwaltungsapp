@@ -1612,6 +1612,7 @@ export type Database = {
           is_reserve_funded: boolean
           is_system_account: boolean | null
           is_wirtschaftsplan_relevant: boolean
+          reserve_role: string | null
           settlement_35a_type: string | null
           settlement_section: string | null
           sort_order: number | null
@@ -1634,6 +1635,7 @@ export type Database = {
           is_reserve_funded?: boolean
           is_system_account?: boolean | null
           is_wirtschaftsplan_relevant?: boolean
+          reserve_role?: string | null
           settlement_35a_type?: string | null
           settlement_section?: string | null
           sort_order?: number | null
@@ -1656,6 +1658,7 @@ export type Database = {
           is_reserve_funded?: boolean
           is_system_account?: boolean | null
           is_wirtschaftsplan_relevant?: boolean
+          reserve_role?: string | null
           settlement_35a_type?: string | null
           settlement_section?: string | null
           sort_order?: number | null
@@ -2216,6 +2219,7 @@ export type Database = {
           created_at: string
           id: string
           interval: Database["public"]["Enums"]["cost_interval"] | null
+          reserve_share_monthly: number
           updated_at: string
           valid_from: string | null
           valid_to: string | null
@@ -2227,6 +2231,7 @@ export type Database = {
           created_at?: string
           id?: string
           interval?: Database["public"]["Enums"]["cost_interval"] | null
+          reserve_share_monthly?: number
           updated_at?: string
           valid_from?: string | null
           valid_to?: string | null
@@ -2238,6 +2243,7 @@ export type Database = {
           created_at?: string
           id?: string
           interval?: Database["public"]["Enums"]["cost_interval"] | null
+          reserve_share_monthly?: number
           updated_at?: string
           valid_from?: string | null
           valid_to?: string | null

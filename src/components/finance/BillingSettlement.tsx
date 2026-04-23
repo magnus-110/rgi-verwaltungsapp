@@ -420,23 +420,66 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     }
   }
 
-  // Vorschussverpflichtung (total prepayments from all owners)
-  const totalVorschuss = assignments.reduce((s, a: any) => {
+  // Vorschussverpflichtung (total prepayments from all owners) — SOLL aus Stammdaten
+  // Aufgeteilt in Kostendeckung und EHR-Anteil (HV-Office-Layout):
+  //   reserve_share_monthly > 0 → fließt in totalSollEHR
+  //   Rest des Hausgelds         → fließt in totalSollKostendeckung
+  // Wenn reserve_share_monthly = 0 / leer, wird KEINE Aufteilung angezeigt
+  // (Block "Vorschüsse auf EHR" entfällt dann).
+  let totalSollKostendeckung = 0;
+  let totalSollEHR = 0;
+  assignments.forEach((a: any) => {
     const costs = a.contact_building_costs || [];
     const timeProp = getTimeProportion(a);
-    return s + costs.reduce((cs: number, c: any) => {
-      if (!period) {
-        const amount = Number(c.amount);
-        switch (c.interval) {
-          case "monatlich": return cs + amount * 12 * timeProp;
-          case "quartal": return cs + amount * 4 * timeProp;
-          case "jaehrlich": return cs + amount * timeProp;
-          default: return cs + amount * 12 * timeProp;
+    costs.forEach((c: any) => {
+      const isHausgeld = ["hausgeld", "nebenkosten"].includes((c.cost_type || "").toLowerCase());
+      const isReserve = (c.cost_type || "").toLowerCase() === "ruecklage";
+      const annual = period
+        ? getCostAnnualAmount(c, period.period_from, period.period_to) * timeProp
+        : (() => {
+            const amount = Number(c.amount);
+            switch (c.interval) {
+              case "monatlich": return amount * 12 * timeProp;
+              case "quartal": return amount * 4 * timeProp;
+              case "jaehrlich": return amount * timeProp;
+              default: return amount * 12 * timeProp;
+            }
+          })();
+
+      if (isHausgeld) {
+        const reserveShareMonthly = Number(c.reserve_share_monthly) || 0;
+        if (reserveShareMonthly > 0 && c.interval === "monatlich") {
+          // Anteilig: EHR-Teil aus monatlichem Hausgeld, Rest = Kostendeckung
+          const fullMonthly = Number(c.amount) || 0;
+          const ratio = fullMonthly > 0 ? Math.min(reserveShareMonthly / fullMonthly, 1) : 0;
+          totalSollEHR += annual * ratio;
+          totalSollKostendeckung += annual * (1 - ratio);
+        } else {
+          totalSollKostendeckung += annual;
         }
+      } else if (isReserve) {
+        totalSollEHR += annual;
+      } else {
+        // Andere Kostenarten (Sonderumlage etc.) → in Kostendeckung
+        totalSollKostendeckung += annual;
       }
-      return cs + getCostAnnualAmount(c, period.period_from, period.period_to) * timeProp;
-    }, 0);
-  }, 0);
+    });
+  });
+  const hasReserveSplit = totalSollEHR > 0.005;
+  const totalVorschuss = totalSollKostendeckung + totalSollEHR;
+
+  // Zinseinnahmen aus Buchungen (Konto 1840 — settlement_section='income')
+  const incomeAccountTotals = (sectionAccounts["income"] || []).reduce(
+    (acc: { interest: number; other: number }, a: any) => {
+      const num = String(a.account_number || "");
+      if (num.startsWith("1840") || num.startsWith("184")) acc.interest += a.totalAbs;
+      else acc.other += a.totalAbs;
+      return acc;
+    },
+    { interest: 0, other: 0 },
+  );
+  const totalIncomeFromBookings = incomeAccountTotals.interest + incomeAccountTotals.other;
+  const totalEinnahmen = totalVorschuss + totalIncomeFromBookings;
 
   const abrechnungsspitze = totalVorschuss - abrechnungssumme;
 
@@ -473,10 +516,14 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     const timeProp = getTimeProportion(assignment);
 
     // Per-account breakdown for Einzelabrechnung
+    // displaySection: in welchem Block der Einzelabrechnung die Zeile erscheinen soll
+    // signedFactor: Vorzeichen-Faktor für "Ihre Kosten" (+1 normal, -1 für Gegenbuchung Rücklagenentnahme)
     const accountBreakdown: Array<{
       accountNumber: string; accountName: string; distributableAmount: number;
       distKey: string; totalShares: number; ownerShare: number; ownerCost: number;
       settlement35aType: string | null;
+      displaySection: string;
+      signedFactor: number;
     }> = [];
 
     let totalOwnerCost = 0;
@@ -538,7 +585,31 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
         ownerShare: ownerShareValue,
         ownerCost,
         settlement35aType: acc.settlement_35a_type,
+        displaySection: acc.settlement_section,
+        signedFactor: 1,
       });
+
+      // GENERISCHE RÜCKLAGEN-DOPPELDARSTELLUNG (HV-Office-konform)
+      // Konten mit reserve_role='withdrawal' (z. B. 1920 "Rep. aus Entnahme RL")
+      // erscheinen ZUSÄTZLICH im Rücklagen-Block mit umgekehrtem Vorzeichen
+      // (= Gegenbuchung "aus Rücklage finanziert" — neutralisiert die Belastung
+      //   des Eigentümers, da die Reparatur ja aus angesparten Mitteln bezahlt wurde).
+      if (acc.reserve_role === "withdrawal" && ownerCost !== 0) {
+        accountBreakdown.push({
+          accountNumber: acc.account_number,
+          accountName: acc.account_name,
+          distributableAmount: total,
+          distKey: SHARE_LABELS[distKey] || distKey,
+          totalShares: totalSharesValue,
+          ownerShare: ownerShareValue,
+          ownerCost: -ownerCost, // Gegenbuchung
+          settlement35aType: null,
+          displaySection: "reserve",
+          signedFactor: -1,
+        });
+        // Netto-Effekt auf totalOwnerCost = 0 (Aufwand + Gegenbuchung heben sich auf)
+        totalOwnerCost -= ownerCost;
+      }
     });
 
     // Vorschussverpflichtung — SOLL or IST
@@ -1237,7 +1308,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
               )}
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
+            </div>
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -1292,6 +1363,44 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
               <div className="flex justify-between text-sm font-medium border-t pt-1">
                 <span>Gesamt</span>
                 <span className="font-mono">{formatCurrency(openingTotal)}</span>
+              </div>
+            </div>
+
+            {/* Einnahmen-Hochrechnung (HV-Office-Stil) — Soll aus Stammdaten + Zinsen aus Buchungen */}
+            <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 space-y-1">
+              <div className="text-sm font-medium mb-1">Einnahmen (Soll-Hochrechnung)</div>
+              {hasReserveSplit ? (
+                <>
+                  <div className="flex justify-between text-sm">
+                    <span>Vorschüsse zur Kostendeckung</span>
+                    <span className="font-mono text-emerald-700 dark:text-emerald-400">+{formatCurrency(totalSollKostendeckung)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Vorschüsse auf Erhaltungsrücklage</span>
+                    <span className="font-mono text-emerald-700 dark:text-emerald-400">+{formatCurrency(totalSollEHR)}</span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex justify-between text-sm">
+                  <span>Vorschüsse (Hausgeld lt. Stammdaten)</span>
+                  <span className="font-mono text-emerald-700 dark:text-emerald-400">+{formatCurrency(totalVorschuss)}</span>
+                </div>
+              )}
+              {incomeAccountTotals.interest > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span>Zinseinnahmen (lt. Buchungen)</span>
+                  <span className="font-mono text-emerald-700 dark:text-emerald-400">+{formatCurrency(incomeAccountTotals.interest)}</span>
+                </div>
+              )}
+              {incomeAccountTotals.other > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span>Sonstige Erträge (lt. Buchungen)</span>
+                  <span className="font-mono text-emerald-700 dark:text-emerald-400">+{formatCurrency(incomeAccountTotals.other)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm font-medium border-t border-emerald-200 dark:border-emerald-900 pt-1">
+                <span>Zwischensumme Einnahmen</span>
+                <span className="font-mono text-emerald-700 dark:text-emerald-400">+{formatCurrency(totalEinnahmen)}</span>
               </div>
             </div>
 
