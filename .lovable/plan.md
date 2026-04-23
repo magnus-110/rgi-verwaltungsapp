@@ -1,116 +1,92 @@
 
 
-# Plan: Wirtschaftsplan-Editor mit manueller Erfassung
+# Plan: Abrechnung Birkenweg 6 / 2025 mit HV Office abgleichen
 
-## Ziel
-Wirtschaftsplan in 3 Quellen befüllbar machen — **Vorjahr**, **ETV-Beschluss**, **manuell** — damit auch neu übernommene Liegenschaften ohne Vorjahresdaten einen vollständigen Plan haben. Editor zeigt das gleiche Layout wie das spätere PDF. Sowohl Gesamt- als auch Einzelwirtschaftspläne sind editierbar.
+## Diagnose
 
-## Konzept: Gesamt → Einzel (mit Override-Möglichkeit)
+Vergleich App vs. HV Office hat 4 Abweichungen ergeben:
 
-Der Nutzer pflegt primär den **Gesamtwirtschaftsplan** (Beträge pro Konto auf Gebäudeebene). Die Einzelwirtschaftspläne pro Eigentümer werden **automatisch berechnet** über die hinterlegten Umlageschlüssel — können aber **pro Eigentümer/Konto manuell überschrieben** werden (z. B. bei Sondervereinbarungen, abweichenden Schlüsseln, Mieter-Umlagen).
+| # | Position | App zeigt | HV zeigt | Ursache |
+|---|---|---|---|---|
+| 1 | 1400 Heizung/Warmwasser | 1.276,30 € | 5.148,99 € | `getAccountBookingTotal` filtert ALLE Buchungen mit `category='heating_repost'` raus → die 3.537,68 € Gas-Umbuchung + 167,51 € Strom-Umbuchung kommen nie auf 1400 an |
+| 2 | 1600 Lfd. Instandhaltung | umlagefähig | nicht umlagefähig | Konto-Setting falsch klassifiziert |
+| 3 | 1920 Rep. aus Entnahme RL | umlagefähig | nicht umlagefähig | Konto-Setting falsch klassifiziert |
+| 4 | 1431/1440/1470/1472 Durchlaufkonten | werden in Abrechnung gelistet | nicht enthalten | Section `heating_prepayment` wird im UI noch dargestellt |
+| 5 | Rücklagen-Block (Plan IHR 3.600 + Entnahme 7.293,51 + Zinsen/Steuern) | unvollständig | komplett mit Zinsen/KESt/Soli | Konten 1840/1850/1860 (`section='reserve'`) tauchen in der Abrechnung nirgends auf, weil `SECTION_ORDER` die Reserve-Bewegungen nicht zeigt |
 
-```text
-GESAMTWIRTSCHAFTSPLAN 2025 — Birkenweg 6
-Konto                     Plan €    Schlüssel
-1010 Müll                  480,00   Personen
-1050 Allgemeinstrom        720,00   MEA
-1400 Heizung             5.149,00   Brunata
-1620 Verwaltervergütung  2.880,00   pro Einheit
-…
-Σ Hausgeld gesamt       22.320,00
+## Lösung
 
-   ↓  automatische Berechnung über Umlageschlüssel  ↓
+### A) Code-Fix in `BillingSettlement.tsx` — Repost-Logik (Bug #1)
 
-EINZELWIRTSCHAFTSPLAN — Wohnung 0001 (Wollmann/Deng)  [bearbeitbar]
-Konto                Anteil    Plan €/Jahr  €/Monat   Override
-1010 Müll          2/5 Pers.    192,00       16,00      –
-1050 Allgemstr.   325/1000      234,00       19,50      –
-1400 Heizung      Brunata     2.536,64      211,39    ✏️ manuell
-…
-Σ Hausgeld                    4.860,00      405,00
-```
+`getAccountBookingTotal(accountId)` so umstellen, dass `heating_repost`-Buchungen nur dann ignoriert werden, wenn das Konto **Quelle** (Vorauszahlungskonto 1470er) ist — nicht wenn es **Ziel** (1400) ist. Konkret: Filter entfernen, stattdessen pro Buchung prüfen — wenn die Buchung `heating_repost` ist und `accountId` = die Quelle (counter_account in unserer Konvention bei diesen Buchungen ist 1400 als Ziel, account_id ist 1470 als Quelle) → Beitrag der Quelle weglassen, Ziel zählt voll.
 
-## Was gebaut wird
+Einfacher: heating_prepayment-Konten werden ohnehin aus der Abrechnung ausgeblendet (siehe C), daher reicht es, den Repost-Filter komplett zu entfernen. Dann zeigt 1400 korrekt 5.148,99 € (1443,81 + 167,51 + 3537,68), und die Quellkonten 1470/1472 werden gar nicht mehr dargestellt.
 
-### 1. Datenbank
-- `economic_plans.source` neu: `'previous_year' | 'etv_resolution' | 'manual'`
-- `economic_plans.status`: `'draft' | 'active' | 'archived'` (nur ein aktiver pro Gebäude/Jahr)
-- `economic_plan_items.manually_overridden` neu (boolean)
-- **Neue Tabelle** `economic_plan_unit_items` für Einzelplan-Overrides:
-  - `plan_id`, `unit_id`, `account_id`, `amount`, `manually_overridden`, `override_reason`
-  - Ohne Override-Eintrag → Wert wird live aus Gesamtplan + Schlüssel berechnet
-  - Mit Override → fester Wert wird verwendet
+### B) Daten-Fix `chart_of_accounts` — HV-konforme Klassifizierung (Bugs #2, #3)
 
-### 2. Seite `/wirtschaftsplan`
-Neuer Button **„Manuell anlegen"** neben „Aus Vorjahr generieren". Erscheint immer, ist besonders prominent wenn keine Vorjahresperiode existiert.
+Migration mit Updates:
 
-### 3. Komponente `EconomicPlanEditor` (erweitert) — Tab „Gesamtplan"
-- **PDF-Look-Layout** — gleiche Sektionen, Spalten und Summen wie das spätere PDF
-- **Inline-Edit** direkt in den Tabellenzellen
-- **Auto-Save als Entwurf** (debounced 800ms)
-- **Toggle-Button**: „Bearbeiten" ↔ „Vorschau"
-- Geänderte Werte zeigen Reset-Icon zur Wiederherstellung des Original-Wertes
+| Konto | Feld | Alt → Neu |
+|---|---|---|
+| 1600 Lfd. Instandhaltung | `settlement_section` | `operating_distributable` → `operating_non_distributable` |
+| 1600 | `is_distributable` | `true` → `false` |
+| 1920 Rep. aus Entnahme RL | `settlement_section` | `operating_distributable` → `operating_non_distributable` |
+| 1920 | `is_distributable` | `true` → `false` |
+| 1920 | `is_reserve_funded` | bleibt `true` (für Neutralisierung) |
 
-### 4. Komponente `UnitEconomicPlanEditor` (neu) — Tab „Einzelpläne"
-- Liste aller Einheiten links, Detail rechts (oder Akkordeon mobil)
-- Pro Einheit: Tabelle wie Einzelplan-PDF
-- Jede Zelle hat **Edit-Modus**:
-  - Standard: live berechneter Wert (grau, Tooltip „berechnet aus Gesamtplan × Schlüssel")
-  - Edit: User trägt eigenen Wert ein → wird als `manually_overridden=true` gespeichert
-  - Visueller Marker (Stift-Icon) für überschriebene Werte
-  - Reset-Button pro Zelle: zurück zum berechneten Wert
-- **Abweichungs-Warnung** unten: „Σ Einzelpläne weicht von Σ Gesamtplan ab um X €" — als bewusste Hinweis-Zeile, nicht als Fehler (manche Sondervereinbarungen sind legitim)
+### C) Code-Fix `BillingSettlement.tsx` — Durchlaufkonten ausblenden (Bug #4)
 
-### 5. Komponente `EconomicPlanLayout` (neu)
-Single Source of Truth für das Layout — wird genutzt von:
-- Gesamtplan-Editor (Inline-Edit)
-- Einzelplan-Editor (Inline-Edit)
-- Vorschau-Modus (read-only)
-- PDF-Export
+`SECTION_ORDER` die Sektion `heating_prepayment` entfernen. Diese Konten dienen nur der Buchhaltung (Vorauszahlungen → Umbuchung auf 1400) und gehören nach HV-WEG-Logik nicht in die Eigentümerabrechnung. Ihr Saldo landet ohnehin per Repost auf 1400.
 
-So sind Bildschirm und PDF 1:1 identisch.
+### D) Code-Fix `BillingSettlement.tsx` — Reserve-Sektion vollständig (Bug #5)
 
-### 6. Aktivierung & Versionierung
-- Status: `draft` → `active` (nur ein aktiver Plan pro Gebäude/Jahr)
-- Beim Aktivieren: alter aktiver Plan → `archived`
-- Audit pro Änderung (`updated_by`, `updated_at`)
+Im aktuellen Code wird `getSectionTotal('reserve')` nur als Fallback genutzt. Stattdessen analog zu HV Office:
 
-### 7. Anschluss an Abrechnung
-- Abrechnungs-Engine liest den **aktiven Wirtschaftsplan** für die „Plan"-Spalte
-- Bei Einzelabrechnung: ggf. Overrides aus `economic_plan_unit_items` berücksichtigen
+- **Zuführung Plan IHR**: aus `economic_plan.total_reserve` (3.600 €) — bleibt
+- **Entnahme aus Rücklage**: `totalReserveWithdrawal` aus `is_reserve_funded`-Konten — bleibt
+- **Zinsen/KESt/Soli auf RL**: aktuell `section='reserve'`. Diese in einem eigenen Block „Bewegungen Rücklagenkonto" im Reserve-Abschnitt darstellen (Zinsertrag 37,56 + KESt -9,39 + Soli -0,50). Sie sind **nicht abrechnungswirksam für Eigentümer**, beeinflussen aber den Endbestand und tauchen bei HV unter „nicht umlagefähig" auf.
+- Die Konten 1840/1850/1860 zusätzlich in `operating_non_distributable` ausweisen (analog HV) — am sinnvollsten Konto-Setting umstellen: `1850/1860` → `settlement_section='operating_non_distributable'`, `is_distributable=true` (nur als Aufwand, der per is_reserve_funded neutralisiert würde — alternativ: nur informativ ohne Verteilung). 1840 (Zinsertrag) → bleibt `reserve`, wird im Reserve-Block angezeigt.
 
-## UI-Flow
+### E) Verifikation
+
+Nach Fix muss die Abrechnung exakt zeigen:
 
 ```text
-/wirtschaftsplan
-   │
-   ├─ Liegenschaft + Jahr wählen
-   │
-   ├─ Hat Vorjahres-Plan?
-   │     ja  → [Aus Vorjahr] [Manuell] [Bestehenden bearbeiten]
-   │     nein → [Manuell anlegen] (Hinweis: kein Vorjahr verfügbar)
-   │
-   ├─ Editor öffnet sich
-   │     ├─ Tab „Gesamtplan" — Inline-Edit, Auto-Save
-   │     ├─ Tab „Einzelpläne" — Live-Berechnung + Override pro Zelle
-   │     └─ Toggle: Bearbeiten ↔ Vorschau
-   │
-   └─ Button „Plan aktivieren"
-         ├─ Status: Entwurf → aktiv
-         ├─ Vorheriger aktiver Plan → archiviert
-         └─ Plan steht für Abrechnung bereit
+Umlagefähig (operating_distributable):
+  1010 Müllabfuhr           378,60
+  1030 Wasser/Abwasser       27,84
+  1050 Allgemeinstrom       111,68
+  1300 Versicherungen       895,97
+  1400 Heizung/Warmwasser 5.148,99   ← Fix #1
+  Σ                       6.563,08
+
+Nicht umlagefähig:
+  1500 Verwaltervergütung 1.927,80
+  1520 Kontogebühren        144,32
+  1600 Lfd. Instandhaltung  240,98   ← Fix #2
+  1850 KESt                   9,39
+  1860 Soli                   0,50
+  1920 Rep. aus Entnahme  7.293,51   ← Fix #3
+  Σ                       9.616,50
+
+Abgrenzungen Σ            -755,99
+
+Rücklage:
+  Plan IHR Zuführung     -3.600,00
+  Entnahme RL (1920)     +7.293,51
+
+Abrechnungssumme       -12.486,07 € ✓ (matcht HV exakt)
 ```
 
-## Reihenfolge der Umsetzung
+## Schritte
 
-1. **Schritt 1** — Datenbank-Migration (neue Felder + `economic_plan_unit_items`)
-2. **Schritt 2** — `EconomicPlanLayout` als gemeinsame Layout-Komponente extrahieren
-3. **Schritt 3** — `EconomicPlanEditor` Tab „Gesamtplan" mit Inline-Edit + Auto-Save + „Manuell anlegen"
-4. **Schritt 4** — `UnitEconomicPlanEditor` Tab „Einzelpläne" mit Live-Berechnung + Override
-5. **Schritt 5** — „Aktivieren"-Button + Versionierung
-6. **Schritt 6** — PDF-Export auf gemeinsame Layout-Komponente umstellen
-7. **Direkt im Anschluss**: Plan für **Birkenweg 6 / 2025** manuell anlegen + aktivieren → dann Abrechnung bauen (Schritt A)
+1. **Migration** `chart_of_accounts` — Klassifizierung 1600, 1920, 1850, 1860 anpassen
+2. **`BillingSettlement.tsx`** — `heating_repost`-Filter aus `getAccountBookingTotal` entfernen
+3. **`BillingSettlement.tsx`** — `SECTION_ORDER` ohne `heating_prepayment`
+4. **`BillingSettlement.tsx`** — Reserve-Block um Zinsen/KESt/Soli-Anzeige erweitern (informativ)
+5. **Verifikation** — Werte gegen HV-PDF prüfen, Ziel: Abrechnungssumme = -12.486,07 €, Abrechnungsspitze = +1.613,93 €
+6. **Konsistenz-Check** — `EconomicPlanSection`, `BookingReviewSection`, `HeatingAccountsSection` lesen dieselben Konten — keine Änderung nötig, da Repost-Filter dort bereits korrekt nur die Quellseite ausschließt
 
 ## Hinweis
-Die Buchhaltung BW6/2025 ist abgeschlossen (Konto 1400 = 5.149,00 € bestätigt). Der manuelle Plan ändert daran nichts — er liefert nur die Plan-Spalte für die Gesamt- und Einzelabrechnung.
+Nach diesen Fixes ist die Gesamtabrechnung deckungsgleich mit HV Office. Anschließend folgt die Einzelabrechnung pro Eigentümer (MEA-Verteilung, Heizkosten gem. Brunata, Abrechnungsspitze) — das ist bereits implementiert und sollte automatisch stimmen, sobald die Gesamtspalte korrekt ist.
 
