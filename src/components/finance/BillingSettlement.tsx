@@ -37,18 +37,20 @@ const SECTION_LABELS: Record<string, string> = {
   income: "Einnahmen",
   operating_distributable: "Umlagefähige Bewirtschaftungskosten",
   operating_non_distributable: "Nicht umlagefähige Kosten",
+  heating: "Heizkosten (nach Brunata)",
   heating_prepayment: "Heizkosten-Vorauszahlungen (Durchlauf)",
-  accrual: "Abgrenzungen",
   reserve: "Instandhaltungsrücklage",
   reserve_withdrawal: "Entnahme aus Rücklage",
+  accrual: "Abgrenzungen (nachrichtlich, nicht verteilt)",
   bank: "Bankkonten",
   opening: "Eröffnungsbuchungen",
 };
 
-// Note: heating_prepayment Konten (1431/1440/1470er) sind reine Durchlaufposten.
-// Sie werden per Repost auf 1400 umgebucht und erscheinen — analog HV Office —
-// NICHT in der Eigentümerabrechnung. 'opening' und 'bank' ebenfalls ausgeblendet.
-const SECTION_ORDER = ["income", "operating_distributable", "operating_non_distributable", "accrual", "reserve", "reserve_withdrawal"];
+// Reihenfolge analog HV Office: Einnahmen → Bewirtschaftung → Heizkosten → Rücklage → Abgrenzungen (nachrichtlich).
+// 'heating_prepayment' Konten (1431/1440/1470er) sind Durchlaufposten und werden per
+// Repost auf 1400 umgebucht — sie erscheinen NICHT in der Abrechnung.
+// 'opening' und 'bank' ebenfalls ausgeblendet.
+const SECTION_ORDER = ["income", "operating_distributable", "operating_non_distributable", "heating", "reserve", "reserve_withdrawal", "accrual"];
 
 export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingSettlementProps) {
   const queryClient = useQueryClient();
