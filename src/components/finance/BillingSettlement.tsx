@@ -45,10 +45,10 @@ const SECTION_LABELS: Record<string, string> = {
   opening: "Eröffnungsbuchungen",
 };
 
-// Note: heating_prepayment is shown informatively but NOT included in the Abrechnungssumme.
-// It only becomes part of the settlement after being reposted to account 1400 (Heizkostenabrechnung).
-// 'opening' (Eröffnungsbuchungen) and 'bank' are excluded from the settlement display entirely.
-const SECTION_ORDER = ["income", "operating_distributable", "operating_non_distributable", "heating_prepayment", "accrual", "reserve", "reserve_withdrawal"];
+// Note: heating_prepayment Konten (1431/1440/1470er) sind reine Durchlaufposten.
+// Sie werden per Repost auf 1400 umgebucht und erscheinen — analog HV Office —
+// NICHT in der Eigentümerabrechnung. 'opening' und 'bank' ebenfalls ausgeblendet.
+const SECTION_ORDER = ["income", "operating_distributable", "operating_non_distributable", "accrual", "reserve", "reserve_withdrawal"];
 
 export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingSettlementProps) {
   const queryClient = useQueryClient();
@@ -257,14 +257,25 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
 
   // Bank-zentrische Buchhaltung: Beträge können auf account_id ODER counter_account_id liegen.
   // Wir summieren beide Seiten und nehmen den Absolutwert (Anzeige als positive Kostensumme).
+  //
+  // Heizkosten-Repost-Logik (Umbuchung Vorauszahlungskonto → 1400):
+  //  - QUELLE (heating_prepayment, z. B. 1470/1472): Repost-Buchung NICHT mitzählen,
+  //    damit der Saldo des Vorauszahlungskontos sauber auf 0 läuft.
+  //  - ZIEL (z. B. 1400 Heizung): Repost-Buchung mit Absolutbetrag aufaddieren, damit
+  //    die umgebuchten Heizkostenbeträge in der Abrechnung erscheinen. Vorzeichen-Korrektur,
+  //    weil die Repost-Buchungen historisch invers gebucht wurden (account_id=Quelle).
+  const isHeatingPrepaySection = (id: string) =>
+    accounts.find((a) => a.id === id)?.settlement_section === "heating_prepayment";
+
   const getAccountBookingTotal = (accountId: string) => {
     const total = bookings
-      .filter((b) =>
-        (b.account_id === accountId || (b as any).counter_account_id === accountId) &&
-        b.booking_category !== "heating_repost"
-      )
+      .filter((b) => b.account_id === accountId || (b as any).counter_account_id === accountId)
       .reduce((s, b) => {
         const amt = Number(b.amount) || 0;
+        if (b.booking_category === "heating_repost") {
+          if (isHeatingPrepaySection(accountId)) return s; // Quelle ignorieren
+          return s + Math.abs(amt); // Ziel: Absolutbetrag aufaddieren
+        }
         if (b.account_id === accountId) return s + amt;
         if ((b as any).counter_account_id === accountId) return s - amt;
         return s;

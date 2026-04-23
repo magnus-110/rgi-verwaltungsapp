@@ -1,0 +1,1 @@
+UPDATE bookings SET booking_category='heating_repost' WHERE id='096d2304-ffb1-48f1-ad98-dde7f91b8b2e';
