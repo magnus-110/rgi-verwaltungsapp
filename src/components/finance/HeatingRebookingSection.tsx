@@ -316,7 +316,94 @@ export function HeatingRebookingSection({ buildingId, periodId, fiscalYear }: He
     }
   };
 
-  return (
+  // ── Strom-Splitt: Buchungen 1400 → 1050 (oder andere Konten) erstellen ──
+  const totalSplit = existingSplits.reduce((s: number, b: any) => s + Math.abs(Number(b.amount)), 0);
+  const targetBalanceBeforeSplit = targetAccountId ? getTargetAccountBalance(targetAccountId) + totalSplit : 0;
+  const targetBalanceAfterSplit = targetAccountId ? getTargetAccountBalance(targetAccountId) : 0;
+  const splitSum = splitRows.reduce((s, r) => s + (parseFloat(r.amount.replace(",", ".")) || 0), 0);
+
+  const addSplitRow = () =>
+    setSplitRows((prev) => [...prev, { targetAccountId: "", amount: "", description: "" }]);
+
+  const removeSplitRow = (idx: number) =>
+    setSplitRows((prev) => prev.filter((_, i) => i !== idx));
+
+  const updateSplitRow = (idx: number, field: "targetAccountId" | "amount" | "description", value: string) =>
+    setSplitRows((prev) => prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r)));
+
+  const generateSplits = async () => {
+    if (!targetAccountId) {
+      toast.error("Erst Heizkostenkonto (oben) wählen — von dort wird abgesplittet");
+      return;
+    }
+    const validRows = splitRows.filter((r) => {
+      const amt = parseFloat(r.amount.replace(",", "."));
+      return r.targetAccountId && amt > 0;
+    });
+    if (validRows.length === 0) {
+      toast.error("Mindestens ein Zielkonto und Betrag erforderlich");
+      return;
+    }
+    setIsSplitting(true);
+    try {
+      // Bestehende Splits dieses Jahres löschen (idempotent)
+      if (existingSplits.length > 0) {
+        const { error: delError } = await supabase
+          .from("bookings")
+          .delete()
+          .eq("building_id", buildingId)
+          .eq("fiscal_year", fiscalYear)
+          .eq("booking_category", "heating_split");
+        if (delError) throw delError;
+      }
+
+      const splits = validRows.map((r) => {
+        const amt = parseFloat(r.amount.replace(",", "."));
+        return {
+          building_id: buildingId,
+          // ZIEL = Konto, das den Anteil bekommt (z. B. 1050)
+          account_id: r.targetAccountId,
+          // QUELLE = Heizkostenkonto (z. B. 1400) — wird entlastet
+          counter_account_id: targetAccountId,
+          booking_date: `${fiscalYear}-12-31`,
+          amount: amt,
+          description: r.description || "Splitt aus Heizkostenkonto",
+          fiscal_year: fiscalYear,
+          booking_type: "expense",
+          booking_category: "heating_split",
+          source: "manual",
+          status: "pending",
+          created_by: user?.id,
+        };
+      });
+
+      const { error } = await supabase.from("bookings").insert(splits);
+      if (error) throw error;
+
+      toast.success(`${splits.length} Splitt-Buchung(en) erstellt`);
+      queryClient.invalidateQueries({ queryKey: ["heating-splits"] });
+      queryClient.invalidateQueries({ queryKey: ["heating-bookings"] });
+    } catch (e: any) {
+      toast.error("Fehler: " + e.message);
+    } finally {
+      setIsSplitting(false);
+    }
+  };
+
+  const deleteSplits = async () => {
+    const { error } = await supabase
+      .from("bookings")
+      .delete()
+      .eq("building_id", buildingId)
+      .eq("fiscal_year", fiscalYear)
+      .eq("booking_category", "heating_split");
+    if (error) toast.error("Fehler beim Löschen");
+    else {
+      toast.success("Splitt-Buchungen gelöscht");
+      queryClient.invalidateQueries({ queryKey: ["heating-splits"] });
+      queryClient.invalidateQueries({ queryKey: ["heating-bookings"] });
+    }
+  };
     <Card>
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
