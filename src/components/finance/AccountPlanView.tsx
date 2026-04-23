@@ -87,110 +87,13 @@ export function AccountPlanView({ bookings, fiscalYear, buildingId, onRowClick, 
     }
   };
 
-  // Load all accounts (filtered by building when possible)
-  const { data: accounts = [] } = useQuery({
-    queryKey: ["coa-for-plan", buildingId ?? "all"],
-    queryFn: async () => {
-      let q = supabase.from("chart_of_accounts").select("id, account_number, account_name, category, sort_order, building_id");
-      if (buildingId) q = q.or(`building_id.eq.${buildingId},building_id.is.null`);
-      const { data, error } = await q;
-      if (error) throw error;
-      return data || [];
-    },
+  // Single source of truth — gemeinsame Aggregation mit BookingReviewSection
+  const { grouped, bookingsByAccount, balanceByAccount } = useAccountAggregation({
+    bookings,
+    fiscalYear,
+    buildingId,
+    showAllAccounts,
   });
-
-  // Opening balances per account
-  const { data: balances = [] } = useQuery({
-    queryKey: ["account-balances-plan", fiscalYear, buildingId ?? "all"],
-    queryFn: async () => {
-      let q = supabase.from("account_balances").select("account_id, opening_balance, closing_balance, building_id").eq("fiscal_year", fiscalYear);
-      if (buildingId) q = q.eq("building_id", buildingId);
-      const { data, error } = await q;
-      if (error) throw error;
-      return data || [];
-    },
-  });
-
-  const balanceByAccount = useMemo(() => {
-    const m: Record<string, number> = {};
-    balances.forEach((b: any) => {
-      m[b.account_id] = (m[b.account_id] || 0) + Number(b.opening_balance || 0);
-    });
-    return m;
-  }, [balances]);
-
-  // Group bookings by account_id AND counter_account_id (double-entry display)
-  // Each booking appears on BOTH accounts: once as primary side, once as counter side (sign flipped)
-  const bookingsByAccount = useMemo(() => {
-    const m: Record<string, any[]> = {};
-    bookings.forEach((b) => {
-      // Primary side
-      if (b.account_id) {
-        if (!m[b.account_id]) m[b.account_id] = [];
-        m[b.account_id].push({ ...b, _side: "primary" });
-      }
-      // Counter side — flip booking_type so income on one side shows as expense on the other
-      if (b.counter_account_id) {
-        if (!m[b.counter_account_id]) m[b.counter_account_id] = [];
-        const flippedType = b.booking_type === "income" ? "expense" : "income";
-        // Swap account display: on counter row, the "counter_account" should be the original primary account
-        const counterDisplay = b.chart_of_accounts
-          ? { account_number: b.chart_of_accounts.account_number, account_name: b.chart_of_accounts.account_name }
-          : null;
-        m[b.counter_account_id].push({
-          ...b,
-          _side: "counter",
-          booking_type: flippedType,
-          counter_account: counterDisplay,
-        });
-      }
-    });
-    // Sort each account's bookings by date desc to keep ordering stable
-    Object.values(m).forEach(arr => arr.sort((a, b) => String(b.booking_date).localeCompare(String(a.booking_date))));
-    return m;
-  }, [bookings]);
-
-  // Build grouped structure: category -> accounts[]
-  const grouped = useMemo(() => {
-    const accMap = new Map<string, any>();
-    accounts.forEach((a: any) => accMap.set(a.id, a));
-
-    // Include accounts that have bookings even if not in COA list (defensive)
-    Object.keys(bookingsByAccount).forEach((accId) => {
-      if (!accMap.has(accId)) {
-        const sample = bookingsByAccount[accId][0];
-        accMap.set(accId, {
-          id: accId,
-          account_number: sample.chart_of_accounts?.account_number || "?",
-          account_name: sample.chart_of_accounts?.account_name || "Unbekannt",
-          category: "expense",
-          sort_order: 9999,
-        });
-      }
-    });
-
-    const list = Array.from(accMap.values()).filter((a) => {
-      const hasBookings = (bookingsByAccount[a.id]?.length || 0) > 0;
-      return showAllAccounts || hasBookings;
-    });
-
-    const byCat: Record<string, any[]> = {};
-    list.forEach((a) => {
-      const cat = a.category || "expense";
-      if (!byCat[cat]) byCat[cat] = [];
-      byCat[cat].push(a);
-    });
-
-    Object.values(byCat).forEach((arr) =>
-      arr.sort((a, b) => String(a.account_number).localeCompare(String(b.account_number), "de", { numeric: true }))
-    );
-
-    const orderedCats = Object.keys(byCat).sort((a, b) =>
-      a.localeCompare(b, "de", { numeric: true, sensitivity: "base" })
-    );
-
-    return orderedCats.map((cat) => ({ category: cat, accounts: byCat[cat] }));
-  }, [accounts, bookingsByAccount, showAllAccounts]);
 
   if (grouped.length === 0) {
     return (
