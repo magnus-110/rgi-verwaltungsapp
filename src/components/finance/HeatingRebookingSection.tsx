@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { ArrowRightLeft, AlertTriangle, Check, RefreshCw, Trash2, Upload, Users } from "lucide-react";
+import { ArrowRightLeft, AlertTriangle, Check, RefreshCw, Trash2, Upload, Users, Split, Plus, X } from "lucide-react";
 import { sumForAccount } from "./lib/bookingAggregation";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
@@ -27,6 +27,11 @@ export function HeatingRebookingSection({ buildingId, periodId, fiscalYear }: He
   const [showDistribution, setShowDistribution] = useState(false);
   const [distributionValues, setDistributionValues] = useState<Record<string, number>>({});
   const csvInputRef = useRef<HTMLInputElement>(null);
+  // Strom-Splitt: 1400 → 1050 (oder andere Konten) für nicht-heizungsrelevante Anteile
+  const [splitRows, setSplitRows] = useState<Array<{ targetAccountId: string; amount: string; description: string }>>([
+    { targetAccountId: "", amount: "", description: "Allgemeinstrom-Anteil aus 1472 (lt. Brunata)" },
+  ]);
+  const [isSplitting, setIsSplitting] = useState(false);
 
   // All accounts for this building (target selection)
   const { data: allAccounts = [] } = useQuery({
@@ -118,10 +123,20 @@ export function HeatingRebookingSection({ buildingId, periodId, fiscalYear }: He
   });
 
   // Bank-zentrisch: Heizkonten können auf account_id ODER counter_account_id liegen.
-  // sumForAccount summiert beide Seiten korrekt; Eröffnungs-Repost ausschließen.
+  // sumForAccount summiert beide Seiten korrekt; Reposts UND Splitt-Buchungen ausschließen,
+  // damit beim erneuten Generieren keine Doppelzählung entsteht.
   const getAccountTotal = (accountId: string) => {
-    const filtered = bookings.filter((b) => b.booking_category !== "heating_repost");
+    const filtered = bookings.filter(
+      (b) => b.booking_category !== "heating_repost" && b.booking_category !== "heating_split"
+    );
     return Math.abs(sumForAccount(accountId, filtered as any));
+  };
+
+  // Aktueller Saldo des Ziel-Sammelkontos (z. B. 1400) NACH Repost, VOR/NACH Splitt.
+  // Hier wollen wir alle Bewegungen sehen — auch Reposts (gehen rein) und Splitts (gehen raus).
+  const getTargetAccountBalance = (accountId: string) => {
+    if (!accountId) return 0;
+    return Math.abs(sumForAccount(accountId, bookings as any));
   };
 
   const totalHeating = heatingAccounts.reduce((s, a) => s + getAccountTotal(a.id), 0);
