@@ -93,7 +93,21 @@ export function HeatingRebookingSection({ buildingId, periodId, fiscalYear }: He
     },
   });
 
-  // Owner assignments for distribution
+  // Existing splits (1400 → 1050 etc.)
+  const { data: existingSplits = [] } = useQuery({
+    queryKey: ["heating-splits", buildingId, fiscalYear],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("bookings")
+        .select("*, target:chart_of_accounts!bookings_account_id_fkey(account_number, account_name), source:chart_of_accounts!bookings_counter_account_id_fkey(account_number, account_name)")
+        .eq("building_id", buildingId)
+        .eq("fiscal_year", fiscalYear)
+        .eq("booking_category", "heating_split")
+        .neq("status", "cancelled");
+      if (error) throw error;
+      return data;
+    },
+  });
   const { data: ownerAssignments = [] } = useQuery({
     queryKey: ["owner-assignments-heating", buildingId],
     queryFn: async () => {
