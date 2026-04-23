@@ -47,10 +47,10 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear }: AssetRe
           .eq("fiscal_year", fiscalYear),
         supabase
           .from("fuel_inventory" as any)
-          .select("end_value_eur")
+          .select("fuel_type, entry_type, entry_date, quantity, unit, total_price, end_value_eur, notes")
           .eq("building_id", buildingId)
-          .eq("billing_period_id", periodId)
-          .maybeSingle(),
+          .or(`billing_period_id.eq.${periodId},billing_period_id.is.null`)
+          .order("entry_date"),
       ]);
       if (accErr) throw accErr;
       if (bkErr) throw bkErr;
@@ -60,7 +60,7 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear }: AssetRe
         accounts: accounts || [],
         bookings: bookings || [],
         balances: balances || [],
-        fuelValue: Number((fuelRes.data as any)?.end_value_eur ?? 0),
+        fuelEntries: (fuelRes.data as any[]) || [],
       };
     },
   });
@@ -68,7 +68,7 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear }: AssetRe
   const accounts = ctx?.accounts ?? [];
   const bookings = ctx?.bookings ?? [];
   const balances = ctx?.balances ?? [];
-  const fuelValue = ctx?.fuelValue ?? 0;
+  const fuelEntries = ctx?.fuelEntries ?? [];
 
   const opening4000 = accounts.find((a: any) => a.account_number === "4000");
   const opening4000Id = opening4000?.id || null;
@@ -134,6 +134,44 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear }: AssetRe
   const prapAcc = accounts.find((a: any) => a.account_number === "4130");
   const arapBalance = arapAcc ? Math.abs(sumForAccount(arapAcc.id, bookings as any)) : 0;
   const prapBalance = prapAcc ? Math.abs(sumForAccount(prapAcc.id, bookings as any)) : 0;
+
+  // Brennstoff-Aggregation pro Brennstoffart
+  const FUEL_LABELS: Record<string, { label: string; unit: string }> = {
+    oil: { label: "Heizöl", unit: "l" },
+    pellets: { label: "Pellets", unit: "kg" },
+    gas: { label: "Gas", unit: "kWh" },
+    district_heating: { label: "Fernwärme", unit: "kWh" },
+  };
+  const fuelByType: Record<string, {
+    label: string; unit: string;
+    openingQty: number; openingValue: number;
+    purchaseQty: number; purchaseValue: number;
+    closingQty: number; closingValue: number;
+  }> = {};
+  fuelEntries.forEach((e: any) => {
+    const ft = e.fuel_type;
+    if (!fuelByType[ft]) {
+      const meta = FUEL_LABELS[ft] || { label: ft, unit: e.unit || "" };
+      fuelByType[ft] = {
+        label: meta.label, unit: meta.unit,
+        openingQty: 0, openingValue: 0,
+        purchaseQty: 0, purchaseValue: 0,
+        closingQty: 0, closingValue: 0,
+      };
+    }
+    const slot = fuelByType[ft];
+    const qty = Number(e.quantity) || 0;
+    const val = Number(e.total_price ?? e.end_value_eur) || 0;
+    if (e.entry_type === "opening_balance") {
+      slot.openingQty += qty; slot.openingValue += val;
+    } else if (e.entry_type === "purchase") {
+      slot.purchaseQty += qty; slot.purchaseValue += val;
+    } else if (e.entry_type === "closing_balance") {
+      slot.closingQty += qty; slot.closingValue += val;
+    }
+  });
+  const fuelTypes = Object.keys(fuelByType);
+  const fuelValue = fuelTypes.reduce((s, ft) => s + fuelByType[ft].closingValue, 0);
 
   const bankTotal = bankAccounts.reduce((s, a) => s + a.closing_balance, 0);
   const reserveTotal = reserveAccounts.reduce((s, a) => s + a.closing_balance, 0);
@@ -308,22 +346,63 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear }: AssetRe
         </Card>
       )}
 
-      {/* Brennstoff */}
-      {fuelValue > 0 && (
+      {/* Brennstoff — pro Brennstoffart mit Anfangsbestand, Einkäufen, Endbestand und Verbrauch */}
+      {fuelTypes.length > 0 && (
         <Card>
           <CardHeader className="py-3">
             <CardTitle className="text-sm flex items-center gap-2">
-              <Flame className="h-4 w-4" /> Brennstoffbestand
+              <Flame className="h-4 w-4" /> Brennstoffbestand {fiscalYear}
             </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Bestandsausweis je Brennstoffart — Verbrauch ergibt sich aus Anfang + Einkäufe − Endbestand.
+            </p>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
-              <TableBody>
+              <TableHeader>
                 <TableRow>
-                  <TableCell className="text-sm">Restbestand Brennstoff</TableCell>
-                  <TableCell className="text-right font-mono text-sm">{formatCurrency(fuelValue)}</TableCell>
+                  <TableHead>Brennstoff</TableHead>
+                  <TableHead className="text-right hidden md:table-cell">Anfangsbestand</TableHead>
+                  <TableHead className="text-right hidden md:table-cell">Einkäufe</TableHead>
+                  <TableHead className="text-right hidden md:table-cell">Verbrauch</TableHead>
+                  <TableHead className="text-right">Endbestand</TableHead>
                 </TableRow>
+              </TableHeader>
+              <TableBody>
+                {fuelTypes.map(ft => {
+                  const slot = fuelByType[ft];
+                  const consumedQty = slot.openingQty + slot.purchaseQty - slot.closingQty;
+                  const consumedValue = slot.openingValue + slot.purchaseValue - slot.closingValue;
+                  const fmtQty = (q: number) => `${new Intl.NumberFormat("de-DE", { maximumFractionDigits: 2 }).format(q)} ${slot.unit}`;
+                  return (
+                    <TableRow key={ft}>
+                      <TableCell className="text-sm font-medium">{slot.label}</TableCell>
+                      <TableCell className="text-right font-mono text-xs hidden md:table-cell">
+                        <div>{fmtQty(slot.openingQty)}</div>
+                        <div className="text-muted-foreground">{formatCurrency(slot.openingValue)}</div>
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs hidden md:table-cell">
+                        <div>{fmtQty(slot.purchaseQty)}</div>
+                        <div className="text-muted-foreground">{formatCurrency(slot.purchaseValue)}</div>
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs hidden md:table-cell">
+                        <div>{fmtQty(consumedQty)}</div>
+                        <div className="text-muted-foreground">{formatCurrency(consumedValue)}</div>
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-sm">
+                        <div>{fmtQty(slot.closingQty)}</div>
+                        <div className="text-xs font-semibold">{formatCurrency(slot.closingValue)}</div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
+              <TableFooter>
+                <TableRow>
+                  <TableCell colSpan={4} className="font-medium text-sm">Gesamtwert Brennstoffbestand</TableCell>
+                  <TableCell className="text-right font-mono font-medium text-sm">{formatCurrency(fuelValue)}</TableCell>
+                </TableRow>
+              </TableFooter>
             </Table>
           </CardContent>
         </Card>

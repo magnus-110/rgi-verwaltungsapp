@@ -37,18 +37,20 @@ const SECTION_LABELS: Record<string, string> = {
   income: "Einnahmen",
   operating_distributable: "Umlagefähige Bewirtschaftungskosten",
   operating_non_distributable: "Nicht umlagefähige Kosten",
+  heating: "Heizkosten (nach Brunata)",
   heating_prepayment: "Heizkosten-Vorauszahlungen (Durchlauf)",
-  accrual: "Abgrenzungen",
   reserve: "Instandhaltungsrücklage",
   reserve_withdrawal: "Entnahme aus Rücklage",
+  accrual: "Abgrenzungen (nachrichtlich, nicht verteilt)",
   bank: "Bankkonten",
   opening: "Eröffnungsbuchungen",
 };
 
-// Note: heating_prepayment Konten (1431/1440/1470er) sind reine Durchlaufposten.
-// Sie werden per Repost auf 1400 umgebucht und erscheinen — analog HV Office —
-// NICHT in der Eigentümerabrechnung. 'opening' und 'bank' ebenfalls ausgeblendet.
-const SECTION_ORDER = ["income", "operating_distributable", "operating_non_distributable", "accrual", "reserve", "reserve_withdrawal"];
+// Reihenfolge analog HV Office: Einnahmen → Bewirtschaftung → Heizkosten → Rücklage → Abgrenzungen (nachrichtlich).
+// 'heating_prepayment' Konten (1431/1440/1470er) sind Durchlaufposten und werden per
+// Repost auf 1400 umgebucht — sie erscheinen NICHT in der Abrechnung.
+// 'opening' und 'bank' ebenfalls ausgeblendet.
+const SECTION_ORDER = ["income", "operating_distributable", "operating_non_distributable", "heating", "reserve", "reserve_withdrawal", "accrual"];
 
 export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingSettlementProps) {
   const queryClient = useQueryClient();
@@ -381,8 +383,10 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     .filter((a) => a.is_distributable && !isAccrualBalanceAccount(a) && !isHeatingPrepayAccount(a))
     .reduce((s, a) => s + getAccountBookingTotal(a.id), 0);
 
-  // Abrechnungssumme
-  const abrechnungssumme = totalOperatingDist + totalOperatingNonDist + totalAccrual + totalReserve - totalReserveWithdrawal;
+  // Abrechnungssumme — HV-Office-konform:
+  // Abgrenzungen (totalAccrual) sind jahresübergreifend und werden NICHT verteilt,
+  // sondern nur nachrichtlich ausgewiesen. Sie fließen daher nicht in die Spitze.
+  const abrechnungssumme = totalOperatingDist + totalOperatingNonDist + totalReserve - totalReserveWithdrawal;
 
   // Helper: calculate overlap months between a cost's validity and the billing period
   function getCostAnnualAmount(cost: any, periodFrom: string, periodTo: string) {
@@ -482,15 +486,16 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       const distKey = getDistKey(acc.id, acc.default_distribution_key);
       const shareType = DIST_KEY_TO_SHARE[distKey] || distKey;
 
-      // Special handling for heating account (1400) — use heating_distribution_values if available
-      const isHeatingAccount = acc.is_heating_relevant && acc.account_number === "1400";
+      // Heizkosten-Konten (z. B. 1400) — strikt Brunata-Werte, KEIN MEA-Fallback.
+      // Fehlen Brunata-Werte, wird 0 verteilt (Warnung wird in der UI angezeigt).
+      const isHeatingAccount = acc.is_heating_relevant === true;
       // Special handling for "einheit" share — total = building unit count, owner share = 1
       const isUnitsKey = shareType === "einheit";
       let ownerCost = 0;
       let ownerShareValue = 0;
       let totalSharesValue = 0;
 
-      if (isHeatingAccount && heatingDistValues.length > 0) {
+      if (isHeatingAccount) {
         const hdv = heatingDistValues.find((h: any) => h.assignment_id === assignment.id);
         ownerCost = hdv ? Number(hdv.amount) : 0;
         ownerShareValue = ownerCost;
@@ -709,7 +714,9 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       if (absTotal < 0.005) continue;
 
       const distKey = getDistKey(acc.id, acc.default_distribution_key);
-      const isHeating1400 = acc.is_heating_relevant && acc.account_number === "1400";
+      // Generisch: jedes Konto, das als heizungsrelevant markiert ist UND in der Heizkosten-Section liegt,
+      // muss strikt nach Brunata verteilt werden — kein MEA-Fallback.
+      const isHeating1400 = acc.is_heating_relevant === true && (acc.settlement_section === "heating" || acc.account_number === "1400");
 
       let reason: string | null = null;
 
