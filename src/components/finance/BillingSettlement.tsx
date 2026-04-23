@@ -420,23 +420,66 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     }
   }
 
-  // Vorschussverpflichtung (total prepayments from all owners)
-  const totalVorschuss = assignments.reduce((s, a: any) => {
+  // Vorschussverpflichtung (total prepayments from all owners) — SOLL aus Stammdaten
+  // Aufgeteilt in Kostendeckung und EHR-Anteil (HV-Office-Layout):
+  //   reserve_share_monthly > 0 → fließt in totalSollEHR
+  //   Rest des Hausgelds         → fließt in totalSollKostendeckung
+  // Wenn reserve_share_monthly = 0 / leer, wird KEINE Aufteilung angezeigt
+  // (Block "Vorschüsse auf EHR" entfällt dann).
+  let totalSollKostendeckung = 0;
+  let totalSollEHR = 0;
+  assignments.forEach((a: any) => {
     const costs = a.contact_building_costs || [];
     const timeProp = getTimeProportion(a);
-    return s + costs.reduce((cs: number, c: any) => {
-      if (!period) {
-        const amount = Number(c.amount);
-        switch (c.interval) {
-          case "monatlich": return cs + amount * 12 * timeProp;
-          case "quartal": return cs + amount * 4 * timeProp;
-          case "jaehrlich": return cs + amount * timeProp;
-          default: return cs + amount * 12 * timeProp;
+    costs.forEach((c: any) => {
+      const isHausgeld = ["hausgeld", "nebenkosten"].includes((c.cost_type || "").toLowerCase());
+      const isReserve = (c.cost_type || "").toLowerCase() === "ruecklage";
+      const annual = period
+        ? getCostAnnualAmount(c, period.period_from, period.period_to) * timeProp
+        : (() => {
+            const amount = Number(c.amount);
+            switch (c.interval) {
+              case "monatlich": return amount * 12 * timeProp;
+              case "quartal": return amount * 4 * timeProp;
+              case "jaehrlich": return amount * timeProp;
+              default: return amount * 12 * timeProp;
+            }
+          })();
+
+      if (isHausgeld) {
+        const reserveShareMonthly = Number(c.reserve_share_monthly) || 0;
+        if (reserveShareMonthly > 0 && c.interval === "monatlich") {
+          // Anteilig: EHR-Teil aus monatlichem Hausgeld, Rest = Kostendeckung
+          const fullMonthly = Number(c.amount) || 0;
+          const ratio = fullMonthly > 0 ? Math.min(reserveShareMonthly / fullMonthly, 1) : 0;
+          totalSollEHR += annual * ratio;
+          totalSollKostendeckung += annual * (1 - ratio);
+        } else {
+          totalSollKostendeckung += annual;
         }
+      } else if (isReserve) {
+        totalSollEHR += annual;
+      } else {
+        // Andere Kostenarten (Sonderumlage etc.) → in Kostendeckung
+        totalSollKostendeckung += annual;
       }
-      return cs + getCostAnnualAmount(c, period.period_from, period.period_to) * timeProp;
-    }, 0);
-  }, 0);
+    });
+  });
+  const hasReserveSplit = totalSollEHR > 0.005;
+  const totalVorschuss = totalSollKostendeckung + totalSollEHR;
+
+  // Zinseinnahmen aus Buchungen (Konto 1840 — settlement_section='income')
+  const incomeAccountTotals = (sectionAccounts["income"] || []).reduce(
+    (acc: { interest: number; other: number }, a: any) => {
+      const num = String(a.account_number || "");
+      if (num.startsWith("1840") || num.startsWith("184")) acc.interest += a.totalAbs;
+      else acc.other += a.totalAbs;
+      return acc;
+    },
+    { interest: 0, other: 0 },
+  );
+  const totalIncomeFromBookings = incomeAccountTotals.interest + incomeAccountTotals.other;
+  const totalEinnahmen = totalVorschuss + totalIncomeFromBookings;
 
   const abrechnungsspitze = totalVorschuss - abrechnungssumme;
 
