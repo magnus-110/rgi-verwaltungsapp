@@ -1,77 +1,63 @@
 
 
-## Plan: Abrechnung an HV-Office-Standard angleichen — generisch für alle Liegenschaften
+## Problem: Zwei verschiedene Kontenansichten zeigen unterschiedliche Daten
 
-Ziel: Einzel- und Gesamtabrechnung strukturell und rechnerisch identisch zu HV Office — als **allgemeingültige Logik** für alle Liegenschaften, nicht als Sonderregel.
+### Was du siehst
 
-### Was geändert wird
+- **Buchen → Buchungen → Kontenplan-Ansicht** (`AccountPlanView.tsx`) — korrekt
+- **Abrechnung → Schritt 1 „Buchungen prüfen"** (`BookingReviewSection.tsx`) — abweichend
 
-**A) Einzelabrechnung-Layout an HV Office angleichen** (`BillingSettlement.tsx`)
+Beide gruppieren Buchungen nach Konto, verwenden dafür aber **unterschiedliche Logik**.
 
-Neue Block-Reihenfolge analog HV Office:
-```text
-1. Einnahmen (Vorauszahlungen + Zinsen)
-2. Umlagefähige Bewirtschaftungskosten
-3. Nicht umlagefähige Kosten
-4. Heizkosten (Konto 1400 nach Brunata)
-5. Instandhaltungsrücklage (Zuführung + Entnahme als Doppelbuchung)
-6. Abrechnungssumme → Vorschussverpflichtung → Abrechnungsspitze
-```
+### Ursache
 
-Trennung „verteilungsrelevant" vs. „nachrichtlich" wird visuell klar (Badge oder zweite Spalte).
-
-**B) Abrechnungsspitze korrekt berechnen** (`BillingSettlement.tsx`, Zeile 385)
-
-Aktuell fließt `totalAccrual` in die Abrechnungssumme. HV Office macht das nicht. Neu:
-- `abrechnungssumme = totalOperatingDist + totalOperatingNonDist + totalReserve − totalReserveWithdrawal`
-- `totalAccrual` wird **nachrichtlich** ausgewiesen, nicht mehr verteilt.
-
-Generisch: Abgrenzungen sind per Definition jahresübergreifend und gehören in keiner Liegenschaft in die Abrechnungssumme.
-
-**C) Rücklagen-Doppelbuchung nach HV-Office-Schema**
-
-Aufwände auf rücklagenfinanzierten Konten (`is_reserve_funded=true`, z. B. 1920) erscheinen:
-1. einmal als Aufwand im Block „Umlagefähige Kosten" (informativ),
-2. einmal als negative Gegenbuchung „Entnahme aus Rücklage" → neutralisiert den Cashflow.
-
-Funktioniert für jede Liegenschaft, da das Flag `is_reserve_funded` bereits existiert.
-
-**D) Heizkosten-Verteilung ohne MEA-Fallback** (`BillingSettlement.tsx`, ~Zeile 493)
-
-Für Konto 1400 (jedes Konto mit `settlement_section='heating'` bzw. `is_heating_relevant=true`) wird **strikt** der Brunata-Verteilungsschlüssel aus `brunata_allocations` verwendet. Wenn Brunata-Werte fehlen → **harte Warnung** + roter Status in der Abrechnung statt stillem MEA-Fallback. Das verhindert falsche Heizkostenverteilungen in jeder zukünftigen Abrechnung.
-
-**E) Brennstoffbestand im Vermögensbericht ergänzen** (`AssetReportSection.tsx`)
-
-Statt in der Abrechnung wird der Brennstoffblock im Vermögensbericht ausgebaut — dort gehört er hin (Bestandsausweis):
-- Anfangsbestand (Menge + Wert)
-- Einkäufe im WJ
-- Endbestand (Menge + Wert)
-- berechneter Verbrauch
-Quelle: `fuel_inventory`. Liegenschaften ohne Brennstoffeinträge zeigen den Block nicht.
-
-### Generische Funktionsweise (deine Hauptfrage)
-
-Alle Änderungen basieren auf **bereits existierenden Datenfeldern**, nicht auf hardcodierten Konto-IDs oder Liegenschafts-IDs:
-
-| Feld | Quelle | Wirkung |
+| Aspekt | AccountPlanView (korrekt) | BookingReviewSection (falsch) |
 |---|---|---|
-| `chart_of_accounts.settlement_section` | global | Blockzuordnung |
-| `chart_of_accounts.is_reserve_funded` | global | Doppelbuchung Rücklage |
-| `chart_of_accounts.is_heating_relevant` | global | Brunata-Verteilung |
-| `brunata_allocations` | pro Liegenschaft + WJ | Heizkosten-Schlüssel |
-| `fuel_inventory` | pro Liegenschaft + WJ | Vermögensbericht-Block |
+| **Doppelte Buchführung** | Jede Buchung erscheint auf BEIDEN Konten (account_id + counter_account_id), Vorzeichen jeweils sauber gedreht | Buchung erscheint nur EINMAL — auf dem „Nicht-Bank"-Konto via Heuristik |
+| **Konto-Auswahl** | nutzt beide Felder → vollständig | Heuristik: „falls Hauptkonto = Bank, nimm Gegenkonto, sonst Hauptkonto" |
+| **Vorzeichen** | `booking_type` (income/expense) → +/− | `useCounter ? -amount : +amount` — fehleranfällig |
+| **Anfangsbestände** | aus `account_balances` geladen + Saldo berechnet | gar nicht berücksichtigt |
+| **Eröffnungsbuchungen 4000** | werden über bank-zentrische Logik erfasst | können auf falschem Konto landen |
+| **Kategorien-Sortierung** | Aktiva → Passiva → Erträge → Aufwand (definierte Reihenfolge) | alphabetisch |
+| **Gruppierung bei Buchungen ohne Bankkonto** | korrekt auf beiden Seiten | landen falsch, weil die Bank-Heuristik nicht greift |
 
-→ Bei neuer Liegenschaft genügt der bestehende 4-Schritt-Workflow (Grundlagen → Buchungen → Heizkosten/Brunata → Abrechnung). Die Abrechnung funktioniert automatisch korrekt wie bei Birkenweg 6.
+**Konkret falsch in `BookingReviewSection`:**
+1. Eine Umbuchung Konto X → Konto Y wird nur auf einem der beiden Konten angezeigt.
+2. Heizkosten-Umbuchung 4xxx → 1400 erscheint je nach Heuristik auf einer Seite, statt auf beiden.
+3. Eröffnungsbestände fehlen komplett → Saldenvergleich gegen Bankkonto unmöglich.
+4. Kategorien-Reihenfolge ist nicht buchhalterisch (Aktiva/Passiva/Ertrag/Aufwand), sondern Alphabet.
 
-### Reihenfolge der Umsetzung
+### Lösung: Eine gemeinsame Anzeigelogik
 
-1. Logikfix `abrechnungssumme` ohne Accruals (Punkt B) — kleinste Änderung, größte Wirkung
-2. Heizkosten strikt Brunata, kein MEA-Fallback (Punkt D)
-3. Rücklagen-Doppelbuchung im Layout (Punkt C)
-4. Layout-Umbau Einzelabrechnung in HV-Office-Reihenfolge (Punkt A)
-5. Brennstoffbestand-Ausbau im Vermögensbericht (Punkt E)
+Statt zwei parallele Implementierungen zu pflegen, wird die korrekte `AccountPlanView`-Logik zur **Single Source of Truth** für Konten-Gruppierungen.
+
+**Änderungen:**
+
+1. **`BookingReviewSection.tsx` umbauen**, damit die Konten-Aggregation identisch zur `AccountPlanView` arbeitet:
+   - Jede Buchung doppelt erfassen (account_id + counter_account_id, Vorzeichen jeweils gedreht)
+   - Konten aus `chart_of_accounts` laden, nicht über die Bank-Heuristik konstruieren
+   - Anfangs-/Schlusssalden aus `account_balances` laden und anzeigen
+   - Kategorien-Reihenfolge `asset → liability → equity → income → expense`
+
+2. **Gemeinsamen Hook auslagern** (`src/components/finance/lib/useAccountAggregation.ts`):
+   - Liefert `groupedAccounts`, `bookingsByAccount`, `balanceByAccount` einheitlich.
+   - Wird von `AccountPlanView` UND `BookingReviewSection` genutzt.
+   - Verhindert zukünftiges Auseinanderlaufen.
+
+3. **Spezifische Review-Features bleiben erhalten** (Soll/Ist-Vergleich gegen Templates, KI-Prüfung, Vollständigkeitsbadge mit erwarteter Anzahl pro Konto).
+
+### Generische Wirkung
+
+Die Aggregations-Logik ist liegenschaftsunabhängig — jede Liegenschaft profitiert sofort. Auch andere zukünftige Konten-Übersichten (Kassenprüfung, Vermögensbericht, §35a) können den gemeinsamen Hook nutzen.
+
+### Reihenfolge
+
+1. `useAccountAggregation` Hook extrahieren (basierend auf `AccountPlanView`-Logik)
+2. `AccountPlanView` auf den Hook umstellen — Verhalten unverändert
+3. `BookingReviewSection` auf den Hook umstellen + Review-Badges/KI-Button beibehalten
+4. Visuelle Konsistenz (Saldo-Spalten, Reihenfolge) angleichen
 
 ### Was du danach tun musst
 
-Nichts liegenschaftsspezifisch. Reine Logikänderungen am gemeinsamen Code — wirken sofort für alle Liegenschaften.
+Nichts. Reine Codebereinigung — beide Tabs zeigen ab sofort dieselben Zahlen.
 
