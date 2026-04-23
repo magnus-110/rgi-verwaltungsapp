@@ -489,7 +489,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       const isReserveAcc = acc.settlement_section === "reserve";
       const total = isReserveAcc && economicPlan?.total_reserve != null
         ? Number(economicPlan.total_reserve)
-        : getAccountBookingTotal(acc.id);
+        : getAccountAbsTotal(acc.id);
       if (total === 0) return;
 
       const distKey = getDistKey(acc.id, acc.default_distribution_key);
