@@ -473,10 +473,14 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     const timeProp = getTimeProportion(assignment);
 
     // Per-account breakdown for Einzelabrechnung
+    // displaySection: in welchem Block der Einzelabrechnung die Zeile erscheinen soll
+    // signedFactor: Vorzeichen-Faktor für "Ihre Kosten" (+1 normal, -1 für Gegenbuchung Rücklagenentnahme)
     const accountBreakdown: Array<{
       accountNumber: string; accountName: string; distributableAmount: number;
       distKey: string; totalShares: number; ownerShare: number; ownerCost: number;
       settlement35aType: string | null;
+      displaySection: string;
+      signedFactor: number;
     }> = [];
 
     let totalOwnerCost = 0;
@@ -538,7 +542,31 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
         ownerShare: ownerShareValue,
         ownerCost,
         settlement35aType: acc.settlement_35a_type,
+        displaySection: acc.settlement_section,
+        signedFactor: 1,
       });
+
+      // GENERISCHE RÜCKLAGEN-DOPPELDARSTELLUNG (HV-Office-konform)
+      // Konten mit reserve_role='withdrawal' (z. B. 1920 "Rep. aus Entnahme RL")
+      // erscheinen ZUSÄTZLICH im Rücklagen-Block mit umgekehrtem Vorzeichen
+      // (= Gegenbuchung "aus Rücklage finanziert" — neutralisiert die Belastung
+      //   des Eigentümers, da die Reparatur ja aus angesparten Mitteln bezahlt wurde).
+      if (acc.reserve_role === "withdrawal" && ownerCost !== 0) {
+        accountBreakdown.push({
+          accountNumber: acc.account_number,
+          accountName: acc.account_name,
+          distributableAmount: total,
+          distKey: SHARE_LABELS[distKey] || distKey,
+          totalShares: totalSharesValue,
+          ownerShare: ownerShareValue,
+          ownerCost: -ownerCost, // Gegenbuchung
+          settlement35aType: null,
+          displaySection: "reserve",
+          signedFactor: -1,
+        });
+        // Netto-Effekt auf totalOwnerCost = 0 (Aufwand + Gegenbuchung heben sich auf)
+        totalOwnerCost -= ownerCost;
+      }
     });
 
     // Vorschussverpflichtung — SOLL or IST
