@@ -381,8 +381,10 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     .filter((a) => a.is_distributable && !isAccrualBalanceAccount(a) && !isHeatingPrepayAccount(a))
     .reduce((s, a) => s + getAccountBookingTotal(a.id), 0);
 
-  // Abrechnungssumme
-  const abrechnungssumme = totalOperatingDist + totalOperatingNonDist + totalAccrual + totalReserve - totalReserveWithdrawal;
+  // Abrechnungssumme — HV-Office-konform:
+  // Abgrenzungen (totalAccrual) sind jahresübergreifend und werden NICHT verteilt,
+  // sondern nur nachrichtlich ausgewiesen. Sie fließen daher nicht in die Spitze.
+  const abrechnungssumme = totalOperatingDist + totalOperatingNonDist + totalReserve - totalReserveWithdrawal;
 
   // Helper: calculate overlap months between a cost's validity and the billing period
   function getCostAnnualAmount(cost: any, periodFrom: string, periodTo: string) {
@@ -482,15 +484,16 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       const distKey = getDistKey(acc.id, acc.default_distribution_key);
       const shareType = DIST_KEY_TO_SHARE[distKey] || distKey;
 
-      // Special handling for heating account (1400) — use heating_distribution_values if available
-      const isHeatingAccount = acc.is_heating_relevant && acc.account_number === "1400";
+      // Heizkosten-Konten (z. B. 1400) — strikt Brunata-Werte, KEIN MEA-Fallback.
+      // Fehlen Brunata-Werte, wird 0 verteilt (Warnung wird in der UI angezeigt).
+      const isHeatingAccount = acc.is_heating_relevant === true;
       // Special handling for "einheit" share — total = building unit count, owner share = 1
       const isUnitsKey = shareType === "einheit";
       let ownerCost = 0;
       let ownerShareValue = 0;
       let totalSharesValue = 0;
 
-      if (isHeatingAccount && heatingDistValues.length > 0) {
+      if (isHeatingAccount) {
         const hdv = heatingDistValues.find((h: any) => h.assignment_id === assignment.id);
         ownerCost = hdv ? Number(hdv.amount) : 0;
         ownerShareValue = ownerCost;
