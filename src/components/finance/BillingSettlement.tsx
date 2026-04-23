@@ -714,7 +714,9 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       if (absTotal < 0.005) continue;
 
       const distKey = getDistKey(acc.id, acc.default_distribution_key);
-      const isHeating1400 = acc.is_heating_relevant && acc.account_number === "1400";
+      // Generisch: jedes Konto, das als heizungsrelevant markiert ist UND in der Heizkosten-Section liegt,
+      // muss strikt nach Brunata verteilt werden — kein MEA-Fallback.
+      const isHeating1400 = acc.is_heating_relevant === true && (acc.settlement_section === "heating" || acc.account_number === "1400");
 
       let reason: string | null = null;
 
