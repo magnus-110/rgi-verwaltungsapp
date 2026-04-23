@@ -1,15 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronRight, Check, AlertTriangle, CircleDot, Sparkles, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Check, AlertTriangle, CircleDot, Sparkles, Loader2, BookOpen } from "lucide-react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 import { useState } from "react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import { useAccountAggregation, CATEGORY_LABELS } from "./lib/useAccountAggregation";
 
 interface BookingReviewSectionProps {
   buildingId: string;
@@ -18,12 +20,14 @@ interface BookingReviewSectionProps {
   periodTo?: string;
 }
 
-export function BookingReviewSection({ buildingId, fiscalYear, periodFrom, periodTo }: BookingReviewSectionProps) {
+const formatCurrency = (n: number) =>
+  new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
+
+export function BookingReviewSection({ buildingId, fiscalYear }: BookingReviewSectionProps) {
   const [expandedAccounts, setExpandedAccounts] = useState<Set<string>>(new Set());
   const [aiChecking, setAiChecking] = useState(false);
   const [aiResults, setAiResults] = useState<any[] | null>(null);
 
-  // All confirmed bookings — include counter account for bank-zentrische Erfassung
   const { data: bookings = [], isLoading } = useQuery({
     queryKey: ["booking-review", buildingId, fiscalYear],
     queryFn: async () => {
@@ -43,7 +47,6 @@ export function BookingReviewSection({ buildingId, fiscalYear, periodFrom, perio
     },
   });
 
-  // Booking templates for expected recurring costs
   const { data: templates = [] } = useQuery({
     queryKey: ["booking-templates-review", buildingId],
     queryFn: async () => {
@@ -56,39 +59,14 @@ export function BookingReviewSection({ buildingId, fiscalYear, periodFrom, perio
     },
   });
 
-  const formatCurrency = (n: number) =>
-    new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(n);
-
-  // Group bookings by account category — Bank 1800 ist nur Durchlaufkonto, daher
-  // gruppieren wir Buchungen nach dem ECHTEN Kostenkonto: bevorzugt das Konto, das KEIN
-  // Bankkonto ist. Bei reinen Bank-Bank-Buchungen fallen wir auf account_id zurück.
-  const categoryMap = new Map<string, { accounts: Map<string, { account: any; bookings: any[]; total: number }> }>();
-
-  const isBankAccount = (acc: any) =>
-    acc?.category?.toLowerCase().includes("bank") ||
-    /^18\d{2}$/.test(acc?.account_number || "");
-
-  bookings.forEach((b: any) => {
-    const main = b.chart_of_accounts;
-    const counter = b.counter_account;
-    // Pick the cost account (non-bank). Fall back to main account if both are bank or counter missing.
-    const useCounter = counter && isBankAccount(main) && !isBankAccount(counter);
-    const acc = useCounter ? counter : main;
-    const accId = acc?.id || b.account_id || b.counter_account_id || "unknown";
-    const cat = acc?.category || "Ohne Kategorie";
-
-    if (!categoryMap.has(cat)) categoryMap.set(cat, { accounts: new Map() });
-    const catData = categoryMap.get(cat)!;
-    if (!catData.accounts.has(accId)) {
-      catData.accounts.set(accId, { account: acc, bookings: [], total: 0 });
-    }
-    const accData = catData.accounts.get(accId)!;
-    accData.bookings.push(b);
-    // Sign: if we used the counter account, invert the amount so the cost shows as positive
-    accData.total += useCounter ? -Number(b.amount) : Number(b.amount);
+  // Identische Logik wie Buchen → Kontenplan-Ansicht
+  const { grouped, bookingsByAccount, balanceByAccount } = useAccountAggregation({
+    bookings,
+    fiscalYear,
+    buildingId,
+    showAllAccounts: false,
   });
 
-  // Calculate expected count from templates
   const getExpectedCount = (accountId: string): { expected: number; label: string } | null => {
     const tmpl = templates.find((t: any) => t.account_id === accountId);
     if (!tmpl) return null;
@@ -112,23 +90,34 @@ export function BookingReviewSection({ buildingId, fiscalYear, periodFrom, perio
 
   const totalBookings = bookings.length;
   const totalAmount = bookings.reduce((s: number, b: any) => s + Math.abs(Number(b.amount)), 0);
-  const categories = [...categoryMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
 
   const runAiCheck = async () => {
     setAiChecking(true);
     try {
-      const accountData = [...categoryMap.entries()].flatMap(([cat, catData]) =>
-        [...catData.accounts.entries()].map(([accId, accData]) => ({
-          accountNumber: accData.account?.account_number,
-          accountName: accData.account?.account_name,
-          category: cat,
-          bookingCount: accData.bookings.length,
-          total: accData.total,
-          expected: (() => {
-            const tmpl = templates.find((t: any) => t.account_id === accId);
-            return tmpl ? { count: tmpl.interval === "monatlich" ? 12 : tmpl.interval === "quartalsweise" ? 4 : tmpl.interval === "halbjährlich" ? 2 : 1, amount: tmpl.expected_amount } : null;
-          })(),
-        }))
+      const accountData = grouped.flatMap(({ accounts: catAccounts }) =>
+        catAccounts.map((acc) => {
+          const accBookings = bookingsByAccount[acc.id] || [];
+          const movement = accBookings.reduce((s, b) => {
+            const sign = b.booking_type === "income" ? 1 : -1;
+            return s + sign * Number(b.amount || 0);
+          }, 0);
+          return {
+            accountNumber: acc.account_number,
+            accountName: acc.account_name,
+            category: acc.category,
+            bookingCount: accBookings.length,
+            total: movement,
+            expected: (() => {
+              const tmpl = templates.find((t: any) => t.account_id === acc.id);
+              return tmpl
+                ? {
+                    count: tmpl.interval === "monatlich" ? 12 : tmpl.interval === "quartalsweise" ? 4 : tmpl.interval === "halbjährlich" ? 2 : 1,
+                    amount: tmpl.expected_amount,
+                  }
+                : null;
+            })(),
+          };
+        })
       );
 
       const { data, error } = await supabase.functions.invoke("analyze-billing", {
@@ -147,7 +136,7 @@ export function BookingReviewSection({ buildingId, fiscalYear, periodFrom, perio
   if (isLoading) return <div className="text-muted-foreground p-4 text-sm">Buchungen werden geladen...</div>;
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div className="flex flex-wrap gap-2 mb-2 items-center">
         <Badge variant="outline">{totalBookings} Buchungen</Badge>
         <Badge variant="outline">Gesamt: {formatCurrency(totalAmount)}</Badge>
@@ -157,7 +146,6 @@ export function BookingReviewSection({ buildingId, fiscalYear, periodFrom, perio
         </Button>
       </div>
 
-      {/* AI results */}
       {aiResults && aiResults.length > 0 && (
         <Card className="border-dashed border-primary/30 bg-primary/5">
           <CardContent className="pt-4 space-y-2">
@@ -178,110 +166,116 @@ export function BookingReviewSection({ buildingId, fiscalYear, periodFrom, perio
         </Card>
       )}
 
-      {categories.length === 0 && (
-        <p className="text-sm text-muted-foreground text-center py-6">
-          Keine Buchungen für diesen Zeitraum gefunden.
-        </p>
+      {grouped.length === 0 && (
+        <div className="text-center py-10 text-muted-foreground">
+          <BookOpen className="h-10 w-10 mx-auto mb-2 opacity-30" />
+          <p className="text-sm">Keine Buchungen für diesen Zeitraum gefunden.</p>
+        </div>
       )}
 
-      {categories.map(([cat, catData]) => {
-        const accounts = [...catData.accounts.entries()];
-        const catTotal = accounts.reduce((s, [, a]) => s + Math.abs(a.total), 0);
+      {grouped.map(({ category, accounts: catAccounts }) => (
+        <div key={category}>
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1 mb-2">
+            {CATEGORY_LABELS[category] || category}
+          </h3>
+          <Card className="overflow-hidden divide-y">
+            {catAccounts.map((acc) => {
+              const accBookings = bookingsByAccount[acc.id] || [];
+              const movement = accBookings.reduce((s, b) => {
+                const sign = b.booking_type === "income" ? 1 : -1;
+                return s + sign * Number(b.amount || 0);
+              }, 0);
+              const opening = balanceByAccount[acc.id] || 0;
+              const closing = opening + movement;
+              const isExpanded = expandedAccounts.has(acc.id);
+              const expected = getExpectedCount(acc.id);
+              const actual = accBookings.length;
+              const isComplete = expected ? actual >= expected.expected : null;
 
-        return (
-          <Card key={cat} className="overflow-hidden">
-            <div className="p-3 bg-muted/30 flex items-center justify-between">
-              <span className="font-medium text-sm">{cat}</span>
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary" className="text-xs">{accounts.length} Konten</Badge>
-                <span className="text-xs text-muted-foreground font-mono">{formatCurrency(catTotal)}</span>
-              </div>
-            </div>
-            <CardContent className="p-0">
-              {accounts.map(([accId, accData]) => {
-                const isExpanded = expandedAccounts.has(accId);
-                const expected = getExpectedCount(accId);
-                const actual = accData.bookings.length;
-                const isComplete = expected ? actual >= expected.expected : null;
-
-                return (
-                  <div key={accId} className="border-t">
-                    <button
-                      onClick={() => toggleAccount(accId)}
-                      className="w-full flex items-center gap-2 px-3 py-2 hover:bg-muted/20 text-left text-sm transition-colors"
-                    >
-                      {isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />}
-                      <span className="font-mono text-xs text-muted-foreground w-12 flex-shrink-0">
-                        {accData.account?.account_number || "–"}
+              return (
+                <Collapsible key={acc.id} open={isExpanded} onOpenChange={() => toggleAccount(acc.id)}>
+                  <CollapsibleTrigger asChild>
+                    <button className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-muted/40 transition-colors text-left">
+                      {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                      <span className="font-mono tabular-nums text-sm font-semibold w-16">{acc.account_number}</span>
+                      <span className="text-sm flex-1 truncate">{acc.account_name}</span>
+                      {expected ? (
+                        <Badge className={cn(
+                          "text-xs",
+                          isComplete ? "bg-green-100 text-green-800 hover:bg-green-100" : "bg-amber-100 text-amber-800 hover:bg-amber-100"
+                        )}>
+                          {isComplete ? <Check className="h-3 w-3 mr-1" /> : <AlertTriangle className="h-3 w-3 mr-1" />}
+                          {actual}/{expected.expected} {expected.label}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs">
+                          <CircleDot className="h-3 w-3 mr-1" />
+                          {actual} Buch.
+                        </Badge>
+                      )}
+                      <span className="text-xs text-muted-foreground tabular-nums w-28 text-right">
+                        EB: {formatCurrency(opening)}
                       </span>
-                      <span className="flex-1 truncate">{accData.account?.account_name || "Unbekannt"}</span>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        {expected && (
-                          <Badge
-                            className={`text-xs ${isComplete ? "bg-green-100 text-green-800 hover:bg-green-100" : "bg-amber-100 text-amber-800 hover:bg-amber-100"}`}
-                          >
-                            {isComplete ? <Check className="h-3 w-3 mr-1" /> : <AlertTriangle className="h-3 w-3 mr-1" />}
-                            {actual}/{expected.expected} {expected.label}
-                          </Badge>
-                        )}
-                        {!expected && (
-                          <Badge variant="outline" className="text-xs">
-                            <CircleDot className="h-3 w-3 mr-1" />
-                            {actual} Buchungen
-                          </Badge>
-                        )}
-                        <span className="font-mono text-xs w-24 text-right">{formatCurrency(Math.abs(accData.total))}</span>
-                      </div>
+                      <span className={cn(
+                        "text-sm font-mono tabular-nums font-semibold w-32 text-right",
+                        movement > 0 ? "text-green-600" : movement < 0 ? "text-destructive" : "text-muted-foreground"
+                      )}>
+                        {movement > 0 ? "+" : ""}{formatCurrency(movement)}
+                      </span>
+                      <span className="text-xs text-muted-foreground tabular-nums w-28 text-right border-l pl-3">
+                        Saldo: {formatCurrency(closing)}
+                      </span>
                     </button>
-
-                    {isExpanded && (
-                      <div className="px-3 pb-2">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="text-xs">Datum</TableHead>
-                              <TableHead className="text-xs">Beschreibung</TableHead>
-                              <TableHead className="text-xs">Beleg</TableHead>
-                              <TableHead className="text-xs text-right">Betrag</TableHead>
-                              <TableHead className="text-xs">Status</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {accData.bookings.map((b: any) => (
-                              <TableRow key={b.id}>
-                                <TableCell className="text-xs py-1.5">
-                                  {format(new Date(b.booking_date), "dd.MM.yy", { locale: de })}
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="bg-muted/20 border-t">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="text-xs hover:bg-transparent">
+                            <TableHead className="py-1.5 px-3 h-8">Datum</TableHead>
+                            <TableHead className="py-1.5 px-3 h-8">Beleg</TableHead>
+                            <TableHead className="py-1.5 px-3 h-8">Buchungstext</TableHead>
+                            <TableHead className="py-1.5 px-3 h-8">Gegenkonto</TableHead>
+                            <TableHead className="py-1.5 px-3 h-8 text-right">Betrag</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {accBookings.map((b: any) => {
+                            const isIncome = b.booking_type === "income";
+                            return (
+                              <TableRow key={`${b.id}-${b._side}`} className="text-[13px]">
+                                <TableCell className="py-1.5 px-3 whitespace-nowrap tabular-nums">
+                                  {format(new Date(b.booking_date), "dd.MM.yyyy", { locale: de })}
                                 </TableCell>
-                                <TableCell className="text-xs py-1.5 max-w-[200px] truncate">
-                                  {b.description || "–"}
+                                <TableCell className="py-1.5 px-3 font-mono text-xs">
+                                  {b.receipt_number || b.booking_reference || "–"}
                                 </TableCell>
-                                <TableCell className="text-xs py-1.5 font-mono">
-                                  {b.receipt_number || "–"}
+                                <TableCell className="py-1.5 px-3 max-w-[400px] truncate">{b.description || "–"}</TableCell>
+                                <TableCell className="py-1.5 px-3 font-mono text-xs">
+                                  {b.counter_account?.account_number || "–"}
+                                  {b.counter_account?.account_name && (
+                                    <span className="text-muted-foreground ml-1.5">{b.counter_account.account_name}</span>
+                                  )}
                                 </TableCell>
-                                <TableCell className="text-xs py-1.5 text-right font-mono">
-                                  {formatCurrency(Math.abs(Number(b.amount)))}
-                                </TableCell>
-                                <TableCell className="py-1.5">
-                                  <Badge
-                                    variant={b.status === "confirmed" ? "default" : "secondary"}
-                                    className="text-[10px]"
-                                  >
-                                    {b.status === "confirmed" ? "Bestätigt" : "Offen"}
-                                  </Badge>
+                                <TableCell className={cn(
+                                  "py-1.5 px-3 font-mono tabular-nums font-semibold whitespace-nowrap text-right",
+                                  isIncome ? "text-green-600" : "text-destructive"
+                                )}>
+                                  {isIncome ? "+" : ""}{formatCurrency(Number(b.amount))}
                                 </TableCell>
                               </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </CardContent>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              );
+            })}
           </Card>
-        );
-      })}
+        </div>
+      ))}
     </div>
   );
 }
