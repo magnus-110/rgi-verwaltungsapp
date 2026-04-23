@@ -265,6 +265,8 @@ export function HeatingRebookingSection({ buildingId, periodId, fiscalYear }: He
 
       const rebookings = heatingAccounts
         .map((acc) => {
+          // Zielkonto darf sich nicht selbst umbuchen (sonst doppelte Zählung in der Abrechnung)
+          if (acc.id === targetAccountId) return null;
           const total = getAccountTotal(acc.id);
           if (total <= 0) return null;
           return {
