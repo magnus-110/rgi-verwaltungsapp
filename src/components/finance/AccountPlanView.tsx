@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,18 +12,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-
-const CATEGORY_LABELS: Record<string, string> = {
-  asset: "Aktiva",
-  liability: "Passiva",
-  equity: "Eigenkapital",
-  income: "Erträge",
-  expense: "Aufwendungen",
-  revenue: "Erträge",
-  expenses: "Aufwendungen",
-};
-
-const CATEGORY_ORDER = ["asset", "liability", "equity", "income", "revenue", "expense", "expenses"];
+import { useAccountAggregation, CATEGORY_LABELS } from "./lib/useAccountAggregation";
 
 interface Props {
   bookings: any[];
