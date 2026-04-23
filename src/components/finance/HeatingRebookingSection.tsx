@@ -524,7 +524,120 @@ export function HeatingRebookingSection({ buildingId, periodId, fiscalYear }: He
           </div>
         )}
 
-        {/* Heizkosten-Verteilungswerte pro Eigentümer */}
+        {/* ─── Strom-/Splitt-Buchungen vom Heizkostenkonto ─────────────────── */}
+        {existingRebookings.length > 0 && targetAccountId && (
+          <Card className="border-dashed">
+            <CardHeader className="py-3">
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div className="space-y-1">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Split className="h-4 w-4" /> Splitt vom Heizkostenkonto (z. B. Allgemeinstrom-Anteil)
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground max-w-xl">
+                    Falls Brunata einen Teil des Stromverbrauchs als Allgemeinstrom (nicht heizungsrelevant)
+                    ausweist, hier vom Heizkostenkonto auf z. B. <strong>1050 Allgemeinstrom</strong> umbuchen.
+                    Konto bleibt am Ende = Brunata-Gesamtsumme.
+                  </p>
+                </div>
+                <div className="text-right text-xs space-y-0.5 font-mono">
+                  <div className="text-muted-foreground">Vor Splitt: {formatCurrency(targetBalanceBeforeSplit)}</div>
+                  <div className="font-semibold">Nach Splitt: {formatCurrency(targetBalanceAfterSplit)}</div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0 space-y-2">
+              {splitRows.map((row, idx) => (
+                <div key={idx} className="flex items-end gap-2 flex-wrap">
+                  <div className="flex-1 min-w-[180px]">
+                    {idx === 0 && <Label className="text-xs">Zielkonto</Label>}
+                    <Select
+                      value={row.targetAccountId}
+                      onValueChange={(v) => updateSplitRow(idx, "targetAccountId", v)}
+                    >
+                      <SelectTrigger className="h-9">
+                        <SelectValue placeholder="Konto wählen..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {allAccounts
+                          .filter((a) => a.id !== targetAccountId)
+                          .map((a) => (
+                            <SelectItem key={a.id} value={a.id}>
+                              {a.account_number} — {a.account_name}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex-1 min-w-[200px]">
+                    {idx === 0 && <Label className="text-xs">Beschreibung</Label>}
+                    <Input
+                      className="h-9"
+                      value={row.description}
+                      onChange={(e) => updateSplitRow(idx, "description", e.target.value)}
+                      placeholder="z. B. Allgemeinstrom-Anteil lt. Brunata"
+                    />
+                  </div>
+                  <div className="w-[140px]">
+                    {idx === 0 && <Label className="text-xs">Betrag (€)</Label>}
+                    <Input
+                      className="h-9 text-right font-mono"
+                      type="text"
+                      inputMode="decimal"
+                      value={row.amount}
+                      onChange={(e) => updateSplitRow(idx, "amount", e.target.value)}
+                      placeholder="0,00"
+                    />
+                  </div>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    onClick={() => removeSplitRow(idx)}
+                    disabled={splitRows.length === 1}
+                    className="h-9 w-9"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+
+              <div className="flex items-center justify-between gap-2 pt-2">
+                <Button size="sm" variant="ghost" onClick={addSplitRow}>
+                  <Plus className="h-3 w-3 mr-1" /> Weitere Zeile
+                </Button>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-mono text-muted-foreground">
+                    Σ Splitt: {formatCurrency(splitSum)}
+                  </span>
+                  {existingSplits.length > 0 && (
+                    <Button size="sm" variant="outline" onClick={deleteSplits}>
+                      <Trash2 className="h-3 w-3 mr-1 text-destructive" /> Splitts löschen
+                    </Button>
+                  )}
+                  <Button size="sm" onClick={generateSplits} disabled={isSplitting || splitSum <= 0}>
+                    <RefreshCw className={`h-3 w-3 mr-1 ${isSplitting ? "animate-spin" : ""}`} />
+                    {existingSplits.length > 0 ? "Neu generieren" : "Splitt-Buchung(en) erstellen"}
+                  </Button>
+                </div>
+              </div>
+
+              {existingSplits.length > 0 && (
+                <div className="mt-3 rounded-md border bg-muted/30 p-2 text-xs space-y-1">
+                  <div className="font-medium text-foreground">Bestehende Splitt-Buchungen ({fiscalYear}):</div>
+                  {existingSplits.map((s: any) => (
+                    <div key={s.id} className="flex justify-between font-mono">
+                      <span>
+                        {s.source?.account_number} → {s.target?.account_number} {s.target?.account_name}
+                      </span>
+                      <span>{formatCurrency(Math.abs(Number(s.amount)))}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+
         {existingRebookings.length > 0 && ownerAssignments.length > 0 && (
           <Card className="border-dashed">
             <CardHeader className="py-3">
