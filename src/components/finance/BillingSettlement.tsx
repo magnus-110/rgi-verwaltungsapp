@@ -390,7 +390,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const isHeatingPrepayAccount = (a: any) => a.settlement_section === "heating_prepayment";
   const totalDistributable = accounts
     .filter((a) => a.is_distributable && !isAccrualBalanceAccount(a) && !isHeatingPrepayAccount(a))
-    .reduce((s, a) => s + getAccountBookingTotal(a.id), 0);
+    .reduce((s, a) => s + getAccountAbsTotal(a.id), 0);
 
   // Abrechnungssumme — HV-Office-konform:
   // Abgrenzungen (totalAccrual) sind jahresübergreifend und werden NICHT verteilt,
