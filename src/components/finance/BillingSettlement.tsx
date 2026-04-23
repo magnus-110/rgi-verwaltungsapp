@@ -13,6 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { BarChart3, ChevronDown, ChevronRight, Download, Users, PiggyBank, AlertTriangle, Check, FileText, Building2, Loader2, Search, Calculator, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { getEffectiveOpeningBalance, getEffectiveClosingBalance } from "./lib/bookingAggregation";
 
 interface BillingSettlementProps {
@@ -257,33 +258,36 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     return override?.distribution_key || defaultKey || "mea";
   };
 
-  // Bank-zentrische Buchhaltung: Beträge können auf account_id ODER counter_account_id liegen.
-  // Wir summieren beide Seiten und nehmen den Absolutwert (Anzeige als positive Kostensumme).
+  // Doppelte Buchführung — IDENTISCH zu useAccountAggregation / AccountPlanView,
+  // damit beide Ansichten zwingend dieselben Zahlen liefern.
   //
-  // Heizkosten-Repost-Logik (Umbuchung Vorauszahlungskonto → 1400):
-  //  - QUELLE (heating_prepayment, z. B. 1470/1472): Repost-Buchung NICHT mitzählen,
-  //    damit der Saldo des Vorauszahlungskontos sauber auf 0 läuft.
-  //  - ZIEL (z. B. 1400 Heizung): Repost-Buchung mit Absolutbetrag aufaddieren, damit
-  //    die umgebuchten Heizkostenbeträge in der Abrechnung erscheinen. Vorzeichen-Korrektur,
-  //    weil die Repost-Buchungen historisch invers gebucht wurden (account_id=Quelle).
-  const isHeatingPrepaySection = (id: string) =>
-    accounts.find((a) => a.id === id)?.settlement_section === "heating_prepayment";
-
-  const getAccountBookingTotal = (accountId: string) => {
-    const total = bookings
-      .filter((b) => b.account_id === accountId || (b as any).counter_account_id === accountId)
-      .reduce((s, b) => {
-        const amt = Number(b.amount) || 0;
-        if (b.booking_category === "heating_repost") {
-          if (isHeatingPrepaySection(accountId)) return s; // Quelle ignorieren
-          return s + Math.abs(amt); // Ziel: Absolutbetrag aufaddieren
-        }
-        if (b.account_id === accountId) return s + amt;
-        if ((b as any).counter_account_id === accountId) return s - amt;
-        return s;
-      }, 0);
-    return Math.abs(total);
+  //   account_id-Seite:         sign = booking_type === "income" ? +1 : -1
+  //   counter_account_id-Seite: booking_type wird gedreht, dann derselbe Vorzeichen-Mapper
+  //
+  // Konvention der Rückgabe: signiert.
+  //   - Aufwandskonten (1xxx): negativer Wert (z. B. Allgemeinstrom = -155,68)
+  //   - Ertragskonten:         positiver Wert
+  //   - Erstattungen / Umbuchungen wirken automatisch auf BEIDEN Konten korrekt
+  //     (z. B. Heizungsstrom-Repost: −167,51 auf 1050, +167,51 auf 1400) — KEIN Sonderpfad nötig.
+  const getAccountBookingTotal = (accountId: string): number => {
+    return bookings.reduce((s, b: any) => {
+      const amt = Number(b.amount) || 0;
+      if (b.account_id === accountId) {
+        const sign = b.booking_type === "income" ? 1 : -1;
+        return s + sign * amt;
+      }
+      if (b.counter_account_id === accountId) {
+        const flipped = b.booking_type === "income" ? "expense" : "income";
+        const sign = flipped === "income" ? 1 : -1;
+        return s + sign * amt;
+      }
+      return s;
+    }, 0);
   };
+
+  // Anzeigewert für klassische „Kostensumme" — Magnitude, ohne Vorzeichen.
+  // Wird für Verteilungsrechnung, Warnungen, Schwellwerte und Legacy-Aufrufer genutzt.
+  const getAccountAbsTotal = (accountId: string) => Math.abs(getAccountBookingTotal(accountId));
 
   const getWpAmount = (accountId: string) => {
     const item = wpItems.find((w: any) => w.account_id === accountId);
@@ -291,23 +295,29 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   };
 
   // Group accounts by settlement_section
-  const sectionAccounts: Record<string, Array<any & { total: number; wpAmount: number; distKey: string }>> = {};
+  // total = signiert (so kommt's aus der Aggregation), totalAbs = Magnitude für Verteilung/Anzeige
+  const sectionAccounts: Record<string, Array<any & { total: number; totalAbs: number; wpAmount: number; distKey: string }>> = {};
   accounts.forEach((acc) => {
     const section = acc.settlement_section;
     if (!section) return;
     const total = getAccountBookingTotal(acc.id);
-    if (total === 0 && section !== "reserve") return; // Show reserve even if 0
+    if (Math.abs(total) < 0.005 && section !== "reserve") return; // Show reserve even if 0
     if (!sectionAccounts[section]) sectionAccounts[section] = [];
     sectionAccounts[section].push({
       ...acc,
       total,
+      totalAbs: Math.abs(total),
       wpAmount: getWpAmount(acc.id),
       distKey: getDistKey(acc.id, acc.default_distribution_key),
     });
   });
 
-  // Calculate totals per section
+  // Calculate totals per section — Magnitude (für Abrechnungssumme & klassische Anzeige)
   const getSectionTotal = (section: string) =>
+    (sectionAccounts[section] || []).reduce((s, a) => s + a.totalAbs, 0);
+
+  // Signierte Sektionssumme (Income +, Expense -) — für Anzeige mit + / − Präfix
+  const getSectionSignedTotal = (section: string) =>
     (sectionAccounts[section] || []).reduce((s, a) => s + a.total, 0);
 
   const totalIncome = getSectionTotal("income");
@@ -381,7 +391,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const isHeatingPrepayAccount = (a: any) => a.settlement_section === "heating_prepayment";
   const totalDistributable = accounts
     .filter((a) => a.is_distributable && !isAccrualBalanceAccount(a) && !isHeatingPrepayAccount(a))
-    .reduce((s, a) => s + getAccountBookingTotal(a.id), 0);
+    .reduce((s, a) => s + getAccountAbsTotal(a.id), 0);
 
   // Abrechnungssumme — HV-Office-konform:
   // Abgrenzungen (totalAccrual) sind jahresübergreifend und werden NICHT verteilt,
@@ -480,7 +490,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       const isReserveAcc = acc.settlement_section === "reserve";
       const total = isReserveAcc && economicPlan?.total_reserve != null
         ? Number(economicPlan.total_reserve)
-        : getAccountBookingTotal(acc.id);
+        : getAccountAbsTotal(acc.id);
       if (total === 0) return;
 
       const distKey = getDistKey(acc.id, acc.default_distribution_key);
@@ -845,7 +855,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
             lines.push(row("1720", "Zuweisung Erhaltungsrücklage (lt. WP)", fmtNum(Number(economicPlan.total_reserve)), fmtNum(reserveFromBookings), fmtNum(totalReserve)));
           } else {
             accs.forEach((acc: any) => {
-              lines.push(row(acc.account_number, acc.account_name, acc.wpAmount > 0 ? fmtNum(acc.wpAmount) : "", fmtNum(acc.total), acc.is_distributable ? fmtNum(acc.total) : ""));
+              lines.push(row(acc.account_number, acc.account_name, acc.wpAmount > 0 ? fmtNum(acc.wpAmount) : "", fmtNum(acc.totalAbs), acc.is_distributable ? fmtNum(acc.totalAbs) : ""));
             });
           }
         }
@@ -864,18 +874,18 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       }
 
       accs.forEach((acc: any) => {
-        const amt = signFlip ? -acc.total : acc.total;
+        const amt = signFlip ? -acc.totalAbs : acc.totalAbs;
         lines.push(row(
           acc.account_number,
           acc.account_name,
           acc.wpAmount > 0 ? fmtNum(acc.wpAmount) : "",
           fmtNum(amt),
-          acc.is_distributable ? fmtNum(acc.total) : "",
+          acc.is_distributable ? fmtNum(acc.totalAbs) : "",
         ));
       });
-      const sum = accs.reduce((s: number, a: any) => s + a.total, 0);
+      const sum = accs.reduce((s: number, a: any) => s + a.totalAbs, 0);
       const sumWp = accs.reduce((s: number, a: any) => s + (a.wpAmount || 0), 0);
-      const sumDist = accs.filter((a: any) => a.is_distributable).reduce((s: number, a: any) => s + a.total, 0);
+      const sumDist = accs.filter((a: any) => a.is_distributable).reduce((s: number, a: any) => s + a.totalAbs, 0);
       lines.push(row("", "Zwischensumme", sumWp > 0 ? fmtNum(sumWp) : "", fmtNum(signFlip ? -sum : sum), sumDist > 0 ? fmtNum(sumDist) : ""));
       lines.push("");
     });
@@ -1102,10 +1112,27 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const renderSection = (section: string) => {
     const accs = sectionAccounts[section] || [];
     if (accs.length === 0 && section !== "reserve") return null;
-    const total = getSectionTotal(section);
+    const signedTotal = getSectionSignedTotal(section);
     const wpTotal = accs.reduce((s, a) => s + a.wpAmount, 0);
-    const distTotal = accs.filter(a => a.is_distributable).reduce((s, a) => s + a.total, 0);
+    // Verteilungsrelevante Summe nutzt Magnitude (Kostensumme zur Verteilung)
+    const distTotal = accs.filter(a => a.is_distributable).reduce((s, a) => s + a.totalAbs, 0);
     const isExpanded = expandedSections.has(section);
+    const isIncomeSection = section === "income";
+
+    // Anzeigewert pro Konto: signiert. Für Einnahmen-Sektion drehen wir das
+    // Vorzeichen, damit Erträge mit + erscheinen (intern liegen sie als +amount
+    // auf account_id mit booking_type=income, also bereits positiv —
+    // expense-Konten kommen entsprechend negativ).
+    const renderSigned = (n: number) => {
+      const v = Math.round(n * 100) / 100;
+      if (v === 0) return <span className="font-mono">{formatCurrency(0)}</span>;
+      const isPos = v > 0;
+      return (
+        <span className={cn("font-mono", isPos ? "text-emerald-600 dark:text-emerald-400" : "text-foreground")}>
+          {isPos ? "+" : "−"}{formatCurrency(Math.abs(v))}
+        </span>
+      );
+    };
 
     return (
       <Collapsible key={section} open={isExpanded} onOpenChange={() => toggleSection(section)}>
@@ -1115,10 +1142,12 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
             <span className="font-medium text-sm">{SECTION_LABELS[section] || section}</span>
             <Badge variant="outline" className="text-xs">{accs.length}</Badge>
           </div>
-          <div className="flex gap-4 text-sm font-mono">
-            {wpTotal > 0 && <span className="text-muted-foreground">{formatCurrency(wpTotal)}</span>}
-            <span className="font-medium">{formatCurrency(total)}</span>
-            {distTotal > 0 && distTotal !== total && <span className="text-muted-foreground">{formatCurrency(distTotal)}</span>}
+          <div className="flex gap-4 text-sm">
+            {wpTotal > 0 && <span className="font-mono text-muted-foreground">{formatCurrency(wpTotal)}</span>}
+            <span className="font-medium">{renderSigned(signedTotal)}</span>
+            {distTotal > 0 && Math.abs(distTotal - Math.abs(signedTotal)) > 0.005 && (
+              <span className="font-mono text-muted-foreground">{formatCurrency(distTotal)}</span>
+            )}
           </div>
         </CollapsibleTrigger>
         <CollapsibleContent>
@@ -1128,7 +1157,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                 <TableHead className="w-[80px]">Konto</TableHead>
                 <TableHead>Bezeichnung</TableHead>
                 <TableHead className="text-right w-[120px]">Wirtschaftsplan</TableHead>
-                <TableHead className="text-right w-[120px]">Einnahmen/Ausgaben</TableHead>
+                <TableHead className="text-right w-[140px]">Einnahme/Ausgabe</TableHead>
                 <TableHead className="text-right w-[120px]">Verteilungsrel.</TableHead>
               </TableRow>
             </TableHeader>
@@ -1140,9 +1169,9 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                   <TableCell className="text-right font-mono text-sm text-muted-foreground">
                     {acc.wpAmount > 0 ? formatCurrency(acc.wpAmount) : "–"}
                   </TableCell>
-                  <TableCell className="text-right font-mono text-sm">{formatCurrency(acc.total)}</TableCell>
+                  <TableCell className="text-right text-sm">{renderSigned(acc.total)}</TableCell>
                   <TableCell className="text-right font-mono text-sm">
-                    {acc.is_distributable ? formatCurrency(acc.total) : "–"}
+                    {acc.is_distributable ? formatCurrency(acc.totalAbs) : "–"}
                   </TableCell>
                 </TableRow>
               ))}
