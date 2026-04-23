@@ -1366,6 +1366,44 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
               </div>
             </div>
 
+            {/* Einnahmen-Hochrechnung (HV-Office-Stil) — Soll aus Stammdaten + Zinsen aus Buchungen */}
+            <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 space-y-1">
+              <div className="text-sm font-medium mb-1">Einnahmen (Soll-Hochrechnung)</div>
+              {hasReserveSplit ? (
+                <>
+                  <div className="flex justify-between text-sm">
+                    <span>Vorschüsse zur Kostendeckung</span>
+                    <span className="font-mono text-emerald-700 dark:text-emerald-400">+{formatCurrency(totalSollKostendeckung)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Vorschüsse auf Erhaltungsrücklage</span>
+                    <span className="font-mono text-emerald-700 dark:text-emerald-400">+{formatCurrency(totalSollEHR)}</span>
+                  </div>
+                </>
+              ) : (
+                <div className="flex justify-between text-sm">
+                  <span>Vorschüsse (Hausgeld lt. Stammdaten)</span>
+                  <span className="font-mono text-emerald-700 dark:text-emerald-400">+{formatCurrency(totalVorschuss)}</span>
+                </div>
+              )}
+              {incomeAccountTotals.interest > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span>Zinseinnahmen (lt. Buchungen)</span>
+                  <span className="font-mono text-emerald-700 dark:text-emerald-400">+{formatCurrency(incomeAccountTotals.interest)}</span>
+                </div>
+              )}
+              {incomeAccountTotals.other > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span>Sonstige Erträge (lt. Buchungen)</span>
+                  <span className="font-mono text-emerald-700 dark:text-emerald-400">+{formatCurrency(incomeAccountTotals.other)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm font-medium border-t border-emerald-200 dark:border-emerald-900 pt-1">
+                <span>Zwischensumme Einnahmen</span>
+                <span className="font-mono text-emerald-700 dark:text-emerald-400">+{formatCurrency(totalEinnahmen)}</span>
+              </div>
+            </div>
+
             {/* Sections */}
             {SECTION_ORDER.map(section => renderSection(section))}
 
