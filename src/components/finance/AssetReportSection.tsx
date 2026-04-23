@@ -47,10 +47,10 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear }: AssetRe
           .eq("fiscal_year", fiscalYear),
         supabase
           .from("fuel_inventory" as any)
-          .select("end_value_eur")
+          .select("fuel_type, entry_type, entry_date, quantity, unit, total_price, end_value_eur, notes")
           .eq("building_id", buildingId)
-          .eq("billing_period_id", periodId)
-          .maybeSingle(),
+          .or(`billing_period_id.eq.${periodId},billing_period_id.is.null`)
+          .order("entry_date"),
       ]);
       if (accErr) throw accErr;
       if (bkErr) throw bkErr;
@@ -60,7 +60,7 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear }: AssetRe
         accounts: accounts || [],
         bookings: bookings || [],
         balances: balances || [],
-        fuelValue: Number((fuelRes.data as any)?.end_value_eur ?? 0),
+        fuelEntries: (fuelRes.data as any[]) || [],
       };
     },
   });
@@ -68,7 +68,7 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear }: AssetRe
   const accounts = ctx?.accounts ?? [];
   const bookings = ctx?.bookings ?? [];
   const balances = ctx?.balances ?? [];
-  const fuelValue = ctx?.fuelValue ?? 0;
+  const fuelEntries = ctx?.fuelEntries ?? [];
 
   const opening4000 = accounts.find((a: any) => a.account_number === "4000");
   const opening4000Id = opening4000?.id || null;
