@@ -257,12 +257,23 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
 
   // Bank-zentrische Buchhaltung: Beträge können auf account_id ODER counter_account_id liegen.
   // Wir summieren beide Seiten und nehmen den Absolutwert (Anzeige als positive Kostensumme).
+  //
+  // Heizkosten-Repost-Logik: Bei einer Umbuchung 1470/1472 → 1400 darf die Repost-Buchung
+  // NUR für die Quellseite (Vorauszahlungskonto) ausgeschlossen werden, damit dort kein
+  // Restsaldo verbleibt. Für das Zielkonto 1400 muss sie voll mitzählen, sonst fehlen
+  // die umgebuchten Heizkostenbeträge in der Abrechnung.
+  const isHeatingPrepaySection = (id: string) =>
+    accounts.find((a) => a.id === id)?.settlement_section === "heating_prepayment";
+
   const getAccountBookingTotal = (accountId: string) => {
     const total = bookings
-      .filter((b) =>
-        (b.account_id === accountId || (b as any).counter_account_id === accountId) &&
-        b.booking_category !== "heating_repost"
-      )
+      .filter((b) => {
+        const touches = b.account_id === accountId || (b as any).counter_account_id === accountId;
+        if (!touches) return false;
+        // Repost ausschließen NUR wenn dieses Konto die Quelle (Vorauszahlungskonto) ist
+        if (b.booking_category === "heating_repost" && isHeatingPrepaySection(accountId)) return false;
+        return true;
+      })
       .reduce((s, b) => {
         const amt = Number(b.amount) || 0;
         if (b.account_id === accountId) return s + amt;
