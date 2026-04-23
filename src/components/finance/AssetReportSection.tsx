@@ -135,6 +135,44 @@ export function AssetReportSection({ buildingId, periodId, fiscalYear }: AssetRe
   const arapBalance = arapAcc ? Math.abs(sumForAccount(arapAcc.id, bookings as any)) : 0;
   const prapBalance = prapAcc ? Math.abs(sumForAccount(prapAcc.id, bookings as any)) : 0;
 
+  // Brennstoff-Aggregation pro Brennstoffart
+  const FUEL_LABELS: Record<string, { label: string; unit: string }> = {
+    oil: { label: "Heizöl", unit: "l" },
+    pellets: { label: "Pellets", unit: "kg" },
+    gas: { label: "Gas", unit: "kWh" },
+    district_heating: { label: "Fernwärme", unit: "kWh" },
+  };
+  const fuelByType: Record<string, {
+    label: string; unit: string;
+    openingQty: number; openingValue: number;
+    purchaseQty: number; purchaseValue: number;
+    closingQty: number; closingValue: number;
+  }> = {};
+  fuelEntries.forEach((e: any) => {
+    const ft = e.fuel_type;
+    if (!fuelByType[ft]) {
+      const meta = FUEL_LABELS[ft] || { label: ft, unit: e.unit || "" };
+      fuelByType[ft] = {
+        label: meta.label, unit: meta.unit,
+        openingQty: 0, openingValue: 0,
+        purchaseQty: 0, purchaseValue: 0,
+        closingQty: 0, closingValue: 0,
+      };
+    }
+    const slot = fuelByType[ft];
+    const qty = Number(e.quantity) || 0;
+    const val = Number(e.total_price ?? e.end_value_eur) || 0;
+    if (e.entry_type === "opening_balance") {
+      slot.openingQty += qty; slot.openingValue += val;
+    } else if (e.entry_type === "purchase") {
+      slot.purchaseQty += qty; slot.purchaseValue += val;
+    } else if (e.entry_type === "closing_balance") {
+      slot.closingQty += qty; slot.closingValue += val;
+    }
+  });
+  const fuelTypes = Object.keys(fuelByType);
+  const fuelValue = fuelTypes.reduce((s, ft) => s + fuelByType[ft].closingValue, 0);
+
   const bankTotal = bankAccounts.reduce((s, a) => s + a.closing_balance, 0);
   const reserveTotal = reserveAccounts.reduce((s, a) => s + a.closing_balance, 0);
   const accrualTotal = accrualAccounts.reduce((s, a) => s + a.closing_balance, 0);
