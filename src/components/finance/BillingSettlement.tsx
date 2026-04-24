@@ -9,9 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { BarChart3, ChevronDown, ChevronRight, Download, Users, PiggyBank, AlertTriangle, Check, FileText, Building2, Loader2, Search, Calculator, Sparkles } from "lucide-react";
+import { BarChart3, ChevronDown, ChevronRight, Users, PiggyBank, AlertTriangle, Check, FileText, Building2, Loader2, Search, Calculator, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { getEffectiveOpeningBalance, getEffectiveClosingBalance } from "./lib/bookingAggregation";
@@ -56,7 +55,7 @@ const SECTION_ORDER = ["income", "operating_distributable", "operating_non_distr
 export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingSettlementProps) {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("total");
-  const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [generatingDocx, setGeneratingDocx] = useState(false);
   const [selectedOwner, setSelectedOwner] = useState<string | null>(null);
   const [ownerSearch, setOwnerSearch] = useState("");
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(SECTION_ORDER));
@@ -724,44 +723,42 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     });
   };
 
-  // PDF generation — öffnet HTML als Blob in neuem Tab (umgeht Storage-MIME-Probleme)
-  const openHtmlInNewTab = (html: string) => {
-    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const win = window.open(url, "_blank");
-    if (!win) {
-      toast.error("Popup blockiert — bitte Popups erlauben");
-      return;
-    }
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
-  };
+  // ============================================================
+  //  DOCX-Export — generiert über Edge Function `generate-billing-docx`
+  //  Liefert Base64; wir bauen daraus einen Blob und triggern Download.
+  // ============================================================
+  const sanitizeFilename = (s: string) =>
+    s.replace(/[^a-zA-Z0-9äöüÄÖÜß_\-]+/g, "_").replace(/^_+|_+$/g, "");
 
-  const generatePdfs = async () => {
-    setGeneratingPdf(true);
+  const downloadDocx = async (ownerId?: string, ownerName?: string) => {
+    setGeneratingDocx(true);
     try {
-      const { data, error } = await supabase.functions.invoke("generate-billing-pdf", {
-        body: { buildingId, periodId, fiscalYear },
-      });
-      if (error) throw error;
-      if (data?.html) { openHtmlInNewTab(data.html); toast.success("Abrechnung erstellt — Strg+P für PDF-Druck"); }
-      else if (data?.url) { window.open(data.url, "_blank"); toast.success("Abrechnung erstellt"); }
-    } catch (e: any) {
-      toast.error("Fehler: " + (e.message || "Unbekannt"));
-    } finally { setGeneratingPdf(false); }
-  };
-
-  const generateOwnerPdf = async (ownerId: string, ownerName: string) => {
-    setGeneratingPdf(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("generate-billing-pdf", {
+      const { data, error } = await supabase.functions.invoke("generate-billing-docx", {
         body: { buildingId, periodId, fiscalYear, ownerId },
       });
       if (error) throw error;
-      if (data?.html) { openHtmlInNewTab(data.html); toast.success(`Abrechnung für ${ownerName} — Strg+P für PDF-Druck`); }
-      else if (data?.url) { window.open(data.url, "_blank"); toast.success(`Abrechnung für ${ownerName} erstellt`); }
+      if (!data?.docx) throw new Error("Keine DOCX-Daten erhalten");
+
+      const binary = atob(data.docx);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const blob = new Blob([bytes], {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = data.filename || (ownerId
+        ? `Einzelabrechnung_${sanitizeFilename(ownerName || "Eigentuemer")}_${fiscalYear}.docx`
+        : `WEG_Jahresabrechnung_${fiscalYear}.docx`);
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(ownerId ? `DOCX für ${ownerName} heruntergeladen` : "Gesamtabrechnung als DOCX heruntergeladen");
     } catch (e: any) {
-      toast.error("Fehler: " + (e.message || "Unbekannt"));
-    } finally { setGeneratingPdf(false); }
+      toast.error("Fehler beim DOCX-Export: " + (e.message || "Unbekannt"));
+    } finally {
+      setGeneratingDocx(false);
+    }
   };
 
   // ============================================================
@@ -843,270 +840,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   })();
 
 
-  //  HV-Office-konformer CSV-Export (Gesamt + Einzelabrechnungen)
-  // ============================================================
 
-  // Deutsches Zahlenformat ohne Tausenderpunkt für CSV-Felder (Excel-DE-kompatibel)
-  const fmtNum = (n: number) =>
-    (Math.round(n * 100) / 100).toFixed(2).replace(".", ",");
-  const fmtShare = (n: number) =>
-    n === 0 ? "" : new Intl.NumberFormat("de-DE", { maximumFractionDigits: 3 }).format(n);
-  // CSV-sicher: Semikolons / Anführungszeichen / Zeilenumbrüche escapen
-  const csvCell = (v: string | number | null | undefined): string => {
-    if (v === null || v === undefined) return "";
-    const s = String(v);
-    if (/[;"\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-    return s;
-  };
-  const row = (...cells: (string | number | null | undefined)[]) =>
-    cells.map(csvCell).join(";");
-
-  const buildHeaderLines = (subtitle?: string): string[] => {
-    const today = new Date().toLocaleDateString("de-DE");
-    const lines = [
-      row(`WEG ${building?.name || ""}`),
-      row(`Adresse: ${building?.address || ""}`),
-      row(`Jahresabrechnung ${fiscalYear}`),
-      row(
-        `Abrechnungszeitraum: ${period?.period_from ? new Date(period.period_from).toLocaleDateString("de-DE") : "–"} – ${period?.period_to ? new Date(period.period_to).toLocaleDateString("de-DE") : "–"}`,
-      ),
-      row(`Erstellt am: ${today}`),
-    ];
-    if (subtitle) lines.push(row(subtitle));
-    lines.push("");
-    // Warnblock bei fehlenden Verteilerschlüsseln
-    if (distributionWarnings.length > 0) {
-      lines.push(row("WARNUNG", "Folgende Konten konnten nicht verteilt werden:"));
-      distributionWarnings.forEach((w) => {
-        lines.push(row("", `${w.accountNumber} ${w.accountName}`, fmtNum(w.amount), w.reason));
-      });
-      lines.push("");
-    }
-    return lines;
-  };
-
-  // ===== Gesamtabrechnung (5-Spalten) =====
-  // Spalten: Konto | Bezeichnung | Wirtschaftsplan | Einnahmen-/Ausgabenrechnung | Verteilungsrelevant
-  const buildOverallCsvLines = (): string[] => {
-    const lines: string[] = [];
-    lines.push(...buildHeaderLines("Gesamtabrechnung"));
-
-    // Spaltenkopf
-    lines.push(row("Konto", "Bezeichnung", "Wirtschaftsplan", "Einnahmen/Ausgaben", "Verteilungsrelevant"));
-    lines.push("");
-
-    // 1) Geld- und Bestandskonten — Anfangsbestände
-    lines.push(row("", "GELD- UND BESTANDSKONTEN (Anfangsbestände)", "", "", ""));
-    carryAccounts.forEach((acc: any) => {
-      const op = openingByAccount[acc.id] || 0;
-      if (op === 0) return;
-      lines.push(row(acc.account_number, acc.account_name, "", fmtNum(op), ""));
-    });
-    lines.push(row("", "Summe Anfangsbestände", "", fmtNum(openingTotal), ""));
-    lines.push("");
-
-    // Sektionen mit fester Reihenfolge
-    const sectionConfig: Array<{ key: string; label: string; signFlip?: boolean }> = [
-      { key: "income", label: "EINNAHMEN", signFlip: true },
-      { key: "operating_distributable", label: "AUSGABEN — UMLAGEFÄHIGE BETRÄGE" },
-      { key: "operating_non_distributable", label: "AUSGABEN — NICHT UMLAGEFÄHIGE BETRÄGE" },
-      { key: "accrual", label: "ABGRENZUNGEN / SOLLSTELLUNGEN" },
-      { key: "reserve", label: "ZUWEISUNG / ENTNAHME RÜCKLAGE" },
-    ];
-
-    sectionConfig.forEach(({ key, label, signFlip }) => {
-      const accs = sectionAccounts[key] || [];
-      if (accs.length === 0 && key !== "reserve") return;
-      lines.push(row("", label, "", "", ""));
-
-      // Reserve special: ggf. WP-Wert priorisieren
-      if (key === "reserve") {
-        if (totalReserve > 0) {
-          // Wenn Wirtschaftsplan vorliegt, eine planbasierte Zeile zeigen,
-          // sonst die Buchungen.
-          if (economicPlan?.total_reserve != null && Number(economicPlan.total_reserve) !== 0) {
-            lines.push(row("1720", "Zuweisung Erhaltungsrücklage (lt. WP)", fmtNum(Number(economicPlan.total_reserve)), fmtNum(reserveFromBookings), fmtNum(totalReserve)));
-          } else {
-            accs.forEach((acc: any) => {
-              lines.push(row(acc.account_number, acc.account_name, acc.wpAmount > 0 ? fmtNum(acc.wpAmount) : "", fmtNum(acc.totalAbs), acc.is_distributable ? fmtNum(acc.totalAbs) : ""));
-            });
-          }
-        }
-        // Entnahme aus Rücklage (1920 etc.)
-        if (totalReserveWithdrawal > 0) {
-          reserveFundedAccounts.forEach((acc: any) => {
-            const t = Math.abs(getAccountBookingTotal(acc.id));
-            if (t === 0) return;
-            lines.push(row(acc.account_number, `Entnahme: ${acc.account_name}`, "", `-${fmtNum(t)}`, ""));
-          });
-        }
-        const reserveNet = totalReserve - totalReserveWithdrawal;
-        lines.push(row("", "Zwischensumme Rücklage", "", fmtNum(reserveNet), ""));
-        lines.push("");
-        return;
-      }
-
-      accs.forEach((acc: any) => {
-        const amt = signFlip ? -acc.totalAbs : acc.totalAbs;
-        lines.push(row(
-          acc.account_number,
-          acc.account_name,
-          acc.wpAmount > 0 ? fmtNum(acc.wpAmount) : "",
-          fmtNum(amt),
-          acc.is_distributable ? fmtNum(acc.totalAbs) : "",
-        ));
-      });
-      const sum = accs.reduce((s: number, a: any) => s + a.totalAbs, 0);
-      const sumWp = accs.reduce((s: number, a: any) => s + (a.wpAmount || 0), 0);
-      const sumDist = accs.filter((a: any) => a.is_distributable).reduce((s: number, a: any) => s + a.totalAbs, 0);
-      lines.push(row("", "Zwischensumme", sumWp > 0 ? fmtNum(sumWp) : "", fmtNum(signFlip ? -sum : sum), sumDist > 0 ? fmtNum(sumDist) : ""));
-      lines.push("");
-    });
-
-    // Wirtschaftsplansumme / Abrechnungssumme
-    const wpTotal = (wpItems || []).reduce((s: number, w: any) => s + Number(w.planned_amount || 0), 0);
-    lines.push(row("", "WIRTSCHAFTSPLANSUMME / ABRECHNUNGSSUMME", wpTotal > 0 ? fmtNum(wpTotal) : "", fmtNum(abrechnungssumme), fmtNum(totalDistributable)));
-    lines.push("");
-
-    // Vorschussverpflichtung & Abrechnungsspitze
-    lines.push(row("", "Vorschussverpflichtung gem. Wirtschaftsplan", "", fmtNum(totalVorschuss), ""));
-    lines.push(row("", `Abrechnungsspitze (${abrechnungsspitze >= 0 ? "Guthaben WEG" : "Nachzahlung WEG"})`, "", fmtNum(abrechnungsspitze), ""));
-    lines.push("");
-
-    // Endbestände
-    lines.push(row("", "KONTROLLE ENDBESTÄNDE", "", "", ""));
-    carryAccounts.forEach((acc: any) => {
-      const cl = getClosing(acc);
-      if (cl === 0 && (openingByAccount[acc.id] || 0) === 0) return;
-      lines.push(row(acc.account_number, acc.account_name, "", fmtNum(cl), ""));
-    });
-    lines.push(row("", "Summe Endbestände", "", fmtNum(closingTotal), ""));
-
-    return lines;
-  };
-
-  // ===== Einzelabrechnung pro Eigentümer (7-Spalten) =====
-  const buildOwnerCsvLines = (owner: ReturnType<typeof computeOwnerResult>): string[] => {
-    const lines: string[] = [];
-    lines.push(...buildHeaderLines(`Einzelabrechnung — Einheit ${owner.unitNumber} · Eigentümer: ${owner.name}`));
-
-    lines.push(row(
-      "Konto", "Bezeichnung", "Verteilungsrelevant Ges.",
-      "Verteiler", "Gesamt-Anteil", "Ihr Anteil", "Ihre Kosten",
-    ));
-    lines.push("");
-
-    // Gruppieren nach Sektion
-    const accBySection = (sec: string) => owner.accountBreakdown.filter((r) => {
-      const acc = accounts.find((a) => a.account_number === r.accountNumber);
-      return acc?.settlement_section === sec;
-    });
-
-    const groupConfig: Array<{ key: string; label: string }> = [
-      { key: "operating_distributable", label: "UMLAGEFÄHIGE BEWIRTSCHAFTUNGSKOSTEN" },
-      { key: "operating_non_distributable", label: "NICHT UMLAGEFÄHIGE KOSTEN" },
-      { key: "reserve", label: "ZUFÜHRUNG INSTANDHALTUNGSRÜCKLAGE" },
-    ];
-
-    groupConfig.forEach(({ key, label }) => {
-      const rows = accBySection(key);
-      if (rows.length === 0) return;
-      lines.push(row("", label, "", "", "", "", ""));
-      rows.forEach((r) => {
-        lines.push(row(
-          r.accountNumber, r.accountName,
-          fmtNum(r.distributableAmount),
-          r.distKey,
-          fmtShare(r.totalShares),
-          fmtShare(r.ownerShare),
-          fmtNum(r.ownerCost),
-        ));
-      });
-      const subtotalGes = rows.reduce((s, r) => s + r.distributableAmount, 0);
-      const subtotalOwn = rows.reduce((s, r) => s + r.ownerCost, 0);
-      lines.push(row("", "Zwischensumme", fmtNum(subtotalGes), "", "", "", fmtNum(subtotalOwn)));
-      lines.push("");
-    });
-
-    // Schlussblock
-    lines.push(row("", "ABRECHNUNGSSUMME", "", "", "", "", fmtNum(owner.totalOwnerCost)));
-    lines.push(row("", "Vorschussverpflichtung gem. Wirtschaftsplan", "", "", "", "", fmtNum(owner.totalPaid)));
-    const spitze = owner.totalPaid - owner.totalOwnerCost;
-    lines.push(row("", `Abrechnungsspitze (${spitze >= 0 ? "Guthaben" : "Nachzahlung"})`, "", "", "", "", fmtNum(spitze)));
-    lines.push("");
-
-    // §35a-Bescheinigung
-    if (owner.owner35aDienste > 0 || owner.owner35aHandwerker > 0) {
-      lines.push(row("", "§35a EStG BESCHEINIGUNG", "", "", "", "", ""));
-      if (owner.owner35aDienste > 0) {
-        lines.push(row("", "Haushaltsnahe Dienstleistungen (20% bis 4.000 €)", "", "", "", "", fmtNum(owner.owner35aDienste)));
-      }
-      if (owner.owner35aHandwerker > 0) {
-        lines.push(row("", "Handwerkerleistungen (20% bis 1.200 €)", "", "", "", "", fmtNum(owner.owner35aHandwerker)));
-      }
-      const bonus = Math.min(owner.owner35aDienste * 0.2, 4000) + Math.min(owner.owner35aHandwerker * 0.2, 1200);
-      lines.push(row("", "Steuerbonus gesamt", "", "", "", "", fmtNum(bonus)));
-    }
-
-    return lines;
-  };
-
-  const sanitizeFilename = (s: string) =>
-    s.replace(/[^a-zA-Z0-9äöüÄÖÜß_\-]+/g, "_").replace(/^_+|_+$/g, "");
-
-  const downloadCsvBlob = (content: string, filename: string) => {
-    const blob = new Blob(["\uFEFF" + content], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const exportOverallCsv = () => {
-    const content = buildOverallCsvLines().join("\n");
-    const fname = `Abrechnung_Gesamt_${sanitizeFilename(building?.building_code || building?.name || "WEG")}_${fiscalYear}.csv`;
-    downloadCsvBlob(content, fname);
-    toast.success("Gesamtabrechnung als CSV exportiert");
-  };
-
-  const exportSingleOwnerCsv = (owner: ReturnType<typeof computeOwnerResult>) => {
-    const content = buildOwnerCsvLines(owner).join("\n");
-    const fname = `Einzelabrechnung_${sanitizeFilename(`Einheit-${owner.unitNumber}_${owner.name}`)}_${fiscalYear}.csv`;
-    downloadCsvBlob(content, fname);
-    toast.success(`CSV für ${owner.name} exportiert`);
-  };
-
-  const exportAllOwnersZip = async () => {
-    if (ownerResults.length === 0) {
-      toast.warning("Keine Eigentümer vorhanden");
-      return;
-    }
-    try {
-      const JSZip = (await import("jszip")).default;
-      const zip = new JSZip();
-      // Gesamtabrechnung mit reinpacken
-      zip.file(
-        `Abrechnung_Gesamt_${fiscalYear}.csv`,
-        "\uFEFF" + buildOverallCsvLines().join("\n"),
-      );
-      ownerResults.forEach((o) => {
-        const fname = `Einzelabrechnung_${sanitizeFilename(`Einheit-${o.unitNumber}_${o.name}`)}_${fiscalYear}.csv`;
-        zip.file(fname, "\uFEFF" + buildOwnerCsvLines(o).join("\n"));
-      });
-      const blob = await zip.generateAsync({ type: "blob" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `Abrechnung_${sanitizeFilename(building?.building_code || building?.name || "WEG")}_${fiscalYear}.zip`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success(`ZIP mit ${ownerResults.length + 1} CSVs exportiert`);
-    } catch (e: any) {
-      toast.error("Fehler beim ZIP-Export: " + (e.message || "Unbekannt"));
-    }
-  };
 
   // --- Closing balance calculation ---
   // Nutzt den Helper (Anfangsbestand aus 4000-Buchung oder manuell + alle Bewegungen);
@@ -1277,39 +1011,10 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
             {generatingAiSummary ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
             KI-Zusammenfassung
           </Button>
-          <Button size="sm" variant="outline" onClick={generatePdfs} disabled={generatingPdf || ownerResults.length === 0}>
-            {generatingPdf ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />}
-            Alle PDFs
+          <Button size="sm" variant="outline" onClick={() => downloadDocx()} disabled={generatingDocx}>
+            {generatingDocx ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />}
+            DOCX Gesamtabrechnung
           </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="outline" disabled={ownerResults.length === 0}>
-                <Download className="h-4 w-4 mr-1" /> CSV <ChevronDown className="h-3 w-3 ml-1" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64 max-h-[400px] overflow-y-auto bg-popover">
-              <DropdownMenuItem onClick={exportOverallCsv}>
-                <FileText className="h-4 w-4 mr-2" /> Gesamtabrechnung
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={exportAllOwnersZip}>
-                <Download className="h-4 w-4 mr-2" /> Alle Einzelabrechnungen (ZIP)
-              </DropdownMenuItem>
-              {ownerResults.length > 0 && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-xs text-muted-foreground">
-                    Einzelne Eigentümer
-                  </DropdownMenuLabel>
-                  {ownerResults.map((o) => (
-                    <DropdownMenuItem key={o.assignmentId} onClick={() => exportSingleOwnerCsv(o)}>
-                      <Users className="h-4 w-4 mr-2" />
-                      <span className="truncate">Einheit {o.unitNumber} — {o.name}</span>
-                    </DropdownMenuItem>
-                  ))}
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
             </div>
       </CardHeader>
       <CardContent>
@@ -1487,8 +1192,8 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                     </Button>
                     <h3 className="text-lg font-semibold">{selectedOwnerData.name} — Einheit {selectedOwnerData.unitNumber}</h3>
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => generateOwnerPdf(selectedOwnerData.assignmentId, selectedOwnerData.name)} disabled={generatingPdf}>
-                    <FileText className="h-4 w-4 mr-1" /> PDF
+                  <Button size="sm" variant="outline" onClick={() => downloadDocx(selectedOwnerData.assignmentId, selectedOwnerData.name)} disabled={generatingDocx}>
+                    {generatingDocx ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <FileText className="h-4 w-4 mr-1" />} DOCX
                   </Button>
                 </div>
 
@@ -1664,8 +1369,8 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                           </TableCell>
                           <TableCell>
                             <Button size="sm" variant="ghost" className="h-7 px-2"
-                              onClick={(e) => { e.stopPropagation(); generateOwnerPdf(owner.assignmentId, owner.name); }}
-                              disabled={generatingPdf}>
+                              onClick={(e) => { e.stopPropagation(); downloadDocx(owner.assignmentId, owner.name); }}
+                              disabled={generatingDocx} title="DOCX herunterladen">
                               <FileText className="h-3.5 w-3.5" />
                             </Button>
                           </TableCell>
