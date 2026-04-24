@@ -114,6 +114,7 @@ const App = () => (
               <Route path="/postfach" element={<AdminLayout><Inbox /></AdminLayout>} />
               <Route path="/versammlungen" element={<AdminLayout><Meetings /></AdminLayout>} />
               <Route path="/ueberweisungen" element={<AdminLayout><Transfers /></AdminLayout>} />
+              <Route path="/prozesse" element={<AdminLayout><Processes /></AdminLayout>} />
               
               {/* Legacy admin routes for compatibility */}
               <Route path="/admin" element={<AdminLayout><Dashboard /></AdminLayout>} />
