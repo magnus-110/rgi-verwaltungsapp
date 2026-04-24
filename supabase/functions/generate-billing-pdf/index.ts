@@ -288,6 +288,63 @@ serve(async (req) => {
     const totalIncome = sections.find((s) => s.id === "income")?.total || 0;
     const totalExpenses = sections.filter((s) => s.id !== "income").reduce((s, sec) => s + sec.total, 0);
 
+    // ─── EINNAHMEN-HOCHRECHNUNG (Soll laut Stammdaten) — HV-Office-konform ───
+    // Hausgeld-Anteile aus contact_building_costs, getrennt nach Kostendeckung vs. EHR-Anteil
+    // (reserve_share_monthly). Falls kein EHR-Anteil hinterlegt, wird nicht aufgeteilt.
+    const periodStartMs0 = new Date(period.period_from).getTime();
+    const periodEndMs0 = new Date(period.period_to).getTime();
+    const calcCostAnnual = (cost: any, timeProp: number) => {
+      const amount = Number(cost.amount) || 0;
+      let perDay = 0;
+      switch (cost.interval) {
+        case "monatlich": perDay = (amount * 12) / 365; break;
+        case "quartal": perDay = (amount * 4) / 365; break;
+        case "jaehrlich": perDay = amount / 365; break;
+        default: perDay = (amount * 12) / 365; break;
+      }
+      const eStart = cost.valid_from ? new Date(cost.valid_from).getTime() : periodStartMs0;
+      const eEnd = cost.valid_to ? new Date(cost.valid_to).getTime() : periodEndMs0;
+      const effStart = Math.max(periodStartMs0, eStart);
+      const effEnd = Math.min(periodEndMs0, eEnd);
+      const days = Math.max(0, (effEnd - effStart) / 86400000 + 1);
+      return perDay * days * timeProp;
+    };
+    let totalSollKostendeckung = 0;
+    let totalSollEHR = 0;
+    (assignments || []).forEach((a: any) => {
+      const tp = getTimeProportion(a);
+      (a.contact_building_costs || []).forEach((c: any) => {
+        const ct = (c.cost_type || "").toLowerCase();
+        const annual = calcCostAnnual(c, tp);
+        if (["hausgeld", "nebenkosten"].includes(ct)) {
+          const reserveShareMonthly = Number(c.reserve_share_monthly) || 0;
+          if (reserveShareMonthly > 0 && c.interval === "monatlich") {
+            const fullMonthly = Number(c.amount) || 0;
+            const ratio = fullMonthly > 0 ? Math.min(reserveShareMonthly / fullMonthly, 1) : 0;
+            totalSollEHR += annual * ratio;
+            totalSollKostendeckung += annual * (1 - ratio);
+          } else {
+            totalSollKostendeckung += annual;
+          }
+        } else if (ct === "ruecklage") {
+          totalSollEHR += annual;
+        } else {
+          totalSollKostendeckung += annual;
+        }
+      });
+    });
+    const hasReserveSplit = totalSollEHR > 0.005;
+    const totalSollVorschuss = totalSollKostendeckung + totalSollEHR;
+    // Zinseinnahmen aus Income-Sektion (Kontonummer 184x)
+    const incomeAccs = sections.find((s) => s.id === "income")?.accounts || [];
+    const interestIncome = incomeAccs
+      .filter((a: any) => String(a.account_number || "").startsWith("184"))
+      .reduce((s: number, a: any) => s + a.absTotal, 0);
+    const otherIncome = incomeAccs
+      .filter((a: any) => !String(a.account_number || "").startsWith("184"))
+      .reduce((s: number, a: any) => s + a.absTotal, 0);
+    const totalEinnahmenSoll = totalSollVorschuss + interestIncome + otherIncome;
+
     const personalAccounts = allAccounts.filter(
       (a: any) => PERSONAL_ACCOUNT_PATTERN.test(a.account_number) && a.account_number !== "0000",
     );
