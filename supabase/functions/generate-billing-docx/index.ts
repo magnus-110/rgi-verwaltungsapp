@@ -821,15 +821,26 @@ function buildGesamtabrechnung(data: any, kiTexts: any): (Paragraph | Table)[] {
     if (!sec) return;
     expRows.push(sectionHeaderRow(sec.label, 5));
     sec.accounts.forEach((acc: any) => {
-      totalIst += acc.absTotal;
-      totalPlan += acc.wpAmount;
-      if (acc.is_distributable) totalDistributable += acc.absTotal;
+      // Abgrenzungen werden SIGNIERT angezeigt (kann positiv oder negativ sein),
+      // alle anderen Ausgaben als Magnitude. Nicht in totalIst aufnehmen für Abgrenzungen
+      // (sie sind nachrichtlich, nicht in Spitze).
+      const isAccrual = secId === "accrual";
+      const displayAmount = isAccrual ? acc.total : acc.absTotal;
+      const displayStr = isAccrual && acc.total !== 0
+        ? (acc.total >= 0 ? "+" : "−") + " " + fmt(Math.abs(acc.total))
+        : fmt(acc.absTotal);
+      if (!isAccrual) {
+        totalIst += acc.absTotal;
+        totalPlan += acc.wpAmount;
+        if (acc.is_distributable) totalDistributable += acc.absTotal;
+      }
       expRows.push(new TableRow({ children: [
         dataCell(acc.account_number, expWidths[0]),
         dataCell(acc.account_name, expWidths[1]),
         dataCell(acc.wpAmount > 0 ? fmt(acc.wpAmount) : "–", expWidths[2], { align: AlignmentType.RIGHT }),
-        dataCell(fmt(acc.absTotal), expWidths[3], { align: AlignmentType.RIGHT }),
-        dataCell(acc.is_distributable ? fmt(acc.absTotal) : "–", expWidths[4], { align: AlignmentType.RIGHT }),
+        dataCell(displayStr, expWidths[3], { align: AlignmentType.RIGHT,
+          color: isAccrual && acc.total < 0 ? RED_TEXT : (isAccrual && acc.total > 0 ? GREEN_TEXT : DARK) }),
+        dataCell(isAccrual ? "–" : (acc.is_distributable ? fmt(acc.absTotal) : "–"), expWidths[4], { align: AlignmentType.RIGHT }),
       ]}));
     });
     if (secId === "reserve" && data.totalReserveWithdrawal > 0) {
