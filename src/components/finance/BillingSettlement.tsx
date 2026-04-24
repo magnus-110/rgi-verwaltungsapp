@@ -596,7 +596,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
       // erscheinen ZUSÄTZLICH im Rücklagen-Block mit umgekehrtem Vorzeichen
       // (= Gegenbuchung "aus Rücklage finanziert" — neutralisiert die Belastung
       //   des Eigentümers, da die Reparatur ja aus angesparten Mitteln bezahlt wurde).
-      if (acc.reserve_role === "withdrawal" && ownerCost !== 0) {
+      if (isReserveWithdrawalAccount(acc) && ownerCost !== 0) {
         accountBreakdown.push({
           accountNumber: acc.account_number,
           accountName: acc.account_name,
