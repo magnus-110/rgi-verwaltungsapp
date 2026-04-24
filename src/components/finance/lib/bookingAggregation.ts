@@ -39,6 +39,49 @@ export function sumForAccount(accountId: string, bookings: BookingLike[]): numbe
 }
 
 /**
+ * Booking-type-aware Aggregation — Single Source of Truth für Abrechnungs-/
+ * Sektionssummen. Wird von BillingSettlement (UI) UND generate-billing-docx
+ * (Edge Function via _shared/booking-aggregation.ts) genutzt, damit beide
+ * Ansichten zwingend dieselben Zahlen liefern.
+ *
+ *   account_id-Seite:         sign = booking_type === "income" ? +1 : -1
+ *   counter_account_id-Seite: booking_type wird gedreht, dann derselbe Mapper
+ *
+ * Rückgabe ist signiert:
+ *   - Aufwandskonten (1xxx) → negativ
+ *   - Ertragskonten        → positiv
+ * Für Magnitude (klassische Kostensumme) → Math.abs(...) verwenden.
+ *
+ * Erstattungen / Reposts wirken automatisch korrekt auf BEIDEN Konten.
+ *
+ * Hinweis: `sumForAccount` bleibt für Bilanz-/Saldenrechnungen (Bank, Rücklage,
+ * Eröffnungsbestände, Personenkonto-Hausgeld) zuständig.
+ */
+export interface BookingWithType extends BookingLike {
+  booking_type?: string | null;
+}
+
+export function signedTotalForAccount(
+  accountId: string,
+  bookings: BookingWithType[],
+): number {
+  if (!accountId || !bookings?.length) return 0;
+  return bookings.reduce((s, b) => {
+    const amt = Number(b.amount) || 0;
+    if (b.account_id === accountId) {
+      const sign = b.booking_type === "income" ? 1 : -1;
+      return s + sign * amt;
+    }
+    if (b.counter_account_id === accountId) {
+      const flipped = b.booking_type === "income" ? "expense" : "income";
+      const sign = flipped === "income" ? 1 : -1;
+      return s + sign * amt;
+    }
+    return s;
+  }, 0);
+}
+
+/**
  * Filtert alle Buchungen, die ein bestimmtes Konto berühren (Haupt oder Gegen).
  */
 export function bookingsTouchingAccount<T extends BookingLike>(
