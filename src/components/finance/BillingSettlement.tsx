@@ -330,7 +330,9 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   const totalReserve = economicPlan?.total_reserve != null ? Number(economicPlan.total_reserve) : reserveFromBookings;
   // Bug 4 fix: rücklagenfinanzierte Aufwandskonten via Flag erkennen (z. B. Konto 1920),
   // statt fragiler reserve_withdrawal-Section. Skaliert auf zukünftige Konten (z. B. 1921).
-  const reserveFundedAccounts = accounts.filter((a: any) => a.is_reserve_funded);
+  // Erkennung: reserve_role='withdrawal' (neu, generisch) ODER is_reserve_funded (Legacy).
+  const isReserveWithdrawalAccount = (a: any) => a.reserve_role === "withdrawal" || a.is_reserve_funded === true;
+  const reserveFundedAccounts = accounts.filter(isReserveWithdrawalAccount);
   const totalReserveWithdrawal = reserveFundedAccounts.reduce(
     (s, a: any) => s + Math.abs(getAccountBookingTotal(a.id)),
     0,
