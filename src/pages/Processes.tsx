@@ -40,7 +40,7 @@ interface Instance {
   started_at: string;
   completed_at: string | null;
   buildings?: { name: string } | null;
-  contacts?: { name: string } | null;
+  contacts?: { short_name: string | null; first_name: string | null; last_name: string | null; company_name: string | null } | null;
   process_instance_steps?: { id: string; is_completed: boolean }[];
 }
 interface InstanceStep {
