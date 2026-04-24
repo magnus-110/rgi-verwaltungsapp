@@ -620,28 +620,63 @@ Aus Rücklage entnommen: ${fmt(data.totalReserveWithdrawal)}`,
     ? [data.ownerResults.find((o: any) => o.assignmentId === ownerId)].filter(Boolean)
     : data.ownerResults;
 
+  const STRICT_RULES = `STRENGE REGELN:
+- Verwende AUSSCHLIESSLICH die unten genannten Zahlen — niemals andere erfinden, runden oder schätzen
+- Schreibe Zahlen exakt wie angegeben (inkl. Cent), kein "ungefähr"
+- 2-4 Sätze, einfaches Deutsch, kein Bullet-Point-Format, nur Fließtext
+- Keine Anrede ("Liebe Eigentümer"), kein Schluss ("Mit freundlichen Grüßen")
+- Keine zusätzlichen Erklärungen außerhalb der gegebenen Daten`;
+
+  const gesamtText = await ask(
+    `Du bist ein freundlicher WEG-Verwalter. Schreibe eine kurze Zusammenfassung der WEG-Gesamtabrechnung.
+${STRICT_RULES}
+
+EXAKTE ZAHLEN (nur diese verwenden):
+- Wirtschaftsjahr: ${data.fiscalYear}
+- Vorschüsse Hausgeld (Soll): ${fmt(data.totalSollKostendeckung)}
+- Zuführung Erhaltungsrücklage (Soll): ${fmt(data.totalSollEHR)}
+- Größter Kostenblock: "${data.topKonto}" mit ${fmt(data.topBetrag)}
+- Aus Rücklage entnommen: ${fmt(data.totalReserveWithdrawal)}
+- Endbestand Girokonto: ${fmt(data.closingGiro)}
+- Endbestand Erhaltungsrücklage: ${fmt(data.closingRL)}`,
+  );
+
+  const owners = ownerId
+    ? [data.ownerResults.find((o: any) => o.assignmentId === ownerId)].filter(Boolean)
+    : data.ownerResults;
+
   const ownerTexts = await Promise.all(owners.map(async (o: any) => {
-    const umlKonten = o.accountBreakdown
+    const realRows = o.accountBreakdown.filter((r: any) => r.signedFactor !== -1);
+    const umlKonten = realRows
       .filter((r: any) => r.displaySection === "operating_distributable" || r.displaySection === "heating")
       .map((r: any) => r.accountName).join(", ") || "—";
-    const numlKonten = o.accountBreakdown
+    const numlKonten = realRows
       .filter((r: any) => r.displaySection === "operating_non_distributable")
       .map((r: any) => r.accountName).join(", ") || "—";
-    const topRow = [...o.accountBreakdown].sort((a: any, b: any) => b.ownerCost - a.ownerCost)[0];
+    const topRow = [...realRows].sort((a: any, b: any) => b.ownerCost - a.ownerCost)[0];
 
     const [ergebnisText, umlText, numlText] = await Promise.all([
-      ask(`Du bist ein freundlicher WEG-Verwalter. Erkläre dem Eigentümer sein Abrechnungsergebnis in 2–3 Sätzen. Einfaches Deutsch, kein Bullet-Point-Format, nur Fließtext.
-Eigentümer: ${o.name} (Einheit ${o.unitNumber})
-Hausgeld ${data.fiscalYear}: ${fmt(o.totalPaid)}
-Berechneter Kostenanteil: ${fmt(o.totalOwnerCost)}
-Ergebnis: ${fmt(Math.abs(o.result))} ${o.result >= 0 ? "Guthaben" : "Nachzahlung"}
-Größte Kostenposition: ${topRow?.accountName || "—"} mit ${fmt(topRow?.ownerCost ?? 0)}`),
-      ask(`Erkläre in 1–2 Sätzen, was umlagefähige Betriebskosten nach §2 BetrKV sind und dass Vermieter diese auf ihren Mieter umlegen dürfen. Nenne kurz die konkreten Posten. Nur Fließtext, kein Bullet-Format.
-Positionen: ${umlKonten}
-Gesamtbetrag: ${fmt(o.umlSum)}`),
-      ask(`Erkläre in 1–2 Sätzen, was nicht umlagefähige Kosten sind und dass Vermieter diese selbst tragen müssen. Nenne kurz die Posten. Nur Fließtext, kein Bullet-Format.
-Positionen: ${numlKonten}
-Gesamtbetrag: ${fmt(o.numlSum)}`),
+      ask(`Du bist ein freundlicher WEG-Verwalter. Erkläre dem Eigentümer sein Abrechnungsergebnis.
+${STRICT_RULES}
+
+EXAKTE ZAHLEN (nur diese verwenden):
+- Eigentümer: ${o.name}, Einheit ${o.unitNumber}
+- Geleistete Vorschüsse (Hausgeld): ${fmt(o.totalPaid)}
+- Berechneter Kostenanteil (netto): ${fmt(o.netOwnerCost)}
+- Ergebnis: ${fmt(Math.abs(o.result))} ${o.result >= 0 ? "Guthaben (Erstattung)" : "Nachzahlung"}
+- Größte Kostenposition: "${topRow?.accountName || "—"}" mit ${fmt(topRow?.ownerCost ?? 0)}`),
+      ask(`Erkläre, was umlagefähige Betriebskosten nach §2 BetrKV sind und dass Vermieter diese auf Mieter umlegen dürfen. Nenne KURZ die konkreten Posten.
+${STRICT_RULES}
+
+EXAKTE DATEN:
+- Positionen (NUR diese nennen): ${umlKonten}
+- Gesamtbetrag: ${fmt(o.umlSum)}`),
+      ask(`Erkläre, was nicht umlagefähige Kosten sind und dass Vermieter sie selbst tragen müssen. Nenne KURZ die Posten.
+${STRICT_RULES}
+
+EXAKTE DATEN:
+- Positionen (NUR diese nennen): ${numlKonten}
+- Gesamtbetrag: ${fmt(o.numlSum)}`),
     ]);
 
     return {
