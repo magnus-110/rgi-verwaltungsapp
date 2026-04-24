@@ -1406,8 +1406,8 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
               </div>
             </div>
 
-            {/* Sections */}
-            {SECTION_ORDER.map(section => renderSection(section))}
+            {/* Sections — Income wird oben im Soll-Hochrechnungsblock dargestellt → hier ausblenden */}
+            {SECTION_ORDER.filter(s => s !== "income").map(section => renderSection(section))}
 
             {/* Abrechnungssumme */}
             <div className="space-y-2 mt-4">
