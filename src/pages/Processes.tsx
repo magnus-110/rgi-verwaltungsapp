@@ -15,6 +15,11 @@ import { Plus, Trash2, Pencil, Play, ChevronRight, ListChecks, X, GripVertical }
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 
+const contactName = (c: { short_name?: string | null; first_name?: string | null; last_name?: string | null; company_name?: string | null } | null | undefined): string => {
+  if (!c) return "";
+  return c.short_name || c.company_name || [c.first_name, c.last_name].filter(Boolean).join(" ") || "";
+};
+
 interface Template {
   id: string;
   name: string;
