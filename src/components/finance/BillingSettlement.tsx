@@ -268,21 +268,8 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   //   - Ertragskonten:         positiver Wert
   //   - Erstattungen / Umbuchungen wirken automatisch auf BEIDEN Konten korrekt
   //     (z. B. Heizungsstrom-Repost: −167,51 auf 1050, +167,51 auf 1400) — KEIN Sonderpfad nötig.
-  const getAccountBookingTotal = (accountId: string): number => {
-    return bookings.reduce((s, b: any) => {
-      const amt = Number(b.amount) || 0;
-      if (b.account_id === accountId) {
-        const sign = b.booking_type === "income" ? 1 : -1;
-        return s + sign * amt;
-      }
-      if (b.counter_account_id === accountId) {
-        const flipped = b.booking_type === "income" ? "expense" : "income";
-        const sign = flipped === "income" ? 1 : -1;
-        return s + sign * amt;
-      }
-      return s;
-    }, 0);
-  };
+  const getAccountBookingTotal = (accountId: string): number =>
+    signedTotalForAccount(accountId, bookings as any);
 
   // Anzeigewert für klassische „Kostensumme" — Magnitude, ohne Vorzeichen.
   // Wird für Verteilungsrechnung, Warnungen, Schwellwerte und Legacy-Aufrufer genutzt.
