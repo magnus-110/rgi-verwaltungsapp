@@ -27,6 +27,46 @@ export function sumForAccount(accountId: string, bookings: BookingLike[]): numbe
   }, 0);
 }
 
+/**
+ * Booking-type-aware Aggregation — IDENTISCH zur Frontend-Funktion
+ * `getAccountBookingTotal` in BillingSettlement.tsx und `useAccountAggregation`.
+ *
+ *   account_id-Seite:         sign = booking_type === "income" ? +1 : -1
+ *   counter_account_id-Seite: booking_type wird gedreht, dann derselbe Mapper
+ *
+ * Rückgabe ist signiert:
+ *   - Aufwandskonten (1xxx) → negativ
+ *   - Ertragskonten        → positiv
+ * Erstattungen / Reposts wirken automatisch korrekt auf BEIDEN Konten.
+ *
+ * Diese Funktion MUSS für Abrechnungs-/Sektionssummen (UI + DOCX) verwendet werden,
+ * damit beide Ansichten zwingend identische Zahlen liefern. `sumForAccount` bleibt
+ * für Bilanz-/Saldenrechnungen (Bank, Rücklage, Eröffnungsbestände) zuständig.
+ */
+export interface BookingWithType extends BookingLike {
+  booking_type?: string | null;
+}
+
+export function signedTotalForAccount(
+  accountId: string,
+  bookings: BookingWithType[],
+): number {
+  if (!accountId || !bookings?.length) return 0;
+  return bookings.reduce((s, b) => {
+    const amt = Number(b.amount) || 0;
+    if (b.account_id === accountId) {
+      const sign = b.booking_type === "income" ? 1 : -1;
+      return s + sign * amt;
+    }
+    if (b.counter_account_id === accountId) {
+      const flipped = b.booking_type === "income" ? "expense" : "income";
+      const sign = flipped === "income" ? 1 : -1;
+      return s + sign * amt;
+    }
+    return s;
+  }, 0);
+}
+
 export function bookingsTouchingAccount<T extends BookingLike>(
   accountId: string,
   bookings: T[],
