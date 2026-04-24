@@ -40,7 +40,7 @@ export function CashAuditAccountSheet({ buildingId, fiscalYear, progress, onProg
         .select("id, booking_date, description, amount, account_id, counter_account_id, receipt_number, booking_type")
         .eq("building_id", buildingId)
         .eq("fiscal_year", fiscalYear)
-        .eq("status", "posted")
+        .in("status", ["pending", "confirmed"])
         .order("booking_date");
       return data || [];
     },
