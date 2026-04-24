@@ -434,6 +434,7 @@ async function loadSettlementData(supabase: any, buildingId: string, periodId: s
     const accountBreakdown: any[] = [];
     let totalOwnerCost = 0, total35aDienste = 0, total35aHandwerker = 0, ownerReserveWithdrawal = 0;
     let umlSum = 0, numlSum = 0;
+    let ownerReserveContribution = 0;
 
     distributableAccounts.forEach((acc: any) => {
       const isHeating = acc.is_heating_relevant && acc.account_number === "1400";
@@ -465,18 +466,43 @@ async function loadSettlementData(supabase: any, buildingId: string, periodId: s
       }
 
       if (ownerCost > 0) {
-        const displaySection = acc.settlement_section || "operating_distributable";
+        // Plan-IHR-Zuführung erscheint NICHT im Aufwandsbereich, sondern im IHR-Block.
+        // (UI: BillingSettlement Z. 525-528 / 595)
+        const displaySection = isReserveAcc ? "reserve" : (acc.settlement_section || "operating_distributable");
         accountBreakdown.push({
           accountNumber: acc.account_number, accountName: acc.account_name,
           distributableAmount: total, distLabel, totalShares,
-          ownerShare: ownerShareValue, ownerCost, displaySection,
+          ownerShare: ownerShareValue, ownerCost, displaySection, signedFactor: 1,
         });
-        totalOwnerCost += ownerCost;
-        if (displaySection === "operating_distributable" || displaySection === "heating") umlSum += ownerCost;
-        if (displaySection === "operating_non_distributable") numlSum += ownerCost;
+        // §35a NUR auf Original-Aufwandszeile (nicht auf Gegenbuchungen)
         if (acc.settlement_35a_type === "dienste") total35aDienste += ownerCost;
         else if (acc.settlement_35a_type === "handwerker") total35aHandwerker += ownerCost;
-        if (isReserveWithdrawalAccount(acc)) ownerReserveWithdrawal += ownerCost;
+
+        if (isReserveAcc) {
+          // IHR-Zuführung: zählt NICHT zum totalOwnerCost (ist ein Soll-Beitrag, kein Aufwand)
+          ownerReserveContribution += ownerCost;
+        } else {
+          totalOwnerCost += ownerCost;
+          if (displaySection === "operating_distributable" || displaySection === "heating") umlSum += ownerCost;
+          if (displaySection === "operating_non_distributable") numlSum += ownerCost;
+          if (isReserveWithdrawalAccount(acc)) ownerReserveWithdrawal += ownerCost;
+        }
+
+        // GENERISCHE RÜCKLAGEN-DOPPELDARSTELLUNG (UI: Z. 580-600)
+        // Konten mit reserve_role='withdrawal' (z. B. 1920) erscheinen ZUSÄTZLICH
+        // im Rücklagen-Block mit umgekehrtem Vorzeichen (Gegenbuchung).
+        if (isReserveWithdrawalAccount(acc) && ownerCost !== 0) {
+          accountBreakdown.push({
+            accountNumber: acc.account_number,
+            accountName: "./. " + acc.account_name + " (aus Rücklage)",
+            distributableAmount: total, distLabel, totalShares,
+            ownerShare: ownerShareValue, ownerCost: -ownerCost,
+            displaySection: "reserve", signedFactor: -1,
+          });
+          // Netto-Effekt: Aufwand + Gegenbuchung heben sich auf
+          totalOwnerCost -= ownerCost;
+          if (displaySection === "operating_non_distributable") numlSum -= ownerCost;
+        }
       }
     });
 
