@@ -55,7 +55,7 @@ const SECTION_ORDER = ["income", "operating_distributable", "operating_non_distr
 export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingSettlementProps) {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("total");
-  const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [generatingDocx, setGeneratingDocx] = useState(false);
   const [selectedOwner, setSelectedOwner] = useState<string | null>(null);
   const [ownerSearch, setOwnerSearch] = useState("");
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(SECTION_ORDER));
