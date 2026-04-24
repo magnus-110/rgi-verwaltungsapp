@@ -1490,7 +1490,7 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                   </Button>
                 </div>
 
-                {/* 7-column detail table */}
+                {/* 7-column detail table — gruppiert nach displaySection (HV-Office-konform) */}
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
@@ -1505,17 +1505,52 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {selectedOwnerData.accountBreakdown.map((row, i) => (
-                        <TableRow key={i}>
-                          <TableCell className="font-mono text-xs">{row.accountNumber}</TableCell>
-                          <TableCell className="text-sm">{row.accountName}</TableCell>
-                          <TableCell className="text-right font-mono text-sm">{formatCurrency(row.distributableAmount)}</TableCell>
-                          <TableCell className="text-xs">{row.distKey}</TableCell>
-                          <TableCell className="text-right font-mono text-xs">{formatNum(row.totalShares)}</TableCell>
-                          <TableCell className="text-right font-mono text-xs">{formatNum(row.ownerShare)}</TableCell>
-                          <TableCell className="text-right font-mono text-sm font-medium">{formatCurrency(row.ownerCost)}</TableCell>
-                        </TableRow>
-                      ))}
+                      {(() => {
+                        // Gruppieren nach displaySection — Reihenfolge wie in der Gesamtabrechnung
+                        const groupOrder = ["operating_distributable", "operating_non_distributable", "heating", "reserve"];
+                        const groups = groupOrder
+                          .map((sec) => ({
+                            sec,
+                            label: SECTION_LABELS[sec] || sec,
+                            rows: selectedOwnerData.accountBreakdown.filter((r) => r.displaySection === sec),
+                          }))
+                          .filter((g) => g.rows.length > 0);
+
+                        return groups.flatMap((g) => {
+                          const subtotal = g.rows.reduce((s, r) => s + r.ownerCost, 0);
+                          return [
+                            <TableRow key={`hdr-${g.sec}`} className="bg-muted/40">
+                              <TableCell colSpan={7} className="font-semibold text-xs uppercase tracking-wide">
+                                {g.label}
+                              </TableCell>
+                            </TableRow>,
+                            ...g.rows.map((row, i) => (
+                              <TableRow key={`${g.sec}-${i}`}>
+                                <TableCell className="font-mono text-xs">{row.accountNumber}</TableCell>
+                                <TableCell className="text-sm">
+                                  {row.signedFactor < 0 ? `./. ${row.accountName} (aus Rücklage)` : row.accountName}
+                                </TableCell>
+                                <TableCell className="text-right font-mono text-sm">{formatCurrency(row.distributableAmount)}</TableCell>
+                                <TableCell className="text-xs">{row.distKey}</TableCell>
+                                <TableCell className="text-right font-mono text-xs">{formatNum(row.totalShares)}</TableCell>
+                                <TableCell className="text-right font-mono text-xs">{formatNum(row.ownerShare)}</TableCell>
+                                <TableCell className={cn(
+                                  "text-right font-mono text-sm font-medium",
+                                  row.ownerCost < 0 && "text-emerald-600 dark:text-emerald-400"
+                                )}>
+                                  {row.ownerCost < 0 ? "−" : ""}{formatCurrency(Math.abs(row.ownerCost))}
+                                </TableCell>
+                              </TableRow>
+                            )),
+                            <TableRow key={`sub-${g.sec}`} className="border-t">
+                              <TableCell colSpan={6} className="text-xs text-muted-foreground">Zwischensumme {g.label}</TableCell>
+                              <TableCell className="text-right font-mono text-sm">
+                                {subtotal < 0 ? "−" : ""}{formatCurrency(Math.abs(subtotal))}
+                              </TableCell>
+                            </TableRow>,
+                          ];
+                        });
+                      })()}
                       <TableRow className="font-medium border-t-2">
                         <TableCell colSpan={6}>Abrechnungssumme</TableCell>
                         <TableCell className="text-right font-mono">{formatCurrency(selectedOwnerData.totalOwnerCost)}</TableCell>
