@@ -723,44 +723,42 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
     });
   };
 
-  // PDF generation — öffnet HTML als Blob in neuem Tab (umgeht Storage-MIME-Probleme)
-  const openHtmlInNewTab = (html: string) => {
-    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const win = window.open(url, "_blank");
-    if (!win) {
-      toast.error("Popup blockiert — bitte Popups erlauben");
-      return;
-    }
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
-  };
+  // ============================================================
+  //  DOCX-Export — generiert über Edge Function `generate-billing-docx`
+  //  Liefert Base64; wir bauen daraus einen Blob und triggern Download.
+  // ============================================================
+  const sanitizeFilename = (s: string) =>
+    s.replace(/[^a-zA-Z0-9äöüÄÖÜß_\-]+/g, "_").replace(/^_+|_+$/g, "");
 
-  const generatePdfs = async () => {
-    setGeneratingPdf(true);
+  const downloadDocx = async (ownerId?: string, ownerName?: string) => {
+    setGeneratingDocx(true);
     try {
-      const { data, error } = await supabase.functions.invoke("generate-billing-pdf", {
-        body: { buildingId, periodId, fiscalYear },
-      });
-      if (error) throw error;
-      if (data?.html) { openHtmlInNewTab(data.html); toast.success("Abrechnung erstellt — Strg+P für PDF-Druck"); }
-      else if (data?.url) { window.open(data.url, "_blank"); toast.success("Abrechnung erstellt"); }
-    } catch (e: any) {
-      toast.error("Fehler: " + (e.message || "Unbekannt"));
-    } finally { setGeneratingPdf(false); }
-  };
-
-  const generateOwnerPdf = async (ownerId: string, ownerName: string) => {
-    setGeneratingPdf(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("generate-billing-pdf", {
+      const { data, error } = await supabase.functions.invoke("generate-billing-docx", {
         body: { buildingId, periodId, fiscalYear, ownerId },
       });
       if (error) throw error;
-      if (data?.html) { openHtmlInNewTab(data.html); toast.success(`Abrechnung für ${ownerName} — Strg+P für PDF-Druck`); }
-      else if (data?.url) { window.open(data.url, "_blank"); toast.success(`Abrechnung für ${ownerName} erstellt`); }
+      if (!data?.docx) throw new Error("Keine DOCX-Daten erhalten");
+
+      const binary = atob(data.docx);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const blob = new Blob([bytes], {
+        type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = data.filename || (ownerId
+        ? `Einzelabrechnung_${sanitizeFilename(ownerName || "Eigentuemer")}_${fiscalYear}.docx`
+        : `WEG_Jahresabrechnung_${fiscalYear}.docx`);
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(ownerId ? `DOCX für ${ownerName} heruntergeladen` : "Gesamtabrechnung als DOCX heruntergeladen");
     } catch (e: any) {
-      toast.error("Fehler: " + (e.message || "Unbekannt"));
-    } finally { setGeneratingPdf(false); }
+      toast.error("Fehler beim DOCX-Export: " + (e.message || "Unbekannt"));
+    } finally {
+      setGeneratingDocx(false);
+    }
   };
 
   // ============================================================
