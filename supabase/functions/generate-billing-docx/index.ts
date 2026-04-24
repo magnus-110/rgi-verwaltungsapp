@@ -309,7 +309,7 @@ async function loadSettlementData(supabase: any, buildingId: string, periodId: s
     const sourceBookings = acc.is_heating_relevant ? bookingsExclHeatingRepost : allBookings;
     const total = acc.account_number === "1400" && brunataTotal > 0
       ? brunataTotal
-      : sumForAccount(acc.id, sourceBookings as any);
+      : signedTotalForAccount(acc.id, sourceBookings as any);
     const absTotal = Math.abs(total);
     const wpItem = (planItems as any)?.economic_plan_items?.find((i: any) => i.account_id === acc.id);
     const wpAmount = wpItem ? Number(wpItem.planned_amount || 0) : 0;
