@@ -597,6 +597,21 @@ serve(async (req) => {
             <tr class="section-total"><td><strong>Gesamtvermögen Anfang</strong></td><td class="r mono"><strong>${formatCurrency(openingGiro + openingRL)}</strong></td><td></td><td></td></tr>
           </table>
 
+          <h2>Einnahmen (Soll-Hochrechnung lt. Stammdaten)</h2>
+          <table>
+            ${
+              hasReserveSplit
+                ? `
+            <tr class="balance-row"><td>Vorschüsse zur Kostendeckung</td><td class="r mono">+ ${formatCurrency(totalSollKostendeckung)}</td></tr>
+            <tr class="balance-row"><td>Vorschüsse auf Erhaltungsrücklage</td><td class="r mono">+ ${formatCurrency(totalSollEHR)}</td></tr>`
+                : `<tr class="balance-row"><td>Vorschüsse (Hausgeld lt. Stammdaten)</td><td class="r mono">+ ${formatCurrency(totalSollVorschuss)}</td></tr>`
+            }
+            ${interestIncome > 0 ? `<tr class="balance-row"><td>Zinseinnahmen (lt. Buchungen)</td><td class="r mono">+ ${formatCurrency(interestIncome)}</td></tr>` : ""}
+            ${otherIncome > 0 ? `<tr class="balance-row"><td>Sonstige Erträge (lt. Buchungen)</td><td class="r mono">+ ${formatCurrency(otherIncome)}</td></tr>` : ""}
+            <tr class="section-total"><td><strong>Summe Einnahmen</strong></td><td class="r mono"><strong>+ ${formatCurrency(totalEinnahmenSoll)}</strong></td></tr>
+          </table>
+
+
           <h2>Einnahmen und Ausgaben</h2>
           <table>
             <tr><th class="kto">Konto</th><th>Bezeichnung</th><th class="r">Wirtschaftsplan</th><th class="r">Ist-Betrag</th></tr>
