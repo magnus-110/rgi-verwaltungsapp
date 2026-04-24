@@ -376,7 +376,7 @@ function StartProcessDialog({ onClose }: { onClose: () => void }) {
   const [templateId, setTemplateId] = useState("");
   const [title, setTitle] = useState("");
   const [buildings, setBuildings] = useState<{ id: string; name: string }[]>([]);
-  const [contacts, setContacts] = useState<{ id: string; name: string }[]>([]);
+  const [contacts, setContacts] = useState<{ id: string; label: string }[]>([]);
   const [buildingId, setBuildingId] = useState<string>("");
   const [contactId, setContactId] = useState<string>("");
   const [saving, setSaving] = useState(false);
@@ -386,8 +386,8 @@ function StartProcessDialog({ onClose }: { onClose: () => void }) {
       .then(({ data }) => setTemplates(data || []));
     supabase.from("buildings").select("id,name").order("name")
       .then(({ data }) => setBuildings(data || []));
-    supabase.from("contacts").select("id,name").order("name")
-      .then(({ data }) => setContacts((data as any) || []));
+    supabase.from("contacts").select("id,short_name,first_name,last_name,company_name").order("short_name")
+      .then(({ data }) => setContacts((data || []).map((c: any) => ({ id: c.id, label: contactName(c) || "(ohne Name)" }))));
   }, []);
 
   useEffect(() => {
