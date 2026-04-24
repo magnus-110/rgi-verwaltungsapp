@@ -216,8 +216,10 @@ serve(async (req) => {
       })
       .filter((s) => s.accounts.length > 0 || (s.id === "reserve" && s.total > 0));
 
-    // Reserve-finanzierte Aufwände (1920 etc.) — Neutralisation auf Gesamt- und Eigentümerebene
-    const reserveFundedAccounts = allAccounts.filter((a: any) => a.is_reserve_funded);
+    // Reserve-finanzierte Aufwände (1920 etc.) — Neutralisation auf Gesamt- und Eigentümerebene.
+    // Erkennung: reserve_role='withdrawal' (neue generische Logik) ODER is_reserve_funded (Legacy-Flag).
+    const isReserveWithdrawalAccount = (a: any) => a.reserve_role === "withdrawal" || a.is_reserve_funded === true;
+    const reserveFundedAccounts = allAccounts.filter(isReserveWithdrawalAccount);
     const totalReserveWithdrawal = reserveFundedAccounts.reduce(
       (s: number, a: any) => s + Math.abs(sumForAccount(a.id, allBookings as any)),
       0,
@@ -287,6 +289,63 @@ serve(async (req) => {
 
     const totalIncome = sections.find((s) => s.id === "income")?.total || 0;
     const totalExpenses = sections.filter((s) => s.id !== "income").reduce((s, sec) => s + sec.total, 0);
+
+    // ─── EINNAHMEN-HOCHRECHNUNG (Soll laut Stammdaten) — HV-Office-konform ───
+    // Hausgeld-Anteile aus contact_building_costs, getrennt nach Kostendeckung vs. EHR-Anteil
+    // (reserve_share_monthly). Falls kein EHR-Anteil hinterlegt, wird nicht aufgeteilt.
+    const periodStartMs0 = new Date(period.period_from).getTime();
+    const periodEndMs0 = new Date(period.period_to).getTime();
+    const calcCostAnnual = (cost: any, timeProp: number) => {
+      const amount = Number(cost.amount) || 0;
+      let perDay = 0;
+      switch (cost.interval) {
+        case "monatlich": perDay = (amount * 12) / 365; break;
+        case "quartal": perDay = (amount * 4) / 365; break;
+        case "jaehrlich": perDay = amount / 365; break;
+        default: perDay = (amount * 12) / 365; break;
+      }
+      const eStart = cost.valid_from ? new Date(cost.valid_from).getTime() : periodStartMs0;
+      const eEnd = cost.valid_to ? new Date(cost.valid_to).getTime() : periodEndMs0;
+      const effStart = Math.max(periodStartMs0, eStart);
+      const effEnd = Math.min(periodEndMs0, eEnd);
+      const days = Math.max(0, (effEnd - effStart) / 86400000 + 1);
+      return perDay * days * timeProp;
+    };
+    let totalSollKostendeckung = 0;
+    let totalSollEHR = 0;
+    (assignments || []).forEach((a: any) => {
+      const tp = getTimeProportion(a);
+      (a.contact_building_costs || []).forEach((c: any) => {
+        const ct = (c.cost_type || "").toLowerCase();
+        const annual = calcCostAnnual(c, tp);
+        if (["hausgeld", "nebenkosten"].includes(ct)) {
+          const reserveShareMonthly = Number(c.reserve_share_monthly) || 0;
+          if (reserveShareMonthly > 0 && c.interval === "monatlich") {
+            const fullMonthly = Number(c.amount) || 0;
+            const ratio = fullMonthly > 0 ? Math.min(reserveShareMonthly / fullMonthly, 1) : 0;
+            totalSollEHR += annual * ratio;
+            totalSollKostendeckung += annual * (1 - ratio);
+          } else {
+            totalSollKostendeckung += annual;
+          }
+        } else if (ct === "ruecklage") {
+          totalSollEHR += annual;
+        } else {
+          totalSollKostendeckung += annual;
+        }
+      });
+    });
+    const hasReserveSplit = totalSollEHR > 0.005;
+    const totalSollVorschuss = totalSollKostendeckung + totalSollEHR;
+    // Zinseinnahmen aus Income-Sektion (Kontonummer 184x)
+    const incomeAccs = sections.find((s) => s.id === "income")?.accounts || [];
+    const interestIncome = incomeAccs
+      .filter((a: any) => String(a.account_number || "").startsWith("184"))
+      .reduce((s: number, a: any) => s + a.absTotal, 0);
+    const otherIncome = incomeAccs
+      .filter((a: any) => !String(a.account_number || "").startsWith("184"))
+      .reduce((s: number, a: any) => s + a.absTotal, 0);
+    const totalEinnahmenSoll = totalSollVorschuss + interestIncome + otherIncome;
 
     const personalAccounts = allAccounts.filter(
       (a: any) => PERSONAL_ACCOUNT_PATTERN.test(a.account_number) && a.account_number !== "0000",
@@ -365,7 +424,7 @@ serve(async (req) => {
           else if (acc.settlement_35a_type === "handwerker") total35aHandwerker += ownerCost;
 
           // Track owner share of reserve-funded expense (1920 etc.) for neutralization
-          if (acc.is_reserve_funded) ownerReserveWithdrawal += ownerCost;
+          if (isReserveWithdrawalAccount(acc)) ownerReserveWithdrawal += ownerCost;
         }
       });
 
@@ -539,6 +598,21 @@ serve(async (req) => {
             <tr class="balance-row"><td>Erhaltungsrücklage</td><td class="r mono">${formatCurrency(openingRL)}</td><td></td><td></td></tr>
             <tr class="section-total"><td><strong>Gesamtvermögen Anfang</strong></td><td class="r mono"><strong>${formatCurrency(openingGiro + openingRL)}</strong></td><td></td><td></td></tr>
           </table>
+
+          <h2>Einnahmen (Soll-Hochrechnung lt. Stammdaten)</h2>
+          <table>
+            ${
+              hasReserveSplit
+                ? `
+            <tr class="balance-row"><td>Vorschüsse zur Kostendeckung</td><td class="r mono">+ ${formatCurrency(totalSollKostendeckung)}</td></tr>
+            <tr class="balance-row"><td>Vorschüsse auf Erhaltungsrücklage</td><td class="r mono">+ ${formatCurrency(totalSollEHR)}</td></tr>`
+                : `<tr class="balance-row"><td>Vorschüsse (Hausgeld lt. Stammdaten)</td><td class="r mono">+ ${formatCurrency(totalSollVorschuss)}</td></tr>`
+            }
+            ${interestIncome > 0 ? `<tr class="balance-row"><td>Zinseinnahmen (lt. Buchungen)</td><td class="r mono">+ ${formatCurrency(interestIncome)}</td></tr>` : ""}
+            ${otherIncome > 0 ? `<tr class="balance-row"><td>Sonstige Erträge (lt. Buchungen)</td><td class="r mono">+ ${formatCurrency(otherIncome)}</td></tr>` : ""}
+            <tr class="section-total"><td><strong>Summe Einnahmen</strong></td><td class="r mono"><strong>+ ${formatCurrency(totalEinnahmenSoll)}</strong></td></tr>
+          </table>
+
 
           <h2>Einnahmen und Ausgaben</h2>
           <table>
