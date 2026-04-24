@@ -330,7 +330,7 @@ async function loadSettlementData(supabase: any, buildingId: string, periodId: s
 
   const isReserveWithdrawalAccount = (a: any) => a.reserve_role === "withdrawal" || a.is_reserve_funded === true;
   const reserveFundedAccounts = allAccounts.filter(isReserveWithdrawalAccount);
-  const totalReserveWithdrawal = reserveFundedAccounts.reduce((s: number, a: any) => s + Math.abs(sumForAccount(a.id, allBookings as any)), 0);
+  const totalReserveWithdrawal = reserveFundedAccounts.reduce((s: number, a: any) => s + Math.abs(signedTotalForAccount(a.id, allBookings as any)), 0);
 
   const isAccrualBalanceAccount = (a: any) => a.account_number === "4110" || a.account_number === "4130" || a.settlement_section === "accrual";
   const isHeatingPrepayAccount = (a: any) => a.settlement_section === "heating_prepayment";
