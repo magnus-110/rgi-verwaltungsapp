@@ -475,7 +475,7 @@ function StartProcessDialog({ onClose }: { onClose: () => void }) {
               <SelectTrigger><SelectValue placeholder="Kein Kontakt" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">— Kein Kontakt —</SelectItem>
-                {contacts.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                {contacts.map(c => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
