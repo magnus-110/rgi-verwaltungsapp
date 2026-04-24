@@ -216,8 +216,10 @@ serve(async (req) => {
       })
       .filter((s) => s.accounts.length > 0 || (s.id === "reserve" && s.total > 0));
 
-    // Reserve-finanzierte Aufwände (1920 etc.) — Neutralisation auf Gesamt- und Eigentümerebene
-    const reserveFundedAccounts = allAccounts.filter((a: any) => a.is_reserve_funded);
+    // Reserve-finanzierte Aufwände (1920 etc.) — Neutralisation auf Gesamt- und Eigentümerebene.
+    // Erkennung: reserve_role='withdrawal' (neue generische Logik) ODER is_reserve_funded (Legacy-Flag).
+    const isReserveWithdrawalAccount = (a: any) => a.reserve_role === "withdrawal" || a.is_reserve_funded === true;
+    const reserveFundedAccounts = allAccounts.filter(isReserveWithdrawalAccount);
     const totalReserveWithdrawal = reserveFundedAccounts.reduce(
       (s: number, a: any) => s + Math.abs(sumForAccount(a.id, allBookings as any)),
       0,
