@@ -45,6 +45,7 @@ const menuItems = [
   { title: "Versammlungen", url: "/versammlungen", icon: Users },
   { title: "Buchhaltung", url: "/finanzen", icon: Landmark },
   { title: "Überweisungen", url: "/ueberweisungen", icon: CreditCard },
+  { title: "Prozesse", url: "/prozesse", icon: Workflow },
   { title: "Einstellungen", url: "/settings", icon: Settings, adminOnly: true },
 ];
 
