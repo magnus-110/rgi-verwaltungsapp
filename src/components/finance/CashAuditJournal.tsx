@@ -41,7 +41,7 @@ export function CashAuditJournal({ buildingId, fiscalYear, progress, onProgressC
         `)
         .eq("building_id", buildingId)
         .eq("fiscal_year", fiscalYear)
-        .eq("status", "posted")
+        .in("status", ["pending", "confirmed"])
         .order("booking_date");
       return data || [];
     },
