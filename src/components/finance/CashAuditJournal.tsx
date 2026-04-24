@@ -24,6 +24,7 @@ export function CashAuditJournal({ buildingId, fiscalYear, progress, onProgressC
   const [monthFilter, setMonthFilter] = useState<string>("all");
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   const { data: bookings = [] } = useQuery({
     queryKey: ["audit-journal", buildingId, fiscalYear],
