@@ -351,13 +351,16 @@ async function loadSettlementData(supabase: any, buildingId: string, periodId: s
     }, 0);
   };
 
-  const isBankAccount = (a: any) => a.settlement_section === "bank" || BANK_ACCOUNT_PATTERN.test(a.account_number || "");
+  // Bilanzkonten — UI-konform (BillingSettlement.tsx Z. 331-372):
+  // - Nur Konten mit carry_forward_balance=true werden berücksichtigt
+  // - Rücklagenkonten via konkreter Kontonummer 1810/1820 (DATEV) erkannt
+  // - Alle übrigen carry_forward-Konten = Giro
   const isReserveBalanceAccount = (a: any) =>
-    (a.settlement_section === "reserve" || RESERVE_ACCOUNT_PATTERN.test(a.account_number || ""))
-    && a.carry_forward_balance === true && !isPersonalAccount(a);
+    a.account_number === "1810" || a.account_number === "1820";
 
-  const bankAccountsForBalance = allAccounts.filter(isBankAccount);
-  const reserveAccountsForBalance = allAccounts.filter(isReserveBalanceAccount);
+  const carryAccounts = allAccounts.filter((a: any) => a.carry_forward_balance === true && !isPersonalAccount(a));
+  const bankAccountsForBalance = carryAccounts.filter((a: any) => !isReserveBalanceAccount(a));
+  const reserveAccountsForBalance = carryAccounts.filter((a: any) => isReserveBalanceAccount(a));
   const balancesArr = (balances || []) as any[];
 
   const sumOpening = (accs: any[]) =>
