@@ -31,6 +31,7 @@ const Calendar = lazy(() => import("./pages/Calendar").then(m => ({ default: m.C
 const Contacts = lazy(() => import("./pages/Contacts").then(m => ({ default: m.Contacts })));
 const Finance = lazy(() => import("./pages/Finance").then(m => ({ default: m.Finance })));
 const Billing = lazy(() => import("./pages/Billing").then(m => ({ default: m.Billing })));
+const Processes = lazy(() => import("./pages/Processes").then(m => ({ default: m.Processes })));
 
 const Inbox = lazy(() => import("./pages/Inbox").then(m => ({ default: m.Inbox })));
 const Meetings = lazy(() => import("./pages/Meetings").then(m => ({ default: m.Meetings })));
@@ -113,6 +114,7 @@ const App = () => (
               <Route path="/postfach" element={<AdminLayout><Inbox /></AdminLayout>} />
               <Route path="/versammlungen" element={<AdminLayout><Meetings /></AdminLayout>} />
               <Route path="/ueberweisungen" element={<AdminLayout><Transfers /></AdminLayout>} />
+              <Route path="/prozesse" element={<AdminLayout><Processes /></AdminLayout>} />
               
               {/* Legacy admin routes for compatibility */}
               <Route path="/admin" element={<AdminLayout><Dashboard /></AdminLayout>} />

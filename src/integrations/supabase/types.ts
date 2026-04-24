@@ -4331,6 +4331,286 @@ export type Database = {
           },
         ]
       }
+      process_instance_steps: {
+        Row: {
+          assignee_user_id: string | null
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_calendar_event_id: string | null
+          created_todo_id: string | null
+          description: string | null
+          due_date: string | null
+          id: string
+          instance_id: string
+          is_completed: boolean
+          notes: string | null
+          position: number
+          template_step_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assignee_user_id?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          created_calendar_event_id?: string | null
+          created_todo_id?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          instance_id: string
+          is_completed?: boolean
+          notes?: string | null
+          position?: number
+          template_step_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assignee_user_id?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          created_calendar_event_id?: string | null
+          created_todo_id?: string | null
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          instance_id?: string
+          is_completed?: boolean
+          notes?: string | null
+          position?: number
+          template_step_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "process_instance_steps_created_calendar_event_id_fkey"
+            columns: ["created_calendar_event_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "process_instance_steps_created_todo_id_fkey"
+            columns: ["created_todo_id"]
+            isOneToOne: false
+            referencedRelation: "todos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "process_instance_steps_instance_id_fkey"
+            columns: ["instance_id"]
+            isOneToOne: false
+            referencedRelation: "process_instances"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "process_instance_steps_template_step_id_fkey"
+            columns: ["template_step_id"]
+            isOneToOne: false
+            referencedRelation: "process_template_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      process_instances: {
+        Row: {
+          building_id: string | null
+          completed_at: string | null
+          contact_id: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          owner_user_id: string | null
+          started_at: string
+          status: string
+          template_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          building_id?: string | null
+          completed_at?: string | null
+          contact_id?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          owner_user_id?: string | null
+          started_at?: string
+          status?: string
+          template_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          building_id?: string | null
+          completed_at?: string | null
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          owner_user_id?: string | null
+          started_at?: string
+          status?: string
+          template_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "process_instances_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "process_instances_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "process_instances_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "process_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      process_step_attachments: {
+        Row: {
+          created_at: string
+          file_name: string
+          file_path: string
+          file_size: number | null
+          id: string
+          instance_step_id: string
+          mime_type: string | null
+          uploaded_by: string
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          id?: string
+          instance_step_id: string
+          mime_type?: string | null
+          uploaded_by: string
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          id?: string
+          instance_step_id?: string
+          mime_type?: string | null
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "process_step_attachments_instance_step_id_fkey"
+            columns: ["instance_step_id"]
+            isOneToOne: false
+            referencedRelation: "process_instance_steps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      process_template_steps: {
+        Row: {
+          created_at: string
+          default_creates_calendar_event: boolean
+          default_creates_todo: boolean
+          description: string | null
+          id: string
+          position: number
+          suggested_offset_days: number | null
+          template_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          default_creates_calendar_event?: boolean
+          default_creates_todo?: boolean
+          description?: string | null
+          id?: string
+          position?: number
+          suggested_offset_days?: number | null
+          template_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          default_creates_calendar_event?: boolean
+          default_creates_todo?: boolean
+          description?: string | null
+          id?: string
+          position?: number
+          suggested_offset_days?: number | null
+          template_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "process_template_steps_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "process_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      process_templates: {
+        Row: {
+          category: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          icon: string | null
+          id: string
+          is_active: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          icon?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       processes: {
         Row: {
           building_id: string | null

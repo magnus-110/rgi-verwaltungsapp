@@ -15,6 +15,7 @@ import {
   Mail,
   Users,
   CreditCard,
+  Workflow,
 } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -44,6 +45,7 @@ const menuItems = [
   { title: "Versammlungen", url: "/versammlungen", icon: Users },
   { title: "Buchhaltung", url: "/finanzen", icon: Landmark },
   { title: "Überweisungen", url: "/ueberweisungen", icon: CreditCard },
+  { title: "Prozesse", url: "/prozesse", icon: Workflow },
   { title: "Einstellungen", url: "/settings", icon: Settings, adminOnly: true },
 ];
 
