@@ -10,6 +10,7 @@ import {
 } from "npm:docx@8.5.0";
 import {
   sumForAccount,
+  signedTotalForAccount,
   getEffectiveOpeningBalance,
   getEffectiveClosingBalance,
 } from "../_shared/booking-aggregation.ts";
@@ -308,7 +309,7 @@ async function loadSettlementData(supabase: any, buildingId: string, periodId: s
     const sourceBookings = acc.is_heating_relevant ? bookingsExclHeatingRepost : allBookings;
     const total = acc.account_number === "1400" && brunataTotal > 0
       ? brunataTotal
-      : sumForAccount(acc.id, sourceBookings as any);
+      : signedTotalForAccount(acc.id, sourceBookings as any);
     const absTotal = Math.abs(total);
     const wpItem = (planItems as any)?.economic_plan_items?.find((i: any) => i.account_id === acc.id);
     const wpAmount = wpItem ? Number(wpItem.planned_amount || 0) : 0;
@@ -329,7 +330,7 @@ async function loadSettlementData(supabase: any, buildingId: string, periodId: s
 
   const isReserveWithdrawalAccount = (a: any) => a.reserve_role === "withdrawal" || a.is_reserve_funded === true;
   const reserveFundedAccounts = allAccounts.filter(isReserveWithdrawalAccount);
-  const totalReserveWithdrawal = reserveFundedAccounts.reduce((s: number, a: any) => s + Math.abs(sumForAccount(a.id, allBookings as any)), 0);
+  const totalReserveWithdrawal = reserveFundedAccounts.reduce((s: number, a: any) => s + Math.abs(signedTotalForAccount(a.id, allBookings as any)), 0);
 
   const isAccrualBalanceAccount = (a: any) => a.account_number === "4110" || a.account_number === "4130" || a.settlement_section === "accrual";
   const isHeatingPrepayAccount = (a: any) => a.settlement_section === "heating_prepayment";
@@ -806,7 +807,7 @@ function buildGesamtabrechnung(data: any, kiTexts: any): (Paragraph | Table)[] {
     });
     if (secId === "reserve" && data.totalReserveWithdrawal > 0) {
       data.reserveFundedAccounts.forEach((acc: any) => {
-        const t = Math.abs(sumForAccount(acc.id, data.allBookings as any));
+        const t = Math.abs(signedTotalForAccount(acc.id, data.allBookings as any));
         if (t === 0) return;
         expRows.push(new TableRow({ children: [
           dataCell(acc.account_number, expWidths[0], { italics: true, color: GREEN_TEXT }),
