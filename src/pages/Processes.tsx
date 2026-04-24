@@ -498,7 +498,7 @@ function InstanceDetail({ id, onClose }: { id: string; onClose: () => void }) {
   const load = useCallback(async () => {
     const { data: inst } = await supabase
       .from("process_instances")
-      .select("*, buildings(name), contacts(name)")
+      .select("*, buildings(name), contacts(short_name,first_name,last_name,company_name)")
       .eq("id", id).single();
     setInstance(inst as any);
     const { data: stepsData } = await supabase
