@@ -547,25 +547,78 @@ serve(async (req) => {
 
     // ─── GESAMTABRECHNUNG HTML ───
     const generateGesamtHtml = () => {
-      let sectionRows = "";
+      // UI-konforme Sektions-Reihenfolge — Income wird oben im Soll-Block dargestellt
+      const expenseSectionOrder = [
+        "operating_distributable",
+        "operating_non_distributable",
+        "heating",
+        "reserve",
+        "accrual",
+      ];
+      const expenseSections = expenseSectionOrder
+        .map((id) => sections.find((s) => s.id === id))
+        .filter((s): s is NonNullable<typeof s> => !!s);
 
-      sections.forEach((sec) => {
-        sectionRows += `<tr><td colspan="4" style="font-weight:700; padding-top:8px; font-size:10px;">${sec.label}</td></tr>`;
-        sec.accounts.forEach((acc) => {
+      // Vorzeichen pro Konto: Aufwand = −, Ertrag = +
+      const renderAmount = (n: number, asExpense: boolean) => {
+        const v = Math.round(n * 100) / 100;
+        if (v === 0) return formatCurrency(0);
+        const sign = asExpense ? "−" : "+";
+        const color = asExpense ? "#1a1a1a" : "#166534";
+        return `<span style="color:${color}">${sign} ${formatCurrency(Math.abs(v))}</span>`;
+      };
+
+      let sectionRows = "";
+      let totalOperatingDist = 0;
+      let totalOperatingNonDist = 0;
+      let totalReserveSection = 0;
+
+      expenseSections.forEach((sec) => {
+        const isReserve = sec.id === "reserve";
+        sectionRows += `<tr><td colspan="5" style="font-weight:700; padding-top:10px; font-size:10px;">${sec.label}</td></tr>`;
+        sec.accounts.forEach((acc: any) => {
           sectionRows += `<tr>
             <td class="kto">${acc.account_number}</td>
             <td>${acc.account_name}</td>
-            <td class="r mono">${formatCurrency(acc.wpAmount)}</td>
-            <td class="r mono">${formatCurrency(acc.absTotal)}</td>
+            <td class="r mono">${acc.wpAmount > 0 ? formatCurrency(acc.wpAmount) : "–"}</td>
+            <td class="r mono">${renderAmount(acc.absTotal, !isReserve)}</td>
+            <td class="r mono">${acc.is_distributable ? formatCurrency(acc.absTotal) : "–"}</td>
           </tr>`;
         });
+        // Rücklagen-Entnahme als Gegenbuchung im Reserve-Block
+        if (isReserve && totalReserveWithdrawal > 0) {
+          reserveFundedAccounts.forEach((acc: any) => {
+            const t = Math.abs(sumForAccount(acc.id, allBookings as any));
+            if (t === 0) return;
+            sectionRows += `<tr class="neutralize">
+              <td class="kto">${acc.account_number}</td>
+              <td>./. Entnahme: ${acc.account_name}</td>
+              <td class="r mono">–</td>
+              <td class="r mono"><span style="color:#166534">− ${formatCurrency(t)}</span></td>
+              <td class="r mono">–</td>
+            </tr>`;
+          });
+        }
+        const distSum = sec.accounts.filter((a: any) => a.is_distributable).reduce((s: number, a: any) => s + a.absTotal, 0);
+        const netSecTotal = isReserve ? sec.total - totalReserveWithdrawal : sec.total;
         sectionRows += `<tr class="section-total">
           <td></td>
-          <td>Summe ${sec.label}</td>
-          <td class="r mono">${formatCurrency(sec.wpTotal)}</td>
-          <td class="r mono">${formatCurrency(sec.total)}</td>
+          <td>Zwischensumme ${sec.label}</td>
+          <td class="r mono">${sec.wpTotal > 0 ? formatCurrency(sec.wpTotal) : ""}</td>
+          <td class="r mono">${renderAmount(netSecTotal, !isReserve)}</td>
+          <td class="r mono">${distSum > 0 ? formatCurrency(distSum) : ""}</td>
         </tr>`;
+
+        if (sec.id === "operating_distributable") totalOperatingDist = sec.total;
+        if (sec.id === "operating_non_distributable") totalOperatingNonDist = sec.total;
+        if (isReserve) totalReserveSection = sec.total;
       });
+
+      // Abrechnungssumme — wie UI: Ausgaben (umlagefähig + nicht umlagefähig) + Rücklagen-Zuführung − Entnahme
+      const abrechnungssumme = totalOperatingDist + totalOperatingNonDist + totalReserveSection - totalReserveWithdrawal;
+      // Vorschussverpflichtung = Soll Hausgeld + Soll EHR (aus Stammdaten)
+      const totalVorschussSoll = totalSollVorschuss;
+      const abrechnungsspitze = totalVorschussSoll - abrechnungssumme;
 
       const ownerRows = ownerResults
         .map(
@@ -583,8 +636,6 @@ serve(async (req) => {
       const totalOwnerCosts = ownerResults.reduce((s, o) => s + o.netOwnerCost, 0);
       const totalOwnerPaid = ownerResults.reduce((s, o) => s + o.totalPaid, 0);
       const totalOwnerResult = ownerResults.reduce((s, o) => s + o.result, 0);
-      const totalOwnerVorschuss = ownerResults.reduce((s, o) => s + o.totalVorschuss, 0);
-      const totalAbrechnungsspitze = totalOwnerVorschuss - totalOwnerPaid;
 
       return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${sharedStyles}</style></head><body>
         <div class="page">
@@ -592,11 +643,11 @@ serve(async (req) => {
           <h1>Gesamtabrechnung ${fiscalYear}</h1>
           <div class="subtitle">${building?.name || ""} · Abrechnungszeitraum: ${periodLabel}</div>
 
-          <h2>Anfangsbestände</h2>
+          <h2>Anfangsbestände zum ${formatDate(period.period_from)}</h2>
           <table>
-            <tr class="balance-row"><td>Girokonto</td><td class="r mono">${formatCurrency(openingGiro)}</td><td></td><td></td></tr>
-            <tr class="balance-row"><td>Erhaltungsrücklage</td><td class="r mono">${formatCurrency(openingRL)}</td><td></td><td></td></tr>
-            <tr class="section-total"><td><strong>Gesamtvermögen Anfang</strong></td><td class="r mono"><strong>${formatCurrency(openingGiro + openingRL)}</strong></td><td></td><td></td></tr>
+            <tr class="balance-row"><td>Girokonto</td><td class="r mono">${formatCurrency(openingGiro)}</td></tr>
+            <tr class="balance-row"><td>Instandhaltungsrücklage</td><td class="r mono">${formatCurrency(openingRL)}</td></tr>
+            <tr class="section-total"><td><strong>Gesamt</strong></td><td class="r mono"><strong>${formatCurrency(openingGiro + openingRL)}</strong></td></tr>
           </table>
 
           <h2>Einnahmen (Soll-Hochrechnung lt. Stammdaten)</h2>
@@ -604,37 +655,42 @@ serve(async (req) => {
             ${
               hasReserveSplit
                 ? `
-            <tr class="balance-row"><td>Vorschüsse zur Kostendeckung</td><td class="r mono">+ ${formatCurrency(totalSollKostendeckung)}</td></tr>
-            <tr class="balance-row"><td>Vorschüsse auf Erhaltungsrücklage</td><td class="r mono">+ ${formatCurrency(totalSollEHR)}</td></tr>`
-                : `<tr class="balance-row"><td>Vorschüsse (Hausgeld lt. Stammdaten)</td><td class="r mono">+ ${formatCurrency(totalSollVorschuss)}</td></tr>`
+            <tr class="balance-row"><td>Vorschüsse zur Kostendeckung</td><td class="r mono"><span style="color:#166534">+ ${formatCurrency(totalSollKostendeckung)}</span></td></tr>
+            <tr class="balance-row"><td>Vorschüsse auf Erhaltungsrücklage</td><td class="r mono"><span style="color:#166534">+ ${formatCurrency(totalSollEHR)}</span></td></tr>`
+                : `<tr class="balance-row"><td>Vorschüsse (Hausgeld lt. Stammdaten)</td><td class="r mono"><span style="color:#166534">+ ${formatCurrency(totalSollVorschuss)}</span></td></tr>`
             }
-            ${interestIncome > 0 ? `<tr class="balance-row"><td>Zinseinnahmen (lt. Buchungen)</td><td class="r mono">+ ${formatCurrency(interestIncome)}</td></tr>` : ""}
-            ${otherIncome > 0 ? `<tr class="balance-row"><td>Sonstige Erträge (lt. Buchungen)</td><td class="r mono">+ ${formatCurrency(otherIncome)}</td></tr>` : ""}
-            <tr class="section-total"><td><strong>Summe Einnahmen</strong></td><td class="r mono"><strong>+ ${formatCurrency(totalEinnahmenSoll)}</strong></td></tr>
+            ${interestIncome > 0 ? `<tr class="balance-row"><td>Zinseinnahmen (lt. Buchungen)</td><td class="r mono"><span style="color:#166534">+ ${formatCurrency(interestIncome)}</span></td></tr>` : ""}
+            ${otherIncome > 0 ? `<tr class="balance-row"><td>Sonstige Erträge (lt. Buchungen)</td><td class="r mono"><span style="color:#166534">+ ${formatCurrency(otherIncome)}</span></td></tr>` : ""}
+            <tr class="section-total"><td><strong>Zwischensumme Einnahmen</strong></td><td class="r mono"><strong style="color:#166534">+ ${formatCurrency(totalEinnahmenSoll)}</strong></td></tr>
           </table>
 
-
-          <h2>Einnahmen und Ausgaben</h2>
+          <h2>Ausgaben</h2>
           <table>
-            <tr><th class="kto">Konto</th><th>Bezeichnung</th><th class="r">Wirtschaftsplan</th><th class="r">Ist-Betrag</th></tr>
+            <tr>
+              <th class="kto">Konto</th>
+              <th>Bezeichnung</th>
+              <th class="r">Wirtschaftsplan</th>
+              <th class="r">Einnahme/Ausgabe</th>
+              <th class="r">Verteilungsrel.</th>
+            </tr>
             ${sectionRows}
-            ${
-              totalReserveWithdrawal > 0
-                ? `
-            <tr class="neutralize">
-              <td></td>
-              <td colspan="2">./. Entnahme aus Erhaltungsrücklage (Neutralisation)</td>
-              <td class="r mono">- ${formatCurrency(totalReserveWithdrawal)}</td>
-            </tr>`
-                : ""
-            }
           </table>
 
-          <h2>Endbestände</h2>
+          <h2>Abrechnungsergebnis</h2>
           <table>
-            <tr class="balance-row"><td>Girokonto</td><td class="r mono">${formatCurrency(closingGiro)}</td><td></td><td></td></tr>
-            <tr class="balance-row"><td>Erhaltungsrücklage</td><td class="r mono">${formatCurrency(closingRL)}</td><td></td><td></td></tr>
-            <tr class="section-total"><td><strong>Gesamtvermögen Ende</strong></td><td class="r mono"><strong>${formatCurrency(closingGiro + closingRL)}</strong></td><td></td><td></td></tr>
+            <tr><td>Abrechnungssumme (Gesamtkosten)</td><td class="r mono">${formatCurrency(abrechnungssumme)}</td></tr>
+            <tr><td>Vorschussverpflichtung (Hausgeld + IHR)</td><td class="r mono">${formatCurrency(totalVorschussSoll)}</td></tr>
+            <tr class="grand-total" style="background:${abrechnungsspitze >= 0 ? "#ecfdf5" : "#fef2f2"}; color:${abrechnungsspitze >= 0 ? "#166534" : "#991b1b"}">
+              <td><strong>Abrechnungsspitze (${abrechnungsspitze >= 0 ? "Guthaben" : "Nachzahlung"})</strong></td>
+              <td class="r mono"><strong>${formatCurrency(Math.abs(abrechnungsspitze))}</strong></td>
+            </tr>
+          </table>
+
+          <h2>Kontrolle Endbestände zum ${formatDate(period.period_to)}</h2>
+          <table>
+            <tr class="balance-row"><td>Girokonto</td><td class="r mono">${formatCurrency(closingGiro)}</td></tr>
+            <tr class="balance-row"><td>Instandhaltungsrücklage</td><td class="r mono">${formatCurrency(closingRL)}</td></tr>
+            <tr class="section-total"><td><strong>Gesamt</strong></td><td class="r mono"><strong>${formatCurrency(closingGiro + closingRL)}</strong></td></tr>
           </table>
 
           <h2>Verteilung auf Eigentümer</h2>
@@ -646,16 +702,6 @@ serve(async (req) => {
               <td class="r mono">${formatCurrency(totalOwnerCosts)}</td>
               <td class="r mono">${formatCurrency(totalOwnerPaid)}</td>
               <td class="r mono">${formatCurrency(totalOwnerResult)}</td>
-            </tr>
-          </table>
-
-          <h2>Vorschuss-Soll & Abrechnungsspitze (WEG-weit)</h2>
-          <table>
-            <tr><td>Vorschussverpflichtung lt. Wirtschaftsplan (Soll)</td><td class="r mono">${formatCurrency(totalOwnerVorschuss)}</td></tr>
-            <tr><td>Tatsächlich geleistete Vorauszahlungen</td><td class="r mono">${formatCurrency(totalOwnerPaid)}</td></tr>
-            <tr class="section-total">
-              <td><strong>Abrechnungsspitze WEG</strong> (${totalAbrechnungsspitze >= 0 ? "Nachzahlung" : "Guthaben"})</td>
-              <td class="r mono"><strong>${formatCurrency(Math.abs(totalAbrechnungsspitze))}</strong></td>
             </tr>
           </table>
 
