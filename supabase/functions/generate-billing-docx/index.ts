@@ -536,7 +536,8 @@ async function loadSettlementData(supabase: any, buildingId: string, periodId: s
     const annualReserve = ownerAccount ? 0 : calcAnnual(["ruecklage"]);
     const totalPaid = annualHausgeld + annualReserve;
     const totalVorschuss = calcAnnual(["hausgeld", "nebenkosten", "ruecklage"]);
-    const netOwnerCost = totalOwnerCost - ownerReserveWithdrawal;
+    // totalOwnerCost ist bereits NETTO (Aufwand minus Rücklagengegenbuchung) — UI-konform
+    const netOwnerCost = totalOwnerCost;
     const result = totalPaid - netOwnerCost;
     const abrechnungsspitze = totalVorschuss - totalPaid;
 
@@ -546,7 +547,7 @@ async function loadSettlementData(supabase: any, buildingId: string, periodId: s
       addressCity: [contact?.address_zip, contact?.address_city].filter(Boolean).join(" "),
       unitNumber: assignment.unit_number || "–",
       mea: shares.find((s: any) => s.share_type === "mea")?.share_value || 0,
-      accountBreakdown, totalOwnerCost, ownerReserveWithdrawal, netOwnerCost,
+      accountBreakdown, totalOwnerCost, ownerReserveWithdrawal, ownerReserveContribution, netOwnerCost,
       annualHausgeld, annualReserve, totalPaid, totalVorschuss, abrechnungsspitze, result,
       total35aDienste, total35aHandwerker, timeProportion, umlSum, numlSum,
     };
