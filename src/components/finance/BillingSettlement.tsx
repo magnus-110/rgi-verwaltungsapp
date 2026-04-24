@@ -13,7 +13,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { BarChart3, ChevronDown, ChevronRight, Users, PiggyBank, AlertTriangle, Check, FileText, Building2, Loader2, Search, Calculator, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { getEffectiveOpeningBalance, getEffectiveClosingBalance } from "./lib/bookingAggregation";
+import { getEffectiveOpeningBalance, getEffectiveClosingBalance, signedTotalForAccount } from "./lib/bookingAggregation";
 
 interface BillingSettlementProps {
   buildingId: string;
