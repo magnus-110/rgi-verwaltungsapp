@@ -807,7 +807,7 @@ function buildGesamtabrechnung(data: any, kiTexts: any): (Paragraph | Table)[] {
     });
     if (secId === "reserve" && data.totalReserveWithdrawal > 0) {
       data.reserveFundedAccounts.forEach((acc: any) => {
-        const t = Math.abs(sumForAccount(acc.id, data.allBookings as any));
+        const t = Math.abs(signedTotalForAccount(acc.id, data.allBookings as any));
         if (t === 0) return;
         expRows.push(new TableRow({ children: [
           dataCell(acc.account_number, expWidths[0], { italics: true, color: GREEN_TEXT }),
