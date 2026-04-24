@@ -424,7 +424,7 @@ serve(async (req) => {
           else if (acc.settlement_35a_type === "handwerker") total35aHandwerker += ownerCost;
 
           // Track owner share of reserve-funded expense (1920 etc.) for neutralization
-          if (acc.is_reserve_funded) ownerReserveWithdrawal += ownerCost;
+          if (isReserveWithdrawalAccount(acc)) ownerReserveWithdrawal += ownerCost;
         }
       });
 
