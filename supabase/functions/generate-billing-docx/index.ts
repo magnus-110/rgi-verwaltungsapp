@@ -607,19 +607,6 @@ async function generateKiTexts(data: any, ownerId?: string) {
     } catch { return ""; }
   }
 
-  const gesamtText = await ask(
-    `Du bist ein freundlicher WEG-Verwalter. Schreibe eine kurze Zusammenfassung (3–4 Sätze) der WEG-Gesamtabrechnung. Einfaches Deutsch, kein Fachjargon, kein Bullet-Point-Format, nur Fließtext.
-WEG: ${data.building?.name || "—"}
-Wirtschaftsjahr: ${data.fiscalYear}
-Vorschüsse (Hausgeld gesamt): ${fmt(data.totalVorschuss)}
-Größter Kostenblock: ${data.topKonto} mit ${fmt(data.topBetrag)}
-Aus Rücklage entnommen: ${fmt(data.totalReserveWithdrawal)}`,
-  );
-
-  const owners = ownerId
-    ? [data.ownerResults.find((o: any) => o.assignmentId === ownerId)].filter(Boolean)
-    : data.ownerResults;
-
   const STRICT_RULES = `STRENGE REGELN:
 - Verwende AUSSCHLIESSLICH die unten genannten Zahlen — niemals andere erfinden, runden oder schätzen
 - Schreibe Zahlen exakt wie angegeben (inkl. Cent), kein "ungefähr"

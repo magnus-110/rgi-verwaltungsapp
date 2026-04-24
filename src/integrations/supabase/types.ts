@@ -2263,7 +2263,7 @@ export type Database = {
           assignment_id: string
           created_at: string
           id: string
-          share_type: Database["public"]["Enums"]["share_type"]
+          share_type: string
           share_value: number
           updated_at: string
         }
@@ -2271,7 +2271,7 @@ export type Database = {
           assignment_id: string
           created_at?: string
           id?: string
-          share_type: Database["public"]["Enums"]["share_type"]
+          share_type: string
           share_value?: number
           updated_at?: string
         }
@@ -2279,7 +2279,7 @@ export type Database = {
           assignment_id?: string
           created_at?: string
           id?: string
-          share_type?: Database["public"]["Enums"]["share_type"]
+          share_type?: string
           share_value?: number
           updated_at?: string
         }
@@ -5469,16 +5469,6 @@ export type Database = {
         | "personen"
       invoice_type: "standard" | "installment" | "annual_settlement"
       management_mode: "weg" | "rent"
-      share_type:
-        | "mea"
-        | "einheit"
-        | "qm"
-        | "personen"
-        | "garagen"
-        | "stellplaetze"
-        | "wasser"
-        | "warmwasser"
-        | "heizkosten"
       utility_type: "gas" | "strom" | "wasser" | "fernwaerme"
     }
     CompositeTypes: {
@@ -5676,17 +5666,6 @@ export const Constants = {
       ],
       invoice_type: ["standard", "installment", "annual_settlement"],
       management_mode: ["weg", "rent"],
-      share_type: [
-        "mea",
-        "einheit",
-        "qm",
-        "personen",
-        "garagen",
-        "stellplaetze",
-        "wasser",
-        "warmwasser",
-        "heizkosten",
-      ],
       utility_type: ["gas", "strom", "wasser", "fernwaerme"],
     },
   },
