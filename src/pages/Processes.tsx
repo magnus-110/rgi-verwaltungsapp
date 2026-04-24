@@ -308,7 +308,7 @@ function InstancesList({ showCompleted }: { showCompleted: boolean }) {
     setLoading(true);
     const { data, error } = await supabase
       .from("process_instances")
-      .select("*, buildings(name), contacts(name), process_instance_steps(id,is_completed)")
+      .select("*, buildings(name), contacts(short_name,first_name,last_name,company_name), process_instance_steps(id,is_completed)")
       .in("status", showCompleted ? ["completed", "cancelled"] : ["in_progress", "on_hold"])
       .order("started_at", { ascending: false });
     if (error) toast.error(error.message);
