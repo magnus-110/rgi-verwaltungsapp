@@ -557,7 +557,7 @@ function InstanceDetail({ id, onClose }: { id: string; onClose: () => void }) {
           <DialogTitle>{instance.title}</DialogTitle>
           <DialogDescription>
             {instance.buildings?.name && <>🏢 {instance.buildings.name} · </>}
-            {instance.contacts?.name && <>👤 {instance.contacts.name} · </>}
+            {contactName(instance.contacts) && <>👤 {contactName(instance.contacts)} · </>}
             {done}/{steps.length} erledigt
           </DialogDescription>
         </DialogHeader>
