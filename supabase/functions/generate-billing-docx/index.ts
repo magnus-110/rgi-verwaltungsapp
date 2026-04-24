@@ -351,13 +351,16 @@ async function loadSettlementData(supabase: any, buildingId: string, periodId: s
     }, 0);
   };
 
-  const isBankAccount = (a: any) => a.settlement_section === "bank" || BANK_ACCOUNT_PATTERN.test(a.account_number || "");
+  // Bilanzkonten — UI-konform (BillingSettlement.tsx Z. 331-372):
+  // - Nur Konten mit carry_forward_balance=true werden berücksichtigt
+  // - Rücklagenkonten via konkreter Kontonummer 1810/1820 (DATEV) erkannt
+  // - Alle übrigen carry_forward-Konten = Giro
   const isReserveBalanceAccount = (a: any) =>
-    (a.settlement_section === "reserve" || RESERVE_ACCOUNT_PATTERN.test(a.account_number || ""))
-    && a.carry_forward_balance === true && !isPersonalAccount(a);
+    a.account_number === "1810" || a.account_number === "1820";
 
-  const bankAccountsForBalance = allAccounts.filter(isBankAccount);
-  const reserveAccountsForBalance = allAccounts.filter(isReserveBalanceAccount);
+  const carryAccounts = allAccounts.filter((a: any) => a.carry_forward_balance === true && !isPersonalAccount(a));
+  const bankAccountsForBalance = carryAccounts.filter((a: any) => !isReserveBalanceAccount(a));
+  const reserveAccountsForBalance = carryAccounts.filter((a: any) => isReserveBalanceAccount(a));
   const balancesArr = (balances || []) as any[];
 
   const sumOpening = (accs: any[]) =>
@@ -434,6 +437,7 @@ async function loadSettlementData(supabase: any, buildingId: string, periodId: s
     const accountBreakdown: any[] = [];
     let totalOwnerCost = 0, total35aDienste = 0, total35aHandwerker = 0, ownerReserveWithdrawal = 0;
     let umlSum = 0, numlSum = 0;
+    let ownerReserveContribution = 0;
 
     distributableAccounts.forEach((acc: any) => {
       const isHeating = acc.is_heating_relevant && acc.account_number === "1400";
@@ -465,18 +469,43 @@ async function loadSettlementData(supabase: any, buildingId: string, periodId: s
       }
 
       if (ownerCost > 0) {
-        const displaySection = acc.settlement_section || "operating_distributable";
+        // Plan-IHR-Zuführung erscheint NICHT im Aufwandsbereich, sondern im IHR-Block.
+        // (UI: BillingSettlement Z. 525-528 / 595)
+        const displaySection = isReserveAcc ? "reserve" : (acc.settlement_section || "operating_distributable");
         accountBreakdown.push({
           accountNumber: acc.account_number, accountName: acc.account_name,
           distributableAmount: total, distLabel, totalShares,
-          ownerShare: ownerShareValue, ownerCost, displaySection,
+          ownerShare: ownerShareValue, ownerCost, displaySection, signedFactor: 1,
         });
-        totalOwnerCost += ownerCost;
-        if (displaySection === "operating_distributable" || displaySection === "heating") umlSum += ownerCost;
-        if (displaySection === "operating_non_distributable") numlSum += ownerCost;
+        // §35a NUR auf Original-Aufwandszeile (nicht auf Gegenbuchungen)
         if (acc.settlement_35a_type === "dienste") total35aDienste += ownerCost;
         else if (acc.settlement_35a_type === "handwerker") total35aHandwerker += ownerCost;
-        if (isReserveWithdrawalAccount(acc)) ownerReserveWithdrawal += ownerCost;
+
+        if (isReserveAcc) {
+          // IHR-Zuführung: zählt NICHT zum totalOwnerCost (ist ein Soll-Beitrag, kein Aufwand)
+          ownerReserveContribution += ownerCost;
+        } else {
+          totalOwnerCost += ownerCost;
+          if (displaySection === "operating_distributable" || displaySection === "heating") umlSum += ownerCost;
+          if (displaySection === "operating_non_distributable") numlSum += ownerCost;
+          if (isReserveWithdrawalAccount(acc)) ownerReserveWithdrawal += ownerCost;
+        }
+
+        // GENERISCHE RÜCKLAGEN-DOPPELDARSTELLUNG (UI: Z. 580-600)
+        // Konten mit reserve_role='withdrawal' (z. B. 1920) erscheinen ZUSÄTZLICH
+        // im Rücklagen-Block mit umgekehrtem Vorzeichen (Gegenbuchung).
+        if (isReserveWithdrawalAccount(acc) && ownerCost !== 0) {
+          accountBreakdown.push({
+            accountNumber: acc.account_number,
+            accountName: "./. " + acc.account_name + " (aus Rücklage)",
+            distributableAmount: total, distLabel, totalShares,
+            ownerShare: ownerShareValue, ownerCost: -ownerCost,
+            displaySection: "reserve", signedFactor: -1,
+          });
+          // Netto-Effekt: Aufwand + Gegenbuchung heben sich auf
+          totalOwnerCost -= ownerCost;
+          if (displaySection === "operating_non_distributable") numlSum -= ownerCost;
+        }
       }
     });
 
@@ -510,7 +539,8 @@ async function loadSettlementData(supabase: any, buildingId: string, periodId: s
     const annualReserve = ownerAccount ? 0 : calcAnnual(["ruecklage"]);
     const totalPaid = annualHausgeld + annualReserve;
     const totalVorschuss = calcAnnual(["hausgeld", "nebenkosten", "ruecklage"]);
-    const netOwnerCost = totalOwnerCost - ownerReserveWithdrawal;
+    // totalOwnerCost ist bereits NETTO (Aufwand minus Rücklagengegenbuchung) — UI-konform
+    const netOwnerCost = totalOwnerCost;
     const result = totalPaid - netOwnerCost;
     const abrechnungsspitze = totalVorschuss - totalPaid;
 
@@ -520,7 +550,7 @@ async function loadSettlementData(supabase: any, buildingId: string, periodId: s
       addressCity: [contact?.address_zip, contact?.address_city].filter(Boolean).join(" "),
       unitNumber: assignment.unit_number || "–",
       mea: shares.find((s: any) => s.share_type === "mea")?.share_value || 0,
-      accountBreakdown, totalOwnerCost, ownerReserveWithdrawal, netOwnerCost,
+      accountBreakdown, totalOwnerCost, ownerReserveWithdrawal, ownerReserveContribution, netOwnerCost,
       annualHausgeld, annualReserve, totalPaid, totalVorschuss, abrechnungsspitze, result,
       total35aDienste, total35aHandwerker, timeProportion, umlSum, numlSum,
     };
@@ -590,28 +620,63 @@ Aus Rücklage entnommen: ${fmt(data.totalReserveWithdrawal)}`,
     ? [data.ownerResults.find((o: any) => o.assignmentId === ownerId)].filter(Boolean)
     : data.ownerResults;
 
+  const STRICT_RULES = `STRENGE REGELN:
+- Verwende AUSSCHLIESSLICH die unten genannten Zahlen — niemals andere erfinden, runden oder schätzen
+- Schreibe Zahlen exakt wie angegeben (inkl. Cent), kein "ungefähr"
+- 2-4 Sätze, einfaches Deutsch, kein Bullet-Point-Format, nur Fließtext
+- Keine Anrede ("Liebe Eigentümer"), kein Schluss ("Mit freundlichen Grüßen")
+- Keine zusätzlichen Erklärungen außerhalb der gegebenen Daten`;
+
+  const gesamtText = await ask(
+    `Du bist ein freundlicher WEG-Verwalter. Schreibe eine kurze Zusammenfassung der WEG-Gesamtabrechnung.
+${STRICT_RULES}
+
+EXAKTE ZAHLEN (nur diese verwenden):
+- Wirtschaftsjahr: ${data.fiscalYear}
+- Vorschüsse Hausgeld (Soll): ${fmt(data.totalSollKostendeckung)}
+- Zuführung Erhaltungsrücklage (Soll): ${fmt(data.totalSollEHR)}
+- Größter Kostenblock: "${data.topKonto}" mit ${fmt(data.topBetrag)}
+- Aus Rücklage entnommen: ${fmt(data.totalReserveWithdrawal)}
+- Endbestand Girokonto: ${fmt(data.closingGiro)}
+- Endbestand Erhaltungsrücklage: ${fmt(data.closingRL)}`,
+  );
+
+  const owners = ownerId
+    ? [data.ownerResults.find((o: any) => o.assignmentId === ownerId)].filter(Boolean)
+    : data.ownerResults;
+
   const ownerTexts = await Promise.all(owners.map(async (o: any) => {
-    const umlKonten = o.accountBreakdown
+    const realRows = o.accountBreakdown.filter((r: any) => r.signedFactor !== -1);
+    const umlKonten = realRows
       .filter((r: any) => r.displaySection === "operating_distributable" || r.displaySection === "heating")
       .map((r: any) => r.accountName).join(", ") || "—";
-    const numlKonten = o.accountBreakdown
+    const numlKonten = realRows
       .filter((r: any) => r.displaySection === "operating_non_distributable")
       .map((r: any) => r.accountName).join(", ") || "—";
-    const topRow = [...o.accountBreakdown].sort((a: any, b: any) => b.ownerCost - a.ownerCost)[0];
+    const topRow = [...realRows].sort((a: any, b: any) => b.ownerCost - a.ownerCost)[0];
 
     const [ergebnisText, umlText, numlText] = await Promise.all([
-      ask(`Du bist ein freundlicher WEG-Verwalter. Erkläre dem Eigentümer sein Abrechnungsergebnis in 2–3 Sätzen. Einfaches Deutsch, kein Bullet-Point-Format, nur Fließtext.
-Eigentümer: ${o.name} (Einheit ${o.unitNumber})
-Hausgeld ${data.fiscalYear}: ${fmt(o.totalPaid)}
-Berechneter Kostenanteil: ${fmt(o.totalOwnerCost)}
-Ergebnis: ${fmt(Math.abs(o.result))} ${o.result >= 0 ? "Guthaben" : "Nachzahlung"}
-Größte Kostenposition: ${topRow?.accountName || "—"} mit ${fmt(topRow?.ownerCost ?? 0)}`),
-      ask(`Erkläre in 1–2 Sätzen, was umlagefähige Betriebskosten nach §2 BetrKV sind und dass Vermieter diese auf ihren Mieter umlegen dürfen. Nenne kurz die konkreten Posten. Nur Fließtext, kein Bullet-Format.
-Positionen: ${umlKonten}
-Gesamtbetrag: ${fmt(o.umlSum)}`),
-      ask(`Erkläre in 1–2 Sätzen, was nicht umlagefähige Kosten sind und dass Vermieter diese selbst tragen müssen. Nenne kurz die Posten. Nur Fließtext, kein Bullet-Format.
-Positionen: ${numlKonten}
-Gesamtbetrag: ${fmt(o.numlSum)}`),
+      ask(`Du bist ein freundlicher WEG-Verwalter. Erkläre dem Eigentümer sein Abrechnungsergebnis.
+${STRICT_RULES}
+
+EXAKTE ZAHLEN (nur diese verwenden):
+- Eigentümer: ${o.name}, Einheit ${o.unitNumber}
+- Geleistete Vorschüsse (Hausgeld): ${fmt(o.totalPaid)}
+- Berechneter Kostenanteil (netto): ${fmt(o.netOwnerCost)}
+- Ergebnis: ${fmt(Math.abs(o.result))} ${o.result >= 0 ? "Guthaben (Erstattung)" : "Nachzahlung"}
+- Größte Kostenposition: "${topRow?.accountName || "—"}" mit ${fmt(topRow?.ownerCost ?? 0)}`),
+      ask(`Erkläre, was umlagefähige Betriebskosten nach §2 BetrKV sind und dass Vermieter diese auf Mieter umlegen dürfen. Nenne KURZ die konkreten Posten.
+${STRICT_RULES}
+
+EXAKTE DATEN:
+- Positionen (NUR diese nennen): ${umlKonten}
+- Gesamtbetrag: ${fmt(o.umlSum)}`),
+      ask(`Erkläre, was nicht umlagefähige Kosten sind und dass Vermieter sie selbst tragen müssen. Nenne KURZ die Posten.
+${STRICT_RULES}
+
+EXAKTE DATEN:
+- Positionen (NUR diese nennen): ${numlKonten}
+- Gesamtbetrag: ${fmt(o.numlSum)}`),
     ]);
 
     return {
@@ -794,15 +859,26 @@ function buildGesamtabrechnung(data: any, kiTexts: any): (Paragraph | Table)[] {
     if (!sec) return;
     expRows.push(sectionHeaderRow(sec.label, 5));
     sec.accounts.forEach((acc: any) => {
-      totalIst += acc.absTotal;
-      totalPlan += acc.wpAmount;
-      if (acc.is_distributable) totalDistributable += acc.absTotal;
+      // Abgrenzungen werden SIGNIERT angezeigt (kann positiv oder negativ sein),
+      // alle anderen Ausgaben als Magnitude. Nicht in totalIst aufnehmen für Abgrenzungen
+      // (sie sind nachrichtlich, nicht in Spitze).
+      const isAccrual = secId === "accrual";
+      const displayAmount = isAccrual ? acc.total : acc.absTotal;
+      const displayStr = isAccrual && acc.total !== 0
+        ? (acc.total >= 0 ? "+" : "−") + " " + fmt(Math.abs(acc.total))
+        : fmt(acc.absTotal);
+      if (!isAccrual) {
+        totalIst += acc.absTotal;
+        totalPlan += acc.wpAmount;
+        if (acc.is_distributable) totalDistributable += acc.absTotal;
+      }
       expRows.push(new TableRow({ children: [
         dataCell(acc.account_number, expWidths[0]),
         dataCell(acc.account_name, expWidths[1]),
         dataCell(acc.wpAmount > 0 ? fmt(acc.wpAmount) : "–", expWidths[2], { align: AlignmentType.RIGHT }),
-        dataCell(fmt(acc.absTotal), expWidths[3], { align: AlignmentType.RIGHT }),
-        dataCell(acc.is_distributable ? fmt(acc.absTotal) : "–", expWidths[4], { align: AlignmentType.RIGHT }),
+        dataCell(displayStr, expWidths[3], { align: AlignmentType.RIGHT,
+          color: isAccrual && acc.total < 0 ? RED_TEXT : (isAccrual && acc.total > 0 ? GREEN_TEXT : DARK) }),
+        dataCell(isAccrual ? "–" : (acc.is_distributable ? fmt(acc.absTotal) : "–"), expWidths[4], { align: AlignmentType.RIGHT }),
       ]}));
     });
     if (secId === "reserve" && data.totalReserveWithdrawal > 0) {
