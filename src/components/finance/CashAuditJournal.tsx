@@ -79,10 +79,26 @@ export function CashAuditJournal({ buildingId, fiscalYear, progress, onProgressC
   const selectedBooking = bookings.find((b: any) => b.id === selectedBookingId);
   const fmt = (n: number) => n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
 
-  const openInvoicePdf = async (filePath: string) => {
-    const { data } = await supabase.storage.from("invoices").createSignedUrl(filePath, 300);
-    if (data?.signedUrl) setPdfUrl(data.signedUrl);
+  const selectedIndex = filtered.findIndex((b: any) => b.id === selectedBookingId);
+  const goToIndex = (i: number) => {
+    if (i < 0 || i >= filtered.length) return;
+    setSelectedBookingId(filtered[i].id);
   };
+
+  // Auto-load PDF when selected booking changes
+  useEffect(() => {
+    setPdfUrl(null);
+    if (!selectedBooking?.invoices?.file_path) return;
+    let cancelled = false;
+    setPdfLoading(true);
+    (async () => {
+      const cleanPath = selectedBooking.invoices.file_path.replace(/^\/+/, "").replace(/^invoices\//, "");
+      const { data } = await supabase.storage.from("invoices").createSignedUrl(cleanPath, 3600);
+      if (!cancelled && data?.signedUrl) setPdfUrl(data.signedUrl);
+      if (!cancelled) setPdfLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [selectedBookingId]);
 
   const months = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
 
