@@ -15,6 +15,11 @@ import { Plus, Trash2, Pencil, Play, ChevronRight, ListChecks, X, GripVertical }
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 
+const contactName = (c: { short_name?: string | null; first_name?: string | null; last_name?: string | null; company_name?: string | null } | null | undefined): string => {
+  if (!c) return "";
+  return c.short_name || c.company_name || [c.first_name, c.last_name].filter(Boolean).join(" ") || "";
+};
+
 interface Template {
   id: string;
   name: string;
@@ -40,7 +45,7 @@ interface Instance {
   started_at: string;
   completed_at: string | null;
   buildings?: { name: string } | null;
-  contacts?: { name: string } | null;
+  contacts?: { short_name: string | null; first_name: string | null; last_name: string | null; company_name: string | null } | null;
   process_instance_steps?: { id: string; is_completed: boolean }[];
 }
 interface InstanceStep {
@@ -308,7 +313,7 @@ function InstancesList({ showCompleted }: { showCompleted: boolean }) {
     setLoading(true);
     const { data, error } = await supabase
       .from("process_instances")
-      .select("*, buildings(name), contacts(name), process_instance_steps(id,is_completed)")
+      .select("*, buildings(name), contacts(short_name,first_name,last_name,company_name), process_instance_steps(id,is_completed)")
       .in("status", showCompleted ? ["completed", "cancelled"] : ["in_progress", "on_hold"])
       .order("started_at", { ascending: false });
     if (error) toast.error(error.message);
@@ -338,7 +343,7 @@ function InstancesList({ showCompleted }: { showCompleted: boolean }) {
                   <div className="font-semibold">{inst.title}</div>
                   <div className="text-xs text-muted-foreground">
                     {inst.buildings?.name && <>🏢 {inst.buildings.name} · </>}
-                    {inst.contacts?.name && <>👤 {inst.contacts.name} · </>}
+                    {contactName(inst.contacts) && <>👤 {contactName(inst.contacts)} · </>}
                     Gestartet {format(new Date(inst.started_at), "dd.MM.yyyy", { locale: de })}
                   </div>
                 </div>
@@ -371,7 +376,7 @@ function StartProcessDialog({ onClose }: { onClose: () => void }) {
   const [templateId, setTemplateId] = useState("");
   const [title, setTitle] = useState("");
   const [buildings, setBuildings] = useState<{ id: string; name: string }[]>([]);
-  const [contacts, setContacts] = useState<{ id: string; name: string }[]>([]);
+  const [contacts, setContacts] = useState<{ id: string; label: string }[]>([]);
   const [buildingId, setBuildingId] = useState<string>("");
   const [contactId, setContactId] = useState<string>("");
   const [saving, setSaving] = useState(false);
@@ -381,8 +386,8 @@ function StartProcessDialog({ onClose }: { onClose: () => void }) {
       .then(({ data }) => setTemplates(data || []));
     supabase.from("buildings").select("id,name").order("name")
       .then(({ data }) => setBuildings(data || []));
-    supabase.from("contacts").select("id,name").order("name")
-      .then(({ data }) => setContacts((data as any) || []));
+    supabase.from("contacts").select("id,short_name,first_name,last_name,company_name").order("short_name")
+      .then(({ data }) => setContacts((data || []).map((c: any) => ({ id: c.id, label: contactName(c) || "(ohne Name)" }))));
   }, []);
 
   useEffect(() => {
@@ -470,7 +475,7 @@ function StartProcessDialog({ onClose }: { onClose: () => void }) {
               <SelectTrigger><SelectValue placeholder="Kein Kontakt" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">— Kein Kontakt —</SelectItem>
-                {contacts.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                {contacts.map(c => <SelectItem key={c.id} value={c.id}>{c.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -493,7 +498,7 @@ function InstanceDetail({ id, onClose }: { id: string; onClose: () => void }) {
   const load = useCallback(async () => {
     const { data: inst } = await supabase
       .from("process_instances")
-      .select("*, buildings(name), contacts(name)")
+      .select("*, buildings(name), contacts(short_name,first_name,last_name,company_name)")
       .eq("id", id).single();
     setInstance(inst as any);
     const { data: stepsData } = await supabase
@@ -552,7 +557,7 @@ function InstanceDetail({ id, onClose }: { id: string; onClose: () => void }) {
           <DialogTitle>{instance.title}</DialogTitle>
           <DialogDescription>
             {instance.buildings?.name && <>🏢 {instance.buildings.name} · </>}
-            {instance.contacts?.name && <>👤 {instance.contacts.name} · </>}
+            {contactName(instance.contacts) && <>👤 {contactName(instance.contacts)} · </>}
             {done}/{steps.length} erledigt
           </DialogDescription>
         </DialogHeader>
