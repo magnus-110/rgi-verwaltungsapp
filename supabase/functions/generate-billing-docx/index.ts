@@ -10,6 +10,7 @@ import {
 } from "npm:docx@8.5.0";
 import {
   sumForAccount,
+  signedTotalForAccount,
   getEffectiveOpeningBalance,
   getEffectiveClosingBalance,
 } from "../_shared/booking-aggregation.ts";
