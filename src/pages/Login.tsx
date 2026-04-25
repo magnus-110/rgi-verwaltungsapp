@@ -109,13 +109,14 @@ export const Login = () => {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">E-Mail</Label>
+                <Label htmlFor="identifier">Benutzername oder E-Mail</Label>
                 <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="ihre.email@beispiel.de"
+                  id="identifier"
+                  type="text"
+                  autoComplete="username"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder="benutzername oder ihre.email@beispiel.de"
                   required
                   className="focus:ring-primary focus:border-primary"
                 />
