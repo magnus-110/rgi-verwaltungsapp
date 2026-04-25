@@ -37,6 +37,8 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
   const [reviewNote, setReviewNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [markGlobal, setMarkGlobal] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [lastResult, setLastResult] = useState<{ ok: number; failed: number; zip_path: string } | null>(null);
 
   // Activation state
   const { data: activation } = useQuery({
