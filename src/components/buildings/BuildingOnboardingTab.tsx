@@ -13,7 +13,9 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import {
   CheckCircle2, Circle, Inbox, Power, Users, AlertCircle, Loader2, ChevronRight,
+  Mail, Download, FileText,
 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 
@@ -35,6 +37,8 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
   const [reviewNote, setReviewNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [markGlobal, setMarkGlobal] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [lastResult, setLastResult] = useState<{ ok: number; failed: number; zip_path: string } | null>(null);
 
   // Activation state
   const { data: activation } = useQuery({
@@ -46,6 +50,33 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
         .eq("building_id", buildingId)
         .maybeSingle();
       return data as any;
+    },
+  });
+
+  // Building (for welcome letter template)
+  const { data: building } = useQuery({
+    queryKey: ["onb-building", buildingId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("buildings")
+        .select("id, name, welcome_letter_template_id" as any)
+        .eq("id", buildingId)
+        .maybeSingle();
+      return data as any;
+    },
+  });
+
+  // Letter templates available for this building (or global)
+  const { data: letterTemplates = [] } = useQuery({
+    queryKey: ["onb-letter-templates", buildingId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("comm_templates")
+        .select("id, name")
+        .eq("type", "letter")
+        .or(`building_id.eq.${buildingId},building_id.is.null`)
+        .order("name");
+      return data ?? [];
     },
   });
 
@@ -161,7 +192,58 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
     }
   };
 
-  // Stats
+  // Welcome letter — set template
+  const setTemplate = async (templateId: string) => {
+    const newId = templateId === "__none__" ? null : templateId;
+    const { error } = await supabase
+      .from("buildings")
+      .update({ welcome_letter_template_id: newId } as any)
+      .eq("id", buildingId);
+    if (error) {
+      toast({ title: "Fehler", description: error.message, variant: "destructive" });
+      return;
+    }
+    qc.invalidateQueries({ queryKey: ["onb-building", buildingId] });
+    toast({ title: "Vorlage gespeichert" });
+  };
+
+  // Welcome letter — generate
+  const generateLetters = async () => {
+    setGenerating(true);
+    setLastResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        "generate-welcome-letters",
+        { body: { building_id: buildingId } },
+      );
+      if (error) throw error;
+      const r = data as any;
+      if (r?.error) throw new Error(r.error);
+      setLastResult({ ok: r.ok, failed: r.failed, zip_path: r.zip_path });
+      toast({
+        title: "Briefe erstellt",
+        description: `${r.ok} erfolgreich, ${r.failed} fehlgeschlagen. Ablage im Dokumentenarchiv.`,
+      });
+    } catch (e: any) {
+      toast({ title: "Fehler", description: e?.message || "Unbekannter Fehler", variant: "destructive" });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const downloadLastZip = async () => {
+    if (!lastResult?.zip_path) return;
+    const { data, error } = await supabase.storage
+      .from("comm-assets")
+      .createSignedUrl(lastResult.zip_path, 600);
+    if (error || !data?.signedUrl) {
+      toast({ title: "Download-Fehler", variant: "destructive" });
+      return;
+    }
+    window.open(data.signedUrl, "_blank");
+  };
+
+
   const totalOwners = progresses.length;
   const step1Done = progresses.filter((p: any) => p.step1_completed_at).length;
   const fullyDone = progresses.filter((p: any) => p.fully_completed_at).length;
@@ -193,6 +275,65 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
             )}
           </CardContent>
         )}
+      </Card>
+
+      {/* Welcome letters */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mail className="h-5 w-5" /> Begrüßungsbriefe & Magic-Link
+          </CardTitle>
+          <CardDescription>
+            Für jeden Eigentümer einen personalisierten Brief mit eingebettetem QR-Code (gültig 30 Tage) als ZIP erzeugen — automatische Ablage im Dokumentenarchiv.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-2">
+            <label className="text-sm font-medium flex items-center gap-2">
+              <FileText className="h-4 w-4" /> Brief-Vorlage
+            </label>
+            <Select
+              value={building?.welcome_letter_template_id ?? "__none__"}
+              onValueChange={setTemplate}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Vorlage wählen…" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">— Keine Vorlage —</SelectItem>
+                {(letterTemplates as any[]).map((t) => (
+                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Vorlage muss die Platzhalter <code className="text-xs">{"{{magic_link_url}}"}</code> und (für QR-Code) ein Bildplatzhalter <code className="text-xs">{"{%magic_link_qr}"}</code> enthalten.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              onClick={generateLetters}
+              disabled={generating || !building?.welcome_letter_template_id}
+            >
+              {generating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Begrüßungsbriefe erstellen
+            </Button>
+            {lastResult && (
+              <Button variant="outline" onClick={downloadLastZip}>
+                <Download className="h-4 w-4 mr-2" />
+                ZIP herunterladen ({lastResult.ok} Briefe)
+              </Button>
+            )}
+          </div>
+
+          {lastResult?.failed ? (
+            <div className="flex items-center gap-2 text-xs text-destructive">
+              <AlertCircle className="h-4 w-4" />
+              {lastResult.failed} Briefe konnten nicht erzeugt werden.
+            </div>
+          ) : null}
+        </CardContent>
       </Card>
 
       {/* Progress overview */}

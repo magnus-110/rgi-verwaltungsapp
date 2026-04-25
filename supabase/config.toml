@@ -138,3 +138,6 @@ verify_jwt = false
 
 [functions.onboarding-approve-submission]
 verify_jwt = false
+
+[functions.generate-welcome-letters]
+verify_jwt = false
