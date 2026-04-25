@@ -1,7 +1,7 @@
 // Send a personalized bulk email campaign via the configured SMTP account.
 // Phase 2: supports retry mode (only failed recipients), attachments, and scheduled execution.
-import { createClient } from "npm:@supabase/supabase-js@2.52.1";
-import nodemailer from "npm:nodemailer@6.9.16";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
+import nodemailer from "https://esm.sh/nodemailer@6.9.16";
 import { loadRecipients, renderString, RecipientFilter } from "../_shared/comm-vars.ts";
 
 const corsHeaders = {
