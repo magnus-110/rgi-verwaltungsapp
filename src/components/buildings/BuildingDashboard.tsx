@@ -21,6 +21,7 @@ import { BuildingResolutionsTab } from "./BuildingResolutionsTab";
 import { BuildingDistributionKeysTab } from "@/components/finance/BuildingDistributionKeysTab";
 import { BuildingServiceProvidersTab } from "./BuildingServiceProvidersTab";
 import { BuildingOverviewTab } from "./BuildingOverviewTab";
+import { BuildingOnboardingTab } from "./BuildingOnboardingTab";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -171,6 +172,7 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
               { value: "distribution", label: "Kontenrahmen" },
               ...(building.management_mode === 'weg' ? [{ value: "resolutions", label: "Beschlüsse" }] : []),
               { value: "maintenance", label: "Wartung" },
+              { value: "onboarding", label: "Onboarding" },
             ].map(tab => (
               <TabsTrigger key={tab.value} value={tab.value} variant="underline"
                 className="px-3 md:px-4 py-3 text-xs md:text-sm whitespace-nowrap min-h-[44px]">
@@ -242,6 +244,11 @@ export const BuildingDashboard = ({ buildingId, onBack }: BuildingDashboardProps
               <BuildingResolutionsTab buildingId={buildingId} />
             </TabsContent>
           )}
+
+          {/* Onboarding Tab */}
+          <TabsContent value="onboarding" className="p-3 md:p-6 mt-0">
+            <BuildingOnboardingTab buildingId={buildingId} />
+          </TabsContent>
         </ScrollArea>
       </Tabs>
 
