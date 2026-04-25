@@ -1136,6 +1136,7 @@ export type Database = {
           booking_instructions: string | null
           building_code: string
           created_at: string | null
+          heating_type: string | null
           id: string
           management_mode: Database["public"]["Enums"]["management_mode"]
           manager_name: string | null
@@ -1150,6 +1151,7 @@ export type Database = {
           booking_instructions?: string | null
           building_code: string
           created_at?: string | null
+          heating_type?: string | null
           id?: string
           management_mode: Database["public"]["Enums"]["management_mode"]
           manager_name?: string | null
@@ -1164,6 +1166,7 @@ export type Database = {
           booking_instructions?: string | null
           building_code?: string
           created_at?: string | null
+          heating_type?: string | null
           id?: string
           management_mode?: Database["public"]["Enums"]["management_mode"]
           manager_name?: string | null
@@ -2351,11 +2354,13 @@ export type Database = {
           is_primary: boolean | null
           last_name: string | null
           notes: string | null
+          onboarding_expectations: string | null
           phone: string | null
           position: string | null
           salutation: string | null
           sort_order: number | null
           updated_at: string | null
+          willing_cash_audit: boolean | null
         }
         Insert: {
           contact_id: string
@@ -2366,11 +2371,13 @@ export type Database = {
           is_primary?: boolean | null
           last_name?: string | null
           notes?: string | null
+          onboarding_expectations?: string | null
           phone?: string | null
           position?: string | null
           salutation?: string | null
           sort_order?: number | null
           updated_at?: string | null
+          willing_cash_audit?: boolean | null
         }
         Update: {
           contact_id?: string
@@ -2381,11 +2388,13 @@ export type Database = {
           is_primary?: boolean | null
           last_name?: string | null
           notes?: string | null
+          onboarding_expectations?: string | null
           phone?: string | null
           position?: string | null
           salutation?: string | null
           sort_order?: number | null
           updated_at?: string | null
+          willing_cash_audit?: boolean | null
         }
         Relationships: [
           {
@@ -2454,8 +2463,10 @@ export type Database = {
           id: string
           last_name: string | null
           notes: string | null
+          onboarding_category: string | null
           salutation: string | null
           short_name: string | null
+          suggest_in_onboarding: boolean | null
           updated_at: string
           user_id: string | null
         }
@@ -2470,8 +2481,10 @@ export type Database = {
           id?: string
           last_name?: string | null
           notes?: string | null
+          onboarding_category?: string | null
           salutation?: string | null
           short_name?: string | null
+          suggest_in_onboarding?: boolean | null
           updated_at?: string
           user_id?: string | null
         }
@@ -2486,8 +2499,10 @@ export type Database = {
           id?: string
           last_name?: string | null
           notes?: string | null
+          onboarding_category?: string | null
           salutation?: string | null
           short_name?: string | null
+          suggest_in_onboarding?: boolean | null
           updated_at?: string
           user_id?: string | null
         }
@@ -4331,6 +4346,280 @@ export type Database = {
           },
         ]
       }
+      onboarding_activations: {
+        Row: {
+          activated_at: string | null
+          activated_by: string | null
+          building_id: string
+          created_at: string
+          deactivated_at: string | null
+          id: string
+          is_active: boolean
+          notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          activated_at?: string | null
+          activated_by?: string | null
+          building_id: string
+          created_at?: string
+          deactivated_at?: string | null
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          activated_at?: string | null
+          activated_by?: string | null
+          building_id?: string
+          created_at?: string
+          deactivated_at?: string | null
+          id?: string
+          is_active?: boolean
+          notes?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_activations_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: true
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      onboarding_letter_log: {
+        Row: {
+          building_id: string
+          campaign_id: string | null
+          contact_id: string | null
+          generated_at: string
+          generated_by: string | null
+          id: string
+          initial_password_hash: string | null
+          invalidated_at: string | null
+          is_existing_user: boolean
+          magic_link_token: string | null
+          notes: string | null
+          user_id: string | null
+          username: string | null
+        }
+        Insert: {
+          building_id: string
+          campaign_id?: string | null
+          contact_id?: string | null
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          initial_password_hash?: string | null
+          invalidated_at?: string | null
+          is_existing_user?: boolean
+          magic_link_token?: string | null
+          notes?: string | null
+          user_id?: string | null
+          username?: string | null
+        }
+        Update: {
+          building_id?: string
+          campaign_id?: string | null
+          contact_id?: string | null
+          generated_at?: string
+          generated_by?: string | null
+          id?: string
+          initial_password_hash?: string | null
+          invalidated_at?: string | null
+          is_existing_user?: boolean
+          magic_link_token?: string | null
+          notes?: string | null
+          user_id?: string | null
+          username?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_letter_log_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "onboarding_letter_log_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      onboarding_magic_links: {
+        Row: {
+          building_id: string | null
+          created_at: string
+          expires_at: string
+          token: string
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          building_id?: string | null
+          created_at?: string
+          expires_at: string
+          token: string
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          building_id?: string | null
+          created_at?: string
+          expires_at?: string
+          token?: string
+          used_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_magic_links_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      onboarding_progress: {
+        Row: {
+          building_id: string
+          contact_id: string | null
+          created_at: string
+          current_step: number
+          fab_dismissed_at: string | null
+          fully_completed_at: string | null
+          id: string
+          is_repeat_owner: boolean
+          step_data: Json
+          step1_completed_at: string | null
+          step2_completed_at: string | null
+          step3_completed_at: string | null
+          step4_completed_at: string | null
+          step5_completed_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          building_id: string
+          contact_id?: string | null
+          created_at?: string
+          current_step?: number
+          fab_dismissed_at?: string | null
+          fully_completed_at?: string | null
+          id?: string
+          is_repeat_owner?: boolean
+          step_data?: Json
+          step1_completed_at?: string | null
+          step2_completed_at?: string | null
+          step3_completed_at?: string | null
+          step4_completed_at?: string | null
+          step5_completed_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          building_id?: string
+          contact_id?: string | null
+          created_at?: string
+          current_step?: number
+          fab_dismissed_at?: string | null
+          fully_completed_at?: string | null
+          id?: string
+          is_repeat_owner?: boolean
+          step_data?: Json
+          step1_completed_at?: string | null
+          step2_completed_at?: string | null
+          step3_completed_at?: string | null
+          step4_completed_at?: string | null
+          step5_completed_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_progress_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "onboarding_progress_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      onboarding_submissions: {
+        Row: {
+          building_id: string
+          category: string
+          contact_id: string | null
+          created_at: string
+          id: string
+          payload: Json
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          building_id: string
+          category: string
+          contact_id?: string | null
+          created_at?: string
+          id?: string
+          payload?: Json
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          building_id?: string
+          category?: string
+          contact_id?: string | null
+          created_at?: string
+          id?: string
+          payload?: Json
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "onboarding_submissions_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "onboarding_submissions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       process_instance_steps: {
         Row: {
           assignee_user_id: string | null
@@ -4664,46 +4953,58 @@ export type Database = {
       }
       profiles: {
         Row: {
+          auth_pseudo_email: string | null
           building_id: string | null
           created_at: string | null
           email: string
           first_name: string | null
           force_password_change: boolean | null
           id: string
+          initial_password_set_at: string | null
           last_name: string | null
+          must_change_password: boolean | null
           phone: string | null
           role: Database["public"]["Enums"]["app_role"]
           terms_accepted_at: string | null
           updated_at: string | null
           user_id: string
+          username: string | null
         }
         Insert: {
+          auth_pseudo_email?: string | null
           building_id?: string | null
           created_at?: string | null
           email: string
           first_name?: string | null
           force_password_change?: boolean | null
           id?: string
+          initial_password_set_at?: string | null
           last_name?: string | null
+          must_change_password?: boolean | null
           phone?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           terms_accepted_at?: string | null
           updated_at?: string | null
           user_id: string
+          username?: string | null
         }
         Update: {
+          auth_pseudo_email?: string | null
           building_id?: string | null
           created_at?: string | null
           email?: string
           first_name?: string | null
           force_password_change?: boolean | null
           id?: string
+          initial_password_set_at?: string | null
           last_name?: string | null
+          must_change_password?: boolean | null
           phone?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           terms_accepted_at?: string | null
           updated_at?: string | null
           user_id?: string
+          username?: string | null
         }
         Relationships: [
           {
