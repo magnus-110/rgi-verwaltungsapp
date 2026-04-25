@@ -1,8 +1,8 @@
 // Generate personalized DOCX letters for each recipient and bundle them as a ZIP.
 // Uses docxtemplater + pizzip; runs entirely in Deno on edge.
-import { createClient } from "npm:@supabase/supabase-js@2.52.1";
-import PizZip from "npm:pizzip@3.1.7";
-import Docxtemplater from "npm:docxtemplater@3.50.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
+import PizZip from "https://esm.sh/pizzip@3.1.7";
+import Docxtemplater from "https://esm.sh/docxtemplater@3.50.0";
 import { loadRecipients, RecipientFilter } from "../_shared/comm-vars.ts";
 
 const corsHeaders = {
