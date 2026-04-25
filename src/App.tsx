@@ -92,6 +92,7 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />
               <Route path="/change-password" element={<ChangePassword />} />
+              <Route path="/login/magic/:token" element={<MagicLinkLogin />} />
               
               {/* Admin Routes */}
               <Route path="/admin/change-password" element={<AdminLayout><ChangePassword /></AdminLayout>} />
