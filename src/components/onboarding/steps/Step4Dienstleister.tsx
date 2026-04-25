@@ -46,18 +46,21 @@ export const Step4Dienstleister = ({ buildingId, value, onChange }: Props) => {
     const load = async () => {
       const { data } = await supabase
         .from("contacts")
-        .select("id, contact_persons(first_name, last_name), company_name, onboarding_category")
-        .eq("suggest_in_onboarding", true);
+        .select("id, contact_persons(first_name, last_name), company_name, service_provider_categories")
+        .eq("is_service_provider_pool", true);
       const grouped: Record<string, SuggestedContact[]> = {};
       (data ?? []).forEach((c: any) => {
-        const cat = c.onboarding_category || "sonstige";
+        const cats: string[] = c.service_provider_categories ?? [];
         const person = c.contact_persons?.[0];
         const name =
           c.company_name ||
           [person?.first_name, person?.last_name].filter(Boolean).join(" ") ||
           "Unbekannt";
-        if (!grouped[cat]) grouped[cat] = [];
-        grouped[cat].push({ id: c.id, name, category: cat, source: "global" });
+        const targetCats = cats.length ? cats : ["sonstige"];
+        targetCats.forEach((cat) => {
+          if (!grouped[cat]) grouped[cat] = [];
+          grouped[cat].push({ id: c.id, name, category: cat, source: "global" });
+        });
       });
       setSuggestions(grouped);
     };
