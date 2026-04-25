@@ -8,10 +8,12 @@ interface Profile {
   id: string;
   user_id: string;
   email: string;
+  username?: string | null;
   first_name?: string;
   last_name?: string;
   role: 'admin' | 'weg_owner' | 'tenant' | 'employee';
   force_password_change: boolean;
+  must_change_password?: boolean | null;
 }
 
 interface AuthContextType {
@@ -19,7 +21,7 @@ interface AuthContextType {
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error?: any }>;
+  signIn: (identifier: string, password: string) => Promise<{ error?: any }>;
   signOut: () => Promise<void>;
   updatePassword: (newPassword: string) => Promise<{ error?: any }>;
   fetchProfile: () => Promise<void>;
