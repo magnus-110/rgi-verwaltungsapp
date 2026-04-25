@@ -53,6 +53,33 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
     },
   });
 
+  // Building (for welcome letter template)
+  const { data: building } = useQuery({
+    queryKey: ["onb-building", buildingId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("buildings")
+        .select("id, name, welcome_letter_template_id" as any)
+        .eq("id", buildingId)
+        .maybeSingle();
+      return data as any;
+    },
+  });
+
+  // Letter templates available for this building (or global)
+  const { data: letterTemplates = [] } = useQuery({
+    queryKey: ["onb-letter-templates", buildingId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("comm_templates")
+        .select("id, name")
+        .eq("type", "letter")
+        .or(`building_id.eq.${buildingId},building_id.is.null`)
+        .order("name");
+      return data ?? [];
+    },
+  });
+
   // All progress rows for this building
   const { data: progresses = [] } = useQuery({
     queryKey: ["onb-progress", buildingId],
