@@ -20,6 +20,8 @@ export interface Contact {
   address_city: string | null;
   notes: string | null;
   contact_type: string | null;
+  is_service_provider_pool?: boolean | null;
+  service_provider_categories?: string[] | null;
   created_at: string;
   updated_at: string;
 }
