@@ -221,7 +221,11 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
         address_street: form.address_street, address_zip: form.address_zip,
         address_city: form.address_city, notes: form.notes,
         contact_type: form.contact_type as any,
-      }).eq("id", contact.id);
+        is_service_provider_pool: !!form.is_service_provider_pool,
+        service_provider_categories: form.is_service_provider_pool
+          ? (form.service_provider_categories ?? [])
+          : [],
+      } as any).eq("id", contact.id);
       if (contactError) throw contactError;
 
       // 2. Save persons and their sub-collections
