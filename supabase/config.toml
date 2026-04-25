@@ -135,3 +135,6 @@ verify_jwt = false
 [functions.submit-onboarding-step]
 verify_jwt = false
 
+
+[functions.onboarding-approve-submission]
+verify_jwt = false
