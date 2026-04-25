@@ -2472,10 +2472,12 @@ export type Database = {
           created_at: string
           first_name: string | null
           id: string
+          is_service_provider_pool: boolean
           last_name: string | null
           notes: string | null
           onboarding_category: string | null
           salutation: string | null
+          service_provider_categories: string[]
           short_name: string | null
           suggest_in_onboarding: boolean | null
           updated_at: string
@@ -2490,10 +2492,12 @@ export type Database = {
           created_at?: string
           first_name?: string | null
           id?: string
+          is_service_provider_pool?: boolean
           last_name?: string | null
           notes?: string | null
           onboarding_category?: string | null
           salutation?: string | null
+          service_provider_categories?: string[]
           short_name?: string | null
           suggest_in_onboarding?: boolean | null
           updated_at?: string
@@ -2508,10 +2512,12 @@ export type Database = {
           created_at?: string
           first_name?: string | null
           id?: string
+          is_service_provider_pool?: boolean
           last_name?: string | null
           notes?: string | null
           onboarding_category?: string | null
           salutation?: string | null
+          service_provider_categories?: string[]
           short_name?: string | null
           suggest_in_onboarding?: boolean | null
           updated_at?: string
@@ -5192,48 +5198,6 @@ export type Database = {
           id?: string
           name?: string
           sort_order?: number
-        }
-        Relationships: []
-      }
-      service_provider_pool: {
-        Row: {
-          category: string
-          contact_email: string | null
-          contact_phone: string | null
-          created_at: string
-          created_by: string | null
-          id: string
-          is_active: boolean
-          name: string
-          notes: string | null
-          updated_at: string
-          website: string | null
-        }
-        Insert: {
-          category: string
-          contact_email?: string | null
-          contact_phone?: string | null
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          is_active?: boolean
-          name: string
-          notes?: string | null
-          updated_at?: string
-          website?: string | null
-        }
-        Update: {
-          category?: string
-          contact_email?: string | null
-          contact_phone?: string | null
-          created_at?: string
-          created_by?: string | null
-          id?: string
-          is_active?: boolean
-          name?: string
-          notes?: string | null
-          updated_at?: string
-          website?: string | null
         }
         Relationships: []
       }
