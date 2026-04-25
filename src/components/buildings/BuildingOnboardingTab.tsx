@@ -328,67 +328,71 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
-              Vorlage muss die Platzhalter <code className="text-xs">{"{{magic_link_url}}"}</code> und (für QR-Code) ein Bildplatzhalter <code className="text-xs">{"{%magic_link_qr}"}</code> enthalten.
+            <p className="text-xs text-muted-foreground flex flex-wrap items-center gap-1">
+              <span>Vorlage muss die Platzhalter</span>
+              <PlaceholderChip value="{{magic_link_url}}" />
+              <span>und (für QR-Code) ein Bildplatzhalter</span>
+              <PlaceholderChip value="{%magic_link_qr}" />
+              <span>enthalten.</span>
             </p>
 
             <details className="rounded-md border bg-muted/30 p-3 text-xs">
               <summary className="cursor-pointer font-medium text-foreground">
-                Alle verfügbaren Platzhalter anzeigen
+                Alle verfügbaren Platzhalter anzeigen (klicken zum Kopieren)
               </summary>
               <div className="mt-3 grid gap-4 sm:grid-cols-2">
                 <div>
                   <p className="mb-1 font-semibold text-foreground">Magic-Link / QR</p>
-                  <ul className="space-y-0.5 text-muted-foreground">
-                    <li><code>{"{{magic_link_url}}"}</code> — Onboarding-Link</li>
-                    <li><code>{"{%magic_link_qr}"}</code> — QR-Code als Bild</li>
+                  <ul className="space-y-1 text-muted-foreground">
+                    <li><PlaceholderChip value="{{magic_link_url}}" /> — Onboarding-Link</li>
+                    <li><PlaceholderChip value="{%magic_link_qr}" /> — QR-Code als Bild</li>
                   </ul>
                 </div>
                 <div>
                   <p className="mb-1 font-semibold text-foreground">Person</p>
-                  <ul className="space-y-0.5 text-muted-foreground">
-                    <li><code>{"{{anrede}}"}</code> — Herr / Frau</li>
-                    <li><code>{"{{anrede_brief}}"}</code> — Sehr geehrter Herr …,</li>
-                    <li><code>{"{{vorname}}"}</code></li>
-                    <li><code>{"{{nachname}}"}</code></li>
-                    <li><code>{"{{vollname}}"}</code></li>
-                    <li><code>{"{{titel}}"}</code> — Position/Funktion</li>
+                  <ul className="space-y-1 text-muted-foreground">
+                    <li><PlaceholderChip value="{{anrede}}" /> — Herr / Frau</li>
+                    <li><PlaceholderChip value="{{anrede_brief}}" /> — Sehr geehrter Herr …,</li>
+                    <li><PlaceholderChip value="{{vorname}}" /></li>
+                    <li><PlaceholderChip value="{{nachname}}" /></li>
+                    <li><PlaceholderChip value="{{vollname}}" /></li>
+                    <li><PlaceholderChip value="{{titel}}" /> — Position/Funktion</li>
                   </ul>
                 </div>
                 <div>
                   <p className="mb-1 font-semibold text-foreground">Adresse</p>
-                  <ul className="space-y-0.5 text-muted-foreground">
-                    <li><code>{"{{firma}}"}</code></li>
-                    <li><code>{"{{strasse}}"}</code></li>
-                    <li><code>{"{{plz}}"}</code></li>
-                    <li><code>{"{{ort}}"}</code></li>
-                    <li><code>{"{{adresse_block}}"}</code> — komplette Briefanschrift</li>
+                  <ul className="space-y-1 text-muted-foreground">
+                    <li><PlaceholderChip value="{{firma}}" /></li>
+                    <li><PlaceholderChip value="{{strasse}}" /></li>
+                    <li><PlaceholderChip value="{{plz}}" /></li>
+                    <li><PlaceholderChip value="{{ort}}" /></li>
+                    <li><PlaceholderChip value="{{adresse_block}}" /> — komplette Briefanschrift</li>
                   </ul>
                 </div>
                 <div>
                   <p className="mb-1 font-semibold text-foreground">Kontakt</p>
-                  <ul className="space-y-0.5 text-muted-foreground">
-                    <li><code>{"{{email}}"}</code></li>
-                    <li><code>{"{{telefon}}"}</code></li>
+                  <ul className="space-y-1 text-muted-foreground">
+                    <li><PlaceholderChip value="{{email}}" /></li>
+                    <li><PlaceholderChip value="{{telefon}}" /></li>
                   </ul>
                 </div>
                 <div>
                   <p className="mb-1 font-semibold text-foreground">Gebäude / Einheit</p>
-                  <ul className="space-y-0.5 text-muted-foreground">
-                    <li><code>{"{{gebaeude_name}}"}</code></li>
-                    <li><code>{"{{gebaeude_strasse}}"}</code></li>
-                    <li><code>{"{{einheit}}"}</code></li>
-                    <li><code>{"{{rolle}}"}</code> — Eigentümer/Mieter</li>
+                  <ul className="space-y-1 text-muted-foreground">
+                    <li><PlaceholderChip value="{{gebaeude_name}}" /></li>
+                    <li><PlaceholderChip value="{{gebaeude_strasse}}" /></li>
+                    <li><PlaceholderChip value="{{einheit}}" /></li>
+                    <li><PlaceholderChip value="{{rolle}}" /> — Eigentümer/Mieter</li>
                   </ul>
                 </div>
                 <div>
                   <p className="mb-1 font-semibold text-foreground">Verwaltung & Datum</p>
-                  <ul className="space-y-0.5 text-muted-foreground">
-                    <li><code>{"{{verwalter_name}}"}</code></li>
-                    <li><code>{"{{verwalter_email}}"}</code></li>
-                    <li><code>{"{{verwalter_telefon}}"}</code></li>
-                    <li><code>{"{{datum_heute}}"}</code> — z. B. 25. April 2026</li>
-                    <li><code>{"{{ort_datum}}"}</code> — Ort, 25.04.2026</li>
+                  <ul className="space-y-1 text-muted-foreground">
+                    <li><PlaceholderChip value="{{verwalter_name}}" /></li>
+                    <li><PlaceholderChip value="{{verwalter_email}}" /></li>
+                    <li><PlaceholderChip value="{{verwalter_telefon}}" /></li>
+                    <li><PlaceholderChip value="{{datum_heute}}" /> — z. B. 25. April 2026</li>
+                    <li><PlaceholderChip value="{{ort_datum}}" /> — Ort, 25.04.2026</li>
                   </ul>
                 </div>
               </div>
