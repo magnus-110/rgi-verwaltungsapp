@@ -1,0 +1,187 @@
+import { useEffect, useRef, useState, useCallback } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+
+export interface OnboardingProgress {
+  id: string;
+  user_id: string;
+  building_id: string;
+  contact_id: string | null;
+  current_step: number;
+  step_data: Record<string, any>;
+  step1_completed_at: string | null;
+  step2_completed_at: string | null;
+  step3_completed_at: string | null;
+  step4_completed_at: string | null;
+  step5_completed_at: string | null;
+  fully_completed_at: string | null;
+  fab_dismissed_at: string | null;
+  is_repeat_owner: boolean;
+}
+
+export interface OnboardingContext {
+  loading: boolean;
+  buildingId: string | null;
+  buildingName: string | null;
+  isActive: boolean;
+  progress: OnboardingProgress | null;
+  refresh: () => Promise<void>;
+}
+
+/**
+ * Loads the active onboarding context for the current weg-owner.
+ * Picks the first building where:
+ *   - the user is assigned (via contacts)
+ *   - onboarding_activations.is_active = true
+ *   - progress.fully_completed_at IS NULL
+ */
+export const useOnboardingContext = (): OnboardingContext => {
+  const { profile } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [buildingId, setBuildingId] = useState<string | null>(null);
+  const [buildingName, setBuildingName] = useState<string | null>(null);
+  const [isActive, setIsActive] = useState(false);
+  const [progress, setProgress] = useState<OnboardingProgress | null>(null);
+
+  const load = useCallback(async () => {
+    if (!profile?.user_id) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      // Find the user's contact -> building assignments
+      const { data: contacts } = await supabase
+        .from("contacts")
+        .select("id")
+        .eq("user_id", profile.user_id);
+
+      const contactIds = (contacts ?? []).map((c) => c.id);
+      if (contactIds.length === 0) {
+        setLoading(false);
+        return;
+      }
+
+      const { data: assignments } = await supabase
+        .from("contact_building_assignments" as any)
+        .select("building_id, buildings(name)")
+        .in("contact_id", contactIds);
+
+      const buildingIds = Array.from(
+        new Set((assignments ?? []).map((a: any) => a.building_id))
+      );
+      if (buildingIds.length === 0) {
+        setLoading(false);
+        return;
+      }
+
+      // Find an active onboarding for one of these buildings
+      const { data: activations } = await supabase
+        .from("onboarding_activations" as any)
+        .select("building_id, is_active")
+        .in("building_id", buildingIds)
+        .eq("is_active", true)
+        .limit(1);
+
+      const activeBuildingId =
+        (activations as any[])?.[0]?.building_id ?? null;
+      if (!activeBuildingId) {
+        setLoading(false);
+        return;
+      }
+
+      setBuildingId(activeBuildingId);
+      setIsActive(true);
+      const matchingAssignment = (assignments as any[]).find(
+        (a) => a.building_id === activeBuildingId
+      );
+      setBuildingName(matchingAssignment?.buildings?.name ?? null);
+
+      // Fetch or create progress row
+      const { data: existing } = await supabase
+        .from("onboarding_progress" as any)
+        .select("*")
+        .eq("user_id", profile.user_id)
+        .eq("building_id", activeBuildingId)
+        .maybeSingle();
+
+      if (existing && !(existing as any).fully_completed_at) {
+        setProgress(existing as any);
+      } else if (!existing) {
+        const matchingContactId = (contacts ?? []).find((c) =>
+          (assignments as any[]).some(
+            (a) => a.building_id === activeBuildingId
+          )
+        )?.id;
+
+        const { data: created } = await supabase
+          .from("onboarding_progress" as any)
+          .insert({
+            user_id: profile.user_id,
+            building_id: activeBuildingId,
+            contact_id: matchingContactId ?? null,
+            current_step: 1,
+            step_data: {},
+          })
+          .select("*")
+          .single();
+        setProgress(created as any);
+      } else {
+        setProgress(existing as any);
+      }
+    } catch (e) {
+      console.error("Onboarding context load failed", e);
+    } finally {
+      setLoading(false);
+    }
+  }, [profile?.user_id]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  return {
+    loading,
+    buildingId,
+    buildingName,
+    isActive,
+    progress,
+    refresh: load,
+  };
+};
+
+/**
+ * Debounced auto-save for step_data.
+ */
+export const useStepAutoSave = (
+  progressId: string | null,
+  step: number,
+  data: Record<string, any>,
+  delay = 600
+) => {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!progressId) return;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(async () => {
+      setSaving(true);
+      try {
+        await supabase.functions.invoke("save-onboarding-step", {
+          body: { progress_id: progressId, step, data },
+        });
+      } catch (e) {
+        console.error("autosave failed", e);
+      } finally {
+        setSaving(false);
+      }
+    }, delay);
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(data), progressId, step]);
+
+  return { saving };
+};
