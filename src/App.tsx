@@ -20,6 +20,7 @@ import { TenantLayout } from "./components/TenantLayout";
 
 // Lazy: Heavy & weniger frequente Routen → eigene Chunks
 const ChangePassword = lazy(() => import("./pages/ChangePassword").then(m => ({ default: m.ChangePassword })));
+const MagicLinkLogin = lazy(() => import("./pages/MagicLinkLogin").then(m => ({ default: m.MagicLinkLogin })));
 const Reports = lazy(() => import("./pages/Reports").then(m => ({ default: m.Reports })));
 const Buildings = lazy(() => import("./pages/Buildings").then(m => ({ default: m.Buildings })));
 const Settings = lazy(() => import("./pages/Settings").then(m => ({ default: m.Settings })));
@@ -91,6 +92,7 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />
               <Route path="/change-password" element={<ChangePassword />} />
+              <Route path="/login/magic/:token" element={<MagicLinkLogin />} />
               
               {/* Admin Routes */}
               <Route path="/admin/change-password" element={<AdminLayout><ChangePassword /></AdminLayout>} />

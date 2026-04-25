@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { VotingPopup } from "@/components/meetings/VotingPopup";
 import { useHasVisibleFiles } from "@/hooks/useHasVisibleFiles";
+import { OnboardingFAB } from "@/components/onboarding/OnboardingFAB";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { 
@@ -254,7 +255,8 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
          onAccepted={handleTermsAccepted}
        />
      )}
-     <VotingPopup />
+      <VotingPopup />
+      <OnboardingFAB />
     </div>
   );
 };
