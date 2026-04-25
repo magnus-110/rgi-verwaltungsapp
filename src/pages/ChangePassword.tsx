@@ -27,7 +27,14 @@ export const ChangePassword = () => {
   }
 
   // For forced password change, only redirect if not on a role-specific route
-  if (profile && !profile.force_password_change && !isAdminRoute && !isWegOwnerRoute && !isTenantRoute) {
+  if (
+    profile &&
+    !profile.force_password_change &&
+    !profile.must_change_password &&
+    !isAdminRoute &&
+    !isWegOwnerRoute &&
+    !isTenantRoute
+  ) {
     return <Navigate to="/" replace />;
   }
 

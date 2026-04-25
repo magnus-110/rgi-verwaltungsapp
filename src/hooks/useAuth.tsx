@@ -8,10 +8,12 @@ interface Profile {
   id: string;
   user_id: string;
   email: string;
+  username?: string | null;
   first_name?: string;
   last_name?: string;
   role: 'admin' | 'weg_owner' | 'tenant' | 'employee';
   force_password_change: boolean;
+  must_change_password?: boolean | null;
 }
 
 interface AuthContextType {
@@ -19,7 +21,7 @@ interface AuthContextType {
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error?: any }>;
+  signIn: (identifier: string, password: string) => Promise<{ error?: any }>;
   signOut: () => Promise<void>;
   updatePassword: (newPassword: string) => Promise<{ error?: any }>;
   fetchProfile: () => Promise<void>;
@@ -132,17 +134,38 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }, [user, profile]);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (identifier: string, password: string) => {
     try {
-      
-      
+      const trimmed = identifier.trim();
+
+      // Resolve identifier (username OR email) -> auth email
+      let loginEmail = trimmed;
+      try {
+        const { data: resolved, error: resolveErr } = await supabase.functions.invoke(
+          'resolve-login-identifier',
+          { body: { identifier: trimmed } }
+        );
+        if (!resolveErr && resolved?.email) {
+          loginEmail = resolved.email;
+        } else if (!trimmed.includes('@')) {
+          // No @ and no resolution -> definitely invalid
+          toast({
+            title: "Anmeldung fehlgeschlagen",
+            description: "Benutzername nicht gefunden.",
+            variant: "destructive",
+          });
+          return { error: new Error('username_not_found') };
+        }
+      } catch {
+        // Fallback: try as-is
+      }
+
       const { error } = await supabase.auth.signInWithPassword({
-        email,
+        email: loginEmail,
         password,
       });
 
       if (error) {
-        
         toast({
           title: "Anmeldung fehlgeschlagen",
           description: error.message,
@@ -151,15 +174,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         return { error };
       }
 
-      
-      // Use React Router navigation instead of window.location
       setTimeout(() => {
         navigate('/');
       }, 100);
-      
+
       return {};
     } catch (error) {
-      
       return { error };
     }
   };
@@ -220,13 +240,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         return { error };
       }
 
-      // Update force_password_change flag
+      // Clear forced password change flags
       if (profile) {
         await supabase
           .from('profiles')
-          .update({ force_password_change: false })
+          .update({ force_password_change: false, must_change_password: false })
           .eq('user_id', user?.id);
-        
+
         await fetchProfile();
       }
 
