@@ -134,17 +134,38 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }, [user, profile]);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = async (identifier: string, password: string) => {
     try {
-      
-      
+      const trimmed = identifier.trim();
+
+      // Resolve identifier (username OR email) -> auth email
+      let loginEmail = trimmed;
+      try {
+        const { data: resolved, error: resolveErr } = await supabase.functions.invoke(
+          'resolve-login-identifier',
+          { body: { identifier: trimmed } }
+        );
+        if (!resolveErr && resolved?.email) {
+          loginEmail = resolved.email;
+        } else if (!trimmed.includes('@')) {
+          // No @ and no resolution -> definitely invalid
+          toast({
+            title: "Anmeldung fehlgeschlagen",
+            description: "Benutzername nicht gefunden.",
+            variant: "destructive",
+          });
+          return { error: new Error('username_not_found') };
+        }
+      } catch {
+        // Fallback: try as-is
+      }
+
       const { error } = await supabase.auth.signInWithPassword({
-        email,
+        email: loginEmail,
         password,
       });
 
       if (error) {
-        
         toast({
           title: "Anmeldung fehlgeschlagen",
           description: error.message,
@@ -153,15 +174,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         return { error };
       }
 
-      
-      // Use React Router navigation instead of window.location
       setTimeout(() => {
         navigate('/');
       }, 100);
-      
+
       return {};
     } catch (error) {
-      
       return { error };
     }
   };
