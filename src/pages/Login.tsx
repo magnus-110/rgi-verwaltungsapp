@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Login = () => {
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -22,8 +22,11 @@ export const Login = () => {
 
   // Redirect authenticated users
   if (user && profile) {
-    // Only admins need to change password on first login
-    if (profile.force_password_change && profile.role === 'admin') {
+    // Force password change for admins (legacy) or any user with must_change_password
+    if (
+      (profile.force_password_change && profile.role === 'admin') ||
+      profile.must_change_password
+    ) {
       return <Navigate to="/change-password" replace />;
     }
     return <Navigate to="/" replace />;
@@ -34,9 +37,9 @@ export const Login = () => {
     setLoading(true);
 
     try {
-      const { error } = await signIn(email, password);
+      const { error } = await signIn(identifier, password);
       if (error) {
-        toast.error("Anmeldung fehlgeschlagen: " + error.message);
+        // signIn already shows a toast; avoid duplicate noise
       }
     } catch (error) {
       toast.error("Ein Fehler ist aufgetreten");
