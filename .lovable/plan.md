@@ -395,3 +395,28 @@ Bedeutet:
 ---
 
 **Bei Freigabe baue ich Phase 1 vollständig um — DB-Migration zuerst, dann Edge Functions, dann Frontend, am Ende die Word-Vorlage.**
+
+---
+
+## 📊 Umsetzungsstatus
+
+- ✅ **Phase 1 — Datenbank-Schema** (Migration deployed):
+  `onboarding_activations`, `onboarding_progress`, `onboarding_submissions`,
+  `onboarding_magic_links`, `onboarding_letter_log` + RLS, Trigger,
+  `profiles.username/auth_pseudo_email/must_change_password`,
+  `contacts.suggest_in_onboarding/onboarding_category`, `buildings.heating_type`.
+
+- ✅ **Phase 2 — Edge Functions** (deployed):
+  - `generate-username` — eindeutige Username-Vorschläge aus Name/Firma
+  - `resolve-login-identifier` — Username ↔ E-Mail Auflösung vor `signInWithPassword`
+  - `admin-reset-password` — Initialpasswort-Generator (4-Wort-Format) mit `must_change_password`-Flag
+  - `generate-onboarding-magic-link` — 24h-Token für QR-Code im Begrüßungsbrief
+  - `consume-magic-link` — Token-Validierung + Auth-Session-Erzeugung
+  - `save-onboarding-step` — Auto-Save (JSONB-Merge) für Wizard-Eingaben
+  - `submit-onboarding-step` — Schritt abschließen (Step 1 live, Step 2-5 → Submission-Inbox)
+
+- 🔜 **Phase 3** — Login-Frontend (Username/E-Mail, Erst-Login-Modal, Magic-Link-Route)
+- 🔜 **Phase 4** — Wizard-UI (`OnboardingWizardModal`, `BigChoiceCard`, `StarScale`, FAB)
+- 🔜 **Phase 5** — Admin-Cockpit (Onboarding-Tab im Building-Hub: Aktivierung, Fortschritt, Inbox)
+- 🔜 **Phase 6** — Word-Vorlage + Serienbrief (Username/Initialpasswort/QR-Platzhalter)
+
