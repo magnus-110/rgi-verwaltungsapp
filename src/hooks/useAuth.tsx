@@ -240,13 +240,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         return { error };
       }
 
-      // Update force_password_change flag
+      // Clear forced password change flags
       if (profile) {
         await supabase
           .from('profiles')
-          .update({ force_password_change: false })
+          .update({ force_password_change: false, must_change_password: false })
           .eq('user_id', user?.id);
-        
+
         await fetchProfile();
       }
 
