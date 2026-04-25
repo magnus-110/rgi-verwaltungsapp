@@ -8,11 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ArrowLeft, Plus, Save, Trash2, Phone, Mail, Landmark, Users, ChevronDown, ChevronRight, FileText } from "lucide-react";
+import { ArrowLeft, Plus, Save, Trash2, Phone, Mail, Landmark, Users, ChevronDown, ChevronRight, FileText, Wrench } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ContactBuildingAssignments } from "./ContactBuildingAssignments";
 import { ContactDocumentsSection } from "./ContactDocumentsSection";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { SERVICE_PROVIDER_CATEGORIES } from "@/lib/serviceProviderCategories";
 import type { Contact } from "@/pages/Contacts";
 
 const SALUTATIONS = [
@@ -219,7 +221,11 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
         address_street: form.address_street, address_zip: form.address_zip,
         address_city: form.address_city, notes: form.notes,
         contact_type: form.contact_type as any,
-      }).eq("id", contact.id);
+        is_service_provider_pool: !!form.is_service_provider_pool,
+        service_provider_categories: form.is_service_provider_pool
+          ? (form.service_provider_categories ?? [])
+          : [],
+      } as any).eq("id", contact.id);
       if (contactError) throw contactError;
 
       // 2. Save persons and their sub-collections
@@ -424,6 +430,60 @@ export function ContactDetail({ contact, onBack, onUpdate, onDeleted }: Props) {
             <div className="border-t border-border pt-4 mt-4">
               <Label>Notizen</Label>
               <Textarea value={form.notes || ""} onChange={(e) => { setForm({ ...form, notes: e.target.value }); markDirty(); }} rows={4} />
+            </div>
+
+            <div className="border-t border-border pt-4 mt-4">
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="sp-pool"
+                  checked={!!form.is_service_provider_pool}
+                  onCheckedChange={(v) => {
+                    setForm({ ...form, is_service_provider_pool: !!v });
+                    markDirty();
+                  }}
+                />
+                <div className="flex-1">
+                  <Label htmlFor="sp-pool" className="flex items-center gap-2 cursor-pointer">
+                    <Wrench className="h-4 w-4 text-primary" />
+                    Im Onboarding als Dienstleister vorschlagen
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Wenn aktiviert, erscheint dieser Kontakt Eigentümern im Onboarding-Wizard als Vorschlag.
+                  </p>
+                </div>
+              </div>
+
+              {form.is_service_provider_pool && (
+                <div className="mt-3 ml-7 space-y-2">
+                  <Label className="text-xs text-muted-foreground">Kategorien (mind. eine)</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {SERVICE_PROVIDER_CATEGORIES.map((cat) => {
+                      const selected = (form.service_provider_categories ?? []).includes(cat.id);
+                      return (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={() => {
+                            const current = form.service_provider_categories ?? [];
+                            const next = selected
+                              ? current.filter((c) => c !== cat.id)
+                              : [...current, cat.id];
+                            setForm({ ...form, service_provider_categories: next });
+                            markDirty();
+                          }}
+                          className={`px-3 py-1.5 rounded-full border text-xs transition ${
+                            selected
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border text-muted-foreground hover:border-primary/50"
+                          }`}
+                        >
+                          {cat.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           </TabsContent>
 

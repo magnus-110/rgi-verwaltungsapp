@@ -20,6 +20,8 @@ export interface Contact {
   address_city: string | null;
   notes: string | null;
   contact_type: string | null;
+  is_service_provider_pool?: boolean | null;
+  service_provider_categories?: string[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -44,7 +46,7 @@ export function Contacts() {
       let q = supabase
         .from("contacts")
         .select(
-          "id, short_name, salutation, first_name, last_name, company_name, address_street, address_zip, address_city, notes, contact_type, created_at, updated_at",
+          "id, short_name, salutation, first_name, last_name, company_name, address_street, address_zip, address_city, notes, contact_type, is_service_provider_pool, service_provider_categories, created_at, updated_at",
           { count: "exact" }
         )
         .order("last_name", { ascending: true, nullsFirst: false })
