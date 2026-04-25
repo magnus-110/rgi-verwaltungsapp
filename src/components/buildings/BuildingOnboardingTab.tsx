@@ -13,8 +13,29 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import {
   CheckCircle2, Circle, Inbox, Power, Users, AlertCircle, Loader2, ChevronRight,
-  Mail, Download, FileText,
+  Mail, Download, FileText, Copy, Check,
 } from "lucide-react";
+
+function PlaceholderChip({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  const onClick = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    } catch {}
+  };
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title="Klicken zum Kopieren"
+      className="inline-flex items-center gap-1 rounded border bg-background px-1.5 py-0.5 font-mono text-[11px] text-foreground hover:bg-accent transition-colors"
+    >
+      <span>{value}</span>
+      {copied ? <Check className="h-3 w-3 text-primary" /> : <Copy className="h-3 w-3 opacity-60" />}
+    </button>
+  );
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
