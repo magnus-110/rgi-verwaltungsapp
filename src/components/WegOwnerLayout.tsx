@@ -255,7 +255,8 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
          onAccepted={handleTermsAccepted}
        />
      )}
-     <VotingPopup />
+      <VotingPopup />
+      <OnboardingFAB />
     </div>
   );
 };
