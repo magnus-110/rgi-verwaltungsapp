@@ -114,3 +114,24 @@ verify_jwt = false
 [functions.comm-dispatch-scheduled]
 verify_jwt = false
 
+[functions.generate-username]
+verify_jwt = false
+
+[functions.resolve-login-identifier]
+verify_jwt = false
+
+[functions.admin-reset-password]
+verify_jwt = false
+
+[functions.generate-onboarding-magic-link]
+verify_jwt = false
+
+[functions.consume-magic-link]
+verify_jwt = false
+
+[functions.save-onboarding-step]
+verify_jwt = false
+
+[functions.submit-onboarding-step]
+verify_jwt = false
+
