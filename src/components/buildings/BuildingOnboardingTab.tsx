@@ -13,7 +13,9 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import {
   CheckCircle2, Circle, Inbox, Power, Users, AlertCircle, Loader2, ChevronRight,
+  Mail, Download, FileText,
 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
 
