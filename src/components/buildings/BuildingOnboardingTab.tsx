@@ -277,6 +277,65 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
         )}
       </Card>
 
+      {/* Welcome letters */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mail className="h-5 w-5" /> Begrüßungsbriefe & Magic-Link
+          </CardTitle>
+          <CardDescription>
+            Für jeden Eigentümer einen personalisierten Brief mit eingebettetem QR-Code (gültig 30 Tage) als ZIP erzeugen — automatische Ablage im Dokumentenarchiv.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-2">
+            <label className="text-sm font-medium flex items-center gap-2">
+              <FileText className="h-4 w-4" /> Brief-Vorlage
+            </label>
+            <Select
+              value={building?.welcome_letter_template_id ?? "__none__"}
+              onValueChange={setTemplate}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Vorlage wählen…" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">— Keine Vorlage —</SelectItem>
+                {(letterTemplates as any[]).map((t) => (
+                  <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Vorlage muss die Platzhalter <code className="text-xs">{"{{magic_link_url}}"}</code> und (für QR-Code) ein Bildplatzhalter <code className="text-xs">{"{%magic_link_qr}"}</code> enthalten.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              onClick={generateLetters}
+              disabled={generating || !building?.welcome_letter_template_id}
+            >
+              {generating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Begrüßungsbriefe erstellen
+            </Button>
+            {lastResult && (
+              <Button variant="outline" onClick={downloadLastZip}>
+                <Download className="h-4 w-4 mr-2" />
+                ZIP herunterladen ({lastResult.ok} Briefe)
+              </Button>
+            )}
+          </div>
+
+          {lastResult?.failed ? (
+            <div className="flex items-center gap-2 text-xs text-destructive">
+              <AlertCircle className="h-4 w-4" />
+              {lastResult.failed} Briefe konnten nicht erzeugt werden.
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
+
       {/* Progress overview */}
       <Card>
         <CardHeader>
