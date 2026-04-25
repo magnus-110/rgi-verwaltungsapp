@@ -1,5 +1,5 @@
 // Shared helpers for the Communication module: building recipients + variable resolution.
-import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.52.1";
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
 
 export type RecipientFilter = {
   roles?: string[]; // e.g. ["eigentuemer","mieter"]
