@@ -192,7 +192,58 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
     }
   };
 
-  // Stats
+  // Welcome letter — set template
+  const setTemplate = async (templateId: string) => {
+    const newId = templateId === "__none__" ? null : templateId;
+    const { error } = await supabase
+      .from("buildings")
+      .update({ welcome_letter_template_id: newId } as any)
+      .eq("id", buildingId);
+    if (error) {
+      toast({ title: "Fehler", description: error.message, variant: "destructive" });
+      return;
+    }
+    qc.invalidateQueries({ queryKey: ["onb-building", buildingId] });
+    toast({ title: "Vorlage gespeichert" });
+  };
+
+  // Welcome letter — generate
+  const generateLetters = async () => {
+    setGenerating(true);
+    setLastResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        "generate-welcome-letters",
+        { body: { building_id: buildingId } },
+      );
+      if (error) throw error;
+      const r = data as any;
+      if (r?.error) throw new Error(r.error);
+      setLastResult({ ok: r.ok, failed: r.failed, zip_path: r.zip_path });
+      toast({
+        title: "Briefe erstellt",
+        description: `${r.ok} erfolgreich, ${r.failed} fehlgeschlagen. Ablage im Dokumentenarchiv.`,
+      });
+    } catch (e: any) {
+      toast({ title: "Fehler", description: e?.message || "Unbekannter Fehler", variant: "destructive" });
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const downloadLastZip = async () => {
+    if (!lastResult?.zip_path) return;
+    const { data, error } = await supabase.storage
+      .from("comm-assets")
+      .createSignedUrl(lastResult.zip_path, 600);
+    if (error || !data?.signedUrl) {
+      toast({ title: "Download-Fehler", variant: "destructive" });
+      return;
+    }
+    window.open(data.signedUrl, "_blank");
+  };
+
+
   const totalOwners = progresses.length;
   const step1Done = progresses.filter((p: any) => p.step1_completed_at).length;
   const fullyDone = progresses.filter((p: any) => p.fully_completed_at).length;
