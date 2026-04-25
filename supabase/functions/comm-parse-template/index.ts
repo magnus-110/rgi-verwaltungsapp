@@ -1,6 +1,6 @@
 // Parse a .docx template and extract {{variable}} placeholders
-import { createClient } from "npm:@supabase/supabase-js@2.52.1";
-import PizZip from "npm:pizzip@3.1.7";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
+import PizZip from "https://esm.sh/pizzip@3.1.7";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
