@@ -1145,6 +1145,7 @@ export type Database = {
           unit_count: number
           unit_count_for_billing: number | null
           updated_at: string | null
+          welcome_letter_template_id: string | null
         }
         Insert: {
           address: string
@@ -1160,6 +1161,7 @@ export type Database = {
           unit_count?: number
           unit_count_for_billing?: number | null
           updated_at?: string | null
+          welcome_letter_template_id?: string | null
         }
         Update: {
           address?: string
@@ -1175,8 +1177,17 @@ export type Database = {
           unit_count?: number
           unit_count_for_billing?: number | null
           updated_at?: string | null
+          welcome_letter_template_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "buildings_welcome_letter_template_id_fkey"
+            columns: ["welcome_letter_template_id"]
+            isOneToOne: false
+            referencedRelation: "comm_templates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       calendar_event_assignees: {
         Row: {
@@ -5181,6 +5192,48 @@ export type Database = {
           id?: string
           name?: string
           sort_order?: number
+        }
+        Relationships: []
+      }
+      service_provider_pool: {
+        Row: {
+          category: string
+          contact_email: string | null
+          contact_phone: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          name: string
+          notes: string | null
+          updated_at: string
+          website: string | null
+        }
+        Insert: {
+          category: string
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          notes?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Update: {
+          category?: string
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          notes?: string | null
+          updated_at?: string
+          website?: string | null
         }
         Relationships: []
       }
