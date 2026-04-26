@@ -206,15 +206,15 @@ export const Step4Dienstleister = ({ buildingId, value, onChange }: Props) => {
             type="button"
             onClick={() => setShowAdd((v) => !v)}
             className={cn(
-              "w-full border-[1.5px] border-dashed border-border/70 p-3.5 flex items-center gap-3 text-left transition",
-              showAdd ? "rounded-t-[14px] border-b-0" : "rounded-[14px] hover:bg-muted/30"
+              "w-full border-[1.5px] border-dashed border-primary/40 bg-primary/5 p-3.5 flex items-center gap-3 text-left transition",
+              showAdd ? "rounded-t-[14px] border-b-0" : "rounded-[14px] hover:bg-primary/10"
             )}
           >
-            <span className="size-10 rounded-full border-[1.5px] border-dashed border-border bg-muted/40 grid place-items-center text-muted-foreground shrink-0">
+            <span className="size-10 rounded-full border-[1.5px] border-dashed border-primary/50 bg-primary/10 grid place-items-center text-primary shrink-0">
               <Plus className="size-5" />
             </span>
             <div className="flex-1">
-              <div className="text-[14px] font-semibold leading-tight">
+              <div className="text-[14px] font-semibold leading-tight text-foreground">
                 Weiteren Dienstleister hinzufügen
               </div>
               <div className="text-[11px] text-muted-foreground mt-0.5">
