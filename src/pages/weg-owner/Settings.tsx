@@ -121,6 +121,42 @@ export const WegOwnerSettings = () => {
        </div>
       <OwnerSelfServiceSection />
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mail className="w-5 h-5" /> Login-E-Mail
+          </CardTitle>
+          <CardDescription>
+            Diese E-Mail-Adresse verwenden Sie für die Anmeldung und für „Passwort vergessen".
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label className="text-xs">Aktuelle Login-E-Mail</Label>
+            <Input value={currentLoginEmail} disabled />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="new-email" className="text-xs">Neue Login-E-Mail</Label>
+            <Input
+              id="new-email"
+              type="email"
+              placeholder="neue@email.de"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+            />
+          </div>
+          <div className="flex items-start gap-2 p-3 bg-muted/50 border border-muted rounded-md text-xs text-muted-foreground">
+            <Info className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>
+              Nach dem Ändern erhalten Sie eine Bestätigungs-E-Mail an die <b>neue</b> Adresse.
+              Der Login funktioniert weiterhin mit der alten E-Mail, bis Sie den Link in der Bestätigungs-E-Mail anklicken.
+            </span>
+          </div>
+          <Button onClick={handleEmailChange} disabled={isUpdatingEmail} className="w-full">
+            {isUpdatingEmail ? "Wird geändert..." : "Login-E-Mail ändern"}
+          </Button>
+        </CardContent>
+      </Card>
 
        <Card>
          <CardHeader>
