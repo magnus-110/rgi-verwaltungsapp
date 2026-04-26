@@ -72,18 +72,66 @@ Deno.serve(async (req) => {
     try {
       switch (sub.category) {
         case "wohnungsdaten": {
-          // Merge into contact_building_assignments (MEA, m², Hausgeld)
           if (contactId) {
-            const update: Record<string, any> = {};
-            if (payload.mea != null) update.shares = String(payload.mea);
-            if (payload.qm != null) update.area_sqm = Number(payload.qm);
-            if (payload.hausgeld != null) update.monthly_amount = Number(payload.hausgeld);
-            if (Object.keys(update).length > 0) {
+            // Find assignment
+            const { data: assignment } = await admin
+              .from("contact_building_assignments")
+              .select("id")
+              .eq("contact_id", contactId)
+              .eq("building_id", buildingId)
+              .limit(1)
+              .maybeSingle();
+
+            // Wohnfläche → area_sqm_override
+            if (payload.qm != null && assignment) {
               await admin
                 .from("contact_building_assignments")
-                .update(update)
-                .eq("contact_id", contactId)
-                .eq("building_id", buildingId);
+                .update({ area_sqm_override: Number(payload.qm) })
+                .eq("id", assignment.id);
+            }
+
+            // MEA → contact_building_shares (share_type='mea')
+            if (payload.mea != null && assignment) {
+              const meaValue = String(payload.mea);
+              const { data: existingShare } = await admin
+                .from("contact_building_shares")
+                .select("id")
+                .eq("assignment_id", assignment.id)
+                .eq("share_type", "mea")
+                .limit(1)
+                .maybeSingle();
+              if (existingShare) {
+                await admin
+                  .from("contact_building_shares")
+                  .update({ share_value: meaValue })
+                  .eq("id", existingShare.id);
+              } else {
+                await admin
+                  .from("contact_building_shares")
+                  .insert({ assignment_id: assignment.id, share_type: "mea", share_value: meaValue });
+              }
+            }
+
+            // Hausgeld → contact_building_costs (cost_type='hausgeld')
+            if (payload.hausgeld != null && assignment) {
+              const amt = Number(payload.hausgeld);
+              const { data: existingCost } = await admin
+                .from("contact_building_costs")
+                .select("id")
+                .eq("assignment_id", assignment.id)
+                .ilike("cost_type", "%hausgeld%")
+                .limit(1)
+                .maybeSingle();
+              if (existingCost) {
+                await admin
+                  .from("contact_building_costs")
+                  .update({ amount: amt })
+                  .eq("id", existingCost.id);
+              } else {
+                await admin
+                  .from("contact_building_costs")
+                  .insert({ assignment_id: assignment.id, cost_type: "Hausgeld", amount: amt });
+              }
             }
           }
           break;
@@ -103,16 +151,40 @@ Deno.serve(async (req) => {
             if (!name) continue;
             const category = item?.category || payload.category || "sonstige";
             const phone = item?.phone || null;
-            // Insert into building_service_providers if table exists; otherwise into contacts as suggestion
-            const { error: spErr } = await admin
-              .from("building_service_providers" as any)
-              .insert({
+            const email = item?.email || null;
+            const notes = item?.notes || null;
+
+            // Check existing entry to bump suggested_by_count
+            const { data: existing } = await admin
+              .from("building_service_providers")
+              .select("id, suggested_by_count")
+              .eq("building_id", buildingId)
+              .ilike("name", name)
+              .eq("category", category)
+              .limit(1)
+              .maybeSingle();
+
+            if (existing) {
+              await admin
+                .from("building_service_providers")
+                .update({
+                  suggested_by_count: (existing.suggested_by_count || 1) + 1,
+                  phone: phone || undefined,
+                  email: email || undefined,
+                  notes: notes || undefined,
+                })
+                .eq("id", existing.id);
+            } else {
+              await admin.from("building_service_providers").insert({
                 building_id: buildingId,
                 name,
                 category,
                 phone,
+                email,
+                notes,
+                source: "onboarding",
               });
-            if (spErr) console.warn("service_providers insert failed", spErr.message);
+            }
 
             if (mark_as_global_suggestion) {
               await admin.from("contacts").insert({
@@ -126,22 +198,29 @@ Deno.serve(async (req) => {
           break;
         }
         case "bewertung": {
-          // Persist into a building_assessments table if available; otherwise just keep as submission
-          const insertBody: Record<string, any> = {
+          await admin.from("building_assessments").insert({
             building_id: buildingId,
             user_id: sub.user_id,
+            contact_id: contactId,
             condition_rating: payload.condition_rating ?? null,
+            problem_areas: Array.isArray(payload.problem_areas) ? payload.problem_areas : [],
             willing_cash_audit: payload.willing_cash_audit ?? null,
+            etv_location_suggestion: payload.etv_location ?? null,
             notes: payload.notes ?? null,
-          };
-          const { error: aErr } = await admin
-            .from("building_assessments" as any)
-            .insert(insertBody);
-          if (aErr) console.warn("building_assessments insert failed", aErr.message);
+            source: "onboarding",
+          });
+
+          // Cash auditor → set on assignment
+          if (payload.willing_cash_audit === true && contactId) {
+            await admin
+              .from("contact_building_assignments")
+              .update({ is_cash_auditor: true })
+              .eq("contact_id", contactId)
+              .eq("building_id", buildingId);
+          }
           break;
         }
         default:
-          // Unknown category — just mark approved without merging
           break;
       }
     } catch (mergeErr: any) {
