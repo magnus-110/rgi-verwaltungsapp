@@ -35,7 +35,7 @@ const STEP_LABELS = ["Stammdaten", "Wohnung", "Gebäude", "Dienstleister", "Weit
 const STEP_TITLES: Record<number, string> = {
   1: "Ihre Stammdaten",
   2: "Wohnungsdaten",
-  3: "Gebäude-Eindruck",
+  3: "Gebäude",
   4: "Dienstleister",
   5: "Weiteres",
 };
