@@ -14,6 +14,7 @@ import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { CreateCaseDialog } from "@/components/cases/CreateCaseDialog";
 import { TodoDialog } from "@/components/todos/TodoDialog";
+import { BuildingGeneralInfoCard } from "./BuildingGeneralInfoCard";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 import { useNavigate } from "react-router-dom";
 
@@ -158,6 +159,9 @@ export const BuildingOverviewTab = ({ buildingId, buildingName, managementMode, 
           )}
         </CardContent>
       </Card>
+
+      {/* Allgemeine Infos (ETV-Ort, Heizungsart, Notizen) */}
+      <BuildingGeneralInfoCard buildingId={buildingId} />
 
       {/* 2 Spalten Grid (Vorgänge + Meldungen) */}
       <div className="grid md:grid-cols-2 gap-3 md:gap-4">

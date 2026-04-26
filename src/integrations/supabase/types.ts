@@ -1250,6 +1250,7 @@ export type Database = {
           building_code: string
           created_at: string | null
           etv_default_location: string | null
+          general_notes: string | null
           heating_type: string | null
           id: string
           management_mode: Database["public"]["Enums"]["management_mode"]
@@ -1267,6 +1268,7 @@ export type Database = {
           building_code: string
           created_at?: string | null
           etv_default_location?: string | null
+          general_notes?: string | null
           heating_type?: string | null
           id?: string
           management_mode: Database["public"]["Enums"]["management_mode"]
@@ -1284,6 +1286,7 @@ export type Database = {
           building_code?: string
           created_at?: string | null
           etv_default_location?: string | null
+          general_notes?: string | null
           heating_type?: string | null
           id?: string
           management_mode?: Database["public"]["Enums"]["management_mode"]
