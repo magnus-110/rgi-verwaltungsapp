@@ -15,6 +15,7 @@ import {
   CheckCircle2, Circle, Inbox, Power, Users, AlertCircle, Loader2, ChevronRight,
   Mail, Download, FileText, Copy, Check,
 } from "lucide-react";
+import { OnboardingStepOverviews } from "./onboarding/OnboardingStepOverviews";
 
 function PlaceholderChip({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
