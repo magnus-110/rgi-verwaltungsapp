@@ -151,37 +151,55 @@ export const useOnboardingContext = (): OnboardingContext => {
 };
 
 /**
- * Debounced auto-save for step_data.
+ * Debounced auto-save for step_data. Returns a `flush` function that immediately
+ * persists pending changes — call before navigating between steps to avoid loss.
  */
 export const useStepAutoSave = (
-  progressId: string | null,
+  buildingId: string | null,
   step: number,
   data: Record<string, any>,
   delay = 600
 ) => {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestData = useRef(data);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!progressId) return;
+    latestData.current = data;
+  }, [data]);
+
+  const persist = useCallback(async () => {
+    if (!buildingId) return;
+    setSaving(true);
+    try {
+      const stepKey = `step${step}` as const;
+      const stepPayload = (latestData.current as any)?.[stepKey] ?? {};
+      await supabase.functions.invoke("save-onboarding-step", {
+        body: { building_id: buildingId, step, data: stepPayload },
+      });
+    } catch (e) {
+      console.error("autosave failed", e);
+    } finally {
+      setSaving(false);
+    }
+  }, [buildingId, step]);
+
+  useEffect(() => {
+    if (!buildingId) return;
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(async () => {
-      setSaving(true);
-      try {
-        await supabase.functions.invoke("save-onboarding-step", {
-          body: { progress_id: progressId, step, data },
-        });
-      } catch (e) {
-        console.error("autosave failed", e);
-      } finally {
-        setSaving(false);
-      }
+    timer.current = setTimeout(() => {
+      persist();
     }, delay);
     return () => {
       if (timer.current) clearTimeout(timer.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(data), progressId, step]);
+  }, [JSON.stringify(data), buildingId, step, delay]);
 
-  return { saving };
+  const flush = useCallback(async () => {
+    if (timer.current) clearTimeout(timer.current);
+    await persist();
+  }, [persist]);
+
+  return { saving, flush };
 };
