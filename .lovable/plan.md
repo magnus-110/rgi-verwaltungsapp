@@ -1,422 +1,250 @@
 
-# 📋 Implementierungsplan: Onboarding-Wizard „Verwaltungsübernahme"
+# Onboarding-Wizard – Visuelles Redesign
 
-## 🎯 Ziel
-
-Ein interaktiver, mobile-first Onboarding-Wizard für WEG-Eigentümer, der bei der Verwaltungsübernahme:
-- Stammdaten/SEPA direkt sammelt (sofort live)
-- Wohnungs-, Gebäude-, Dienstleister- und Bewertungsdaten zur Verwalter-Freigabe einreicht
-- Bestandseigentümer (Multi-Property) automatisch erkennt und ihnen einen verkürzten Flow bietet
-- Begrüßungsbriefe mit Login-Daten als Word-Serienbrief generiert (Username + QR-Code + Initialpasswort)
-- Username-basiertes Login für Eigentümer ohne E-Mail-Adresse ermöglicht
+Das bestehende Wizard-Verhalten (5 Schritte, Auto-Save, Hard-Lock Schritt 1, Skip 2–5, `is_repeat_owner`, Edge-Function `submit-onboarding-step`) bleibt **unverändert**. Es wird ausschließlich das **visuelle Layout** umgebaut – nahe am vorgelegten Claude-Plan, aber kohärent mit dem bereits existierenden RGI-Designsystem.
 
 ---
 
-## 1. Username-Login-System (Pseudo-E-Mail-Strategie)
+## 1. Farbabgleich mit bestehendem System (Kohärenz)
 
-### Datenmodell
+Das vorgelegte Orange `#E8761A` weicht minimal vom bereits etablierten **RGI-Orange `#ee7202`** (`hsl(25 94% 48%)`) ab. Damit die App konsistent bleibt, werden die **bestehenden Tokens verwendet**, nicht neue eingeführt:
 
-**`profiles` erweitern:**
-- `username TEXT UNIQUE` — vom Eigentümer nutzbarer Login-Name (z. B. `hans.mueller`)
-- `auth_pseudo_email TEXT UNIQUE` — interner Supabase-Auth-Identifier (`hans.mueller@users.rgi-immobilien.app`)
-- `must_change_password BOOLEAN DEFAULT false` — erzwingt Passwort-Änderung beim ersten Login
-- `initial_password_set_at TIMESTAMPTZ` — Audit-Spur
+| Plan-Vorgabe | Bestehender Token | Verwendung |
+|---|---|---|
+| Primary Orange `#E8761A` | `--primary` (`hsl(25 94% 48%)` = #ee7202) | Buttons, aktive States, Akzente |
+| Orange dunkel | `--orange-hover` | Hover |
+| Orange light `#FBF3EB` | `--accent` (`hsl(35 50% 92%)`) | Selected-Card-BG |
+| Hintergrund App `#F5F0EB` | `--background` / `--input` | Wizard-BG, Input-BG |
+| Card weiß | `--card` | Section Cards |
+| Text primär `#2D2D2D` | `--foreground` | Standardtext |
+| Text sekundär `#6B6660` | `--muted-foreground` | Labels |
+| Text tertiär `#9A9490` | `--muted-foreground` (lighter via opacity) | Section-Labels uppercase |
+| Border `rgba(0,0,0,0.07)` | `--border` | Card-Borders |
+| Success `#1D9E75` | `--success` | „Übernommen"-Status |
+| Century Gothic / Work Sans | `font-display` / `font-sans` | Bereits konfiguriert ✓ |
 
-### Edge Functions
-
-**`generate-username`** (intern aufgerufen von `invite-contact-user`):
-- Input: `first_name`, `last_name`, optional `company_name`
-- Normalisiert (lowercase, Umlaute, keine Sonderzeichen): `hans.mueller`
-- Prüft Eindeutigkeit, hängt ggf. `.2`, `.3` an
-- Reservierte Begriffe geblockt (admin, root, support, …)
-
-**`resolve-login-identifier`** (öffentlich, vor `signInWithPassword`):
-- Input: `identifier` (Username oder E-Mail), `password`
-- Wenn `@` enthalten → direkt durchreichen
-- Sonst Username-Lookup in `profiles.username` → liefert `auth_pseudo_email` ODER echte E-Mail
-- Frontend ruft danach `supabase.auth.signInWithPassword({ email: resolvedEmail, password })`
-
-**`admin-reset-password`** (admin-only):
-- Setzt neues (ggf. generiertes) Initialpasswort für einen Auth-User
-- Setzt `must_change_password = true`
-
-**`generate-onboarding-magic-link`**:
-- Erzeugt One-Time-Token (24 h gültig) für QR-Code im Begrüßungsbrief
-- Tabelle `onboarding_magic_links (token, user_id, expires_at, used_at)`
-- Edge Function `consume-magic-link` validiert Token, signt User via Admin-API ein, redirected auf Passwort-Setzen-Seite
-
-### Frontend-Anpassungen
-
-- **Login-Seite (`Login.tsx`):** Feld-Label „Benutzername oder E-Mail", ruft vor Auth `resolve-login-identifier`
-- **Erst-Login-Guard:** Wenn `must_change_password = true` → Modal „Bitte legen Sie ein neues Passwort fest" (nicht wegklickbar)
-- **Magic-Link-Route:** `/login/magic/:token` → Edge Function aufrufen → einloggen → Passwort-Set-Modal
+→ **Keine neuen CSS-Variablen nötig.** Alle Farben sind bereits HSL-gemappt.
 
 ---
 
-## 2. Datenbank-Schema (neue Tabellen)
+## 2. Datei-Struktur (was wird angefasst)
 
-```sql
--- Aktivierungs-Schalter pro Liegenschaft (Verwalter-Trigger)
-CREATE TABLE onboarding_activations (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  building_id UUID NOT NULL REFERENCES buildings(id) ON DELETE CASCADE,
-  is_active BOOLEAN DEFAULT true,
-  activated_by UUID REFERENCES auth.users(id),
-  activated_at TIMESTAMPTZ DEFAULT now(),
-  deactivated_at TIMESTAMPTZ,
-  UNIQUE(building_id)
-);
+**Bestehend bleiben (nur intern visuell überarbeitet):**
+- `src/components/onboarding/OnboardingWizardModal.tsx` – Top-Bar, Step-Slider, Footer komplett neu
+- `src/components/onboarding/steps/Step1Stammdaten.tsx` – Section-Card-Layout
+- `src/components/onboarding/steps/Step2Wohnungsdaten.tsx` – Info-Banner + 2-Col-Grid
+- `src/components/onboarding/steps/Step3Gebaeude.tsx` – Gut/Mittel/Schlecht Triple, 2×3 Bereiche-Grid
+- `src/components/onboarding/steps/Step4Dienstleister.tsx` – Filter-Chips, Provider-Cards, Add-Card mit Inline-Form
+- `src/components/onboarding/steps/Step5Einschaetzung.tsx` – Range-Slider statt StarScale, Card-Toggle für Kassenprüfung
 
--- Fortschritt pro Eigentümer (Auto-Save in JSONB)
-CREATE TABLE onboarding_progress (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  contact_id UUID REFERENCES contacts(id),
-  building_id UUID NOT NULL REFERENCES buildings(id) ON DELETE CASCADE,
-  current_step INT DEFAULT 1,
-  step_data JSONB DEFAULT '{}',                -- alle Eingaben aller Schritte
-  step1_completed_at TIMESTAMPTZ,              -- Stammdaten/SEPA (Pflicht)
-  step2_completed_at TIMESTAMPTZ,              -- Wohnungsdaten
-  step3_completed_at TIMESTAMPTZ,              -- Gebäudeinformationen
-  step4_completed_at TIMESTAMPTZ,              -- Dienstleister
-  step5_completed_at TIMESTAMPTZ,              -- Einschätzung
-  fully_completed_at TIMESTAMPTZ,
-  fab_dismissed_at TIMESTAMPTZ,
-  is_repeat_owner BOOLEAN DEFAULT false,       -- Bestandskunde mit anderem Building
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(user_id, building_id)
-);
+**Neu erstellt (kleine, wiederverwendbare Bausteine):**
+- `src/components/onboarding/ui/SectionCard.tsx` – weiße Card mit optional Section-Label, dünnen Trennlinien
+- `src/components/onboarding/ui/InlineField.tsx` – Inline-Label + transparent Input (Layout wie im Plan)
+- `src/components/onboarding/ui/StepSlider.tsx` – horizontale Stepper-Leiste mit Kreisen + Labels
+- `src/components/onboarding/ui/MultiEntryList.tsx` – generische Liste für Telefon/E-Mail mit „+ hinzufügen"
+- `src/components/onboarding/ui/RangeSlider.tsx` – 1–5 Slider mit Live-Wert + Beschreibung (ersetzt visuell `StarScale`)
+- `src/components/onboarding/ui/ChoiceCardPair.tsx` – 2 Cards nebeneinander mit Radio-Dot (Hauptansprechpartner, Kassenprüfung)
 
--- Inbox für freigabepflichtige Eingaben (Schritte 2–5)
-CREATE TABLE onboarding_submissions (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id),
-  contact_id UUID REFERENCES contacts(id),
-  building_id UUID NOT NULL REFERENCES buildings(id),
-  category TEXT NOT NULL,                       -- 'unit_data' | 'building_info' | 'service_provider' | 'assessment'
-  payload JSONB NOT NULL,
-  status TEXT DEFAULT 'pending',                -- 'pending' | 'approved' | 'rejected' | 'merged'
-  reviewed_by UUID REFERENCES auth.users(id),
-  reviewed_at TIMESTAMPTZ,
-  review_note TEXT,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
+`StarScale.tsx` und `BigChoiceCard.tsx` bleiben für andere Aufrufer erhalten, werden im Wizard aber nicht mehr verwendet.
 
--- Magic-Links für QR-Code-Login
-CREATE TABLE onboarding_magic_links (
-  token TEXT PRIMARY KEY,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  expires_at TIMESTAMPTZ NOT NULL,
-  used_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
+---
+
+## 3. Globales Layout (Modal)
+
+```
+DialogContent (max-w-2xl, p-0, bg-[hsl(var(--background))])
+├─ Top Bar (sticky, bg-white, border-b)
+│   └─ RGI-Logo links (SVG Hausumriss in primary + „RGI IMMOBILIEN" Wortmarke)
+│      Höhe ~48px
+├─ Step Slider (sticky, bg-white, border-b, py-3)
+│   └─ 5 Kreise (28×28, rounded-full) + Labels darunter (text-[9px])
+│      Verbindungslinie 2px zwischen den Kreisen
+│      done = primary + Check ✓ + helle Linie
+│      active = primary + box-shadow ring (ring-4 ring-primary/20)
+│      pending = grauer Kreis
+├─ Scroll Area (flex flex-col gap-2.5, px-4 py-3)
+│   └─ Section Cards je nach Schritt
+└─ Footer (sticky bottom, bg-white, border-t)
+    └─ Zurück (ghost) | Überspringen (outline) | Weiter (primary)
 ```
 
-**Erweiterungen bestehender Tabellen:**
-- `buildings.heating_type TEXT` (Gas / Fernwärme / Pellets / Öl / Sonstige) — falls noch nicht vorhanden
-- `contact_persons.onboarding_expectations TEXT`
-- `contact_persons.willing_cash_audit BOOLEAN`
-- `contacts.suggest_in_onboarding BOOLEAN DEFAULT false` — Pflege-Pool für Dienstleister-Vorschläge
-- `contacts.onboarding_category TEXT` — z. B. 'hausmeister' | 'heizung' | 'reinigung' | 'winterdienst' | 'sonstige'
-
-**RLS-Policies:**
-- Eigentümer: nur eigene `onboarding_progress` (RW), eigene `onboarding_submissions` (Insert + eigene Read)
-- Admin/Employee: alles in zugewiesenen Liegenschaften (via `user_can_access_building`)
-- `onboarding_activations`: Read für Eigentümer, Write nur Admin
-- `onboarding_magic_links`: kein direkter Zugriff, nur via Edge Function (SECURITY DEFINER)
+Mobile (≤640px): Modal wird `fullscreen` (`max-w-full max-h-[100dvh] rounded-none`).
 
 ---
 
-## 3. Wizard-UI (Eigentümer-Sicht, mobile-first)
+## 4. Section Card – Spezifikation
 
-### Komponenten in `src/components/onboarding/`
-
-**`OnboardingWizardModal.tsx`** — Vollbild-Dialog:
-- Öffnet automatisch wenn `onboarding_activations.is_active = true` UND `onboarding_progress.fully_completed_at IS NULL`
-- Stepper oben (5 Schritte, abgeschlossene grün, aktueller blau)
-- **Hard-Block auf Schritt 1:** Kein „X" zum Schließen, „Weiter"-Button disabled bis Zod-Validation grün
-- Ab Schritt 2: „Speichern & schließen" + „Überspringen" verfügbar
-- Auto-Save bei jedem Feld (debounced 500ms) → `onboarding_progress.step_data` JSONB
-- Resume: öffnet immer beim zuletzt aktiven Schritt
-
-**`OnboardingFAB.tsx`** — Floating Action Button:
-- Sichtbar wenn Modal nicht offen UND (`step1_completed_at IS NULL` ODER `step1_completed_at > now() - interval '30 days'`)
-- Zeigt „X von 5 Schritten erledigt"
-- Klick → öffnet Modal beim aktuellen Schritt
-
-**`OnboardingDashboardBanner.tsx`** — Banner auf `/weg-owner/dashboard`:
-- Sichtbar nach Schritt 1, solange `fully_completed_at IS NULL`
-- Text: „Hilf uns, dein Haus besser zu betreuen — noch X kurze Schritte"
-
-### Step-Komponenten
-
-**`Step1Stammdaten.tsx`** (PFLICHT):
-- Adresse, Telefon (mit `BigChoiceCards` für Telefontyp: Privat/Mobil/Geschäftlich)
-- E-Mail (optional, aber empfohlen mit Hinweis „für Passwort-Reset & Benachrichtigungen")
-- SEPA: IBAN-Eingabe mit Live-Validierung, Mandatsreferenz wird via Trigger generiert
-- Ansprechpartner-Benennung (`BigChoiceCards`: „Ich" / „Andere Person" — bei „Andere" Eingabefeld)
-- Wunsch/Erwartung (Textarea)
-- **Bei `is_repeat_owner = true`:** komplett übersprungen, automatisch als completed markiert mit Toast
-
-**`Step1bSepaPerBuilding.tsx`** (nur bei Bestandskunde):
-- `BigChoiceCards`: „Selbes SEPA-Mandat wie für [andere Liegenschaft]" / „Neues Mandat"
-
-**`Step2Wohnungsdaten.tsx`** (Optional):
-- Hausgeld (€-Eingabe, große Zahlen-Tastatur auf Mobile)
-- MEA-Anteile (z. B. „125/1000")
-- Quadratmeter
-
-**`Step3Gebaeude.tsx`** (Optional):
-- Heizungsform: 5 große `BigChoiceCards` (Gas / Fernwärme / Pellets / Öl / Sonstige) mit Icons
-- Bei „Sonstige" → Freitext
-- Wer informiert bei Nachbestellung? (Freitext mit Auto-Suggest aus Kontakten der Liegenschaft)
-- ETV-Ort (Freitext)
-- Besonderheiten (Textarea)
-
-**`Step4Dienstleister.tsx`** (Optional):
-- 4 Kategorien als Akkordeon: Hausmeister / Heizung-Sanitär / Reinigung / Winterdienst
-- Pro Kategorie: Liste der `contacts WHERE suggest_in_onboarding = true AND onboarding_category = 'X'`
-  + zusätzlich: andere Eigentümer derselben Liegenschaft, die bereits Vorschlag eingereicht haben (`onboarding_submissions WHERE category = 'service_provider'` mit Hinweis „2x von Nachbarn genannt")
-- Multi-Select mit großen Tap-Targets, Suchfeld oben
-- „+ Eigenen hinzufügen" → modaler Mini-Dialog mit Name + Telefon
-- Besonderheiten (Textarea)
-
-**`Step5Einschaetzung.tsx`** (Optional):
-- Kassenprüfung: 2 große `BigChoiceCards` (Ja / Nein)
-- Hauszustand: `StarScale` (1–5 Sterne, mit Beschriftung „Sehr schlecht" → „Sehr gut")
-- Hinweise (Textarea)
-
-**`OnboardingComplete.tsx`** — Abschluss:
-- Konfetti-Animation
-- „PDF meiner Eingaben herunterladen" (via Edge Function `onboarding-export-pdf`)
-- Dankesnachricht
-
-### Reusable UI-Bausteine
-
-**`BigChoiceCard.tsx`** — Große Auswahlkarte (min 80px hoch, Icon links, Text rechts, Haken bei Auswahl)
-**`StarScale.tsx`** — 5 Sterne mit Hover/Tap-Feedback, große Touch-Targets (min 56px)
-**`ServiceProviderPicker.tsx`** — Suchbarer Multi-Select mit Vorschlagsbadges („von 2 Nachbarn genannt")
-
----
-
-## 4. Daten-Übernahme (Hybrid-Logik)
-
-### Schritt 1: SOFORT live
-
-`onboarding-submit-step1` Edge Function:
-- Validiert mit Zod
-- Schreibt direkt in `contacts` (Adresse), `contact_persons` (Telefon, E-Mail, Erwartung), `contact_bank_accounts` (SEPA)
-- Setzt `step1_completed_at = now()`
-- Bei E-Mail-Hinterlegung: ruft `admin-update-email` auf, damit Login auch mit echter Mail klappt
-
-### Schritte 2–5: Verwalter-Freigabe
-
-`onboarding-submit-step` Edge Function:
-- Schreibt in `onboarding_submissions` mit `status = 'pending'`
-- Setzt entsprechendes `stepN_completed_at`
-- Verwalter sieht es im Cockpit
-
-`onboarding-approve-submission` Edge Function (admin-only):
-- Übernimmt Daten in Zieltabellen:
-  - `unit_data` → `building_contact_assignments` (MEA, m², Hausgeld)
-  - `building_info` → `buildings.heating_type`, ggf. neue Felder
-  - `service_provider` → `building_service_providers` ODER neuer `contacts`-Eintrag (wenn Verwalter „als globalen Kontakt anlegen" wählt)
-  - `assessment` → `contact_persons.willing_cash_audit`, neue Tabelle `building_assessments` für aggregierte Bewertungen
-- Setzt `status = 'approved'`, `reviewed_by`, `reviewed_at`
-
----
-
-## 5. Verwalter-Cockpit (Building Hub Tab „Onboarding")
-
-**Neuer Tab in `BuildingHub`:** `BuildingOnboardingTab.tsx`
-
-### Sektion 1: Aktivierungsstatus
-- Karte mit `Switch`: „Onboarding aktiv für diese Liegenschaft"
-- Bei Aktivierung: Button „Begrüßungsbriefe für alle Eigentümer generieren" wird sichtbar
-- Anzeige: „Aktiviert am 24.04.2026 von Max Mustermann"
-
-### Sektion 2: Fortschrittsübersicht
-- Progress-Bar: „4 von 8 Eigentümern haben Schritt 1 abgeschlossen"
-- Tabelle pro Eigentümer mit 5 Status-Icons (✅/⬜) pro Schritt + Spalte „Letzte Aktivität"
-- Zeile klickbar → Detail-Sheet mit allen Eingaben des Eigentümers
-
-### Sektion 3: Onboarding-Inbox (Freigaben)
-- Liste aller `onboarding_submissions WHERE status = 'pending'`
-- Pro Eintrag: Eigentümer-Name, Kategorie-Badge, Vorschlag vs. aktueller Wert (Diff-Ansicht)
-- Buttons: „Übernehmen" / „Bearbeiten & Übernehmen" / „Ablehnen" (mit optionaler Notiz)
-- Bei Service Providers: Checkbox „Auch als globalen Vorschlag für andere Liegenschaften markieren" (setzt `suggest_in_onboarding = true`)
-
-### Sektion 4: Aggregierte Insights
-- „Hauszustand Ø: 4,2 / 5 (3 Bewertungen)"
-- „Top-Dienstleister-Nennungen: Hausmeister Müller GmbH (3x), Bayer Sanitär (2x)"
-- ⚠️ „Konflikt: 2 verschiedene Heizungsangaben — Gas (3x), Fernwärme (1x)"
-
-### Sektion 5: Briefe & Verlauf
-- Liste aller versendeten Begrüßungsbriefe pro Eigentümer mit Datum + Status
-- Button „Brief erneut generieren" pro Zeile (z. B. wenn Brief verloren ging — invalidiert altes Initialpasswort/Magic-Link)
-
----
-
-## 6. Dienstleister-Pool-Verwaltung
-
-**Neue Sektion in `Settings.tsx` → „Onboarding-Vorschläge":**
-- Liste aller `contacts` mit Toggle „Im Onboarding vorschlagen"
-- Dropdown für Kategorie (Hausmeister/Heizung/Reinigung/Winterdienst/Sonstige)
-- Filter: nur vorgeschlagene anzeigen
-- Bulk-Aktion: mehrere markieren
-
----
-
-## 7. Begrüßungsbriefe (Serienbrief mit App-Zugang)
-
-### Standard-Vorlage „Verwaltungsübernahme-Begrüßung"
-
-Eine `.docx`-Datei wird beim ersten Setup als globale Vorlage in Storage abgelegt mit allen Platzhaltern:
-- `{{anrede}}`, `{{vorname}}`, `{{nachname}}`, `{{strasse}}`, `{{plz}}`, `{{ort}}`
-- `{{liegenschaft_name}}`, `{{liegenschaft_adresse}}`, `{{wohnung_nr}}`, `{{mea}}`
-- `{{username}}`, `{{initial_password}}` (nur bei neuen Usern), `{{app_url}}`
-- `{{login_qr_code}}` (QR-Code-Bild als base64 eingebettet)
-- `{{is_existing_user}}` — Boolean-Flag für Word-Conditional-Sections
-- `{{verwalter_name}}`, `{{verwalter_telefon}}`, `{{verwalter_email}}`
-
-**Conditional-Logic in der Vorlage** (via docxtemplater):
-- Wenn `is_existing_user = true`: Textblock „Ihre neue Wohnung wurde Ihrem bestehenden Konto hinzugefügt. Loggen Sie sich einfach mit Ihren gewohnten Zugangsdaten ein."
-- Wenn `is_existing_user = false`: Textblock „Ihre Zugangsdaten: Benutzername **{{username}}**, Initialpasswort **{{initial_password}}** (bitte beim ersten Login ändern). Alternativ scannen Sie den QR-Code unten."
-
-### Edge Function `comm-render-onboarding-letters`
-
-Erweitert die existierende `comm-render-letters` um Onboarding-spezifische Logik:
-1. Empfänger-Liste: alle Eigentümer der Liegenschaft mit `role_in_building = 'eigentuemer'`
-2. Pro Eigentümer:
-   - Wenn `contacts.user_id IS NULL` (neuer User):
-     - `invite-contact-user` aufrufen → erzeugt Auth-User mit Pseudo-Mail
-     - `generate-username` → `username`
-     - Sicheres Initialpasswort generieren (3 Wörter + Zahl, z. B. „Apfel-Brücke-Wald-47")
-     - Via `admin-reset-password` setzen, `must_change_password = true`
-     - Magic-Link generieren (24 h) → QR-Code als base64-PNG
-   - Wenn `contacts.user_id IS NOT NULL` (Bestandskunde):
-     - Username aus `profiles.username` laden
-     - Kein neues Passwort, kein QR-Code
-     - `is_existing_user = true` setzen
-3. `.docx` pro Eigentümer mit docxtemplater rendern, in ZIP packen
-4. ZIP in Storage `comm-assets/onboarding-letters/{building_id}/{timestamp}.zip` ablegen
-5. ZIP zusätzlich automatisch in **Dokumentenarchiv → Serienbriefe** der Liegenschaft ablegen
-6. Eintrag in `comm_campaigns` mit `type = 'onboarding_welcome'`
-7. Pro Eigentümer Eintrag in neuer Tabelle `onboarding_letter_log` (für Verlauf + „erneut generieren"-Button)
-
-### Sicherheit
-
-- Klartext-Initialpasswort wird **nirgendwo** in DB gespeichert — nur kurz im RAM während Brief-Rendering
-- Magic-Link-Token sind 24 h gültig, nach Verbrauch invalidiert
-- „Brief erneut generieren": altes Initialpasswort wird via `admin-reset-password` durch neues ersetzt, alter Magic-Link `used_at = now()` markiert
-
----
-
-## 8. Bestandskunden-Logik (zusammengefasst)
-
-Da Verwalter den Bestandskontakt **vor** Onboarding-Aktivierung manuell zuweist (kein Duplikat-Suchsystem nötig), ist die Logik schlank:
-
-1. Beim Start des Wizards prüft Frontend: `SELECT user_id FROM contacts WHERE id = X AND user_id IS NOT NULL` → wenn vorhanden, ist es Bestandskunde
-2. `onboarding_progress.is_repeat_owner = true` setzen
-3. Schritt 1 wird übersprungen (auto-completed mit Toast „Stammdaten bereits hinterlegt")
-4. Schritt 1b SEPA-Wiederverwendung wird angezeigt
-5. Brief-Generator nutzt `is_existing_user = true` → kein neues Passwort, kein QR-Code
-
----
-
-## 9. Sichtbarkeitslogik FAB (Reminder ohne Mails)
-
-Frontend-Logik im `WegOwnerLayout`:
-```
-zeigeFAB =
-  onboarding_activations.is_active === true
-  AND fully_completed_at === null
-  AND (
-    step1_completed_at === null
-    OR step1_completed_at > now() - 30 Tage
-  )
-  AND fab_dismissed_at === null
+```tsx
+<SectionCard label="WOHNANSCHRIFT">
+  <InlineField label="Straße *">…</InlineField>
+  <Divider />
+  <TwoColField labels={["PLZ *", "Ort *"]}>…</TwoColField>
+</SectionCard>
 ```
 
-Bedeutet:
-- Solange Schritt 1 fehlt → FAB **immer** sichtbar
-- Sobald Schritt 1 erledigt → FAB noch 30 Tage sichtbar, dann automatisch weg
-- Keine Mails, keine Push-Notifications
+- Card: `bg-card rounded-[14px] border border-border/60 overflow-hidden`
+- Section-Label: `text-[10px] uppercase tracking-[0.6px] text-muted-foreground/80 font-medium px-4 pt-3 pb-1`
+- Field-Divider: `h-px bg-foreground/[0.055]`
+- Pflichtfeld-Stern: `text-primary` (`*`)
+
+**InlineField (Standard):**
+- `min-h-[50px] flex items-center px-4 gap-3`
+- Label: `w-[100px] text-[13px] text-muted-foreground shrink-0`
+- Input: `flex-1 text-right bg-transparent border-0 outline-none text-[14px]`
+
+**Embedded Input (2-Col-Grid für PLZ/Ort, Wohnungsdaten):**
+- `bg-[hsl(var(--input))] rounded-lg px-3 py-2.5 focus:bg-[hsl(35_25%_92%)]`
+- Kein Border im Ruhezustand
 
 ---
 
-## 10. Lieferumfang Phase 1
+## 5. Schritt 1 – Stammdaten
 
-✅ DB-Migration: alle 4 neuen Tabellen + Spalten-Erweiterungen + RLS
-✅ Username-System: 4 Edge Functions (`generate-username`, `resolve-login-identifier`, `admin-reset-password`, `consume-magic-link`)
-✅ Login-Anpassung (Username ODER E-Mail)
-✅ Erst-Login-Passwort-Änderungs-Modal
-✅ Wizard-Modal mit allen 5 Schritten + Hard-Block auf Schritt 1
-✅ Reusable UI: `BigChoiceCard`, `StarScale`, `ServiceProviderPicker`
-✅ Auto-Save + Resume + Bestandskunden-Verkürzung
-✅ FAB + Dashboard-Banner mit korrekter Sichtbarkeitslogik
-✅ Verwalter-Cockpit als neuer „Onboarding"-Tab im Building Hub
-✅ Onboarding-Inbox mit Freigabe-Workflow
-✅ Dienstleister-Pool-Verwaltung in Settings
-✅ Standard-Word-Vorlage „Verwaltungsübernahme-Begrüßung" mit allen Platzhaltern
-✅ `comm-render-onboarding-letters` Edge Function (Username-Gen, Initialpasswort, QR-Code)
-✅ Brief-Verlauf + „Erneut generieren"-Button im Cockpit
+Sections (jede in eigener `SectionCard`):
 
-## Bewusst nicht in Phase 1
-- KI-gestützte Konflikt-Auflösung (jetzt nur visuelle Markierung)
-- Mistral-Aggregation der Freitexte zu Zusammenfassungen
-- Verknüpfung zum „WEG-Neuaufnahme"-Prozess (kommt später, wenn Prozessmodul erweitert wird)
-- Automatischer Brief-Versand per Post-API (Pin AG / Letterxpress) — Phase 1 nur ZIP zum Selber-Drucken
+1. **Wohnanschrift** – InlineField „Straße", danach 2-Col-Grid (`grid-cols-[90px_1fr] gap-2`) für PLZ + Ort
+2. **Telefon** (`MultiEntryList`):
+   - Item: Input + Typ-Select rechts + ×-Button (22px, `bg-foreground/5`)
+   - Erstes Item ohne ×-Button
+   - Footer: `+ Weitere Nummer hinzufügen` Button (full-width, ghost, primary text, mit gestricheltem 22px-Plus-Kreis links)
+3. **E-Mail** – analog `MultiEntryList`, Hinweistext `text-[11px] text-muted-foreground/80`
+4. **Bankverbindung** – InlineField IBAN + Hinweistext darunter (font-mono uppercase)
+5. **Hauptansprechpartner** – `ChoiceCardPair`: zwei Cards „Ich selbst" / „Andere Person", Radio-Dot oben links. Bei „Andere Person" klappt darunter ein Inline-Input für Namen auf.
+6. **Wünsche & Erwartungen** – Textarea ohne Border, transparent, in eigener SectionCard
+
+**Datenmodell-Anpassung:** `Step1Data.phone` (string) → `phones: { number: string; type: 'private'|'mobile'|'business' }[]`. `email` (string) → `emails: string[]`. Validator `validateStep1` entsprechend angepasst (mind. 1 Telefonnummer, IBAN ≥ 15 Zeichen, etc.). Bestehende Single-Werte bleiben in der DB als ersten Eintrag rückwärtskompatibel – Migration nicht nötig (Storage ist JSONB `step_data`).
 
 ---
 
-## 11. Sicherheits-Audit-Punkte
+## 6. Schritt 2 – Wohnungsdaten (Optional)
 
-- ✅ RLS auf allen neuen Tabellen
-- ✅ Pseudo-E-Mail-Domain ist intern, keine externen Mails versendbar
-- ✅ Initialpasswort nie persistent in DB
-- ✅ Magic-Links 24 h TTL + One-Time-Use
-- ✅ Username-Generation mit Reservierten-Liste (admin/root/support/…)
-- ✅ Validation triggers (kein CHECK constraint mit `now()`)
-- ✅ Edge Functions mit Zod-Validation auf allen Inputs
-- ✅ Admin-only Functions prüfen Caller-Rolle via `has_role(auth.uid(), 'admin')`
+- **Info-Banner** oben: `bg-accent rounded-xl p-3 flex gap-3` mit Info-Icon-Kreis (`size-5 rounded-full bg-primary/15 text-primary`) + Text 12px
+- **Wohnungs-Nr.** – InlineField, Input rechtsbündig, Breite 160px. Darunter optional: grüner 6px-Dot (`bg-success`) + „Stimmt mit unseren Unterlagen überein" 11px
+- **Finanzielle Eckdaten** – 2-Col-Grid in einer Card, Trennlinie vertikal mittig:
+  - Zelle: Label oben (11px) → embedded Input → Einheit unten (11px „€/Monat", „Anteile")
+- **Wohnfläche** – InlineField mit „m²" Suffix außen rechts
 
----
-
-## ⚠️ Wichtige Voraussetzungen (Status)
-
-- ✅ Lovable Cloud / Supabase angebunden
-- ✅ `comm-render-letters` & `LetterCampaignWizard` existieren bereits (werden erweitert)
-- ✅ `invite-contact-user` Edge Function existiert (wird Username-aware gemacht)
-- ✅ `contacts` + `contact_persons` + `contact_building_assignments` Schema existiert
-- ⚠️ Pseudo-E-Mail-Domain: keine echten DNS-Records nötig (Mails werden nie versendet), aber sollte **nicht** mit verifizierter Sender-Domain (`notify.rgi-immobilien.app`) kollidieren — wir nehmen `users.rgi-immobilien.app` als rein interne Schlüssel-Domain
+Footer: zusätzlicher „Schritt überspringen"-Button (outline)
 
 ---
 
-**Bei Freigabe baue ich Phase 1 vollständig um — DB-Migration zuerst, dann Edge Functions, dann Frontend, am Ende die Word-Vorlage.**
+## 7. Schritt 3 – Gebäude (Optional)
+
+- **Gesamteindruck** – 3 Buttons in `flex gap-2`, jeder `flex-1 rounded-[10px] border-[1.5px] py-3 flex flex-col items-center gap-1`
+  - Icons (Emoji oder Lucide): 😊 / 😐 / 😟
+  - Selected-States: Gut → `border-success bg-success/10`, Mittel → `border-warning bg-warning/10`, Schlecht → `border-destructive bg-destructive/10`
+- **Bereiche mit Auffälligkeiten** – `grid-cols-2 gap-2` (2×3):
+  - Zelle: `rounded-xl border-[1.5px] p-3 flex items-center gap-3`
+  - Icon-Wrap: `size-[34px] rounded-[9px] bg-muted` (selected: `bg-primary/15`)
+  - Name (14px, semibold) + Subtitle (11px muted)
+  - Häkchen-Kreis rechts: leerer Kreis → bei selected `bg-primary text-white` mit Check
+  - Bereiche: Dach (Home), Fassade (Building), Treppenhaus (Stairs), Keller (Archive), Eingang (DoorOpen), Sonstiges (MoreHorizontal)
+- **Freitext** – Textarea Card
+
+→ **Datenmodell-Erweiterung Step3:** `general_impression: 'gut'|'mittel'|'schlecht'`, `problem_areas: string[]`. Die alten Heizungs-/ETV-Felder werden in `building_id`-spezifischen Onboarding-Daten anders erhoben (Umstellung gemäß Claude-Plan).
 
 ---
 
-## 📊 Umsetzungsstatus
+## 8. Schritt 4 – Dienstleister (Optional)
 
-- ✅ **Phase 1 — Datenbank-Schema** (Migration deployed):
-  `onboarding_activations`, `onboarding_progress`, `onboarding_submissions`,
-  `onboarding_magic_links`, `onboarding_letter_log` + RLS, Trigger,
-  `profiles.username/auth_pseudo_email/must_change_password`,
-  `contacts.suggest_in_onboarding/onboarding_category`, `buildings.heating_type`.
+- **Filter-Chips** – `flex gap-2 overflow-x-auto -mx-4 px-4 pb-1 scrollbar-none`
+  - Chip: `px-3 py-1.5 rounded-full border-[1.5px] border-border/60 text-[13px] whitespace-nowrap`
+  - Active: `bg-primary text-primary-foreground border-primary`
+  - Kategorien aus `SERVICE_PROVIDER_CATEGORIES` (bestehend)
+- **Provider Cards** – Liste:
+  - `rounded-[14px] border-[1.5px] border-border/60 p-3.5 flex items-center gap-3`
+  - Avatar: `size-10 rounded-[10px] bg-muted text-muted-foreground font-display text-[14px] flex items-center justify-center` (Initialen)
+  - Info: Name 14px bold + Kategorie 11px muted
+  - Select-Kreis rechts: 22px
+  - Selected: `border-primary bg-accent`, Avatar `bg-primary text-white` mit Check
+- **„Weiteren hinzufügen"-Card**:
+  - `border-[1.5px] border-dashed border-primary/40` (gleiches Maß wie Provider-Card)
+  - Avatar-Wrap als gestrichelter Plus-Kreis in primary
+  - **Beim Klick**: Card-Radius oben bleibt 14px, unten 0 → direkt darunter Inline-Form (`rounded-b-[14px] border-[1.5px] border-t-0 border-primary/40 p-3 space-y-2`) mit Feldern Name + Gewerk + „Hinzufügen"-Button
 
-- ✅ **Phase 2 — Edge Functions** (deployed):
-  - `generate-username` — eindeutige Username-Vorschläge aus Name/Firma
-  - `resolve-login-identifier` — Username ↔ E-Mail Auflösung vor `signInWithPassword`
-  - `admin-reset-password` — Initialpasswort-Generator (4-Wort-Format) mit `must_change_password`-Flag
-  - `generate-onboarding-magic-link` — 24h-Token für QR-Code im Begrüßungsbrief
-  - `consume-magic-link` — Token-Validierung + Auth-Session-Erzeugung
-  - `save-onboarding-step` — Auto-Save (JSONB-Merge) für Wizard-Eingaben
-  - `submit-onboarding-step` — Schritt abschließen (Step 1 live, Step 2-5 → Submission-Inbox)
+---
 
-- 🔜 **Phase 3** — Login-Frontend (Username/E-Mail, Erst-Login-Modal, Magic-Link-Route)
-- 🔜 **Phase 4** — Wizard-UI (`OnboardingWizardModal`, `BigChoiceCard`, `StarScale`, FAB)
-- 🔜 **Phase 5** — Admin-Cockpit (Onboarding-Tab im Building-Hub: Aktivierung, Fortschritt, Inbox)
-- 🔜 **Phase 6** — Word-Vorlage + Serienbrief (Username/Initialpasswort/QR-Platzhalter)
+## 9. Schritt 5 – Einschätzung (Optional)
 
+- **Gebäudezustand – RangeSlider** (neue Komponente, ersetzt `StarScale` im Wizard):
+  - Über dem Slider: `font-display text-[28px] text-primary` Wert + Beschreibungstext
+  - Native `<input type="range" min=1 max=5 step=1>` – custom CSS:
+    - Track: `appearance-none h-1 rounded-full` mit `background: linear-gradient(to right, hsl(var(--primary)) 0%, hsl(var(--primary)) X%, hsl(35 25% 88%) X%, hsl(35 25% 88%) 100%)` wobei X = (value-1)/4 * 100
+    - Thumb: `size-[26px] rounded-full bg-white border-[2.5px] border-primary`
+  - Labels: „Schlecht" links, „Ausgezeichnet" rechts, 10px muted
+  - Beschreibungen: `['Stark sanierungsbedürftig', 'Renovierungsbedarf', 'Zustand in Ordnung', 'Gut gepflegt', 'Ausgezeichneter Zustand']`
+- **Kassenprüfung – ChoiceCardPair**:
+  - 2 Cards `flex-1 p-3.5 rounded-xl border-[1.5px]`
+  - Radio-Dot 18px oben → Titel 14px bold → Subtext 11px (2 Zeilen Erklärung)
+  - „Ja" selected: `border-primary bg-accent` + Dot `bg-primary`
+  - „Nein" selected: `border-muted-foreground/40 bg-muted` + Dot `bg-muted-foreground/60`
+- **Hinweise** – Textarea Card
+
+---
+
+## 10. Top Bar / Logo
+
+Da bisher kein extrahiertes RGI-Logo vorliegt, wird ein leichtgewichtiges Inline-SVG gebaut:
+- Hausumriss (Dreieck-Dach + Rechteck) in `text-primary`, 22px
+- Wortmarke „RGI" in `font-display font-bold text-foreground` + „IMMOBILIEN" in `text-muted-foreground tracking-wide text-[10px]`
+- Komponente: `src/components/onboarding/ui/RgiWordmark.tsx`
+
+---
+
+## 11. Step Slider
+
+`src/components/onboarding/ui/StepSlider.tsx`:
+
+```
+[●]──[●]──[◉]──[○]──[○]
+done done active pend pend
+Stamm Wohn Geb Diens Eins
+```
+
+- Container: `flex items-start justify-between px-2`
+- Step: `flex flex-col items-center gap-1.5 flex-1`
+- Kreis: `size-7 rounded-full grid place-items-center text-[11px] font-medium`
+  - done: `bg-primary text-white` mit Check (size-3)
+  - active: `bg-primary text-white ring-4 ring-primary/20`
+  - pending: `bg-muted text-muted-foreground`
+- Label: `text-[9px] text-muted-foreground` (active: `text-foreground font-medium`)
+- Verbindungslinie: absolute zwischen Kreisen, 2px hoch, done-Hälfte primary, sonst `bg-border`
+
+Klickbar wie bisher (außer Hard-Lock).
+
+---
+
+## 12. Abschluss-Screen (`allDone`)
+
+- Checkmark-Icon: `size-16 rounded-full bg-primary grid place-items-center` mit weißem Lucide `Check` (size-8)
+- Titel `font-display text-2xl`: „Onboarding abgeschlossen"
+- Subtext 13px muted
+- **Summary-Card** (`bg-card rounded-[14px] border p-4 space-y-2`):
+  - 5 Zeilen, eine pro Schritt
+  - `flex items-center gap-3`: 20px primary-Dot mit Check + Step-Name + Status rechts
+  - Status: Stammdaten = `text-success` „Übernommen", andere = `text-muted-foreground` „In Prüfung"
+- „Zur App"-Button primär (full-width auf Mobile)
+
+Ersetzt den heutigen `PartyPopper`-Block.
+
+---
+
+## 13. Footer & Verhalten (unverändert in Logik)
+
+- `bg-card border-t px-4 py-3 flex justify-between gap-2`
+- Links: „Zurück" (ghost) – ausgeblendet bei Step 1 oder Hard-Lock
+- Rechts: „Überspringen" (outline, nur 2–5) + „Weiter" / „Abschließen" (primary)
+- Hard-Lock-Logik (`isStep1HardLocked`, `onPointerDownOutside`, `onEscapeKeyDown`) bleibt
+- Auto-Save (`useStepAutoSave`) bleibt
+- Submit über bestehende Edge-Function `submit-onboarding-step` bleibt
+
+---
+
+## 14. Reihenfolge der Umsetzung
+
+1. UI-Bausteine erstellen (`SectionCard`, `InlineField`, `StepSlider`, `MultiEntryList`, `RangeSlider`, `ChoiceCardPair`, `RgiWordmark`)
+2. `OnboardingWizardModal.tsx` umbauen (Top-Bar, Slider, Footer, Abschluss-Screen)
+3. Steps 1–5 nacheinander auf neues Layout umstellen, jeweils mit angepasstem Datenmodell für Step 1 (phones[], emails[]) und Step 3 (general_impression, problem_areas)
+4. Sichttest im Preview (Desktop 930px + Mobile-Breakpoint)
+
+Keine DB-Migration, keine Edge-Function-Änderungen – `step_data` ist JSONB und nimmt das erweiterte Schema problemlos auf.
