@@ -31,20 +31,20 @@ interface Props {
   onComplete: () => void;
 }
 
-const STEP_LABELS = ["Stammdaten", "Wohnung", "Gebäude", "Dienstleister", "Einschätzung"];
+const STEP_LABELS = ["Stammdaten", "Wohnung", "Gebäude", "Dienstleister", "Weiteres"];
 const STEP_TITLES: Record<number, string> = {
   1: "Ihre Stammdaten",
   2: "Wohnungsdaten",
   3: "Gebäude-Eindruck",
   4: "Dienstleister",
-  5: "Einschätzung",
+  5: "Weiteres",
 };
 const STEP_SUBTITLES: Record<number, string> = {
   1: "Pflichtangaben für Ihre Eigentümerakte.",
-  2: "Optional — hilft uns beim Datenabgleich.",
-  3: "Optional — Ihr persönlicher Eindruck.",
-  4: "Optional — wer hat sich bewährt?",
-  5: "Optional — letzte Einschätzungen.",
+  2: "Optional — Ihre Angaben helfen uns, Ihre Liegenschaft von Beginn an optimal zu betreuen.",
+  3: "Optional — Ihre Angaben helfen uns, Ihre Liegenschaft von Beginn an optimal zu betreuen.",
+  4: "Optional — Ihre Angaben helfen uns, Ihre Liegenschaft von Beginn an optimal zu betreuen.",
+  5: "Optional — Ihre Angaben helfen uns, Ihre Liegenschaft von Beginn an optimal zu betreuen.",
 };
 
 export const OnboardingWizardModal = ({
@@ -294,7 +294,7 @@ const CompletionScreen = ({
   onClose: () => void;
   completed: Record<number, boolean>;
 }) => {
-  const stepNames = ["Stammdaten", "Wohnungsdaten", "Gebäude-Eindruck", "Dienstleister", "Einschätzung"];
+  const stepNames = ["Stammdaten", "Wohnungsdaten", "Gebäude-Eindruck", "Dienstleister", "Weiteres"];
   return (
     <div className="text-center py-6 space-y-5 max-w-md mx-auto">
       <div className="inline-flex size-16 items-center justify-center rounded-full bg-primary mx-auto">

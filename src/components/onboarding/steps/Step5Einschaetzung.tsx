@@ -1,11 +1,11 @@
 import { SectionCard } from "../ui/SectionCard";
-import { RangeSlider } from "../ui/RangeSlider";
 import { ChoiceCardPair } from "../ui/ChoiceCardPair";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 
 export interface Step5Data {
   willing_cash_audit?: boolean | null;
-  building_condition?: number;
+  etv_location?: string;
   notes?: string;
 }
 
@@ -14,27 +14,21 @@ interface Props {
   onChange: (next: Step5Data) => void;
 }
 
-const CONDITION_DESCRIPTIONS = [
-  "Stark sanierungsbedürftig",
-  "Renovierungsbedarf",
-  "Zustand in Ordnung",
-  "Gut gepflegt",
-  "Ausgezeichneter Zustand",
-];
-
 export const Step5Einschaetzung = ({ value, onChange }: Props) => {
   const set = (patch: Partial<Step5Data>) => onChange({ ...value, ...patch });
 
   return (
     <div className="space-y-2.5">
-      <SectionCard label="GEBÄUDEZUSTAND">
-        <div className="p-4">
-          <RangeSlider
-            value={value.building_condition ?? 3}
-            onChange={(v) => set({ building_condition: v })}
-            descriptions={CONDITION_DESCRIPTIONS}
-            lowLabel="Schlecht"
-            highLabel="Ausgezeichnet"
+      <SectionCard label="ORT DER EIGENTÜMERVERSAMMLUNG">
+        <div className="p-3.5 space-y-2">
+          <p className="text-[13px] text-muted-foreground">
+            Wo wird die Eigentümerversammlung üblicherweise abgehalten?
+          </p>
+          <Input
+            value={value.etv_location ?? ""}
+            onChange={(e) => set({ etv_location: e.target.value })}
+            placeholder="z. B. Gemeindesaal, Hinterhof, Restaurant XY"
+            className="border-0 bg-[hsl(var(--input))] focus-visible:ring-0 rounded-lg h-10"
           />
         </div>
       </SectionCard>

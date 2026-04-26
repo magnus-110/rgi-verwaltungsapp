@@ -1,7 +1,6 @@
 import { Check, Home, Building2, ArrowUpDown, Archive, DoorOpen, MoreHorizontal } from "lucide-react";
 import { SectionCard } from "../ui/SectionCard";
 import { Textarea } from "@/components/ui/textarea";
-import { RangeSlider } from "../ui/RangeSlider";
 import { cn } from "@/lib/utils";
 
 export type ProblemAreaId = "dach" | "fassade" | "treppenhaus" | "keller" | "eingang" | "sonstiges";
@@ -24,14 +23,6 @@ interface Props {
   value: Step3Data;
   onChange: (next: Step3Data) => void;
 }
-
-const IMPRESSION_DESCRIPTIONS = [
-  "Schlechter Zustand",
-  "Eher schlecht",
-  "Mittel",
-  "Eher gut",
-  "Sehr guter Zustand",
-];
 
 const AREAS: { id: ProblemAreaId; name: string; subtitle: string; Icon: typeof Home }[] = [
   { id: "dach", name: "Dach", subtitle: "Undichte / Schäden", Icon: Home },
@@ -63,18 +54,6 @@ export const Step3Gebaeude = ({ value, onChange }: Props) => {
 
   return (
     <div className="space-y-2.5">
-      <SectionCard label="GESAMTEINDRUCK">
-        <div className="p-4">
-          <RangeSlider
-            value={value.general_impression_score ?? 3}
-            onChange={(v) => set({ general_impression_score: v })}
-            descriptions={IMPRESSION_DESCRIPTIONS}
-            lowLabel="Schlecht"
-            highLabel="Gut"
-          />
-        </div>
-      </SectionCard>
-
       <SectionCard label="BEREICHE MIT AUFFÄLLIGKEITEN (OPTIONAL)" flat>
         <div className="p-3 space-y-2">
           {AREAS.map(({ id, name, subtitle, Icon }) => {
