@@ -138,7 +138,11 @@ Deno.serve(async (req) => {
         }
         case "gebaeudeinformationen": {
           const update: Record<string, any> = {};
-          if (payload.heating_type) update.heating_type = payload.heating_type;
+          if (payload.heating_type) {
+            update.heating_type = payload.heating_type === "sonstiges" && payload.heating_other
+              ? payload.heating_other
+              : payload.heating_type;
+          }
           if (Object.keys(update).length > 0) {
             await admin.from("buildings").update(update).eq("id", buildingId);
           }
