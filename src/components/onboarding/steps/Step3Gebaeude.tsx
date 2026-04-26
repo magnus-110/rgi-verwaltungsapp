@@ -68,6 +68,41 @@ export const Step3Gebaeude = ({ value, onChange }: Props) => {
 
   return (
     <div className="space-y-2.5">
+      <SectionCard label="HEIZUNGSART (OPTIONAL)">
+        <div className="p-3 space-y-2.5">
+          <div className="grid grid-cols-2 gap-2">
+            {HEATING_TYPES.map(({ id, label }) => {
+              const sel = value.heating_type === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => set({ heating_type: id, ...(id !== "sonstiges" ? { heating_other: undefined } : {}) })}
+                  className={cn(
+                    "h-11 rounded-[10px] border px-3 flex items-center gap-2 text-[13px] font-medium transition",
+                    sel
+                      ? "border-primary bg-primary/[0.06] text-primary"
+                      : "border-border/60 bg-card text-foreground hover:bg-accent/40"
+                  )}
+                >
+                  <Flame className={cn("size-4 shrink-0", sel ? "text-primary" : "text-muted-foreground")} />
+                  <span className="truncate">{label}</span>
+                </button>
+              );
+            })}
+          </div>
+          {value.heating_type === "sonstiges" && (
+            <Textarea
+              rows={2}
+              value={value.heating_other ?? ""}
+              onChange={(e) => set({ heating_other: e.target.value })}
+              placeholder="Bitte beschreiben"
+              className="border-0 bg-[hsl(var(--input))] focus-visible:ring-0 resize-none rounded-lg px-3 py-2.5 text-[14px]"
+            />
+          )}
+        </div>
+      </SectionCard>
+
       <SectionCard label="BEREICHE MIT AUFFÄLLIGKEITEN (OPTIONAL)" flat>
         <div className="p-3 space-y-2">
           {AREAS.map(({ id, name, subtitle, Icon }) => {
