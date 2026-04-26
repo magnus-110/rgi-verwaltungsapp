@@ -2155,6 +2155,7 @@ export type Database = {
           iban_override: string | null
           id: string
           is_active: boolean | null
+          is_cash_auditor: boolean
           notes: string | null
           phones_override: Json | null
           primary_contact_other: Json | null
@@ -2184,6 +2185,7 @@ export type Database = {
           iban_override?: string | null
           id?: string
           is_active?: boolean | null
+          is_cash_auditor?: boolean
           notes?: string | null
           phones_override?: Json | null
           primary_contact_other?: Json | null
@@ -2213,6 +2215,7 @@ export type Database = {
           iban_override?: string | null
           id?: string
           is_active?: boolean | null
+          is_cash_auditor?: boolean
           notes?: string | null
           phones_override?: Json | null
           primary_contact_other?: Json | null

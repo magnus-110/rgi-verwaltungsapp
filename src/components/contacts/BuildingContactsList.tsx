@@ -253,6 +253,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   };
 
   const isBeirat = (a: ContactAssignment) => a.role_in_building === 'beirat';
+  const isCashAuditor = (a: ContactAssignment) => (a as any).is_cash_auditor === true;
 
   const updateAssignment = async (id: string, field: string, value: any) => {
     await supabase.from("contact_building_assignments").update({ [field]: value || null }).eq("id", id);
@@ -262,6 +263,14 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   const toggleBeirat = async (a: ContactAssignment) => {
     const newRole = a.role_in_building === 'beirat' ? 'eigentuemer' : 'beirat';
     await supabase.from("contact_building_assignments").update({ role_in_building: newRole }).eq("id", a.id);
+    refetch();
+  };
+
+  const toggleCashAuditor = async (a: ContactAssignment) => {
+    await supabase
+      .from("contact_building_assignments")
+      .update({ is_cash_auditor: !isCashAuditor(a) } as any)
+      .eq("id", a.id);
     refetch();
   };
 
@@ -554,6 +563,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0 flex-wrap">
                     {managementMode === 'weg' && isBeirat(a) && <Badge variant="secondary" className="text-xs">Beirat</Badge>}
+                    {managementMode === 'weg' && isCashAuditor(a) && <Badge variant="secondary" className="text-xs">Kassenprüfung</Badge>}
                     {hausgeld !== null && <Badge variant="outline" className="text-xs">{hausgeld.toFixed(2)} €</Badge>}
                   </div>
                 </div>
@@ -711,6 +721,17 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                               onCheckedChange={() => toggleBeirat(a)}
                             />
                             <Label htmlFor={`beirat-${a.id}`} className="text-sm cursor-pointer">Mitglied des Verwaltungsbeirats</Label>
+                          </div>
+                        )}
+
+                        {managementMode === 'weg' && (
+                          <div className="flex items-center gap-2 pt-1">
+                            <Checkbox
+                              id={`cash-auditor-${a.id}`}
+                              checked={isCashAuditor(a)}
+                              onCheckedChange={() => toggleCashAuditor(a)}
+                            />
+                            <Label htmlFor={`cash-auditor-${a.id}`} className="text-sm cursor-pointer">Kassenprüfer/in</Label>
                           </div>
                         )}
                       </div>
