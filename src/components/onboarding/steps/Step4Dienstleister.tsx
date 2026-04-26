@@ -15,6 +15,7 @@ interface SuggestedContact {
 }
 
 export interface Step4Data {
+  /** selections per category — same contact can be selected in multiple categories independently */
   selections?: Record<string, string[]>;
   custom?: { category: string; name: string; trade?: string }[];
   notes?: string;
@@ -36,7 +37,7 @@ const initials = (name: string) =>
 
 export const Step4Dienstleister = ({ buildingId, value, onChange }: Props) => {
   const [allProviders, setAllProviders] = useState<SuggestedContact[]>([]);
-  const [activeCat, setActiveCat] = useState<string>("all");
+  const [activeCat, setActiveCat] = useState<string>(SERVICE_PROVIDER_CATEGORIES[0]?.id ?? "sonstige");
   const [showAdd, setShowAdd] = useState(false);
   const [addName, setAddName] = useState("");
   const [addTrade, setAddTrade] = useState("");
@@ -58,20 +59,20 @@ export const Step4Dienstleister = ({ buildingId, value, onChange }: Props) => {
   }, [buildingId]);
 
   const set = (patch: Partial<Step4Data>) => onChange({ ...value, ...patch });
+
+  /** Toggle is per-category — contact selected for "winterdienst" is independent from "hausmeister". */
   const toggle = (id: string, category: string) => {
-    const catKey = category;
-    const current = value.selections?.[catKey] ?? [];
+    const current = value.selections?.[category] ?? [];
     const next = current.includes(id) ? current.filter((x) => x !== id) : [...current, id];
-    set({ selections: { ...(value.selections ?? {}), [catKey]: next } });
+    set({ selections: { ...(value.selections ?? {}), [category]: next } });
   };
 
   const addCustom = () => {
     if (!addName.trim()) return;
-    const targetCat = activeCat === "all" ? "sonstige" : activeCat;
     set({
       custom: [
         ...(value.custom ?? []),
-        { category: targetCat, name: addName.trim(), trade: addTrade.trim() },
+        { category: activeCat, name: addName.trim(), trade: addTrade.trim() },
       ],
     });
     setAddName("");
@@ -79,36 +80,21 @@ export const Step4Dienstleister = ({ buildingId, value, onChange }: Props) => {
     setShowAdd(false);
   };
 
-  // Deduplicate "Alle" by contact id
-  const items: SuggestedContact[] =
-    activeCat === "all"
-      ? Array.from(new Map(allProviders.map((p) => [p.id, p])).values())
-      : allProviders.filter((p) => p.category === activeCat);
+  const items = allProviders.filter((p) => p.category === activeCat);
+  const customItems = (value.custom ?? []).filter((c) => c.category === activeCat);
 
-  const customItems =
-    activeCat === "all"
-      ? value.custom ?? []
-      : (value.custom ?? []).filter((c) => c.category === activeCat);
+  const isSelectedInCat = (id: string) =>
+    (value.selections?.[activeCat] ?? []).includes(id);
 
-  const isSelected = (id: string) =>
-    Object.values(value.selections ?? {}).some((arr) => arr.includes(id));
-
-  const totalSelectedCount = (catId: string) => {
-    if (catId === "all") {
-      const ids = new Set<string>();
-      Object.values(value.selections ?? {}).forEach((arr) => arr.forEach((i) => ids.add(i)));
-      return ids.size;
-    }
-    return value.selections?.[catId]?.length ?? 0;
-  };
+  const countForCat = (catId: string) => value.selections?.[catId]?.length ?? 0;
 
   return (
-    <div className="space-y-2.5">
-      {/* Filter chips */}
+    <div className="space-y-3">
+      {/* Filter chips — per category only */}
       <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1 scrollbar-none">
-        {[{ id: "all", label: "Alle" }, ...SERVICE_PROVIDER_CATEGORIES].map((cat) => {
+        {SERVICE_PROVIDER_CATEGORIES.map((cat) => {
           const active = activeCat === cat.id;
-          const count = totalSelectedCount(cat.id);
+          const count = countForCat(cat.id);
           return (
             <button
               key={cat.id}
@@ -118,18 +104,20 @@ export const Step4Dienstleister = ({ buildingId, value, onChange }: Props) => {
                 setShowAdd(false);
               }}
               className={cn(
-                "px-3 py-1.5 rounded-full border-[1.5px] text-[13px] whitespace-nowrap transition shrink-0",
+                "px-3 py-1.5 rounded-full border-[1.5px] text-[13px] whitespace-nowrap transition shrink-0 inline-flex items-center gap-1.5",
                 active
                   ? "bg-primary text-primary-foreground border-primary"
                   : "border-border/60 text-muted-foreground bg-card hover:border-border"
               )}
             >
-              {cat.label}
+              <span>{cat.label}</span>
               {count > 0 && (
                 <span
                   className={cn(
-                    "ml-1.5 inline-flex h-4 min-w-4 px-1 items-center justify-center rounded-full text-[10px]",
-                    active ? "bg-white/25" : "bg-primary/15 text-primary"
+                    "inline-flex h-[18px] min-w-[18px] px-1 items-center justify-center rounded-full text-[10px] font-semibold",
+                    active
+                      ? "bg-primary-foreground/20 text-primary-foreground"
+                      : "bg-success/15 text-success"
                   )}
                 >
                   {count}
@@ -143,44 +131,58 @@ export const Step4Dienstleister = ({ buildingId, value, onChange }: Props) => {
       {/* Provider list */}
       <div className="space-y-2">
         {items.length === 0 && customItems.length === 0 && (
-          <div className="rounded-[14px] border border-dashed border-border/60 p-5 text-center text-[13px] text-muted-foreground">
+          <div className="rounded-[14px] border border-dashed border-border/60 p-6 text-center text-[13px] text-muted-foreground">
             Noch keine Vorschläge in dieser Kategorie.
+            <div className="text-[11px] mt-1 opacity-70">
+              Sie können unten einen eigenen Dienstleister hinzufügen.
+            </div>
           </div>
         )}
 
         {items.map((s) => {
-          const sel = isSelected(s.id);
+          const sel = isSelectedInCat(s.id);
           return (
             <button
-              key={`${s.id}-${s.category}`}
+              key={`${s.id}-${activeCat}`}
               type="button"
-              onClick={() => toggle(s.id, s.category)}
+              onClick={() => toggle(s.id, activeCat)}
               className={cn(
-                "w-full rounded-[14px] border-[1.5px] p-3.5 flex items-center gap-3 text-left transition",
-                sel ? "border-primary bg-accent" : "border-border/60 bg-card hover:border-border"
+                "w-full rounded-[14px] border-[1.5px] p-3.5 flex items-center gap-3 text-left transition group",
+                sel
+                  ? "border-success bg-success/8 shadow-[0_1px_0_hsl(var(--success)/0.12)]"
+                  : "border-border/60 bg-card hover:border-border hover:bg-muted/30"
               )}
             >
               <span
                 className={cn(
-                  "size-10 rounded-[10px] grid place-items-center font-display text-[14px] shrink-0 transition",
-                  sel ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                  "size-10 rounded-full grid place-items-center font-display text-[14px] shrink-0 transition",
+                  sel
+                    ? "bg-success text-success-foreground"
+                    : "bg-muted text-muted-foreground group-hover:bg-muted/80"
                 )}
               >
                 {sel ? <Check className="size-5" strokeWidth={3} /> : initials(s.name)}
               </span>
               <div className="flex-1 min-w-0">
-                <div className="text-[14px] font-semibold leading-tight truncate">{s.name}</div>
+                <div
+                  className={cn(
+                    "text-[14px] font-semibold leading-tight truncate transition",
+                    sel ? "text-foreground" : "text-foreground"
+                  )}
+                >
+                  {s.name}
+                </div>
                 <div className="text-[11px] text-muted-foreground mt-0.5">
-                  {SERVICE_PROVIDER_CATEGORIES.find((c) => c.id === s.category)?.label ?? s.category}
+                  {sel ? "Ausgewählt für diese Kategorie" : "Tippen zum Auswählen"}
                 </div>
               </div>
               <span
                 className={cn(
-                  "size-[22px] rounded-full border-[1.5px] grid place-items-center shrink-0",
-                  sel ? "border-primary bg-primary" : "border-border bg-card"
+                  "size-[22px] rounded-full border-[1.5px] grid place-items-center shrink-0 transition",
+                  sel ? "border-success bg-success" : "border-border bg-card"
                 )}
               >
-                {sel && <Check className="size-3 text-white" strokeWidth={3} />}
+                {sel && <Check className="size-3 text-success-foreground" strokeWidth={3} />}
               </span>
             </button>
           );
@@ -189,14 +191,16 @@ export const Step4Dienstleister = ({ buildingId, value, onChange }: Props) => {
         {customItems.map((c, idx) => (
           <div
             key={`custom-${idx}`}
-            className="rounded-[14px] border-[1.5px] border-primary/40 bg-accent/40 p-3.5 flex items-center gap-3"
+            className="rounded-[14px] border-[1.5px] border-success/40 bg-success/5 p-3.5 flex items-center gap-3"
           >
-            <span className="size-10 rounded-[10px] bg-primary/15 text-primary grid place-items-center font-display text-[14px] shrink-0">
+            <span className="size-10 rounded-full bg-success/15 text-success grid place-items-center font-display text-[14px] shrink-0">
               {initials(c.name)}
             </span>
             <div className="flex-1 min-w-0">
               <div className="text-[14px] font-semibold leading-tight truncate">{c.name}</div>
-              {c.trade && <div className="text-[11px] text-muted-foreground mt-0.5">{c.trade}</div>}
+              <div className="text-[11px] text-muted-foreground mt-0.5">
+                {c.trade || "Eigener Eintrag"}
+              </div>
             </div>
           </div>
         ))}
@@ -207,15 +211,15 @@ export const Step4Dienstleister = ({ buildingId, value, onChange }: Props) => {
             type="button"
             onClick={() => setShowAdd((v) => !v)}
             className={cn(
-              "w-full border-[1.5px] border-dashed border-primary/40 p-3.5 flex items-center gap-3 text-left transition",
-              showAdd ? "rounded-t-[14px] border-b-0" : "rounded-[14px] hover:bg-accent/30"
+              "w-full border-[1.5px] border-dashed border-border/70 p-3.5 flex items-center gap-3 text-left transition",
+              showAdd ? "rounded-t-[14px] border-b-0" : "rounded-[14px] hover:bg-muted/30"
             )}
           >
-            <span className="size-10 rounded-[10px] border-[1.5px] border-dashed border-primary/40 bg-accent grid place-items-center text-primary shrink-0">
+            <span className="size-10 rounded-full border-[1.5px] border-dashed border-border bg-muted/40 grid place-items-center text-muted-foreground shrink-0">
               <Plus className="size-5" />
             </span>
             <div className="flex-1">
-              <div className="text-[14px] font-semibold text-primary leading-tight">
+              <div className="text-[14px] font-semibold leading-tight">
                 Weiteren Dienstleister hinzufügen
               </div>
               <div className="text-[11px] text-muted-foreground mt-0.5">
@@ -224,7 +228,7 @@ export const Step4Dienstleister = ({ buildingId, value, onChange }: Props) => {
             </div>
           </button>
           {showAdd && (
-            <div className="rounded-b-[14px] border-[1.5px] border-t-0 border-primary/40 p-3 space-y-3 bg-card">
+            <div className="rounded-b-[14px] border-[1.5px] border-t-0 border-border/70 p-3 space-y-3 bg-card">
               <div>
                 <div className="text-[12px] text-muted-foreground mb-1">Name / Firma</div>
                 <EmbeddedInput
