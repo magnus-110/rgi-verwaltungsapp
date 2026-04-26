@@ -115,11 +115,11 @@ export const OnboardingWizardModal = ({
       }
     }
 
-    // Steps 2-5 sind optional: bei leeren Daten einfach weiter ohne Submit
-    if (step > 1 && isEmptyData(currentData)) {
+    // Steps 2-4 sind optional: bei leeren Daten einfach weiter ohne Submit.
+    // Step 5 muss IMMER submittet werden (auch leer), damit der Onboarding-Status korrekt abgeschlossen wird.
+    if (step > 1 && step < 5 && isEmptyData(currentData)) {
       await flush();
-      if (step < 5) setStep(step + 1);
-      else onComplete();
+      setStep(step + 1);
       return;
     }
 
@@ -130,22 +130,22 @@ export const OnboardingWizardModal = ({
         body: { building_id: progress.building_id, step, payload: currentData },
       });
       if (error) throw error;
-      toast({
-        title: step === 1 ? "Stammdaten gespeichert" : "Eingabe übermittelt",
-        description:
-          step === 1
-            ? "Ihre Daten wurden direkt übernommen."
-            : "Die Verwaltung prüft Ihre Angaben.",
-      });
-      if (step < 5) setStep(step + 1);
-      else onComplete();
+      if (step < 5) {
+        toast({
+          title: step === 1 ? "Stammdaten gespeichert" : "Eingabe übermittelt",
+          description:
+            step === 1
+              ? "Ihre Daten wurden direkt übernommen."
+              : "Die Verwaltung prüft Ihre Angaben.",
+        });
+        setStep(step + 1);
+      } else {
+        // Step 5 abgeschlossen → Dankesdialog wird über onComplete-Refresh angezeigt
+        onComplete();
+      }
     } catch (e: any) {
       // Bei optionalen Schritten Fehler nicht blockieren - weitergehen
       if (step > 1) {
-        toast({
-          title: "Hinweis",
-          description: "Eingabe konnte nicht gespeichert werden, Sie können trotzdem fortfahren.",
-        });
         if (step < 5) setStep(step + 1);
         else onComplete();
       } else {
