@@ -231,7 +231,7 @@ export const OnboardingWizardModal = ({
         </div>
 
         {/* Footer */}
-        {!allDone && (
+        {!allDone && !showWelcome && (
           <div className="bg-card border-t border-border/60 px-4 py-3 flex items-center justify-between gap-2 shrink-0">
             <div>
               {!isStep1HardLocked && step > 1 && (
