@@ -517,23 +517,42 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
                   {providerCounts.map((p) => {
                     const consensusPct = totalParticipants > 0 ? (p.count / totalParticipants) * 100 : 0;
                     const high = consensusPct >= 50;
+                    const isApplied = p.applied_in_submission || p.already_approved;
                     return (
-                      <div key={`${p.name}-${p.category}`} className={`rounded-md border p-3 ${high ? "border-success/40 bg-success/5" : ""}`}>
+                      <div
+                        key={`${p.name}-${p.category}`}
+                        className={`rounded-md border p-3 ${
+                          isApplied
+                            ? "border-success/40 bg-success/10"
+                            : high
+                            ? "border-success/40 bg-success/5"
+                            : ""
+                        }`}
+                      >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <div className="font-medium text-sm">{p.name}</div>
-                            <div className="text-xs text-muted-foreground">{p.category}</div>
+                            <div className="text-xs text-muted-foreground">{TRADE_LABEL(p.category)}</div>
                           </div>
-                          <div className="text-right flex-shrink-0">
+                          <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                             <Badge variant={high ? "default" : "outline"}>
                               {p.count}× genannt
                             </Badge>
-                            {high && (
-                              <div className="text-xs text-success mt-1 flex items-center gap-1 justify-end">
+                            {high && !isApplied && (
+                              <div className="text-xs text-success flex items-center gap-1 justify-end">
                                 <CheckCircle2 className="h-3 w-3" />
                                 Konsens ({Math.round(consensusPct)}%)
                               </div>
                             )}
+                            <ApplyFieldButton
+                              submissionId={p.submission_id}
+                              field="provider"
+                              value={{ name: p.name, category: p.category, trade: p.category }}
+                              applied={isApplied}
+                              buildingId={buildingId}
+                              label="Übernehmen"
+                              appliedLabel="Übernommen"
+                            />
                           </div>
                         </div>
                       </div>
