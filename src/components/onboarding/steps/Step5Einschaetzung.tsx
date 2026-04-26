@@ -79,12 +79,12 @@ export const Step5Einschaetzung = ({ value, onChange }: Props) => {
       <SectionCard label="VERWALTUNGSBEIRAT">
         <div className="p-3 space-y-2">
           <div className="text-[12px] text-muted-foreground">
-            Sind Sie aktuell gewähltes Mitglied des Verwaltungsbeirats?
+            Sind Sie aktuell Mitglied des Verwaltungsbeirats?
           </div>
           <div className="grid grid-cols-2 gap-2.5">
             {[
-              { v: true, label: "Ja, ich bin Mitglied" },
-              { v: false, label: "Nein, kein Mitglied" },
+              { v: true, label: "Ja" },
+              { v: false, label: "Nein" },
             ].map(({ v, label }) => {
               const current = value.is_beirat_member ?? value.willing_beirat ?? null;
               const sel = current === v;
