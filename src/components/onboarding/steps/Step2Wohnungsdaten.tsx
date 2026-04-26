@@ -73,7 +73,7 @@ export const Step2Wohnungsdaten = ({ value, onChange }: Props) => {
               value={value.mea_share ?? ""}
               onChange={(e) => set({ mea_share: e.target.value })}
               inputMode="decimal"
-              placeholder="z. B. 125,5/1000"
+              placeholder="z. B. 125,5"
             />
           </div>
         </div>

@@ -212,17 +212,23 @@ export const Step4Dienstleister = ({ buildingId, value, onChange }: Props) => {
             </div>
           </button>
           {showAdd && (
-            <div className="rounded-b-[14px] border-[1.5px] border-t-0 border-primary/40 p-3 space-y-2 bg-card">
-              <EmbeddedInput
-                value={addName}
-                onChange={(e) => setAddName(e.target.value)}
-                placeholder="Name / Firma"
-              />
-              <EmbeddedInput
-                value={addTrade}
-                onChange={(e) => setAddTrade(e.target.value)}
-                placeholder="Gewerk / Bemerkung (optional)"
-              />
+            <div className="rounded-b-[14px] border-[1.5px] border-t-0 border-primary/40 p-3 space-y-3 bg-card">
+              <div>
+                <div className="text-[12px] text-muted-foreground mb-1">Name / Firma</div>
+                <EmbeddedInput
+                  value={addName}
+                  onChange={(e) => setAddName(e.target.value)}
+                  placeholder="z. B. Müller Sanitär GmbH"
+                />
+              </div>
+              <div>
+                <div className="text-[12px] text-muted-foreground mb-1">Gewerk / Bemerkung (optional)</div>
+                <EmbeddedInput
+                  value={addTrade}
+                  onChange={(e) => setAddTrade(e.target.value)}
+                  placeholder="z. B. Heizung, Notdienst"
+                />
+              </div>
               <div className="flex gap-2 pt-1">
                 <Button
                   type="button"
