@@ -7,6 +7,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import { LegalDocumentsSheet } from "@/components/LegalDocumentsSheet";
 import { OwnerSelfServiceSection } from "@/components/owner/OwnerSelfServiceSection";
+import { supabase } from "@/integrations/supabase/client";
+import { Mail, Info } from "lucide-react";
 
 export const WegOwnerSettings = () => {
   const { profile, updatePassword } = useAuth();
@@ -17,6 +19,46 @@ export const WegOwnerSettings = () => {
   const [legalSheetOpen, setLegalSheetOpen] = useState(false);
   const [legalSheetTab, setLegalSheetTab] = useState<"agb" | "datenschutz">("agb");
 
+  // Login email change
+  const [currentLoginEmail, setCurrentLoginEmail] = useState<string>("");
+  const [newEmail, setNewEmail] = useState("");
+  const [isUpdatingEmail, setIsUpdatingEmail] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setCurrentLoginEmail(data.user?.email ?? "");
+    });
+  }, []);
+
+  const handleEmailChange = async () => {
+    const trimmed = newEmail.trim();
+    if (!trimmed) {
+      toast({ title: "Fehler", description: "Bitte geben Sie eine neue E-Mail-Adresse ein.", variant: "destructive" });
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      toast({ title: "Fehler", description: "Bitte geben Sie eine gültige E-Mail-Adresse ein.", variant: "destructive" });
+      return;
+    }
+    if (trimmed.toLowerCase() === currentLoginEmail.toLowerCase()) {
+      toast({ title: "Hinweis", description: "Das ist bereits Ihre aktuelle Login-E-Mail.", variant: "destructive" });
+      return;
+    }
+    setIsUpdatingEmail(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ email: trimmed });
+      if (error) throw error;
+      toast({
+        title: "Bestätigungs-E-Mail versendet",
+        description: `Wir haben eine Bestätigungs-E-Mail an ${trimmed} gesendet. Klicken Sie dort auf den Link, um die Änderung abzuschließen.`,
+      });
+      setNewEmail("");
+    } catch (e: any) {
+      toast({ title: "Fehler", description: e?.message || "E-Mail konnte nicht geändert werden.", variant: "destructive" });
+    } finally {
+      setIsUpdatingEmail(false);
+    }
+  };
   const openLegalSheet = (tab: "agb" | "datenschutz") => {
     setLegalSheetTab(tab);
     setLegalSheetOpen(true);
@@ -79,6 +121,42 @@ export const WegOwnerSettings = () => {
        </div>
       <OwnerSelfServiceSection />
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mail className="w-5 h-5" /> Login-E-Mail
+          </CardTitle>
+          <CardDescription>
+            Diese E-Mail-Adresse verwenden Sie für die Anmeldung und für „Passwort vergessen".
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label className="text-xs">Aktuelle Login-E-Mail</Label>
+            <Input value={currentLoginEmail} disabled />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="new-email" className="text-xs">Neue Login-E-Mail</Label>
+            <Input
+              id="new-email"
+              type="email"
+              placeholder="neue@email.de"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+            />
+          </div>
+          <div className="flex items-start gap-2 p-3 bg-muted/50 border border-muted rounded-md text-xs text-muted-foreground">
+            <Info className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>
+              Nach dem Ändern erhalten Sie eine Bestätigungs-E-Mail an die <b>neue</b> Adresse.
+              Der Login funktioniert weiterhin mit der alten E-Mail, bis Sie den Link in der Bestätigungs-E-Mail anklicken.
+            </span>
+          </div>
+          <Button onClick={handleEmailChange} disabled={isUpdatingEmail} className="w-full">
+            {isUpdatingEmail ? "Wird geändert..." : "Login-E-Mail ändern"}
+          </Button>
+        </CardContent>
+      </Card>
 
        <Card>
          <CardHeader>

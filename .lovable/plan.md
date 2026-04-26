@@ -1,120 +1,80 @@
-# Plan: Duplikate bereinigen & granulare Übernahme-Buttons
+# Plan: Self-Service Login-E-Mail + vollständige Vorbefüllung der Wohnungsformulare
 
-## Problem
-1. In `onboarding_submissions` liegen pro Eigentümer/Kategorie mehrere identische Einreichungen (z. B. 3× `bewertung` von Magnus). UI zeigt zwar nur die neueste, die DB ist aber unsauber.
-2. Aktuell kann ein Admin nur die ganze Submission über das Side-Panel komplett übernehmen. Es fehlt die Möglichkeit, **einzelne Werte** (z. B. „Elektrotechnik Munz übernehmen", „Magnus als Kassenprüfer setzen") gezielt mit einem Klick zu bestätigen — und diese danach grün als „übernommen" zu markieren.
+## Teil A — Self-Service: Login-E-Mail ändern
 
----
+### 1. Neue Card "Login-Daten" in `src/pages/weg-owner/Settings.tsx`
+Oberhalb von "Passwort ändern" eine neue Card einfügen:
 
-## Schritt 1 — Datenbank-Bereinigung (Migration)
+- **Titel**: "Login-E-Mail"
+- **Aktuelle Login-E-Mail** wird **vorbefüllt** aus `profile.email` (read-only Anzeige als Hinweis)
+- **Input "Neue E-Mail"**: leer, der User trägt die neue E-Mail ein
+- **Button "E-Mail ändern"**
 
-SQL-Migration, die pro `(building_id, user_id, category)` nur die **jüngste** Submission behält:
+### 2. Logik
+- Aufruf von `supabase.auth.updateUser({ email: newEmail })`
+- Supabase versendet automatisch eine Bestätigungs-E-Mail an die **neue** Adresse
+- User muss in der neuen E-Mail auf den Link klicken → erst dann wird die Login-E-Mail tatsächlich geändert
+- Nach erfolgreicher Bestätigung: Trigger `sync_profile_email` (existiert ggf. schon, sonst neu erstellen) aktualisiert auch `profiles.email`
 
-```sql
-DELETE FROM onboarding_submissions a
-USING onboarding_submissions b
-WHERE a.building_id = b.building_id
-  AND a.user_id    = b.user_id
-  AND a.category   = b.category
-  AND a.created_at < b.created_at;
-```
+### 3. Hinweis-Text in der Card
+"Ihre Login-E-Mail wird auch für 'Passwort vergessen' verwendet. Nach dem Ändern erhalten Sie eine Bestätigungs-E-Mail an die **neue** Adresse — der Login funktioniert weiterhin mit der alten E-Mail, bis Sie den Link in der Bestätigungs-E-Mail anklicken."
 
-Zusätzlich: **Partial Unique Index**, damit künftig keine Duplikate entstehen können — neue Einreichungen sollen die alte überschreiben (Upsert in `submit-onboarding-step` anpassen):
-
-```sql
-CREATE UNIQUE INDEX onboarding_submissions_unique_pending
-  ON onboarding_submissions (building_id, user_id, category)
-  WHERE status = 'pending';
-```
-
-→ `supabase/functions/submit-onboarding-step/index.ts`: Vor dem `INSERT` ein `DELETE WHERE status='pending' AND building_id+user_id+category` einfügen, damit Re-Submits sauber ersetzt werden.
+### 4. Sicherheit
+- Keine Edge Function nötig — `supabase.auth.updateUser` läuft über die User-Session und ist abgesichert
+- Supabase verifiziert automatisch die Identität via aktiver Session
 
 ---
 
-## Schritt 2 — Neue Edge Function: `onboarding-apply-field`
+## Teil B — Vollständige Vorbefüllung der Wohnungsfelder
 
-Granularer Endpunkt, der **ein einzelnes Feld** aus einer Submission in die Zieltabellen schreibt — ohne die Submission als Ganzes auf `approved` zu setzen.
+### Aktuelles Problem
+In `OwnerSelfServiceSection.tsx` werden Override-Felder mit `placeholder` (HTML) angezeigt, aber das Value ist `null/""`. Wenn der User speichert, ohne etwas zu ändern, wird **nichts** gespeichert → bei "Birkenweg 13" sind alle Felder leer.
 
-Body:
-```ts
-{
-  submission_id: string,
-  field: 
-    | "provider"           // Step 4: einzelner Dienstleister (übergibt {trade, name, contact_id?})
-    | "cash_auditor"       // Step 5: Markiere user als Kassenprüfer
-    | "beirat_member"      // Step 5: Markiere user als Verwaltungsbeirat
-    | "etv_location"       // Step 5: Speichere Vorschlag als building.etv_location_suggestion
-    | "mea" | "qm" | "hausgeld"  // Step 2: einzelne Wohnungsdaten-Felder
-    | "heating_type" | "problem_areas",  // Step 3
-  value?: any              // optional, z. B. konkreter Provider aus dem custom-Array
-}
-```
+### Fix
+In `setAssignments(...)` beim initialen Laden: Wenn ein Override-Feld `null` ist, lade den **globalen Wert** aus `contact` / `contact_persons` / `contact_phones` / `contact_emails` / `contact_bank_accounts` als initialen Wert in den State.
 
-Logik je Feld nutzt dieselben Merge-Patterns wie `onboarding-approve-submission`, aber **isoliert pro Feld**.
+Konkret:
+- `salutation_override` ← `contact.salutation` falls null
+- `first_name_override` ← `person.first_name` falls null
+- `last_name_override` ← `person.last_name` falls null
+- `address_line1_override`, `postal_code_override`, `city_override` ← aus `contact`
+- `phones_override` ← aus `contact_phones` der Person, falls leer
+- `emails_override` ← aus `contact_emails` der Person, falls leer
+- `iban_override` / `iban_holder_override` ← aus `contact_bank_accounts` falls `bank_account_id` gesetzt
 
-Tracking, was bereits übernommen wurde → neue Spalte:
-```sql
-ALTER TABLE onboarding_submissions
-  ADD COLUMN applied_fields jsonb NOT NULL DEFAULT '[]'::jsonb;
-```
-Jeder Übernahme-Aufruf appendet z. B. `"provider:elektro:Munz"` oder `"cash_auditor"` in dieses Array. Wenn am Ende alle relevanten Felder übernommen sind, kann die Submission optional automatisch auf `approved` gesetzt werden.
+→ Alle Felder zeigen jetzt **echte Werte**, der User sieht sofort die geerbten Daten und kann sie bearbeiten. Beim Speichern werden die Werte als Override persistiert (also explizit pro Wohnung gespeichert).
+
+### Konsequenz
+Auch wenn der User **nichts** ändert, werden die globalen Werte beim ersten Speichern als Override für die jeweilige Wohnung übernommen → konsistent für alle Gebäude (Beispielgebäude UND Birkenweg 13).
 
 ---
 
-## Schritt 3 — UI: Aktionsbuttons je Feld in `OnboardingStepOverviews.tsx`
+## Teil C — Eigentümer-Badge entfernen
 
-Ein wiederverwendbarer kleiner Button neben jedem ausgegebenen Wert:
-
-```tsx
-<ApplyFieldButton 
-  submissionId={s.id} 
-  field="cash_auditor" 
-  applied={s.applied_fields?.includes("cash_auditor")}
-  label="Als Kassenprüfer übernehmen"
-/>
-```
-
-**Verhalten**
-- Default: Outline-Button mit Check-Icon → „Übernehmen"
-- Loading: Spinner
-- Nach Erfolg: grüner gefüllter Badge-/Button-Stil + Häkchen + Text „Übernommen"
-- Container des Feldes bekommt zusätzlich einen grünen Hintergrund (`bg-success/10 border-success/40`)
-
-**Konkret pro Step**
-- **Step 2 (Wohnungsdaten):** je Zeile drei Mini-Buttons: m², MEA, Hausgeld — jeder einzeln übernehmbar
-- **Step 3 (Gebäude):** Heizungsart-Liste je Eintrag „Übernehmen" (schreibt in `buildings.heating_type`); Problembereiche je Item übernehmbar (legt To-Do/Inspektionsvorschlag an oder speichert in `building_assessments`)
-- **Step 4 (Dienstleister):** Bei jedem aggregierten Provider-Eintrag ein „Übernehmen"-Button → ruft Endpoint mit `field: "provider"` und identifiziert den Dienstleister via `(name, category)`. Bereits in `building_service_providers` vorhandene Einträge werden erkannt und automatisch grün markiert.
-- **Step 5:** je Eintrag in „Freiwillige Kassenprüfer" / „Mitglieder Verwaltungsbeirat" / „ETV-Orte" jeweils ein Übernahme-Button. Cash Auditor → setzt `is_cash_auditor=true` auf der Assignment; Beirat → `role_in_building='beirat'`; ETV-Ort → speichert auf `buildings.etv_location_suggestion`.
+In `OwnerSelfServiceSection.tsx` das `<Badge>` mit "Eigentümer" auf der Wohnungs-Card entfernen.
 
 ---
 
-## Schritt 4 — React Query Invalidation
+## Teil D — Info-Text "Mehrere E-Mails / Login"
 
-Nach jedem erfolgreichen Apply:
-- `["onb-overview-submissions", buildingId]`
-- `["onb-overview-providers", buildingId]`
-- `["onb-overview-assignments", buildingId]`
-- `["onb-overview-assessments", buildingId]`
-
-werden invalidiert, damit die grünen Statusanzeigen sofort konsistent sind.
+Auf der Wohnungs-Card ein kleiner Hinweis (graue Info-Box mit Info-Icon):
+> "Diese E-Mail-Adressen werden für Korrespondenz zu **dieser Wohnung** verwendet (z.B. Abrechnungen). Ihre **Login-E-Mail** ändern Sie in den Einstellungen unter 'Login-Daten'."
 
 ---
 
-## Dateien
-**Neu**
-- `supabase/migrations/<ts>_dedupe_onboarding_submissions.sql`
-- `supabase/functions/onboarding-apply-field/index.ts`
-- `src/components/buildings/onboarding/ApplyFieldButton.tsx`
+## Dateien, die geändert werden
 
-**Geändert**
-- `src/components/buildings/onboarding/OnboardingStepOverviews.tsx` — Buttons in alle 4 Step-Sektionen einbauen, applied-Status visuell anzeigen
-- `supabase/functions/submit-onboarding-step/index.ts` — vor INSERT alte pending-Submission gleicher (building, user, category) löschen, damit künftig keine Duplikate entstehen
-- `supabase/config.toml` — neue Function registrieren (verify_jwt = true)
+1. **`src/pages/weg-owner/Settings.tsx`** — neue Card "Login-Daten" mit Self-Service E-Mail-Änderung
+2. **`src/components/owner/OwnerSelfServiceSection.tsx`**:
+   - Eigentümer-Badge entfernen
+   - Vollständige Vorbefüllung aller Override-Felder mit globalen Werten
+   - Info-Text zu Korrespondenz-vs-Login-E-Mail
+3. **(Optional) Migration**: Trigger `sync_profile_email` prüfen — falls nicht vorhanden, einen Trigger auf `auth.users` UPDATE erstellen, der `profiles.email` synchronisiert (nur falls noch nicht existent)
 
 ---
 
-## Ergebnis
-- DB enthält pro Eigentümer + Schritt nur **eine** Submission (jüngste).
-- Admin kann **jeden einzelnen Wert** mit einem Klick übernehmen, ohne die ganze Submission „pauschal" akzeptieren zu müssen.
-- Übernommene Werte sind sofort **grün** sichtbar, mit Häkchen und „Übernommen"-Label.
-- Künftige Re-Submissions desselben Eigentümers überschreiben sauber die alte pending-Eingabe.
+## Was NICHT geändert wird
+
+- `request-password-reset` bleibt unverändert (nutzt weiterhin nur `auth.users.email`)
+- `resolve-login-identifier` bleibt unverändert
+- Override-E-Mails der Wohnungen bleiben **rein für Korrespondenz** — kein Login-Effekt

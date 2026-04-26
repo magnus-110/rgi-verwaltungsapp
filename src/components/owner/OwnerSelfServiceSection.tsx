@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Plus, Trash2, User, Phone, Mail, CreditCard, MapPin, Building2, ChevronRight } from "lucide-react";
+import { Loader2, Plus, Trash2, User, Phone, Mail, CreditCard, MapPin, Building2, ChevronRight, Info } from "lucide-react";
 import { SALUTATIONS } from "@/lib/salutations";
 
 interface Contact {
@@ -74,31 +74,85 @@ export const OwnerSelfServiceSection = () => {
       .maybeSingle();
     if (!c) { setContact(null); setLoading(false); return; }
     setContact(c as Contact);
-    const [{ data: bk }, { data: asg }] = await Promise.all([
-      supabase.from("contact_bank_accounts").select("id, iban, account_holder").eq("contact_id", c.id),
-      supabase
-        .from("contact_building_assignments")
-        .select(`
-          id, building_id, unit_number, role_in_building, bank_account_id,
-          salutation_override, first_name_override, last_name_override, company_name_override,
-          address_street_override, address_zip_override, address_city_override,
-          phones_override, emails_override, iban_override, iban_holder_override,
-          buildings:building_id(name, address)
-        `)
-        .eq("contact_id", c.id)
-        .eq("is_active", true),
-    ]);
+
+    // Find the contact_person linked to this user (if any) for global phones/emails
+    const { data: persons } = await supabase
+      .from("contact_persons")
+      .select("id")
+      .eq("contact_id", c.id);
+    const personIds = (persons ?? []).map((p: any) => p.id);
+
+    const bkRes = await supabase
+      .from("contact_bank_accounts")
+      .select("id, iban, account_holder")
+      .eq("contact_id", c.id);
+    const asgRes = await supabase
+      .from("contact_building_assignments")
+      .select(`
+        id, building_id, unit_number, role_in_building, bank_account_id,
+        salutation_override, first_name_override, last_name_override, company_name_override,
+        address_street_override, address_zip_override, address_city_override,
+        phones_override, emails_override, iban_override, iban_holder_override,
+        buildings:building_id(name, address)
+      `)
+      .eq("contact_id", c.id)
+      .eq("is_active", true);
+    const bk = bkRes.data;
+    const asg = asgRes.data;
+
+    let globalPhones: any[] = [];
+    let globalEmails: any[] = [];
+    if (personIds.length) {
+      const ph: any = await (supabase as any).from("contact_phones").select("phone_number").in("contact_person_id", personIds);
+      const em: any = await (supabase as any).from("contact_emails").select("email").in("contact_person_id", personIds);
+      globalPhones = (ph.data ?? []) as any[];
+      globalEmails = (em.data ?? []) as any[];
+    }
     setBanks((bk ?? []) as Bank[]);
-    // Normalize phones/emails — DB may store {number, note} or {phone_number}, and {address} or {email}
-    const normalized = (asg ?? []).map((row: any) => ({
-      ...row,
-      phones_override: Array.isArray(row.phones_override)
-        ? row.phones_override.map((p: any) => ({ phone_number: p?.phone_number ?? p?.number ?? "" }))
-        : null,
-      emails_override: Array.isArray(row.emails_override)
-        ? row.emails_override.map((e: any) => ({ email: e?.email ?? e?.address ?? "" }))
-        : null,
-    }));
+
+    const globalPhonesArr = (globalPhones ?? [])
+      .map((p: any) => ({ phone_number: p?.phone_number ?? "" }))
+      .filter((p) => p.phone_number);
+    const globalEmailsArr = (globalEmails ?? [])
+      .map((e: any) => ({ email: e?.email ?? "" }))
+      .filter((e) => e.email);
+
+    // Pick a default bank (first one) for prefill if no bank_account_id is set
+    const defaultBank = (bk ?? [])[0] as Bank | undefined;
+
+    // Normalize phones/emails AND prefill empty override fields with global/contact data
+    const normalized = (asg ?? []).map((row: any) => {
+      const phonesNorm: { phone_number: string }[] | null = Array.isArray(row.phones_override)
+        ? row.phones_override
+            .map((p: any) => ({ phone_number: p?.phone_number ?? p?.number ?? "" }))
+            .filter((p: any) => p.phone_number)
+        : null;
+      const emailsNorm: { email: string }[] | null = Array.isArray(row.emails_override)
+        ? row.emails_override
+            .map((e: any) => ({ email: e?.email ?? e?.address ?? "" }))
+            .filter((e: any) => e.email)
+        : null;
+
+      return {
+        ...row,
+        salutation_override: row.salutation_override ?? c.salutation ?? null,
+        first_name_override: row.first_name_override ?? c.first_name ?? null,
+        last_name_override: row.last_name_override ?? c.last_name ?? null,
+        company_name_override: row.company_name_override ?? c.company_name ?? null,
+        address_street_override: row.address_street_override ?? c.address_street ?? null,
+        address_zip_override: row.address_zip_override ?? c.address_zip ?? null,
+        address_city_override: row.address_city_override ?? c.address_city ?? null,
+        phones_override: phonesNorm && phonesNorm.length > 0
+          ? phonesNorm
+          : (globalPhonesArr.length > 0 ? globalPhonesArr : null),
+        emails_override: emailsNorm && emailsNorm.length > 0
+          ? emailsNorm
+          : (globalEmailsArr.length > 0 ? globalEmailsArr : null),
+        iban_override: row.iban_override ?? defaultBank?.iban ?? null,
+        iban_holder_override: row.iban_holder_override ?? defaultBank?.account_holder ?? null,
+        bank_account_id: row.bank_account_id ?? defaultBank?.id ?? null,
+      };
+    });
     setAssignments(normalized as unknown as AssignmentRow[]);
     setLoading(false);
   };
@@ -159,7 +213,6 @@ export const OwnerSelfServiceSection = () => {
                   <span className="font-medium truncate">
                     {a.buildings?.name || "Wohnung"}{unit}
                   </span>
-                  {roleLabel && <Badge variant="secondary" className="text-xs">{roleLabel}</Badge>}
                 </div>
                 {a.buildings?.address && (
                   <p className="text-xs text-muted-foreground truncate mt-0.5">{a.buildings.address}</p>
@@ -331,6 +384,13 @@ function AssignmentEditor({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
+            <div className="flex items-start gap-2 p-3 bg-muted/50 border border-muted rounded-md text-xs text-muted-foreground">
+              <Info className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>
+                Diese E-Mail-Adressen werden für Korrespondenz zu <b>dieser Wohnung</b> verwendet (z.B. Abrechnungen).
+                Ihre <b>Login-E-Mail</b> ändern Sie in den Einstellungen unter „Login-E-Mail".
+              </span>
+            </div>
             <div className="space-y-2">
               <Label className="text-xs flex items-center gap-1"><Phone className="w-3.5 h-3.5" /> Telefonnummern</Label>
               {(a.phones_override ?? []).map((p, idx) => (
