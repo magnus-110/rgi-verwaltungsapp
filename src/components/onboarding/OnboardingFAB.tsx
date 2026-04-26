@@ -24,6 +24,9 @@ export const OnboardingFAB = () => {
 
   if (loading || !isActive || !progress) return null;
   if (progress.fully_completed_at) return null;
+  // Defensive: step 5 done implies the whole onboarding is done,
+  // even if (legacy) fully_completed_at was never set on the row.
+  if (progress.step5_completed_at) return null;
 
   const completedCount = [
     progress.step1_completed_at,
