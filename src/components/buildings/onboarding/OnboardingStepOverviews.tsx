@@ -459,7 +459,7 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
               </div>
             </AccordionTrigger>
             <AccordionContent>
-              <div className="grid sm:grid-cols-2 gap-4">
+              <div className="grid sm:grid-cols-3 gap-4">
                 <div className="rounded-md border p-3">
                   <div className="flex items-center gap-2 text-sm font-medium mb-2">
                     <MapPin className="h-4 w-4" />
@@ -488,6 +488,24 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
                   ) : (
                     <div className="space-y-1">
                       {cashAuditors.map(({ user_id }) => (
+                        <div key={user_id} className="text-xs flex items-center gap-1.5">
+                          <Badge variant="default" className="text-[10px]">✓</Badge>
+                          {nameOf(user_id)}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="rounded-md border p-3">
+                  <div className="flex items-center gap-2 text-sm font-medium mb-2">
+                    <Users className="h-4 w-4 text-primary" />
+                    Bereit für Verwaltungsbeirat
+                  </div>
+                  {beiratVolunteers.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Noch niemand bereit.</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {beiratVolunteers.map(({ user_id }) => (
                         <div key={user_id} className="text-xs flex items-center gap-1.5">
                           <Badge variant="default" className="text-[10px]">✓</Badge>
                           {nameOf(user_id)}
