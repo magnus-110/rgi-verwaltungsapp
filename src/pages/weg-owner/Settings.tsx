@@ -137,9 +137,12 @@ import { OwnerSelfServiceSection } from "@/components/owner/OwnerSelfServiceSect
        </div>
       <OwnerSelfServiceSection />
 
-
-             Gebäude-Verwaltung
-           </CardTitle>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Building2 className="w-5 h-5" />
+            Gebäude-Verwaltung
+          </CardTitle>
            <CardDescription>
              Ihre zugeordneten Gebäude. Zuordnungen werden durch die Verwaltung vorgenommen.
            </CardDescription>
