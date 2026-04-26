@@ -3,84 +3,26 @@
  import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
  import { Input } from "@/components/ui/input";
  import { Label } from "@/components/ui/label";
- import { useAuth } from "@/hooks/useAuth";
- import { supabase } from "@/integrations/supabase/client";
- import { toast } from "@/hooks/use-toast";
-import { Building2 } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { toast } from "@/hooks/use-toast";
 import { LegalDocumentsSheet } from "@/components/LegalDocumentsSheet";
 import { OwnerSelfServiceSection } from "@/components/owner/OwnerSelfServiceSection";
- 
- interface WegOwnerBuilding {
-   id: string;
-   building_id: string;
-   created_at: string;
- }
- 
- export const WegOwnerSettings = () => {
-   const { profile, updatePassword } = useAuth();
-   const [currentPassword, setCurrentPassword] = useState("");
-   const [newPassword, setNewPassword] = useState("");
-   const [confirmPassword, setConfirmPassword] = useState("");
-   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
-   const [buildings, setBuildings] = useState<WegOwnerBuilding[]>([]);
-   const [isLoading, setIsLoading] = useState(true);
-   const [legalSheetOpen, setLegalSheetOpen] = useState(false);
-   const [legalSheetTab, setLegalSheetTab] = useState<"agb" | "datenschutz">("agb");
- 
-   const openLegalSheet = (tab: "agb" | "datenschutz") => {
-     setLegalSheetTab(tab);
-     setLegalSheetOpen(true);
-   };
- 
-   useEffect(() => {
-     if (profile?.user_id) {
-       fetchBuildingAssignments();
-     }
-   }, [profile?.user_id]);
- 
-   const fetchBuildingAssignments = async () => {
-     try {
-       setIsLoading(true);
-       const { data: assignments, error: assignmentsError } = await supabase
-         .from("weg_owner_buildings")
-         .select("id, building_id, created_at")
-         .eq("user_id", profile?.user_id)
-         .order("created_at", { ascending: false });
- 
-       if (assignmentsError) throw assignmentsError;
- 
-       if (!assignments || assignments.length === 0) {
-         setBuildings([]);
-         return;
-       }
- 
-       const buildingIds = assignments.map(a => a.building_id);
-       const { data: buildingsData, error: buildingsError } = await supabase
-         .from("buildings")
-         .select("id, name, address, building_code")
-         .in("id", buildingIds);
- 
-       if (buildingsError) throw buildingsError;
- 
-       const combinedData = assignments.map(assignment => {
-         const building = buildingsData?.find(b => b.id === assignment.building_id);
-         return { ...assignment, buildings: building };
-       });
- 
-       setBuildings(combinedData);
-     } catch (error: any) {
-       console.error("Error fetching building assignments:", error);
-       toast({
-         title: "Fehler",
-         description: "Gebäude-Zuordnungen konnten nicht geladen werden.",
-         variant: "destructive",
-       });
-     } finally {
-       setIsLoading(false);
-     }
-   };
- 
-   const handlePasswordChange = async () => {
+
+export const WegOwnerSettings = () => {
+  const { profile, updatePassword } = useAuth();
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+  const [legalSheetOpen, setLegalSheetOpen] = useState(false);
+  const [legalSheetTab, setLegalSheetTab] = useState<"agb" | "datenschutz">("agb");
+
+  const openLegalSheet = (tab: "agb" | "datenschutz") => {
+    setLegalSheetTab(tab);
+    setLegalSheetOpen(true);
+  };
+
+  const handlePasswordChange = async () => {
      if (!currentPassword || !newPassword || !confirmPassword) {
        toast({
          title: "Fehler",
@@ -133,52 +75,11 @@ import { OwnerSelfServiceSection } from "@/components/owner/OwnerSelfServiceSect
      <div className="max-w-4xl mx-auto space-y-6 p-4">
        <div className="mb-6">
          <h1 className="text-2xl font-bold text-foreground">Einstellungen</h1>
-         <p className="text-muted-foreground">Verwalten Sie Ihre Kontodaten und Gebäude-Zuordnungen</p>
+         <p className="text-muted-foreground">Verwalten Sie Ihre Kontodaten und Wohnungen</p>
        </div>
       <OwnerSelfServiceSection />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Building2 className="w-5 h-5" />
-            Gebäude-Verwaltung
-          </CardTitle>
-           <CardDescription>
-             Ihre zugeordneten Gebäude. Zuordnungen werden durch die Verwaltung vorgenommen.
-           </CardDescription>
-         </CardHeader>
-         <CardContent className="space-y-4">
-           {isLoading ? (
-             <div className="text-center py-4">
-               <p className="text-muted-foreground">Laden...</p>
-             </div>
-           ) : buildings.length === 0 ? (
-             <div className="text-center py-8 border border-dashed rounded-lg">
-               <Building2 className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-               <p className="text-muted-foreground">Noch keine Gebäude zugeordnet</p>
-               <p className="text-sm text-muted-foreground mt-2">
-                 Wenden Sie sich an die Verwaltung, um Gebäude zugeordnet zu bekommen.
-               </p>
-             </div>
-           ) : (
-             <div className="space-y-2">
-               {buildings.map((building) => (
-                 <div key={building.id} className="flex items-center justify-between p-3 border rounded-lg">
-                   <div className="flex items-center gap-3">
-                     <Building2 className="w-4 h-4 text-muted-foreground" />
-                     <div className="flex flex-col">
-                       <span className="font-medium">{(building as any).buildings?.name || 'Unbekanntes Gebäude'}</span>
-                       <span className="text-sm text-muted-foreground">{(building as any).buildings?.address}</span>
-                       
-                     </div>
-                   </div>
-                 </div>
-               ))}
-             </div>
-           )}
-         </CardContent>
-       </Card>
- 
+
        <Card>
          <CardHeader>
            <CardTitle>Passwort ändern</CardTitle>
