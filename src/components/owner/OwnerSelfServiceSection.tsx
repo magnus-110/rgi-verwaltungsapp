@@ -89,7 +89,17 @@ export const OwnerSelfServiceSection = () => {
         .eq("is_active", true),
     ]);
     setBanks((bk ?? []) as Bank[]);
-    setAssignments((asg ?? []) as unknown as AssignmentRow[]);
+    // Normalize phones/emails — DB may store {number, note} or {phone_number}, and {address} or {email}
+    const normalized = (asg ?? []).map((row: any) => ({
+      ...row,
+      phones_override: Array.isArray(row.phones_override)
+        ? row.phones_override.map((p: any) => ({ phone_number: p?.phone_number ?? p?.number ?? "" }))
+        : null,
+      emails_override: Array.isArray(row.emails_override)
+        ? row.emails_override.map((e: any) => ({ email: e?.email ?? e?.address ?? "" }))
+        : null,
+    }));
+    setAssignments(normalized as unknown as AssignmentRow[]);
     setLoading(false);
   };
 
@@ -205,8 +215,17 @@ function AssignmentEditor({
       address_street_override: a.address_street_override,
       address_zip_override: a.address_zip_override,
       address_city_override: a.address_city_override,
-      phones_override: a.phones_override,
-      emails_override: a.emails_override,
+      // Persist in canonical DB shape: phones {number, note}, emails {address}
+      phones_override: a.phones_override
+        ? a.phones_override
+            .filter((p) => (p.phone_number ?? "").trim().length > 0)
+            .map((p) => ({ number: p.phone_number, note: "" })) as any
+        : null,
+      emails_override: a.emails_override
+        ? a.emails_override
+            .filter((e) => (e.email ?? "").trim().length > 0)
+            .map((e) => ({ address: e.email })) as any
+        : null,
       iban_override: a.iban_override,
       iban_holder_override: a.iban_holder_override,
       bank_account_id: a.bank_account_id,
