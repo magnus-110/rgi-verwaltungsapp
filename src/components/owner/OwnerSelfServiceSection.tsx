@@ -34,6 +34,7 @@ export const OwnerSelfServiceSection = () => {
   const [phones, setPhones] = useState<Phone[]>([]);
   const [emails, setEmails] = useState<Email[]>([]);
   const [banks, setBanks] = useState<Bank[]>([]);
+  const [assignments, setAssignments] = useState<AssignmentRow[]>([]);
 
   const load = async () => {
     if (!profile?.user_id) return;
@@ -45,14 +46,26 @@ export const OwnerSelfServiceSection = () => {
       .maybeSingle();
     if (!c) { setContact(null); setLoading(false); return; }
     setContact(c as Contact);
-    const [{ data: ph }, { data: em }, { data: bk }] = await Promise.all([
+    const [{ data: ph }, { data: em }, { data: bk }, { data: asg }] = await Promise.all([
       supabase.from("contact_phones").select("id, phone_number, label").eq("contact_id", c.id),
       supabase.from("contact_emails").select("id, email, label").eq("contact_id", c.id),
       supabase.from("contact_bank_accounts").select("id, iban, bic, bank_name, account_holder").eq("contact_id", c.id),
+      supabase
+        .from("contact_building_assignments")
+        .select(`
+          id, building_id, unit_number, role_in_building, bank_account_id,
+          salutation_override, first_name_override, last_name_override, company_name_override,
+          address_street_override, address_zip_override, address_city_override,
+          phones_override, emails_override, iban_override, iban_holder_override,
+          buildings:building_id(name, address)
+        `)
+        .eq("contact_id", c.id)
+        .eq("is_active", true),
     ]);
     setPhones((ph ?? []) as Phone[]);
     setEmails((em ?? []) as Email[]);
     setBanks((bk ?? []) as Bank[]);
+    setAssignments((asg ?? []) as unknown as AssignmentRow[]);
     setLoading(false);
   };
 
