@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import {
   User, Home, Building2, Wrench, Sparkles, AlertTriangle, CheckCircle2,
-  TrendingUp, MapPin, Star,
+  TrendingUp, MapPin, Star, Flame, Users,
 } from "lucide-react";
 
 interface Props {
