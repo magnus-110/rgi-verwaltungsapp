@@ -1,7 +1,7 @@
 import { SectionCard } from "../ui/SectionCard";
-import { ChoiceCardPair } from "../ui/ChoiceCardPair";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 export interface Step5Data {
   willing_cash_audit?: boolean | null;
@@ -20,41 +20,49 @@ export const Step5Einschaetzung = ({ value, onChange }: Props) => {
   return (
     <div className="space-y-2.5">
       <SectionCard label="ORT DER EIGENTÜMERVERSAMMLUNG">
-        <div className="p-3.5 space-y-2">
-          <p className="text-[13px] text-muted-foreground">
-            Wo wird die Eigentümerversammlung üblicherweise abgehalten?
-          </p>
+        <div className="p-3.5">
           <Input
             value={value.etv_location ?? ""}
             onChange={(e) => set({ etv_location: e.target.value })}
-            placeholder="z. B. Gemeindesaal, Hinterhof, Restaurant XY"
+            placeholder="z. B. Hotel Krone"
             className="border-0 bg-[hsl(var(--input))] focus-visible:ring-0 rounded-lg h-10"
           />
         </div>
       </SectionCard>
 
       <SectionCard label="KASSENPRÜFUNG">
-        <div className="p-3.5">
-          <p className="text-[13px] text-muted-foreground mb-3">
-            Wären Sie bereit, einmal jährlich die Kassenprüfung zu übernehmen?
-          </p>
-          <ChoiceCardPair
-            value={value.willing_cash_audit ?? null}
-            onChange={(v) => set({ willing_cash_audit: v })}
-            options={[
-              {
-                value: true,
-                title: "Ja, gerne",
-                subtitle: "Ich helfe einmal jährlich aktiv mit.",
-              },
-              {
-                value: false,
-                title: "Lieber nicht",
-                subtitle: "Bitte einen anderen Eigentümer fragen.",
-                selectedTone: "muted",
-              },
-            ]}
-          />
+        <div className="p-3">
+          <div className="grid grid-cols-2 gap-2.5">
+            {[
+              { v: true, label: "Ja, gerne" },
+              { v: false, label: "Lieber nicht" },
+            ].map(({ v, label }) => {
+              const sel = value.willing_cash_audit === v;
+              return (
+                <button
+                  key={String(v)}
+                  type="button"
+                  onClick={() => set({ willing_cash_audit: v })}
+                  className={cn(
+                    "h-12 rounded-[10px] border px-3 flex items-center gap-2.5 text-[13.5px] font-medium transition",
+                    sel
+                      ? "border-primary bg-primary/[0.06] text-primary"
+                      : "border-border/60 bg-card text-foreground hover:bg-accent/40"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "size-[18px] shrink-0 rounded-full border-[1.5px] grid place-items-center transition",
+                      sel ? "border-primary" : "border-muted-foreground/40"
+                    )}
+                  >
+                    {sel && <span className="size-[9px] rounded-full bg-primary" />}
+                  </span>
+                  {label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </SectionCard>
 
