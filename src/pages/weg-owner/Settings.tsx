@@ -135,11 +135,9 @@ import { OwnerSelfServiceSection } from "@/components/owner/OwnerSelfServiceSect
          <h1 className="text-2xl font-bold text-foreground">Einstellungen</h1>
          <p className="text-muted-foreground">Verwalten Sie Ihre Kontodaten und Gebäude-Zuordnungen</p>
        </div>
- 
-       <Card>
-         <CardHeader>
-           <CardTitle className="flex items-center gap-2">
-             <Building2 className="w-5 h-5" />
+      <OwnerSelfServiceSection />
+
+
              Gebäude-Verwaltung
            </CardTitle>
            <CardDescription>
