@@ -82,20 +82,21 @@ export const OwnerSelfServiceSection = () => {
       .eq("contact_id", c.id);
     const personIds = (persons ?? []).map((p: any) => p.id);
 
-    const [bkRes, asgRes] = await Promise.all([
-      supabase.from("contact_bank_accounts").select("id, iban, account_holder").eq("contact_id", c.id),
-      supabase
-        .from("contact_building_assignments")
-        .select(`
-          id, building_id, unit_number, role_in_building, bank_account_id,
-          salutation_override, first_name_override, last_name_override, company_name_override,
-          address_street_override, address_zip_override, address_city_override,
-          phones_override, emails_override, iban_override, iban_holder_override,
-          buildings:building_id(name, address)
-        `)
-        .eq("contact_id", c.id)
-        .eq("is_active", true),
-    ]);
+    const bkRes = await supabase
+      .from("contact_bank_accounts")
+      .select("id, iban, account_holder")
+      .eq("contact_id", c.id);
+    const asgRes = await supabase
+      .from("contact_building_assignments")
+      .select(`
+        id, building_id, unit_number, role_in_building, bank_account_id,
+        salutation_override, first_name_override, last_name_override, company_name_override,
+        address_street_override, address_zip_override, address_city_override,
+        phones_override, emails_override, iban_override, iban_holder_override,
+        buildings:building_id(name, address)
+      `)
+      .eq("contact_id", c.id)
+      .eq("is_active", true);
     const bk = bkRes.data;
     const asg = asgRes.data;
 
