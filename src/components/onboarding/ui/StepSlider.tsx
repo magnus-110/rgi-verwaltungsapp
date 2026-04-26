@@ -24,7 +24,7 @@ export const StepSlider = ({
 
   return (
     <div className="flex items-center gap-3 w-full">
-      <div className="flex-1 flex items-center gap-1.5">
+      <div className="flex-1 flex items-center gap-2">
         {steps.map((label, i) => {
           const n = i + 1;
           const isFilled = completed[n] || n <= currentStep;
@@ -37,14 +37,14 @@ export const StepSlider = ({
               disabled={isLocked}
               aria-label={`Schritt ${n}: ${label}`}
               className={cn(
-                "flex-1 h-1.5 rounded-full transition-colors disabled:cursor-not-allowed",
-                isFilled ? "bg-primary" : "bg-muted"
+                "flex-1 h-[3px] rounded-full transition-colors disabled:cursor-not-allowed",
+                isFilled ? "bg-primary" : "bg-secondary"
               )}
             />
           );
         })}
       </div>
-      <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+      <span className="text-[11px] text-muted-foreground tabular-nums shrink-0 font-medium">
         {displayCurrent} / {total}
       </span>
     </div>

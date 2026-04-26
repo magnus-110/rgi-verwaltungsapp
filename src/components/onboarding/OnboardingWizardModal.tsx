@@ -178,7 +178,7 @@ export const OnboardingWizardModal = ({
           "p-0 gap-0 bg-background flex flex-col overflow-hidden",
           isMobile
             ? "max-w-full w-full h-[100dvh] max-h-[100dvh] rounded-none border-0"
-            : "max-w-2xl h-[92vh] rounded-2xl"
+            : "max-w-2xl h-[92vh] rounded-[20px] border-border/50 shadow-[0_24px_60px_-20px_rgba(0,0,0,0.18)]"
         )}
         onPointerDownOutside={(e) => isStep1HardLocked && e.preventDefault()}
         onEscapeKeyDown={(e) => isStep1HardLocked && e.preventDefault()}
@@ -188,13 +188,13 @@ export const OnboardingWizardModal = ({
         </DialogTitle>
 
         {/* Top Bar */}
-        <div className="bg-card border-b border-border/60 px-4 h-[52px] flex items-center shrink-0">
+        <div className="bg-card border-b border-border/40 px-5 h-[56px] flex items-center shrink-0">
           <RgiWordmark />
         </div>
 
         {/* Step Slider */}
         {!allDone && (
-          <div className="bg-card border-b border-border/60 px-4 py-3 shrink-0">
+          <div className="bg-card border-b border-border/40 px-5 py-3.5 shrink-0">
             <StepSlider
               steps={STEP_LABELS}
               currentStep={showWelcome ? 0 : step}
