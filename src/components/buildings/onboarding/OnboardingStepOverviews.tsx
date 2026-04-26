@@ -595,11 +595,21 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
                   {etvLocations.length === 0 ? (
                     <p className="text-xs text-muted-foreground">Keine Vorschläge.</p>
                   ) : (
-                    <div className="space-y-1">
-                      {etvLocations.map(([loc, count]) => (
-                        <div key={loc} className="flex items-center justify-between text-xs">
-                          <span className="truncate">{loc}</span>
-                          <Badge variant="outline">{count}×</Badge>
+                    <div className="space-y-1.5">
+                      {etvLocations.map((e) => (
+                        <div key={e.location} className={`flex items-center justify-between gap-2 text-xs rounded px-1.5 py-1 ${e.applied ? "bg-success/10 border border-success/30" : ""}`}>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="truncate">{e.location}</span>
+                            <Badge variant="outline" className="text-[10px] flex-shrink-0">{e.count}×</Badge>
+                          </div>
+                          <ApplyFieldButton
+                            submissionId={e.submission_id}
+                            field="etv_location"
+                            value={{ location: e.location }}
+                            applied={e.applied}
+                            buildingId={buildingId}
+                            label="Übernehmen"
+                          />
                         </div>
                       ))}
                     </div>
@@ -613,11 +623,18 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
                   {cashAuditors.length === 0 ? (
                     <p className="text-xs text-muted-foreground">Noch niemand benannt.</p>
                   ) : (
-                    <div className="space-y-1">
-                      {cashAuditors.map(({ user_id }) => (
-                        <div key={user_id} className="text-xs flex items-center gap-1.5">
-                          <Badge variant="default" className="text-[10px]">✓</Badge>
-                          {nameOf(user_id)}
+                    <div className="space-y-1.5">
+                      {cashAuditors.map(({ user_id, submission_id, applied }) => (
+                        <div key={user_id} className={`flex items-center justify-between gap-2 text-xs rounded px-1.5 py-1 ${applied ? "bg-success/10 border border-success/30" : ""}`}>
+                          <span className="truncate">{nameOf(user_id)}</span>
+                          <ApplyFieldButton
+                            submissionId={submission_id}
+                            field="cash_auditor"
+                            applied={applied}
+                            buildingId={buildingId}
+                            label="Als Kassenprüfer"
+                            appliedLabel="Übernommen"
+                          />
                         </div>
                       ))}
                     </div>
@@ -631,11 +648,18 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
                   {beiratMembers.length === 0 ? (
                     <p className="text-xs text-muted-foreground">Noch niemand benannt.</p>
                   ) : (
-                    <div className="space-y-1">
-                      {beiratMembers.map(({ user_id }) => (
-                        <div key={user_id} className="text-xs flex items-center gap-1.5">
-                          <Badge variant="default" className="text-[10px]">✓</Badge>
-                          {nameOf(user_id)}
+                    <div className="space-y-1.5">
+                      {beiratMembers.map(({ user_id, submission_id, applied }) => (
+                        <div key={user_id} className={`flex items-center justify-between gap-2 text-xs rounded px-1.5 py-1 ${applied ? "bg-success/10 border border-success/30" : ""}`}>
+                          <span className="truncate">{nameOf(user_id)}</span>
+                          <ApplyFieldButton
+                            submissionId={submission_id}
+                            field="beirat_member"
+                            applied={applied}
+                            buildingId={buildingId}
+                            label="Als Beirat"
+                            appliedLabel="Übernommen"
+                          />
                         </div>
                       ))}
                     </div>
