@@ -103,8 +103,8 @@ export const OwnerSelfServiceSection = () => {
     let globalPhones: any[] = [];
     let globalEmails: any[] = [];
     if (personIds.length) {
-      const ph = await supabase.from("contact_phones").select("phone_number").in("contact_person_id", personIds);
-      const em = await supabase.from("contact_emails").select("email").in("contact_person_id", personIds);
+      const ph: any = await (supabase as any).from("contact_phones").select("phone_number").in("contact_person_id", personIds);
+      const em: any = await (supabase as any).from("contact_emails").select("email").in("contact_person_id", personIds);
       globalPhones = (ph.data ?? []) as any[];
       globalEmails = (em.data ?? []) as any[];
     }
