@@ -155,18 +155,29 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
     return Array.from(m.values()).sort((a, b) => b.count - a.count);
   }, [step4Subs]);
 
-  // ---- STEP 3 extra: Heizungs-Aggregation ----
+  // ---- STEP 3 extra: Heizungs-Aggregation (Multi-Select) ----
+  const HEATING_LABELS: Record<string, string> = {
+    gas: "Gas", oel: "Öl", fernwaerme: "Fernwärme", waermepumpe: "Wärmepumpe",
+    pellets: "Pellets", strom: "Strom",
+  };
   const heatingCounts = useMemo(() => {
     const m = new Map<string, number>();
     step3Subs.forEach((s: any) => {
-      let h = String(s.payload?.heating_type || "").trim();
-      if (h === "sonstiges" && s.payload?.heating_other) h = s.payload.heating_other;
-      if (h) m.set(h, (m.get(h) || 0) + 1);
+      const list: string[] = Array.isArray(s.payload?.heating_types) && s.payload.heating_types.length
+        ? s.payload.heating_types
+        : s.payload?.heating_type ? [s.payload.heating_type] : [];
+      list.forEach((raw: string) => {
+        let h = String(raw || "").trim();
+        if (!h) return;
+        if (h === "sonstiges" && s.payload?.heating_other) h = s.payload.heating_other;
+        else if (HEATING_LABELS[h]) h = HEATING_LABELS[h];
+        m.set(h, (m.get(h) || 0) + 1);
+      });
     });
     return Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
   }, [step3Subs]);
 
-  // ---- STEP 5: Einschätzung (ETV-Ort, Kassenprüfung, Beirat) ----
+  // ---- STEP 5: Einschätzung (ETV-Ort, Kassenprüfung, Beirat-Mitglieder) ----
   const step5Subs = submissions.filter((s: any) => s.step === 5);
   const etvLocations = useMemo(() => {
     const m = new Map<string, number>();
@@ -181,9 +192,9 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
       .filter((s: any) => s.payload?.willing_cash_audit === true)
       .map((s: any) => ({ user_id: s.user_id, sub: s }));
   }, [step5Subs]);
-  const beiratVolunteers = useMemo(() => {
+  const beiratMembers = useMemo(() => {
     return step5Subs
-      .filter((s: any) => s.payload?.willing_beirat === true)
+      .filter((s: any) => (s.payload?.is_beirat_member ?? s.payload?.willing_beirat) === true)
       .map((s: any) => ({ user_id: s.user_id, sub: s }));
   }, [step5Subs]);
 
@@ -484,7 +495,7 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
                     Freiwillige Kassenprüfer
                   </div>
                   {cashAuditors.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">Noch niemand bereit.</p>
+                    <p className="text-xs text-muted-foreground">Noch niemand benannt.</p>
                   ) : (
                     <div className="space-y-1">
                       {cashAuditors.map(({ user_id }) => (
@@ -499,13 +510,13 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
                 <div className="rounded-md border p-3">
                   <div className="flex items-center gap-2 text-sm font-medium mb-2">
                     <Users className="h-4 w-4 text-primary" />
-                    Bereit für Verwaltungsbeirat
+                    Mitglieder des Verwaltungsbeirats
                   </div>
-                  {beiratVolunteers.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">Noch niemand bereit.</p>
+                  {beiratMembers.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Noch niemand benannt.</p>
                   ) : (
                     <div className="space-y-1">
-                      {beiratVolunteers.map(({ user_id }) => (
+                      {beiratMembers.map(({ user_id }) => (
                         <div key={user_id} className="text-xs flex items-center gap-1.5">
                           <Badge variant="default" className="text-[10px]">✓</Badge>
                           {nameOf(user_id)}
