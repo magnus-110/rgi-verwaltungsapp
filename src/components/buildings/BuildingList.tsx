@@ -47,12 +47,15 @@ const BuildingRow = memo(function BuildingRow({
           <Building2 className="h-4 w-4" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className={cn(
-            "font-medium text-sm truncate",
-            selected && "text-primary"
-          )}>
-            {building.name}
-          </p>
+          <div className="flex items-center gap-1.5">
+            <p className={cn(
+              "font-medium text-sm truncate",
+              selected && "text-primary"
+            )}>
+              {building.name}
+            </p>
+            <IbanChangeBadge buildingId={building.id} compact />
+          </div>
           <p className="text-xs text-muted-foreground">{building.unit_count} Einheiten</p>
         </div>
       </div>
