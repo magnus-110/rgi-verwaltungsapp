@@ -65,7 +65,7 @@ export const ApplyFieldButton = ({
       disabled={applied || busy}
       className={cn(
         "h-7 px-2 text-xs gap-1",
-        applied && "bg-success text-success-foreground hover:bg-success/90 cursor-default"
+        applied && "bg-success text-white hover:bg-success border-success cursor-default"
       )}
     >
       {busy ? (
