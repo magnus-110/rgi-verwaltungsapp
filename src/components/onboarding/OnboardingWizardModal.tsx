@@ -99,7 +99,7 @@ export const OnboardingWizardModal = ({
   );
 
   const completedCount = Object.values(completed).filter(Boolean).length;
-  const allDone = completedCount === 5 || !!progress.fully_completed_at;
+  const allDone = justFinished || completedCount === 5 || !!progress.fully_completed_at;
 
   const isStep1HardLocked =
     step === 1 && !progress.step1_completed_at && !progress.is_repeat_owner;
