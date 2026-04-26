@@ -174,7 +174,19 @@ export const OwnerSelfServiceSection = () => {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Anrede</Label>
-              <Input value={contact.salutation ?? ""} onChange={(e) => setContact({ ...contact, salutation: e.target.value })} />
+              <Select
+                value={contact.salutation ?? ""}
+                onValueChange={(v) => setContact({ ...contact, salutation: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Bitte wählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SALUTATION_OPTIONS.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label>Firma</Label>
