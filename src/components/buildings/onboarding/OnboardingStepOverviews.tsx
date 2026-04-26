@@ -258,42 +258,72 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
     gas: "Gas", oel: "Öl", fernwaerme: "Fernwärme", waermepumpe: "Wärmepumpe",
     pellets: "Pellets", strom: "Strom",
   };
-  const heatingCounts = useMemo(() => {
-    const m = new Map<string, number>();
+  type HeatingRow = { label: string; raw: string; count: number; submission_id: string; applied: boolean };
+  const heatingRows = useMemo<HeatingRow[]>(() => {
+    const m = new Map<string, HeatingRow>();
     step3Subs.forEach((s: any) => {
       const list: string[] = Array.isArray(s.payload?.heating_types) && s.payload.heating_types.length
         ? s.payload.heating_types
         : s.payload?.heating_type ? [s.payload.heating_type] : [];
       list.forEach((raw: string) => {
-        let h = String(raw || "").trim();
-        if (!h) return;
-        if (h === "sonstiges" && s.payload?.heating_other) h = s.payload.heating_other;
-        else if (HEATING_LABELS[h]) h = HEATING_LABELS[h];
-        m.set(h, (m.get(h) || 0) + 1);
+        const r = String(raw || "").trim();
+        if (!r) return;
+        let label = r;
+        if (r === "sonstiges" && s.payload?.heating_other) label = s.payload.heating_other;
+        else if (HEATING_LABELS[r]) label = HEATING_LABELS[r];
+        const key = label.toLowerCase();
+        const existing = m.get(key);
+        const appliedKey = `heating_type:${r}`;
+        const applied = Array.isArray(s.applied_fields) && s.applied_fields.includes(appliedKey);
+        if (existing) {
+          existing.count += 1;
+          existing.applied = existing.applied || applied;
+        } else {
+          m.set(key, { label, raw: r, count: 1, submission_id: s.id, applied });
+        }
       });
     });
-    return Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
+    return Array.from(m.values()).sort((a, b) => b.count - a.count);
   }, [step3Subs]);
 
   // ---- STEP 5: Einschätzung ----
   const step5Subs = dedupeLatestPerUser(submissions.filter((s: any) => s.category === "bewertung"));
-  const etvLocations = useMemo(() => {
-    const m = new Map<string, number>();
+  type EtvRow = { location: string; count: number; submission_id: string; applied: boolean };
+  const etvLocations = useMemo<EtvRow[]>(() => {
+    const m = new Map<string, EtvRow>();
     step5Subs.forEach((s: any) => {
       const loc = String(s.payload?.etv_location || "").trim();
-      if (loc) m.set(loc, (m.get(loc) || 0) + 1);
+      if (!loc) return;
+      const key = loc.toLowerCase();
+      const appliedKey = `etv_location:${key}`;
+      const applied = Array.isArray(s.applied_fields) && s.applied_fields.includes(appliedKey);
+      const existing = m.get(key);
+      if (existing) {
+        existing.count += 1;
+        existing.applied = existing.applied || applied;
+      } else {
+        m.set(key, { location: loc, count: 1, submission_id: s.id, applied });
+      }
     });
-    return Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
+    return Array.from(m.values()).sort((a, b) => b.count - a.count);
   }, [step5Subs]);
   const cashAuditors = useMemo(() => {
     return step5Subs
       .filter((s: any) => s.payload?.willing_cash_audit === true)
-      .map((s: any) => ({ user_id: s.user_id, sub: s }));
+      .map((s: any) => ({
+        user_id: s.user_id,
+        submission_id: s.id,
+        applied: Array.isArray(s.applied_fields) && s.applied_fields.includes("cash_auditor"),
+      }));
   }, [step5Subs]);
   const beiratMembers = useMemo(() => {
     return step5Subs
       .filter((s: any) => (s.payload?.is_beirat_member ?? s.payload?.willing_beirat) === true)
-      .map((s: any) => ({ user_id: s.user_id, sub: s }));
+      .map((s: any) => ({
+        user_id: s.user_id,
+        submission_id: s.id,
+        applied: Array.isArray(s.applied_fields) && s.applied_fields.includes("beirat_member"),
+      }));
   }, [step5Subs]);
 
   const totalOwners = assignments.length;
