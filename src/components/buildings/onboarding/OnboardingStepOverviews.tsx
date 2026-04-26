@@ -155,7 +155,18 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
     return Array.from(m.values()).sort((a, b) => b.count - a.count);
   }, [step4Subs]);
 
-  // ---- STEP 5: Einschätzung (ETV-Ort, Kassenprüfung) ----
+  // ---- STEP 3 extra: Heizungs-Aggregation ----
+  const heatingCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    step3Subs.forEach((s: any) => {
+      let h = String(s.payload?.heating_type || "").trim();
+      if (h === "sonstiges" && s.payload?.heating_other) h = s.payload.heating_other;
+      if (h) m.set(h, (m.get(h) || 0) + 1);
+    });
+    return Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
+  }, [step3Subs]);
+
+  // ---- STEP 5: Einschätzung (ETV-Ort, Kassenprüfung, Beirat) ----
   const step5Subs = submissions.filter((s: any) => s.step === 5);
   const etvLocations = useMemo(() => {
     const m = new Map<string, number>();
@@ -168,6 +179,11 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
   const cashAuditors = useMemo(() => {
     return step5Subs
       .filter((s: any) => s.payload?.willing_cash_audit === true)
+      .map((s: any) => ({ user_id: s.user_id, sub: s }));
+  }, [step5Subs]);
+  const beiratVolunteers = useMemo(() => {
+    return step5Subs
+      .filter((s: any) => s.payload?.willing_beirat === true)
       .map((s: any) => ({ user_id: s.user_id, sub: s }));
   }, [step5Subs]);
 
