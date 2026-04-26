@@ -138,10 +138,18 @@ Deno.serve(async (req) => {
         }
         case "gebaeudeinformationen": {
           const update: Record<string, any> = {};
-          if (payload.heating_type) {
-            update.heating_type = payload.heating_type === "sonstiges" && payload.heating_other
-              ? payload.heating_other
-              : payload.heating_type;
+          const HEATING_LABELS: Record<string, string> = {
+            gas: "Gas", oel: "Öl", fernwaerme: "Fernwärme", waermepumpe: "Wärmepumpe",
+            pellets: "Pellets", strom: "Strom",
+          };
+          const types: string[] = Array.isArray(payload.heating_types)
+            ? payload.heating_types
+            : payload.heating_type ? [payload.heating_type] : [];
+          if (types.length > 0) {
+            const labels = types.map((t: string) =>
+              t === "sonstiges" ? (payload.heating_other || "Sonstiges") : (HEATING_LABELS[t] || t)
+            );
+            update.heating_type = labels.join(", ");
           }
           if (Object.keys(update).length > 0) {
             await admin.from("buildings").update(update).eq("id", buildingId);
