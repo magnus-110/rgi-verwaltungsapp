@@ -1,3 +1,8 @@
 {
-  "nodeModulesDir": "auto"
+  "nodeModulesDir": "auto",
+  "compilerOptions": {
+    "noImplicitAny": false,
+    "useUnknownInCatchVariables": false,
+    "lib": ["deno.window", "deno.unstable", "dom", "dom.iterable", "esnext"]
+  }
 }
