@@ -196,15 +196,41 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
     return m;
   }, [providerContacts]);
 
-  const providerCounts = useMemo(() => {
-    const m = new Map<string, { name: string; category: string; count: number; mentioned_by: string[] }>();
-    const bump = (key: string, name: string, category: string, userId: string) => {
+  // Lookup of already-approved providers (case-insensitive name+category match)
+  const approvedProviderSet = useMemo(() => {
+    const s = new Set<string>();
+    (providers as any[]).forEach((p: any) => {
+      s.add(`${String(p.category || "").toLowerCase()}|${String(p.name || "").toLowerCase()}`);
+    });
+    return s;
+  }, [providers]);
+
+  type ProviderRow = {
+    name: string;
+    category: string;
+    count: number;
+    mentioned_by: string[];
+    submission_id: string;        // first submission this came from (for apply button)
+    applied_in_submission: boolean;
+    already_approved: boolean;
+  };
+  const providerCounts = useMemo<ProviderRow[]>(() => {
+    const m = new Map<string, ProviderRow>();
+    const bump = (key: string, name: string, category: string, userId: string, sub: any) => {
       const existing = m.get(key);
+      const appliedKey = `provider:${category}:${name.toLowerCase()}`;
+      const appliedInSub = Array.isArray(sub.applied_fields) && sub.applied_fields.includes(appliedKey);
       if (existing) {
         existing.count += 1;
         if (!existing.mentioned_by.includes(userId)) existing.mentioned_by.push(userId);
+        existing.applied_in_submission = existing.applied_in_submission || appliedInSub;
       } else {
-        m.set(key, { name, category, count: 1, mentioned_by: [userId] });
+        m.set(key, {
+          name, category, count: 1, mentioned_by: [userId],
+          submission_id: sub.id,
+          applied_in_submission: appliedInSub,
+          already_approved: approvedProviderSet.has(`${category.toLowerCase()}|${name.toLowerCase()}`),
+        });
       }
     };
     step4Subs.forEach((s: any) => {
@@ -213,7 +239,7 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
         if (!Array.isArray(arr)) return;
         arr.forEach((cid: string) => {
           const name = contactNameById.get(cid) || cid.slice(0, 8);
-          bump(`${cid}|${trade}`, name, trade, s.user_id);
+          bump(`${cid}|${trade}`, name, trade, s.user_id, s);
         });
       });
       const customs = Array.isArray(s.payload?.custom) ? s.payload.custom : [];
@@ -221,11 +247,11 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
         const name = String(c?.name || "").trim();
         if (!name) return;
         const cat = c?.category || c?.trade || "sonstige";
-        bump(`custom:${name.toLowerCase()}|${cat}`, name, cat, s.user_id);
+        bump(`custom:${name.toLowerCase()}|${cat}`, name, cat, s.user_id, s);
       });
     });
     return Array.from(m.values()).sort((a, b) => b.count - a.count);
-  }, [step4Subs, contactNameById]);
+  }, [step4Subs, contactNameById, approvedProviderSet]);
 
   // ---- STEP 3 extra: Heizungs-Aggregation ----
   const HEATING_LABELS: Record<string, string> = {
