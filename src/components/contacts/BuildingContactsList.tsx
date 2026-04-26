@@ -253,6 +253,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   };
 
   const isBeirat = (a: ContactAssignment) => a.role_in_building === 'beirat';
+  const isCashAuditor = (a: ContactAssignment) => (a as any).is_cash_auditor === true;
 
   const updateAssignment = async (id: string, field: string, value: any) => {
     await supabase.from("contact_building_assignments").update({ [field]: value || null }).eq("id", id);
@@ -262,6 +263,14 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
   const toggleBeirat = async (a: ContactAssignment) => {
     const newRole = a.role_in_building === 'beirat' ? 'eigentuemer' : 'beirat';
     await supabase.from("contact_building_assignments").update({ role_in_building: newRole }).eq("id", a.id);
+    refetch();
+  };
+
+  const toggleCashAuditor = async (a: ContactAssignment) => {
+    await supabase
+      .from("contact_building_assignments")
+      .update({ is_cash_auditor: !isCashAuditor(a) } as any)
+      .eq("id", a.id);
     refetch();
   };
 
