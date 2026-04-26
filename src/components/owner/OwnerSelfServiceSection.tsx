@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Plus, Trash2, User, Phone, Mail, CreditCard, MapPin } from "lucide-react";
-
-const SALUTATION_OPTIONS = ["Herr", "Frau", "Divers", "Familie", "Firma"];
+import { SALUTATIONS } from "@/lib/salutations";
+import { AssignmentAccordionCard, type AssignmentRow, type BankOption } from "./AssignmentAccordionCard";
 
 interface Contact {
   id: string;
