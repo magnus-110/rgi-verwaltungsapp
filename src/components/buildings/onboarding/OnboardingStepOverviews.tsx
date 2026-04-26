@@ -14,6 +14,11 @@ import {
   User, Home, Building2, Wrench, Sparkles, AlertTriangle, CheckCircle2,
   TrendingUp, MapPin, Star, Flame, Users,
 } from "lucide-react";
+import { ApplyFieldButton } from "./ApplyFieldButton";
+import { SERVICE_PROVIDER_CATEGORIES } from "@/lib/serviceProviderCategories";
+
+const TRADE_LABEL = (id: string) =>
+  SERVICE_PROVIDER_CATEGORIES.find((c) => c.id === id)?.label || id;
 
 interface Props {
   buildingId: string;
@@ -191,15 +196,41 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
     return m;
   }, [providerContacts]);
 
-  const providerCounts = useMemo(() => {
-    const m = new Map<string, { name: string; category: string; count: number; mentioned_by: string[] }>();
-    const bump = (key: string, name: string, category: string, userId: string) => {
+  // Lookup of already-approved providers (case-insensitive name+category match)
+  const approvedProviderSet = useMemo(() => {
+    const s = new Set<string>();
+    (providers as any[]).forEach((p: any) => {
+      s.add(`${String(p.category || "").toLowerCase()}|${String(p.name || "").toLowerCase()}`);
+    });
+    return s;
+  }, [providers]);
+
+  type ProviderRow = {
+    name: string;
+    category: string;
+    count: number;
+    mentioned_by: string[];
+    submission_id: string;        // first submission this came from (for apply button)
+    applied_in_submission: boolean;
+    already_approved: boolean;
+  };
+  const providerCounts = useMemo<ProviderRow[]>(() => {
+    const m = new Map<string, ProviderRow>();
+    const bump = (key: string, name: string, category: string, userId: string, sub: any) => {
       const existing = m.get(key);
+      const appliedKey = `provider:${category}:${name.toLowerCase()}`;
+      const appliedInSub = Array.isArray(sub.applied_fields) && sub.applied_fields.includes(appliedKey);
       if (existing) {
         existing.count += 1;
         if (!existing.mentioned_by.includes(userId)) existing.mentioned_by.push(userId);
+        existing.applied_in_submission = existing.applied_in_submission || appliedInSub;
       } else {
-        m.set(key, { name, category, count: 1, mentioned_by: [userId] });
+        m.set(key, {
+          name, category, count: 1, mentioned_by: [userId],
+          submission_id: sub.id,
+          applied_in_submission: appliedInSub,
+          already_approved: approvedProviderSet.has(`${category.toLowerCase()}|${name.toLowerCase()}`),
+        });
       }
     };
     step4Subs.forEach((s: any) => {
@@ -208,7 +239,7 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
         if (!Array.isArray(arr)) return;
         arr.forEach((cid: string) => {
           const name = contactNameById.get(cid) || cid.slice(0, 8);
-          bump(`${cid}|${trade}`, name, trade, s.user_id);
+          bump(`${cid}|${trade}`, name, trade, s.user_id, s);
         });
       });
       const customs = Array.isArray(s.payload?.custom) ? s.payload.custom : [];
@@ -216,53 +247,83 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
         const name = String(c?.name || "").trim();
         if (!name) return;
         const cat = c?.category || c?.trade || "sonstige";
-        bump(`custom:${name.toLowerCase()}|${cat}`, name, cat, s.user_id);
+        bump(`custom:${name.toLowerCase()}|${cat}`, name, cat, s.user_id, s);
       });
     });
     return Array.from(m.values()).sort((a, b) => b.count - a.count);
-  }, [step4Subs, contactNameById]);
+  }, [step4Subs, contactNameById, approvedProviderSet]);
 
   // ---- STEP 3 extra: Heizungs-Aggregation ----
   const HEATING_LABELS: Record<string, string> = {
     gas: "Gas", oel: "Öl", fernwaerme: "Fernwärme", waermepumpe: "Wärmepumpe",
     pellets: "Pellets", strom: "Strom",
   };
-  const heatingCounts = useMemo(() => {
-    const m = new Map<string, number>();
+  type HeatingRow = { label: string; raw: string; count: number; submission_id: string; applied: boolean };
+  const heatingRows = useMemo<HeatingRow[]>(() => {
+    const m = new Map<string, HeatingRow>();
     step3Subs.forEach((s: any) => {
       const list: string[] = Array.isArray(s.payload?.heating_types) && s.payload.heating_types.length
         ? s.payload.heating_types
         : s.payload?.heating_type ? [s.payload.heating_type] : [];
       list.forEach((raw: string) => {
-        let h = String(raw || "").trim();
-        if (!h) return;
-        if (h === "sonstiges" && s.payload?.heating_other) h = s.payload.heating_other;
-        else if (HEATING_LABELS[h]) h = HEATING_LABELS[h];
-        m.set(h, (m.get(h) || 0) + 1);
+        const r = String(raw || "").trim();
+        if (!r) return;
+        let label = r;
+        if (r === "sonstiges" && s.payload?.heating_other) label = s.payload.heating_other;
+        else if (HEATING_LABELS[r]) label = HEATING_LABELS[r];
+        const key = label.toLowerCase();
+        const existing = m.get(key);
+        const appliedKey = `heating_type:${r}`;
+        const applied = Array.isArray(s.applied_fields) && s.applied_fields.includes(appliedKey);
+        if (existing) {
+          existing.count += 1;
+          existing.applied = existing.applied || applied;
+        } else {
+          m.set(key, { label, raw: r, count: 1, submission_id: s.id, applied });
+        }
       });
     });
-    return Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
+    return Array.from(m.values()).sort((a, b) => b.count - a.count);
   }, [step3Subs]);
 
   // ---- STEP 5: Einschätzung ----
   const step5Subs = dedupeLatestPerUser(submissions.filter((s: any) => s.category === "bewertung"));
-  const etvLocations = useMemo(() => {
-    const m = new Map<string, number>();
+  type EtvRow = { location: string; count: number; submission_id: string; applied: boolean };
+  const etvLocations = useMemo<EtvRow[]>(() => {
+    const m = new Map<string, EtvRow>();
     step5Subs.forEach((s: any) => {
       const loc = String(s.payload?.etv_location || "").trim();
-      if (loc) m.set(loc, (m.get(loc) || 0) + 1);
+      if (!loc) return;
+      const key = loc.toLowerCase();
+      const appliedKey = `etv_location:${key}`;
+      const applied = Array.isArray(s.applied_fields) && s.applied_fields.includes(appliedKey);
+      const existing = m.get(key);
+      if (existing) {
+        existing.count += 1;
+        existing.applied = existing.applied || applied;
+      } else {
+        m.set(key, { location: loc, count: 1, submission_id: s.id, applied });
+      }
     });
-    return Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
+    return Array.from(m.values()).sort((a, b) => b.count - a.count);
   }, [step5Subs]);
   const cashAuditors = useMemo(() => {
     return step5Subs
       .filter((s: any) => s.payload?.willing_cash_audit === true)
-      .map((s: any) => ({ user_id: s.user_id, sub: s }));
+      .map((s: any) => ({
+        user_id: s.user_id,
+        submission_id: s.id,
+        applied: Array.isArray(s.applied_fields) && s.applied_fields.includes("cash_auditor"),
+      }));
   }, [step5Subs]);
   const beiratMembers = useMemo(() => {
     return step5Subs
       .filter((s: any) => (s.payload?.is_beirat_member ?? s.payload?.willing_beirat) === true)
-      .map((s: any) => ({ user_id: s.user_id, sub: s }));
+      .map((s: any) => ({
+        user_id: s.user_id,
+        submission_id: s.id,
+        applied: Array.isArray(s.applied_fields) && s.applied_fields.includes("beirat_member"),
+      }));
   }, [step5Subs]);
 
   const totalOwners = assignments.length;
@@ -307,28 +368,42 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
                     <TableRow>
                       <TableHead>Eigentümer</TableHead>
                       <TableHead>Einheit</TableHead>
-                      <TableHead className="text-right">m²</TableHead>
-                      <TableHead className="text-right">MEA</TableHead>
-                      <TableHead className="text-right">Hausgeld</TableHead>
-                      <TableHead className="text-right">Status</TableHead>
+                      <TableHead>m²</TableHead>
+                      <TableHead>MEA</TableHead>
+                      <TableHead>Hausgeld</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {step2Submissions.map((s: any) => {
                       const p = s.payload || {};
                       const a = assignmentByUser.get(s.user_id);
+                      const af: string[] = Array.isArray(s.applied_fields) ? s.applied_fields : [];
+                      const qm = p.square_meters ?? p.qm;
+                      const mea = p.mea_share ?? p.mea;
+                      const hg = p.monthly_fee ?? p.hausgeld;
+                      const cell = (val: any, suffix: string, field: "qm" | "mea" | "hausgeld") => {
+                        if (val == null || val === "") return <span className="text-muted-foreground">—</span>;
+                        const applied = af.includes(field);
+                        return (
+                          <div className={`flex items-center gap-2 rounded-md px-1.5 py-1 ${applied ? "bg-success/10 border border-success/30" : ""}`}>
+                            <span className="font-medium">{val}{suffix}</span>
+                            <ApplyFieldButton
+                              submissionId={s.id}
+                              field={field}
+                              applied={applied}
+                              buildingId={buildingId}
+                              label="Übernehmen"
+                            />
+                          </div>
+                        );
+                      };
                       return (
-                        <TableRow key={s.id} className={s.status === "pending" ? "cursor-pointer" : ""} onClick={() => s.status === "pending" && onOpenSubmission?.(s)}>
+                        <TableRow key={s.id}>
                           <TableCell className="font-medium">{nameOf(s.user_id)}</TableCell>
                           <TableCell>{a?.unit_number || "—"}</TableCell>
-                          <TableCell className="text-right">{p.square_meters ?? p.qm ?? "—"}</TableCell>
-                          <TableCell className="text-right">{p.mea_share ?? p.mea ?? "—"}</TableCell>
-                          <TableCell className="text-right">{(p.monthly_fee ?? p.hausgeld) ? `${p.monthly_fee ?? p.hausgeld} €` : "—"}</TableCell>
-                          <TableCell className="text-right">
-                            <Badge variant={s.status === "approved" ? "default" : s.status === "rejected" ? "destructive" : "secondary"}>
-                              {s.status === "pending" ? "Offen" : s.status === "approved" ? "Übernommen" : "Abgelehnt"}
-                            </Badge>
-                          </TableCell>
+                          <TableCell>{cell(qm, "", "qm")}</TableCell>
+                          <TableCell>{cell(mea, "", "mea")}</TableCell>
+                          <TableCell>{cell(hg, " €", "hausgeld")}</TableCell>
                         </TableRow>
                       );
                     })}
@@ -365,14 +440,24 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
                     <Flame className="h-4 w-4 text-warning" />
                     Heizungsart (genannt)
                   </div>
-                  {heatingCounts.length === 0 ? (
+                  {heatingRows.length === 0 ? (
                     <p className="text-xs text-muted-foreground">Keine Angabe.</p>
                   ) : (
-                    <div className="space-y-1">
-                      {heatingCounts.slice(0, 5).map(([h, count]) => (
-                        <div key={h} className="flex items-center justify-between text-xs">
-                          <span className="capitalize truncate">{h}</span>
-                          <Badge variant="outline">{count}×</Badge>
+                    <div className="space-y-1.5">
+                      {heatingRows.slice(0, 5).map((h) => (
+                        <div key={h.label} className={`flex items-center justify-between gap-2 text-xs rounded px-1.5 py-1 ${h.applied ? "bg-success/10 border border-success/30" : ""}`}>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="capitalize truncate">{h.label}</span>
+                            <Badge variant="outline" className="text-[10px] flex-shrink-0">{h.count}×</Badge>
+                          </div>
+                          <ApplyFieldButton
+                            submissionId={h.submission_id}
+                            field="heating_type"
+                            value={{ raw: h.raw }}
+                            applied={h.applied}
+                            buildingId={buildingId}
+                            label="Übernehmen"
+                          />
                         </div>
                       ))}
                     </div>
@@ -432,23 +517,42 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
                   {providerCounts.map((p) => {
                     const consensusPct = totalParticipants > 0 ? (p.count / totalParticipants) * 100 : 0;
                     const high = consensusPct >= 50;
+                    const isApplied = p.applied_in_submission || p.already_approved;
                     return (
-                      <div key={`${p.name}-${p.category}`} className={`rounded-md border p-3 ${high ? "border-success/40 bg-success/5" : ""}`}>
+                      <div
+                        key={`${p.name}-${p.category}`}
+                        className={`rounded-md border p-3 ${
+                          isApplied
+                            ? "border-success/40 bg-success/10"
+                            : high
+                            ? "border-success/40 bg-success/5"
+                            : ""
+                        }`}
+                      >
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <div className="font-medium text-sm">{p.name}</div>
-                            <div className="text-xs text-muted-foreground">{p.category}</div>
+                            <div className="text-xs text-muted-foreground">{TRADE_LABEL(p.category)}</div>
                           </div>
-                          <div className="text-right flex-shrink-0">
+                          <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                             <Badge variant={high ? "default" : "outline"}>
                               {p.count}× genannt
                             </Badge>
-                            {high && (
-                              <div className="text-xs text-success mt-1 flex items-center gap-1 justify-end">
+                            {high && !isApplied && (
+                              <div className="text-xs text-success flex items-center gap-1 justify-end">
                                 <CheckCircle2 className="h-3 w-3" />
                                 Konsens ({Math.round(consensusPct)}%)
                               </div>
                             )}
+                            <ApplyFieldButton
+                              submissionId={p.submission_id}
+                              field="provider"
+                              value={{ name: p.name, category: p.category, trade: p.category }}
+                              applied={isApplied}
+                              buildingId={buildingId}
+                              label="Übernehmen"
+                              appliedLabel="Übernommen"
+                            />
                           </div>
                         </div>
                       </div>
@@ -491,11 +595,21 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
                   {etvLocations.length === 0 ? (
                     <p className="text-xs text-muted-foreground">Keine Vorschläge.</p>
                   ) : (
-                    <div className="space-y-1">
-                      {etvLocations.map(([loc, count]) => (
-                        <div key={loc} className="flex items-center justify-between text-xs">
-                          <span className="truncate">{loc}</span>
-                          <Badge variant="outline">{count}×</Badge>
+                    <div className="space-y-1.5">
+                      {etvLocations.map((e) => (
+                        <div key={e.location} className={`flex items-center justify-between gap-2 text-xs rounded px-1.5 py-1 ${e.applied ? "bg-success/10 border border-success/30" : ""}`}>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="truncate">{e.location}</span>
+                            <Badge variant="outline" className="text-[10px] flex-shrink-0">{e.count}×</Badge>
+                          </div>
+                          <ApplyFieldButton
+                            submissionId={e.submission_id}
+                            field="etv_location"
+                            value={{ location: e.location }}
+                            applied={e.applied}
+                            buildingId={buildingId}
+                            label="Übernehmen"
+                          />
                         </div>
                       ))}
                     </div>
@@ -509,11 +623,18 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
                   {cashAuditors.length === 0 ? (
                     <p className="text-xs text-muted-foreground">Noch niemand benannt.</p>
                   ) : (
-                    <div className="space-y-1">
-                      {cashAuditors.map(({ user_id }) => (
-                        <div key={user_id} className="text-xs flex items-center gap-1.5">
-                          <Badge variant="default" className="text-[10px]">✓</Badge>
-                          {nameOf(user_id)}
+                    <div className="space-y-1.5">
+                      {cashAuditors.map(({ user_id, submission_id, applied }) => (
+                        <div key={user_id} className={`flex items-center justify-between gap-2 text-xs rounded px-1.5 py-1 ${applied ? "bg-success/10 border border-success/30" : ""}`}>
+                          <span className="truncate">{nameOf(user_id)}</span>
+                          <ApplyFieldButton
+                            submissionId={submission_id}
+                            field="cash_auditor"
+                            applied={applied}
+                            buildingId={buildingId}
+                            label="Als Kassenprüfer"
+                            appliedLabel="Übernommen"
+                          />
                         </div>
                       ))}
                     </div>
@@ -527,11 +648,18 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
                   {beiratMembers.length === 0 ? (
                     <p className="text-xs text-muted-foreground">Noch niemand benannt.</p>
                   ) : (
-                    <div className="space-y-1">
-                      {beiratMembers.map(({ user_id }) => (
-                        <div key={user_id} className="text-xs flex items-center gap-1.5">
-                          <Badge variant="default" className="text-[10px]">✓</Badge>
-                          {nameOf(user_id)}
+                    <div className="space-y-1.5">
+                      {beiratMembers.map(({ user_id, submission_id, applied }) => (
+                        <div key={user_id} className={`flex items-center justify-between gap-2 text-xs rounded px-1.5 py-1 ${applied ? "bg-success/10 border border-success/30" : ""}`}>
+                          <span className="truncate">{nameOf(user_id)}</span>
+                          <ApplyFieldButton
+                            submissionId={submission_id}
+                            field="beirat_member"
+                            applied={applied}
+                            buildingId={buildingId}
+                            label="Als Beirat"
+                            appliedLabel="Übernommen"
+                          />
                         </div>
                       ))}
                     </div>
