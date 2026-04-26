@@ -101,28 +101,36 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
     return [c.first_name, c.last_name].filter(Boolean).join(" ") || userId.slice(0, 8);
   };
 
-  // ---- STEP 1: Stammdaten (per-owner overrides) ----
-  const step1Submissions = submissions.filter((s: any) => s.step === 1);
+  // Submissions sind in der DB nach `category` gruppiert (es gibt kein `step`-Feld).
+  // Mapping: wohnungsdaten=Step2, gebaeudeinformationen=Step3, dienstleister=Step4, bewertung=Step5.
 
-  // ---- STEP 2: Wohnungsdaten (per-owner) ----
-  const step2Submissions = submissions.filter((s: any) => s.step === 2);
+  // ---- STEP 2: Wohnungsdaten ----
+  const step2Submissions = submissions.filter((s: any) => s.category === "wohnungsdaten");
+  const parseNum = (v: any): number => {
+    if (v == null || v === "") return NaN;
+    const n = parseFloat(String(v).replace(",", "."));
+    return isNaN(n) ? NaN : n;
+  };
   const meaSum = useMemo(() => {
     return step2Submissions.reduce((sum: number, s: any) => {
-      const v = parseFloat(s.payload?.mea ?? 0);
+      const v = parseNum(s.payload?.mea_share ?? s.payload?.mea);
       return sum + (isNaN(v) ? 0 : v);
     }, 0);
   }, [step2Submissions]);
 
-  // ---- STEP 3: Gebäudezustand (aggregate) ----
-  const step3Subs = submissions.filter((s: any) => s.step === 3);
-  const allAssessmentLikeSubs = submissions.filter((s: any) => s.category === "bewertung" || s.step === 5);
-  const ratings = [...assessments, ...allAssessmentLikeSubs.map((s: any) => ({
-    condition_rating: s.payload?.condition_rating,
-    problem_areas: s.payload?.problem_areas || [],
-    user_id: s.user_id,
-  }))].filter((r: any) => r.condition_rating != null);
-  const avgRating = ratings.length
-    ? ratings.reduce((s: number, r: any) => s + Number(r.condition_rating), 0) / ratings.length
+  // ---- STEP 3: Gebäudezustand ----
+  const step3Subs = submissions.filter((s: any) => s.category === "gebaeudeinformationen");
+  const ratings = [
+    ...assessments,
+    ...step3Subs.map((s: any) => ({
+      condition_rating: s.payload?.condition_rating,
+      problem_areas: s.payload?.problem_areas || [],
+      user_id: s.user_id,
+    })),
+  ].filter((r: any) => r.condition_rating != null || (r.problem_areas && r.problem_areas.length > 0));
+  const ratedOnly = ratings.filter((r: any) => r.condition_rating != null);
+  const avgRating = ratedOnly.length
+    ? ratedOnly.reduce((s: number, r: any) => s + Number(r.condition_rating), 0) / ratedOnly.length
     : null;
   const problemFreq: Record<string, number> = {};
   ratings.forEach((r: any) => {
@@ -133,29 +141,73 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
   const sortedProblems = Object.entries(problemFreq).sort((a, b) => b[1] - a[1]);
 
   // ---- STEP 4: Dienstleister (consensus) ----
-  const step4Subs = submissions.filter((s: any) => s.step === 4);
+  // Payload-Struktur: { selections: { trade: [contactId, ...] }, custom: [{ trade, category, name }] }
+  const step4Subs = submissions.filter((s: any) => s.category === "dienstleister");
+
+  // Lookup für Kontakt-Namen (aus Step-4 Selections referenziert)
+  const referencedContactIds = useMemo(() => {
+    const ids = new Set<string>();
+    step4Subs.forEach((s: any) => {
+      const sel = s.payload?.selections || {};
+      Object.values(sel).forEach((arr: any) => {
+        if (Array.isArray(arr)) arr.forEach((id: string) => id && ids.add(id));
+      });
+    });
+    return Array.from(ids);
+  }, [step4Subs]);
+
+  const { data: providerContacts = [] } = useQuery({
+    queryKey: ["onb-overview-provider-contacts", referencedContactIds.sort().join(",")],
+    enabled: referencedContactIds.length > 0,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("contacts")
+        .select("id, first_name, last_name, company_name")
+        .in("id", referencedContactIds);
+      return data ?? [];
+    },
+  });
+  const contactNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    (providerContacts as any[]).forEach((c: any) => {
+      const name = c.company_name || [c.first_name, c.last_name].filter(Boolean).join(" ") || c.id.slice(0, 8);
+      m.set(c.id, name);
+    });
+    return m;
+  }, [providerContacts]);
+
   const providerCounts = useMemo(() => {
     const m = new Map<string, { name: string; category: string; count: number; mentioned_by: string[] }>();
+    const bump = (key: string, name: string, category: string, userId: string) => {
+      const existing = m.get(key);
+      if (existing) {
+        existing.count += 1;
+        if (!existing.mentioned_by.includes(userId)) existing.mentioned_by.push(userId);
+      } else {
+        m.set(key, { name, category, count: 1, mentioned_by: [userId] });
+      }
+    };
     step4Subs.forEach((s: any) => {
-      const items = Array.isArray(s.payload?.providers) ? s.payload.providers : [];
-      items.forEach((it: any) => {
-        const name = String(it?.name || "").trim();
+      const sel = s.payload?.selections || {};
+      Object.entries(sel).forEach(([trade, arr]: [string, any]) => {
+        if (!Array.isArray(arr)) return;
+        arr.forEach((cid: string) => {
+          const name = contactNameById.get(cid) || cid.slice(0, 8);
+          bump(`${cid}|${trade}`, name, trade, s.user_id);
+        });
+      });
+      const customs = Array.isArray(s.payload?.custom) ? s.payload.custom : [];
+      customs.forEach((c: any) => {
+        const name = String(c?.name || "").trim();
         if (!name) return;
-        const cat = it?.category || s.payload?.category || "sonstige";
-        const key = `${name.toLowerCase()}|${cat}`;
-        const existing = m.get(key);
-        if (existing) {
-          existing.count += 1;
-          if (!existing.mentioned_by.includes(s.user_id)) existing.mentioned_by.push(s.user_id);
-        } else {
-          m.set(key, { name, category: cat, count: 1, mentioned_by: [s.user_id] });
-        }
+        const cat = c?.category || c?.trade || "sonstige";
+        bump(`custom:${name.toLowerCase()}|${cat}`, name, cat, s.user_id);
       });
     });
     return Array.from(m.values()).sort((a, b) => b.count - a.count);
-  }, [step4Subs]);
+  }, [step4Subs, contactNameById]);
 
-  // ---- STEP 3 extra: Heizungs-Aggregation (Multi-Select) ----
+  // ---- STEP 3 extra: Heizungs-Aggregation ----
   const HEATING_LABELS: Record<string, string> = {
     gas: "Gas", oel: "Öl", fernwaerme: "Fernwärme", waermepumpe: "Wärmepumpe",
     pellets: "Pellets", strom: "Strom",
@@ -177,8 +229,8 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
     return Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
   }, [step3Subs]);
 
-  // ---- STEP 5: Einschätzung (ETV-Ort, Kassenprüfung, Beirat-Mitglieder) ----
-  const step5Subs = submissions.filter((s: any) => s.step === 5);
+  // ---- STEP 5: Einschätzung ----
+  const step5Subs = submissions.filter((s: any) => s.category === "bewertung");
   const etvLocations = useMemo(() => {
     const m = new Map<string, number>();
     step5Subs.forEach((s: any) => {
