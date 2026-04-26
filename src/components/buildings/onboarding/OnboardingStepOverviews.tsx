@@ -134,7 +134,7 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
   }, [step2Submissions]);
 
   // ---- STEP 3: Gebäudezustand ----
-  const step3Subs = submissions.filter((s: any) => s.category === "gebaeudeinformationen");
+  const step3Subs = dedupeLatestPerUser(submissions.filter((s: any) => s.category === "gebaeudeinformationen"));
   const ratings = [
     ...assessments,
     ...step3Subs.map((s: any) => ({
@@ -157,7 +157,7 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
 
   // ---- STEP 4: Dienstleister (consensus) ----
   // Payload-Struktur: { selections: { trade: [contactId, ...] }, custom: [{ trade, category, name }] }
-  const step4Subs = submissions.filter((s: any) => s.category === "dienstleister");
+  const step4Subs = dedupeLatestPerUser(submissions.filter((s: any) => s.category === "dienstleister"));
 
   // Lookup für Kontakt-Namen (aus Step-4 Selections referenziert)
   const referencedContactIds = useMemo(() => {
@@ -245,7 +245,7 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
   }, [step3Subs]);
 
   // ---- STEP 5: Einschätzung ----
-  const step5Subs = submissions.filter((s: any) => s.category === "bewertung");
+  const step5Subs = dedupeLatestPerUser(submissions.filter((s: any) => s.category === "bewertung"));
   const etvLocations = useMemo(() => {
     const m = new Map<string, number>();
     step5Subs.forEach((s: any) => {
