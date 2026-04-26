@@ -237,7 +237,13 @@ export const OnboardingWizardModal = ({
         {/* Scroll area */}
         <div className="flex-1 overflow-y-auto px-4 py-5">
           {allDone ? (
-            <CompletionScreen onClose={() => onOpenChange(false)} completed={completed} />
+            <CompletionScreen
+              onClose={() => {
+                onComplete();
+                onOpenChange(false);
+              }}
+              completed={justFinished ? { 1: true, 2: true, 3: true, 4: true, 5: true } : completed}
+            />
           ) : showWelcome ? (
             <WelcomeScreen onStart={() => setShowWelcome(false)} />
           ) : (
