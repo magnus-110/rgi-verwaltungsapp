@@ -266,61 +266,6 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
       </CardHeader>
       <CardContent>
         <Accordion type="multiple" className="w-full">
-          <AccordionItem value="step1">
-            <AccordionTrigger>
-              <div className="flex items-center gap-2">
-                <User className="h-4 w-4" />
-                <span className="font-medium">Schritt 1: Stammdaten</span>
-                <Badge variant="secondary">{step1Submissions.length} Eingaben</Badge>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent>
-              <p className="text-xs text-muted-foreground mb-3">
-                Eigentümer-spezifisch — gespeichert als Override auf der Wohnungs-Zuordnung. Wird im Kontakt-Tab unter „Bewohner" gepflegt.
-              </p>
-              {step1Submissions.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">Noch keine Eingaben.</p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Eigentümer</TableHead>
-                      <TableHead>Adresse</TableHead>
-                      <TableHead>Hauptansprechpartner</TableHead>
-                      <TableHead className="text-right">Aktion</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {step1Submissions.map((s: any) => {
-                      const p = s.payload || {};
-                      const addr = [p.street, p.zip, p.city].filter(Boolean).join(", ");
-                      const contact = p.contact_self === false
-                        ? `Andere: ${p.contact_other?.name || "—"}`
-                        : "Eigentümer selbst";
-                      return (
-                        <TableRow key={s.id}>
-                          <TableCell className="font-medium">{nameOf(s.user_id)}</TableCell>
-                          <TableCell className="text-xs">{addr || "—"}</TableCell>
-                          <TableCell className="text-xs">{contact}</TableCell>
-                          <TableCell className="text-right">
-                            <Badge variant={s.status === "approved" ? "default" : s.status === "rejected" ? "destructive" : "secondary"}>
-                              {s.status === "pending" ? "Offen" : s.status === "approved" ? "Übernommen" : "Abgelehnt"}
-                            </Badge>
-                            {s.status === "pending" && onOpenSubmission && (
-                              <Button size="sm" variant="ghost" className="ml-2" onClick={() => onOpenSubmission(s)}>
-                                Prüfen
-                              </Button>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              )}
-            </AccordionContent>
-          </AccordionItem>
-
           <AccordionItem value="step2">
             <AccordionTrigger>
               <div className="flex items-center gap-2">
