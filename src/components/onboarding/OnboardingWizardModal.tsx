@@ -141,14 +141,14 @@ export const OnboardingWizardModal = ({
         });
         setStep(step + 1);
       } else {
-        // Step 5 abgeschlossen → Dankesdialog wird über onComplete-Refresh angezeigt
-        onComplete();
+        // Step 5 abgeschlossen → Dankesdialog im Modal anzeigen
+        setJustFinished(true);
       }
     } catch (e: any) {
       // Bei optionalen Schritten Fehler nicht blockieren - weitergehen
       if (step > 1) {
         if (step < 5) setStep(step + 1);
-        else onComplete();
+        else setJustFinished(true);
       } else {
         toast({
           title: "Fehler",
