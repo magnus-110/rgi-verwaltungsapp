@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 
 export interface Step5Data {
   willing_cash_audit?: boolean | null;
+  willing_beirat?: boolean | null;
   etv_location?: string;
   notes?: string;
 }
