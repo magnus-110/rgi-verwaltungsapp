@@ -155,18 +155,29 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
     return Array.from(m.values()).sort((a, b) => b.count - a.count);
   }, [step4Subs]);
 
-  // ---- STEP 3 extra: Heizungs-Aggregation ----
+  // ---- STEP 3 extra: Heizungs-Aggregation (Multi-Select) ----
+  const HEATING_LABELS: Record<string, string> = {
+    gas: "Gas", oel: "Öl", fernwaerme: "Fernwärme", waermepumpe: "Wärmepumpe",
+    pellets: "Pellets", strom: "Strom",
+  };
   const heatingCounts = useMemo(() => {
     const m = new Map<string, number>();
     step3Subs.forEach((s: any) => {
-      let h = String(s.payload?.heating_type || "").trim();
-      if (h === "sonstiges" && s.payload?.heating_other) h = s.payload.heating_other;
-      if (h) m.set(h, (m.get(h) || 0) + 1);
+      const list: string[] = Array.isArray(s.payload?.heating_types) && s.payload.heating_types.length
+        ? s.payload.heating_types
+        : s.payload?.heating_type ? [s.payload.heating_type] : [];
+      list.forEach((raw: string) => {
+        let h = String(raw || "").trim();
+        if (!h) return;
+        if (h === "sonstiges" && s.payload?.heating_other) h = s.payload.heating_other;
+        else if (HEATING_LABELS[h]) h = HEATING_LABELS[h];
+        m.set(h, (m.get(h) || 0) + 1);
+      });
     });
     return Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
   }, [step3Subs]);
 
-  // ---- STEP 5: Einschätzung (ETV-Ort, Kassenprüfung, Beirat) ----
+  // ---- STEP 5: Einschätzung (ETV-Ort, Kassenprüfung, Beirat-Mitglieder) ----
   const step5Subs = submissions.filter((s: any) => s.step === 5);
   const etvLocations = useMemo(() => {
     const m = new Map<string, number>();
@@ -181,9 +192,9 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
       .filter((s: any) => s.payload?.willing_cash_audit === true)
       .map((s: any) => ({ user_id: s.user_id, sub: s }));
   }, [step5Subs]);
-  const beiratVolunteers = useMemo(() => {
+  const beiratMembers = useMemo(() => {
     return step5Subs
-      .filter((s: any) => s.payload?.willing_beirat === true)
+      .filter((s: any) => (s.payload?.is_beirat_member ?? s.payload?.willing_beirat) === true)
       .map((s: any) => ({ user_id: s.user_id, sub: s }));
   }, [step5Subs]);
 
