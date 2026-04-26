@@ -20,6 +20,7 @@ import { Step4Dienstleister, Step4Data } from "./steps/Step4Dienstleister";
 import { Step5Einschaetzung, Step5Data } from "./steps/Step5Einschaetzung";
 import { StepSlider } from "./ui/StepSlider";
 import { RgiWordmark } from "./ui/RgiWordmark";
+import { WelcomeScreen } from "./ui/WelcomeScreen";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -58,6 +59,17 @@ export const OnboardingWizardModal = ({
   const [step, setStep] = useState<number>(progress.current_step || 1);
   const [stepData, setStepData] = useState<Record<string, any>>(progress.step_data || {});
   const [submitting, setSubmitting] = useState(false);
+
+  // Welcome-Screen nur beim allerersten Öffnen anzeigen
+  const initialStep1 = (progress.step_data as any)?.step1;
+  const step1HasData =
+    !!initialStep1 && Object.keys(initialStep1).length > 0;
+  const [showWelcome, setShowWelcome] = useState<boolean>(
+    !progress.step1_completed_at &&
+      !progress.is_repeat_owner &&
+      !step1HasData &&
+      (progress.current_step ?? 1) <= 1
+  );
 
   useEffect(() => {
     if (progress.is_repeat_owner && step === 1 && !progress.step1_completed_at) {
@@ -176,30 +188,33 @@ export const OnboardingWizardModal = ({
         </DialogTitle>
 
         {/* Top Bar */}
-        <div className="bg-card border-b border-border/60 px-4 h-12 flex items-center justify-between shrink-0">
+        <div className="bg-card border-b border-border/60 px-4 h-[52px] flex items-center shrink-0">
           <RgiWordmark />
-          <span className="text-[11px] text-muted-foreground">
-            {completedCount} / 5 erledigt
-          </span>
         </div>
 
         {/* Step Slider */}
         {!allDone && (
-          <div className="bg-card border-b border-border/60 px-3 py-3 shrink-0">
+          <div className="bg-card border-b border-border/60 px-4 py-3 shrink-0">
             <StepSlider
               steps={STEP_LABELS}
-              currentStep={step}
-              completed={completed}
-              onStepClick={(n) => !isStep1HardLocked && setStep(n)}
-              lockedFromStep={isStep1HardLocked ? 2 : undefined}
+              currentStep={showWelcome ? 0 : step}
+              completed={showWelcome ? {} : completed}
+              onStepClick={(n) =>
+                !showWelcome && !isStep1HardLocked && setStep(n)
+              }
+              lockedFromStep={
+                showWelcome ? 1 : isStep1HardLocked ? 2 : undefined
+              }
             />
           </div>
         )}
 
         {/* Scroll area */}
-        <div className="flex-1 overflow-y-auto px-4 py-4">
+        <div className="flex-1 overflow-y-auto px-4 py-5">
           {allDone ? (
             <CompletionScreen onClose={() => onOpenChange(false)} completed={completed} />
+          ) : showWelcome ? (
+            <WelcomeScreen onStart={() => setShowWelcome(false)} />
           ) : (
             <div className="space-y-3">
               <div>
@@ -216,7 +231,7 @@ export const OnboardingWizardModal = ({
         </div>
 
         {/* Footer */}
-        {!allDone && (
+        {!allDone && !showWelcome && (
           <div className="bg-card border-t border-border/60 px-4 py-3 flex items-center justify-between gap-2 shrink-0">
             <div>
               {!isStep1HardLocked && step > 1 && (
