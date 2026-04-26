@@ -187,6 +187,9 @@ export const OnboardingWizardModal = ({
           Onboarding{buildingName ? ` – ${buildingName}` : ""}
         </DialogTitle>
 
+        {/* Orange accent line */}
+        <div className="h-1 bg-primary shrink-0" />
+
         {/* Top Bar */}
         <div className="bg-card border-b border-border/40 px-5 h-[56px] flex items-center shrink-0">
           <RgiWordmark />
