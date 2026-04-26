@@ -324,7 +324,7 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
               </div>
             </AccordionTrigger>
             <AccordionContent>
-              <div className="grid sm:grid-cols-2 gap-4 mb-4">
+              <div className="grid sm:grid-cols-3 gap-4 mb-4">
                 <div className="rounded-md border p-3">
                   <div className="flex items-center gap-2 text-sm font-medium mb-1">
                     <Star className="h-4 w-4 text-warning" />
@@ -336,6 +336,24 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
                   <div className="text-xs text-muted-foreground">
                     {ratings.length} {ratings.length === 1 ? "Eigentümer" : "Eigentümer"} haben bewertet
                   </div>
+                </div>
+                <div className="rounded-md border p-3">
+                  <div className="flex items-center gap-2 text-sm font-medium mb-2">
+                    <Flame className="h-4 w-4 text-warning" />
+                    Heizungsart (genannt)
+                  </div>
+                  {heatingCounts.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Keine Angabe.</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {heatingCounts.slice(0, 5).map(([h, count]) => (
+                        <div key={h} className="flex items-center justify-between text-xs">
+                          <span className="capitalize truncate">{h}</span>
+                          <Badge variant="outline">{count}×</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="rounded-md border p-3">
                   <div className="flex items-center gap-2 text-sm font-medium mb-2">
