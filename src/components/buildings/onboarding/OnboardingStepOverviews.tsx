@@ -440,14 +440,24 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
                     <Flame className="h-4 w-4 text-warning" />
                     Heizungsart (genannt)
                   </div>
-                  {heatingCounts.length === 0 ? (
+                  {heatingRows.length === 0 ? (
                     <p className="text-xs text-muted-foreground">Keine Angabe.</p>
                   ) : (
-                    <div className="space-y-1">
-                      {heatingCounts.slice(0, 5).map(([h, count]) => (
-                        <div key={h} className="flex items-center justify-between text-xs">
-                          <span className="capitalize truncate">{h}</span>
-                          <Badge variant="outline">{count}×</Badge>
+                    <div className="space-y-1.5">
+                      {heatingRows.slice(0, 5).map((h) => (
+                        <div key={h.label} className={`flex items-center justify-between gap-2 text-xs rounded px-1.5 py-1 ${h.applied ? "bg-success/10 border border-success/30" : ""}`}>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="capitalize truncate">{h.label}</span>
+                            <Badge variant="outline" className="text-[10px] flex-shrink-0">{h.count}×</Badge>
+                          </div>
+                          <ApplyFieldButton
+                            submissionId={h.submission_id}
+                            field="heating_type"
+                            value={{ raw: h.raw }}
+                            applied={h.applied}
+                            buildingId={buildingId}
+                            label="Übernehmen"
+                          />
                         </div>
                       ))}
                     </div>
