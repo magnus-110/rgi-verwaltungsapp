@@ -106,9 +106,9 @@ export const Step4Dienstleister = ({ buildingId, value, onChange }: Props) => {
     <div className="space-y-2.5">
       {/* Filter chips */}
       <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1 scrollbar-none">
-        {SERVICE_PROVIDER_CATEGORIES.map((cat) => {
+        {[{ id: "all", label: "Alle" }, ...SERVICE_PROVIDER_CATEGORIES].map((cat) => {
           const active = activeCat === cat.id;
-          const count = value.selections?.[cat.id]?.length ?? 0;
+          const count = totalSelectedCount(cat.id);
           return (
             <button
               key={cat.id}
