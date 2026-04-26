@@ -191,11 +191,25 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
 
       <SectionCard label="BANKVERBINDUNG">
         <div className="px-4 py-3">
-          <Field label="IBAN">
+          <Field label="IBAN" required>
             <EmbeddedInput
               value={value.iban ?? ""}
-              onChange={(e) => set({ iban: formatIban(e.target.value) })}
-              placeholder="z. B. DE00 0000 0000 0000 0000 00"
+              onChange={(e) => set({ iban: sanitizeGermanIbanInput(e.target.value) })}
+              onKeyDown={(e) => {
+                // Allow editing keys
+                if (
+                  ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Home", "End"].includes(e.key) ||
+                  e.metaKey || e.ctrlKey
+                ) return;
+                const clean = (value.iban ?? "").replace(/\s/g, "");
+                // Position 1: must be 'D'; position 2: must be 'E'; positions 3+: digits only
+                const pos = clean.length;
+                if (pos === 0 && e.key.toUpperCase() !== "D") e.preventDefault();
+                else if (pos === 1 && e.key.toUpperCase() !== "E") e.preventDefault();
+                else if (pos >= 2 && !/^\d$/.test(e.key)) e.preventDefault();
+                else if (pos >= 22) e.preventDefault();
+              }}
+              placeholder="DE00 0000 0000 0000 0000 00"
               className="font-mono tracking-[0.04em]"
               maxLength={27}
               inputMode="text"
@@ -203,11 +217,6 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
               spellCheck={false}
             />
           </Field>
-          {value.iban && !isValidIbanFormat(value.iban) && (
-            <div className="mt-1.5 text-[11px] text-destructive">
-              Bitte vollständige IBAN im Format DE00 0000 0000 0000 0000 00 eingeben.
-            </div>
-          )}
         </div>
         <div className="px-4 pb-2.5 -mt-1 text-[11px] text-muted-foreground/80">
           Wird für die SEPA-Lastschrift Ihres Hausgeldes benötigt.
