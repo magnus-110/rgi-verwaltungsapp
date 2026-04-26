@@ -153,7 +153,7 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
           items={emails}
           onChange={(next) => set({ emails: next, email: next[0]?.address })}
           newItem={(): EmailEntry => ({ address: "" })}
-          minItems={0}
+          minItems={1}
           addLabel="Weitere E-Mail hinzufügen"
           renderItem={(item, update) => (
             <EmbeddedInput
