@@ -24,7 +24,10 @@ export const Step5Einschaetzung = ({ value, onChange }: Props) => {
   return (
     <div className="space-y-2.5">
       <SectionCard label="ORT DER EIGENTÜMERVERSAMMLUNG">
-        <div className="p-3.5">
+        <div className="p-3.5 space-y-2">
+          <div className="text-[12px] text-muted-foreground">
+            Haben Sie einen Vorschlag, wo die nächste Eigentümerversammlung stattfinden könnte?
+          </div>
           <Input
             value={value.etv_location ?? ""}
             onChange={(e) => set({ etv_location: e.target.value })}
@@ -35,7 +38,10 @@ export const Step5Einschaetzung = ({ value, onChange }: Props) => {
       </SectionCard>
 
       <SectionCard label="KASSENPRÜFUNG">
-        <div className="p-3">
+        <div className="p-3 space-y-2">
+          <div className="text-[12px] text-muted-foreground">
+            Möchten Sie sich als Kassenprüfer für diese WEG zur Verfügung stellen?
+          </div>
           <div className="grid grid-cols-2 gap-2.5">
             {[
               { v: true, label: "Ja, gerne" },
