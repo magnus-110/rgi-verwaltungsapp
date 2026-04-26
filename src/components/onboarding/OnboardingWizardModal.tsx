@@ -84,7 +84,7 @@ export const OnboardingWizardModal = ({
     setStepData((prev) => ({ ...prev, [currentStepKey]: next }));
   };
 
-  useStepAutoSave(progress.id, step, stepData);
+  const { flush } = useStepAutoSave(progress.building_id, step, stepData);
 
   const completed = useMemo<Record<number, boolean>>(
     () => ({
@@ -117,6 +117,7 @@ export const OnboardingWizardModal = ({
 
     // Steps 2-5 sind optional: bei leeren Daten einfach weiter ohne Submit
     if (step > 1 && isEmptyData(currentData)) {
+      await flush();
       if (step < 5) setStep(step + 1);
       else onComplete();
       return;
@@ -124,6 +125,7 @@ export const OnboardingWizardModal = ({
 
     setSubmitting(true);
     try {
+      await flush();
       const { error } = await supabase.functions.invoke("submit-onboarding-step", {
         body: { building_id: progress.building_id, step, payload: currentData },
       });
