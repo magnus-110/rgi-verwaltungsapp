@@ -449,6 +449,16 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
         )}
       </Card>
 
+      {/* Step-by-step aggregated overview with recommendations */}
+      <OnboardingStepOverviews
+        buildingId={buildingId}
+        onOpenSubmission={(s) => {
+          setReviewItem(s);
+          setReviewNote("");
+          setMarkGlobal(false);
+        }}
+      />
+
       {/* Submission Inbox */}
       <Card>
         <CardHeader>
