@@ -322,7 +322,7 @@ const CompletionScreen = ({
             </p>
             <p>
               Ihre Stammdaten wurden direkt übernommen. Die übrigen Angaben
-              werden von der Verwaltung geprüft — Sie hören in Kürze von uns.
+              werden von der Verwaltung geprüft.
             </p>
           </div>
         </div>
