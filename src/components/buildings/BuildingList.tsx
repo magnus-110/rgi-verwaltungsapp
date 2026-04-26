@@ -7,6 +7,7 @@ import { useManagementMode } from "@/hooks/useManagementMode";
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { cn } from "@/lib/utils";
+import { IbanChangeBadge } from "@/components/admin/IbanChangeBadge";
 
 interface BuildingListProps {
   selectedBuildingId: string | null;
