@@ -48,15 +48,20 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
   const set = (patch: Partial<Step1Data>) => onChange({ ...value, ...patch });
   const prefilledRef = useRef(false);
   const hasOverridesRef = useRef(false);
+  const valueRef = useRef(value);
+
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
 
   useEffect(() => {
     if (!buildingId || prefilledRef.current) return;
-    // Skip prefill if user has already typed something
+    const current = valueRef.current;
     const hasUserInput =
-      value.street || value.zip || value.city ||
-      (value.phones && value.phones.length > 0) ||
-      (value.emails && value.emails.length > 0) ||
-      value.iban || value.contact_self !== undefined;
+      current.street || current.zip || current.city ||
+      (current.phones && current.phones.length > 0) ||
+      (current.emails && current.emails.length > 0) ||
+      current.iban || current.contact_self !== undefined;
     if (hasUserInput) {
       prefilledRef.current = true;
       return;
@@ -67,7 +72,9 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
       .then(({ data }) => {
         if (data?.prefilled && data?.data) {
           hasOverridesRef.current = !!data.hasOverrides;
-          onChange({ ...data.data, ...value });
+          // Merge: prefilled fields fill the gaps, user input wins
+          const latest = valueRef.current;
+          onChange({ ...data.data, ...latest });
         }
       })
       .catch(() => {});
