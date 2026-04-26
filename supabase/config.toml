@@ -141,3 +141,6 @@ verify_jwt = false
 
 [functions.generate-welcome-letters]
 verify_jwt = false
+
+[functions.owner-update-assignment]
+verify_jwt = true
