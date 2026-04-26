@@ -102,24 +102,30 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
         </div>
       )}
       <SectionCard label="WOHNANSCHRIFT">
-        <div className="px-4 py-3 space-y-2">
-          <EmbeddedInput
-            value={value.street ?? ""}
-            onChange={(e) => set({ street: e.target.value })}
-            placeholder="Straße & Hausnr. *"
-          />
+        <div className="px-4 py-3 space-y-3">
+          <Field label="Straße & Hausnr." required>
+            <EmbeddedInput
+              value={value.street ?? ""}
+              onChange={(e) => set({ street: e.target.value })}
+              placeholder="z. B. Musterstraße 12"
+            />
+          </Field>
           <div className="grid grid-cols-[90px_1fr] gap-2">
-            <EmbeddedInput
-              value={value.zip ?? ""}
-              onChange={(e) => set({ zip: e.target.value })}
-              placeholder="PLZ *"
-              inputMode="numeric"
-            />
-            <EmbeddedInput
-              value={value.city ?? ""}
-              onChange={(e) => set({ city: e.target.value })}
-              placeholder="Ort *"
-            />
+            <Field label="PLZ" required>
+              <EmbeddedInput
+                value={value.zip ?? ""}
+                onChange={(e) => set({ zip: e.target.value })}
+                placeholder="z. B. 80331"
+                inputMode="numeric"
+              />
+            </Field>
+            <Field label="Ort" required>
+              <EmbeddedInput
+                value={value.city ?? ""}
+                onChange={(e) => set({ city: e.target.value })}
+                placeholder="z. B. München"
+              />
+            </Field>
           </div>
         </div>
       </SectionCard>
@@ -131,18 +137,22 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
           newItem={(): PhoneEntry => ({ number: "", note: "" })}
           addLabel="Weitere Nummer hinzufügen"
           renderItem={(item, update) => (
-            <div className="space-y-2">
-              <EmbeddedInput
-                value={item.number}
-                onChange={(e) => update({ number: e.target.value })}
-                placeholder="Telefonnummer"
-                inputMode="tel"
-              />
-              <EmbeddedInput
-                value={item.note ?? ""}
-                onChange={(e) => update({ note: e.target.value })}
-                placeholder="Notiz (optional, z. B. mobil, tagsüber erreichbar)"
-              />
+            <div className="space-y-3">
+              <Field label="Telefonnummer">
+                <EmbeddedInput
+                  value={item.number}
+                  onChange={(e) => update({ number: e.target.value })}
+                  placeholder="z. B. +49 170 1234567"
+                  inputMode="tel"
+                />
+              </Field>
+              <Field label="Notiz (optional)">
+                <EmbeddedInput
+                  value={item.note ?? ""}
+                  onChange={(e) => update({ note: e.target.value })}
+                  placeholder="z. B. mobil, tagsüber erreichbar"
+                />
+              </Field>
             </div>
           )}
         />
@@ -156,12 +166,14 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
           minItems={1}
           addLabel="Weitere E-Mail hinzufügen"
           renderItem={(item, update) => (
-            <EmbeddedInput
-              type="email"
-              value={item.address}
-              onChange={(e) => update({ address: e.target.value })}
-              placeholder="ihre.email@beispiel.de"
-            />
+            <Field label="E-Mail-Adresse">
+              <EmbeddedInput
+                type="email"
+                value={item.address}
+                onChange={(e) => update({ address: e.target.value })}
+                placeholder="z. B. ihre.email@beispiel.de"
+              />
+            </Field>
           )}
         />
         <div className="px-4 pb-2.5 -mt-1 text-[11px] text-muted-foreground/80">
@@ -171,16 +183,18 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
 
       <SectionCard label="BANKVERBINDUNG">
         <div className="px-4 py-3">
-          <EmbeddedInput
-            value={value.iban ?? ""}
-            onChange={(e) => set({ iban: formatIban(e.target.value) })}
-            placeholder="DE00 0000 0000 0000 0000 00"
-            className="font-mono tracking-[0.04em]"
-            maxLength={27}
-            inputMode="text"
-            autoComplete="off"
-            spellCheck={false}
-          />
+          <Field label="IBAN">
+            <EmbeddedInput
+              value={value.iban ?? ""}
+              onChange={(e) => set({ iban: formatIban(e.target.value) })}
+              placeholder="z. B. DE00 0000 0000 0000 0000 00"
+              className="font-mono tracking-[0.04em]"
+              maxLength={27}
+              inputMode="text"
+              autoComplete="off"
+              spellCheck={false}
+            />
+          </Field>
           {value.iban && !isValidIbanFormat(value.iban) && (
             <div className="mt-1.5 text-[11px] text-destructive">
               Bitte vollständige IBAN im Format DE00 0000 0000 0000 0000 00 eingeben.
@@ -232,50 +246,64 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
           </div>
 
           {value.contact_self === false && (
-            <div className="space-y-2 pt-1">
-              <EmbeddedInput
-                value={other.name ?? value.contact_other_name ?? ""}
-                onChange={(e) => {
-                  setOther({ name: e.target.value });
-                  set({ contact_other_name: e.target.value });
-                }}
-                placeholder="Vor- und Nachname *"
-              />
-              <EmbeddedInput
-                value={other.relation ?? ""}
-                onChange={(e) => setOther({ relation: e.target.value })}
-                placeholder="Beziehung (z. B. Ehepartner, Sohn, Bevollmächtigte/r)"
-              />
-              <EmbeddedInput
-                value={other.street ?? ""}
-                onChange={(e) => setOther({ street: e.target.value })}
-                placeholder="Straße & Hausnr."
-              />
+            <div className="space-y-3 pt-1">
+              <Field label="Vor- und Nachname" required>
+                <EmbeddedInput
+                  value={other.name ?? value.contact_other_name ?? ""}
+                  onChange={(e) => {
+                    setOther({ name: e.target.value });
+                    set({ contact_other_name: e.target.value });
+                  }}
+                  placeholder="z. B. Anna Müller"
+                />
+              </Field>
+              <Field label="Beziehung">
+                <EmbeddedInput
+                  value={other.relation ?? ""}
+                  onChange={(e) => setOther({ relation: e.target.value })}
+                  placeholder="z. B. Ehepartner, Sohn, Bevollmächtigte/r"
+                />
+              </Field>
+              <Field label="Straße & Hausnr.">
+                <EmbeddedInput
+                  value={other.street ?? ""}
+                  onChange={(e) => setOther({ street: e.target.value })}
+                  placeholder="z. B. Musterstraße 12"
+                />
+              </Field>
               <div className="grid grid-cols-[90px_1fr] gap-2">
-                <EmbeddedInput
-                  value={other.zip ?? ""}
-                  onChange={(e) => setOther({ zip: e.target.value })}
-                  placeholder="PLZ"
-                  inputMode="numeric"
-                />
-                <EmbeddedInput
-                  value={other.city ?? ""}
-                  onChange={(e) => setOther({ city: e.target.value })}
-                  placeholder="Ort"
-                />
+                <Field label="PLZ">
+                  <EmbeddedInput
+                    value={other.zip ?? ""}
+                    onChange={(e) => setOther({ zip: e.target.value })}
+                    placeholder="z. B. 80331"
+                    inputMode="numeric"
+                  />
+                </Field>
+                <Field label="Ort">
+                  <EmbeddedInput
+                    value={other.city ?? ""}
+                    onChange={(e) => setOther({ city: e.target.value })}
+                    placeholder="z. B. München"
+                  />
+                </Field>
               </div>
-              <EmbeddedInput
-                value={other.phone ?? ""}
-                onChange={(e) => setOther({ phone: e.target.value })}
-                placeholder="Telefon"
-                inputMode="tel"
-              />
-              <EmbeddedInput
-                type="email"
-                value={other.email ?? ""}
-                onChange={(e) => setOther({ email: e.target.value })}
-                placeholder="E-Mail"
-              />
+              <Field label="Telefon">
+                <EmbeddedInput
+                  value={other.phone ?? ""}
+                  onChange={(e) => setOther({ phone: e.target.value })}
+                  placeholder="z. B. +49 170 1234567"
+                  inputMode="tel"
+                />
+              </Field>
+              <Field label="E-Mail">
+                <EmbeddedInput
+                  type="email"
+                  value={other.email ?? ""}
+                  onChange={(e) => setOther({ email: e.target.value })}
+                  placeholder="z. B. anna.mueller@beispiel.de"
+                />
+              </Field>
             </div>
           )}
         </div>
@@ -283,18 +311,38 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
 
       <SectionCard label="WÜNSCHE & ERWARTUNGEN (OPTIONAL)">
         <div className="p-3">
-          <Textarea
-            rows={3}
-            value={value.expectations ?? ""}
-            onChange={(e) => set({ expectations: e.target.value })}
-            placeholder="Was wünschen Sie sich für unsere Zusammenarbeit?"
-            className="border-0 bg-[hsl(var(--input))] focus-visible:ring-0 focus-visible:bg-[hsl(35_25%_92%)] resize-none rounded-lg px-3 py-2.5 text-[14px]"
-          />
+          <Field label="Was wünschen Sie sich für unsere Zusammenarbeit?">
+            <Textarea
+              rows={3}
+              value={value.expectations ?? ""}
+              onChange={(e) => set({ expectations: e.target.value })}
+              placeholder="z. B. zeitnahe Rückmeldungen, transparente Abrechnungen …"
+              className="border-0 bg-[hsl(var(--input))] focus-visible:ring-0 focus-visible:bg-[hsl(35_25%_92%)] resize-none rounded-lg px-3 py-2.5 text-[14px]"
+            />
+          </Field>
         </div>
       </SectionCard>
     </div>
   );
 };
+
+const Field = ({
+  label,
+  required,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  children: React.ReactNode;
+}) => (
+  <div>
+    <div className="text-[12px] text-muted-foreground mb-1">
+      {label}
+      {required && <span className="text-primary ml-0.5">*</span>}
+    </div>
+    {children}
+  </div>
+);
 
 // IBAN helpers
 const formatIban = (raw: string): string => {
