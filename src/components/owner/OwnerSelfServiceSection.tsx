@@ -133,10 +133,10 @@ export const OwnerSelfServiceSection = () => {
   const saveBank = async (b: Bank) => {
     const { error } = await supabase
       .from("contact_bank_accounts")
-      .update({ iban: b.iban, bic: b.bic, bank_name: b.bank_name, account_holder: b.account_holder })
+      .update({ iban: b.iban, account_holder: b.account_holder })
       .eq("id", b.id);
     if (error) return toast({ title: "Fehler", description: error.message, variant: "destructive" });
-    toast({ title: "Bankdaten gespeichert", description: "Bei IBAN-Änderung wird die Verwaltung benachrichtigt." });
+    toast({ title: "Bankdaten gespeichert" });
   };
   const deleteBank = async (id: string) => {
     const { error } = await supabase.from("contact_bank_accounts").delete().eq("id", id);
