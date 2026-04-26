@@ -239,7 +239,7 @@ export const OwnerSelfServiceSection = () => {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 };
 
