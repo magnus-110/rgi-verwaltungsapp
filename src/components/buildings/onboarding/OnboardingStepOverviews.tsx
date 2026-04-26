@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import {
   User, Home, Building2, Wrench, Sparkles, AlertTriangle, CheckCircle2,
-  TrendingUp, MapPin, Star,
+  TrendingUp, MapPin, Star, Flame, Users,
 } from "lucide-react";
 
 interface Props {
@@ -155,7 +155,18 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
     return Array.from(m.values()).sort((a, b) => b.count - a.count);
   }, [step4Subs]);
 
-  // ---- STEP 5: Einschätzung (ETV-Ort, Kassenprüfung) ----
+  // ---- STEP 3 extra: Heizungs-Aggregation ----
+  const heatingCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    step3Subs.forEach((s: any) => {
+      let h = String(s.payload?.heating_type || "").trim();
+      if (h === "sonstiges" && s.payload?.heating_other) h = s.payload.heating_other;
+      if (h) m.set(h, (m.get(h) || 0) + 1);
+    });
+    return Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
+  }, [step3Subs]);
+
+  // ---- STEP 5: Einschätzung (ETV-Ort, Kassenprüfung, Beirat) ----
   const step5Subs = submissions.filter((s: any) => s.step === 5);
   const etvLocations = useMemo(() => {
     const m = new Map<string, number>();
@@ -168,6 +179,11 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
   const cashAuditors = useMemo(() => {
     return step5Subs
       .filter((s: any) => s.payload?.willing_cash_audit === true)
+      .map((s: any) => ({ user_id: s.user_id, sub: s }));
+  }, [step5Subs]);
+  const beiratVolunteers = useMemo(() => {
+    return step5Subs
+      .filter((s: any) => s.payload?.willing_beirat === true)
       .map((s: any) => ({ user_id: s.user_id, sub: s }));
   }, [step5Subs]);
 
@@ -308,7 +324,7 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
               </div>
             </AccordionTrigger>
             <AccordionContent>
-              <div className="grid sm:grid-cols-2 gap-4 mb-4">
+              <div className="grid sm:grid-cols-3 gap-4 mb-4">
                 <div className="rounded-md border p-3">
                   <div className="flex items-center gap-2 text-sm font-medium mb-1">
                     <Star className="h-4 w-4 text-warning" />
@@ -320,6 +336,24 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
                   <div className="text-xs text-muted-foreground">
                     {ratings.length} {ratings.length === 1 ? "Eigentümer" : "Eigentümer"} haben bewertet
                   </div>
+                </div>
+                <div className="rounded-md border p-3">
+                  <div className="flex items-center gap-2 text-sm font-medium mb-2">
+                    <Flame className="h-4 w-4 text-warning" />
+                    Heizungsart (genannt)
+                  </div>
+                  {heatingCounts.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Keine Angabe.</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {heatingCounts.slice(0, 5).map(([h, count]) => (
+                        <div key={h} className="flex items-center justify-between text-xs">
+                          <span className="capitalize truncate">{h}</span>
+                          <Badge variant="outline">{count}×</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="rounded-md border p-3">
                   <div className="flex items-center gap-2 text-sm font-medium mb-2">
@@ -425,7 +459,7 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
               </div>
             </AccordionTrigger>
             <AccordionContent>
-              <div className="grid sm:grid-cols-2 gap-4">
+              <div className="grid sm:grid-cols-3 gap-4">
                 <div className="rounded-md border p-3">
                   <div className="flex items-center gap-2 text-sm font-medium mb-2">
                     <MapPin className="h-4 w-4" />
@@ -454,6 +488,24 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
                   ) : (
                     <div className="space-y-1">
                       {cashAuditors.map(({ user_id }) => (
+                        <div key={user_id} className="text-xs flex items-center gap-1.5">
+                          <Badge variant="default" className="text-[10px]">✓</Badge>
+                          {nameOf(user_id)}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="rounded-md border p-3">
+                  <div className="flex items-center gap-2 text-sm font-medium mb-2">
+                    <Users className="h-4 w-4 text-primary" />
+                    Bereit für Verwaltungsbeirat
+                  </div>
+                  {beiratVolunteers.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Noch niemand bereit.</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {beiratVolunteers.map(({ user_id }) => (
                         <div key={user_id} className="text-xs flex items-center gap-1.5">
                           <Badge variant="default" className="text-[10px]">✓</Badge>
                           {nameOf(user_id)}

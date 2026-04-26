@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 
 export interface Step5Data {
   willing_cash_audit?: boolean | null;
+  willing_beirat?: boolean | null;
   etv_location?: string;
   notes?: string;
 }
@@ -43,6 +44,42 @@ export const Step5Einschaetzung = ({ value, onChange }: Props) => {
                   key={String(v)}
                   type="button"
                   onClick={() => set({ willing_cash_audit: v })}
+                  className={cn(
+                    "h-12 rounded-[10px] border px-3 flex items-center gap-2.5 text-[13.5px] font-medium transition",
+                    sel
+                      ? "border-primary bg-primary/[0.06] text-primary"
+                      : "border-border/60 bg-card text-foreground hover:bg-accent/40"
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "size-[18px] shrink-0 rounded-full border-[1.5px] grid place-items-center transition",
+                      sel ? "border-primary" : "border-muted-foreground/40"
+                    )}
+                  >
+                    {sel && <span className="size-[9px] rounded-full bg-primary" />}
+                  </span>
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </SectionCard>
+
+      <SectionCard label="VERWALTUNGSBEIRAT">
+        <div className="p-3">
+          <div className="grid grid-cols-2 gap-2.5">
+            {[
+              { v: true, label: "Ja, gerne" },
+              { v: false, label: "Lieber nicht" },
+            ].map(({ v, label }) => {
+              const sel = value.willing_beirat === v;
+              return (
+                <button
+                  key={String(v)}
+                  type="button"
+                  onClick={() => set({ willing_beirat: v })}
                   className={cn(
                     "h-12 rounded-[10px] border px-3 flex items-center gap-2.5 text-[13.5px] font-medium transition",
                     sel

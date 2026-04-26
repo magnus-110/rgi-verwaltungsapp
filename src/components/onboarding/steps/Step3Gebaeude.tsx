@@ -1,20 +1,23 @@
-import { Check, Home, Building2, ArrowUpDown, Archive, DoorOpen, MoreHorizontal } from "lucide-react";
+import { Check, Home, Building2, ArrowUpDown, Archive, DoorOpen, MoreHorizontal, Flame } from "lucide-react";
 import { SectionCard } from "../ui/SectionCard";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 export type ProblemAreaId = "dach" | "fassade" | "treppenhaus" | "keller" | "eingang" | "sonstiges";
+
+export type HeatingTypeId = "gas" | "oel" | "fernwaerme" | "waermepumpe" | "pellets" | "strom" | "unbekannt" | "sonstiges";
 
 export interface Step3Data {
   /** 1 = schlecht, 5 = gut */
   general_impression_score?: number;
   problem_areas?: ProblemAreaId[];
   problem_notes?: Record<string, string>;
+  heating_type?: HeatingTypeId | string;
+  heating_other?: string;
   notes?: string;
   // legacy fields tolerated
   general_impression?: "gut" | "mittel" | "schlecht";
-  heating_type?: string;
-  heating_other?: string;
   reorder_contact?: string;
   etv_location?: string;
 }
@@ -31,6 +34,17 @@ const AREAS: { id: ProblemAreaId; name: string; subtitle: string; Icon: typeof H
   { id: "keller", name: "Keller", subtitle: "Feuchte / Ordnung", Icon: Archive },
   { id: "eingang", name: "Eingang", subtitle: "Türen / Klingel", Icon: DoorOpen },
   { id: "sonstiges", name: "Sonstiges", subtitle: "Frei beschreibbar", Icon: MoreHorizontal },
+];
+
+const HEATING_TYPES: { id: HeatingTypeId; label: string }[] = [
+  { id: "gas", label: "Gas" },
+  { id: "oel", label: "Öl" },
+  { id: "fernwaerme", label: "Fernwärme" },
+  { id: "waermepumpe", label: "Wärmepumpe" },
+  { id: "pellets", label: "Pellets" },
+  { id: "strom", label: "Strom" },
+  { id: "unbekannt", label: "Weiß ich nicht" },
+  { id: "sonstiges", label: "Sonstiges" },
 ];
 
 export const Step3Gebaeude = ({ value, onChange }: Props) => {
@@ -54,6 +68,41 @@ export const Step3Gebaeude = ({ value, onChange }: Props) => {
 
   return (
     <div className="space-y-2.5">
+      <SectionCard label="HEIZUNGSART (OPTIONAL)">
+        <div className="p-3 space-y-2.5">
+          <div className="grid grid-cols-2 gap-2">
+            {HEATING_TYPES.map(({ id, label }) => {
+              const sel = value.heating_type === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => set({ heating_type: id, ...(id !== "sonstiges" ? { heating_other: undefined } : {}) })}
+                  className={cn(
+                    "h-11 rounded-[10px] border px-3 flex items-center gap-2 text-[13px] font-medium transition",
+                    sel
+                      ? "border-primary bg-primary/[0.06] text-primary"
+                      : "border-border/60 bg-card text-foreground hover:bg-accent/40"
+                  )}
+                >
+                  <Flame className={cn("size-4 shrink-0", sel ? "text-primary" : "text-muted-foreground")} />
+                  <span className="truncate">{label}</span>
+                </button>
+              );
+            })}
+          </div>
+          {value.heating_type === "sonstiges" && (
+            <Textarea
+              rows={2}
+              value={value.heating_other ?? ""}
+              onChange={(e) => set({ heating_other: e.target.value })}
+              placeholder="Bitte beschreiben"
+              className="border-0 bg-[hsl(var(--input))] focus-visible:ring-0 resize-none rounded-lg px-3 py-2.5 text-[14px]"
+            />
+          )}
+        </div>
+      </SectionCard>
+
       <SectionCard label="BEREICHE MIT AUFFÄLLIGKEITEN (OPTIONAL)" flat>
         <div className="p-3 space-y-2">
           {AREAS.map(({ id, name, subtitle, Icon }) => {

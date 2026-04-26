@@ -138,7 +138,11 @@ Deno.serve(async (req) => {
         }
         case "gebaeudeinformationen": {
           const update: Record<string, any> = {};
-          if (payload.heating_type) update.heating_type = payload.heating_type;
+          if (payload.heating_type) {
+            update.heating_type = payload.heating_type === "sonstiges" && payload.heating_other
+              ? payload.heating_other
+              : payload.heating_type;
+          }
           if (Object.keys(update).length > 0) {
             await admin.from("buildings").update(update).eq("id", buildingId);
           }
@@ -215,6 +219,14 @@ Deno.serve(async (req) => {
             await admin
               .from("contact_building_assignments")
               .update({ is_cash_auditor: true })
+              .eq("contact_id", contactId)
+              .eq("building_id", buildingId);
+          }
+          // Beirat-Bereitschaft → role_in_building = 'beirat'
+          if (payload.willing_beirat === true && contactId) {
+            await admin
+              .from("contact_building_assignments")
+              .update({ role_in_building: "beirat" })
               .eq("contact_id", contactId)
               .eq("building_id", buildingId);
           }
