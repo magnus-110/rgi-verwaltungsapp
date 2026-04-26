@@ -71,18 +71,22 @@ export const Step5Einschaetzung = ({ value, onChange }: Props) => {
       </SectionCard>
 
       <SectionCard label="VERWALTUNGSBEIRAT">
-        <div className="p-3">
+        <div className="p-3 space-y-2">
+          <div className="text-[12px] text-muted-foreground">
+            Sind Sie aktuell gewähltes Mitglied des Verwaltungsbeirats?
+          </div>
           <div className="grid grid-cols-2 gap-2.5">
             {[
-              { v: true, label: "Ja, gerne" },
-              { v: false, label: "Lieber nicht" },
+              { v: true, label: "Ja, ich bin Mitglied" },
+              { v: false, label: "Nein, kein Mitglied" },
             ].map(({ v, label }) => {
-              const sel = value.willing_beirat === v;
+              const current = value.is_beirat_member ?? value.willing_beirat ?? null;
+              const sel = current === v;
               return (
                 <button
                   key={String(v)}
                   type="button"
-                  onClick={() => set({ willing_beirat: v })}
+                  onClick={() => set({ is_beirat_member: v, willing_beirat: undefined })}
                   className={cn(
                     "h-12 rounded-[10px] border px-3 flex items-center gap-2.5 text-[13.5px] font-medium transition",
                     sel
