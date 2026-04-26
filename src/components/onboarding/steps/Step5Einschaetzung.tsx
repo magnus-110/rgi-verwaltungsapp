@@ -5,6 +5,9 @@ import { cn } from "@/lib/utils";
 
 export interface Step5Data {
   willing_cash_audit?: boolean | null;
+  /** Ist die Person bereits gewähltes Mitglied im Verwaltungsbeirat? */
+  is_beirat_member?: boolean | null;
+  /** Legacy: frühere Bereitschaftsfrage */
   willing_beirat?: boolean | null;
   etv_location?: string;
   notes?: string;
