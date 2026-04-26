@@ -1,58 +1,136 @@
+# Step 1 Onboarding — Final Plan
 
-# Onboarding-Wizard: Welcome-Screen + neuer Header + neuer Fortschrittsbalken
+## Ziel
+1. **Hauptansprechpartner-UI** im Radio-Card-Design (siehe Screenshot)
+2. **Vorausfüllen** mit bereits hinterlegten Kontaktdaten
+3. **Gebäudespezifische Überschreibung** statt globaler Mutation
 
-Basierend auf den Screenshots passe ich den Wizard so an:
+---
 
-## 1. Echtes RGI-Logo statt SVG-Wordmark
-- `RgiWordmark.tsx` wird ersetzt: statt des handgezeichneten Haus-SVG + Text wird das offizielle Logo `/lovable-uploads/8c5a36ed-b686-4ac4-a6ec-5f337fd466b7.png` eingebunden (Höhe ~28 px, `object-contain`, links ausgerichtet).
-- Verwendet im Top-Bar des Modals.
+## 1. Datenmodell-Verständnis (bestätigt aus DB)
 
-## 2. Neuer Fortschrittsbalken (Linien-Style statt Kreise)
-- Der bisherige `StepSlider` (Kreise mit Verbindungslinien) wird durch eine **Linien-Variante** ersetzt, die zum Screenshot passt:
-  - 5 gleichbreite, abgerundete Balken nebeneinander (`flex-1`, `h-1`, `rounded-full`, `gap-2`).
-  - Erledigte/aktive Schritte: vollflächig **Primary Orange** (`bg-primary`).
-  - Noch offene Schritte: hellgrau (`bg-muted`).
-  - Rechts daneben Text „1 / 5", „2 / 5" usw. in `text-muted-foreground`, `text-xs`.
-  - Schritt-Labels darunter werden entfernt (Screenshot zeigt sie nicht). Die Schrittübersicht steht im Welcome-Screen als „Was Sie erwartet"-Liste.
-- Klickbarkeit bleibt erhalten (Locking nach bisheriger Logik).
+| Ebene | Tabelle | Inhalt |
+|---|---|---|
+| **Global** (gilt überall) | `contacts` | `address_street`, `address_zip`, `address_city`, `notes` |
+| **Global** | `contact_persons` | Name, `email`, `phone`, `onboarding_expectations` |
+| **Global** | `contact_phones`, `contact_emails` | Mehrfacheinträge mit `note` |
+| **Global** | `contact_bank_accounts` | IBAN, SEPA-Ref |
+| **Gebäude-spezifisch** | `contact_building_assignments` | `unit_number`, `notes`, `bank_account_id`, etc. |
 
-## 3. NEU: Welcome-Screen (Schritt 0)
-Vor dem eigentlichen Schritt 1 erscheint ein Begrüßungs-Screen, exakt wie im Screenshot:
+→ Aktuell gibt es **keine** Spalten in `contact_building_assignments` für gebäudespezifische **Adresse / Telefon / E-Mail / Hauptansprechpartner**.
 
-**Inhalt:**
-- Überschrift in Century Gothic: „Herzlich willkommen bei **RGI Immobilien**!" (zweiter Teil in Primary Orange).
-- Zwei Begrüßungsabsätze:
-  1. „Wir freuen uns sehr, Sie als Eigentümer begrüßen zu dürfen, und danken Ihnen herzlich für das Vertrauen, das Sie uns mit der Verwaltung Ihrer WEG entgegenbringen."
-  2. „Bitte vervollständigen Sie in den folgenden Schritten Ihre persönlichen Stammdaten. Der Vorgang dauert nur wenige Minuten und kann jederzeit unterbrochen werden."
-- **„Was Sie erwartet"-Card** (weiße `SectionCard`, Label `WAS SIE ERWARTET` 10px uppercase):
-  - Eine Zeile pro Schritt mit:
-    - Nummer-Badge (28×28 Kreis): Schritt 1 = oranger Vollkreis mit weißer „1", Schritte 2–5 = grauer Outline-Kreis mit grauer Nummer.
-    - Step-Name (14px, `font-medium`).
-    - Pill rechts: „Pflicht" (Schritt 1, Primary-Orange-Hintergrund, weiß) bzw. „Optional" (Schritte 2–5, `bg-muted text-muted-foreground`).
-  - Trennlinien zwischen den Zeilen (`h-px bg-foreground/[0.055]`).
-- **Primary-Button** „Jetzt starten" (volle Breite).
-- **Subtext** darunter mittig: „Ihre Daten werden sicher gespeichert" (`text-xs text-muted-foreground`).
+---
 
-**Verhalten:**
-- Welcome-Screen erscheint nur, wenn weder Schritt 1 begonnen wurde noch `is_repeat_owner` gesetzt ist (also bei `progress.current_step === 1 && !progress.step1_completed_at && Object.keys(progress.step_data?.step1 ?? {}).length === 0`).
-- Beim Klick auf „Jetzt starten" wird der Welcome-State auf `false` gesetzt und der eigentliche Wizard angezeigt.
-- Im Welcome-State:
-  - Fortschrittsbalken: alle 5 Balken grau, Anzeige „0 / 5".
-  - Footer (Zurück/Weiter/Skip) ausgeblendet.
-  - Modal bleibt hard-locked (Schließen verhindert).
+## 2. Neue Spalten in `contact_building_assignments` (Migration)
 
-## 4. Top-Bar-Anpassung
-- Top-Bar weiterhin sticky, weiß, mit `border-b`.
-- Links: neues Logo-`<img>`.
-- Rechts: bisheriger „X / 5 erledigt"-Text entfällt — wird durch das „1 / 5" am Fortschrittsbalken ersetzt.
-- Höhe leicht erhöht auf ~52px für bessere Logo-Darstellung.
+Damit Änderungen während des Onboardings **nur für dieses Gebäude** wirken — nicht global —, brauchen wir Override-Felder:
 
-## 5. Kohärenz mit bestehenden Schritten
-- Keine Änderung an den Step-Komponenten 1–5 selbst — nur Modal-Shell, Header, Fortschrittsbalken und neuer Welcome-Screen.
-- Auto-Save (`useStepAutoSave`) und Submit-Logik bleiben unverändert.
+```sql
+ALTER TABLE public.contact_building_assignments
+  ADD COLUMN address_street_override text,
+  ADD COLUMN address_zip_override text,
+  ADD COLUMN address_city_override text,
+  ADD COLUMN phones_override jsonb,        -- [{number, note}]
+  ADD COLUMN emails_override jsonb,        -- [{address}]
+  ADD COLUMN iban_override text,
+  ADD COLUMN primary_contact_self boolean, -- true = Eigentümer selbst
+  ADD COLUMN primary_contact_other jsonb,  -- {name, relation, street, zip, city, phone, email}
+  ADD COLUMN expectations_override text;
+```
 
-## Geänderte / neue Dateien
-- `src/components/onboarding/ui/RgiWordmark.tsx` — wird zu echtem Logo (`<img>`).
-- `src/components/onboarding/ui/StepSlider.tsx` — komplett neu als Linien-Variante mit „n / 5"-Anzeige.
-- `src/components/onboarding/ui/WelcomeScreen.tsx` — **NEU**: Welcome-Screen-Komponente inkl. „Was Sie erwartet"-Liste und „Jetzt starten"-Button.
-- `src/components/onboarding/OnboardingWizardModal.tsx` — Welcome-State integriert, Top-Bar/Slider-Layout angepasst.
+**Logik:** Wenn ein Override-Feld gesetzt ist, gilt es **für dieses Gebäude**. Ansonsten Fallback auf den globalen Wert in `contacts` / `contact_persons`.
+
+---
+
+## 3. Edge Function: neue `prefill-onboarding-step1`
+
+Lädt **vorhandene Daten** aus mehreren Quellen und mergt sie zu einem Step1-Objekt:
+
+```
+1. Lade contact_building_assignments (für dieses building+contact)
+   → falls Overrides vorhanden, bevorzugen
+2. Sonst Fallback:
+   - contacts.address_street/zip/city
+   - contact_phones (alle, mit note)
+   - contact_emails (alle)
+   - contact_bank_accounts.iban (default)
+   - contact_persons[primary].onboarding_expectations
+```
+
+Frontend ruft das beim Öffnen von Step 1 auf und hydriert das Formular.
+
+---
+
+## 4. Edge Function: `submit-onboarding-step` erweitern
+
+Bei `step === 1` schreibt sie **ausschließlich** in `contact_building_assignments` (Overrides):
+
+```typescript
+await admin.from("contact_building_assignments").update({
+  address_street_override: payload.street,
+  address_zip_override: payload.zip,
+  address_city_override: payload.city,
+  phones_override: payload.phones,
+  emails_override: payload.emails,
+  iban_override: payload.iban?.replace(/\s/g, "").toUpperCase(),
+  primary_contact_self: payload.contact_self,
+  primary_contact_other: payload.contact_self === false ? payload.contact_other : null,
+  expectations_override: payload.expectations || null,
+}).eq("contact_id", contactId).eq("building_id", building_id);
+```
+
+→ **`contacts` / `contact_persons` / `contact_phones` / `contact_emails` / `contact_bank_accounts` werden NICHT angefasst.** Globale Stammdaten bleiben unberührt.
+
+Admin sieht später im Building-Hub → People-Tab den Override und kann entscheiden, ob er ihn ins globale Profil übernimmt.
+
+---
+
+## 5. UI-Refactor `Step1Stammdaten.tsx`
+
+### a) Hauptansprechpartner als Radio-Cards (Screenshot-Design)
+- Zwei Karten nebeneinander (`grid-cols-2`)
+- Aktiv: `border-primary`, `bg-primary/5`, oranger Radio-Indicator (Außenring + innerer Punkt)
+- Inaktiv: `border-border/60`, `bg-card`, leerer Kreis
+- Beim Wechsel auf "Andere Person" klappt das Subformular auf
+
+### b) Prefill-Logik
+```tsx
+useEffect(() => {
+  if (!buildingId || !contactId) return;
+  supabase.functions.invoke("prefill-onboarding-step1", {
+    body: { building_id: buildingId }
+  }).then(({ data }) => {
+    if (data) onChange({ ...data, ...currentValue }); // user-Edits gewinnen
+  });
+}, [buildingId]);
+```
+
+### c) Hinweis-Banner (wenn vorausgefüllt)
+> *"Wir haben Ihre bisher hinterlegten Daten geladen. Änderungen gelten nur für dieses Gebäude."*
+
+---
+
+## 6. Globale Anzeige-Helfer (optional, nice-to-have)
+
+Eine View `v_contact_building_effective` die für jede Assignment die effektiven Daten liefert (Override > Global). Damit kann das Admin-UI später konsistent „die echte Adresse für Haus X" anzeigen.
+
+→ **Für diese Iteration erst mal nicht nötig** — kann nachgeliefert werden, wenn das Building-Hub-UI das anzeigen soll.
+
+---
+
+## Files
+
+**Migration (neu):** Spalten in `contact_building_assignments`
+**Neu:** `supabase/functions/prefill-onboarding-step1/index.ts`
+**Editiert:** `supabase/functions/submit-onboarding-step/index.ts` (Step 1 → Overrides schreiben, nichts global mutieren)
+**Editiert:** `src/components/onboarding/steps/Step1Stammdaten.tsx` (Radio-Cards + Prefill-Hook + Hinweis)
+**Editiert:** `src/components/onboarding/OnboardingWizardModal.tsx` (Prefill beim Step-1-Mount triggern, falls dort orchestriert)
+
+---
+
+## Zusammengefasste Garantien
+- ✅ Nutzer sieht eigene Daten vorausgefüllt
+- ✅ Änderungen wirken **nur** für das aktuelle Gebäude
+- ✅ Globale `contacts`-Stammdaten bleiben unverändert
+- ✅ Admin kann später Overrides ins globale Profil heben (separater Workflow)
+- ✅ Strikte relationale Vernetzung: jeder Override hängt an `building_id` + `contact_id`
