@@ -395,7 +395,7 @@ export const validateStep1 = (d: Step1Data): string | null => {
     return "Bitte mindestens eine Telefonnummer angeben.";
   if (!d.iban?.trim()) return "Bitte IBAN angeben.";
   if (!isValidIbanFormat(d.iban))
-    return "Bitte gültige IBAN im Format DE00 0000 0000 0000 0000 00 eingeben.";
+    return "Bitte vollständige deutsche IBAN eingeben (DE + 20 Ziffern).";
   if (d.contact_self === undefined) return "Bitte Ansprechpartner wählen.";
   if (d.contact_self === false) {
     const name = d.contact_other?.name ?? d.contact_other_name;
