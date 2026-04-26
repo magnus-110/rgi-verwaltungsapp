@@ -106,7 +106,6 @@ Deno.serve(async (req) => {
         user_id: userId,
         contact_id: contactId,
         building_id,
-        step: stepNum,
         category,
         payload: payload || {},
         status: "pending",
