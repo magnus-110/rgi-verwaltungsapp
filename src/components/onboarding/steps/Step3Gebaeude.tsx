@@ -55,6 +55,23 @@ export const Step3Gebaeude = ({ value, onChange }: Props) => {
   const areas = value.problem_areas ?? [];
   const problemNotes = value.problem_notes ?? {};
 
+  // Migrate legacy single heating_type to heating_types[]
+  const heatings: HeatingTypeId[] =
+    value.heating_types && value.heating_types.length
+      ? value.heating_types
+      : value.heating_type
+        ? [value.heating_type as HeatingTypeId]
+        : [];
+
+  const toggleHeating = (id: HeatingTypeId) => {
+    const next = heatings.includes(id)
+      ? heatings.filter((h) => h !== id)
+      : [...heatings, id];
+    const patch: Partial<Step3Data> = { heating_types: next, heating_type: undefined };
+    if (!next.includes("sonstiges")) patch.heating_other = undefined;
+    set(patch);
+  };
+
   const toggleArea = (id: ProblemAreaId) => {
     if (areas.includes(id)) {
       const nextNotes = { ...problemNotes };
@@ -71,16 +88,16 @@ export const Step3Gebaeude = ({ value, onChange }: Props) => {
 
   return (
     <div className="space-y-2.5">
-      <SectionCard label="HEIZUNGSART (OPTIONAL)">
+      <SectionCard label="HEIZUNGSART (MEHRFACHAUSWAHL MÖGLICH)">
         <div className="p-3 space-y-2.5">
           <div className="grid grid-cols-2 gap-2">
-            {HEATING_TYPES.map(({ id, label }) => {
-              const sel = value.heating_type === id;
+            {HEATING_TYPES.map(({ id, label, Icon }) => {
+              const sel = heatings.includes(id);
               return (
                 <button
                   key={id}
                   type="button"
-                  onClick={() => set({ heating_type: id, ...(id !== "sonstiges" ? { heating_other: undefined } : {}) })}
+                  onClick={() => toggleHeating(id)}
                   className={cn(
                     "h-11 rounded-[10px] border px-3 flex items-center gap-2 text-[13px] font-medium transition",
                     sel
@@ -88,13 +105,14 @@ export const Step3Gebaeude = ({ value, onChange }: Props) => {
                       : "border-border/60 bg-card text-foreground hover:bg-accent/40"
                   )}
                 >
-                  <Flame className={cn("size-4 shrink-0", sel ? "text-primary" : "text-muted-foreground")} />
-                  <span className="truncate">{label}</span>
+                  <Icon className={cn("size-4 shrink-0", sel ? "text-primary" : "text-muted-foreground")} />
+                  <span className="truncate flex-1 text-left">{label}</span>
+                  {sel && <Check className="size-3.5 text-primary shrink-0" strokeWidth={3} />}
                 </button>
               );
             })}
           </div>
-          {value.heating_type === "sonstiges" && (
+          {heatings.includes("sonstiges") && (
             <Textarea
               rows={2}
               value={value.heating_other ?? ""}
