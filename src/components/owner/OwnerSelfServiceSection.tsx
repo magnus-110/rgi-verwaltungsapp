@@ -5,8 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Plus, Trash2, User, Phone, Mail, CreditCard, MapPin } from "lucide-react";
+
+const SALUTATION_OPTIONS = ["Herr", "Frau", "Divers", "Familie", "Firma"];
 
 interface Contact {
   id: string;
@@ -171,7 +174,19 @@ export const OwnerSelfServiceSection = () => {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Anrede</Label>
-              <Input value={contact.salutation ?? ""} onChange={(e) => setContact({ ...contact, salutation: e.target.value })} />
+              <Select
+                value={contact.salutation ?? ""}
+                onValueChange={(v) => setContact({ ...contact, salutation: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Bitte wählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SALUTATION_OPTIONS.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1.5">
               <Label>Firma</Label>
@@ -217,12 +232,11 @@ export const OwnerSelfServiceSection = () => {
         <CardContent className="space-y-2">
           {phones.map((p) => (
             <div key={p.id} className="flex gap-2 items-center">
-              <Input className="w-32" placeholder="Label" value={p.label ?? ""} onChange={(e) => updatePhone(p.id, { label: e.target.value })} onBlur={() => savePhone(p)} />
               <Input placeholder="Telefonnummer" value={p.phone_number ?? ""} onChange={(e) => updatePhone(p.id, { phone_number: e.target.value })} onBlur={() => savePhone(p)} />
               <Button variant="ghost" size="icon" onClick={() => deletePhone(p.id)}><Trash2 className="h-4 w-4" /></Button>
             </div>
           ))}
-          <Button variant="outline" size="sm" onClick={addPhone}><Plus className="h-4 w-4 mr-1" /> Hinzufügen</Button>
+          <Button variant="outline" size="sm" onClick={addPhone}><Plus className="h-4 w-4 mr-1" /> Weitere hinzufügen</Button>
         </CardContent>
       </Card>
 
@@ -234,12 +248,11 @@ export const OwnerSelfServiceSection = () => {
         <CardContent className="space-y-2">
           {emails.map((e) => (
             <div key={e.id} className="flex gap-2 items-center">
-              <Input className="w-32" placeholder="Label" value={e.label ?? ""} onChange={(ev) => updateEmail(e.id, { label: ev.target.value })} onBlur={() => saveEmail(e)} />
               <Input placeholder="E-Mail" value={e.email ?? ""} onChange={(ev) => updateEmail(e.id, { email: ev.target.value })} onBlur={() => saveEmail(e)} />
               <Button variant="ghost" size="icon" onClick={() => deleteEmail(e.id)}><Trash2 className="h-4 w-4" /></Button>
             </div>
           ))}
-          <Button variant="outline" size="sm" onClick={addEmail}><Plus className="h-4 w-4 mr-1" /> Hinzufügen</Button>
+          <Button variant="outline" size="sm" onClick={addEmail}><Plus className="h-4 w-4 mr-1" /> Weitere hinzufügen</Button>
         </CardContent>
       </Card>
 
