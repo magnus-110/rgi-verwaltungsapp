@@ -736,6 +736,66 @@ export type Database = {
           },
         ]
       }
+      building_assessments: {
+        Row: {
+          building_id: string
+          condition_rating: number | null
+          contact_id: string | null
+          created_at: string
+          etv_location_suggestion: string | null
+          id: string
+          notes: string | null
+          problem_areas: string[]
+          source: string
+          updated_at: string
+          user_id: string | null
+          willing_cash_audit: boolean | null
+        }
+        Insert: {
+          building_id: string
+          condition_rating?: number | null
+          contact_id?: string | null
+          created_at?: string
+          etv_location_suggestion?: string | null
+          id?: string
+          notes?: string | null
+          problem_areas?: string[]
+          source?: string
+          updated_at?: string
+          user_id?: string | null
+          willing_cash_audit?: boolean | null
+        }
+        Update: {
+          building_id?: string
+          condition_rating?: number | null
+          contact_id?: string | null
+          created_at?: string
+          etv_location_suggestion?: string | null
+          id?: string
+          notes?: string | null
+          problem_areas?: string[]
+          source?: string
+          updated_at?: string
+          user_id?: string | null
+          willing_cash_audit?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "building_assessments_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "building_assessments_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       building_documents: {
         Row: {
           building_id: string | null
@@ -1130,12 +1190,66 @@ export type Database = {
           },
         ]
       }
+      building_service_providers: {
+        Row: {
+          building_id: string
+          category: string | null
+          created_at: string
+          created_by: string | null
+          email: string | null
+          id: string
+          name: string
+          notes: string | null
+          phone: string | null
+          source: string
+          suggested_by_count: number
+          updated_at: string
+        }
+        Insert: {
+          building_id: string
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          phone?: string | null
+          source?: string
+          suggested_by_count?: number
+          updated_at?: string
+        }
+        Update: {
+          building_id?: string
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          source?: string
+          suggested_by_count?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "building_service_providers_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       buildings: {
         Row: {
           address: string
           booking_instructions: string | null
           building_code: string
           created_at: string | null
+          etv_default_location: string | null
           heating_type: string | null
           id: string
           management_mode: Database["public"]["Enums"]["management_mode"]
@@ -1152,6 +1266,7 @@ export type Database = {
           booking_instructions?: string | null
           building_code: string
           created_at?: string | null
+          etv_default_location?: string | null
           heating_type?: string | null
           id?: string
           management_mode: Database["public"]["Enums"]["management_mode"]
@@ -1168,6 +1283,7 @@ export type Database = {
           booking_instructions?: string | null
           building_code?: string
           created_at?: string | null
+          etv_default_location?: string | null
           heating_type?: string | null
           id?: string
           management_mode?: Database["public"]["Enums"]["management_mode"]
@@ -2145,6 +2261,7 @@ export type Database = {
           address_city_override: string | null
           address_street_override: string | null
           address_zip_override: string | null
+          area_sqm_override: number | null
           bank_account_id: string | null
           building_id: string
           contact_id: string
@@ -2175,6 +2292,7 @@ export type Database = {
           address_city_override?: string | null
           address_street_override?: string | null
           address_zip_override?: string | null
+          area_sqm_override?: number | null
           bank_account_id?: string | null
           building_id: string
           contact_id: string
@@ -2205,6 +2323,7 @@ export type Database = {
           address_city_override?: string | null
           address_street_override?: string | null
           address_zip_override?: string | null
+          area_sqm_override?: number | null
           bank_account_id?: string | null
           building_id?: string
           contact_id?: string
