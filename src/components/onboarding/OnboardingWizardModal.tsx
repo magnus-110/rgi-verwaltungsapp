@@ -103,6 +103,9 @@ export const OnboardingWizardModal = ({
   const isStep1HardLocked =
     step === 1 && !progress.step1_completed_at && !progress.is_repeat_owner;
 
+  const isEmptyData = (data: any) =>
+    !data || Object.values(data).every((v) => v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0));
+
   const handleSubmitStep = async () => {
     if (step === 1) {
       const err = validateStep1(currentData as Step1Data);
@@ -111,6 +114,14 @@ export const OnboardingWizardModal = ({
         return;
       }
     }
+
+    // Steps 2-5 sind optional: bei leeren Daten einfach weiter ohne Submit
+    if (step > 1 && isEmptyData(currentData)) {
+      if (step < 5) setStep(step + 1);
+      else onComplete();
+      return;
+    }
+
     setSubmitting(true);
     try {
       const { error } = await supabase.functions.invoke("submit-onboarding-step", {
@@ -127,19 +138,24 @@ export const OnboardingWizardModal = ({
       if (step < 5) setStep(step + 1);
       else onComplete();
     } catch (e: any) {
-      toast({
-        title: "Fehler",
-        description: e?.message ?? "Eingabe konnte nicht gespeichert werden.",
-        variant: "destructive",
-      });
+      // Bei optionalen Schritten Fehler nicht blockieren - weitergehen
+      if (step > 1) {
+        toast({
+          title: "Hinweis",
+          description: "Eingabe konnte nicht gespeichert werden, Sie können trotzdem fortfahren.",
+        });
+        if (step < 5) setStep(step + 1);
+        else onComplete();
+      } else {
+        toast({
+          title: "Fehler",
+          description: e?.message ?? "Eingabe konnte nicht gespeichert werden.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const handleSkip = () => {
-    if (step < 5) setStep(step + 1);
-    else onComplete();
   };
 
   const renderStep = () => {
