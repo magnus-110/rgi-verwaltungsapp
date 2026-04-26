@@ -59,6 +59,7 @@ export const OnboardingWizardModal = ({
   const [step, setStep] = useState<number>(progress.current_step || 1);
   const [stepData, setStepData] = useState<Record<string, any>>(progress.step_data || {});
   const [submitting, setSubmitting] = useState(false);
+  const [justFinished, setJustFinished] = useState(false);
 
   // Welcome-Screen nur beim allerersten Öffnen anzeigen
   const initialStep1 = (progress.step_data as any)?.step1;
