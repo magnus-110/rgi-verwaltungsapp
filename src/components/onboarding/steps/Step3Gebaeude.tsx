@@ -63,18 +63,6 @@ export const Step3Gebaeude = ({ value, onChange }: Props) => {
 
   return (
     <div className="space-y-2.5">
-      <SectionCard label="GESAMTEINDRUCK">
-        <div className="p-4">
-          <RangeSlider
-            value={value.general_impression_score ?? 3}
-            onChange={(v) => set({ general_impression_score: v })}
-            descriptions={IMPRESSION_DESCRIPTIONS}
-            lowLabel="Schlecht"
-            highLabel="Gut"
-          />
-        </div>
-      </SectionCard>
-
       <SectionCard label="BEREICHE MIT AUFFÄLLIGKEITEN (OPTIONAL)" flat>
         <div className="p-3 space-y-2">
           {AREAS.map(({ id, name, subtitle, Icon }) => {
