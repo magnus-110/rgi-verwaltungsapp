@@ -1,22 +1,26 @@
-import { Check, Home, Building2, ArrowUpDown, Archive, DoorOpen, MoreHorizontal, Flame } from "lucide-react";
+import {
+  Check, Home, Building2, ArrowUpDown, Archive, DoorOpen, MoreHorizontal,
+  Flame, Droplet, Radio, Snowflake, Trees, Zap, MoreHorizontal as Dots,
+} from "lucide-react";
 import { SectionCard } from "../ui/SectionCard";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 export type ProblemAreaId = "dach" | "fassade" | "treppenhaus" | "keller" | "eingang" | "sonstiges";
 
-export type HeatingTypeId = "gas" | "oel" | "fernwaerme" | "waermepumpe" | "pellets" | "strom" | "unbekannt" | "sonstiges";
+export type HeatingTypeId = "gas" | "oel" | "fernwaerme" | "waermepumpe" | "pellets" | "strom" | "sonstiges";
 
 export interface Step3Data {
   /** 1 = schlecht, 5 = gut */
   general_impression_score?: number;
   problem_areas?: ProblemAreaId[];
   problem_notes?: Record<string, string>;
-  heating_type?: HeatingTypeId | string;
+  /** Mehrfachauswahl möglich (z. B. Hybrid) */
+  heating_types?: HeatingTypeId[];
   heating_other?: string;
   notes?: string;
   // legacy fields tolerated
+  heating_type?: HeatingTypeId | string;
   general_impression?: "gut" | "mittel" | "schlecht";
   reorder_contact?: string;
   etv_location?: string;
@@ -36,15 +40,14 @@ const AREAS: { id: ProblemAreaId; name: string; subtitle: string; Icon: typeof H
   { id: "sonstiges", name: "Sonstiges", subtitle: "Frei beschreibbar", Icon: MoreHorizontal },
 ];
 
-const HEATING_TYPES: { id: HeatingTypeId; label: string }[] = [
-  { id: "gas", label: "Gas" },
-  { id: "oel", label: "Öl" },
-  { id: "fernwaerme", label: "Fernwärme" },
-  { id: "waermepumpe", label: "Wärmepumpe" },
-  { id: "pellets", label: "Pellets" },
-  { id: "strom", label: "Strom" },
-  { id: "unbekannt", label: "Weiß ich nicht" },
-  { id: "sonstiges", label: "Sonstiges" },
+const HEATING_TYPES: { id: HeatingTypeId; label: string; Icon: typeof Flame }[] = [
+  { id: "gas", label: "Gas", Icon: Flame },
+  { id: "oel", label: "Öl", Icon: Droplet },
+  { id: "fernwaerme", label: "Fernwärme", Icon: Radio },
+  { id: "waermepumpe", label: "Wärmepumpe", Icon: Snowflake },
+  { id: "pellets", label: "Pellets", Icon: Trees },
+  { id: "strom", label: "Strom", Icon: Zap },
+  { id: "sonstiges", label: "Sonstiges", Icon: Dots },
 ];
 
 export const Step3Gebaeude = ({ value, onChange }: Props) => {
