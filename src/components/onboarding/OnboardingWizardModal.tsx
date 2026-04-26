@@ -260,7 +260,7 @@ export const OnboardingWizardModal = ({
             <Button
               variant="outline"
               size="icon"
-              onClick={() => setStep(step - 1)}
+              onClick={async () => { await flush(); setStep(step - 1); }}
               disabled={submitting || isStep1HardLocked || step <= 1}
               className="border-border/60"
               aria-label="Zurück"
