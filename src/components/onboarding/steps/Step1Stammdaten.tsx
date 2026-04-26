@@ -1,8 +1,11 @@
+import { useEffect, useRef } from "react";
 import { SectionCard } from "../ui/SectionCard";
 import { EmbeddedInput } from "../ui/InlineField";
 import { MultiEntryList } from "../ui/MultiEntryList";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { Info } from "lucide-react";
 
 export type PhoneType = "private" | "mobile" | "business";
 export interface PhoneEntry { number: string; type?: PhoneType; note?: string }
@@ -38,10 +41,38 @@ export interface Step1Data {
 interface Props {
   value: Step1Data;
   onChange: (next: Step1Data) => void;
+  buildingId?: string;
 }
 
-export const Step1Stammdaten = ({ value, onChange }: Props) => {
+export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
   const set = (patch: Partial<Step1Data>) => onChange({ ...value, ...patch });
+  const prefilledRef = useRef(false);
+  const hasOverridesRef = useRef(false);
+
+  useEffect(() => {
+    if (!buildingId || prefilledRef.current) return;
+    // Skip prefill if user has already typed something
+    const hasUserInput =
+      value.street || value.zip || value.city ||
+      (value.phones && value.phones.length > 0) ||
+      (value.emails && value.emails.length > 0) ||
+      value.iban || value.contact_self !== undefined;
+    if (hasUserInput) {
+      prefilledRef.current = true;
+      return;
+    }
+    prefilledRef.current = true;
+    supabase.functions
+      .invoke("prefill-onboarding-step1", { body: { building_id: buildingId } })
+      .then(({ data }) => {
+        if (data?.prefilled && data?.data) {
+          hasOverridesRef.current = !!data.hasOverrides;
+          onChange({ ...data.data, ...value });
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buildingId]);
 
   const phones: PhoneEntry[] =
     value.phones && value.phones.length > 0
@@ -62,6 +93,14 @@ export const Step1Stammdaten = ({ value, onChange }: Props) => {
 
   return (
     <div className="space-y-2.5">
+      {hasOverridesRef.current && (
+        <div className="flex gap-2 items-start rounded-[12px] bg-primary/5 border border-primary/20 px-3 py-2.5 text-[12px] text-foreground/80">
+          <Info className="size-4 text-primary shrink-0 mt-0.5" />
+          <span>
+            Wir haben Ihre bisher hinterlegten Daten geladen. Änderungen gelten <b>nur für dieses Gebäude</b> und überschreiben nicht Ihr globales Profil.
+          </span>
+        </div>
+      )}
       <SectionCard label="WOHNANSCHRIFT">
         <div className="px-4 py-3 space-y-2">
           <EmbeddedInput

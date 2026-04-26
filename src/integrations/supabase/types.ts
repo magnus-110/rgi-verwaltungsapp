@@ -2142,14 +2142,23 @@ export type Database = {
       }
       contact_building_assignments: {
         Row: {
+          address_city_override: string | null
+          address_street_override: string | null
+          address_zip_override: string | null
           bank_account_id: string | null
           building_id: string
           contact_id: string
           created_at: string
+          emails_override: Json | null
+          expectations_override: string | null
           floor_location: string | null
+          iban_override: string | null
           id: string
           is_active: boolean | null
           notes: string | null
+          phones_override: Json | null
+          primary_contact_other: Json | null
+          primary_contact_self: boolean | null
           role_in_building:
             | Database["public"]["Enums"]["contact_building_role"]
             | null
@@ -2162,14 +2171,23 @@ export type Database = {
           valid_to: string | null
         }
         Insert: {
+          address_city_override?: string | null
+          address_street_override?: string | null
+          address_zip_override?: string | null
           bank_account_id?: string | null
           building_id: string
           contact_id: string
           created_at?: string
+          emails_override?: Json | null
+          expectations_override?: string | null
           floor_location?: string | null
+          iban_override?: string | null
           id?: string
           is_active?: boolean | null
           notes?: string | null
+          phones_override?: Json | null
+          primary_contact_other?: Json | null
+          primary_contact_self?: boolean | null
           role_in_building?:
             | Database["public"]["Enums"]["contact_building_role"]
             | null
@@ -2182,14 +2200,23 @@ export type Database = {
           valid_to?: string | null
         }
         Update: {
+          address_city_override?: string | null
+          address_street_override?: string | null
+          address_zip_override?: string | null
           bank_account_id?: string | null
           building_id?: string
           contact_id?: string
           created_at?: string
+          emails_override?: Json | null
+          expectations_override?: string | null
           floor_location?: string | null
+          iban_override?: string | null
           id?: string
           is_active?: boolean | null
           notes?: string | null
+          phones_override?: Json | null
+          primary_contact_other?: Json | null
+          primary_contact_self?: boolean | null
           role_in_building?:
             | Database["public"]["Enums"]["contact_building_role"]
             | null

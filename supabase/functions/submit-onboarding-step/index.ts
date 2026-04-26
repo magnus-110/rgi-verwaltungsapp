@@ -70,10 +70,35 @@ Deno.serve(async (req) => {
       progressId = created.id;
     }
 
-    // Step 1 (Stammdaten/SEPA) -> live persisted, no admin approval
+    // Step 1 (Stammdaten) -> writes building-specific overrides ONLY.
+    // Global contacts / contact_persons / contact_phones / contact_emails / contact_bank_accounts are NOT touched.
     if (stepNum === 1) {
-      // Caller frontend already wrote contact + IBAN data via supabase-js (RLS allowed).
-      // Here we only mark it as completed.
+      if (!contactId) {
+        return json({ error: "No contact assignment found for user/building" }, 400);
+      }
+      const p = payload || {};
+      const ibanClean = typeof p.iban === "string" ? p.iban.replace(/\s/g, "").toUpperCase() : null;
+      const overrideUpdate: Record<string, any> = {
+        address_street_override: p.street ?? null,
+        address_zip_override: p.zip ?? null,
+        address_city_override: p.city ?? null,
+        phones_override: Array.isArray(p.phones) ? p.phones : null,
+        emails_override: Array.isArray(p.emails) ? p.emails : null,
+        iban_override: ibanClean || null,
+        primary_contact_self: typeof p.contact_self === "boolean" ? p.contact_self : null,
+        primary_contact_other: p.contact_self === false ? p.contact_other ?? null : null,
+        expectations_override: p.expectations || null,
+        updated_at: new Date().toISOString(),
+      };
+      const { error: ovErr } = await admin
+        .from("contact_building_assignments")
+        .update(overrideUpdate)
+        .eq("contact_id", contactId)
+        .eq("building_id", building_id);
+      if (ovErr) {
+        console.error("override update error", ovErr);
+        return json({ error: ovErr.message }, 500);
+      }
     } else {
       // Create submission record for admin review
       const category = STEP_CATEGORIES[stepNum];
