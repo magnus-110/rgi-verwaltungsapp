@@ -97,11 +97,11 @@ export const OwnerSelfServiceSection = () => {
         .eq("is_active", true),
       personIds.length
         ? supabase.from("contact_phones").select("phone_number").in("contact_person_id", personIds)
-        : Promise.resolve({ data: [] as any[] }),
+        : Promise.resolve({ data: [] as any[] } as any),
       personIds.length
         ? supabase.from("contact_emails").select("email").in("contact_person_id", personIds)
-        : Promise.resolve({ data: [] as any[] }),
-    ]);
+        : Promise.resolve({ data: [] as any[] } as any),
+    ]) as any;
     setBanks((bk ?? []) as Bank[]);
 
     const globalPhonesArr = (globalPhones ?? [])
