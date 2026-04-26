@@ -14,6 +14,11 @@ import {
   User, Home, Building2, Wrench, Sparkles, AlertTriangle, CheckCircle2,
   TrendingUp, MapPin, Star, Flame, Users,
 } from "lucide-react";
+import { ApplyFieldButton } from "./ApplyFieldButton";
+import { SERVICE_PROVIDER_CATEGORIES } from "@/lib/serviceProviderCategories";
+
+const TRADE_LABEL = (id: string) =>
+  SERVICE_PROVIDER_CATEGORIES.find((c) => c.id === id)?.label || id;
 
 interface Props {
   buildingId: string;
