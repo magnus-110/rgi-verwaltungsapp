@@ -85,6 +85,7 @@ Deno.serve(async (req) => {
         phones_override: Array.isArray(p.phones) ? p.phones : null,
         emails_override: Array.isArray(p.emails) ? p.emails : null,
         iban_override: ibanClean || null,
+        iban_holder_override: typeof p.account_holder === "string" ? p.account_holder.trim() || null : null,
         primary_contact_self: typeof p.contact_self === "boolean" ? p.contact_self : null,
         primary_contact_other: p.contact_self === false ? p.contact_other ?? null : null,
         expectations_override: p.expectations || null,
