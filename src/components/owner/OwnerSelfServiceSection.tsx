@@ -89,7 +89,17 @@ export const OwnerSelfServiceSection = () => {
         .eq("is_active", true),
     ]);
     setBanks((bk ?? []) as Bank[]);
-    setAssignments((asg ?? []) as unknown as AssignmentRow[]);
+    // Normalize phones/emails — DB may store {number, note} or {phone_number}, and {address} or {email}
+    const normalized = (asg ?? []).map((row: any) => ({
+      ...row,
+      phones_override: Array.isArray(row.phones_override)
+        ? row.phones_override.map((p: any) => ({ phone_number: p?.phone_number ?? p?.number ?? "" }))
+        : null,
+      emails_override: Array.isArray(row.emails_override)
+        ? row.emails_override.map((e: any) => ({ email: e?.email ?? e?.address ?? "" }))
+        : null,
+    }));
+    setAssignments(normalized as unknown as AssignmentRow[]);
     setLoading(false);
   };
 
