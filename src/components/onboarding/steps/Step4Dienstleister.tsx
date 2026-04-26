@@ -157,19 +157,14 @@ export const Step4Dienstleister = ({ buildingId, value, onChange }: Props) => {
                 className={cn(
                   "size-10 rounded-full grid place-items-center font-display text-[14px] shrink-0 transition",
                   sel
-                    ? "bg-success text-success-foreground"
+                    ? "bg-success/15 text-success"
                     : "bg-muted text-muted-foreground group-hover:bg-muted/80"
                 )}
               >
-                {sel ? <Check className="size-5" strokeWidth={3} /> : initials(s.name)}
+                {sel ? <Check className="size-5" strokeWidth={2.5} /> : initials(s.name)}
               </span>
               <div className="flex-1 min-w-0">
-                <div
-                  className={cn(
-                    "text-[14px] font-semibold leading-tight truncate transition",
-                    sel ? "text-foreground" : "text-foreground"
-                  )}
-                >
+                <div className="text-[14px] font-semibold leading-tight truncate text-foreground">
                   {s.name}
                 </div>
                 <div className="text-[11px] text-muted-foreground mt-0.5">
@@ -179,10 +174,10 @@ export const Step4Dienstleister = ({ buildingId, value, onChange }: Props) => {
               <span
                 className={cn(
                   "size-[22px] rounded-full border-[1.5px] grid place-items-center shrink-0 transition",
-                  sel ? "border-success bg-success" : "border-border bg-card"
+                  sel ? "border-success/50 bg-success/15" : "border-border bg-card"
                 )}
               >
-                {sel && <Check className="size-3 text-success-foreground" strokeWidth={3} />}
+                {sel && <Check className="size-3 text-success" strokeWidth={3} />}
               </span>
             </button>
           );
