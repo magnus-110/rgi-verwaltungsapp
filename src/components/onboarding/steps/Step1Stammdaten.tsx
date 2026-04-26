@@ -361,19 +361,27 @@ const Field = ({
   </div>
 );
 
-// IBAN helpers
+// IBAN helpers — German IBAN only: starts with "DE" + 20 digits = 22 chars
 const formatIban = (raw: string): string => {
   const clean = raw.replace(/\s+/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
   return clean.match(/.{1,4}/g)?.join(" ") ?? "";
 };
 
+/** Strict sanitizer for paste/typing: only "DE" + digits, max 22 chars, formatted with spaces. */
+const sanitizeGermanIbanInput = (raw: string): string => {
+  let clean = raw.replace(/\s+/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  // Force "DE" prefix
+  if (clean.length >= 1 && clean[0] !== "D") clean = "D" + clean.replace(/^D/, "");
+  if (clean.length >= 2 && clean[1] !== "E") clean = clean[0] + "E" + clean.slice(2).replace(/[^0-9]/g, "");
+  // After "DE", only digits allowed
+  if (clean.length > 2) clean = clean.slice(0, 2) + clean.slice(2).replace(/[^0-9]/g, "");
+  if (clean.length > 22) clean = clean.slice(0, 22);
+  return clean.match(/.{1,4}/g)?.join(" ") ?? "";
+};
+
 const isValidIbanFormat = (iban: string): boolean => {
   const clean = iban.replace(/\s/g, "").toUpperCase();
-  // Basic format: 2 letters + 2 digits + up to 30 alphanumerics, length 15-34
-  if (!/^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(clean)) return false;
-  // German IBAN must be exactly 22 chars
-  if (clean.startsWith("DE") && clean.length !== 22) return false;
-  return true;
+  return /^DE\d{20}$/.test(clean);
 };
 
 export const validateStep1 = (d: Step1Data): string | null => {
