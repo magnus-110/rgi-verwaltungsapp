@@ -459,51 +459,6 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
         }}
       />
 
-      {/* Submission Inbox */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Inbox className="h-5 w-5" /> Freigaben ({submissions.length})
-          </CardTitle>
-          <CardDescription>
-            Eingaben der Eigentümer, die übernommen oder abgelehnt werden müssen.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {submissions.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-4 text-center">
-              Keine offenen Freigaben.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {submissions.map((s: any) => (
-                <button
-                  key={s.id}
-                  onClick={() => {
-                    setReviewItem(s);
-                    setReviewNote("");
-                    setMarkGlobal(false);
-                  }}
-                  className="w-full flex items-center justify-between rounded-md border p-3 hover:bg-muted/40 text-left"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <Badge variant="secondary">{CATEGORY_LABEL[s.category] || s.category}</Badge>
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium truncate">{nameOf(s.user_id)}</div>
-                      <div className="text-xs text-muted-foreground">
-                        Schritt {s.step} ·{" "}
-                        {format(new Date(s.created_at), "dd.MM.yyyy HH:mm", { locale: de })}
-                      </div>
-                    </div>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                </button>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
       {/* Review Dialog */}
       <Dialog open={!!reviewItem} onOpenChange={(o) => !o && setReviewItem(null)}>
         <DialogContent className="max-w-2xl">
