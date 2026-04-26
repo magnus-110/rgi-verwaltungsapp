@@ -155,7 +155,7 @@ Deno.serve(async (req) => {
           )
         }
         
-        const existingUser = existingUsers.users.find(user => user.email === userData.email)
+        const existingUser = (existingUsers.users as any[]).find((user: any) => user.email === userData.email)
         if (!existingUser) {
           return new Response(
             JSON.stringify({ 

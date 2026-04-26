@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
     } else {
       // Check if auth user with this email exists
       const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
-      const existingUser = existingUsers?.users?.find(u => u.email === email)
+      const existingUser = (existingUsers?.users as any[] | undefined)?.find((u: any) => u.email === email)
 
       if (existingUser) {
         authUserId = existingUser.id
