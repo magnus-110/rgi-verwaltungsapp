@@ -401,7 +401,18 @@ function AssignmentEditor({
                 <Label className="text-xs">Bestehende Bankverbindung wählen</Label>
                 <Select
                   value={a.bank_account_id ?? "__none__"}
-                  onValueChange={(v) => update({ bank_account_id: v === "__none__" ? null : v })}
+                  onValueChange={(v) => {
+                    if (v === "__none__") {
+                      update({ bank_account_id: null });
+                      return;
+                    }
+                    const sel = bankOptions.find((b) => b.id === v);
+                    update({
+                      bank_account_id: v,
+                      iban_override: sel?.iban ?? null,
+                      iban_holder_override: sel?.account_holder ?? null,
+                    });
+                  }}
                 >
                   <SelectTrigger><SelectValue placeholder="— Keine Auswahl —" /></SelectTrigger>
                   <SelectContent>
