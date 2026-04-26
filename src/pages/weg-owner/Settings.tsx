@@ -75,52 +75,11 @@ export const WegOwnerSettings = () => {
      <div className="max-w-4xl mx-auto space-y-6 p-4">
        <div className="mb-6">
          <h1 className="text-2xl font-bold text-foreground">Einstellungen</h1>
-         <p className="text-muted-foreground">Verwalten Sie Ihre Kontodaten und Gebäude-Zuordnungen</p>
+         <p className="text-muted-foreground">Verwalten Sie Ihre Kontodaten und Wohnungen</p>
        </div>
       <OwnerSelfServiceSection />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Building2 className="w-5 h-5" />
-            Gebäude-Verwaltung
-          </CardTitle>
-           <CardDescription>
-             Ihre zugeordneten Gebäude. Zuordnungen werden durch die Verwaltung vorgenommen.
-           </CardDescription>
-         </CardHeader>
-         <CardContent className="space-y-4">
-           {isLoading ? (
-             <div className="text-center py-4">
-               <p className="text-muted-foreground">Laden...</p>
-             </div>
-           ) : buildings.length === 0 ? (
-             <div className="text-center py-8 border border-dashed rounded-lg">
-               <Building2 className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-               <p className="text-muted-foreground">Noch keine Gebäude zugeordnet</p>
-               <p className="text-sm text-muted-foreground mt-2">
-                 Wenden Sie sich an die Verwaltung, um Gebäude zugeordnet zu bekommen.
-               </p>
-             </div>
-           ) : (
-             <div className="space-y-2">
-               {buildings.map((building) => (
-                 <div key={building.id} className="flex items-center justify-between p-3 border rounded-lg">
-                   <div className="flex items-center gap-3">
-                     <Building2 className="w-4 h-4 text-muted-foreground" />
-                     <div className="flex flex-col">
-                       <span className="font-medium">{(building as any).buildings?.name || 'Unbekanntes Gebäude'}</span>
-                       <span className="text-sm text-muted-foreground">{(building as any).buildings?.address}</span>
-                       
-                     </div>
-                   </div>
-                 </div>
-               ))}
-             </div>
-           )}
-         </CardContent>
-       </Card>
- 
+
        <Card>
          <CardHeader>
            <CardTitle>Passwort ändern</CardTitle>
