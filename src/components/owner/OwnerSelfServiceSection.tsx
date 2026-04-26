@@ -182,7 +182,7 @@ export const OwnerSelfServiceSection = () => {
                   <SelectValue placeholder="Bitte wählen" />
                 </SelectTrigger>
                 <SelectContent>
-                  {SALUTATION_OPTIONS.map((s) => (
+                  {SALUTATIONS.map((s) => (
                     <SelectItem key={s} value={s}>{s}</SelectItem>
                   ))}
                 </SelectContent>
