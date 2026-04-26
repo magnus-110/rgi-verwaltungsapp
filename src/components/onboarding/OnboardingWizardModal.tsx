@@ -114,7 +114,7 @@ export const OnboardingWizardModal = ({
     setSubmitting(true);
     try {
       const { error } = await supabase.functions.invoke("submit-onboarding-step", {
-        body: { progress_id: progress.id, step, data: currentData },
+        body: { building_id: progress.building_id, step, payload: currentData },
       });
       if (error) throw error;
       toast({

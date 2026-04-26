@@ -1,8 +1,11 @@
+import { useEffect, useRef } from "react";
 import { SectionCard } from "../ui/SectionCard";
 import { EmbeddedInput } from "../ui/InlineField";
 import { MultiEntryList } from "../ui/MultiEntryList";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { Info } from "lucide-react";
 
 export type PhoneType = "private" | "mobile" | "business";
 export interface PhoneEntry { number: string; type?: PhoneType; note?: string }
