@@ -306,9 +306,9 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
                         <TableRow key={s.id} className={s.status === "pending" ? "cursor-pointer" : ""} onClick={() => s.status === "pending" && onOpenSubmission?.(s)}>
                           <TableCell className="font-medium">{nameOf(s.user_id)}</TableCell>
                           <TableCell>{a?.unit_number || "—"}</TableCell>
-                          <TableCell className="text-right">{p.qm ?? "—"}</TableCell>
-                          <TableCell className="text-right">{p.mea ?? "—"}</TableCell>
-                          <TableCell className="text-right">{p.hausgeld ? `${p.hausgeld} €` : "—"}</TableCell>
+                          <TableCell className="text-right">{p.square_meters ?? p.qm ?? "—"}</TableCell>
+                          <TableCell className="text-right">{p.mea_share ?? p.mea ?? "—"}</TableCell>
+                          <TableCell className="text-right">{(p.monthly_fee ?? p.hausgeld) ? `${p.monthly_fee ?? p.hausgeld} €` : "—"}</TableCell>
                           <TableCell className="text-right">
                             <Badge variant={s.status === "approved" ? "default" : s.status === "rejected" ? "destructive" : "secondary"}>
                               {s.status === "pending" ? "Offen" : s.status === "approved" ? "Übernommen" : "Abgelehnt"}
