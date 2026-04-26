@@ -149,7 +149,7 @@ export const Step4Dienstleister = ({ buildingId, value, onChange }: Props) => {
               className={cn(
                 "w-full rounded-[14px] border-[1.5px] p-3.5 flex items-center gap-3 text-left transition group",
                 sel
-                  ? "border-success bg-success/8 shadow-[0_1px_0_hsl(var(--success)/0.12)]"
+                  ? "border-success/50 bg-success/10"
                   : "border-border/60 bg-card hover:border-border hover:bg-muted/30"
               )}
             >
