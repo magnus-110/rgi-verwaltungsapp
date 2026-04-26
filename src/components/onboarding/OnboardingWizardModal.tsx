@@ -59,6 +59,7 @@ export const OnboardingWizardModal = ({
   const [step, setStep] = useState<number>(progress.current_step || 1);
   const [stepData, setStepData] = useState<Record<string, any>>(progress.step_data || {});
   const [submitting, setSubmitting] = useState(false);
+  const [justFinished, setJustFinished] = useState(false);
 
   // Welcome-Screen nur beim allerersten Öffnen anzeigen
   const initialStep1 = (progress.step_data as any)?.step1;
@@ -98,7 +99,7 @@ export const OnboardingWizardModal = ({
   );
 
   const completedCount = Object.values(completed).filter(Boolean).length;
-  const allDone = completedCount === 5 || !!progress.fully_completed_at;
+  const allDone = justFinished || completedCount === 5 || !!progress.fully_completed_at;
 
   const isStep1HardLocked =
     step === 1 && !progress.step1_completed_at && !progress.is_repeat_owner;
@@ -115,11 +116,11 @@ export const OnboardingWizardModal = ({
       }
     }
 
-    // Steps 2-5 sind optional: bei leeren Daten einfach weiter ohne Submit
-    if (step > 1 && isEmptyData(currentData)) {
+    // Steps 2-4 sind optional: bei leeren Daten einfach weiter ohne Submit.
+    // Step 5 muss IMMER submittet werden (auch leer), damit der Onboarding-Status korrekt abgeschlossen wird.
+    if (step > 1 && step < 5 && isEmptyData(currentData)) {
       await flush();
-      if (step < 5) setStep(step + 1);
-      else onComplete();
+      setStep(step + 1);
       return;
     }
 
@@ -130,24 +131,24 @@ export const OnboardingWizardModal = ({
         body: { building_id: progress.building_id, step, payload: currentData },
       });
       if (error) throw error;
-      toast({
-        title: step === 1 ? "Stammdaten gespeichert" : "Eingabe übermittelt",
-        description:
-          step === 1
-            ? "Ihre Daten wurden direkt übernommen."
-            : "Die Verwaltung prüft Ihre Angaben.",
-      });
-      if (step < 5) setStep(step + 1);
-      else onComplete();
+      if (step < 5) {
+        toast({
+          title: step === 1 ? "Stammdaten gespeichert" : "Eingabe übermittelt",
+          description:
+            step === 1
+              ? "Ihre Daten wurden direkt übernommen."
+              : "Die Verwaltung prüft Ihre Angaben.",
+        });
+        setStep(step + 1);
+      } else {
+        // Step 5 abgeschlossen → Dankesdialog im Modal anzeigen
+        setJustFinished(true);
+      }
     } catch (e: any) {
       // Bei optionalen Schritten Fehler nicht blockieren - weitergehen
       if (step > 1) {
-        toast({
-          title: "Hinweis",
-          description: "Eingabe konnte nicht gespeichert werden, Sie können trotzdem fortfahren.",
-        });
         if (step < 5) setStep(step + 1);
-        else onComplete();
+        else setJustFinished(true);
       } else {
         toast({
           title: "Fehler",
@@ -236,7 +237,13 @@ export const OnboardingWizardModal = ({
         {/* Scroll area */}
         <div className="flex-1 overflow-y-auto px-4 py-5">
           {allDone ? (
-            <CompletionScreen onClose={() => onOpenChange(false)} completed={completed} />
+            <CompletionScreen
+              onClose={() => {
+                onComplete();
+                onOpenChange(false);
+              }}
+              completed={justFinished ? { 1: true, 2: true, 3: true, 4: true, 5: true } : completed}
+            />
           ) : showWelcome ? (
             <WelcomeScreen onStart={() => setShowWelcome(false)} />
           ) : (
@@ -298,43 +305,78 @@ const CompletionScreen = ({
 }) => {
   const stepNames = ["Stammdaten", "Wohnungsdaten", "Gebäude-Eindruck", "Dienstleister", "Weiteres"];
   return (
-    <div className="text-center py-6 space-y-5 max-w-md mx-auto">
-      <div className="inline-flex size-16 items-center justify-center rounded-full bg-primary mx-auto">
-        <Check className="size-8 text-primary-foreground" strokeWidth={3} />
-      </div>
-      <div className="space-y-1.5">
-        <h2 className="font-display text-2xl text-foreground">Onboarding abgeschlossen</h2>
-        <p className="text-[13px] text-muted-foreground">
-          Vielen Dank! Die Verwaltung meldet sich, sobald Ihre Angaben geprüft sind.
-        </p>
-      </div>
-
-      <div className="bg-card rounded-[14px] border border-border/60 p-4 space-y-2.5 text-left">
-        {stepNames.map((name, i) => {
-          const n = i + 1;
-          const isDone = completed[n];
-          const status = n === 1 ? "Übernommen" : "In Prüfung";
-          const statusCls = n === 1 ? "text-success" : "text-muted-foreground";
-          return (
-            <div key={n} className="flex items-center gap-3">
-              <span
-                className={cn(
-                  "size-5 rounded-full grid place-items-center shrink-0",
-                  isDone ? "bg-primary" : "bg-muted"
-                )}
-              >
-                {isDone && <Check className="size-3 text-primary-foreground" strokeWidth={3} />}
-              </span>
-              <span className="flex-1 text-[14px] text-foreground">{name}</span>
-              <span className={cn("text-[12px]", statusCls)}>{isDone ? status : "Übersprungen"}</span>
-            </div>
-          );
-        })}
+    <div className="max-w-md mx-auto space-y-7 py-3">
+      <div className="bg-card rounded-[16px] border border-border/50 overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+        <div className="h-1 bg-primary" />
+        <div className="px-5 py-6 space-y-5 text-center">
+          <div className="inline-flex size-14 items-center justify-center rounded-full bg-primary/10 mx-auto">
+            <Check className="size-7 text-primary" strokeWidth={2.5} />
+          </div>
+          <h1 className="font-display !font-normal text-[26px] leading-[1.2] tracking-[-0.01em] text-foreground">
+            Vielen <span className="text-primary font-medium">Dank!</span>
+          </h1>
+          <div className="space-y-3 text-[14px] leading-[1.7] text-foreground/75 text-left">
+            <p>
+              Sie haben das Onboarding erfolgreich abgeschlossen. Wir freuen uns
+              sehr, Sie als Eigentümer begrüßen zu dürfen.
+            </p>
+            <p>
+              Ihre Stammdaten wurden direkt übernommen. Die übrigen Angaben
+              werden von der Verwaltung geprüft — Sie hören in Kürze von uns.
+            </p>
+          </div>
+        </div>
       </div>
 
-      <Button onClick={onClose} className="w-full sm:w-auto px-8">
-        Zur App
-      </Button>
+      <div className="bg-card rounded-[16px] border border-border/50 px-5 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+        <div className="text-[10px] font-semibold tracking-[0.16em] text-muted-foreground/80 uppercase mb-3">
+          Ihre Eingaben
+        </div>
+        <ul className="divide-y divide-border/40">
+          {stepNames.map((name, i) => {
+            const n = i + 1;
+            const isDone = completed[n];
+            const status = !isDone ? "Übersprungen" : n === 1 ? "Übernommen" : "In Prüfung";
+            const statusCls = !isDone
+              ? "bg-secondary text-muted-foreground"
+              : n === 1
+                ? "bg-success/15 text-success"
+                : "bg-primary/10 text-primary";
+            return (
+              <li key={n} className="flex items-center gap-3.5 py-3 first:pt-1 last:pb-1">
+                <span
+                  className={cn(
+                    "size-7 shrink-0 rounded-full grid place-items-center transition-colors",
+                    isDone
+                      ? "bg-primary text-primary-foreground"
+                      : "border border-border bg-background text-muted-foreground"
+                  )}
+                >
+                  {isDone ? <Check className="size-3.5" strokeWidth={3} /> : n}
+                </span>
+                <span className="flex-1 text-[14px] text-foreground font-medium">{name}</span>
+                <span
+                  className={cn(
+                    "text-[10.5px] px-2.5 py-1 rounded-full font-semibold tracking-wide uppercase",
+                    statusCls
+                  )}
+                >
+                  {status}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
+      <div className="space-y-2.5">
+        <Button
+          onClick={onClose}
+          className="w-full h-12 text-[15px] font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-[12px] shadow-[0_4px_14px_-4px_hsl(var(--primary)/0.4)]"
+        >
+          Zur App
+        </Button>
+      </div>
     </div>
   );
 };
