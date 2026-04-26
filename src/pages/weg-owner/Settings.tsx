@@ -7,6 +7,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "@/hooks/use-toast";
 import { LegalDocumentsSheet } from "@/components/LegalDocumentsSheet";
 import { OwnerSelfServiceSection } from "@/components/owner/OwnerSelfServiceSection";
+import { supabase } from "@/integrations/supabase/client";
+import { Mail, Info } from "lucide-react";
 
 export const WegOwnerSettings = () => {
   const { profile, updatePassword } = useAuth();
@@ -14,6 +16,49 @@ export const WegOwnerSettings = () => {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+  const [legalSheetOpen, setLegalSheetOpen] = useState(false);
+  const [legalSheetTab, setLegalSheetTab] = useState<"agb" | "datenschutz">("agb");
+
+  // Login email change
+  const [currentLoginEmail, setCurrentLoginEmail] = useState<string>("");
+  const [newEmail, setNewEmail] = useState("");
+  const [isUpdatingEmail, setIsUpdatingEmail] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setCurrentLoginEmail(data.user?.email ?? "");
+    });
+  }, []);
+
+  const handleEmailChange = async () => {
+    const trimmed = newEmail.trim();
+    if (!trimmed) {
+      toast({ title: "Fehler", description: "Bitte geben Sie eine neue E-Mail-Adresse ein.", variant: "destructive" });
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      toast({ title: "Fehler", description: "Bitte geben Sie eine gültige E-Mail-Adresse ein.", variant: "destructive" });
+      return;
+    }
+    if (trimmed.toLowerCase() === currentLoginEmail.toLowerCase()) {
+      toast({ title: "Hinweis", description: "Das ist bereits Ihre aktuelle Login-E-Mail.", variant: "destructive" });
+      return;
+    }
+    setIsUpdatingEmail(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ email: trimmed });
+      if (error) throw error;
+      toast({
+        title: "Bestätigungs-E-Mail versendet",
+        description: `Wir haben eine Bestätigungs-E-Mail an ${trimmed} gesendet. Klicken Sie dort auf den Link, um die Änderung abzuschließen.`,
+      });
+      setNewEmail("");
+    } catch (e: any) {
+      toast({ title: "Fehler", description: e?.message || "E-Mail konnte nicht geändert werden.", variant: "destructive" });
+    } finally {
+      setIsUpdatingEmail(false);
+    }
+  };
   const [legalSheetOpen, setLegalSheetOpen] = useState(false);
   const [legalSheetTab, setLegalSheetTab] = useState<"agb" | "datenschutz">("agb");
 
