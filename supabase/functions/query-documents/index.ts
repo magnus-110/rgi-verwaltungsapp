@@ -1123,7 +1123,7 @@ BEISPIELE:
       if (relevantChunks.length > 0) {
         console.log(`Found ${relevantChunks.length} relevant document chunks for web agent context`);
         
-        const uniqueDocumentIds = [...new Set(relevantChunks.map(chunk => chunk.document_id).filter(Boolean))];
+        const uniqueDocumentIds = [...new Set(relevantChunks.map(chunk => chunk.document_id).filter(Boolean))] as string[];
         const documentMap = await getDocumentInfoWithUrls(supabase, uniqueDocumentIds);
         
         documentContext = relevantChunks.map((chunk, index) => {
