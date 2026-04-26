@@ -4728,6 +4728,7 @@ export type Database = {
       }
       onboarding_submissions: {
         Row: {
+          applied_fields: Json
           building_id: string
           category: string
           contact_id: string | null
@@ -4742,6 +4743,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          applied_fields?: Json
           building_id: string
           category: string
           contact_id?: string | null
@@ -4756,6 +4758,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          applied_fields?: Json
           building_id?: string
           category?: string
           contact_id?: string | null
