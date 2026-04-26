@@ -303,7 +303,7 @@ const CompletionScreen = ({
   onClose: () => void;
   completed: Record<number, boolean>;
 }) => {
-  const stepNames = ["Stammdaten", "Wohnungsdaten", "Gebäude-Eindruck", "Dienstleister", "Weiteres"];
+  const stepNames = ["Stammdaten", "Wohnungsdaten", "Gebäude", "Dienstleister", "Weiteres"];
   return (
     <div className="max-w-md mx-auto space-y-7 py-3">
       <div className="bg-card rounded-[16px] border border-border/50 overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
