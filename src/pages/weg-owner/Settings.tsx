@@ -59,9 +59,6 @@ export const WegOwnerSettings = () => {
       setIsUpdatingEmail(false);
     }
   };
-  const [legalSheetOpen, setLegalSheetOpen] = useState(false);
-  const [legalSheetTab, setLegalSheetTab] = useState<"agb" | "datenschutz">("agb");
-
   const openLegalSheet = (tab: "agb" | "datenschutz") => {
     setLegalSheetTab(tab);
     setLegalSheetOpen(true);
