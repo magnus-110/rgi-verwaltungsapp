@@ -16,23 +16,26 @@ const STEPS: { name: string; required: boolean }[] = [
 export const WelcomeScreen = ({ onStart }: WelcomeScreenProps) => {
   return (
     <div className="max-w-md mx-auto space-y-7 py-3">
-      <div className="space-y-5">
-        <h1 className="font-display !font-normal text-[30px] leading-[1.2] tracking-[-0.01em] text-foreground">
-          Herzlich willkommen
-          <br />
-          bei <span className="text-primary font-medium">RGI Immobilien!</span>
-        </h1>
-        <div className="space-y-3.5 text-[14px] leading-[1.7] text-foreground/75">
-          <p>
-            Wir freuen uns sehr, Sie als Eigentümer begrüßen zu dürfen, und
-            danken Ihnen herzlich für das Vertrauen, das Sie uns mit der
-            Verwaltung Ihrer WEG entgegenbringen.
-          </p>
-          <p>
-            Bitte vervollständigen Sie in den folgenden Schritten Ihre
-            persönlichen Stammdaten. Der Vorgang dauert nur wenige Minuten und
-            kann jederzeit unterbrochen werden.
-          </p>
+      <div className="bg-card rounded-[16px] border border-border/50 overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+        <div className="h-1 bg-primary" />
+        <div className="px-5 py-5 space-y-5">
+          <h1 className="font-display !font-normal text-[28px] leading-[1.2] tracking-[-0.01em] text-foreground">
+            Herzlich willkommen
+            <br />
+            bei <span className="text-primary font-medium">RGI Immobilien!</span>
+          </h1>
+          <div className="space-y-3.5 text-[14px] leading-[1.7] text-foreground/75">
+            <p>
+              Wir freuen uns sehr, Sie als Eigentümer begrüßen zu dürfen, und
+              danken Ihnen herzlich für das Vertrauen, das Sie uns mit der
+              Verwaltung Ihrer WEG entgegenbringen.
+            </p>
+            <p>
+              Bitte vervollständigen Sie in den folgenden Schritten Ihre
+              persönlichen Stammdaten. Der Vorgang dauert nur wenige Minuten und
+              kann jederzeit unterbrochen werden.
+            </p>
+          </div>
         </div>
       </div>
 
