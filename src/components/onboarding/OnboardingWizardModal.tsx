@@ -294,7 +294,7 @@ const CompletionScreen = ({
   onClose: () => void;
   completed: Record<number, boolean>;
 }) => {
-  const stepNames = ["Stammdaten", "Wohnungsdaten", "Gebäude-Eindruck", "Dienstleister", "Einschätzung"];
+  const stepNames = ["Stammdaten", "Wohnungsdaten", "Gebäude-Eindruck", "Dienstleister", "Weiteres"];
   return (
     <div className="text-center py-6 space-y-5 max-w-md mx-auto">
       <div className="inline-flex size-16 items-center justify-center rounded-full bg-primary mx-auto">
