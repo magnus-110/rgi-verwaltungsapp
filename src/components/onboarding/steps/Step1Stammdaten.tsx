@@ -72,9 +72,10 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
       .then(({ data }) => {
         if (data?.prefilled && data?.data) {
           hasOverridesRef.current = !!data.hasOverrides;
-          // Merge: prefilled fields fill the gaps, user input wins
           const latest = valueRef.current;
-          onChange({ ...data.data, ...latest });
+          const prefilled = { ...data.data };
+          if (prefilled.iban) prefilled.iban = formatIban(prefilled.iban);
+          onChange({ ...prefilled, ...latest });
         }
       })
       .catch(() => {});
