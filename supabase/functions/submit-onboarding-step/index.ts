@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
         return json({ error: ovErr.message }, 500);
       }
     } else {
-      // Create submission record for admin review
+      // Create submission record for admin review (best-effort: never blocks completion)
       const category = STEP_CATEGORIES[stepNum];
       const { error: subErr } = await admin.from("onboarding_submissions").insert({
         user_id: userId,
@@ -111,27 +111,41 @@ Deno.serve(async (req) => {
         status: "pending",
       });
       if (subErr) {
-        console.error("submission insert error", subErr);
-        return json({ error: subErr.message }, 500);
+        // Log but do NOT fail — progress completion must always be persisted.
+        console.error("submission insert error (non-fatal)", subErr);
       }
     }
 
-    // Mark step as completed (set stepN_completed_at)
+    // Mark step as completed (set stepN_completed_at) — idempotent
     const completionField = `step${stepNum}_completed_at`;
+    const nowIso = new Date().toISOString();
     const update: Record<string, any> = {
-      [completionField]: new Date().toISOString(),
+      [completionField]: nowIso,
       current_step: Math.min(stepNum + 1, 5),
-      updated_at: new Date().toISOString(),
+      updated_at: nowIso,
     };
-    if (stepNum === 5) update.fully_completed_at = new Date().toISOString();
+    if (stepNum === 5) update.fully_completed_at = nowIso;
 
-    const { error: updErr } = await admin
+    const { data: updated, error: updErr } = await admin
       .from("onboarding_progress")
       .update(update)
-      .eq("id", progressId);
-    if (updErr) return json({ error: updErr.message }, 500);
+      .eq("id", progressId)
+      .select("id, step5_completed_at, fully_completed_at")
+      .maybeSingle();
+    if (updErr) {
+      console.error("progress update error", updErr);
+      return json({ error: updErr.message }, 500);
+    }
+    if (!updated) {
+      return json({ error: "progress row not updated" }, 500);
+    }
 
-    return json({ success: true, progress_id: progressId, step: stepNum });
+    return json({
+      success: true,
+      progress_id: progressId,
+      step: stepNum,
+      fully_completed_at: (updated as any).fully_completed_at,
+    });
   } catch (e: any) {
     console.error("submit-onboarding-step error", e);
     return json({ error: e?.message || "Unknown error" }, 500);
