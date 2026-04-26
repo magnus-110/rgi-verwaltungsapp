@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
       current_step: Math.min(stepNum + 1, 5),
       updated_at: new Date().toISOString(),
     };
-    if (stepNum === 5) update.completed_at = new Date().toISOString();
+    if (stepNum === 5) update.fully_completed_at = new Date().toISOString();
 
     const { error: updErr } = await admin
       .from("onboarding_progress")
