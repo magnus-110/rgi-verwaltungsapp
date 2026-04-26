@@ -209,20 +209,24 @@ Deno.serve(async (req) => {
         // ---------- STEP 5: Einschätzung ----------
         case "cash_auditor": {
           if (!contactId) return json({ error: "Kein Kontakt zugeordnet" }, 400);
-          await admin
+          const { error: upErr, count } = await admin
             .from("contact_building_assignments")
-            .update({ is_cash_auditor: true })
+            .update({ is_cash_auditor: true }, { count: "exact" })
             .eq("contact_id", contactId)
             .eq("building_id", buildingId);
+          if (upErr) return json({ error: `DB-Fehler: ${upErr.message}` }, 500);
+          if (!count) return json({ error: "Keine Zuordnung gefunden zum Aktualisieren" }, 400);
           break;
         }
         case "beirat_member": {
           if (!contactId) return json({ error: "Kein Kontakt zugeordnet" }, 400);
-          await admin
+          const { error: upErr, count } = await admin
             .from("contact_building_assignments")
-            .update({ role_in_building: "beirat" })
+            .update({ role_in_building: "beirat" }, { count: "exact" })
             .eq("contact_id", contactId)
             .eq("building_id", buildingId);
+          if (upErr) return json({ error: `DB-Fehler: ${upErr.message}` }, 500);
+          if (!count) return json({ error: "Keine Zuordnung gefunden" }, 400);
           break;
         }
         case "etv_location": {
