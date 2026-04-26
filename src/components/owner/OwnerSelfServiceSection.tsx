@@ -337,13 +337,16 @@ function AssignmentEditor({
                   </Button>
                 </div>
               ))}
-              <Button
-                variant="outline"
-                size="sm"
+              <button
+                type="button"
                 onClick={() => update({ phones_override: [...(a.phones_override ?? []), { phone_number: "" }] })}
+                className="w-full px-4 py-2.5 flex items-center justify-center gap-2 text-sm font-medium text-primary border border-dashed border-primary/40 rounded-md hover:bg-accent/40 transition"
               >
-                <Plus className="h-4 w-4 mr-1" /> Telefonnummer hinzufügen
-              </Button>
+                <span className="size-[22px] rounded-full border-[1.5px] border-primary bg-accent grid place-items-center">
+                  <Plus className="size-3" strokeWidth={2.5} />
+                </span>
+                Telefonnummer hinzufügen
+              </button>
             </div>
 
             <div className="space-y-2">
@@ -371,13 +374,16 @@ function AssignmentEditor({
                   </Button>
                 </div>
               ))}
-              <Button
-                variant="outline"
-                size="sm"
+              <button
+                type="button"
                 onClick={() => update({ emails_override: [...(a.emails_override ?? []), { email: "" }] })}
+                className="w-full px-4 py-2.5 flex items-center justify-center gap-2 text-sm font-medium text-primary border border-dashed border-primary/40 rounded-md hover:bg-accent/40 transition"
               >
-                <Plus className="h-4 w-4 mr-1" /> E-Mail hinzufügen
-              </Button>
+                <span className="size-[22px] rounded-full border-[1.5px] border-primary bg-accent grid place-items-center">
+                  <Plus className="size-3" strokeWidth={2.5} />
+                </span>
+                E-Mail hinzufügen
+              </button>
             </div>
           </CardContent>
         </Card>
