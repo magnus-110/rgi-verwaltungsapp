@@ -149,12 +149,12 @@ export const Step4Dienstleister = ({ buildingId, value, onChange }: Props) => {
         )}
 
         {items.map((s) => {
-          const sel = selected.includes(s.id);
+          const sel = isSelected(s.id);
           return (
             <button
-              key={s.id}
+              key={`${s.id}-${s.category}`}
               type="button"
-              onClick={() => toggle(s.id)}
+              onClick={() => toggle(s.id, s.category)}
               className={cn(
                 "w-full rounded-[14px] border-[1.5px] p-3.5 flex items-center gap-3 text-left transition",
                 sel ? "border-primary bg-accent" : "border-border/60 bg-card hover:border-border"
