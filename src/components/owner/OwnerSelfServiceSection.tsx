@@ -310,6 +310,13 @@ export const OwnerSelfServiceSection = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Per-Wohnung Overrides (Accordion) */}
+      <AssignmentAccordionCard
+        assignments={assignments}
+        bankOptions={banks.map((b) => ({ id: b.id, iban: b.iban, account_holder: b.account_holder }))}
+        onChanged={load}
+      />
     </div>
   );
 };
