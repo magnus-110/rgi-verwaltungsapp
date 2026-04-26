@@ -368,28 +368,42 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
                     <TableRow>
                       <TableHead>Eigentümer</TableHead>
                       <TableHead>Einheit</TableHead>
-                      <TableHead className="text-right">m²</TableHead>
-                      <TableHead className="text-right">MEA</TableHead>
-                      <TableHead className="text-right">Hausgeld</TableHead>
-                      <TableHead className="text-right">Status</TableHead>
+                      <TableHead>m²</TableHead>
+                      <TableHead>MEA</TableHead>
+                      <TableHead>Hausgeld</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {step2Submissions.map((s: any) => {
                       const p = s.payload || {};
                       const a = assignmentByUser.get(s.user_id);
+                      const af: string[] = Array.isArray(s.applied_fields) ? s.applied_fields : [];
+                      const qm = p.square_meters ?? p.qm;
+                      const mea = p.mea_share ?? p.mea;
+                      const hg = p.monthly_fee ?? p.hausgeld;
+                      const cell = (val: any, suffix: string, field: "qm" | "mea" | "hausgeld") => {
+                        if (val == null || val === "") return <span className="text-muted-foreground">—</span>;
+                        const applied = af.includes(field);
+                        return (
+                          <div className={`flex items-center gap-2 rounded-md px-1.5 py-1 ${applied ? "bg-success/10 border border-success/30" : ""}`}>
+                            <span className="font-medium">{val}{suffix}</span>
+                            <ApplyFieldButton
+                              submissionId={s.id}
+                              field={field}
+                              applied={applied}
+                              buildingId={buildingId}
+                              label="Übernehmen"
+                            />
+                          </div>
+                        );
+                      };
                       return (
-                        <TableRow key={s.id} className={s.status === "pending" ? "cursor-pointer" : ""} onClick={() => s.status === "pending" && onOpenSubmission?.(s)}>
+                        <TableRow key={s.id}>
                           <TableCell className="font-medium">{nameOf(s.user_id)}</TableCell>
                           <TableCell>{a?.unit_number || "—"}</TableCell>
-                          <TableCell className="text-right">{p.square_meters ?? p.qm ?? "—"}</TableCell>
-                          <TableCell className="text-right">{p.mea_share ?? p.mea ?? "—"}</TableCell>
-                          <TableCell className="text-right">{(p.monthly_fee ?? p.hausgeld) ? `${p.monthly_fee ?? p.hausgeld} €` : "—"}</TableCell>
-                          <TableCell className="text-right">
-                            <Badge variant={s.status === "approved" ? "default" : s.status === "rejected" ? "destructive" : "secondary"}>
-                              {s.status === "pending" ? "Offen" : s.status === "approved" ? "Übernommen" : "Abgelehnt"}
-                            </Badge>
-                          </TableCell>
+                          <TableCell>{cell(qm, "", "qm")}</TableCell>
+                          <TableCell>{cell(mea, "", "mea")}</TableCell>
+                          <TableCell>{cell(hg, " €", "hausgeld")}</TableCell>
                         </TableRow>
                       );
                     })}
