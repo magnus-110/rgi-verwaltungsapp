@@ -5915,6 +5915,14 @@ export type Database = {
         Args: { _user_id: string }
         Returns: string[]
       }
+      get_service_provider_pool: {
+        Args: never
+        Returns: {
+          categories: string[]
+          id: string
+          name: string
+        }[]
+      }
       get_user_building_ids: { Args: { _user_id: string }; Returns: string[] }
       get_user_role: {
         Args: { user_uuid: string }
