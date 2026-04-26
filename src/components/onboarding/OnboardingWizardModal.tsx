@@ -20,6 +20,7 @@ import { Step4Dienstleister, Step4Data } from "./steps/Step4Dienstleister";
 import { Step5Einschaetzung, Step5Data } from "./steps/Step5Einschaetzung";
 import { StepSlider } from "./ui/StepSlider";
 import { RgiWordmark } from "./ui/RgiWordmark";
+import { WelcomeScreen } from "./ui/WelcomeScreen";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -58,6 +59,17 @@ export const OnboardingWizardModal = ({
   const [step, setStep] = useState<number>(progress.current_step || 1);
   const [stepData, setStepData] = useState<Record<string, any>>(progress.step_data || {});
   const [submitting, setSubmitting] = useState(false);
+
+  // Welcome-Screen nur beim allerersten Öffnen anzeigen
+  const initialStep1 = (progress.step_data as any)?.step1;
+  const step1HasData =
+    !!initialStep1 && Object.keys(initialStep1).length > 0;
+  const [showWelcome, setShowWelcome] = useState<boolean>(
+    !progress.step1_completed_at &&
+      !progress.is_repeat_owner &&
+      !step1HasData &&
+      (progress.current_step ?? 1) <= 1
+  );
 
   useEffect(() => {
     if (progress.is_repeat_owner && step === 1 && !progress.step1_completed_at) {
