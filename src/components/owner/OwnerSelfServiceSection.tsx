@@ -188,41 +188,44 @@ export const OwnerSelfServiceSection = () => {
   const openAssignment = assignments.find((a) => a.id === openId) ?? null;
 
   return (
-    <div className="space-y-3">
-      <div>
-        <h2 className="text-lg font-semibold text-foreground">Meine Wohnungen</h2>
-        <p className="text-sm text-muted-foreground">
-          Klicken Sie auf eine Wohnung, um Ihre Daten für diese Einheit zu bearbeiten.
-        </p>
-      </div>
-      {assignments.map((a) => {
-        const roleLabel = a.role_in_building ? ROLE_LABELS[a.role_in_building] || a.role_in_building : null;
-        const unit = a.unit_number ? ` · WE ${a.unit_number}` : "";
-        return (
-          <Card
-            key={a.id}
-            className="cursor-pointer hover:shadow-md transition-shadow"
-            onClick={() => setOpenId(a.id)}
-          >
-            <CardContent className="py-4 flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <Building2 className="w-5 h-5 text-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-medium truncate">
-                    {a.buildings?.name || "Wohnung"}{unit}
-                  </span>
-                </div>
-                {a.buildings?.address && (
-                  <p className="text-xs text-muted-foreground truncate mt-0.5">{a.buildings.address}</p>
-                )}
-              </div>
-              <ChevronRight className="w-5 h-5 text-muted-foreground" />
-            </CardContent>
-          </Card>
-        );
-      })}
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle>Meine Wohnungen</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Klicken Sie auf eine Wohnung, um Ihre Daten für diese Einheit zu bearbeiten.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {assignments.map((a) => {
+            const unit = a.unit_number ? ` · WE ${a.unit_number}` : "";
+            return (
+              <Card
+                key={a.id}
+                className="cursor-pointer hover:shadow-md transition-shadow"
+                onClick={() => setOpenId(a.id)}
+              >
+                <CardContent className="py-4 flex items-center gap-3">
+                  <div className="p-2 bg-primary/10 rounded-lg">
+                    <Building2 className="w-5 h-5 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium truncate">
+                        {a.buildings?.name || "Wohnung"}{unit}
+                      </span>
+                    </div>
+                    {a.buildings?.address && (
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">{a.buildings.address}</p>
+                    )}
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                </CardContent>
+              </Card>
+            );
+          })}
+        </CardContent>
+      </Card>
 
       <Dialog open={!!openId} onOpenChange={(o) => !o && setOpenId(null)}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -236,7 +239,7 @@ export const OwnerSelfServiceSection = () => {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 };
 
