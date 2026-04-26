@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -234,187 +234,207 @@ function AssignmentEditor({
         </DialogDescription>
       </DialogHeader>
 
-      <div className="space-y-6 mt-2">
+      <div className="space-y-4 mt-2">
         {/* Persönliche Daten */}
-        <section className="space-y-3">
-          <div className="flex items-center gap-2 font-medium"><User className="w-4 h-4" /> Persönliche Daten</div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs">Anrede</Label>
-              <Select
-                value={a.salutation_override ?? "__none__"}
-                onValueChange={(v) => update({ salutation_override: v === "__none__" ? null : v })}
-              >
-                <SelectTrigger><SelectValue placeholder="Bitte wählen" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">— (Standard{contact.salutation ? `: ${contact.salutation}` : ""})</SelectItem>
-                  {SALUTATIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                </SelectContent>
-              </Select>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <User className="w-4 h-4" /> Persönliche Daten
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Anrede</Label>
+                <Select
+                  value={a.salutation_override ?? "__none__"}
+                  onValueChange={(v) => update({ salutation_override: v === "__none__" ? null : v })}
+                >
+                  <SelectTrigger><SelectValue placeholder="Bitte wählen" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— (Standard{contact.salutation ? `: ${contact.salutation}` : ""})</SelectItem>
+                    {SALUTATIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Firma</Label>
+                <Input
+                  placeholder={contact.company_name ?? ""}
+                  value={a.company_name_override ?? ""}
+                  onChange={(e) => update({ company_name_override: e.target.value || null })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Vorname</Label>
+                <Input
+                  placeholder={contact.first_name ?? ""}
+                  value={a.first_name_override ?? ""}
+                  onChange={(e) => update({ first_name_override: e.target.value || null })}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Nachname</Label>
+                <Input
+                  placeholder={contact.last_name ?? ""}
+                  value={a.last_name_override ?? ""}
+                  onChange={(e) => update({ last_name_override: e.target.value || null })}
+                />
+              </div>
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Firma</Label>
+              <Label className="text-xs flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> Straße &amp; Hausnummer</Label>
               <Input
-                placeholder={contact.company_name ?? ""}
-                value={a.company_name_override ?? ""}
-                onChange={(e) => update({ company_name_override: e.target.value || null })}
+                placeholder={contact.address_street ?? ""}
+                value={a.address_street_override ?? ""}
+                onChange={(e) => update({ address_street_override: e.target.value || null })}
               />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Vorname</Label>
-              <Input
-                placeholder={contact.first_name ?? ""}
-                value={a.first_name_override ?? ""}
-                onChange={(e) => update({ first_name_override: e.target.value || null })}
-              />
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">PLZ</Label>
+                <Input
+                  placeholder={contact.address_zip ?? ""}
+                  value={a.address_zip_override ?? ""}
+                  onChange={(e) => update({ address_zip_override: e.target.value || null })}
+                />
+              </div>
+              <div className="col-span-2 space-y-1.5">
+                <Label className="text-xs">Ort</Label>
+                <Input
+                  placeholder={contact.address_city ?? ""}
+                  value={a.address_city_override ?? ""}
+                  onChange={(e) => update({ address_city_override: e.target.value || null })}
+                />
+              </div>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Nachname</Label>
-              <Input
-                placeholder={contact.last_name ?? ""}
-                value={a.last_name_override ?? ""}
-                onChange={(e) => update({ last_name_override: e.target.value || null })}
-              />
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs flex items-center gap-1"><MapPin className="w-3.5 h-3.5" /> Straße &amp; Hausnummer</Label>
-            <Input
-              placeholder={contact.address_street ?? ""}
-              value={a.address_street_override ?? ""}
-              onChange={(e) => update({ address_street_override: e.target.value || null })}
-            />
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs">PLZ</Label>
-              <Input
-                placeholder={contact.address_zip ?? ""}
-                value={a.address_zip_override ?? ""}
-                onChange={(e) => update({ address_zip_override: e.target.value || null })}
-              />
-            </div>
-            <div className="col-span-2 space-y-1.5">
-              <Label className="text-xs">Ort</Label>
-              <Input
-                placeholder={contact.address_city ?? ""}
-                value={a.address_city_override ?? ""}
-                onChange={(e) => update({ address_city_override: e.target.value || null })}
-              />
-            </div>
-          </div>
-        </section>
+          </CardContent>
+        </Card>
 
-        {/* Telefon */}
-        <section className="space-y-2">
-          <div className="flex items-center gap-2 font-medium"><Phone className="w-4 h-4" /> Telefonnummern</div>
-          {(a.phones_override ?? []).map((p, idx) => (
-            <div key={idx} className="flex gap-2">
-              <Input
-                placeholder="Telefonnummer"
-                value={p.phone_number}
-                onChange={(e) => {
-                  const next = [...(a.phones_override ?? [])];
-                  next[idx] = { phone_number: e.target.value };
-                  update({ phones_override: next });
-                }}
-              />
+        {/* Kontaktinfos */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Phone className="w-4 h-4" /> Kontaktinfos
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="space-y-2">
+              <Label className="text-xs flex items-center gap-1"><Phone className="w-3.5 h-3.5" /> Telefonnummern</Label>
+              {(a.phones_override ?? []).map((p, idx) => (
+                <div key={idx} className="flex gap-2">
+                  <Input
+                    placeholder="Telefonnummer"
+                    value={p.phone_number}
+                    onChange={(e) => {
+                      const next = [...(a.phones_override ?? [])];
+                      next[idx] = { phone_number: e.target.value };
+                      update({ phones_override: next });
+                    }}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      const next = (a.phones_override ?? []).filter((_, i) => i !== idx);
+                      update({ phones_override: next.length ? next : null });
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
               <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  const next = (a.phones_override ?? []).filter((_, i) => i !== idx);
-                  update({ phones_override: next.length ? next : null });
-                }}
+                variant="outline"
+                size="sm"
+                onClick={() => update({ phones_override: [...(a.phones_override ?? []), { phone_number: "" }] })}
               >
-                <Trash2 className="h-4 w-4" />
+                <Plus className="h-4 w-4 mr-1" /> Telefonnummer hinzufügen
               </Button>
             </div>
-          ))}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => update({ phones_override: [...(a.phones_override ?? []), { phone_number: "" }] })}
-          >
-            <Plus className="h-4 w-4 mr-1" /> Telefonnummer hinzufügen
-          </Button>
-        </section>
 
-        {/* E-Mail */}
-        <section className="space-y-2">
-          <div className="flex items-center gap-2 font-medium"><Mail className="w-4 h-4" /> E-Mail-Adressen</div>
-          {(a.emails_override ?? []).map((em, idx) => (
-            <div key={idx} className="flex gap-2">
-              <Input
-                placeholder="E-Mail"
-                value={em.email}
-                onChange={(e) => {
-                  const next = [...(a.emails_override ?? [])];
-                  next[idx] = { email: e.target.value };
-                  update({ emails_override: next });
-                }}
-              />
+            <div className="space-y-2">
+              <Label className="text-xs flex items-center gap-1"><Mail className="w-3.5 h-3.5" /> E-Mail-Adressen</Label>
+              {(a.emails_override ?? []).map((em, idx) => (
+                <div key={idx} className="flex gap-2">
+                  <Input
+                    placeholder="E-Mail"
+                    value={em.email}
+                    onChange={(e) => {
+                      const next = [...(a.emails_override ?? [])];
+                      next[idx] = { email: e.target.value };
+                      update({ emails_override: next });
+                    }}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => {
+                      const next = (a.emails_override ?? []).filter((_, i) => i !== idx);
+                      update({ emails_override: next.length ? next : null });
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
               <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => {
-                  const next = (a.emails_override ?? []).filter((_, i) => i !== idx);
-                  update({ emails_override: next.length ? next : null });
-                }}
+                variant="outline"
+                size="sm"
+                onClick={() => update({ emails_override: [...(a.emails_override ?? []), { email: "" }] })}
               >
-                <Trash2 className="h-4 w-4" />
+                <Plus className="h-4 w-4 mr-1" /> E-Mail hinzufügen
               </Button>
             </div>
-          ))}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => update({ emails_override: [...(a.emails_override ?? []), { email: "" }] })}
-          >
-            <Plus className="h-4 w-4 mr-1" /> E-Mail hinzufügen
-          </Button>
-        </section>
+          </CardContent>
+        </Card>
 
         {/* Bank */}
-        <section className="space-y-3">
-          <div className="flex items-center gap-2 font-medium"><CreditCard className="w-4 h-4" /> Bankverbindung</div>
-          {bankOptions.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <CreditCard className="w-4 h-4" /> Bankverbindung
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {bankOptions.length > 0 && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Bestehende Bankverbindung wählen</Label>
+                <Select
+                  value={a.bank_account_id ?? "__none__"}
+                  onValueChange={(v) => update({ bank_account_id: v === "__none__" ? null : v })}
+                >
+                  <SelectTrigger><SelectValue placeholder="— Keine Auswahl —" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Keine Auswahl —</SelectItem>
+                    {bankOptions.map((b) => (
+                      <SelectItem key={b.id} value={b.id}>
+                        {(b.account_holder ?? "Konto")} · {b.iban || "ohne IBAN"}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-1.5">
-              <Label className="text-xs">Bestehende Bankverbindung wählen</Label>
-              <Select
-                value={a.bank_account_id ?? "__none__"}
-                onValueChange={(v) => update({ bank_account_id: v === "__none__" ? null : v })}
-              >
-                <SelectTrigger><SelectValue placeholder="— Keine Auswahl —" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">— Keine Auswahl —</SelectItem>
-                  {bankOptions.map((b) => (
-                    <SelectItem key={b.id} value={b.id}>
-                      {(b.account_holder ?? "Konto")} · {b.iban || "ohne IBAN"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-xs">Kontoinhaber</Label>
+              <Input
+                placeholder="Vor- und Nachname"
+                value={a.iban_holder_override ?? ""}
+                onChange={(e) => update({ iban_holder_override: e.target.value || null })}
+              />
             </div>
-          )}
-          <div className="space-y-1.5">
-            <Label className="text-xs">Kontoinhaber</Label>
-            <Input
-              placeholder="Vor- und Nachname"
-              value={a.iban_holder_override ?? ""}
-              onChange={(e) => update({ iban_holder_override: e.target.value || null })}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">IBAN</Label>
-            <Input
-              className="font-mono"
-              placeholder="DE00 0000 0000 0000 0000 00"
-              value={a.iban_override ?? ""}
-              onChange={(e) => update({ iban_override: e.target.value || null })}
-            />
-          </div>
-        </section>
+            <div className="space-y-1.5">
+              <Label className="text-xs">IBAN</Label>
+              <Input
+                className="font-mono"
+                placeholder="DE00 0000 0000 0000 0000 00"
+                value={a.iban_override ?? ""}
+                onChange={(e) => update({ iban_override: e.target.value || null })}
+              />
+            </div>
+          </CardContent>
+        </Card>
 
         <div className="flex justify-end pt-2 border-t">
           <Button onClick={save} disabled={saving}>
