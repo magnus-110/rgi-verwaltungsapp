@@ -145,7 +145,13 @@ export const OnboardingWizardModal = ({
   const renderStep = () => {
     switch (step) {
       case 1:
-        return <Step1Stammdaten value={currentData as Step1Data} onChange={setCurrentData} />;
+        return (
+          <Step1Stammdaten
+            value={currentData as Step1Data}
+            onChange={setCurrentData}
+            buildingId={progress.building_id}
+          />
+        );
       case 2:
         return <Step2Wohnungsdaten value={currentData as Step2Data} onChange={setCurrentData} />;
       case 3:

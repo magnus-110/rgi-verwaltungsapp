@@ -93,6 +93,14 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
 
   return (
     <div className="space-y-2.5">
+      {hasOverridesRef.current && (
+        <div className="flex gap-2 items-start rounded-[12px] bg-primary/5 border border-primary/20 px-3 py-2.5 text-[12px] text-foreground/80">
+          <Info className="size-4 text-primary shrink-0 mt-0.5" />
+          <span>
+            Wir haben Ihre bisher hinterlegten Daten geladen. Änderungen gelten <b>nur für dieses Gebäude</b> und überschreiben nicht Ihr globales Profil.
+          </span>
+        </div>
+      )}
       <SectionCard label="WOHNANSCHRIFT">
         <div className="px-4 py-3 space-y-2">
           <EmbeddedInput
