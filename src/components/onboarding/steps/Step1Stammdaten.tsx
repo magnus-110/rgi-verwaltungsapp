@@ -28,6 +28,7 @@ export interface Step1Data {
   phones?: PhoneEntry[];
   emails?: EmailEntry[];
   iban?: string;
+  account_holder?: string;
   contact_self?: boolean;
   contact_other_name?: string;
   contact_other?: OtherContactInfo;
@@ -190,19 +191,25 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
       </SectionCard>
 
       <SectionCard label="BANKVERBINDUNG">
-        <div className="px-4 py-3">
+        <div className="px-4 py-3 space-y-3">
+          <Field label="Kontoinhaber" required>
+            <EmbeddedInput
+              value={value.account_holder ?? ""}
+              onChange={(e) => set({ account_holder: e.target.value })}
+              placeholder="Vor- und Nachname"
+              autoComplete="off"
+            />
+          </Field>
           <Field label="IBAN" required>
             <EmbeddedInput
               value={value.iban ?? ""}
               onChange={(e) => set({ iban: sanitizeGermanIbanInput(e.target.value) })}
               onKeyDown={(e) => {
-                // Allow editing keys
                 if (
                   ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Home", "End"].includes(e.key) ||
                   e.metaKey || e.ctrlKey
                 ) return;
                 const clean = (value.iban ?? "").replace(/\s/g, "");
-                // Position 1: must be 'D'; position 2: must be 'E'; positions 3+: digits only
                 const pos = clean.length;
                 if (pos === 0 && e.key.toUpperCase() !== "D") e.preventDefault();
                 else if (pos === 1 && e.key.toUpperCase() !== "E") e.preventDefault();
