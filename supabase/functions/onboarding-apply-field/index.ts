@@ -169,14 +169,80 @@ Deno.serve(async (req) => {
 
         // ---------- STEP 4: Dienstleister ----------
         case "provider": {
-          // value: { trade, name, contact_id?, category? }
+          // value: { trade, name, contact_id?, category?, phone?, email? }
           const name = String(value?.name || "").trim();
           if (!name) return json({ error: "Kein Provider" }, 400);
-          const category = String(value?.category || value?.trade || "sonstige");
-          const phone = value?.phone || null;
-          const email = value?.email || null;
+          const category = String(value?.category || value?.trade || "Sonstige");
+          const phone = value?.phone ? String(value.phone).trim() : null;
+          const email = value?.email ? String(value.email).trim() : null;
 
-          const { data: existing } = await admin
+          // 1) Find or create a contact (company) with this name
+          let providerContactId: string | null = null;
+          const { data: existingContact } = await admin
+            .from("contacts")
+            .select("id")
+            .ilike("company_name", name)
+            .eq("contact_type", "firma")
+            .limit(1)
+            .maybeSingle();
+
+          if (existingContact) {
+            providerContactId = (existingContact as any).id;
+          } else {
+            const { data: newContact, error: cErr } = await admin
+              .from("contacts")
+              .insert({
+                company_name: name,
+                contact_type: "firma",
+                short_name: name.slice(0, 40),
+              })
+              .select("id")
+              .single();
+            if (cErr) return json({ error: `Kontakt anlegen fehlgeschlagen: ${cErr.message}` }, 500);
+            providerContactId = (newContact as any).id;
+
+            // Optional: phone/email as primary
+            if (phone) {
+              await admin.from("contact_phones").insert({
+                contact_id: providerContactId, phone_number: phone, label: "Geschäftlich",
+              });
+            }
+            if (email) {
+              await admin.from("contact_emails").insert({
+                contact_id: providerContactId, email, label: "Geschäftlich", is_primary: true,
+              });
+            }
+          }
+
+          // 2) Ensure assignment as Dienstleister exists for this building
+          const { data: existingAssign } = await admin
+            .from("contact_building_assignments")
+            .select("id")
+            .eq("contact_id", providerContactId!)
+            .eq("building_id", buildingId)
+            .eq("role_in_building", "dienstleister")
+            .limit(1)
+            .maybeSingle();
+
+          if (!existingAssign) {
+            const { error: aErr } = await admin.from("contact_building_assignments").insert({
+              contact_id: providerContactId,
+              building_id: buildingId,
+              role_in_building: "dienstleister",
+              service_category: category,
+              is_active: true,
+              notes: "Aus Onboarding übernommen",
+            });
+            if (aErr) return json({ error: `Zuordnung fehlgeschlagen: ${aErr.message}` }, 500);
+          } else {
+            await admin
+              .from("contact_building_assignments")
+              .update({ service_category: category, is_active: true })
+              .eq("id", (existingAssign as any).id);
+          }
+
+          // 3) Mirror in building_service_providers (for stats/widgets)
+          const { data: bsp } = await admin
             .from("building_service_providers")
             .select("id, suggested_by_count")
             .eq("building_id", buildingId)
@@ -184,24 +250,17 @@ Deno.serve(async (req) => {
             .eq("category", category)
             .limit(1)
             .maybeSingle();
-
-          if (existing) {
+          if (bsp) {
             await admin
               .from("building_service_providers")
-              .update({
-                suggested_by_count: ((existing as any).suggested_by_count || 1) + 1,
-              })
-              .eq("id", (existing as any).id);
+              .update({ suggested_by_count: ((bsp as any).suggested_by_count || 1) + 1 })
+              .eq("id", (bsp as any).id);
           } else {
             await admin.from("building_service_providers").insert({
-              building_id: buildingId,
-              name,
-              category,
-              phone,
-              email,
-              source: "onboarding",
+              building_id: buildingId, name, category, phone, email, source: "onboarding",
             });
           }
+
           appliedKey = `provider:${category}:${name.toLowerCase()}`;
           break;
         }
@@ -232,7 +291,13 @@ Deno.serve(async (req) => {
         case "etv_location": {
           const loc = String(value?.location || payload.etv_location || "").trim();
           if (!loc) return json({ error: "Kein Ort" }, 400);
-          // Persist as latest assessment suggestion
+          // Write directly to building.etv_default_location so it shows in overview
+          const { error: bErr } = await admin
+            .from("buildings")
+            .update({ etv_default_location: loc })
+            .eq("id", buildingId);
+          if (bErr) return json({ error: `Speichern fehlgeschlagen: ${bErr.message}` }, 500);
+          // Also keep an audit trail in assessments
           await admin.from("building_assessments").insert({
             building_id: buildingId,
             user_id: (sub as any).user_id,
