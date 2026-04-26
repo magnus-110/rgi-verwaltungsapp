@@ -35,50 +35,43 @@ const initials = (name: string) =>
     .join("") || "?";
 
 export const Step4Dienstleister = ({ buildingId, value, onChange }: Props) => {
-  const [suggestions, setSuggestions] = useState<Record<string, SuggestedContact[]>>({});
-  const [activeCat, setActiveCat] = useState<string>(SERVICE_PROVIDER_CATEGORIES[0].id);
+  const [allProviders, setAllProviders] = useState<SuggestedContact[]>([]);
+  const [activeCat, setActiveCat] = useState<string>("all");
   const [showAdd, setShowAdd] = useState(false);
   const [addName, setAddName] = useState("");
   const [addTrade, setAddTrade] = useState("");
 
   useEffect(() => {
     const load = async () => {
-      const { data } = await supabase
-        .from("contacts")
-        .select("id, contact_persons(first_name, last_name), company_name, service_provider_categories")
-        .eq("is_service_provider_pool", true);
-      const grouped: Record<string, SuggestedContact[]> = {};
-      (data ?? []).forEach((c: any) => {
-        const cats: string[] = c.service_provider_categories ?? [];
-        const person = c.contact_persons?.[0];
-        const name =
-          c.company_name ||
-          [person?.first_name, person?.last_name].filter(Boolean).join(" ") ||
-          "Unbekannt";
-        const targetCats = cats.length ? cats : ["sonstige"];
-        targetCats.forEach((cat) => {
-          if (!grouped[cat]) grouped[cat] = [];
-          grouped[cat].push({ id: c.id, name, category: cat });
-        });
+      const { data, error } = await supabase.rpc("get_service_provider_pool" as any);
+      if (error) {
+        console.error("Failed to load service provider pool", error);
+        return;
+      }
+      const list: SuggestedContact[] = (data ?? []).flatMap((c: any) => {
+        const cats: string[] = c.categories?.length ? c.categories : ["sonstige"];
+        return cats.map((cat) => ({ id: c.id, name: c.name, category: cat }));
       });
-      setSuggestions(grouped);
+      setAllProviders(list);
     };
     load();
   }, [buildingId]);
 
   const set = (patch: Partial<Step4Data>) => onChange({ ...value, ...patch });
-  const toggle = (id: string) => {
-    const current = value.selections?.[activeCat] ?? [];
+  const toggle = (id: string, category: string) => {
+    const catKey = category;
+    const current = value.selections?.[catKey] ?? [];
     const next = current.includes(id) ? current.filter((x) => x !== id) : [...current, id];
-    set({ selections: { ...(value.selections ?? {}), [activeCat]: next } });
+    set({ selections: { ...(value.selections ?? {}), [catKey]: next } });
   };
 
   const addCustom = () => {
     if (!addName.trim()) return;
+    const targetCat = activeCat === "all" ? "sonstige" : activeCat;
     set({
       custom: [
         ...(value.custom ?? []),
-        { category: activeCat, name: addName.trim(), trade: addTrade.trim() },
+        { category: targetCat, name: addName.trim(), trade: addTrade.trim() },
       ],
     });
     setAddName("");
@@ -86,17 +79,36 @@ export const Step4Dienstleister = ({ buildingId, value, onChange }: Props) => {
     setShowAdd(false);
   };
 
-  const items = suggestions[activeCat] ?? [];
-  const customItems = (value.custom ?? []).filter((c) => c.category === activeCat);
-  const selected = value.selections?.[activeCat] ?? [];
+  // Deduplicate "Alle" by contact id
+  const items: SuggestedContact[] =
+    activeCat === "all"
+      ? Array.from(new Map(allProviders.map((p) => [p.id, p])).values())
+      : allProviders.filter((p) => p.category === activeCat);
+
+  const customItems =
+    activeCat === "all"
+      ? value.custom ?? []
+      : (value.custom ?? []).filter((c) => c.category === activeCat);
+
+  const isSelected = (id: string) =>
+    Object.values(value.selections ?? {}).some((arr) => arr.includes(id));
+
+  const totalSelectedCount = (catId: string) => {
+    if (catId === "all") {
+      const ids = new Set<string>();
+      Object.values(value.selections ?? {}).forEach((arr) => arr.forEach((i) => ids.add(i)));
+      return ids.size;
+    }
+    return value.selections?.[catId]?.length ?? 0;
+  };
 
   return (
     <div className="space-y-2.5">
       {/* Filter chips */}
       <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1 scrollbar-none">
-        {SERVICE_PROVIDER_CATEGORIES.map((cat) => {
+        {[{ id: "all", label: "Alle" }, ...SERVICE_PROVIDER_CATEGORIES].map((cat) => {
           const active = activeCat === cat.id;
-          const count = value.selections?.[cat.id]?.length ?? 0;
+          const count = totalSelectedCount(cat.id);
           return (
             <button
               key={cat.id}
@@ -137,12 +149,12 @@ export const Step4Dienstleister = ({ buildingId, value, onChange }: Props) => {
         )}
 
         {items.map((s) => {
-          const sel = selected.includes(s.id);
+          const sel = isSelected(s.id);
           return (
             <button
-              key={s.id}
+              key={`${s.id}-${s.category}`}
               type="button"
-              onClick={() => toggle(s.id)}
+              onClick={() => toggle(s.id, s.category)}
               className={cn(
                 "w-full rounded-[14px] border-[1.5px] p-3.5 flex items-center gap-3 text-left transition",
                 sel ? "border-primary bg-accent" : "border-border/60 bg-card hover:border-border"
