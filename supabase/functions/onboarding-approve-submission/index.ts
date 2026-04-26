@@ -222,6 +222,14 @@ Deno.serve(async (req) => {
               .eq("contact_id", contactId)
               .eq("building_id", buildingId);
           }
+          // Beirat-Bereitschaft → role_in_building = 'beirat'
+          if (payload.willing_beirat === true && contactId) {
+            await admin
+              .from("contact_building_assignments")
+              .update({ role_in_building: "beirat" })
+              .eq("contact_id", contactId)
+              .eq("building_id", buildingId);
+          }
           break;
         }
         default:
