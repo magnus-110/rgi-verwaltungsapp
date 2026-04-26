@@ -103,9 +103,24 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
 
   // Submissions sind in der DB nach `category` gruppiert (es gibt kein `step`-Feld).
   // Mapping: wohnungsdaten=Step2, gebaeudeinformationen=Step3, dienstleister=Step4, bewertung=Step5.
+  // Dedupe: pro Eigentümer (user_id) + Kategorie nur die NEUESTE Einreichung anzeigen.
+  // (submissions ist bereits nach created_at DESC sortiert.)
+  const dedupeLatestPerUser = (rows: any[]) => {
+    const seen = new Set<string>();
+    const out: any[] = [];
+    for (const r of rows) {
+      const key = r.user_id || r.contact_id || r.id;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(r);
+    }
+    return out;
+  };
 
   // ---- STEP 2: Wohnungsdaten ----
-  const step2Submissions = submissions.filter((s: any) => s.category === "wohnungsdaten");
+  const step2Submissions = dedupeLatestPerUser(
+    submissions.filter((s: any) => s.category === "wohnungsdaten")
+  );
   const parseNum = (v: any): number => {
     if (v == null || v === "") return NaN;
     const n = parseFloat(String(v).replace(",", "."));
@@ -119,7 +134,7 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
   }, [step2Submissions]);
 
   // ---- STEP 3: Gebäudezustand ----
-  const step3Subs = submissions.filter((s: any) => s.category === "gebaeudeinformationen");
+  const step3Subs = dedupeLatestPerUser(submissions.filter((s: any) => s.category === "gebaeudeinformationen"));
   const ratings = [
     ...assessments,
     ...step3Subs.map((s: any) => ({
@@ -142,7 +157,7 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
 
   // ---- STEP 4: Dienstleister (consensus) ----
   // Payload-Struktur: { selections: { trade: [contactId, ...] }, custom: [{ trade, category, name }] }
-  const step4Subs = submissions.filter((s: any) => s.category === "dienstleister");
+  const step4Subs = dedupeLatestPerUser(submissions.filter((s: any) => s.category === "dienstleister"));
 
   // Lookup für Kontakt-Namen (aus Step-4 Selections referenziert)
   const referencedContactIds = useMemo(() => {
@@ -230,7 +245,7 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
   }, [step3Subs]);
 
   // ---- STEP 5: Einschätzung ----
-  const step5Subs = submissions.filter((s: any) => s.category === "bewertung");
+  const step5Subs = dedupeLatestPerUser(submissions.filter((s: any) => s.category === "bewertung"));
   const etvLocations = useMemo(() => {
     const m = new Map<string, number>();
     step5Subs.forEach((s: any) => {
