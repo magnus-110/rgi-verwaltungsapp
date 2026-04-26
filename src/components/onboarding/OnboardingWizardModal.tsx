@@ -188,30 +188,33 @@ export const OnboardingWizardModal = ({
         </DialogTitle>
 
         {/* Top Bar */}
-        <div className="bg-card border-b border-border/60 px-4 h-12 flex items-center justify-between shrink-0">
+        <div className="bg-card border-b border-border/60 px-4 h-[52px] flex items-center shrink-0">
           <RgiWordmark />
-          <span className="text-[11px] text-muted-foreground">
-            {completedCount} / 5 erledigt
-          </span>
         </div>
 
         {/* Step Slider */}
         {!allDone && (
-          <div className="bg-card border-b border-border/60 px-3 py-3 shrink-0">
+          <div className="bg-card border-b border-border/60 px-4 py-3 shrink-0">
             <StepSlider
               steps={STEP_LABELS}
-              currentStep={step}
-              completed={completed}
-              onStepClick={(n) => !isStep1HardLocked && setStep(n)}
-              lockedFromStep={isStep1HardLocked ? 2 : undefined}
+              currentStep={showWelcome ? 0 : step}
+              completed={showWelcome ? {} : completed}
+              onStepClick={(n) =>
+                !showWelcome && !isStep1HardLocked && setStep(n)
+              }
+              lockedFromStep={
+                showWelcome ? 1 : isStep1HardLocked ? 2 : undefined
+              }
             />
           </div>
         )}
 
         {/* Scroll area */}
-        <div className="flex-1 overflow-y-auto px-4 py-4">
+        <div className="flex-1 overflow-y-auto px-4 py-5">
           {allDone ? (
             <CompletionScreen onClose={() => onOpenChange(false)} completed={completed} />
+          ) : showWelcome ? (
+            <WelcomeScreen onStart={() => setShowWelcome(false)} />
           ) : (
             <div className="space-y-3">
               <div>
