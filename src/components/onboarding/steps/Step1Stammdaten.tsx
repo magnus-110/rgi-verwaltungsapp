@@ -171,7 +171,7 @@ export const Step1Stammdaten = ({ value, onChange }: Props) => {
 
       <SectionCard label="HAUPTANSPRECHPARTNER">
         <div className="p-3.5">
-          <ChoiceCardPair<boolean>
+          <ChoiceCardPair
             value={value.contact_self}
             onChange={(v) => set({ contact_self: v, ...(v ? { contact_other_name: "" } : {}) })}
             options={[

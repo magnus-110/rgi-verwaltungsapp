@@ -44,7 +44,7 @@ export const Step5Einschaetzung = ({ value, onChange }: Props) => {
           <p className="text-[13px] text-muted-foreground mb-3">
             Wären Sie bereit, einmal jährlich die Kassenprüfung zu übernehmen?
           </p>
-          <ChoiceCardPair<boolean>
+          <ChoiceCardPair
             value={value.willing_cash_audit ?? null}
             onChange={(v) => set({ willing_cash_audit: v })}
             options={[
