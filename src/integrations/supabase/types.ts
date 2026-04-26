@@ -1190,6 +1190,44 @@ export type Database = {
           },
         ]
       }
+      building_notes: {
+        Row: {
+          building_id: string
+          content: string
+          created_at: string
+          created_by: string | null
+          id: string
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          building_id: string
+          content: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          building_id?: string
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "building_notes_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       building_service_providers: {
         Row: {
           building_id: string
