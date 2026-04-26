@@ -15,14 +15,14 @@ const STEPS: { name: string; required: boolean }[] = [
 
 export const WelcomeScreen = ({ onStart }: WelcomeScreenProps) => {
   return (
-    <div className="max-w-md mx-auto space-y-6 py-2">
-      <div className="space-y-4">
-        <h1 className="font-display text-[28px] leading-[1.15] text-foreground">
+    <div className="max-w-md mx-auto space-y-7 py-3">
+      <div className="space-y-5">
+        <h1 className="font-display !font-normal text-[30px] leading-[1.2] tracking-[-0.01em] text-foreground">
           Herzlich willkommen
           <br />
-          bei <span className="text-primary">RGI Immobilien!</span>
+          bei <span className="text-primary font-medium">RGI Immobilien!</span>
         </h1>
-        <div className="space-y-3 text-[14px] leading-relaxed text-foreground/80">
+        <div className="space-y-3.5 text-[14px] leading-[1.7] text-foreground/75">
           <p>
             Wir freuen uns sehr, Sie als Eigentümer begrüßen zu dürfen, und
             danken Ihnen herzlich für das Vertrauen, das Sie uns mit der
@@ -36,22 +36,22 @@ export const WelcomeScreen = ({ onStart }: WelcomeScreenProps) => {
         </div>
       </div>
 
-      <div className="bg-card rounded-[14px] border border-border/60 px-4 py-3">
-        <div className="text-[10px] font-medium tracking-[0.14em] text-muted-foreground uppercase mb-2">
+      <div className="bg-card rounded-[16px] border border-border/50 px-5 py-4 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+        <div className="text-[10px] font-semibold tracking-[0.16em] text-muted-foreground/80 uppercase mb-3">
           Was Sie erwartet
         </div>
-        <ul className="divide-y divide-foreground/[0.055]">
+        <ul className="divide-y divide-border/40">
           {STEPS.map((s, i) => {
             const n = i + 1;
             const isFirst = n === 1;
             return (
-              <li key={n} className="flex items-center gap-3 py-2.5">
+              <li key={n} className="flex items-center gap-3.5 py-3 first:pt-1 last:pb-1">
                 <span
                   className={cn(
-                    "size-7 shrink-0 rounded-full grid place-items-center text-[12px] font-semibold",
+                    "size-7 shrink-0 rounded-full grid place-items-center text-[12px] font-semibold transition-colors",
                     isFirst
                       ? "bg-primary text-primary-foreground"
-                      : "border border-border/70 bg-background text-muted-foreground"
+                      : "border border-border bg-background text-muted-foreground"
                   )}
                 >
                   {n}
@@ -61,10 +61,10 @@ export const WelcomeScreen = ({ onStart }: WelcomeScreenProps) => {
                 </span>
                 <span
                   className={cn(
-                    "text-[11px] px-2.5 py-0.5 rounded-full font-medium",
+                    "text-[10.5px] px-2.5 py-1 rounded-full font-semibold tracking-wide uppercase",
                     s.required
                       ? "bg-primary/10 text-primary"
-                      : "bg-muted text-muted-foreground"
+                      : "bg-secondary text-muted-foreground"
                   )}
                 >
                   {s.required ? "Pflicht" : "Optional"}
@@ -75,11 +75,14 @@ export const WelcomeScreen = ({ onStart }: WelcomeScreenProps) => {
         </ul>
       </div>
 
-      <div className="space-y-2">
-        <Button onClick={onStart} className="w-full h-12 text-[15px]">
+      <div className="space-y-2.5">
+        <Button
+          onClick={onStart}
+          className="w-full h-12 text-[15px] font-medium bg-primary text-primary-foreground hover:bg-primary/90 rounded-[12px] shadow-[0_4px_14px_-4px_hsl(var(--primary)/0.4)]"
+        >
           Jetzt starten
         </Button>
-        <p className="text-center text-[11px] text-muted-foreground">
+        <p className="text-center text-[11px] text-muted-foreground/80">
           Ihre Daten werden sicher gespeichert
         </p>
       </div>
