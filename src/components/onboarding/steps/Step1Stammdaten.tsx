@@ -116,7 +116,7 @@ export const Step1Stammdaten = ({ value, onChange }: Props) => {
         <MultiEntryList
           items={phones}
           onChange={(next) => set({ phones: next, phone: next[0]?.number, phone_type: next[0]?.type })}
-          newItem={() => ({ number: "", type: "mobile" })}
+          newItem={(): PhoneEntry => ({ number: "", type: "mobile" })}
           addLabel="Weitere Nummer hinzufügen"
           renderItem={(item, update) => (
             <div className="flex items-center gap-2">
@@ -137,7 +137,7 @@ export const Step1Stammdaten = ({ value, onChange }: Props) => {
         <MultiEntryList
           items={emails}
           onChange={(next) => set({ emails: next, email: next[0]?.address })}
-          newItem={() => ({ address: "" })}
+          newItem={(): EmailEntry => ({ address: "" })}
           minItems={0}
           addLabel="Weitere E-Mail hinzufügen"
           renderItem={(item, update) => (
