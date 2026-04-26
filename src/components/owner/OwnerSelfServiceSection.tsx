@@ -384,6 +384,13 @@ function AssignmentEditor({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
+            <div className="flex items-start gap-2 p-3 bg-muted/50 border border-muted rounded-md text-xs text-muted-foreground">
+              <Info className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>
+                Diese E-Mail-Adressen werden für Korrespondenz zu <b>dieser Wohnung</b> verwendet (z.B. Abrechnungen).
+                Ihre <b>Login-E-Mail</b> ändern Sie in den Einstellungen unter „Login-E-Mail".
+              </span>
+            </div>
             <div className="space-y-2">
               <Label className="text-xs flex items-center gap-1"><Phone className="w-3.5 h-3.5" /> Telefonnummern</Label>
               {(a.phones_override ?? []).map((p, idx) => (
