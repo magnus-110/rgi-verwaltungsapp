@@ -6,8 +6,9 @@
  import { useAuth } from "@/hooks/useAuth";
  import { supabase } from "@/integrations/supabase/client";
  import { toast } from "@/hooks/use-toast";
- import { Building2 } from "lucide-react";
- import { LegalDocumentsSheet } from "@/components/LegalDocumentsSheet";
+import { Building2 } from "lucide-react";
+import { LegalDocumentsSheet } from "@/components/LegalDocumentsSheet";
+import { OwnerSelfServiceSection } from "@/components/owner/OwnerSelfServiceSection";
  
  interface WegOwnerBuilding {
    id: string;
