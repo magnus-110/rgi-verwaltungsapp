@@ -103,9 +103,24 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
 
   // Submissions sind in der DB nach `category` gruppiert (es gibt kein `step`-Feld).
   // Mapping: wohnungsdaten=Step2, gebaeudeinformationen=Step3, dienstleister=Step4, bewertung=Step5.
+  // Dedupe: pro Eigentümer (user_id) + Kategorie nur die NEUESTE Einreichung anzeigen.
+  // (submissions ist bereits nach created_at DESC sortiert.)
+  const dedupeLatestPerUser = (rows: any[]) => {
+    const seen = new Set<string>();
+    const out: any[] = [];
+    for (const r of rows) {
+      const key = r.user_id || r.contact_id || r.id;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(r);
+    }
+    return out;
+  };
 
   // ---- STEP 2: Wohnungsdaten ----
-  const step2Submissions = submissions.filter((s: any) => s.category === "wohnungsdaten");
+  const step2Submissions = dedupeLatestPerUser(
+    submissions.filter((s: any) => s.category === "wohnungsdaten")
+  );
   const parseNum = (v: any): number => {
     if (v == null || v === "") return NaN;
     const n = parseFloat(String(v).replace(",", "."));
