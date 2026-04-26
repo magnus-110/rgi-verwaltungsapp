@@ -6,8 +6,9 @@
  import { useAuth } from "@/hooks/useAuth";
  import { supabase } from "@/integrations/supabase/client";
  import { toast } from "@/hooks/use-toast";
- import { Building2 } from "lucide-react";
- import { LegalDocumentsSheet } from "@/components/LegalDocumentsSheet";
+import { Building2 } from "lucide-react";
+import { LegalDocumentsSheet } from "@/components/LegalDocumentsSheet";
+import { OwnerSelfServiceSection } from "@/components/owner/OwnerSelfServiceSection";
  
  interface WegOwnerBuilding {
    id: string;
@@ -134,13 +135,14 @@
          <h1 className="text-2xl font-bold text-foreground">Einstellungen</h1>
          <p className="text-muted-foreground">Verwalten Sie Ihre Kontodaten und Gebäude-Zuordnungen</p>
        </div>
- 
-       <Card>
-         <CardHeader>
-           <CardTitle className="flex items-center gap-2">
-             <Building2 className="w-5 h-5" />
-             Gebäude-Verwaltung
-           </CardTitle>
+      <OwnerSelfServiceSection />
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Building2 className="w-5 h-5" />
+            Gebäude-Verwaltung
+          </CardTitle>
            <CardDescription>
              Ihre zugeordneten Gebäude. Zuordnungen werden durch die Verwaltung vorgenommen.
            </CardDescription>
