@@ -82,7 +82,7 @@ export const OwnerSelfServiceSection = () => {
       .eq("contact_id", c.id);
     const personIds = (persons ?? []).map((p: any) => p.id);
 
-    const [{ data: bk }, { data: asg }, { data: globalPhones }, { data: globalEmails }] = await Promise.all([
+    const [bkRes, asgRes] = await Promise.all([
       supabase.from("contact_bank_accounts").select("id, iban, account_holder").eq("contact_id", c.id),
       supabase
         .from("contact_building_assignments")
@@ -95,13 +95,18 @@ export const OwnerSelfServiceSection = () => {
         `)
         .eq("contact_id", c.id)
         .eq("is_active", true),
-      personIds.length
-        ? supabase.from("contact_phones").select("phone_number").in("contact_person_id", personIds)
-        : Promise.resolve({ data: [] as any[] } as any),
-      personIds.length
-        ? supabase.from("contact_emails").select("email").in("contact_person_id", personIds)
-        : Promise.resolve({ data: [] as any[] } as any),
-    ]) as any;
+    ]);
+    const bk = bkRes.data;
+    const asg = asgRes.data;
+
+    let globalPhones: any[] = [];
+    let globalEmails: any[] = [];
+    if (personIds.length) {
+      const ph = await supabase.from("contact_phones").select("phone_number").in("contact_person_id", personIds);
+      const em = await supabase.from("contact_emails").select("email").in("contact_person_id", personIds);
+      globalPhones = (ph.data ?? []) as any[];
+      globalEmails = (em.data ?? []) as any[];
+    }
     setBanks((bk ?? []) as Bank[]);
 
     const globalPhonesArr = (globalPhones ?? [])
