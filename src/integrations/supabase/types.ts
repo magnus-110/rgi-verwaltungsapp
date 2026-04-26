@@ -2497,6 +2497,66 @@ export type Database = {
           },
         ]
       }
+      contact_change_notifications: {
+        Row: {
+          acknowledge_note: string | null
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          bank_account_id: string | null
+          building_id: string | null
+          change_type: string
+          contact_id: string
+          created_at: string
+          id: string
+          new_value: string | null
+          old_value: string | null
+          status: string
+        }
+        Insert: {
+          acknowledge_note?: string | null
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          bank_account_id?: string | null
+          building_id?: string | null
+          change_type?: string
+          contact_id: string
+          created_at?: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          status?: string
+        }
+        Update: {
+          acknowledge_note?: string | null
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          bank_account_id?: string | null
+          building_id?: string | null
+          change_type?: string
+          contact_id?: string
+          created_at?: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_change_notifications_building_id_fkey"
+            columns: ["building_id"]
+            isOneToOne: false
+            referencedRelation: "buildings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_change_notifications_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contact_emails: {
         Row: {
           contact_id: string
