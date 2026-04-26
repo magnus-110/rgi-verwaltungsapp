@@ -113,7 +113,7 @@ export const Step1Stammdaten = ({ value, onChange }: Props) => {
       </SectionCard>
 
       <SectionCard label="TELEFON">
-        <MultiEntryList<PhoneEntry>
+        <MultiEntryList
           items={phones}
           onChange={(next) => set({ phones: next, phone: next[0]?.number, phone_type: next[0]?.type })}
           newItem={() => ({ number: "", type: "mobile" })}
@@ -134,7 +134,7 @@ export const Step1Stammdaten = ({ value, onChange }: Props) => {
       </SectionCard>
 
       <SectionCard label="E-MAIL">
-        <MultiEntryList<EmailEntry>
+        <MultiEntryList
           items={emails}
           onChange={(next) => set({ emails: next, email: next[0]?.address })}
           newItem={() => ({ address: "" })}
