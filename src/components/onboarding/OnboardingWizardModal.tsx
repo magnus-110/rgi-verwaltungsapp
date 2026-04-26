@@ -242,7 +242,7 @@ export const OnboardingWizardModal = ({
                 onComplete();
                 onOpenChange(false);
               }}
-              completed={justFinished ? { 1: true, 2: true, 3: true, 4: true, 5: true } : completed}
+              completed={justFinished || progress.step5_completed_at ? { 1: true, 2: true, 3: true, 4: true, 5: true } : completed}
             />
           ) : showWelcome ? (
             <WelcomeScreen onStart={() => setShowWelcome(false)} />
