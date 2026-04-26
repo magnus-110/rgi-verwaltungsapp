@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Plus, Trash2, User, Phone, Mail, CreditCard, MapPin } from "lucide-react";
-
-const SALUTATION_OPTIONS = ["Herr", "Frau", "Divers", "Familie", "Firma"];
+import { SALUTATIONS } from "@/lib/salutations";
+import { AssignmentAccordionCard, type AssignmentRow, type BankOption } from "./AssignmentAccordionCard";
 
 interface Contact {
   id: string;
@@ -34,6 +34,7 @@ export const OwnerSelfServiceSection = () => {
   const [phones, setPhones] = useState<Phone[]>([]);
   const [emails, setEmails] = useState<Email[]>([]);
   const [banks, setBanks] = useState<Bank[]>([]);
+  const [assignments, setAssignments] = useState<AssignmentRow[]>([]);
 
   const load = async () => {
     if (!profile?.user_id) return;
@@ -45,14 +46,26 @@ export const OwnerSelfServiceSection = () => {
       .maybeSingle();
     if (!c) { setContact(null); setLoading(false); return; }
     setContact(c as Contact);
-    const [{ data: ph }, { data: em }, { data: bk }] = await Promise.all([
+    const [{ data: ph }, { data: em }, { data: bk }, { data: asg }] = await Promise.all([
       supabase.from("contact_phones").select("id, phone_number, label").eq("contact_id", c.id),
       supabase.from("contact_emails").select("id, email, label").eq("contact_id", c.id),
       supabase.from("contact_bank_accounts").select("id, iban, bic, bank_name, account_holder").eq("contact_id", c.id),
+      supabase
+        .from("contact_building_assignments")
+        .select(`
+          id, building_id, unit_number, role_in_building, bank_account_id,
+          salutation_override, first_name_override, last_name_override, company_name_override,
+          address_street_override, address_zip_override, address_city_override,
+          phones_override, emails_override, iban_override, iban_holder_override,
+          buildings:building_id(name, address)
+        `)
+        .eq("contact_id", c.id)
+        .eq("is_active", true),
     ]);
     setPhones((ph ?? []) as Phone[]);
     setEmails((em ?? []) as Email[]);
     setBanks((bk ?? []) as Bank[]);
+    setAssignments((asg ?? []) as unknown as AssignmentRow[]);
     setLoading(false);
   };
 
@@ -182,7 +195,7 @@ export const OwnerSelfServiceSection = () => {
                   <SelectValue placeholder="Bitte wählen" />
                 </SelectTrigger>
                 <SelectContent>
-                  {SALUTATION_OPTIONS.map((s) => (
+                  {SALUTATIONS.map((s) => (
                     <SelectItem key={s} value={s}>{s}</SelectItem>
                   ))}
                 </SelectContent>
@@ -297,6 +310,13 @@ export const OwnerSelfServiceSection = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Per-Wohnung Overrides (Accordion) */}
+      <AssignmentAccordionCard
+        assignments={assignments}
+        bankOptions={banks.map((b) => ({ id: b.id, iban: b.iban, account_holder: b.account_holder }))}
+        onChanged={load}
+      />
     </div>
   );
 };

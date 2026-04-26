@@ -91,11 +91,41 @@ Deno.serve(async (req) => {
         expectations_override: p.expectations || null,
         updated_at: new Date().toISOString(),
       };
-      const { error: ovErr } = await admin
-        .from("contact_building_assignments")
-        .update(overrideUpdate)
-        .eq("contact_id", contactId)
-        .eq("building_id", building_id);
+      // Determine target assignments: by default just this one;
+      // if the owner ticked "applies to all my units" we expand to every active
+      // assignment of this contact.
+      const { data: progRow } = await admin
+        .from("onboarding_progress")
+        .select("applies_to_all_assignments")
+        .eq("user_id", userId)
+        .eq("building_id", building_id)
+        .maybeSingle();
+
+      let targetAssignments: { id: string; building_id: string }[] = [
+        { id: "", building_id },
+      ];
+      if ((progRow as any)?.applies_to_all_assignments) {
+        const { data: allAsg } = await admin
+          .from("contact_building_assignments")
+          .select("id, building_id")
+          .eq("contact_id", contactId)
+          .eq("is_active", true);
+        if (allAsg && allAsg.length > 0) {
+          targetAssignments = allAsg as any;
+        }
+      }
+
+      let ovErr: any = null;
+      for (const ta of targetAssignments) {
+        const q = admin
+          .from("contact_building_assignments")
+          .update(overrideUpdate)
+          .eq("contact_id", contactId);
+        const { error } = ta.id
+          ? await q.eq("id", ta.id)
+          : await q.eq("building_id", ta.building_id);
+        if (error) { ovErr = error; break; }
+      }
       if (ovErr) {
         console.error("override update error", ovErr);
         return json({ error: ovErr.message }, 500);

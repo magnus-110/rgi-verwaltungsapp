@@ -2305,16 +2305,19 @@ export type Database = {
           area_sqm_override: number | null
           bank_account_id: string | null
           building_id: string
+          company_name_override: string | null
           contact_id: string
           created_at: string
           emails_override: Json | null
           expectations_override: string | null
+          first_name_override: string | null
           floor_location: string | null
           iban_holder_override: string | null
           iban_override: string | null
           id: string
           is_active: boolean | null
           is_cash_auditor: boolean
+          last_name_override: string | null
           notes: string | null
           phones_override: Json | null
           primary_contact_other: Json | null
@@ -2322,6 +2325,7 @@ export type Database = {
           role_in_building:
             | Database["public"]["Enums"]["contact_building_role"]
             | null
+          salutation_override: string | null
           service_category: string | null
           unit_number: string | null
           updated_at: string
@@ -2337,16 +2341,19 @@ export type Database = {
           area_sqm_override?: number | null
           bank_account_id?: string | null
           building_id: string
+          company_name_override?: string | null
           contact_id: string
           created_at?: string
           emails_override?: Json | null
           expectations_override?: string | null
+          first_name_override?: string | null
           floor_location?: string | null
           iban_holder_override?: string | null
           iban_override?: string | null
           id?: string
           is_active?: boolean | null
           is_cash_auditor?: boolean
+          last_name_override?: string | null
           notes?: string | null
           phones_override?: Json | null
           primary_contact_other?: Json | null
@@ -2354,6 +2361,7 @@ export type Database = {
           role_in_building?:
             | Database["public"]["Enums"]["contact_building_role"]
             | null
+          salutation_override?: string | null
           service_category?: string | null
           unit_number?: string | null
           updated_at?: string
@@ -2369,16 +2377,19 @@ export type Database = {
           area_sqm_override?: number | null
           bank_account_id?: string | null
           building_id?: string
+          company_name_override?: string | null
           contact_id?: string
           created_at?: string
           emails_override?: Json | null
           expectations_override?: string | null
+          first_name_override?: string | null
           floor_location?: string | null
           iban_holder_override?: string | null
           iban_override?: string | null
           id?: string
           is_active?: boolean | null
           is_cash_auditor?: boolean
+          last_name_override?: string | null
           notes?: string | null
           phones_override?: Json | null
           primary_contact_other?: Json | null
@@ -2386,6 +2397,7 @@ export type Database = {
           role_in_building?:
             | Database["public"]["Enums"]["contact_building_role"]
             | null
+          salutation_override?: string | null
           service_category?: string | null
           unit_number?: string | null
           updated_at?: string
@@ -4760,6 +4772,7 @@ export type Database = {
       }
       onboarding_progress: {
         Row: {
+          applies_to_all_assignments: boolean
           building_id: string
           contact_id: string | null
           created_at: string
@@ -4778,6 +4791,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          applies_to_all_assignments?: boolean
           building_id: string
           contact_id?: string | null
           created_at?: string
@@ -4796,6 +4810,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          applies_to_all_assignments?: boolean
           building_id?: string
           contact_id?: string | null
           created_at?: string
