@@ -244,26 +244,19 @@ function AssignmentEditor({
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 col-span-2">
                 <Label className="text-xs">Anrede</Label>
                 <Select
-                  value={a.salutation_override ?? "__none__"}
+                  value={a.salutation_override ?? (contact.salutation ?? "__none__")}
                   onValueChange={(v) => update({ salutation_override: v === "__none__" ? null : v })}
                 >
-                  <SelectTrigger><SelectValue placeholder="Bitte wählen" /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue placeholder={contact.salutation || "Bitte wählen"} />
+                  </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">— (Standard{contact.salutation ? `: ${contact.salutation}` : ""})</SelectItem>
                     {SALUTATIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Firma</Label>
-                <Input
-                  placeholder={contact.company_name ?? ""}
-                  value={a.company_name_override ?? ""}
-                  onChange={(e) => update({ company_name_override: e.target.value || null })}
-                />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Vorname</Label>
