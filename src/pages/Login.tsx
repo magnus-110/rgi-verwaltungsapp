@@ -116,7 +116,7 @@ export const Login = () => {
                   autoComplete="username"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder="benutzername oder ihre.email@beispiel.de"
+                  placeholder="z.B. max.mustermann"
                   required
                   className="focus:ring-primary focus:border-primary"
                 />
