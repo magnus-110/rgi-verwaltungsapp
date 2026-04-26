@@ -74,7 +74,15 @@ export const OwnerSelfServiceSection = () => {
       .maybeSingle();
     if (!c) { setContact(null); setLoading(false); return; }
     setContact(c as Contact);
-    const [{ data: bk }, { data: asg }] = await Promise.all([
+
+    // Find the contact_person linked to this user (if any) for global phones/emails
+    const { data: persons } = await supabase
+      .from("contact_persons")
+      .select("id")
+      .eq("contact_id", c.id);
+    const personIds = (persons ?? []).map((p: any) => p.id);
+
+    const [{ data: bk }, { data: asg }, { data: globalPhones }, { data: globalEmails }] = await Promise.all([
       supabase.from("contact_bank_accounts").select("id, iban, account_holder").eq("contact_id", c.id),
       supabase
         .from("contact_building_assignments")
@@ -87,18 +95,58 @@ export const OwnerSelfServiceSection = () => {
         `)
         .eq("contact_id", c.id)
         .eq("is_active", true),
+      personIds.length
+        ? supabase.from("contact_phones").select("phone_number").in("contact_person_id", personIds)
+        : Promise.resolve({ data: [] as any[] }),
+      personIds.length
+        ? supabase.from("contact_emails").select("email").in("contact_person_id", personIds)
+        : Promise.resolve({ data: [] as any[] }),
     ]);
     setBanks((bk ?? []) as Bank[]);
-    // Normalize phones/emails — DB may store {number, note} or {phone_number}, and {address} or {email}
-    const normalized = (asg ?? []).map((row: any) => ({
-      ...row,
-      phones_override: Array.isArray(row.phones_override)
-        ? row.phones_override.map((p: any) => ({ phone_number: p?.phone_number ?? p?.number ?? "" }))
-        : null,
-      emails_override: Array.isArray(row.emails_override)
-        ? row.emails_override.map((e: any) => ({ email: e?.email ?? e?.address ?? "" }))
-        : null,
-    }));
+
+    const globalPhonesArr = (globalPhones ?? [])
+      .map((p: any) => ({ phone_number: p?.phone_number ?? "" }))
+      .filter((p) => p.phone_number);
+    const globalEmailsArr = (globalEmails ?? [])
+      .map((e: any) => ({ email: e?.email ?? "" }))
+      .filter((e) => e.email);
+
+    // Pick a default bank (first one) for prefill if no bank_account_id is set
+    const defaultBank = (bk ?? [])[0] as Bank | undefined;
+
+    // Normalize phones/emails AND prefill empty override fields with global/contact data
+    const normalized = (asg ?? []).map((row: any) => {
+      const phonesNorm: { phone_number: string }[] | null = Array.isArray(row.phones_override)
+        ? row.phones_override
+            .map((p: any) => ({ phone_number: p?.phone_number ?? p?.number ?? "" }))
+            .filter((p: any) => p.phone_number)
+        : null;
+      const emailsNorm: { email: string }[] | null = Array.isArray(row.emails_override)
+        ? row.emails_override
+            .map((e: any) => ({ email: e?.email ?? e?.address ?? "" }))
+            .filter((e: any) => e.email)
+        : null;
+
+      return {
+        ...row,
+        salutation_override: row.salutation_override ?? c.salutation ?? null,
+        first_name_override: row.first_name_override ?? c.first_name ?? null,
+        last_name_override: row.last_name_override ?? c.last_name ?? null,
+        company_name_override: row.company_name_override ?? c.company_name ?? null,
+        address_street_override: row.address_street_override ?? c.address_street ?? null,
+        address_zip_override: row.address_zip_override ?? c.address_zip ?? null,
+        address_city_override: row.address_city_override ?? c.address_city ?? null,
+        phones_override: phonesNorm && phonesNorm.length > 0
+          ? phonesNorm
+          : (globalPhonesArr.length > 0 ? globalPhonesArr : null),
+        emails_override: emailsNorm && emailsNorm.length > 0
+          ? emailsNorm
+          : (globalEmailsArr.length > 0 ? globalEmailsArr : null),
+        iban_override: row.iban_override ?? defaultBank?.iban ?? null,
+        iban_holder_override: row.iban_holder_override ?? defaultBank?.account_holder ?? null,
+        bank_account_id: row.bank_account_id ?? defaultBank?.id ?? null,
+      };
+    });
     setAssignments(normalized as unknown as AssignmentRow[]);
     setLoading(false);
   };
