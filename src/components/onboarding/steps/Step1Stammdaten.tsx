@@ -72,9 +72,10 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
       .then(({ data }) => {
         if (data?.prefilled && data?.data) {
           hasOverridesRef.current = !!data.hasOverrides;
-          // Merge: prefilled fields fill the gaps, user input wins
           const latest = valueRef.current;
-          onChange({ ...data.data, ...latest });
+          const prefilled = { ...data.data };
+          if (prefilled.iban) prefilled.iban = formatIban(prefilled.iban);
+          onChange({ ...prefilled, ...latest });
         }
       })
       .catch(() => {});
@@ -190,11 +191,25 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
 
       <SectionCard label="BANKVERBINDUNG">
         <div className="px-4 py-3">
-          <Field label="IBAN">
+          <Field label="IBAN" required>
             <EmbeddedInput
               value={value.iban ?? ""}
-              onChange={(e) => set({ iban: formatIban(e.target.value) })}
-              placeholder="z. B. DE00 0000 0000 0000 0000 00"
+              onChange={(e) => set({ iban: sanitizeGermanIbanInput(e.target.value) })}
+              onKeyDown={(e) => {
+                // Allow editing keys
+                if (
+                  ["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Home", "End"].includes(e.key) ||
+                  e.metaKey || e.ctrlKey
+                ) return;
+                const clean = (value.iban ?? "").replace(/\s/g, "");
+                // Position 1: must be 'D'; position 2: must be 'E'; positions 3+: digits only
+                const pos = clean.length;
+                if (pos === 0 && e.key.toUpperCase() !== "D") e.preventDefault();
+                else if (pos === 1 && e.key.toUpperCase() !== "E") e.preventDefault();
+                else if (pos >= 2 && !/^\d$/.test(e.key)) e.preventDefault();
+                else if (pos >= 22) e.preventDefault();
+              }}
+              placeholder="DE00 0000 0000 0000 0000 00"
               className="font-mono tracking-[0.04em]"
               maxLength={27}
               inputMode="text"
@@ -202,11 +217,6 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
               spellCheck={false}
             />
           </Field>
-          {value.iban && !isValidIbanFormat(value.iban) && (
-            <div className="mt-1.5 text-[11px] text-destructive">
-              Bitte vollständige IBAN im Format DE00 0000 0000 0000 0000 00 eingeben.
-            </div>
-          )}
         </div>
         <div className="px-4 pb-2.5 -mt-1 text-[11px] text-muted-foreground/80">
           Wird für die SEPA-Lastschrift Ihres Hausgeldes benötigt.
@@ -351,19 +361,27 @@ const Field = ({
   </div>
 );
 
-// IBAN helpers
+// IBAN helpers — German IBAN only: starts with "DE" + 20 digits = 22 chars
 const formatIban = (raw: string): string => {
   const clean = raw.replace(/\s+/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
   return clean.match(/.{1,4}/g)?.join(" ") ?? "";
 };
 
+/** Strict sanitizer for paste/typing: only "DE" + digits, max 22 chars, formatted with spaces. */
+const sanitizeGermanIbanInput = (raw: string): string => {
+  let clean = raw.replace(/\s+/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  // Force "DE" prefix
+  if (clean.length >= 1 && clean[0] !== "D") clean = "D" + clean.replace(/^D/, "");
+  if (clean.length >= 2 && clean[1] !== "E") clean = clean[0] + "E" + clean.slice(2).replace(/[^0-9]/g, "");
+  // After "DE", only digits allowed
+  if (clean.length > 2) clean = clean.slice(0, 2) + clean.slice(2).replace(/[^0-9]/g, "");
+  if (clean.length > 22) clean = clean.slice(0, 22);
+  return clean.match(/.{1,4}/g)?.join(" ") ?? "";
+};
+
 const isValidIbanFormat = (iban: string): boolean => {
   const clean = iban.replace(/\s/g, "").toUpperCase();
-  // Basic format: 2 letters + 2 digits + up to 30 alphanumerics, length 15-34
-  if (!/^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(clean)) return false;
-  // German IBAN must be exactly 22 chars
-  if (clean.startsWith("DE") && clean.length !== 22) return false;
-  return true;
+  return /^DE\d{20}$/.test(clean);
 };
 
 export const validateStep1 = (d: Step1Data): string | null => {
@@ -377,7 +395,7 @@ export const validateStep1 = (d: Step1Data): string | null => {
     return "Bitte mindestens eine Telefonnummer angeben.";
   if (!d.iban?.trim()) return "Bitte IBAN angeben.";
   if (!isValidIbanFormat(d.iban))
-    return "Bitte gültige IBAN im Format DE00 0000 0000 0000 0000 00 eingeben.";
+    return "Bitte vollständige deutsche IBAN eingeben (DE + 20 Ziffern).";
   if (d.contact_self === undefined) return "Bitte Ansprechpartner wählen.";
   if (d.contact_self === false) {
     const name = d.contact_other?.name ?? d.contact_other_name;
