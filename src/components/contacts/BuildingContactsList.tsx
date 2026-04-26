@@ -723,6 +723,17 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                             <Label htmlFor={`beirat-${a.id}`} className="text-sm cursor-pointer">Mitglied des Verwaltungsbeirats</Label>
                           </div>
                         )}
+
+                        {managementMode === 'weg' && (
+                          <div className="flex items-center gap-2 pt-1">
+                            <Checkbox
+                              id={`cash-auditor-${a.id}`}
+                              checked={isCashAuditor(a)}
+                              onCheckedChange={() => toggleCashAuditor(a)}
+                            />
+                            <Label htmlFor={`cash-auditor-${a.id}`} className="text-sm cursor-pointer">Kassenprüfer/in</Label>
+                          </div>
+                        )}
                       </div>
 
                       {/* Notizen */}
