@@ -244,26 +244,19 @@ function AssignmentEditor({
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 col-span-2">
                 <Label className="text-xs">Anrede</Label>
                 <Select
-                  value={a.salutation_override ?? "__none__"}
+                  value={a.salutation_override ?? (contact.salutation ?? "__none__")}
                   onValueChange={(v) => update({ salutation_override: v === "__none__" ? null : v })}
                 >
-                  <SelectTrigger><SelectValue placeholder="Bitte wählen" /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue placeholder={contact.salutation || "Bitte wählen"} />
+                  </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__none__">— (Standard{contact.salutation ? `: ${contact.salutation}` : ""})</SelectItem>
                     {SALUTATIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Firma</Label>
-                <Input
-                  placeholder={contact.company_name ?? ""}
-                  value={a.company_name_override ?? ""}
-                  onChange={(e) => update({ company_name_override: e.target.value || null })}
-                />
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Vorname</Label>
@@ -344,13 +337,16 @@ function AssignmentEditor({
                   </Button>
                 </div>
               ))}
-              <Button
-                variant="outline"
-                size="sm"
+              <button
+                type="button"
                 onClick={() => update({ phones_override: [...(a.phones_override ?? []), { phone_number: "" }] })}
+                className="w-full px-4 py-2.5 flex items-center justify-center gap-2 text-sm font-medium text-primary border border-dashed border-primary/40 rounded-md hover:bg-accent/40 transition"
               >
-                <Plus className="h-4 w-4 mr-1" /> Telefonnummer hinzufügen
-              </Button>
+                <span className="size-[22px] rounded-full border-[1.5px] border-primary bg-accent grid place-items-center">
+                  <Plus className="size-3" strokeWidth={2.5} />
+                </span>
+                Telefonnummer hinzufügen
+              </button>
             </div>
 
             <div className="space-y-2">
@@ -378,13 +374,16 @@ function AssignmentEditor({
                   </Button>
                 </div>
               ))}
-              <Button
-                variant="outline"
-                size="sm"
+              <button
+                type="button"
                 onClick={() => update({ emails_override: [...(a.emails_override ?? []), { email: "" }] })}
+                className="w-full px-4 py-2.5 flex items-center justify-center gap-2 text-sm font-medium text-primary border border-dashed border-primary/40 rounded-md hover:bg-accent/40 transition"
               >
-                <Plus className="h-4 w-4 mr-1" /> E-Mail hinzufügen
-              </Button>
+                <span className="size-[22px] rounded-full border-[1.5px] border-primary bg-accent grid place-items-center">
+                  <Plus className="size-3" strokeWidth={2.5} />
+                </span>
+                E-Mail hinzufügen
+              </button>
             </div>
           </CardContent>
         </Card>
@@ -402,7 +401,18 @@ function AssignmentEditor({
                 <Label className="text-xs">Bestehende Bankverbindung wählen</Label>
                 <Select
                   value={a.bank_account_id ?? "__none__"}
-                  onValueChange={(v) => update({ bank_account_id: v === "__none__" ? null : v })}
+                  onValueChange={(v) => {
+                    if (v === "__none__") {
+                      update({ bank_account_id: null });
+                      return;
+                    }
+                    const sel = bankOptions.find((b) => b.id === v);
+                    update({
+                      bank_account_id: v,
+                      iban_override: sel?.iban ?? null,
+                      iban_holder_override: sel?.account_holder ?? null,
+                    });
+                  }}
                 >
                   <SelectTrigger><SelectValue placeholder="— Keine Auswahl —" /></SelectTrigger>
                   <SelectContent>
