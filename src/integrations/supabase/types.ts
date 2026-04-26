@@ -2310,6 +2310,7 @@ export type Database = {
           emails_override: Json | null
           expectations_override: string | null
           floor_location: string | null
+          iban_holder_override: string | null
           iban_override: string | null
           id: string
           is_active: boolean | null
@@ -2341,6 +2342,7 @@ export type Database = {
           emails_override?: Json | null
           expectations_override?: string | null
           floor_location?: string | null
+          iban_holder_override?: string | null
           iban_override?: string | null
           id?: string
           is_active?: boolean | null
@@ -2372,6 +2374,7 @@ export type Database = {
           emails_override?: Json | null
           expectations_override?: string | null
           floor_location?: string | null
+          iban_holder_override?: string | null
           iban_override?: string | null
           id?: string
           is_active?: boolean | null
