@@ -1,20 +1,23 @@
-import { Check, Home, Building2, ArrowUpDown, Archive, DoorOpen, MoreHorizontal } from "lucide-react";
+import { Check, Home, Building2, ArrowUpDown, Archive, DoorOpen, MoreHorizontal, Flame } from "lucide-react";
 import { SectionCard } from "../ui/SectionCard";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 export type ProblemAreaId = "dach" | "fassade" | "treppenhaus" | "keller" | "eingang" | "sonstiges";
+
+export type HeatingTypeId = "gas" | "oel" | "fernwaerme" | "waermepumpe" | "pellets" | "strom" | "unbekannt" | "sonstiges";
 
 export interface Step3Data {
   /** 1 = schlecht, 5 = gut */
   general_impression_score?: number;
   problem_areas?: ProblemAreaId[];
   problem_notes?: Record<string, string>;
+  heating_type?: HeatingTypeId | string;
+  heating_other?: string;
   notes?: string;
   // legacy fields tolerated
   general_impression?: "gut" | "mittel" | "schlecht";
-  heating_type?: string;
-  heating_other?: string;
   reorder_contact?: string;
   etv_location?: string;
 }
@@ -31,6 +34,17 @@ const AREAS: { id: ProblemAreaId; name: string; subtitle: string; Icon: typeof H
   { id: "keller", name: "Keller", subtitle: "Feuchte / Ordnung", Icon: Archive },
   { id: "eingang", name: "Eingang", subtitle: "Türen / Klingel", Icon: DoorOpen },
   { id: "sonstiges", name: "Sonstiges", subtitle: "Frei beschreibbar", Icon: MoreHorizontal },
+];
+
+const HEATING_TYPES: { id: HeatingTypeId; label: string }[] = [
+  { id: "gas", label: "Gas" },
+  { id: "oel", label: "Öl" },
+  { id: "fernwaerme", label: "Fernwärme" },
+  { id: "waermepumpe", label: "Wärmepumpe" },
+  { id: "pellets", label: "Pellets" },
+  { id: "strom", label: "Strom" },
+  { id: "unbekannt", label: "Weiß ich nicht" },
+  { id: "sonstiges", label: "Sonstiges" },
 ];
 
 export const Step3Gebaeude = ({ value, onChange }: Props) => {
