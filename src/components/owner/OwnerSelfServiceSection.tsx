@@ -213,7 +213,6 @@ export const OwnerSelfServiceSection = () => {
                   <span className="font-medium truncate">
                     {a.buildings?.name || "Wohnung"}{unit}
                   </span>
-                  {roleLabel && <Badge variant="secondary" className="text-xs">{roleLabel}</Badge>}
                 </div>
                 {a.buildings?.address && (
                   <p className="text-xs text-muted-foreground truncate mt-0.5">{a.buildings.address}</p>
