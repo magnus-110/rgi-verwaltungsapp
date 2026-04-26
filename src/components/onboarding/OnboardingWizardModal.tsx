@@ -5,7 +5,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Check, Loader2 } from "lucide-react";
+import { Check, Loader2, ArrowLeft, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -239,29 +239,30 @@ export const OnboardingWizardModal = ({
         {/* Footer */}
         {!allDone && !showWelcome && (
           <div className="bg-card border-t border-border/60 px-4 py-3 flex items-center justify-between gap-2 shrink-0">
-            <div>
-              {!isStep1HardLocked && step > 1 && (
-                <Button variant="ghost" onClick={() => setStep(step - 1)} disabled={submitting}>
-                  Zurück
-                </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setStep(step - 1)}
+              disabled={submitting || isStep1HardLocked || step <= 1}
+              className="border-border/60"
+              aria-label="Zurück"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <Button
+              onClick={handleSubmitStep}
+              disabled={submitting}
+              size="icon"
+              aria-label={step === 5 ? "Abschließen" : "Weiter"}
+            >
+              {submitting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : step === 5 ? (
+                <Check className="h-4 w-4" />
+              ) : (
+                <ArrowRight className="h-4 w-4" />
               )}
-            </div>
-            <div className="flex gap-2">
-              {!isStep1HardLocked && step > 1 && (
-                <Button
-                  variant="outline"
-                  onClick={handleSkip}
-                  disabled={submitting}
-                  className="border-border/60"
-                >
-                  Schritt überspringen
-                </Button>
-              )}
-              <Button onClick={handleSubmitStep} disabled={submitting} className="min-w-[110px]">
-                {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                {step === 5 ? "Abschließen" : "Weiter"}
-              </Button>
-            </div>
+            </Button>
           </div>
         )}
       </DialogContent>
