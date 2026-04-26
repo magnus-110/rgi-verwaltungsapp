@@ -41,10 +41,38 @@ export interface Step1Data {
 interface Props {
   value: Step1Data;
   onChange: (next: Step1Data) => void;
+  buildingId?: string;
 }
 
-export const Step1Stammdaten = ({ value, onChange }: Props) => {
+export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
   const set = (patch: Partial<Step1Data>) => onChange({ ...value, ...patch });
+  const prefilledRef = useRef(false);
+  const hasOverridesRef = useRef(false);
+
+  useEffect(() => {
+    if (!buildingId || prefilledRef.current) return;
+    // Skip prefill if user has already typed something
+    const hasUserInput =
+      value.street || value.zip || value.city ||
+      (value.phones && value.phones.length > 0) ||
+      (value.emails && value.emails.length > 0) ||
+      value.iban || value.contact_self !== undefined;
+    if (hasUserInput) {
+      prefilledRef.current = true;
+      return;
+    }
+    prefilledRef.current = true;
+    supabase.functions
+      .invoke("prefill-onboarding-step1", { body: { building_id: buildingId } })
+      .then(({ data }) => {
+        if (data?.prefilled && data?.data) {
+          hasOverridesRef.current = !!data.hasOverrides;
+          onChange({ ...data.data, ...value });
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buildingId]);
 
   const phones: PhoneEntry[] =
     value.phones && value.phones.length > 0
