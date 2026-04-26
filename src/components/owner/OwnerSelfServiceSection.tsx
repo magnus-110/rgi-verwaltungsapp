@@ -244,50 +244,45 @@ export const OwnerSelfServiceSection = () => {
         </CardContent>
       </Card>
 
-      {/* Bank */}
+      {/* Bank — nur 1 Eintrag, nur Kontoinhaber + IBAN */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><CreditCard className="w-5 h-5" /> Bankverbindung</CardTitle>
-          <CardDescription>
-            Änderungen Ihrer IBAN werden automatisch an die Verwaltung gemeldet, damit das SEPA-Mandat angepasst werden kann.
-          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          <Alert>
-            <AlertTriangle className="h-4 w-4" />
-            <AlertDescription className="text-xs">
-              Bitte beachten Sie: Eine geänderte IBAN wird erst nach Bestätigung durch die Verwaltung wirksam für Lastschrifteinzüge.
-            </AlertDescription>
-          </Alert>
-          {banks.map((b) => (
-            <div key={b.id} className="border rounded-md p-3 space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <Label className="text-xs">Kontoinhaber</Label>
-                  <Input value={b.account_holder ?? ""} onChange={(e) => updateBank(b.id, { account_holder: e.target.value })} />
+          {banks.length === 0 ? (
+            <Button variant="outline" size="sm" onClick={addBank}>
+              <Plus className="h-4 w-4 mr-1" /> Bankverbindung hinzufügen
+            </Button>
+          ) : (
+            (() => {
+              const b = banks[0];
+              return (
+                <div className="border rounded-md p-3 space-y-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Kontoinhaber</Label>
+                    <Input
+                      value={b.account_holder ?? ""}
+                      onChange={(e) => updateBank(b.id, { account_holder: e.target.value })}
+                      placeholder="Vor- und Nachname"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">IBAN</Label>
+                    <Input
+                      className="font-mono"
+                      value={b.iban ?? ""}
+                      onChange={(e) => updateBank(b.id, { iban: e.target.value })}
+                      placeholder="DE00 0000 0000 0000 0000 00"
+                    />
+                  </div>
+                  <div className="flex justify-end">
+                    <Button size="sm" onClick={() => saveBank(b)}>Speichern</Button>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Bank</Label>
-                  <Input value={b.bank_name ?? ""} onChange={(e) => updateBank(b.id, { bank_name: e.target.value })} />
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div className="col-span-2 space-y-1">
-                  <Label className="text-xs">IBAN</Label>
-                  <Input className="font-mono" value={b.iban ?? ""} onChange={(e) => updateBank(b.id, { iban: e.target.value })} />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">BIC</Label>
-                  <Input value={b.bic ?? ""} onChange={(e) => updateBank(b.id, { bic: e.target.value })} />
-                </div>
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="ghost" size="sm" onClick={() => deleteBank(b.id)}><Trash2 className="h-4 w-4 mr-1" />Entfernen</Button>
-                <Button size="sm" onClick={() => saveBank(b)}>Speichern</Button>
-              </div>
-            </div>
-          ))}
-          <Button variant="outline" size="sm" onClick={addBank}><Plus className="h-4 w-4 mr-1" /> Bankverbindung hinzufügen</Button>
+              );
+            })()
+          )}
         </CardContent>
       </Card>
     </div>
