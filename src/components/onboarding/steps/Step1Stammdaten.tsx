@@ -28,6 +28,7 @@ export interface Step1Data {
   phones?: PhoneEntry[];
   emails?: EmailEntry[];
   iban?: string;
+  account_holder?: string;
   contact_self?: boolean;
   contact_other_name?: string;
   contact_other?: OtherContactInfo;
