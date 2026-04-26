@@ -102,6 +102,14 @@ Deno.serve(async (req) => {
     } else {
       // Create submission record for admin review (best-effort: never blocks completion)
       const category = STEP_CATEGORIES[stepNum];
+      // Replace any existing pending submission so we don't accumulate duplicates
+      await admin
+        .from("onboarding_submissions")
+        .delete()
+        .eq("user_id", userId)
+        .eq("building_id", building_id)
+        .eq("category", category)
+        .eq("status", "pending");
       const { error: subErr } = await admin.from("onboarding_submissions").insert({
         user_id: userId,
         contact_id: contactId,
