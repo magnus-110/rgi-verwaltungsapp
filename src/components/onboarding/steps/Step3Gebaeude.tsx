@@ -24,14 +24,6 @@ interface Props {
   onChange: (next: Step3Data) => void;
 }
 
-const IMPRESSION_DESCRIPTIONS = [
-  "Schlechter Zustand",
-  "Eher schlecht",
-  "Mittel",
-  "Eher gut",
-  "Sehr guter Zustand",
-];
-
 const AREAS: { id: ProblemAreaId; name: string; subtitle: string; Icon: typeof Home }[] = [
   { id: "dach", name: "Dach", subtitle: "Undichte / Schäden", Icon: Home },
   { id: "fassade", name: "Fassade", subtitle: "Risse / Putz", Icon: Building2 },
