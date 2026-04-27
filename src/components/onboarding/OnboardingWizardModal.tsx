@@ -238,89 +238,136 @@ export const OnboardingWizardModal = ({
         )}
         onPointerDownOutside={(e) => isStep1HardLocked && e.preventDefault()}
         onEscapeKeyDown={(e) => isStep1HardLocked && e.preventDefault()}
+        onKeyDown={(e) => {
+          // Welcome-Screen: Enter startet das Wizard
+          if (showWelcome && e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            setShowWelcome(false);
+          }
+        }}
       >
         <DialogTitle className="sr-only">
           Onboarding{buildingName ? ` – ${buildingName}` : ""}
         </DialogTitle>
 
-        {/* Top Bar */}
-        <div className="bg-card border-b border-border/40 px-5 h-[56px] flex items-center shrink-0">
-          <RgiWordmark />
-        </div>
-
-        {/* Step Slider */}
-        {!allDone && (
-          <div className="bg-card border-b border-border/40 px-5 py-3.5 shrink-0">
-            <StepSlider
-              steps={STEP_LABELS}
-              currentStep={showWelcome ? 0 : step}
-              completed={showWelcome ? {} : completed}
-              onStepClick={(n) =>
-                !showWelcome && !isStep1HardLocked && setStep(n)
-              }
-              lockedFromStep={
-                showWelcome ? 1 : isStep1HardLocked ? 2 : undefined
-              }
-            />
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!allDone && !showWelcome && !submitting) {
+              handleSubmitStep();
+            }
+          }}
+          className="flex flex-col flex-1 min-h-0"
+        >
+          {/* Top Bar */}
+          <div className="bg-card border-b border-border/40 px-5 h-[56px] flex items-center shrink-0">
+            <RgiWordmark />
           </div>
-        )}
 
-        {/* Scroll area */}
-        <div className="flex-1 overflow-y-auto px-4 py-5">
-          {allDone ? (
-            <CompletionScreen
-              onClose={() => {
-                onComplete();
-                onOpenChange(false);
-              }}
-              completed={justFinished || progress.step5_completed_at ? { 1: true, 2: true, 3: true, 4: true, 5: true } : completed}
-            />
-          ) : showWelcome ? (
-            <WelcomeScreen onStart={() => setShowWelcome(false)} />
-          ) : (
-            <div className="space-y-3">
-              <div>
-                <h2 className="font-display text-[20px] text-foreground leading-tight">
-                  {STEP_TITLES[step]}
-                </h2>
-                <p className="text-[13px] text-muted-foreground mt-0.5">
-                  {STEP_SUBTITLES[step]}
-                </p>
-              </div>
-              {renderStep()}
+          {/* Step Slider */}
+          {!allDone && (
+            <div className="bg-card border-b border-border/40 px-5 py-3.5 shrink-0">
+              <StepSlider
+                steps={STEP_LABELS}
+                currentStep={showWelcome ? 0 : step}
+                completed={showWelcome ? {} : completed}
+                onStepClick={(n) =>
+                  !showWelcome && !isStep1HardLocked && setStep(n)
+                }
+                lockedFromStep={
+                  showWelcome ? 1 : isStep1HardLocked ? 2 : undefined
+                }
+              />
             </div>
           )}
-        </div>
 
-        {/* Footer */}
-        {!allDone && !showWelcome && (
-          <div className="bg-card border-t border-border/60 px-4 py-3 flex items-center justify-between gap-2 shrink-0">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={async () => { await flush(); setStep(step - 1); }}
-              disabled={submitting || isStep1HardLocked || step <= 1}
-              className="border-border/60"
-              aria-label="Zurück"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              onClick={handleSubmitStep}
-              disabled={submitting}
-              size="icon"
-              aria-label={step === 5 ? "Abschließen" : "Weiter"}
-            >
-              {submitting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : step === 5 ? (
-                <Check className="h-4 w-4" />
-              ) : (
-                <ArrowRight className="h-4 w-4" />
-              )}
-            </Button>
+          {/* Scroll area */}
+          <div className="flex-1 overflow-y-auto px-4 py-5">
+            {allDone ? (
+              <CompletionScreen
+                onClose={() => {
+                  onComplete();
+                  onOpenChange(false);
+                }}
+                completed={justFinished || progress.step5_completed_at ? { 1: true, 2: true, 3: true, 4: true, 5: true } : completed}
+              />
+            ) : showWelcome ? (
+              <WelcomeScreen onStart={() => setShowWelcome(false)} />
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <h2 className="font-display text-[20px] text-foreground leading-tight">
+                    {STEP_TITLES[step]}
+                  </h2>
+                  <p className="text-[13px] text-muted-foreground mt-0.5">
+                    {STEP_SUBTITLES[step]}
+                  </p>
+                </div>
+                {renderStep()}
+              </div>
+            )}
           </div>
-        )}
+
+          {/* Footer */}
+          {!allDone && !showWelcome && (
+            <div className="bg-card border-t border-border/60 px-4 py-3 flex items-center justify-between gap-2 shrink-0">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={async () => { await flush(); setStep(step - 1); }}
+                disabled={submitting || isStep1HardLocked || step <= 1}
+                className="border-border/60"
+                aria-label="Zurück"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                type="submit"
+                disabled={submitting}
+                size="icon"
+                aria-label={step === 5 ? "Abschließen" : "Weiter"}
+              >
+                {submitting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : step === 5 ? (
+                  <Check className="h-4 w-4" />
+                ) : (
+                  <ArrowRight className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          )}
+        </form>
+
+        {/* SEPA Warn-Dialog */}
+        <AlertDialog open={pendingSepaWarning} onOpenChange={setPendingSepaWarning}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Sind Sie sicher?</AlertDialogTitle>
+              <AlertDialogDescription className="space-y-2 text-left">
+                <span className="block">
+                  Ohne SEPA-Lastschriftmandat entsteht für die Verwaltung ein deutlich
+                  höherer Aufwand bei der Erfassung und Zuordnung Ihrer Zahlungen.
+                </span>
+                <span className="block">
+                  Diesen Mehraufwand müssen wir mit{" "}
+                  <strong>5,00 € pro Monat</strong> zusätzlich zum Hausgeld in Rechnung
+                  stellen.
+                </span>
+                <span className="block">Möchten Sie das Mandat doch erteilen?</span>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={continueWithoutMandate}>
+                Nein, ohne Mandat fortfahren
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={acceptMandateAndContinue}>
+                Ja, Mandat jetzt erteilen
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );
