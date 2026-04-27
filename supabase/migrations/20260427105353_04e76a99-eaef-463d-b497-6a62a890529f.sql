@@ -1,0 +1,1 @@
+UPDATE public.profiles SET role = 'weg_owner' WHERE user_id = 'ef1b58d8-085e-4182-b881-ebf456aabcc8';
