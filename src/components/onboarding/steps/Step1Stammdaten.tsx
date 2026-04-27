@@ -91,6 +91,51 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buildingId]);
 
+  // Gebäude-Meta laden (Gläubiger-ID + building_code für Mandatsreferenz)
+  useEffect(() => {
+    if (!buildingId) return;
+    supabase
+      .from("buildings")
+      .select("creditor_id, building_code")
+      .eq("id", buildingId)
+      .single()
+      .then(({ data }) => {
+        if (data) setBuildingMeta(data as any);
+      });
+  }, [buildingId]);
+
+  // Mandatsreferenz einmalig generieren — Format: RGI-{codeShort}-{userShort}-{DDMMYYYY}, max. 35 Zeichen
+  useEffect(() => {
+    if (mandateInitRef.current) return;
+    if (!buildingMeta) return;
+    const current = valueRef.current;
+    if (current.sepa_mandate_reference) {
+      mandateInitRef.current = true;
+      return;
+    }
+    mandateInitRef.current = true;
+    const codeRaw = (buildingMeta.building_code || buildingId || "")
+      .replace(/[^A-Z0-9]/gi, "")
+      .toUpperCase();
+    const codeShort = codeRaw.slice(-6) || "000000";
+    supabase.auth.getUser().then(({ data }) => {
+      const uid = (data.user?.id || "00000000").replace(/-/g, "").toUpperCase();
+      const userShort = uid.slice(0, 4);
+      const d = new Date();
+      const dd = String(d.getDate()).padStart(2, "0");
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const yyyy = String(d.getFullYear());
+      let ref = `RGI-${codeShort}-${userShort}-${dd}${mm}${yyyy}`;
+      if (ref.length > 35) ref = ref.slice(0, 35);
+      onChange({
+        ...valueRef.current,
+        sepa_mandate_reference: ref,
+        sepa_creditor_id: buildingMeta.creditor_id || undefined,
+      });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buildingMeta]);
+
   const phones: PhoneEntry[] =
     value.phones && value.phones.length > 0
       ? value.phones
