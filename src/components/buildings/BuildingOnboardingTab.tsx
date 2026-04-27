@@ -320,7 +320,7 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
             <Mail className="h-5 w-5" /> Begrüßungsbriefe & App-Link
           </CardTitle>
           <CardDescription>
-            Für jeden Eigentümer einen personalisierten Brief mit App-Login-Link als ZIP erzeugen — automatische Ablage im Dokumentenarchiv.
+            Erzeugt ein einziges Word-Dokument mit personalisierten Briefen für alle Eigentümer (jeder Brief auf einer neuen Seite) — automatische Ablage im Dokumentenarchiv.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
