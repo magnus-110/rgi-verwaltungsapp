@@ -399,50 +399,50 @@ export const OnboardingWizardModal = ({
             </div>
           )}
         </form>
-
-        {/* SEPA Warn-Dialog */}
-        <AlertDialog
-          open={pendingSepaWarning}
-          onOpenChange={(o) => {
-            if (!o && pendingSepaWarning) dismissSepaWarning();
-            else setPendingSepaWarning(o);
-          }}
-        >
-          <AlertDialogContent className="relative">
-            <button
-              type="button"
-              onClick={dismissSepaWarning}
-              className="absolute right-3 top-3 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              aria-label="Schließen"
-            >
-              <X className="h-4 w-4" />
-            </button>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Sind Sie sicher?</AlertDialogTitle>
-              <AlertDialogDescription className="space-y-2 text-left">
-                <span className="block">
-                  Ohne SEPA-Lastschriftmandat entsteht für die Verwaltung ein deutlich
-                  höherer Aufwand bei der Erfassung und Zuordnung Ihrer Zahlungen.
-                </span>
-                <span className="block">
-                  Diesen Mehraufwand müssen wir mit{" "}
-                  <strong>5,00 € pro Monat</strong> zusätzlich zum Hausgeld in Rechnung
-                  stellen.
-                </span>
-                <span className="block">Möchten Sie das Mandat doch erteilen?</span>
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel onClick={continueWithoutMandate}>
-                Nein, ohne Mandat fortfahren
-              </AlertDialogCancel>
-              <AlertDialogAction onClick={acceptMandateAndContinue}>
-                Ja, Mandat jetzt erteilen
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </DialogContent>
+
+      {/* SEPA Warn-Dialog — außerhalb der DialogContent, um Nested-Dialog-Konflikte zu vermeiden */}
+      <AlertDialog
+        open={pendingSepaWarning}
+        onOpenChange={(o) => {
+          if (!o && pendingSepaWarning) dismissSepaWarning();
+          else setPendingSepaWarning(o);
+        }}
+      >
+        <AlertDialogContent className="relative z-[60]">
+          <button
+            type="button"
+            onClick={dismissSepaWarning}
+            className="absolute right-3 top-3 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            aria-label="Schließen"
+          >
+            <X className="h-4 w-4" />
+          </button>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Sind Sie sicher?</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2 text-left">
+              <span className="block">
+                Ohne SEPA-Lastschriftmandat entsteht für die Verwaltung ein deutlich
+                höherer Aufwand bei der Erfassung und Zuordnung Ihrer Zahlungen.
+              </span>
+              <span className="block">
+                Diesen Mehraufwand müssen wir mit{" "}
+                <strong>5,00 € pro Monat</strong> zusätzlich zum Hausgeld in Rechnung
+                stellen.
+              </span>
+              <span className="block">Möchten Sie das Mandat doch erteilen?</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={continueWithoutMandate}>
+              Nein, ohne Mandat fortfahren
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={acceptMandateAndContinue}>
+              Ja, Mandat jetzt erteilen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 };

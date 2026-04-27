@@ -341,7 +341,7 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
               </span>
             </label>
             {value.sepa_mandate_accepted && value.sepa_mandate_signed_at && (
-              <div className="pl-7 space-y-1">
+              <div className="pl-7">
                 <p className="text-[11px] text-muted-foreground">
                   Digital signiert am{" "}
                   {new Date(value.sepa_mandate_signed_at).toLocaleString("de-DE", {
@@ -349,11 +349,6 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
                     timeStyle: "short",
                   })}
                   {value.account_holder ? ` von ${value.account_holder}` : ""}.
-                </p>
-                <p className="flex items-center gap-1.5 text-[10.5px] text-success">
-                  <ShieldCheck className="size-3" />
-                  Diese Bestätigung wurde revisionssicher protokolliert
-                  (Zeitstempel, IP, Session, Wortlaut-Hash).
                 </p>
               </div>
             )}
