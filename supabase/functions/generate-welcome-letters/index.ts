@@ -52,6 +52,53 @@ function renderDocx(tplBuf: Uint8Array, data: Record<string, unknown>): Uint8Arr
   return doc.getZip().generate({ type: "uint8array" });
 }
 
+/**
+ * Merge multiple rendered DOCX buffers into ONE document.
+ * Strategy: keep the first doc as base (preserves styles, header/footer,
+ * relationships, media). Append the body content of each subsequent doc
+ * before the closing <w:sectPr>, separated by a hard page break.
+ *
+ * Works because every letter is rendered from the SAME template,
+ * so all rId references (logos, fonts) resolve identically.
+ */
+function mergeDocxBodies(docs: Uint8Array[]): Uint8Array {
+  if (docs.length === 1) return docs[0];
+
+  const baseZip = new PizZip(docs[0]);
+  const docXmlFile = baseZip.file("word/document.xml");
+  if (!docXmlFile) throw new Error("Basis-Dokument enthält keine document.xml");
+  let baseXml = docXmlFile.asText();
+
+  // Find insertion point: just before the final <w:sectPr> (page setup),
+  // falling back to just before </w:body>.
+  const sectPrMatch = baseXml.match(/<w:sectPr[\s\S]*?<\/w:sectPr>/);
+  const insertionPoint = sectPrMatch
+    ? baseXml.lastIndexOf(sectPrMatch[0])
+    : baseXml.lastIndexOf("</w:body>");
+  if (insertionPoint < 0) throw new Error("Konnte Body des Basis-Dokuments nicht parsen");
+
+  const pageBreak = `<w:p><w:r><w:br w:type="page"/></w:r></w:p>`;
+  const additions: string[] = [];
+
+  for (let i = 1; i < docs.length; i++) {
+    const xml = new PizZip(docs[i]).file("word/document.xml")!.asText();
+    // Extract everything between <w:body ...> and </w:body>, then strip a
+    // trailing <w:sectPr>...</w:sectPr> if present (we only keep the base's).
+    const bodyMatch = xml.match(/<w:body[^>]*>([\s\S]*)<\/w:body>/);
+    if (!bodyMatch) continue;
+    const bodyInner = bodyMatch[1].replace(/<w:sectPr[\s\S]*?<\/w:sectPr>\s*$/, "");
+    additions.push(pageBreak + bodyInner);
+  }
+
+  baseXml =
+    baseXml.slice(0, insertionPoint) +
+    additions.join("") +
+    baseXml.slice(insertionPoint);
+
+  baseZip.file("word/document.xml", baseXml);
+  return baseZip.generate({ type: "uint8array" });
+}
+
 type Mode = "weg" | "rent";
 
 interface Credentials {
@@ -284,7 +331,7 @@ Deno.serve(async (req) => {
     const recipients = await loadRecipients(admin, building_id, { roles: ["eigentuemer"] });
     if (recipients.length === 0) return json({ error: "Keine Eigentümer gefunden." }, 400);
 
-    const bundle = new PizZip();
+    const renderedDocs: Uint8Array[] = [];
     let okCount = 0;
     let failCount = 0;
     let createdAccounts = 0;
@@ -304,9 +351,7 @@ Deno.serve(async (req) => {
           verwaltungsbeginn,
           verwaltungsbeginn_kurz: verwaltungsbeginnKurz,
         });
-        const baseName = sanitize(r.display_name) || `eigentuemer_${i + 1}`;
-        const fileName = `${String(i + 1).padStart(3, "0")}_${baseName}.docx`;
-        bundle.file(fileName, outBuf);
+        renderedDocs.push(outBuf);
         okCount++;
       } catch (e: any) {
         failCount++;
@@ -324,14 +369,16 @@ Deno.serve(async (req) => {
       return json({ error: "Kein Brief konnte erstellt werden", details: errors }, 500);
     }
 
-    const zipBytes = bundle.generate({ type: "uint8array" });
+    // Merge all letters into ONE docx with page breaks between them
+    const combinedBytes = mergeDocxBodies(renderedDocs);
     const dateSlug = new Date().toISOString().slice(0, 10);
-    const zipFileName = `Begruessungsbriefe_${dateSlug}.zip`;
-    const zipPath = `welcome-letters/${building_id}/${Date.now()}_${zipFileName}`;
+    const docxFileName = `Begruessungsbriefe_${dateSlug}.docx`;
+    const docxPathOut = `welcome-letters/${building_id}/${Date.now()}_${docxFileName}`;
+    const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
     const { error: upErr } = await admin.storage
       .from("comm-assets")
-      .upload(zipPath, zipBytes, { contentType: "application/zip", upsert: true });
+      .upload(docxPathOut, combinedBytes, { contentType: DOCX_MIME, upsert: true });
     if (upErr) return json({ error: upErr.message }, 500);
 
     // DMS filing
@@ -362,18 +409,18 @@ Deno.serve(async (req) => {
         cat = createdCat;
       }
 
-      const dmsPath = `welcome-letters/${building_id}/${Date.now()}_${zipFileName}`;
+      const dmsPath = `welcome-letters/${building_id}/${Date.now()}_${docxFileName}`;
       await admin.storage.from("building-files")
-        .upload(dmsPath, zipBytes, { contentType: "application/zip", upsert: true });
+        .upload(dmsPath, combinedBytes, { contentType: DOCX_MIME, upsert: true });
 
       const { data: bf } = await admin.from("building_files").insert({
         building_id,
         category_id: cat?.id || null,
-        display_name: zipFileName,
-        description: `Begrüßungsbriefe für ${okCount} Eigentümer mit Login-Daten. ${createdAccounts} neue Accounts erstellt.`,
+        display_name: docxFileName,
+        description: `Begrüßungsbriefe (Sammeldokument) für ${okCount} Eigentümer mit Login-Daten. ${createdAccounts} neue Accounts erstellt.`,
         file_path: dmsPath,
-        file_size: zipBytes.length,
-        mime_type: "application/zip",
+        file_size: combinedBytes.length,
+        mime_type: DOCX_MIME,
         management_mode: mode,
         source: "manual",
         uploaded_by: userRes.user.id,
@@ -393,7 +440,8 @@ Deno.serve(async (req) => {
       failed: failCount,
       created_accounts: createdAccounts,
       errors,
-      zip_path: zipPath,
+      docx_path: docxPathOut,
+      zip_path: docxPathOut, // backwards-compat alias
       dms_file_id: dmsFileId,
       login_url: APP_LOGIN_URL,
     });
