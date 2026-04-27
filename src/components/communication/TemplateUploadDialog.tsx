@@ -85,7 +85,23 @@ export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultTy
       let variables: string[] = [];
 
       if (type === "letter" && file) {
-        const path = `templates/${buildingId}/${Date.now()}_${file.name.replace(/\s+/g, "_")}`;
+        const sanitizeFileName = (n: string): string => {
+          const dot = n.lastIndexOf(".");
+          const base = dot > 0 ? n.slice(0, dot) : n;
+          const ext = dot > 0 ? n.slice(dot) : "";
+          const cleaned = base
+            .replace(/ü/g, "ue").replace(/Ü/g, "Ue")
+            .replace(/ö/g, "oe").replace(/Ö/g, "Oe")
+            .replace(/ä/g, "ae").replace(/Ä/g, "Ae")
+            .replace(/ß/g, "ss")
+            .normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-zA-Z0-9._-]+/g, "_")
+            .replace(/_+/g, "_")
+            .replace(/^_+|_+$/g, "");
+          return (cleaned || "datei") + ext.toLowerCase();
+        };
+        const safeName = sanitizeFileName(file.name);
+        const path = `templates/${buildingId}/${Date.now()}_${safeName}`;
         const { error: upErr } = await supabase.storage.from("comm-assets").upload(path, file, {
           contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         });
