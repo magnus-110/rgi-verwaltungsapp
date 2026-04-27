@@ -23,6 +23,30 @@ function randomToken(len = 48): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+function renderDocx(tplBuf: Uint8Array, data: Record<string, unknown>, imageOpts: Record<string, unknown>): Uint8Array {
+  try {
+    const zip = new PizZip(tplBuf);
+    const doc = new Docxtemplater(zip, {
+      paragraphLoop: true,
+      linebreaks: true,
+      delimiters: { start: "{{", end: "}}" },
+      modules: [new (ImageModule as any)(imageOpts)],
+    });
+    doc.render(data);
+    return doc.getZip().generate({ type: "uint8array" });
+  } catch (imageError) {
+    console.warn("DOCX render with image module failed, retrying text-only", imageError);
+    const zip = new PizZip(tplBuf);
+    const doc = new Docxtemplater(zip, {
+      paragraphLoop: true,
+      linebreaks: true,
+      delimiters: { start: "{{", end: "}}" },
+    });
+    doc.render(data);
+    return doc.getZip().generate({ type: "uint8array" });
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -33,6 +57,14 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    if (!supabaseUrl || !serviceKey || !anonKey) {
+      console.error("generate-welcome-letters missing Supabase environment", {
+        hasUrl: !!supabaseUrl,
+        hasServiceKey: !!serviceKey,
+        hasAnonKey: !!anonKey,
+      });
+      return json({ error: "Server-Konfiguration unvollständig." }, 500);
+    }
 
     const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
@@ -92,8 +124,9 @@ Deno.serve(async (req) => {
 
     // Map contacts -> auth user (via contacts.user_id)
     const contactIds = Array.from(new Set(recipients.map((r) => r.contact_id)));
-    const { data: contactsRows } = await admin
+    const { data: contactsRows, error: contactsErr } = await admin
       .from("contacts").select("id, user_id").in("id", contactIds);
+    if (contactsErr) throw contactsErr;
     const userByContact = new Map<string, string | null>(
       (contactsRows ?? []).map((c: any) => [c.id, c.user_id ?? null]),
     );
