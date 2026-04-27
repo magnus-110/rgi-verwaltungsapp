@@ -20,6 +20,8 @@ export interface Step3Data {
   /** Mehrfachauswahl möglich (z. B. Hybrid) */
   heating_types?: HeatingTypeId[];
   heating_other?: string;
+  /** Wer informiert die HV bei Nachbestellung (Pellets/Öl) */
+  refill_contact?: string;
   notes?: string;
   // legacy fields tolerated
   heating_type?: HeatingTypeId | string;
