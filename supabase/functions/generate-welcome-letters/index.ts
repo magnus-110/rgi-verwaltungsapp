@@ -105,7 +105,11 @@ interface Credentials {
   username: string;
   password: string; // "(bereits vergeben)" if not freshly created
   created: boolean;
+  accountHinweis: string; // Hint text shown only for existing accounts
 }
+
+const EXISTING_ACCOUNT_HINT =
+  "Ihr Zugang besteht bereits — melden Sie sich mit Ihrem bisherigen Passwort an oder nutzen Sie „Passwort vergessen“.";
 
 /** Ensure there is an auth account for the contact and return login credentials. */
 async function ensureContactAccount(
