@@ -1,69 +1,78 @@
 ## Ziel
 
-Beim Klick auf „Begrüßungsbriefe erstellen" wird pro Eigentümer-Kontakt automatisch sichergestellt, dass es einen Account gibt. Im Brief stehen dann der echte **Benutzername** und das **Passwort**, plus der **Verwaltungsbeginn**.
+Statt einer ZIP mit N Einzel-DOCX soll **eine einzige DOCX-Datei** erzeugt werden, in der alle personalisierten Briefe hintereinander stehen — jeder Brief beginnt auf einer neuen Seite.
 
-## Logik pro Kontakt (Eigentümer)
+## Komplexität
 
-```text
-Hat Kontakt bereits einen verlinkten Account (contacts.user_id != null)?
-├── JA  → Username = profiles.username (oder pseudoEmail/echte E-Mail)
-│         Passwort = "(bereits vergeben)"  ← wird NICHT überschrieben
-│
-└── NEIN → Account neu anlegen:
-          1. Username generieren (vorname.nachname → eindeutig machen)
-          2. Pseudo-E-Mail = username@users.rgi-immobilien.app
-             (oder echte E-Mail, falls vorhanden und gewünscht)
-          3. Numerisches Passwort (8 Stellen) generieren
-          4. supabase.auth.admin.createUser({ email, password, email_confirm: true })
-          5. profiles upsert: username, role=weg_owner/tenant, force_password_change=true
-          6. contacts.user_id = neuer auth user
-          7. weg_owner_buildings bzw. tenants verknüpfen
-          → Username + Passwort gehen in den Brief
+**Einfach.** Es gibt zwei saubere Wege; wir nehmen den robusten:
+
+### Ansatz: Template wiederholt rendern + Seitenumbrüche zwischen den Briefen
+
+Pro Empfänger wird die bestehende Word-Vorlage gerendert (genau wie heute). Statt die Ergebnisse einzeln in eine ZIP zu packen, fügen wir die `<w:body>`-Inhalte aller gerenderten Dokumente nacheinander in **ein** DOCX zusammen und setzen zwischen den Briefen einen harten Seitenumbruch (`<w:br w:type="page"/>`).
+
+Vorteile:
+- Vorlage, Platzhalter, Header/Footer, Logos, Schriftarten bleiben **unverändert**
+- Kein zweites Template nötig
+- Funktioniert mit der vorhandenen `docxtemplater` + `pizzip` Pipeline
+- Reihenfolge ist deterministisch (gleiche Sortierung wie heute)
+
+Nachteil: Wenn die Vorlage einen abweichenden „Section/Header/Footer pro Brief" bräuchte, müsste man Section-Properties mitkopieren. Für unsere einheitliche Vorlage ist das nicht nötig — alle Briefe nutzen denselben Header/Footer.
+
+## Umsetzung
+
+### `supabase/functions/generate-welcome-letters/index.ts`
+
+1. Pro Empfänger wie bisher rendern → Ergebnis-DOCX als `Uint8Array`.
+2. Ersten gerenderten Brief als **Basis-Dokument** behalten (enthält bereits Styles, Header/Footer, Relationships).
+3. Aus jedem weiteren Brief nur den Inhalt des `<w:body>` extrahieren (alles außer dem abschließenden `<w:sectPr>`), einen Seitenumbruch davor setzen und an den Body des Basis-Dokuments anhängen.
+4. Das `<w:sectPr>` des Basisdokuments bleibt am Ende stehen.
+5. Ergebnis als **eine** DOCX-Datei speichern statt ZIP.
+
+Konkrete Helper-Funktion (in derselben Datei):
+
+```ts
+function mergeDocxBodies(docs: Uint8Array[]): Uint8Array {
+  const baseZip = new PizZip(docs[0]);
+  let baseXml = baseZip.file("word/document.xml")!.asText();
+
+  // Split base body into "before sectPr" and "sectPr+after"
+  const sectPrMatch = baseXml.match(/<w:sectPr[\s\S]*?<\/w:sectPr>/);
+  const insertionPoint = sectPrMatch ? baseXml.indexOf(sectPrMatch[0]) : baseXml.indexOf("</w:body>");
+
+  const additions: string[] = [];
+  for (let i = 1; i < docs.length; i++) {
+    const xml = new PizZip(docs[i]).file("word/document.xml")!.asText();
+    const bodyInner = xml.match(/<w:body[^>]*>([\s\S]*?)(?:<w:sectPr[\s\S]*?<\/w:sectPr>)?<\/w:body>/)?.[1] ?? "";
+    additions.push(
+      `<w:p><w:r><w:br w:type="page"/></w:r></w:p>` + bodyInner
+    );
+  }
+
+  baseXml = baseXml.slice(0, insertionPoint) + additions.join("") + baseXml.slice(insertionPoint);
+  baseZip.file("word/document.xml", baseXml);
+  return baseZip.generate({ type: "uint8array" });
+}
 ```
 
-Damit deckt der Brief beide Fälle ab — neue Kontakte (95 %) und Bestandskontakte (5 %).
+6. Upload-Pfad und DMS-Eintrag bleiben gleich, nur:
+   - Dateiname: `Willkommensbriefe_<Gebäude>_<Datum>.docx`
+   - `contentType`: `application/vnd.openxmlformats-officedocument.wordprocessingml.document`
+   - DMS-Tags weiterhin `["willkommensbrief", ...]`
 
-## Neue Platzhalter im Word-Template
+7. Response des Edge-Functions liefert weiterhin `ok`, `failed`, `created_accounts`, plus `combined_doc_path` statt `zip_path`.
 
-| Platzhalter | Inhalt |
-|---|---|
-| `{{benutzername}}` | Login-Username |
-| `{{passwort}}` | Initial-Passwort, oder „(bereits vergeben)" bei Bestands-Accounts |
-| `{{verwaltungsbeginn}}` | Datum, das beim Generieren im UI gewählt wurde (z. B. „1. Mai 2026") |
-| `{{verwaltungsbeginn_kurz}}` | „01.05.2026" |
-| `{{login_url}}` | `https://rgi-immobilien.app/login` |
+### `src/components/buildings/BuildingOnboardingTab.tsx`
 
-Der bisherige `{{magic_link_url}}` und der QR-Code werden **entfernt** (kein Magic-Link mehr).
+- Button-Text und Toast: „Willkommensbrief-Dokument erstellen" / „Sammeldokument erstellt".
+- Download-Link öffnet die einzelne DOCX (signierte URL aus Storage).
 
-## UI-Änderungen `BuildingOnboardingTab.tsx`
+## Edge-Cases
 
-1. Neuer **Datepicker** „Verwaltungsbeginn" über dem Button „Begrüßungsbriefe erstellen" (Shadcn Calendar in Popover, `pointer-events-auto`).
-2. Datum wird beim Klick als `management_start_date` (ISO) an die Edge Function übergeben — wird **nicht** in der DB gespeichert (nur für die Brieferzeugung).
-3. Platzhalter-Liste in der Hilfe-Sektion aktualisieren: `{{magic_link_url}}` raus, neue Platzhalter rein.
-4. Hinweis-Card unter Buttons: „Für neue Kontakte werden automatisch Login-Accounts mit Initial-Passwort erstellt."
+- **Nur 1 Empfänger:** Keine Merge-Logik nötig — Basis-DOCX direkt zurückgeben.
+- **Fehlerhafte Empfänger:** Werden wie heute übersprungen, in `comm_recipients`/Logs als `failed` vermerkt; im Sammeldokument nur die erfolgreichen.
+- **Bilder/Logos in der Vorlage:** Liegen in den `word/media/`-Dateien des Basis-DOCX und werden vom Word-Viewer für alle Briefe wiederverwendet — kein zusätzliches Kopieren nötig, da alle Briefe aus derselben Vorlage stammen und auf dieselben `rId`s zeigen.
+- **Header/Footer:** Erscheinen automatisch auf jeder Seite (ungeändert).
 
-## Edge-Function `generate-welcome-letters`
+## Aufwand
 
-Komplett überarbeiten:
-
-- QRCode- und ImageModule-Logik **entfernen** (vereinfachte Render-Funktion ohne Image-Modul → keine Render-Crashes mehr).
-- Body akzeptiert zusätzlich `management_start_date: string` (ISO).
-- Pro Recipient (loadRecipients liefert bereits `contact_id`):
-  - Lookup `contacts.user_id`.
-  - Falls vorhanden: lade `profiles.username`. Setze `passwort = "(bereits vergeben)"`.
-  - Falls nicht: führe oben beschriebenen Account-Erstellungsflow durch (gemeinsamer Helper `ensureContactAccount` analog zu `invite-contact-user`, im selben File). Pseudo-E-Mail wird verwendet wenn Kontakt keine echte E-Mail hat.
-- Variablen `benutzername`, `passwort`, `verwaltungsbeginn`, `verwaltungsbeginn_kurz`, `login_url` an `r.vars` mergen und ins DOCX rendern.
-- ZIP weiterhin bauen + in DMS unter „Begrüßungsbriefe" ablegen.
-- Response enthält zusätzlich `created_accounts: number`.
-
-## Sicherheit
-
-- Initial-Passwörter erscheinen ausschließlich im DOCX, das im DMS als `visibility_role: "intern"` abgelegt wird (nur Admin/Employee sichtbar) — wie heute.
-- `force_password_change = true` zwingt User beim ersten Login zur Passwortänderung.
-- Bestehende Passwörter werden **nie** überschrieben.
-
-## Geänderte/neue Dateien
-
-- `supabase/functions/generate-welcome-letters/index.ts` (Hauptlogik überarbeiten)
-- `src/components/buildings/BuildingOnboardingTab.tsx` (Datepicker, neue Platzhalterliste, Body-Param)
-- Keine DB-Migration nötig.
+Eine Edge-Function-Datei + ein kleines Frontend-Update. Realistisch ~15 Minuten Implementierung + Test.
