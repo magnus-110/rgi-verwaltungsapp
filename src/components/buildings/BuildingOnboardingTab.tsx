@@ -13,9 +13,12 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import {
   CheckCircle2, Circle, Inbox, Power, Users, AlertCircle, Loader2, ChevronRight,
-  Mail, Download, FileText, Copy, Check,
+  Mail, Download, FileText, Copy, Check, CalendarIcon,
 } from "lucide-react";
 import { OnboardingStepOverviews } from "./onboarding/OnboardingStepOverviews";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 function PlaceholderChip({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
@@ -61,7 +64,8 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
   const [busy, setBusy] = useState(false);
   const [markGlobal, setMarkGlobal] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [lastResult, setLastResult] = useState<{ ok: number; failed: number; zip_path: string } | null>(null);
+  const [managementStartDate, setManagementStartDate] = useState<Date | undefined>(undefined);
+  const [lastResult, setLastResult] = useState<{ ok: number; failed: number; created_accounts?: number; zip_path: string } | null>(null);
 
   // Activation state
   const { data: activation } = useQuery({
