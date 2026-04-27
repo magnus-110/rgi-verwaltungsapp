@@ -6,7 +6,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { Info, Landmark } from "lucide-react";
+import { Info, Landmark, ShieldCheck } from "lucide-react";
+import { SEPA_MANDATE_TEXT, logSepaMandateEvent } from "../sepaAuditLog";
 
 export type PhoneType = "private" | "mobile" | "business";
 export interface PhoneEntry { number: string; type?: PhoneType; note?: string }
