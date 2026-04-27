@@ -1,80 +1,94 @@
-# Plan: Self-Service Login-E-Mail + vollständige Vorbefüllung der Wohnungsformulare
+## Ziel
 
-## Teil A — Self-Service: Login-E-Mail ändern
+E-Mail-Wechsel-Bestätigung über Make.com versenden — analog zum bereits funktionierenden Passwort-Reset-Flow. Damit umgehen wir die Supabase-Default-Mails und brauchen **keine DNS-Änderungen bei Strato**. Die Strato-Standard-Mailfunktion bleibt unangetastet.
 
-### 1. Neue Card "Login-Daten" in `src/pages/weg-owner/Settings.tsx`
-Oberhalb von "Passwort ändern" eine neue Card einfügen:
+## Funktionsweise
 
-- **Titel**: "Login-E-Mail"
-- **Aktuelle Login-E-Mail** wird **vorbefüllt** aus `profile.email` (read-only Anzeige als Hinweis)
-- **Input "Neue E-Mail"**: leer, der User trägt die neue E-Mail ein
-- **Button "E-Mail ändern"**
+Statt Supabase Auth direkt die Bestätigungs-E-Mail verschicken zu lassen (was eine eigene Mail-Domain nötig macht), nutzen wir das gleiche Muster wie beim Passwort-Reset:
 
-### 2. Logik
-- Aufruf von `supabase.auth.updateUser({ email: newEmail })`
-- Supabase versendet automatisch eine Bestätigungs-E-Mail an die **neue** Adresse
-- User muss in der neuen E-Mail auf den Link klicken → erst dann wird die Login-E-Mail tatsächlich geändert
-- Nach erfolgreicher Bestätigung: Trigger `sync_profile_email` (existiert ggf. schon, sonst neu erstellen) aktualisiert auch `profiles.email`
+```text
+Eigentümer trägt neue E-Mail ein
+        ↓
+Edge Function "request-email-change"
+        ↓
+1. Validiert Eingabe (gültige E-Mail, nicht aktuelle, nicht vergeben)
+2. Erzeugt sicheren Token (UUID + Ablaufzeit 24h)
+3. Speichert Token + neue E-Mail in DB-Tabelle
+4. Schickt Webhook an Make.com mit:
+   - Vorname, Nachname
+   - Neue E-Mail (Empfänger)
+   - Bestätigungslink (https://app/confirm-email-change/{token})
+        ↓
+Make.com schickt deine RGI-Branded HTML-Mail an die neue Adresse
+        ↓
+Eigentümer klickt Link
+        ↓
+Edge Function "confirm-email-change" (öffentlich)
+        ↓
+1. Token prüfen (gültig, nicht abgelaufen, nicht benutzt)
+2. supabase.auth.admin.updateUserById → E-Mail ändern
+3. Token als "used" markieren
+4. Redirect auf Login mit Erfolgs-Toast
+```
 
-### 3. Hinweis-Text in der Card
-"Ihre Login-E-Mail wird auch für 'Passwort vergessen' verwendet. Nach dem Ändern erhalten Sie eine Bestätigungs-E-Mail an die **neue** Adresse — der Login funktioniert weiterhin mit der alten E-Mail, bis Sie den Link in der Bestätigungs-E-Mail anklicken."
+## Was gebaut wird
 
-### 4. Sicherheit
-- Keine Edge Function nötig — `supabase.auth.updateUser` läuft über die User-Session und ist abgesichert
-- Supabase verifiziert automatisch die Identität via aktiver Session
+**1. Datenbank-Migration**
+- Neue Tabelle `email_change_requests`: id, user_id, new_email, token, expires_at, used_at, created_at
+- RLS: nur Service-Role-Zugriff (Tokens sind sicherheitskritisch)
+- Index auf token für schnelles Lookup
 
----
+**2. Edge Function `request-email-change`** (authentifiziert)
+- Empfängt: `{ new_email }`
+- Holt aktuellen User aus JWT
+- Prüft: gültige E-Mail, ≠ aktuelle, nicht in `auth.users` vergeben
+- Erzeugt Token (crypto.randomUUID), 24h gültig
+- Speichert in `email_change_requests`
+- Holt Profil (first_name, last_name)
+- Schickt an Make-Webhook (gleiche `MAKE_WEBHOOK_URL` wie Passwort-Reset, mit `event: 'email_change_request'`):
+  ```json
+  {
+    "event": "email_change_request",
+    "first_name": "...",
+    "last_name": "...",
+    "new_email": "...",
+    "old_email": "...",
+    "confirmation_url": "https://rgi-immobilien.app/confirm-email-change/{token}",
+    "expires_at": "..."
+  }
+  ```
 
-## Teil B — Vollständige Vorbefüllung der Wohnungsfelder
+**3. Edge Function `confirm-email-change`** (öffentlich, kein JWT)
+- Empfängt: `{ token }`
+- Prüft Token gültig + nicht abgelaufen + nicht benutzt
+- `supabase.auth.admin.updateUserById(user_id, { email: new_email, email_confirm: true })`
+- Markiert Token als `used_at = now()`
+- Gibt `{ success: true }` zurück
 
-### Aktuelles Problem
-In `OwnerSelfServiceSection.tsx` werden Override-Felder mit `placeholder` (HTML) angezeigt, aber das Value ist `null/""`. Wenn der User speichert, ohne etwas zu ändern, wird **nichts** gespeichert → bei "Birkenweg 13" sind alle Felder leer.
+**4. Frontend-Anpassungen**
+- `src/pages/weg-owner/Settings.tsx`: `handleEmailChange` ruft jetzt `request-email-change` Edge Function statt `supabase.auth.updateUser` — Toast-Text bleibt gleich ("Bestätigungs-E-Mail versendet")
+- Neue Page `src/pages/ConfirmEmailChange.tsx`: konsumiert Token aus URL, ruft `confirm-email-change`, zeigt Erfolg/Fehler, leitet auf Login
+- Route in `src/App.tsx`: `/confirm-email-change/:token`
 
-### Fix
-In `setAssignments(...)` beim initialen Laden: Wenn ein Override-Feld `null` ist, lade den **globalen Wert** aus `contact` / `contact_persons` / `contact_phones` / `contact_emails` / `contact_bank_accounts` als initialen Wert in den State.
+**5. Make.com (musst du einrichten)**
+Im bestehenden Make-Szenario einen neuen Branch hinzufügen (Router auf `event`-Feld):
+- `event = "password_reset"` → bestehender Passwort-Reset-Flow
+- `event = "email_change_request"` → neue Mail mit deinem RGI-HTML-Template
+  - Empfänger: `{{new_email}}`
+  - Variablen im Template: `{{first_name}}`, `{{last_name}}`, `{{confirmation_url}}`
+  - Betreff-Vorschlag: "Bestätigung Ihrer neuen Login-E-Mail bei RGI Immobilien"
 
-Konkret:
-- `salutation_override` ← `contact.salutation` falls null
-- `first_name_override` ← `person.first_name` falls null
-- `last_name_override` ← `person.last_name` falls null
-- `address_line1_override`, `postal_code_override`, `city_override` ← aus `contact`
-- `phones_override` ← aus `contact_phones` der Person, falls leer
-- `emails_override` ← aus `contact_emails` der Person, falls leer
-- `iban_override` / `iban_holder_override` ← aus `contact_bank_accounts` falls `bank_account_id` gesetzt
+Ich liefere dir nach der Implementierung das fertige HTML-Template (im gleichen Stil wie deine Passwort-Reset-Mail) zum Einfügen in Make.
 
-→ Alle Felder zeigen jetzt **echte Werte**, der User sieht sofort die geerbten Daten und kann sie bearbeiten. Beim Speichern werden die Werte als Override persistiert (also explizit pro Wohnung gespeichert).
+## Vorteile
 
-### Konsequenz
-Auch wenn der User **nichts** ändert, werden die globalen Werte beim ersten Speichern als Override für die jeweilige Wohnung übernommen → konsistent für alle Gebäude (Beispielgebäude UND Birkenweg 13).
+- **Keine DNS-Änderungen** bei Strato — Mailfunktion bleibt intakt
+- **Einheitliches Branding** — gleiche HTML-Struktur wie Passwort-Reset
+- **Kein Lovable Email Setup** nötig
+- **Token-Sicherheit** — 24h Ablauf, einmalige Verwendung, Service-Role-Schutz
+- **Funktioniert sofort** — sobald du den Make-Branch eingerichtet hast
 
----
+## Nicht im Scope
 
-## Teil C — Eigentümer-Badge entfernen
-
-In `OwnerSelfServiceSection.tsx` das `<Badge>` mit "Eigentümer" auf der Wohnungs-Card entfernen.
-
----
-
-## Teil D — Info-Text "Mehrere E-Mails / Login"
-
-Auf der Wohnungs-Card ein kleiner Hinweis (graue Info-Box mit Info-Icon):
-> "Diese E-Mail-Adressen werden für Korrespondenz zu **dieser Wohnung** verwendet (z.B. Abrechnungen). Ihre **Login-E-Mail** ändern Sie in den Einstellungen unter 'Login-Daten'."
-
----
-
-## Dateien, die geändert werden
-
-1. **`src/pages/weg-owner/Settings.tsx`** — neue Card "Login-Daten" mit Self-Service E-Mail-Änderung
-2. **`src/components/owner/OwnerSelfServiceSection.tsx`**:
-   - Eigentümer-Badge entfernen
-   - Vollständige Vorbefüllung aller Override-Felder mit globalen Werten
-   - Info-Text zu Korrespondenz-vs-Login-E-Mail
-3. **(Optional) Migration**: Trigger `sync_profile_email` prüfen — falls nicht vorhanden, einen Trigger auf `auth.users` UPDATE erstellen, der `profiles.email` synchronisiert (nur falls noch nicht existent)
-
----
-
-## Was NICHT geändert wird
-
-- `request-password-reset` bleibt unverändert (nutzt weiterhin nur `auth.users.email`)
-- `resolve-login-identifier` bleibt unverändert
-- Override-E-Mails der Wohnungen bleiben **rein für Korrespondenz** — kein Login-Effekt
+- Andere Auth-Mails (Magic Link, Signup-Bestätigung) — diese werden derzeit nicht aktiv genutzt; falls später nötig, gleiches Muster anwendbar
+- Lovable Email Domain Setup wird **nicht** initiiert

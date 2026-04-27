@@ -144,3 +144,9 @@ verify_jwt = false
 
 [functions.owner-update-assignment]
 verify_jwt = true
+
+[functions.request-email-change]
+verify_jwt = true
+
+[functions.confirm-email-change]
+verify_jwt = false

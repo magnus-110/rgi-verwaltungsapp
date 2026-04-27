@@ -3310,6 +3310,39 @@ export type Database = {
           },
         ]
       }
+      email_change_requests: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          new_email: string
+          old_email: string
+          token: string
+          used_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          new_email: string
+          old_email: string
+          token: string
+          used_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          new_email?: string
+          old_email?: string
+          token?: string
+          used_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       email_folders: {
         Row: {
           color: string | null
