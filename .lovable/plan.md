@@ -1,94 +1,69 @@
 ## Ziel
 
-E-Mail-Wechsel-Bestätigung über Make.com versenden — analog zum bereits funktionierenden Passwort-Reset-Flow. Damit umgehen wir die Supabase-Default-Mails und brauchen **keine DNS-Änderungen bei Strato**. Die Strato-Standard-Mailfunktion bleibt unangetastet.
+Beim Klick auf „Begrüßungsbriefe erstellen" wird pro Eigentümer-Kontakt automatisch sichergestellt, dass es einen Account gibt. Im Brief stehen dann der echte **Benutzername** und das **Passwort**, plus der **Verwaltungsbeginn**.
 
-## Funktionsweise
-
-Statt Supabase Auth direkt die Bestätigungs-E-Mail verschicken zu lassen (was eine eigene Mail-Domain nötig macht), nutzen wir das gleiche Muster wie beim Passwort-Reset:
+## Logik pro Kontakt (Eigentümer)
 
 ```text
-Eigentümer trägt neue E-Mail ein
-        ↓
-Edge Function "request-email-change"
-        ↓
-1. Validiert Eingabe (gültige E-Mail, nicht aktuelle, nicht vergeben)
-2. Erzeugt sicheren Token (UUID + Ablaufzeit 24h)
-3. Speichert Token + neue E-Mail in DB-Tabelle
-4. Schickt Webhook an Make.com mit:
-   - Vorname, Nachname
-   - Neue E-Mail (Empfänger)
-   - Bestätigungslink (https://app/confirm-email-change/{token})
-        ↓
-Make.com schickt deine RGI-Branded HTML-Mail an die neue Adresse
-        ↓
-Eigentümer klickt Link
-        ↓
-Edge Function "confirm-email-change" (öffentlich)
-        ↓
-1. Token prüfen (gültig, nicht abgelaufen, nicht benutzt)
-2. supabase.auth.admin.updateUserById → E-Mail ändern
-3. Token als "used" markieren
-4. Redirect auf Login mit Erfolgs-Toast
+Hat Kontakt bereits einen verlinkten Account (contacts.user_id != null)?
+├── JA  → Username = profiles.username (oder pseudoEmail/echte E-Mail)
+│         Passwort = "(bereits vergeben)"  ← wird NICHT überschrieben
+│
+└── NEIN → Account neu anlegen:
+          1. Username generieren (vorname.nachname → eindeutig machen)
+          2. Pseudo-E-Mail = username@users.rgi-immobilien.app
+             (oder echte E-Mail, falls vorhanden und gewünscht)
+          3. Numerisches Passwort (8 Stellen) generieren
+          4. supabase.auth.admin.createUser({ email, password, email_confirm: true })
+          5. profiles upsert: username, role=weg_owner/tenant, force_password_change=true
+          6. contacts.user_id = neuer auth user
+          7. weg_owner_buildings bzw. tenants verknüpfen
+          → Username + Passwort gehen in den Brief
 ```
 
-## Was gebaut wird
+Damit deckt der Brief beide Fälle ab — neue Kontakte (95 %) und Bestandskontakte (5 %).
 
-**1. Datenbank-Migration**
-- Neue Tabelle `email_change_requests`: id, user_id, new_email, token, expires_at, used_at, created_at
-- RLS: nur Service-Role-Zugriff (Tokens sind sicherheitskritisch)
-- Index auf token für schnelles Lookup
+## Neue Platzhalter im Word-Template
 
-**2. Edge Function `request-email-change`** (authentifiziert)
-- Empfängt: `{ new_email }`
-- Holt aktuellen User aus JWT
-- Prüft: gültige E-Mail, ≠ aktuelle, nicht in `auth.users` vergeben
-- Erzeugt Token (crypto.randomUUID), 24h gültig
-- Speichert in `email_change_requests`
-- Holt Profil (first_name, last_name)
-- Schickt an Make-Webhook (gleiche `MAKE_WEBHOOK_URL` wie Passwort-Reset, mit `event: 'email_change_request'`):
-  ```json
-  {
-    "event": "email_change_request",
-    "first_name": "...",
-    "last_name": "...",
-    "new_email": "...",
-    "old_email": "...",
-    "confirmation_url": "https://rgi-immobilien.app/confirm-email-change/{token}",
-    "expires_at": "..."
-  }
-  ```
+| Platzhalter | Inhalt |
+|---|---|
+| `{{benutzername}}` | Login-Username |
+| `{{passwort}}` | Initial-Passwort, oder „(bereits vergeben)" bei Bestands-Accounts |
+| `{{verwaltungsbeginn}}` | Datum, das beim Generieren im UI gewählt wurde (z. B. „1. Mai 2026") |
+| `{{verwaltungsbeginn_kurz}}` | „01.05.2026" |
+| `{{login_url}}` | `https://rgi-immobilien.app/login` |
 
-**3. Edge Function `confirm-email-change`** (öffentlich, kein JWT)
-- Empfängt: `{ token }`
-- Prüft Token gültig + nicht abgelaufen + nicht benutzt
-- `supabase.auth.admin.updateUserById(user_id, { email: new_email, email_confirm: true })`
-- Markiert Token als `used_at = now()`
-- Gibt `{ success: true }` zurück
+Der bisherige `{{magic_link_url}}` und der QR-Code werden **entfernt** (kein Magic-Link mehr).
 
-**4. Frontend-Anpassungen**
-- `src/pages/weg-owner/Settings.tsx`: `handleEmailChange` ruft jetzt `request-email-change` Edge Function statt `supabase.auth.updateUser` — Toast-Text bleibt gleich ("Bestätigungs-E-Mail versendet")
-- Neue Page `src/pages/ConfirmEmailChange.tsx`: konsumiert Token aus URL, ruft `confirm-email-change`, zeigt Erfolg/Fehler, leitet auf Login
-- Route in `src/App.tsx`: `/confirm-email-change/:token`
+## UI-Änderungen `BuildingOnboardingTab.tsx`
 
-**5. Make.com (musst du einrichten)**
-Im bestehenden Make-Szenario einen neuen Branch hinzufügen (Router auf `event`-Feld):
-- `event = "password_reset"` → bestehender Passwort-Reset-Flow
-- `event = "email_change_request"` → neue Mail mit deinem RGI-HTML-Template
-  - Empfänger: `{{new_email}}`
-  - Variablen im Template: `{{first_name}}`, `{{last_name}}`, `{{confirmation_url}}`
-  - Betreff-Vorschlag: "Bestätigung Ihrer neuen Login-E-Mail bei RGI Immobilien"
+1. Neuer **Datepicker** „Verwaltungsbeginn" über dem Button „Begrüßungsbriefe erstellen" (Shadcn Calendar in Popover, `pointer-events-auto`).
+2. Datum wird beim Klick als `management_start_date` (ISO) an die Edge Function übergeben — wird **nicht** in der DB gespeichert (nur für die Brieferzeugung).
+3. Platzhalter-Liste in der Hilfe-Sektion aktualisieren: `{{magic_link_url}}` raus, neue Platzhalter rein.
+4. Hinweis-Card unter Buttons: „Für neue Kontakte werden automatisch Login-Accounts mit Initial-Passwort erstellt."
 
-Ich liefere dir nach der Implementierung das fertige HTML-Template (im gleichen Stil wie deine Passwort-Reset-Mail) zum Einfügen in Make.
+## Edge-Function `generate-welcome-letters`
 
-## Vorteile
+Komplett überarbeiten:
 
-- **Keine DNS-Änderungen** bei Strato — Mailfunktion bleibt intakt
-- **Einheitliches Branding** — gleiche HTML-Struktur wie Passwort-Reset
-- **Kein Lovable Email Setup** nötig
-- **Token-Sicherheit** — 24h Ablauf, einmalige Verwendung, Service-Role-Schutz
-- **Funktioniert sofort** — sobald du den Make-Branch eingerichtet hast
+- QRCode- und ImageModule-Logik **entfernen** (vereinfachte Render-Funktion ohne Image-Modul → keine Render-Crashes mehr).
+- Body akzeptiert zusätzlich `management_start_date: string` (ISO).
+- Pro Recipient (loadRecipients liefert bereits `contact_id`):
+  - Lookup `contacts.user_id`.
+  - Falls vorhanden: lade `profiles.username`. Setze `passwort = "(bereits vergeben)"`.
+  - Falls nicht: führe oben beschriebenen Account-Erstellungsflow durch (gemeinsamer Helper `ensureContactAccount` analog zu `invite-contact-user`, im selben File). Pseudo-E-Mail wird verwendet wenn Kontakt keine echte E-Mail hat.
+- Variablen `benutzername`, `passwort`, `verwaltungsbeginn`, `verwaltungsbeginn_kurz`, `login_url` an `r.vars` mergen und ins DOCX rendern.
+- ZIP weiterhin bauen + in DMS unter „Begrüßungsbriefe" ablegen.
+- Response enthält zusätzlich `created_accounts: number`.
 
-## Nicht im Scope
+## Sicherheit
 
-- Andere Auth-Mails (Magic Link, Signup-Bestätigung) — diese werden derzeit nicht aktiv genutzt; falls später nötig, gleiches Muster anwendbar
-- Lovable Email Domain Setup wird **nicht** initiiert
+- Initial-Passwörter erscheinen ausschließlich im DOCX, das im DMS als `visibility_role: "intern"` abgelegt wird (nur Admin/Employee sichtbar) — wie heute.
+- `force_password_change = true` zwingt User beim ersten Login zur Passwortänderung.
+- Bestehende Passwörter werden **nie** überschrieben.
+
+## Geänderte/neue Dateien
+
+- `supabase/functions/generate-welcome-letters/index.ts` (Hauptlogik überarbeiten)
+- `src/components/buildings/BuildingOnboardingTab.tsx` (Datepicker, neue Platzhalterliste, Body-Param)
+- Keine DB-Migration nötig.
