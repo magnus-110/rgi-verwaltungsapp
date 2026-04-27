@@ -278,12 +278,12 @@ Deno.serve(async (req) => {
     // Resolve management start date: prefer payload, persist on building, else use stored value
     let mgmtDate: Date | null = null;
     if (management_start_date) {
-      const d = new Date(management_start_date);
-      if (!isNaN(d.getTime())) {
-        mgmtDate = d;
-        // Persist on building (store as YYYY-MM-DD)
-        const iso = d.toISOString().slice(0, 10);
-        await admin.from("buildings").update({ management_start_date: iso } as any).eq("id", building_id);
+      // Accept "YYYY-MM-DD" or ISO; parse as LOCAL date to avoid UTC day-shift
+      const ymd = String(management_start_date).slice(0, 10);
+      const [y, m, d] = ymd.split("-").map(Number);
+      if (y && m && d) {
+        mgmtDate = new Date(y, m - 1, d);
+        await admin.from("buildings").update({ management_start_date: ymd } as any).eq("id", building_id);
       }
     }
     if (!mgmtDate) {
