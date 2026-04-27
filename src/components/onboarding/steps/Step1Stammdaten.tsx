@@ -243,8 +243,35 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
         </div>
       </SectionCard>
 
-      <SectionCard label="BANKVERBINDUNG">
+      <SectionCard label="SEPA-MANDAT">
         <div className="px-4 py-3 space-y-3">
+          {/* Gläubiger-ID + Mandatsreferenz */}
+          <div className="rounded-[10px] border border-border/60 bg-muted/30 p-3 space-y-2">
+            <div className="flex items-start gap-2">
+              <Landmark className="size-4 text-primary mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0 space-y-1.5 text-[12px]">
+                <div className="flex flex-col">
+                  <span className="text-muted-foreground">Gläubiger-ID:</span>
+                  <span className="font-mono text-foreground break-all">
+                    {buildingMeta?.creditor_id || (
+                      <span className="italic text-muted-foreground">
+                        Wird von der Verwaltung ergänzt
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-muted-foreground">Mandatsreferenz:</span>
+                  <span className="font-mono text-foreground break-all">
+                    {value.sepa_mandate_reference || (
+                      <span className="italic text-muted-foreground">wird erzeugt …</span>
+                    )}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <Field label="Kontoinhaber" required>
             <EmbeddedInput
               value={value.account_holder ?? ""}
@@ -277,11 +304,44 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
               spellCheck={false}
             />
           </Field>
-        </div>
-        <div className="px-4 pb-2.5 -mt-1 text-[11px] text-muted-foreground/80">
-          Wird für die SEPA-Lastschrift Ihres Hausgeldes benötigt.
+
+          {/* Mandatstext + digitale Unterschrift */}
+          <div className="rounded-[10px] border border-border/60 bg-card p-3 space-y-3">
+            <p className="text-[12.5px] leading-relaxed text-foreground/85">
+              Ich ermächtige die RGI Immobilien GmbH &amp; Co. KG, Zahlungen
+              von meinem Konto mittels SEPA-Lastschrift einzuziehen.
+            </p>
+            <label className="flex items-start gap-2.5 cursor-pointer select-none">
+              <Checkbox
+                checked={!!value.sepa_mandate_accepted}
+                onCheckedChange={(checked) => {
+                  const isOn = checked === true;
+                  set({
+                    sepa_mandate_accepted: isOn,
+                    sepa_mandate_signed_at: isOn ? new Date().toISOString() : undefined,
+                  });
+                }}
+                className="mt-0.5"
+              />
+              <span className="text-[12.5px] text-foreground leading-snug">
+                Ich erteile hiermit das SEPA-Lastschriftmandat (digitale
+                Unterschrift).
+              </span>
+            </label>
+            {value.sepa_mandate_accepted && value.sepa_mandate_signed_at && (
+              <p className="text-[11px] text-muted-foreground pl-7">
+                Digital signiert am{" "}
+                {new Date(value.sepa_mandate_signed_at).toLocaleString("de-DE", {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                })}
+                {value.account_holder ? ` von ${value.account_holder}` : ""}.
+              </p>
+            )}
+          </div>
         </div>
       </SectionCard>
+
 
       <SectionCard label="HAUPTANSPRECHPARTNER">
         <div className="p-3 space-y-3">
