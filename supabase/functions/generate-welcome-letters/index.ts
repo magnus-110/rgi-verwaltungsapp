@@ -178,27 +178,23 @@ Deno.serve(async (req) => {
           for (let j = 0; j < bin.length; j++) qrBytes[j] = bin.charCodeAt(j);
         }
 
-        const zip = new PizZip(tplBuf);
-        const doc = new Docxtemplater(zip, {
-          paragraphLoop: true,
-          linebreaks: true,
-          delimiters: { start: "{{", end: "}}" },
-          modules: [new (ImageModule as any)(imageOpts)],
-        });
-
-        doc.render({
+        const outBuf = renderDocx(tplBuf, {
           ...r.vars,
           magic_link_url: magicUrl,
           magic_link_qr: qrBytes,
-        });
-
-        const outBuf: Uint8Array = doc.getZip().generate({ type: "uint8array" });
+        }, imageOpts);
         const baseName = sanitize(r.display_name) || `eigentuemer_${i + 1}`;
         const fileName = `${String(i + 1).padStart(3, "0")}_${baseName}.docx`;
         bundle.file(fileName, outBuf);
         okCount++;
       } catch (e: any) {
         failCount++;
+        console.error("welcome-letter recipient failed", {
+          recipient: r.display_name,
+          contact_id: r.contact_id,
+          message: e?.message || String(e),
+          properties: e?.properties,
+        });
         errors.push(`${r.display_name}: ${e?.message || String(e)}`);
       }
     }
