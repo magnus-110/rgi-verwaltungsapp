@@ -1,4 +1,3 @@
-import { Info } from "lucide-react";
 import { SectionCard } from "../ui/SectionCard";
 import { EmbeddedInput } from "../ui/InlineField";
 
