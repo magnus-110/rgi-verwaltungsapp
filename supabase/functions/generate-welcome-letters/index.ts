@@ -1,5 +1,5 @@
 // Generate personalised welcome-letter DOCX files (one per owner) with an
-// embedded magic-link QR code. Bundles them as a ZIP and files the bundle
+// optional QR code to the app login. Bundles them as a ZIP and files the bundle
 // into the building's DMS under "Begrüßungsbriefe".
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
 import PizZip from "npm:pizzip@3.1.7";
@@ -15,12 +15,6 @@ const corsHeaders = {
 
 function sanitize(name: string): string {
   return name.replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_").slice(0, 80);
-}
-
-function randomToken(len = 48): string {
-  const bytes = new Uint8Array(len);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 function renderDocx(tplBuf: Uint8Array, data: Record<string, unknown>, imageOpts: Record<string, unknown>): Uint8Array {
