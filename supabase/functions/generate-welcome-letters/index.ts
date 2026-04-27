@@ -343,6 +343,7 @@ Deno.serve(async (req) => {
           ...r.vars,
           benutzername: creds?.username || "",
           passwort: creds?.password || "",
+          account_hinweis: creds?.accountHinweis || "",
           login_url: APP_LOGIN_URL,
           verwaltungsbeginn,
           verwaltungsbeginn_kurz: verwaltungsbeginnKurz,
