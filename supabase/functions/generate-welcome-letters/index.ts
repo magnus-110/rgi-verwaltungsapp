@@ -147,7 +147,12 @@ async function ensureContactAccount(
     }
 
     // Account existiert bereits -> bestehendes Passwort beibehalten
-    return { username, password: "(bereits vergeben)", created: false };
+    return {
+      username,
+      password: "(bereits vergeben)",
+      created: false,
+      accountHinweis: EXISTING_ACCOUNT_HINT,
+    };
   }
 
   // Build a unique username
