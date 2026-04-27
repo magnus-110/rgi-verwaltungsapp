@@ -46,11 +46,23 @@ export const WegOwnerSettings = () => {
     }
     setIsUpdatingEmail(true);
     try {
-      const { error } = await supabase.auth.updateUser({ email: trimmed });
-      if (error) throw error;
+      const { data, error } = await supabase.functions.invoke("request-email-change", {
+        body: { new_email: trimmed },
+      });
+      if (error) {
+        // Try to read error body
+        const ctx = (error as any)?.context;
+        let msg = error.message || "E-Mail konnte nicht geändert werden.";
+        try {
+          const text = ctx ? await ctx.text?.() : "";
+          const parsed = text ? JSON.parse(text) : null;
+          if (parsed?.error) msg = parsed.error;
+        } catch { /* ignore */ }
+        throw new Error(msg);
+      }
       toast({
         title: "Bestätigungs-E-Mail versendet",
-        description: `Wir haben eine Bestätigungs-E-Mail an ${trimmed} gesendet. Klicken Sie dort auf den Link, um die Änderung abzuschließen.`,
+        description: `Wir haben eine Bestätigungs-E-Mail an ${trimmed} gesendet. Klicken Sie dort auf den Link, um die Änderung abzuschließen. Der Link ist 24 Stunden gültig.`,
       });
       setNewEmail("");
     } catch (e: any) {
