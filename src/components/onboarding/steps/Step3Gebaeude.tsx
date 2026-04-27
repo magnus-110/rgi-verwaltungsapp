@@ -4,6 +4,8 @@ import {
 } from "lucide-react";
 import { SectionCard } from "../ui/SectionCard";
 import { Textarea } from "@/components/ui/textarea";
+import { RangeSlider } from "../ui/RangeSlider";
+import { EmbeddedInput } from "../ui/InlineField";
 import { cn } from "@/lib/utils";
 
 export type ProblemAreaId = "dach" | "fassade" | "treppenhaus" | "keller" | "eingang" | "sonstiges";
@@ -18,6 +20,8 @@ export interface Step3Data {
   /** Mehrfachauswahl möglich (z. B. Hybrid) */
   heating_types?: HeatingTypeId[];
   heating_other?: string;
+  /** Wer informiert die HV bei Nachbestellung (Pellets/Öl) */
+  refill_contact?: string;
   notes?: string;
   // legacy fields tolerated
   heating_type?: HeatingTypeId | string;
@@ -88,6 +92,25 @@ export const Step3Gebaeude = ({ value, onChange }: Props) => {
 
   return (
     <div className="space-y-2.5">
+      <SectionCard label="GEBÄUDEZUSTAND">
+        <div className="p-3">
+          <RangeSlider
+            value={value.general_impression_score ?? 3}
+            onChange={(v) => set({ general_impression_score: v })}
+            descriptions={[
+              "Sanierungsbedürftig",
+              "Deutliche Mängel",
+              "Akzeptabel",
+              "Guter Zustand",
+              "Ausgezeichnet",
+            ]}
+            lowLabel="Schlecht"
+            highLabel="Gut"
+          />
+        </div>
+      </SectionCard>
+
+
       <SectionCard label="HEIZUNGSART (MEHRFACHAUSWAHL MÖGLICH)">
         <div className="p-3 space-y-2.5">
           <div className="grid grid-cols-2 gap-2">
@@ -120,6 +143,21 @@ export const Step3Gebaeude = ({ value, onChange }: Props) => {
               placeholder="Bitte beschreiben"
               className="border-0 bg-[hsl(var(--input))] focus-visible:ring-0 resize-none rounded-lg px-3 py-2.5 text-[14px]"
             />
+          )}
+          {(heatings.includes("pellets") || heatings.includes("oel")) && (
+            <div className="rounded-lg bg-accent/50 border border-border/60 p-3 space-y-1.5">
+              <div className="text-[12px] font-medium text-foreground">
+                Nachbestellung {heatings.includes("pellets") && heatings.includes("oel") ? "Pellets / Öl" : heatings.includes("pellets") ? "Pellets" : "Öl"}
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                Wer informiert die Hausverwaltung, wenn nachbestellt werden muss? (optional)
+              </div>
+              <EmbeddedInput
+                value={value.refill_contact ?? ""}
+                onChange={(e) => set({ refill_contact: e.target.value })}
+                placeholder="Name / Kontakt"
+              />
+            </div>
           )}
         </div>
       </SectionCard>

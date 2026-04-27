@@ -1,4 +1,3 @@
-import { Info } from "lucide-react";
 import { SectionCard } from "../ui/SectionCard";
 import { EmbeddedInput } from "../ui/InlineField";
 
@@ -24,15 +23,6 @@ export const Step2Wohnungsdaten = ({ value, onChange }: Props) => {
 
   return (
     <div className="space-y-2.5">
-      <div className="bg-accent rounded-xl p-3 flex gap-3 items-start">
-        <span className="size-5 rounded-full bg-primary/15 text-primary grid place-items-center shrink-0 mt-0.5">
-          <Info className="size-3" />
-        </span>
-        <p className="text-[12px] text-foreground leading-snug">
-          Optional — Ihre Angaben helfen uns, Ihre Liegenschaft von Beginn an optimal zu betreuen.
-        </p>
-      </div>
-
       <SectionCard label="WOHNUNG">
         <div className="px-4 py-3">
           <div className="grid grid-cols-[110px_1fr] gap-2">
