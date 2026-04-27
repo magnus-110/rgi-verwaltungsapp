@@ -15,7 +15,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Check, Loader2, ArrowLeft, ArrowRight } from "lucide-react";
+import { Check, Loader2, ArrowLeft, ArrowRight, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -32,6 +32,7 @@ import { StepSlider } from "./ui/StepSlider";
 import { RgiWordmark } from "./ui/RgiWordmark";
 import { WelcomeScreen } from "./ui/WelcomeScreen";
 import { cn } from "@/lib/utils";
+import { logSepaMandateEvent } from "./sepaAuditLog";
 
 interface Props {
   open: boolean;
@@ -178,6 +179,17 @@ export const OnboardingWizardModal = ({
       const mandateAccepted = !!(d as any).sepa_mandate_accepted;
       if (ibanFilled && !mandateAccepted) {
         setPendingSepaWarning(true);
+        // Warn-Dialog-Anzeige protokollieren
+        logSepaMandateEvent({
+          event_type: "mandate_warning_shown",
+          building_id: progress.building_id,
+          mandate_reference: (d as any).sepa_mandate_reference ?? null,
+          creditor_id: (d as any).sepa_creditor_id ?? null,
+          iban: d.iban ?? null,
+          account_holder: d.account_holder ?? null,
+          accepted: false,
+          metadata: { source: "wizard.step1.next" },
+        });
         return;
       }
     }
@@ -186,20 +198,58 @@ export const OnboardingWizardModal = ({
 
   const acceptMandateAndContinue = async () => {
     const now = new Date().toISOString();
+    const d = currentData as Step1Data;
     const next = {
-      ...(currentData as Step1Data),
+      ...d,
       sepa_mandate_accepted: true,
       sepa_mandate_signed_at: now,
     };
     setCurrentData(next);
     setPendingSepaWarning(false);
+    // Mandat nach Warnung erteilt → eigenes Audit-Event
+    logSepaMandateEvent({
+      event_type: "mandate_changed_after_warning",
+      building_id: progress.building_id,
+      mandate_reference: (d as any).sepa_mandate_reference ?? null,
+      creditor_id: (d as any).sepa_creditor_id ?? null,
+      iban: d.iban ?? null,
+      account_holder: d.account_holder ?? null,
+      accepted: true,
+      metadata: { source: "wizard.step1.warning_dialog.accept", signed_at_client: now },
+    });
     // kurzer Tick, damit State propagiert wird
     setTimeout(() => doSubmitStep(), 0);
   };
 
   const continueWithoutMandate = async () => {
+    const d = currentData as Step1Data;
     setPendingSepaWarning(false);
+    logSepaMandateEvent({
+      event_type: "mandate_declined",
+      building_id: progress.building_id,
+      mandate_reference: (d as any).sepa_mandate_reference ?? null,
+      creditor_id: (d as any).sepa_creditor_id ?? null,
+      iban: d.iban ?? null,
+      account_holder: d.account_holder ?? null,
+      accepted: false,
+      metadata: { source: "wizard.step1.warning_dialog.decline" },
+    });
     setTimeout(() => doSubmitStep(), 0);
+  };
+
+  const dismissSepaWarning = () => {
+    const d = currentData as Step1Data;
+    setPendingSepaWarning(false);
+    logSepaMandateEvent({
+      event_type: "mandate_warning_dismissed",
+      building_id: progress.building_id,
+      mandate_reference: (d as any).sepa_mandate_reference ?? null,
+      creditor_id: (d as any).sepa_creditor_id ?? null,
+      iban: d.iban ?? null,
+      account_holder: d.account_holder ?? null,
+      accepted: false,
+      metadata: { source: "wizard.step1.warning_dialog.dismiss" },
+    });
   };
 
   const renderStep = () => {
@@ -351,8 +401,22 @@ export const OnboardingWizardModal = ({
         </form>
 
         {/* SEPA Warn-Dialog */}
-        <AlertDialog open={pendingSepaWarning} onOpenChange={setPendingSepaWarning}>
-          <AlertDialogContent>
+        <AlertDialog
+          open={pendingSepaWarning}
+          onOpenChange={(o) => {
+            if (!o && pendingSepaWarning) dismissSepaWarning();
+            else setPendingSepaWarning(o);
+          }}
+        >
+          <AlertDialogContent className="relative">
+            <button
+              type="button"
+              onClick={dismissSepaWarning}
+              className="absolute right-3 top-3 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              aria-label="Schließen"
+            >
+              <X className="h-4 w-4" />
+            </button>
             <AlertDialogHeader>
               <AlertDialogTitle>Sind Sie sicher?</AlertDialogTitle>
               <AlertDialogDescription className="space-y-2 text-left">

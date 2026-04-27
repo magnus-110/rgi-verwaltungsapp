@@ -5490,6 +5490,72 @@ export type Database = {
           },
         ]
       }
+      sepa_mandate_audit_log: {
+        Row: {
+          accepted: boolean
+          accepted_at: string
+          account_holder: string | null
+          building_id: string | null
+          contact_id: string | null
+          created_at: string
+          creditor_id: string | null
+          creditor_name: string | null
+          event_type: string
+          iban: string | null
+          id: string
+          ip_address: unknown
+          mandate_reference: string | null
+          mandate_text: string
+          mandate_text_hash: string
+          metadata: Json
+          session_id: string | null
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          accepted: boolean
+          accepted_at?: string
+          account_holder?: string | null
+          building_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          creditor_id?: string | null
+          creditor_name?: string | null
+          event_type: string
+          iban?: string | null
+          id?: string
+          ip_address?: unknown
+          mandate_reference?: string | null
+          mandate_text: string
+          mandate_text_hash: string
+          metadata?: Json
+          session_id?: string | null
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          accepted?: boolean
+          accepted_at?: string
+          account_holder?: string | null
+          building_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          creditor_id?: string | null
+          creditor_name?: string | null
+          event_type?: string
+          iban?: string | null
+          id?: string
+          ip_address?: unknown
+          mandate_reference?: string | null
+          mandate_text?: string
+          mandate_text_hash?: string
+          metadata?: Json
+          session_id?: string | null
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       service_provider_categories: {
         Row: {
           created_at: string

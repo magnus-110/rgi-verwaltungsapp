@@ -1,47 +1,99 @@
-## Drei zusammenhängende Probleme
+## Ziel
 
-### 1. AGB-Dialog vor Onboarding-Wizard zeigen
-Aktuell rendert `WegOwnerLayout` `<TermsAcceptanceDialog>` **und** `<OnboardingFAB>` parallel. Der FAB öffnet den Wizard automatisch beim Mount (`useEffect` in `OnboardingFAB.tsx` Zeile 18-23), unabhängig davon, ob die AGB schon akzeptiert sind. Beide Dialoge erscheinen damit gleichzeitig.
-
-**Fix:** In `src/components/WegOwnerLayout.tsx` den `<OnboardingFAB />` nur rendern, wenn `termsAccepted === true`. Solange noch geladen wird (`null`), nichts rendern → kein Flicker.
+1. **Revisionssichere Protokollierung** der SEPA-Mandat-Erteilung (rechtsverbindlich nach §§ 126a/127 BGB-Niveau für digitale Einwilligung).
+2. **Schließen-X** im SEPA-Warn-Dialog (wenn Nutzer fortfahren will ohne Mandat).
 
 ---
 
-### 2. Hans van Praag wurde als `tenant` statt `weg_owner` angelegt
-**Diagnose:**
-- `profiles.role = 'tenant'` (er sieht das `TenantLayout`, kein FAB)
-- `contact_building_assignments.role_in_building = 'eigentuemer'` (im Beispielgebäude korrekt als Eigentümer zugewiesen)
+## 1. Revisionssichere SEPA-Protokollierung
 
-**Ursache:** In `supabase/functions/invite-contact-user/index.ts` Zeile 103 wird die Profile-Rolle stur aus dem `management_mode`-Parameter abgeleitet, der vom aufrufenden Dialog kommt:
-```ts
-const role = management_mode === 'weg' ? 'weg_owner' : 'tenant'
-```
-Hans wurde offenbar zuerst von einer **Miet-Liegenschaft** aus eingeladen → Profile-Rolle blieb `tenant`, auch nachdem er später in einer WEG als Eigentümer zugewiesen wurde.
+**Ja, das ist umsetzbar** — und für ein digitales SEPA-Mandat ohne Papierunterschrift sogar dringend empfohlen. Wir erfassen alle relevanten Beweismittel in einer dedizierten, unveränderlichen Audit-Tabelle.
 
-**Fix in `invite-contact-user`:** Die Rolle nicht mehr nur aus `management_mode` ableiten, sondern aus den **tatsächlichen Assignments** des Kontakts:
-- Wenn der Kontakt in **irgendeiner** Liegenschaft `role_in_building IN ('eigentuemer','beirat')` hat → `weg_owner`
-- Sonst → `tenant`
+### Neue Tabelle: `sepa_mandate_audit_log`
 
-Das funktioniert für Erst-Einladung wie auch für nachträgliche Aufrüstung (Mieter wird später Eigentümer).
+| Feld | Zweck |
+|---|---|
+| `id` (uuid) | Primary key |
+| `user_id` (uuid) | wer hat bestätigt |
+| `contact_id` (uuid) | zugeordneter Kontakt |
+| `building_id` (uuid) | Liegenschaft |
+| `mandate_reference` (text) | z.B. `RGI-E1010-0019-01092025` |
+| `creditor_id` (text) | Gläubiger-ID des Gebäudes |
+| `creditor_name` (text) | "RGI Immobilien GmbH & Co. KG" |
+| `iban` (text) | IBAN-Snapshot zum Zeitpunkt der Bestätigung |
+| `account_holder` (text) | Kontoinhaber-Snapshot |
+| `mandate_text` (text) | **exakter Wortlaut**, der angezeigt wurde |
+| `mandate_text_hash` (text) | SHA-256 des Wortlauts (Manipulationsschutz) |
+| `accepted` (bool) | true = bestätigt, false = abgelehnt |
+| `accepted_at` (timestamptz) | Server-Zeitstempel |
+| `ip_address` (inet) | Client-IP (aus Request-Headern) |
+| `user_agent` (text) | Browser/Gerät |
+| `session_id` (text) | Auth-Session-ID |
+| `event_type` (text) | `mandate_granted` \| `mandate_declined` \| `mandate_warning_shown` \| `mandate_changed_after_warning` |
+| `metadata` (jsonb) | Erweiterbar (z.B. Wizard-Step, Versionsnummer) |
+| `created_at` (timestamptz) | DB-Insert-Zeit |
 
-**Sofort-Fix für Hans (Daten-Update):** `profiles.role = 'weg_owner'` setzen für `user_id = ef1b58d8-085e-4182-b881-ebf456aabcc8` per Migration. Damit er beim nächsten Login das richtige Layout + Wizard sieht.
+### Sicherheit & Unveränderlichkeit
+- **RLS**: `INSERT` für authentifizierte Nutzer (nur eigene Einträge); `SELECT` nur für Admins; **kein UPDATE/DELETE** (auch nicht für Admins → revisionssicher, append-only).
+- Admin-Policy bewusst NUR `SELECT` — kein Verändern möglich.
+- DB-Trigger blockiert UPDATE/DELETE explizit.
+
+### Erfassungspunkte (Edge Function `log-sepa-mandate-event`)
+Neue Edge Function loggt jedes relevante Ereignis serverseitig (IP/UA werden aus den Request-Headern serverseitig erfasst, nicht vom Client gesendet → fälschungssicher):
+
+1. **Warn-Dialog angezeigt** (`mandate_warning_shown`) — wenn Nutzer ohne Häkchen weiter klickt.
+2. **Mandat erteilt** (`mandate_granted`) — beim Anklicken der Checkbox / "Ja, Mandat jetzt erteilen".
+3. **Mandat verweigert** (`mandate_declined`) — bei "Nein, ohne Mandat fortfahren".
+4. **Mandat nachträglich geändert** (`mandate_changed_after_warning`).
+
+### Anzeige im Wizard
+Nach Bestätigung wird unter der Checkbox zusätzlich angezeigt:
+- Mandatsreferenz
+- Bestätigungs-Zeitstempel (deutsch formatiert)
+- Hinweis: *"Diese Bestätigung wurde revisionssicher protokolliert."*
+
+### Admin-Sicht (optional, klein)
+Im `BuildingGeneralInfoCard` o.ä. erhält jeder Eigentümer eine kleine Badge "SEPA-Mandat: erteilt am [Datum]" — Detail-View könnte später die Audit-Einträge zeigen (in diesem Schritt nicht im Scope, nur Datenerfassung).
 
 ---
 
-### 3. (Bonus) Profile-Rolle automatisch upgraden, wenn ein bestehender Account einer WEG zugewiesen wird
-Damit das Problem nicht erneut auftritt, wenn jemand erst Mieter und später Eigentümer wird:
+## 2. Schließen-X im SEPA-Warn-Dialog
 
-In `AssignContactDialog.tsx` nach dem Insert in `contact_building_assignments` (Zeile 200): Wenn die neue Zuweisung `eigentuemer`/`beirat` ist und der Kontakt einen `user_id` hat → `profiles.role` auf `weg_owner` setzen. Edge Function ist dafür nicht zwingend nötig — geht direkt mit RLS-konformem Update über die anonyme Client-Session, sofern Admin (sicherer wäre eine kleine RPC oder Erweiterung der `invite-contact-user`-Logik, die ohnehin angefasst wird).
+Der `AlertDialog` in `OnboardingWizardModal.tsx` bekommt rechts oben einen `X`-Button (analog zu `Dialog`-Komponente). Klick auf X = Dialog schließen, **ohne** weiterzugehen, **ohne** Mandat zu ändern → Nutzer bleibt auf Step 1, kann Häkchen setzen oder nochmal entscheiden.
 
-Saubere Variante: Beim Aufruf von `invite-contact-user` immer die Rolle anhand der Assignments neu bestimmen, auch wenn `authUserId` schon existiert (Zeile 108-116 der Edge Function). Das deckt alle Fälle ab.
+Logging: auch das X-Klick-Ereignis wird als `mandate_warning_dismissed` protokolliert.
 
 ---
 
-## Zu ändernde Dateien
-1. `src/components/WegOwnerLayout.tsx` — FAB hinter `termsAccepted`-Gate
-2. `supabase/functions/invite-contact-user/index.ts` — Rolle aus Assignments ableiten statt aus `management_mode`
-3. **Migration:** `UPDATE profiles SET role='weg_owner' WHERE user_id='ef1b58d8-085e-4182-b881-ebf456aabcc8'` (Sofort-Fix für Hans)
+## Technische Umsetzung
 
-## Was nicht angefasst wird
-- Der Wizard selbst, das `useOnboardingContext`-Hook und die Datenbankschemata bleiben unverändert.
-- `management_mode` bleibt als Parameter erhalten — er wird nur nicht mehr für die Profile-Rolle verwendet, sondern weiterhin für `building_id` im Profil bei Mietverwaltungen.
+**Migration** (`supabase/migrations/...`):
+- Tabelle `sepa_mandate_audit_log` mit obigen Feldern
+- RLS aktivieren, Policies (INSERT eigene, SELECT admin)
+- Trigger `prevent_sepa_audit_mutation()` blockt UPDATE/DELETE
+
+**Neue Edge Function** `supabase/functions/log-sepa-mandate-event/index.ts`:
+- Validiert JWT, erfasst IP aus `x-forwarded-for`, UA aus `user-agent` Header
+- Berechnet SHA-256-Hash des Mandatstextes
+- Insert in `sepa_mandate_audit_log` mit Service Role
+
+**Frontend-Änderungen**:
+- `src/components/onboarding/steps/Step1Stammdaten.tsx`:
+  - Konstante `SEPA_MANDATE_TEXT` exportieren (zentrale Quelle der Wahrheit)
+  - Bei Checkbox-Klick: `log-sepa-mandate-event` aufrufen mit `mandate_granted` / `mandate_changed_after_warning`
+  - Hinweistext "revisionssicher protokolliert" unter Bestätigung anzeigen
+- `src/components/onboarding/OnboardingWizardModal.tsx`:
+  - Beim Öffnen des Warn-Dialogs → log `mandate_warning_shown`
+  - Bei "Ja, Mandat jetzt erteilen" → log `mandate_granted`
+  - Bei "Nein, ohne Mandat fortfahren" → log `mandate_declined`
+  - **X-Button** oben rechts im `AlertDialogContent` (lucide `X`-Icon, absolut positioniert), Klick → `setPendingSepaWarning(false)` + log `mandate_warning_dismissed`
+
+**Geänderte/neue Dateien**:
+- `supabase/migrations/<timestamp>_sepa_mandate_audit_log.sql` (neu)
+- `supabase/functions/log-sepa-mandate-event/index.ts` (neu)
+- `src/components/onboarding/steps/Step1Stammdaten.tsx` (Logging + Hinweis)
+- `src/components/onboarding/OnboardingWizardModal.tsx` (X-Button + Logging)
+
+---
+
+**Bestätigen Sie zur Umsetzung.**
