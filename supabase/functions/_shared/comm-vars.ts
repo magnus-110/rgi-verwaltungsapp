@@ -68,10 +68,15 @@ export async function loadRecipients(
   let managerProfile: any = null;
   if (managerRows && managerRows.length > 0) {
     const { data: prof } = await admin
-      .from("profiles").select("display_name, email, phone")
+      .from("profiles").select("first_name, last_name, email, phone, username")
       .eq("user_id", managerRows[0].user_id).maybeSingle();
     managerProfile = prof;
   }
+  const managerDisplayName = managerProfile
+    ? ([managerProfile.first_name, managerProfile.last_name].filter(Boolean).join(" ").trim()
+       || managerProfile.username
+       || "")
+    : "";
 
   // Building -> contact assignments
   let q = admin
