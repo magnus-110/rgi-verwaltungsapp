@@ -126,7 +126,6 @@ Deno.serve(async (req) => {
               user_id: targetUser,
               building_id,
               expires_at: expiresAt,
-              created_by: userRes.user.id,
             });
           if (insErr) throw insErr;
           magicUrl = `${origin}/login/magic/${token}`;
