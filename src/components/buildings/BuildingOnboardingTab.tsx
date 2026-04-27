@@ -91,7 +91,10 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
         .maybeSingle();
       const b = data as any;
       if (b?.management_start_date) {
-        setManagementStartDate((prev) => prev ?? new Date(b.management_start_date));
+        // Parse YYYY-MM-DD as LOCAL date (avoid UTC shift to previous day)
+        const [y, m, d] = String(b.management_start_date).slice(0, 10).split("-").map(Number);
+        const localDate = new Date(y, (m || 1) - 1, d || 1);
+        setManagementStartDate((prev) => prev ?? localDate);
       }
       return b;
     },
