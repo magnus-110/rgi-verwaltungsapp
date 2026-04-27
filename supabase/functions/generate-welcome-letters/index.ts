@@ -105,7 +105,11 @@ interface Credentials {
   username: string;
   password: string; // "(bereits vergeben)" if not freshly created
   created: boolean;
+  accountHinweis: string; // Hint text shown only for existing accounts
 }
+
+const EXISTING_ACCOUNT_HINT =
+  "Ihr Zugang besteht bereits — melden Sie sich mit Ihrem bisherigen Passwort an oder nutzen Sie „Passwort vergessen“.";
 
 /** Ensure there is an auth account for the contact and return login credentials. */
 async function ensureContactAccount(
@@ -143,7 +147,12 @@ async function ensureContactAccount(
     }
 
     // Account existiert bereits -> bestehendes Passwort beibehalten
-    return { username, password: "(bereits vergeben)", created: false };
+    return {
+      username,
+      password: "(bereits vergeben)",
+      created: false,
+      accountHinweis: EXISTING_ACCOUNT_HINT,
+    };
   }
 
   // Build a unique username
@@ -230,7 +239,7 @@ async function ensureContactAccount(
     );
   }
 
-  return { username, password, created: true };
+  return { username, password, created: true, accountHinweis: "" };
 }
 
 Deno.serve(async (req) => {
@@ -334,6 +343,7 @@ Deno.serve(async (req) => {
           ...r.vars,
           benutzername: creds?.username || "",
           passwort: creds?.password || "",
+          account_hinweis: creds?.accountHinweis || "",
           login_url: APP_LOGIN_URL,
           verwaltungsbeginn,
           verwaltungsbeginn_kurz: verwaltungsbeginnKurz,
