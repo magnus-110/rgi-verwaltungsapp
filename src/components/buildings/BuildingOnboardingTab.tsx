@@ -264,6 +264,7 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
         {
           body: {
             building_id: buildingId,
+            template_id: selectedTemplateId,
             management_start_date: managementStartDate
               ? `${managementStartDate.getFullYear()}-${String(managementStartDate.getMonth() + 1).padStart(2, "0")}-${String(managementStartDate.getDate()).padStart(2, "0")}`
               : null,
@@ -347,7 +348,7 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
               <FileText className="h-4 w-4" /> Brief-Vorlage
             </label>
             <Select
-              value={building?.welcome_letter_template_id ?? "__none__"}
+              value={selectedTemplateId ?? "__none__"}
               onValueChange={setTemplate}
             >
               <SelectTrigger>
@@ -477,7 +478,7 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
           <div className="flex flex-wrap items-center gap-2">
             <Button
               onClick={generateLetters}
-              disabled={generating || !building?.welcome_letter_template_id}
+              disabled={generating || !selectedTemplateId}
             >
               {generating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Begrüßungsbriefe erstellen
