@@ -1287,6 +1287,7 @@ export type Database = {
           booking_instructions: string | null
           building_code: string
           created_at: string | null
+          creditor_id: string | null
           etv_default_location: string | null
           general_notes: string | null
           heating_type: string | null
@@ -1306,6 +1307,7 @@ export type Database = {
           booking_instructions?: string | null
           building_code: string
           created_at?: string | null
+          creditor_id?: string | null
           etv_default_location?: string | null
           general_notes?: string | null
           heating_type?: string | null
@@ -1325,6 +1327,7 @@ export type Database = {
           booking_instructions?: string | null
           building_code?: string
           created_at?: string | null
+          creditor_id?: string | null
           etv_default_location?: string | null
           general_notes?: string | null
           heating_type?: string | null

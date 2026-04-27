@@ -1,0 +1,1 @@
+ALTER TABLE public.buildings ADD COLUMN IF NOT EXISTS creditor_id text;
