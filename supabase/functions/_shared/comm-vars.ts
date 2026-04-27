@@ -183,7 +183,7 @@ export async function loadRecipients(
       mea: "",
       rolle: a.role_in_building || "",
       // Verwaltung
-      verwalter_name: managerProfile?.display_name || building.manager_name || "",
+      verwalter_name: managerDisplayName || building.manager_name || "",
       verwalter_email: managerProfile?.email || "",
       verwalter_telefon: managerProfile?.phone || "",
       datum_heute: formatDateLong(today),
