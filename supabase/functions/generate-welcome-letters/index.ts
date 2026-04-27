@@ -331,7 +331,7 @@ Deno.serve(async (req) => {
     const recipients = await loadRecipients(admin, building_id, { roles: ["eigentuemer"] });
     if (recipients.length === 0) return json({ error: "Keine Eigentümer gefunden." }, 400);
 
-    const bundle = new PizZip();
+    const renderedDocs: Uint8Array[] = [];
     let okCount = 0;
     let failCount = 0;
     let createdAccounts = 0;
@@ -351,9 +351,7 @@ Deno.serve(async (req) => {
           verwaltungsbeginn,
           verwaltungsbeginn_kurz: verwaltungsbeginnKurz,
         });
-        const baseName = sanitize(r.display_name) || `eigentuemer_${i + 1}`;
-        const fileName = `${String(i + 1).padStart(3, "0")}_${baseName}.docx`;
-        bundle.file(fileName, outBuf);
+        renderedDocs.push(outBuf);
         okCount++;
       } catch (e: any) {
         failCount++;
@@ -371,14 +369,16 @@ Deno.serve(async (req) => {
       return json({ error: "Kein Brief konnte erstellt werden", details: errors }, 500);
     }
 
-    const zipBytes = bundle.generate({ type: "uint8array" });
+    // Merge all letters into ONE docx with page breaks between them
+    const combinedBytes = mergeDocxBodies(renderedDocs);
     const dateSlug = new Date().toISOString().slice(0, 10);
-    const zipFileName = `Begruessungsbriefe_${dateSlug}.zip`;
-    const zipPath = `welcome-letters/${building_id}/${Date.now()}_${zipFileName}`;
+    const docxFileName = `Begruessungsbriefe_${dateSlug}.docx`;
+    const docxPathOut = `welcome-letters/${building_id}/${Date.now()}_${docxFileName}`;
+    const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
     const { error: upErr } = await admin.storage
       .from("comm-assets")
-      .upload(zipPath, zipBytes, { contentType: "application/zip", upsert: true });
+      .upload(docxPathOut, combinedBytes, { contentType: DOCX_MIME, upsert: true });
     if (upErr) return json({ error: upErr.message }, 500);
 
     // DMS filing
@@ -409,18 +409,18 @@ Deno.serve(async (req) => {
         cat = createdCat;
       }
 
-      const dmsPath = `welcome-letters/${building_id}/${Date.now()}_${zipFileName}`;
+      const dmsPath = `welcome-letters/${building_id}/${Date.now()}_${docxFileName}`;
       await admin.storage.from("building-files")
-        .upload(dmsPath, zipBytes, { contentType: "application/zip", upsert: true });
+        .upload(dmsPath, combinedBytes, { contentType: DOCX_MIME, upsert: true });
 
       const { data: bf } = await admin.from("building_files").insert({
         building_id,
         category_id: cat?.id || null,
-        display_name: zipFileName,
-        description: `Begrüßungsbriefe für ${okCount} Eigentümer mit Login-Daten. ${createdAccounts} neue Accounts erstellt.`,
+        display_name: docxFileName,
+        description: `Begrüßungsbriefe (Sammeldokument) für ${okCount} Eigentümer mit Login-Daten. ${createdAccounts} neue Accounts erstellt.`,
         file_path: dmsPath,
-        file_size: zipBytes.length,
-        mime_type: "application/zip",
+        file_size: combinedBytes.length,
+        mime_type: DOCX_MIME,
         management_mode: mode,
         source: "manual",
         uploaded_by: userRes.user.id,
@@ -440,7 +440,8 @@ Deno.serve(async (req) => {
       failed: failCount,
       created_accounts: createdAccounts,
       errors,
-      zip_path: zipPath,
+      docx_path: docxPathOut,
+      zip_path: docxPathOut, // backwards-compat alias
       dms_file_id: dmsFileId,
       login_url: APP_LOGIN_URL,
     });
