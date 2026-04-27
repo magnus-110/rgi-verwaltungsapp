@@ -122,7 +122,7 @@ async function ensureContactAccount(
     .maybeSingle();
   if (!contact) return null;
 
-  // Already linked? -> reset password so it can be printed in the letter.
+  // Already linked? -> do NOT reset password; just return existing username.
   if (contact.user_id) {
     const { data: prof } = await admin
       .from("profiles")
@@ -142,21 +142,8 @@ async function ensureContactAccount(
       await admin.from("profiles").update({ username }).eq("user_id", contact.user_id);
     }
 
-    const newPassword = generateNumericPassword(8);
-    const { error: pwErr } = await admin.auth.admin.updateUserById(contact.user_id, {
-      password: newPassword,
-    });
-    if (pwErr) {
-      console.error("password reset failed for existing user", contact.user_id, pwErr);
-      return { username, password: "(bereits vergeben)", created: false };
-    }
-    await admin.from("profiles").update({
-      force_password_change: true,
-      must_change_password: true,
-      initial_password_set_at: new Date().toISOString(),
-    }).eq("user_id", contact.user_id);
-
-    return { username, password: newPassword, created: false };
+    // Account existiert bereits -> bestehendes Passwort beibehalten
+    return { username, password: "(bereits vergeben)", created: false };
   }
 
   // Build a unique username
