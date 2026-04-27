@@ -135,7 +135,7 @@ Deno.serve(async (req) => {
         // QR code as PNG (Uint8Array) pointing to the regular app login, not a magic link.
         let qrBytes: Uint8Array | null = null;
         if (appLoginUrl) {
-          const dataUrl = await QRCode.toDataURL(magicUrl, {
+          const dataUrl = await QRCode.toDataURL(appLoginUrl, {
             errorCorrectionLevel: "M",
             margin: 1,
             width: 360,
@@ -221,7 +221,7 @@ Deno.serve(async (req) => {
         building_id,
         category_id: cat?.id || null,
         display_name: zipFileName,
-        description: `Begrüßungsbriefe für ${okCount} Eigentümer (Magic-Link gültig bis ${new Date(expiresAt).toLocaleDateString("de-DE")}).`,
+        description: `Begrüßungsbriefe für ${okCount} Eigentümer mit App-Login-Link.`,
         file_path: dmsPath,
         file_size: zipBytes.length,
         mime_type: "application/zip",
@@ -245,7 +245,7 @@ Deno.serve(async (req) => {
       errors,
       zip_path: zipPath,
       dms_file_id: dmsFileId,
-      expires_at: expiresAt,
+      app_login_url: appLoginUrl,
     });
   } catch (e: any) {
     console.error("generate-welcome-letters error", e);
