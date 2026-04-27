@@ -248,15 +248,16 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
         {children}
       </main>
      
-     {profile?.user_id && (
-       <TermsAcceptanceDialog 
-         open={showTermsDialog} 
-         userId={profile.user_id}
-         onAccepted={handleTermsAccepted}
-       />
-     )}
+      {profile?.user_id && (
+        <TermsAcceptanceDialog 
+          open={showTermsDialog} 
+          userId={profile.user_id}
+          onAccepted={handleTermsAccepted}
+        />
+      )}
       <VotingPopup />
-      <OnboardingFAB />
+      {/* Onboarding-Wizard erst zeigen, wenn AGB akzeptiert wurden */}
+      {termsAccepted === true && <OnboardingFAB />}
     </div>
   );
 };
