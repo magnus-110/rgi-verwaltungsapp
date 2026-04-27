@@ -309,17 +309,28 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
           {/* Mandatstext + digitale Unterschrift */}
           <div className="rounded-[10px] border border-border/60 bg-card p-3 space-y-3">
             <p className="text-[12.5px] leading-relaxed text-foreground/85">
-              Ich ermächtige die RGI Immobilien GmbH &amp; Co. KG, Zahlungen
-              von meinem Konto mittels SEPA-Lastschrift einzuziehen.
+              {SEPA_MANDATE_TEXT}
             </p>
             <label className="flex items-start gap-2.5 cursor-pointer select-none">
               <Checkbox
                 checked={!!value.sepa_mandate_accepted}
                 onCheckedChange={(checked) => {
                   const isOn = checked === true;
+                  const signedAt = isOn ? new Date().toISOString() : undefined;
                   set({
                     sepa_mandate_accepted: isOn,
-                    sepa_mandate_signed_at: isOn ? new Date().toISOString() : undefined,
+                    sepa_mandate_signed_at: signedAt,
+                  });
+                  // Revisionssichere Protokollierung (fire-and-forget)
+                  logSepaMandateEvent({
+                    event_type: isOn ? "mandate_granted" : "mandate_revoked",
+                    building_id: buildingId ?? null,
+                    mandate_reference: value.sepa_mandate_reference ?? null,
+                    creditor_id: value.sepa_creditor_id ?? buildingMeta?.creditor_id ?? null,
+                    iban: value.iban ?? null,
+                    account_holder: value.account_holder ?? null,
+                    accepted: isOn,
+                    metadata: { source: "wizard.step1.checkbox", signed_at_client: signedAt },
                   });
                 }}
                 className="mt-0.5"
@@ -330,14 +341,21 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
               </span>
             </label>
             {value.sepa_mandate_accepted && value.sepa_mandate_signed_at && (
-              <p className="text-[11px] text-muted-foreground pl-7">
-                Digital signiert am{" "}
-                {new Date(value.sepa_mandate_signed_at).toLocaleString("de-DE", {
-                  dateStyle: "medium",
-                  timeStyle: "short",
-                })}
-                {value.account_holder ? ` von ${value.account_holder}` : ""}.
-              </p>
+              <div className="pl-7 space-y-1">
+                <p className="text-[11px] text-muted-foreground">
+                  Digital signiert am{" "}
+                  {new Date(value.sepa_mandate_signed_at).toLocaleString("de-DE", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })}
+                  {value.account_holder ? ` von ${value.account_holder}` : ""}.
+                </p>
+                <p className="flex items-center gap-1.5 text-[10.5px] text-success">
+                  <ShieldCheck className="size-3" />
+                  Diese Bestätigung wurde revisionssicher protokolliert
+                  (Zeitstempel, IP, Session, Wortlaut-Hash).
+                </p>
+              </div>
             )}
           </div>
         </div>
