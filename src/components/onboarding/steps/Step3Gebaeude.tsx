@@ -144,6 +144,21 @@ export const Step3Gebaeude = ({ value, onChange }: Props) => {
               className="border-0 bg-[hsl(var(--input))] focus-visible:ring-0 resize-none rounded-lg px-3 py-2.5 text-[14px]"
             />
           )}
+          {(heatings.includes("pellets") || heatings.includes("oel")) && (
+            <div className="rounded-lg bg-accent/50 border border-border/60 p-3 space-y-1.5">
+              <div className="text-[12px] font-medium text-foreground">
+                Nachbestellung {heatings.includes("pellets") && heatings.includes("oel") ? "Pellets / Öl" : heatings.includes("pellets") ? "Pellets" : "Öl"}
+              </div>
+              <div className="text-[11px] text-muted-foreground">
+                Wer informiert die Hausverwaltung, wenn nachbestellt werden muss? (optional)
+              </div>
+              <EmbeddedInput
+                value={value.refill_contact ?? ""}
+                onChange={(e) => set({ refill_contact: e.target.value })}
+                placeholder="Name / Kontakt"
+              />
+            </div>
+          )}
         </div>
       </SectionCard>
 
