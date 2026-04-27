@@ -239,7 +239,7 @@ async function ensureContactAccount(
     );
   }
 
-  return { username, password, created: true };
+  return { username, password, created: true, accountHinweis: "" };
 }
 
 Deno.serve(async (req) => {
