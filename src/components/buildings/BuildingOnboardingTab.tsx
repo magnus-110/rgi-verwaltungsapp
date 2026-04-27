@@ -13,9 +13,12 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import {
   CheckCircle2, Circle, Inbox, Power, Users, AlertCircle, Loader2, ChevronRight,
-  Mail, Download, FileText, Copy, Check,
+  Mail, Download, FileText, Copy, Check, CalendarIcon,
 } from "lucide-react";
 import { OnboardingStepOverviews } from "./onboarding/OnboardingStepOverviews";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 
 function PlaceholderChip({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
@@ -61,7 +64,8 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
   const [busy, setBusy] = useState(false);
   const [markGlobal, setMarkGlobal] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [lastResult, setLastResult] = useState<{ ok: number; failed: number; zip_path: string } | null>(null);
+  const [managementStartDate, setManagementStartDate] = useState<Date | undefined>(undefined);
+  const [lastResult, setLastResult] = useState<{ ok: number; failed: number; created_accounts?: number; zip_path: string } | null>(null);
 
   // Activation state
   const { data: activation } = useQuery({
@@ -237,15 +241,20 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
     try {
       const { data, error } = await supabase.functions.invoke(
         "generate-welcome-letters",
-        { body: { building_id: buildingId } },
+        {
+          body: {
+            building_id: buildingId,
+            management_start_date: managementStartDate ? managementStartDate.toISOString() : null,
+          },
+        },
       );
       if (error) throw error;
       const r = data as any;
       if (r?.error) throw new Error(r.error);
-      setLastResult({ ok: r.ok, failed: r.failed, zip_path: r.zip_path });
+      setLastResult({ ok: r.ok, failed: r.failed, created_accounts: r.created_accounts, zip_path: r.zip_path });
       toast({
         title: "Briefe erstellt",
-        description: `${r.ok} erfolgreich, ${r.failed} fehlgeschlagen. Ablage im Dokumentenarchiv.`,
+        description: `${r.ok} Briefe · ${r.created_accounts ?? 0} neue Accounts angelegt · ${r.failed} fehlgeschlagen.`,
       });
     } catch (e: any) {
       toast({ title: "Fehler", description: e?.message || "Unbekannter Fehler", variant: "destructive" });
@@ -329,10 +338,8 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground flex flex-wrap items-center gap-1">
-              <span>Vorlage kann den Platzhalter</span>
-              <PlaceholderChip value="{{magic_link_url}}" />
-              <span>für den App-Login-Link enthalten.</span>
+            <p className="text-xs text-muted-foreground">
+              Vorlage kann u. a. die Platzhalter <PlaceholderChip value="{{benutzername}}" />, <PlaceholderChip value="{{passwort}}" /> und <PlaceholderChip value="{{verwaltungsbeginn}}" /> enthalten.
             </p>
 
             <details className="rounded-md border bg-muted/30 p-3 text-xs">
@@ -341,9 +348,18 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
               </summary>
               <div className="mt-3 grid gap-4 sm:grid-cols-2">
                 <div>
-                  <p className="mb-1 font-semibold text-foreground">App-Link</p>
+                  <p className="mb-1 font-semibold text-foreground">Login-Daten</p>
                   <ul className="space-y-1 text-muted-foreground">
-                    <li><PlaceholderChip value="{{magic_link_url}}" /> — App-Login-Link</li>
+                    <li><PlaceholderChip value="{{benutzername}}" /> — Login-Username</li>
+                    <li><PlaceholderChip value="{{passwort}}" /> — Initial-Passwort (oder „bereits vergeben")</li>
+                    <li><PlaceholderChip value="{{login_url}}" /> — App-Login-URL</li>
+                  </ul>
+                </div>
+                <div>
+                  <p className="mb-1 font-semibold text-foreground">Verwaltungsbeginn</p>
+                  <ul className="space-y-1 text-muted-foreground">
+                    <li><PlaceholderChip value="{{verwaltungsbeginn}}" /> — z. B. 1. Mai 2026</li>
+                    <li><PlaceholderChip value="{{verwaltungsbeginn_kurz}}" /> — z. B. 01.05.2026</li>
                   </ul>
                 </div>
                 <div>
@@ -395,6 +411,45 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
                 </div>
               </div>
             </details>
+          </div>
+
+          <div className="grid gap-2">
+            <label className="text-sm font-medium flex items-center gap-2">
+              <CalendarIcon className="h-4 w-4" /> Verwaltungsbeginn
+            </label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-[260px] justify-start text-left font-normal",
+                    !managementStartDate && "text-muted-foreground",
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {managementStartDate
+                    ? format(managementStartDate, "dd.MM.yyyy", { locale: de })
+                    : "Datum wählen…"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={managementStartDate}
+                  onSelect={setManagementStartDate}
+                  initialFocus
+                  locale={de}
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+            <p className="text-xs text-muted-foreground">
+              Wird als <PlaceholderChip value="{{verwaltungsbeginn}}" /> in jeden Brief eingefügt.
+            </p>
+          </div>
+
+          <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-xs text-foreground">
+            <strong>Hinweis:</strong> Für Eigentümer ohne Account werden automatisch Login-Daten (Benutzername + Initial-Passwort) erstellt und im Brief abgedruckt. Bestehende Accounts bleiben unverändert — dort steht im Passwort-Feld „(bereits vergeben)".
           </div>
 
           <div className="flex flex-wrap items-center gap-2">

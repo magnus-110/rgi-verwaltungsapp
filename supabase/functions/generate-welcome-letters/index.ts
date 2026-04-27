@@ -1,44 +1,180 @@
-// Generate personalised welcome-letter DOCX files (one per owner) with an
-// optional QR code to the app login. Bundles them as a ZIP and files the bundle
-// into the building's DMS under "Begrüßungsbriefe".
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
+// Generate personalised welcome-letter DOCX files (one per owner) including
+// login credentials (username + initial password) and the management start date.
+// Bundles all letters as a ZIP and files them into the building's DMS.
+import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
 import PizZip from "npm:pizzip@3.1.7";
 import Docxtemplater from "npm:docxtemplater@3.50.0";
-import ImageModule from "npm:docxtemplater-image-module-free@1.1.1";
-import QRCode from "npm:qrcode@1.5.4";
 import { loadRecipients } from "../_shared/comm-vars.ts";
+import {
+  buildBaseUsername,
+  ensureUniqueUsername,
+  pseudoEmail,
+} from "../_shared/username.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const APP_LOGIN_URL = "https://rgi-immobilien.app/login";
+const monthsDe = [
+  "Januar","Februar","März","April","Mai","Juni",
+  "Juli","August","September","Oktober","November","Dezember",
+];
+
 function sanitize(name: string): string {
   return name.replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_").slice(0, 80);
 }
 
-function renderDocx(tplBuf: Uint8Array, data: Record<string, unknown>, imageOpts: Record<string, unknown>): Uint8Array {
-  try {
-    const zip = new PizZip(tplBuf);
-    const doc = new Docxtemplater(zip, {
-      paragraphLoop: true,
-      linebreaks: true,
-      delimiters: { start: "{{", end: "}}" },
-      modules: [new (ImageModule as any)(imageOpts)],
-    });
-    doc.render(data);
-    return doc.getZip().generate({ type: "uint8array" });
-  } catch (imageError) {
-    console.warn("DOCX render with image module failed, retrying text-only", imageError);
-    const zip = new PizZip(tplBuf);
-    const doc = new Docxtemplater(zip, {
-      paragraphLoop: true,
-      linebreaks: true,
-      delimiters: { start: "{{", end: "}}" },
-    });
-    doc.render(data);
-    return doc.getZip().generate({ type: "uint8array" });
+function generateNumericPassword(length = 8): string {
+  let out = "";
+  for (let i = 0; i < length; i++) out += Math.floor(Math.random() * 10).toString();
+  return out;
+}
+
+function formatDateLong(d: Date): string {
+  return `${d.getDate()}. ${monthsDe[d.getMonth()]} ${d.getFullYear()}`;
+}
+function formatDateShort(d: Date): string {
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  return `${dd}.${mm}.${d.getFullYear()}`;
+}
+
+function renderDocx(tplBuf: Uint8Array, data: Record<string, unknown>): Uint8Array {
+  const zip = new PizZip(tplBuf);
+  const doc = new Docxtemplater(zip, {
+    paragraphLoop: true,
+    linebreaks: true,
+    delimiters: { start: "{{", end: "}}" },
+  });
+  doc.render(data);
+  return doc.getZip().generate({ type: "uint8array" });
+}
+
+type Mode = "weg" | "rent";
+
+interface Credentials {
+  username: string;
+  password: string; // "(bereits vergeben)" if not freshly created
+  created: boolean;
+}
+
+/** Ensure there is an auth account for the contact and return login credentials. */
+async function ensureContactAccount(
+  admin: SupabaseClient,
+  contactId: string,
+  buildingId: string,
+  mode: Mode,
+): Promise<Credentials | null> {
+  // Load contact
+  const { data: contact } = await admin
+    .from("contacts")
+    .select("id, user_id, first_name, last_name, company_name")
+    .eq("id", contactId)
+    .maybeSingle();
+  if (!contact) return null;
+
+  // Already linked?
+  if (contact.user_id) {
+    const { data: prof } = await admin
+      .from("profiles")
+      .select("username, email, auth_pseudo_email")
+      .eq("user_id", contact.user_id)
+      .maybeSingle();
+    const username =
+      prof?.username ||
+      prof?.auth_pseudo_email ||
+      prof?.email ||
+      "(unbekannt)";
+    return { username, password: "(bereits vergeben)", created: false };
   }
+
+  // Build a unique username
+  const base = buildBaseUsername(contact.first_name, contact.last_name, contact.company_name);
+  const username = await ensureUniqueUsername(admin, base);
+
+  // Prefer real email if available (primary contact_emails)
+  const { data: emails } = await admin
+    .from("contact_emails")
+    .select("email, is_primary")
+    .eq("contact_id", contactId)
+    .order("is_primary", { ascending: false });
+  const realEmail = emails && emails.length > 0 ? emails[0].email : null;
+  const authEmail = realEmail || pseudoEmail(username);
+  const password = generateNumericPassword(8);
+  const role = mode === "weg" ? "weg_owner" : "tenant";
+
+  // Try to create auth user; if email already exists, fall back to existing user
+  let authUserId: string | null = null;
+  const { data: created, error: createErr } = await admin.auth.admin.createUser({
+    email: authEmail,
+    password,
+    email_confirm: true,
+    user_metadata: {
+      first_name: contact.first_name,
+      last_name: contact.last_name,
+    },
+  });
+
+  if (createErr) {
+    // Email collision → reuse existing auth user (and update password)
+    const { data: list } = await admin.auth.admin.listUsers();
+    const existing = (list?.users as any[] | undefined)?.find(
+      (u: any) => u.email?.toLowerCase() === authEmail.toLowerCase(),
+    );
+    if (!existing) {
+      console.error("createUser failed and no existing user", createErr);
+      return null;
+    }
+    authUserId = existing.id;
+    await admin.auth.admin.updateUserById(authUserId, { password });
+  } else {
+    authUserId = created.user!.id;
+  }
+
+  // Profile upsert
+  await admin.from("profiles").upsert(
+    {
+      user_id: authUserId,
+      email: realEmail || null,
+      auth_pseudo_email: realEmail ? null : authEmail,
+      username,
+      first_name: contact.first_name,
+      last_name: contact.last_name,
+      role,
+      building_id: mode === "rent" ? buildingId : null,
+      force_password_change: true,
+      must_change_password: true,
+      initial_password_set_at: new Date().toISOString(),
+      terms_accepted_at: null,
+    } as any,
+    { onConflict: "user_id" },
+  );
+
+  // Link contact -> auth user
+  await admin.from("contacts").update({ user_id: authUserId }).eq("id", contactId);
+
+  // Building link
+  if (mode === "weg") {
+    await admin.from("weg_owner_buildings").upsert(
+      { user_id: authUserId, building_id: buildingId } as any,
+      { onConflict: "user_id,building_id" },
+    );
+  } else {
+    await admin.from("tenants").upsert(
+      {
+        user_id: authUserId,
+        building_id: buildingId,
+        email: realEmail || authEmail,
+        first_name: contact.first_name,
+        last_name: contact.last_name,
+      } as any,
+      { onConflict: "user_id,building_id" },
+    );
+  }
+
+  return { username, password, created: true };
 }
 
 Deno.serve(async (req) => {
@@ -52,11 +188,6 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     if (!supabaseUrl || !serviceKey || !anonKey) {
-      console.error("generate-welcome-letters missing Supabase environment", {
-        hasUrl: !!supabaseUrl,
-        hasServiceKey: !!serviceKey,
-        hasAnonKey: !!anonKey,
-      });
       return json({ error: "Server-Konfiguration unvollständig." }, 500);
     }
 
@@ -72,11 +203,17 @@ Deno.serve(async (req) => {
     });
     if (!hasAccess) return json({ error: "Forbidden" }, 403);
 
-    const {
-      building_id,
-      template_id,
-    } = await req.json();
+    const { building_id, template_id, management_start_date } = await req.json();
     if (!building_id) return json({ error: "building_id required" }, 400);
+
+    // Resolve management start date
+    let mgmtDate: Date | null = null;
+    if (management_start_date) {
+      const d = new Date(management_start_date);
+      if (!isNaN(d.getTime())) mgmtDate = d;
+    }
+    const verwaltungsbeginn = mgmtDate ? formatDateLong(mgmtDate) : "";
+    const verwaltungsbeginnKurz = mgmtDate ? formatDateShort(mgmtDate) : "";
 
     // Resolve template
     let docxPath: string | null = null;
@@ -94,9 +231,7 @@ Deno.serve(async (req) => {
         docxPath = t?.docx_path ?? null;
       }
     }
-    if (!docxPath) {
-      return json({ error: "Keine Begrüßungsbrief-Vorlage hinterlegt." }, 400);
-    }
+    if (!docxPath) return json({ error: "Keine Begrüßungsbrief-Vorlage hinterlegt." }, 400);
 
     const { data: tplFile, error: dlErr } = await admin.storage
       .from("comm-assets").download(docxPath);
@@ -105,52 +240,35 @@ Deno.serve(async (req) => {
     }
     const tplBuf = new Uint8Array(await tplFile.arrayBuffer());
 
-    // Load owners (role = eigentuemer)
-    const recipients = await loadRecipients(
-      admin,
-      building_id,
-      { roles: ["eigentuemer"] },
-    );
-    if (recipients.length === 0) {
-      return json({ error: "Keine Eigentümer gefunden." }, 400);
-    }
+    // Building mode
+    const { data: bRow } = await admin
+      .from("buildings").select("management_mode").eq("id", building_id).maybeSingle();
+    const mode: Mode = (bRow?.management_mode === "rent" ? "rent" : "weg");
 
-    const appLoginUrl = "https://rgi-immobilien.app/login";
+    // Owners
+    const recipients = await loadRecipients(admin, building_id, { roles: ["eigentuemer"] });
+    if (recipients.length === 0) return json({ error: "Keine Eigentümer gefunden." }, 400);
 
     const bundle = new PizZip();
     let okCount = 0;
     let failCount = 0;
+    let createdAccounts = 0;
     const errors: string[] = [];
-
-    // Image-module config — uses {%placeholder} syntax
-    const imageOpts = {
-      centered: false,
-      getImage: (tagValue: any) => tagValue, // already Uint8Array
-      getSize: () => [180, 180] as [number, number],
-    };
 
     for (let i = 0; i < recipients.length; i++) {
       const r = recipients[i];
       try {
-        // QR code as PNG (Uint8Array) pointing to the regular app login, not a magic link.
-        let qrBytes: Uint8Array | null = null;
-        if (appLoginUrl) {
-          const dataUrl = await QRCode.toDataURL(appLoginUrl, {
-            errorCorrectionLevel: "M",
-            margin: 1,
-            width: 360,
-          });
-          const b64 = dataUrl.split(",")[1] || "";
-          const bin = atob(b64);
-          qrBytes = new Uint8Array(bin.length);
-          for (let j = 0; j < bin.length; j++) qrBytes[j] = bin.charCodeAt(j);
-        }
+        const creds = await ensureContactAccount(admin, r.contact_id, building_id, mode);
+        if (creds?.created) createdAccounts++;
 
         const outBuf = renderDocx(tplBuf, {
           ...r.vars,
-          magic_link_url: appLoginUrl,
-          magic_link_qr: qrBytes,
-        }, imageOpts);
+          benutzername: creds?.username || "",
+          passwort: creds?.password || "",
+          login_url: APP_LOGIN_URL,
+          verwaltungsbeginn,
+          verwaltungsbeginn_kurz: verwaltungsbeginnKurz,
+        });
         const baseName = sanitize(r.display_name) || `eigentuemer_${i + 1}`;
         const fileName = `${String(i + 1).padStart(3, "0")}_${baseName}.docx`;
         bundle.file(fileName, outBuf);
@@ -181,13 +299,9 @@ Deno.serve(async (req) => {
       .upload(zipPath, zipBytes, { contentType: "application/zip", upsert: true });
     if (upErr) return json({ error: upErr.message }, 500);
 
-    // File into DMS under "Begrüßungsbriefe" category
+    // DMS filing
     let dmsFileId: string | null = null;
     try {
-      const { data: building } = await admin
-        .from("buildings").select("management_mode").eq("id", building_id).maybeSingle();
-      const mode = building?.management_mode || "weg";
-
       let { data: cat } = await admin
         .from("building_file_categories")
         .select("id")
@@ -197,7 +311,7 @@ Deno.serve(async (req) => {
         .limit(1).maybeSingle();
 
       if (!cat) {
-        const { data: created } = await admin
+        const { data: createdCat } = await admin
           .from("building_file_categories")
           .insert({
             name: "Begrüßungsbriefe",
@@ -210,7 +324,7 @@ Deno.serve(async (req) => {
             auto_rag_enabled: false,
           })
           .select("id").single();
-        cat = created;
+        cat = createdCat;
       }
 
       const dmsPath = `welcome-letters/${building_id}/${Date.now()}_${zipFileName}`;
@@ -221,7 +335,7 @@ Deno.serve(async (req) => {
         building_id,
         category_id: cat?.id || null,
         display_name: zipFileName,
-        description: `Begrüßungsbriefe für ${okCount} Eigentümer mit App-Login-Link.`,
+        description: `Begrüßungsbriefe für ${okCount} Eigentümer mit Login-Daten. ${createdAccounts} neue Accounts erstellt.`,
         file_path: dmsPath,
         file_size: zipBytes.length,
         mime_type: "application/zip",
@@ -242,10 +356,11 @@ Deno.serve(async (req) => {
       success: true,
       ok: okCount,
       failed: failCount,
+      created_accounts: createdAccounts,
       errors,
       zip_path: zipPath,
       dms_file_id: dmsFileId,
-      app_login_url: appLoginUrl,
+      login_url: APP_LOGIN_URL,
     });
   } catch (e: any) {
     console.error("generate-welcome-letters error", e);
