@@ -182,7 +182,7 @@ export async function loadRecipients(
       verwalter_email: managerProfile?.email || "",
       verwalter_telefon: managerProfile?.phone || "",
       datum_heute: formatDateLong(today),
-      ort_datum: `${ort || "Schwangau"}, ${formatDateShort(today)}`,
+      ort_datum: `Pfronten, ${formatDateShort(today)}`,
       // Free vars (overrides)
       ...freeVars,
     };
