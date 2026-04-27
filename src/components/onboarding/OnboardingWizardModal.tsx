@@ -107,7 +107,9 @@ export const OnboardingWizardModal = ({
   const isEmptyData = (data: any) =>
     !data || Object.values(data).every((v) => v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0));
 
-  const handleSubmitStep = async () => {
+  const [pendingSepaWarning, setPendingSepaWarning] = useState(false);
+
+  const doSubmitStep = async () => {
     if (step === 1) {
       const err = validateStep1(currentData as Step1Data);
       if (err) {
@@ -117,7 +119,6 @@ export const OnboardingWizardModal = ({
     }
 
     // Steps 2-4 sind optional: bei leeren Daten einfach weiter ohne Submit.
-    // Step 5 muss IMMER submittet werden (auch leer), damit der Onboarding-Status korrekt abgeschlossen wird.
     if (step > 1 && step < 5 && isEmptyData(currentData)) {
       await flush();
       setStep(step + 1);
@@ -141,11 +142,9 @@ export const OnboardingWizardModal = ({
         });
         setStep(step + 1);
       } else {
-        // Step 5 abgeschlossen → Dankesdialog im Modal anzeigen
         setJustFinished(true);
       }
     } catch (e: any) {
-      // Bei optionalen Schritten Fehler nicht blockieren - weitergehen
       if (step > 1) {
         if (step < 5) setStep(step + 1);
         else setJustFinished(true);
@@ -159,6 +158,38 @@ export const OnboardingWizardModal = ({
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleSubmitStep = async () => {
+    // Bei Step 1: Wenn IBAN da ist, aber SEPA-Mandat-Checkbox NICHT angeklickt → Warn-Dialog
+    if (step === 1) {
+      const d = currentData as Step1Data;
+      const ibanFilled = !!d.iban?.trim();
+      const mandateAccepted = !!(d as any).sepa_mandate_accepted;
+      if (ibanFilled && !mandateAccepted) {
+        setPendingSepaWarning(true);
+        return;
+      }
+    }
+    await doSubmitStep();
+  };
+
+  const acceptMandateAndContinue = async () => {
+    const now = new Date().toISOString();
+    const next = {
+      ...(currentData as Step1Data),
+      sepa_mandate_accepted: true,
+      sepa_mandate_signed_at: now,
+    };
+    setCurrentData(next);
+    setPendingSepaWarning(false);
+    // kurzer Tick, damit State propagiert wird
+    setTimeout(() => doSubmitStep(), 0);
+  };
+
+  const continueWithoutMandate = async () => {
+    setPendingSepaWarning(false);
+    setTimeout(() => doSubmitStep(), 0);
   };
 
   const renderStep = () => {
