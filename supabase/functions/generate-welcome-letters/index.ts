@@ -2,10 +2,10 @@
 // embedded magic-link QR code. Bundles them as a ZIP and files the bundle
 // into the building's DMS under "Begrüßungsbriefe".
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
-import PizZip from "https://esm.sh/pizzip@3.1.7";
-import Docxtemplater from "https://esm.sh/docxtemplater@3.50.0";
-import ImageModule from "https://esm.sh/docxtemplater-image-module-free@1.1.1";
-import QRCode from "https://esm.sh/qrcode@1.5.4";
+import PizZip from "npm:pizzip@3.1.7";
+import Docxtemplater from "npm:docxtemplater@3.50.0";
+import ImageModule from "npm:docxtemplater-image-module-free@1.1.1";
+import QRCode from "npm:qrcode@1.5.4";
 import { loadRecipients } from "../_shared/comm-vars.ts";
 
 const corsHeaders = {
