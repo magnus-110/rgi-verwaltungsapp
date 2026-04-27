@@ -1,11 +1,12 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SectionCard } from "../ui/SectionCard";
 import { EmbeddedInput } from "../ui/InlineField";
 import { MultiEntryList } from "../ui/MultiEntryList";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { Info } from "lucide-react";
+import { Info, Landmark } from "lucide-react";
 
 export type PhoneType = "private" | "mobile" | "business";
 export interface PhoneEntry { number: string; type?: PhoneType; note?: string }
@@ -33,6 +34,11 @@ export interface Step1Data {
   contact_other_name?: string;
   contact_other?: OtherContactInfo;
   expectations?: string;
+  // SEPA-Mandat
+  sepa_mandate_accepted?: boolean;
+  sepa_mandate_signed_at?: string;
+  sepa_mandate_reference?: string;
+  sepa_creditor_id?: string;
   // legacy
   phone?: string;
   phone_type?: PhoneType;
