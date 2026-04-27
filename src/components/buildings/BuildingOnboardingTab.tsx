@@ -304,10 +304,10 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Mail className="h-5 w-5" /> Begrüßungsbriefe & Magic-Link
+            <Mail className="h-5 w-5" /> Begrüßungsbriefe & App-Link
           </CardTitle>
           <CardDescription>
-            Für jeden Eigentümer einen personalisierten Brief mit eingebettetem QR-Code (gültig 30 Tage) als ZIP erzeugen — automatische Ablage im Dokumentenarchiv.
+            Für jeden Eigentümer einen personalisierten Brief mit App-Login-Link als ZIP erzeugen — automatische Ablage im Dokumentenarchiv.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -330,11 +330,9 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground flex flex-wrap items-center gap-1">
-              <span>Vorlage muss die Platzhalter</span>
+              <span>Vorlage kann den Platzhalter</span>
               <PlaceholderChip value="{{magic_link_url}}" />
-              <span>und (für QR-Code) ein Bildplatzhalter</span>
-              <PlaceholderChip value="{%magic_link_qr}" />
-              <span>enthalten.</span>
+              <span>für den App-Login-Link enthalten.</span>
             </p>
 
             <details className="rounded-md border bg-muted/30 p-3 text-xs">
@@ -343,10 +341,9 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
               </summary>
               <div className="mt-3 grid gap-4 sm:grid-cols-2">
                 <div>
-                  <p className="mb-1 font-semibold text-foreground">Magic-Link / QR</p>
+                  <p className="mb-1 font-semibold text-foreground">App-Link</p>
                   <ul className="space-y-1 text-muted-foreground">
-                    <li><PlaceholderChip value="{{magic_link_url}}" /> — Onboarding-Link</li>
-                    <li><PlaceholderChip value="{%magic_link_qr}" /> — QR-Code als Bild</li>
+                    <li><PlaceholderChip value="{{magic_link_url}}" /> — App-Login-Link</li>
                   </ul>
                 </div>
                 <div>

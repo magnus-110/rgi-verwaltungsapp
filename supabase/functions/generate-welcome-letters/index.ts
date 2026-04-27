@@ -1,5 +1,5 @@
 // Generate personalised welcome-letter DOCX files (one per owner) with an
-// embedded magic-link QR code. Bundles them as a ZIP and files the bundle
+// optional QR code to the app login. Bundles them as a ZIP and files the bundle
 // into the building's DMS under "Begrüßungsbriefe".
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
 import PizZip from "npm:pizzip@3.1.7";
@@ -15,12 +15,6 @@ const corsHeaders = {
 
 function sanitize(name: string): string {
   return name.replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_").slice(0, 80);
-}
-
-function randomToken(len = 48): string {
-  const bytes = new Uint8Array(len);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 function renderDocx(tplBuf: Uint8Array, data: Record<string, unknown>, imageOpts: Record<string, unknown>): Uint8Array {
@@ -81,7 +75,6 @@ Deno.serve(async (req) => {
     const {
       building_id,
       template_id,
-      ttl_hours = 24 * 30, // 30 days
     } = await req.json();
     if (!building_id) return json({ error: "building_id required" }, 400);
 
@@ -122,17 +115,7 @@ Deno.serve(async (req) => {
       return json({ error: "Keine Eigentümer gefunden." }, 400);
     }
 
-    // Map contacts -> auth user (via contacts.user_id)
-    const contactIds = Array.from(new Set(recipients.map((r) => r.contact_id)));
-    const { data: contactsRows, error: contactsErr } = await admin
-      .from("contacts").select("id, user_id").in("id", contactIds);
-    if (contactsErr) throw contactsErr;
-    const userByContact = new Map<string, string | null>(
-      (contactsRows ?? []).map((c: any) => [c.id, c.user_id ?? null]),
-    );
-
-    const origin = req.headers.get("origin") || "https://rgi-immobilien.app";
-    const expiresAt = new Date(Date.now() + Number(ttl_hours) * 3600 * 1000).toISOString();
+    const appLoginUrl = "https://rgi-immobilien.app/login";
 
     const bundle = new PizZip();
     let okCount = 0;
@@ -149,25 +132,10 @@ Deno.serve(async (req) => {
     for (let i = 0; i < recipients.length; i++) {
       const r = recipients[i];
       try {
-        const targetUser = userByContact.get(r.contact_id);
-        let magicUrl = "";
-        if (targetUser) {
-          const token = randomToken();
-          const { error: insErr } = await admin
-            .from("onboarding_magic_links").insert({
-              token,
-              user_id: targetUser,
-              building_id,
-              expires_at: expiresAt,
-            });
-          if (insErr) throw insErr;
-          magicUrl = `${origin}/login/magic/${token}`;
-        }
-
-        // QR code as PNG (Uint8Array)
+        // QR code as PNG (Uint8Array) pointing to the regular app login, not a magic link.
         let qrBytes: Uint8Array | null = null;
-        if (magicUrl) {
-          const dataUrl = await QRCode.toDataURL(magicUrl, {
+        if (appLoginUrl) {
+          const dataUrl = await QRCode.toDataURL(appLoginUrl, {
             errorCorrectionLevel: "M",
             margin: 1,
             width: 360,
@@ -180,7 +148,7 @@ Deno.serve(async (req) => {
 
         const outBuf = renderDocx(tplBuf, {
           ...r.vars,
-          magic_link_url: magicUrl,
+          magic_link_url: appLoginUrl,
           magic_link_qr: qrBytes,
         }, imageOpts);
         const baseName = sanitize(r.display_name) || `eigentuemer_${i + 1}`;
@@ -253,7 +221,7 @@ Deno.serve(async (req) => {
         building_id,
         category_id: cat?.id || null,
         display_name: zipFileName,
-        description: `Begrüßungsbriefe für ${okCount} Eigentümer (Magic-Link gültig bis ${new Date(expiresAt).toLocaleDateString("de-DE")}).`,
+        description: `Begrüßungsbriefe für ${okCount} Eigentümer mit App-Login-Link.`,
         file_path: dmsPath,
         file_size: zipBytes.length,
         mime_type: "application/zip",
@@ -277,7 +245,7 @@ Deno.serve(async (req) => {
       errors,
       zip_path: zipPath,
       dms_file_id: dmsFileId,
-      expires_at: expiresAt,
+      app_login_url: appLoginUrl,
     });
   } catch (e: any) {
     console.error("generate-welcome-letters error", e);
