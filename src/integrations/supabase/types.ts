@@ -1292,6 +1292,7 @@ export type Database = {
           heating_type: string | null
           id: string
           management_mode: Database["public"]["Enums"]["management_mode"]
+          management_start_date: string | null
           manager_name: string | null
           name: string
           type: string | null
@@ -1310,6 +1311,7 @@ export type Database = {
           heating_type?: string | null
           id?: string
           management_mode: Database["public"]["Enums"]["management_mode"]
+          management_start_date?: string | null
           manager_name?: string | null
           name: string
           type?: string | null
@@ -1328,6 +1330,7 @@ export type Database = {
           heating_type?: string | null
           id?: string
           management_mode?: Database["public"]["Enums"]["management_mode"]
+          management_start_date?: string | null
           manager_name?: string | null
           name?: string
           type?: string | null

@@ -68,10 +68,15 @@ export async function loadRecipients(
   let managerProfile: any = null;
   if (managerRows && managerRows.length > 0) {
     const { data: prof } = await admin
-      .from("profiles").select("display_name, email, phone")
+      .from("profiles").select("first_name, last_name, email, phone, username")
       .eq("user_id", managerRows[0].user_id).maybeSingle();
     managerProfile = prof;
   }
+  const managerDisplayName = managerProfile
+    ? ([managerProfile.first_name, managerProfile.last_name].filter(Boolean).join(" ").trim()
+       || managerProfile.username
+       || "")
+    : "";
 
   // Building -> contact assignments
   let q = admin
@@ -178,7 +183,7 @@ export async function loadRecipients(
       mea: "",
       rolle: a.role_in_building || "",
       // Verwaltung
-      verwalter_name: managerProfile?.display_name || building.manager_name || "",
+      verwalter_name: managerDisplayName || building.manager_name || "",
       verwalter_email: managerProfile?.email || "",
       verwalter_telefon: managerProfile?.phone || "",
       datum_heute: formatDateLong(today),
