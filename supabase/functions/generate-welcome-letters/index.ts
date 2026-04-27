@@ -52,6 +52,53 @@ function renderDocx(tplBuf: Uint8Array, data: Record<string, unknown>): Uint8Arr
   return doc.getZip().generate({ type: "uint8array" });
 }
 
+/**
+ * Merge multiple rendered DOCX buffers into ONE document.
+ * Strategy: keep the first doc as base (preserves styles, header/footer,
+ * relationships, media). Append the body content of each subsequent doc
+ * before the closing <w:sectPr>, separated by a hard page break.
+ *
+ * Works because every letter is rendered from the SAME template,
+ * so all rId references (logos, fonts) resolve identically.
+ */
+function mergeDocxBodies(docs: Uint8Array[]): Uint8Array {
+  if (docs.length === 1) return docs[0];
+
+  const baseZip = new PizZip(docs[0]);
+  const docXmlFile = baseZip.file("word/document.xml");
+  if (!docXmlFile) throw new Error("Basis-Dokument enthält keine document.xml");
+  let baseXml = docXmlFile.asText();
+
+  // Find insertion point: just before the final <w:sectPr> (page setup),
+  // falling back to just before </w:body>.
+  const sectPrMatch = baseXml.match(/<w:sectPr[\s\S]*?<\/w:sectPr>/);
+  const insertionPoint = sectPrMatch
+    ? baseXml.lastIndexOf(sectPrMatch[0])
+    : baseXml.lastIndexOf("</w:body>");
+  if (insertionPoint < 0) throw new Error("Konnte Body des Basis-Dokuments nicht parsen");
+
+  const pageBreak = `<w:p><w:r><w:br w:type="page"/></w:r></w:p>`;
+  const additions: string[] = [];
+
+  for (let i = 1; i < docs.length; i++) {
+    const xml = new PizZip(docs[i]).file("word/document.xml")!.asText();
+    // Extract everything between <w:body ...> and </w:body>, then strip a
+    // trailing <w:sectPr>...</w:sectPr> if present (we only keep the base's).
+    const bodyMatch = xml.match(/<w:body[^>]*>([\s\S]*)<\/w:body>/);
+    if (!bodyMatch) continue;
+    const bodyInner = bodyMatch[1].replace(/<w:sectPr[\s\S]*?<\/w:sectPr>\s*$/, "");
+    additions.push(pageBreak + bodyInner);
+  }
+
+  baseXml =
+    baseXml.slice(0, insertionPoint) +
+    additions.join("") +
+    baseXml.slice(insertionPoint);
+
+  baseZip.file("word/document.xml", baseXml);
+  return baseZip.generate({ type: "uint8array" });
+}
+
 type Mode = "weg" | "rent";
 
 interface Credentials {
