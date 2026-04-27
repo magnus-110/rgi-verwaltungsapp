@@ -4,6 +4,8 @@ import {
 } from "lucide-react";
 import { SectionCard } from "../ui/SectionCard";
 import { Textarea } from "@/components/ui/textarea";
+import { RangeSlider } from "../ui/RangeSlider";
+import { EmbeddedInput } from "../ui/InlineField";
 import { cn } from "@/lib/utils";
 
 export type ProblemAreaId = "dach" | "fassade" | "treppenhaus" | "keller" | "eingang" | "sonstiges";
