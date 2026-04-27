@@ -251,7 +251,9 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
         {
           body: {
             building_id: buildingId,
-            management_start_date: managementStartDate ? managementStartDate.toISOString() : null,
+            management_start_date: managementStartDate
+              ? `${managementStartDate.getFullYear()}-${String(managementStartDate.getMonth() + 1).padStart(2, "0")}-${String(managementStartDate.getDate()).padStart(2, "0")}`
+              : null,
           },
         },
       );
