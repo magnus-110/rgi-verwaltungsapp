@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -7,7 +6,6 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { MaintenanceConfigSection, type MaintenanceConfig } from "@/components/buildings/MaintenanceConfigSection";
 
 interface Building {
   id: string;
@@ -17,6 +15,7 @@ interface Building {
   management_mode: string;
   manager_name?: string;
   unit_count?: number;
+  creditor_id?: string | null;
 }
 
 interface EditBuildingDialogProps {
@@ -35,78 +34,21 @@ export const EditBuildingDialog = ({
   const [formData, setFormData] = useState({
     name: "",
     address: "",
-    unit_count: ""
+    unit_count: "",
+    creditor_id: "",
   });
   const [loading, setLoading] = useState(false);
-  const [maintenanceConfigs, setMaintenanceConfigs] = useState<MaintenanceConfig[]>([]);
-  const [initialMaintenanceTypes, setInitialMaintenanceTypes] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (building) {
       setFormData({
         name: building.name || "",
         address: building.address || "",
-        unit_count: building.unit_count?.toString() || "0"
+        unit_count: building.unit_count?.toString() || "0",
+        creditor_id: (building as any).creditor_id || "",
       });
-      fetchMaintenanceConfigs(building.id);
     }
   }, [building]);
-
-  const fetchMaintenanceConfigs = async (buildingId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from("maintenance_configs")
-        .select("*")
-        .eq("building_id", buildingId);
-
-      if (error) throw error;
-
-      const configs: MaintenanceConfig[] = (data || []).map((row: any) => ({
-        maintenance_type: row.maintenance_type,
-        is_active: row.is_active,
-        custom_interval_months: row.custom_interval_months,
-        custom_lead_time_days: row.custom_lead_time_days,
-        last_maintenance_date: row.last_maintenance_date,
-      }));
-      setMaintenanceConfigs(configs);
-      setInitialMaintenanceTypes(new Set(configs.filter(c => c.is_active).map(c => c.maintenance_type)));
-    } catch (error) {
-      console.error("Error fetching maintenance configs:", error);
-    }
-  };
-
-  const saveMaintenanceConfigs = async (buildingId: string) => {
-    // Delete all existing configs for this building
-    await supabase.from("maintenance_configs").delete().eq("building_id", buildingId);
-
-    const activeConfigs = maintenanceConfigs.filter(c => c.is_active);
-    if (activeConfigs.length === 0) return;
-
-    const rows = activeConfigs.map(c => ({
-      building_id: buildingId,
-      maintenance_type: c.maintenance_type,
-      is_active: true,
-      custom_interval_months: c.custom_interval_months || null,
-      custom_lead_time_days: c.custom_lead_time_days || null,
-      last_maintenance_date: c.last_maintenance_date || null,
-    }));
-
-    const { error } = await supabase.from("maintenance_configs").insert(rows);
-    if (error) throw error;
-
-    // Check if configs changed to decide if we need to regenerate
-    const currentActiveTypes = new Set(activeConfigs.map(c => c.maintenance_type));
-    const hasChanges = currentActiveTypes.size !== initialMaintenanceTypes.size ||
-      [...currentActiveTypes].some(t => !initialMaintenanceTypes.has(t)) ||
-      activeConfigs.some(c => c.custom_interval_months || c.custom_lead_time_days);
-
-    if (hasChanges) {
-      const { data: { user } } = await supabase.auth.getUser();
-      await supabase.functions.invoke("generate-maintenance-tasks", {
-        body: { building_id: buildingId, user_id: user?.id },
-      });
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,13 +62,12 @@ export const EditBuildingDialog = ({
           name: formData.name,
           address: formData.address,
           unit_count: formData.unit_count ? parseInt(formData.unit_count) : 0,
-          updated_at: new Date().toISOString()
+          creditor_id: formData.creditor_id.trim() || null,
+          updated_at: new Date().toISOString(),
         })
         .eq("id", building.id);
 
       if (error) throw error;
-
-      await saveMaintenanceConfigs(building.id);
 
       toast.success("Gebäude erfolgreich aktualisiert");
       onUpdate();
@@ -187,12 +128,22 @@ export const EditBuildingDialog = ({
                 Der Gebäudecode kann nicht geändert werden
               </p>
             </div>
-
-            {/* Wartungskonfiguration */}
-            <MaintenanceConfigSection
-              configs={maintenanceConfigs}
-              onChange={setMaintenanceConfigs}
-            />
+            <div className="space-y-2">
+              <Label htmlFor="creditor_id">Gläubiger-ID (SEPA Creditor Identifier)</Label>
+              <Input
+                id="creditor_id"
+                value={formData.creditor_id}
+                onChange={(e) =>
+                  setFormData({ ...formData, creditor_id: e.target.value.toUpperCase() })
+                }
+                placeholder="z. B. DE98ZZZ09999999999"
+                maxLength={35}
+                className="font-mono"
+              />
+              <p className="text-xs text-muted-foreground">
+                Wird im SEPA-Mandat des Eigentümer-Onboardings angezeigt.
+              </p>
+            </div>
 
             <div className="flex justify-end space-x-2 pt-4">
               <Button type="button" variant="outline" onClick={onClose}>
