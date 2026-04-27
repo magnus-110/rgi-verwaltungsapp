@@ -80,16 +80,20 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
     },
   });
 
-  // Building (for welcome letter template)
+  // Building (for welcome letter template + management start date)
   const { data: building } = useQuery({
     queryKey: ["onb-building", buildingId],
     queryFn: async () => {
       const { data } = await supabase
         .from("buildings")
-        .select("id, name, welcome_letter_template_id" as any)
+        .select("id, name, welcome_letter_template_id, management_start_date" as any)
         .eq("id", buildingId)
         .maybeSingle();
-      return data as any;
+      const b = data as any;
+      if (b?.management_start_date) {
+        setManagementStartDate((prev) => prev ?? new Date(b.management_start_date));
+      }
+      return b;
     },
   });
 
