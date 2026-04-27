@@ -228,11 +228,24 @@ Deno.serve(async (req) => {
     const { building_id, template_id, management_start_date } = await req.json();
     if (!building_id) return json({ error: "building_id required" }, 400);
 
-    // Resolve management start date
+    // Resolve management start date: prefer payload, persist on building, else use stored value
     let mgmtDate: Date | null = null;
     if (management_start_date) {
       const d = new Date(management_start_date);
-      if (!isNaN(d.getTime())) mgmtDate = d;
+      if (!isNaN(d.getTime())) {
+        mgmtDate = d;
+        // Persist on building (store as YYYY-MM-DD)
+        const iso = d.toISOString().slice(0, 10);
+        await admin.from("buildings").update({ management_start_date: iso } as any).eq("id", building_id);
+      }
+    }
+    if (!mgmtDate) {
+      const { data: bDate } = await admin
+        .from("buildings").select("management_start_date").eq("id", building_id).maybeSingle();
+      if ((bDate as any)?.management_start_date) {
+        const d = new Date((bDate as any).management_start_date);
+        if (!isNaN(d.getTime())) mgmtDate = d;
+      }
     }
     const verwaltungsbeginn = mgmtDate ? formatDateLong(mgmtDate) : "";
     const verwaltungsbeginnKurz = mgmtDate ? formatDateShort(mgmtDate) : "";
