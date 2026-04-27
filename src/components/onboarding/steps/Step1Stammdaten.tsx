@@ -56,6 +56,8 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
   const prefilledRef = useRef(false);
   const hasOverridesRef = useRef(false);
   const valueRef = useRef(value);
+  const [buildingMeta, setBuildingMeta] = useState<{ creditor_id: string | null; building_code: string | null } | null>(null);
+  const mandateInitRef = useRef(false);
 
   useEffect(() => {
     valueRef.current = value;
