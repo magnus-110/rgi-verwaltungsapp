@@ -241,15 +241,20 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
     try {
       const { data, error } = await supabase.functions.invoke(
         "generate-welcome-letters",
-        { body: { building_id: buildingId } },
+        {
+          body: {
+            building_id: buildingId,
+            management_start_date: managementStartDate ? managementStartDate.toISOString() : null,
+          },
+        },
       );
       if (error) throw error;
       const r = data as any;
       if (r?.error) throw new Error(r.error);
-      setLastResult({ ok: r.ok, failed: r.failed, zip_path: r.zip_path });
+      setLastResult({ ok: r.ok, failed: r.failed, created_accounts: r.created_accounts, zip_path: r.zip_path });
       toast({
         title: "Briefe erstellt",
-        description: `${r.ok} erfolgreich, ${r.failed} fehlgeschlagen. Ablage im Dokumentenarchiv.`,
+        description: `${r.ok} Briefe · ${r.created_accounts ?? 0} neue Accounts angelegt · ${r.failed} fehlgeschlagen.`,
       });
     } catch (e: any) {
       toast({ title: "Fehler", description: e?.message || "Unbekannter Fehler", variant: "destructive" });
