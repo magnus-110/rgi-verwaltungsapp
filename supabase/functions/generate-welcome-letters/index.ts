@@ -75,7 +75,6 @@ Deno.serve(async (req) => {
     const {
       building_id,
       template_id,
-      ttl_hours = 24 * 30, // 30 days
     } = await req.json();
     if (!building_id) return json({ error: "building_id required" }, 400);
 
@@ -116,17 +115,7 @@ Deno.serve(async (req) => {
       return json({ error: "Keine Eigentümer gefunden." }, 400);
     }
 
-    // Map contacts -> auth user (via contacts.user_id)
-    const contactIds = Array.from(new Set(recipients.map((r) => r.contact_id)));
-    const { data: contactsRows, error: contactsErr } = await admin
-      .from("contacts").select("id, user_id").in("id", contactIds);
-    if (contactsErr) throw contactsErr;
-    const userByContact = new Map<string, string | null>(
-      (contactsRows ?? []).map((c: any) => [c.id, c.user_id ?? null]),
-    );
-
-    const origin = req.headers.get("origin") || "https://rgi-immobilien.app";
-    const expiresAt = new Date(Date.now() + Number(ttl_hours) * 3600 * 1000).toISOString();
+    const appLoginUrl = "https://rgi-immobilien.app/login";
 
     const bundle = new PizZip();
     let okCount = 0;
@@ -143,24 +132,9 @@ Deno.serve(async (req) => {
     for (let i = 0; i < recipients.length; i++) {
       const r = recipients[i];
       try {
-        const targetUser = userByContact.get(r.contact_id);
-        let magicUrl = "";
-        if (targetUser) {
-          const token = randomToken();
-          const { error: insErr } = await admin
-            .from("onboarding_magic_links").insert({
-              token,
-              user_id: targetUser,
-              building_id,
-              expires_at: expiresAt,
-            });
-          if (insErr) throw insErr;
-          magicUrl = `${origin}/login/magic/${token}`;
-        }
-
-        // QR code as PNG (Uint8Array)
+        // QR code as PNG (Uint8Array) pointing to the regular app login, not a magic link.
         let qrBytes: Uint8Array | null = null;
-        if (magicUrl) {
+        if (appLoginUrl) {
           const dataUrl = await QRCode.toDataURL(magicUrl, {
             errorCorrectionLevel: "M",
             margin: 1,
@@ -174,7 +148,7 @@ Deno.serve(async (req) => {
 
         const outBuf = renderDocx(tplBuf, {
           ...r.vars,
-          magic_link_url: magicUrl,
+          magic_link_url: appLoginUrl,
           magic_link_qr: qrBytes,
         }, imageOpts);
         const baseName = sanitize(r.display_name) || `eigentuemer_${i + 1}`;
