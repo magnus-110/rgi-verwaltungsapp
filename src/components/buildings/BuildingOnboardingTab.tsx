@@ -467,7 +467,7 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
             {lastResult && (
               <Button variant="outline" onClick={downloadLastZip}>
                 <Download className="h-4 w-4 mr-2" />
-                ZIP herunterladen ({lastResult.ok} Briefe)
+                Word-Dokument herunterladen ({lastResult.ok} Briefe)
               </Button>
             )}
           </div>
