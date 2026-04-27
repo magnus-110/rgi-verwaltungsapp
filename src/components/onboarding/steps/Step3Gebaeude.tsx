@@ -92,6 +92,25 @@ export const Step3Gebaeude = ({ value, onChange }: Props) => {
 
   return (
     <div className="space-y-2.5">
+      <SectionCard label="GEBÄUDEZUSTAND">
+        <div className="p-3">
+          <RangeSlider
+            value={value.general_impression_score ?? 3}
+            onChange={(v) => set({ general_impression_score: v })}
+            descriptions={[
+              "Sanierungsbedürftig",
+              "Deutliche Mängel",
+              "Akzeptabel",
+              "Guter Zustand",
+              "Ausgezeichnet",
+            ]}
+            lowLabel="Schlecht"
+            highLabel="Gut"
+          />
+        </div>
+      </SectionCard>
+
+
       <SectionCard label="HEIZUNGSART (MEHRFACHAUSWAHL MÖGLICH)">
         <div className="p-3 space-y-2.5">
           <div className="grid grid-cols-2 gap-2">
