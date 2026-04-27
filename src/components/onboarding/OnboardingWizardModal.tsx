@@ -32,6 +32,7 @@ import { StepSlider } from "./ui/StepSlider";
 import { RgiWordmark } from "./ui/RgiWordmark";
 import { WelcomeScreen } from "./ui/WelcomeScreen";
 import { cn } from "@/lib/utils";
+import { logSepaMandateEvent } from "./sepaAuditLog";
 
 interface Props {
   open: boolean;
