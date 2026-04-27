@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -65,6 +65,7 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
   const [markGlobal, setMarkGlobal] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [managementStartDate, setManagementStartDate] = useState<Date | undefined>(undefined);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<{ ok: number; failed: number; created_accounts?: number; zip_path: string } | null>(null);
 
   // Activation state
@@ -113,6 +114,10 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
       return data ?? [];
     },
   });
+
+  useEffect(() => {
+    setSelectedTemplateId((building as any)?.welcome_letter_template_id ?? null);
+  }, [(building as any)?.welcome_letter_template_id]);
 
   // All progress rows for this building
   const { data: progresses = [] } = useQuery({
@@ -229,12 +234,20 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
   // Welcome letter — set template
   const setTemplate = async (templateId: string) => {
     const newId = templateId === "__none__" ? null : templateId;
+    if (newId && !(letterTemplates as any[]).some((t) => t.id === newId)) {
+      toast({ title: "Vorlage nicht gefunden", description: "Bitte laden Sie die Vorlagenliste neu.", variant: "destructive" });
+      return;
+    }
+    setSelectedTemplateId(newId);
     const { error } = await supabase
       .from("buildings")
       .update({ welcome_letter_template_id: newId } as any)
       .eq("id", buildingId);
     if (error) {
-      toast({ title: "Fehler", description: error.message, variant: "destructive" });
+      toast({
+        title: "Vorlage ausgewählt",
+        description: "Die Auswahl wird für diese Erstellung verwendet, konnte aber nicht dauerhaft am Gebäude gespeichert werden.",
+      });
       return;
     }
     qc.invalidateQueries({ queryKey: ["onb-building", buildingId] });
@@ -251,6 +264,7 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
         {
           body: {
             building_id: buildingId,
+            template_id: selectedTemplateId,
             management_start_date: managementStartDate
               ? `${managementStartDate.getFullYear()}-${String(managementStartDate.getMonth() + 1).padStart(2, "0")}-${String(managementStartDate.getDate()).padStart(2, "0")}`
               : null,
@@ -334,7 +348,7 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
               <FileText className="h-4 w-4" /> Brief-Vorlage
             </label>
             <Select
-              value={building?.welcome_letter_template_id ?? "__none__"}
+              value={selectedTemplateId ?? "__none__"}
               onValueChange={setTemplate}
             >
               <SelectTrigger>
@@ -464,7 +478,7 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
           <div className="flex flex-wrap items-center gap-2">
             <Button
               onClick={generateLetters}
-              disabled={generating || !building?.welcome_letter_template_id}
+              disabled={generating || !selectedTemplateId}
             >
               {generating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Begrüßungsbriefe erstellen
