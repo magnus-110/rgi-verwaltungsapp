@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Info, Save, Loader2, Flame, MapPin, StickyNote, Plus, Trash2, Pencil, X, Check } from "lucide-react";
+import { Info, Save, Loader2, Flame, MapPin, StickyNote, Plus, Trash2, Pencil, X, Check, Landmark } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { de } from "date-fns/locale";
@@ -33,11 +33,11 @@ export const BuildingGeneralInfoCard = ({ buildingId }: Props) => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("buildings")
-        .select("etv_default_location, heating_type")
+        .select("etv_default_location, heating_type, creditor_id")
         .eq("id", buildingId)
         .single();
       if (error) throw error;
-      return data as { etv_default_location: string | null; heating_type: string | null };
+      return data as { etv_default_location: string | null; heating_type: string | null; creditor_id: string | null };
     },
   });
 
@@ -187,6 +187,20 @@ export const BuildingGeneralInfoCard = ({ buildingId }: Props) => {
             {savingMain ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
             Speichern
           </Button>
+        </div>
+
+        {/* Gläubiger-ID */}
+        <div className="border-t pt-3">
+          <Label className="text-xs flex items-center gap-1.5 mb-1">
+            <Landmark className="h-3 w-3" /> Gläubiger-ID (SEPA)
+          </Label>
+          {building?.creditor_id ? (
+            <p className="text-sm font-mono">{building.creditor_id}</p>
+          ) : (
+            <p className="text-xs text-muted-foreground italic">
+              Noch nicht hinterlegt — über „Bearbeiten" eintragen.
+            </p>
+          )}
         </div>
 
         {/* Notizen */}

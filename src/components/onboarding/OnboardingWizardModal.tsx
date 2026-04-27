@@ -4,6 +4,16 @@ import {
   DialogContent,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Check, Loader2, ArrowLeft, ArrowRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -107,7 +117,9 @@ export const OnboardingWizardModal = ({
   const isEmptyData = (data: any) =>
     !data || Object.values(data).every((v) => v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0));
 
-  const handleSubmitStep = async () => {
+  const [pendingSepaWarning, setPendingSepaWarning] = useState(false);
+
+  const doSubmitStep = async () => {
     if (step === 1) {
       const err = validateStep1(currentData as Step1Data);
       if (err) {
@@ -117,7 +129,6 @@ export const OnboardingWizardModal = ({
     }
 
     // Steps 2-4 sind optional: bei leeren Daten einfach weiter ohne Submit.
-    // Step 5 muss IMMER submittet werden (auch leer), damit der Onboarding-Status korrekt abgeschlossen wird.
     if (step > 1 && step < 5 && isEmptyData(currentData)) {
       await flush();
       setStep(step + 1);
@@ -141,11 +152,9 @@ export const OnboardingWizardModal = ({
         });
         setStep(step + 1);
       } else {
-        // Step 5 abgeschlossen → Dankesdialog im Modal anzeigen
         setJustFinished(true);
       }
     } catch (e: any) {
-      // Bei optionalen Schritten Fehler nicht blockieren - weitergehen
       if (step > 1) {
         if (step < 5) setStep(step + 1);
         else setJustFinished(true);
@@ -159,6 +168,38 @@ export const OnboardingWizardModal = ({
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleSubmitStep = async () => {
+    // Bei Step 1: Wenn IBAN da ist, aber SEPA-Mandat-Checkbox NICHT angeklickt → Warn-Dialog
+    if (step === 1) {
+      const d = currentData as Step1Data;
+      const ibanFilled = !!d.iban?.trim();
+      const mandateAccepted = !!(d as any).sepa_mandate_accepted;
+      if (ibanFilled && !mandateAccepted) {
+        setPendingSepaWarning(true);
+        return;
+      }
+    }
+    await doSubmitStep();
+  };
+
+  const acceptMandateAndContinue = async () => {
+    const now = new Date().toISOString();
+    const next = {
+      ...(currentData as Step1Data),
+      sepa_mandate_accepted: true,
+      sepa_mandate_signed_at: now,
+    };
+    setCurrentData(next);
+    setPendingSepaWarning(false);
+    // kurzer Tick, damit State propagiert wird
+    setTimeout(() => doSubmitStep(), 0);
+  };
+
+  const continueWithoutMandate = async () => {
+    setPendingSepaWarning(false);
+    setTimeout(() => doSubmitStep(), 0);
   };
 
   const renderStep = () => {
@@ -207,89 +248,136 @@ export const OnboardingWizardModal = ({
         )}
         onPointerDownOutside={(e) => isStep1HardLocked && e.preventDefault()}
         onEscapeKeyDown={(e) => isStep1HardLocked && e.preventDefault()}
+        onKeyDown={(e) => {
+          // Welcome-Screen: Enter startet das Wizard
+          if (showWelcome && e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            setShowWelcome(false);
+          }
+        }}
       >
         <DialogTitle className="sr-only">
           Onboarding{buildingName ? ` – ${buildingName}` : ""}
         </DialogTitle>
 
-        {/* Top Bar */}
-        <div className="bg-card border-b border-border/40 px-5 h-[56px] flex items-center shrink-0">
-          <RgiWordmark />
-        </div>
-
-        {/* Step Slider */}
-        {!allDone && (
-          <div className="bg-card border-b border-border/40 px-5 py-3.5 shrink-0">
-            <StepSlider
-              steps={STEP_LABELS}
-              currentStep={showWelcome ? 0 : step}
-              completed={showWelcome ? {} : completed}
-              onStepClick={(n) =>
-                !showWelcome && !isStep1HardLocked && setStep(n)
-              }
-              lockedFromStep={
-                showWelcome ? 1 : isStep1HardLocked ? 2 : undefined
-              }
-            />
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!allDone && !showWelcome && !submitting) {
+              handleSubmitStep();
+            }
+          }}
+          className="flex flex-col flex-1 min-h-0"
+        >
+          {/* Top Bar */}
+          <div className="bg-card border-b border-border/40 px-5 h-[56px] flex items-center shrink-0">
+            <RgiWordmark />
           </div>
-        )}
 
-        {/* Scroll area */}
-        <div className="flex-1 overflow-y-auto px-4 py-5">
-          {allDone ? (
-            <CompletionScreen
-              onClose={() => {
-                onComplete();
-                onOpenChange(false);
-              }}
-              completed={justFinished || progress.step5_completed_at ? { 1: true, 2: true, 3: true, 4: true, 5: true } : completed}
-            />
-          ) : showWelcome ? (
-            <WelcomeScreen onStart={() => setShowWelcome(false)} />
-          ) : (
-            <div className="space-y-3">
-              <div>
-                <h2 className="font-display text-[20px] text-foreground leading-tight">
-                  {STEP_TITLES[step]}
-                </h2>
-                <p className="text-[13px] text-muted-foreground mt-0.5">
-                  {STEP_SUBTITLES[step]}
-                </p>
-              </div>
-              {renderStep()}
+          {/* Step Slider */}
+          {!allDone && (
+            <div className="bg-card border-b border-border/40 px-5 py-3.5 shrink-0">
+              <StepSlider
+                steps={STEP_LABELS}
+                currentStep={showWelcome ? 0 : step}
+                completed={showWelcome ? {} : completed}
+                onStepClick={(n) =>
+                  !showWelcome && !isStep1HardLocked && setStep(n)
+                }
+                lockedFromStep={
+                  showWelcome ? 1 : isStep1HardLocked ? 2 : undefined
+                }
+              />
             </div>
           )}
-        </div>
 
-        {/* Footer */}
-        {!allDone && !showWelcome && (
-          <div className="bg-card border-t border-border/60 px-4 py-3 flex items-center justify-between gap-2 shrink-0">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={async () => { await flush(); setStep(step - 1); }}
-              disabled={submitting || isStep1HardLocked || step <= 1}
-              className="border-border/60"
-              aria-label="Zurück"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <Button
-              onClick={handleSubmitStep}
-              disabled={submitting}
-              size="icon"
-              aria-label={step === 5 ? "Abschließen" : "Weiter"}
-            >
-              {submitting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : step === 5 ? (
-                <Check className="h-4 w-4" />
-              ) : (
-                <ArrowRight className="h-4 w-4" />
-              )}
-            </Button>
+          {/* Scroll area */}
+          <div className="flex-1 overflow-y-auto px-4 py-5">
+            {allDone ? (
+              <CompletionScreen
+                onClose={() => {
+                  onComplete();
+                  onOpenChange(false);
+                }}
+                completed={justFinished || progress.step5_completed_at ? { 1: true, 2: true, 3: true, 4: true, 5: true } : completed}
+              />
+            ) : showWelcome ? (
+              <WelcomeScreen onStart={() => setShowWelcome(false)} />
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <h2 className="font-display text-[20px] text-foreground leading-tight">
+                    {STEP_TITLES[step]}
+                  </h2>
+                  <p className="text-[13px] text-muted-foreground mt-0.5">
+                    {STEP_SUBTITLES[step]}
+                  </p>
+                </div>
+                {renderStep()}
+              </div>
+            )}
           </div>
-        )}
+
+          {/* Footer */}
+          {!allDone && !showWelcome && (
+            <div className="bg-card border-t border-border/60 px-4 py-3 flex items-center justify-between gap-2 shrink-0">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={async () => { await flush(); setStep(step - 1); }}
+                disabled={submitting || isStep1HardLocked || step <= 1}
+                className="border-border/60"
+                aria-label="Zurück"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <Button
+                type="submit"
+                disabled={submitting}
+                size="icon"
+                aria-label={step === 5 ? "Abschließen" : "Weiter"}
+              >
+                {submitting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : step === 5 ? (
+                  <Check className="h-4 w-4" />
+                ) : (
+                  <ArrowRight className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          )}
+        </form>
+
+        {/* SEPA Warn-Dialog */}
+        <AlertDialog open={pendingSepaWarning} onOpenChange={setPendingSepaWarning}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Sind Sie sicher?</AlertDialogTitle>
+              <AlertDialogDescription className="space-y-2 text-left">
+                <span className="block">
+                  Ohne SEPA-Lastschriftmandat entsteht für die Verwaltung ein deutlich
+                  höherer Aufwand bei der Erfassung und Zuordnung Ihrer Zahlungen.
+                </span>
+                <span className="block">
+                  Diesen Mehraufwand müssen wir mit{" "}
+                  <strong>5,00 € pro Monat</strong> zusätzlich zum Hausgeld in Rechnung
+                  stellen.
+                </span>
+                <span className="block">Möchten Sie das Mandat doch erteilen?</span>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={continueWithoutMandate}>
+                Nein, ohne Mandat fortfahren
+              </AlertDialogCancel>
+              <AlertDialogAction onClick={acceptMandateAndContinue}>
+                Ja, Mandat jetzt erteilen
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );

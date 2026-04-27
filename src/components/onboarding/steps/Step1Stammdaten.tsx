@@ -1,11 +1,12 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SectionCard } from "../ui/SectionCard";
 import { EmbeddedInput } from "../ui/InlineField";
 import { MultiEntryList } from "../ui/MultiEntryList";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { Info } from "lucide-react";
+import { Info, Landmark } from "lucide-react";
 
 export type PhoneType = "private" | "mobile" | "business";
 export interface PhoneEntry { number: string; type?: PhoneType; note?: string }
@@ -33,6 +34,11 @@ export interface Step1Data {
   contact_other_name?: string;
   contact_other?: OtherContactInfo;
   expectations?: string;
+  // SEPA-Mandat
+  sepa_mandate_accepted?: boolean;
+  sepa_mandate_signed_at?: string;
+  sepa_mandate_reference?: string;
+  sepa_creditor_id?: string;
   // legacy
   phone?: string;
   phone_type?: PhoneType;
@@ -50,6 +56,8 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
   const prefilledRef = useRef(false);
   const hasOverridesRef = useRef(false);
   const valueRef = useRef(value);
+  const [buildingMeta, setBuildingMeta] = useState<{ creditor_id: string | null; building_code: string | null } | null>(null);
+  const mandateInitRef = useRef(false);
 
   useEffect(() => {
     valueRef.current = value;
@@ -82,6 +90,51 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buildingId]);
+
+  // Gebäude-Meta laden (Gläubiger-ID + building_code für Mandatsreferenz)
+  useEffect(() => {
+    if (!buildingId) return;
+    supabase
+      .from("buildings")
+      .select("creditor_id, building_code")
+      .eq("id", buildingId)
+      .single()
+      .then(({ data }) => {
+        if (data) setBuildingMeta(data as any);
+      });
+  }, [buildingId]);
+
+  // Mandatsreferenz einmalig generieren — Format: RGI-{codeShort}-{userShort}-{DDMMYYYY}, max. 35 Zeichen
+  useEffect(() => {
+    if (mandateInitRef.current) return;
+    if (!buildingMeta) return;
+    const current = valueRef.current;
+    if (current.sepa_mandate_reference) {
+      mandateInitRef.current = true;
+      return;
+    }
+    mandateInitRef.current = true;
+    const codeRaw = (buildingMeta.building_code || buildingId || "")
+      .replace(/[^A-Z0-9]/gi, "")
+      .toUpperCase();
+    const codeShort = codeRaw.slice(-6) || "000000";
+    supabase.auth.getUser().then(({ data }) => {
+      const uid = (data.user?.id || "00000000").replace(/-/g, "").toUpperCase();
+      const userShort = uid.slice(0, 4);
+      const d = new Date();
+      const dd = String(d.getDate()).padStart(2, "0");
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const yyyy = String(d.getFullYear());
+      let ref = `RGI-${codeShort}-${userShort}-${dd}${mm}${yyyy}`;
+      if (ref.length > 35) ref = ref.slice(0, 35);
+      onChange({
+        ...valueRef.current,
+        sepa_mandate_reference: ref,
+        sepa_creditor_id: buildingMeta.creditor_id || undefined,
+      });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buildingMeta]);
 
   const phones: PhoneEntry[] =
     value.phones && value.phones.length > 0
@@ -190,8 +243,35 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
         </div>
       </SectionCard>
 
-      <SectionCard label="BANKVERBINDUNG">
+      <SectionCard label="SEPA-MANDAT">
         <div className="px-4 py-3 space-y-3">
+          {/* Gläubiger-ID + Mandatsreferenz */}
+          <div className="rounded-[10px] border border-border/60 bg-muted/30 p-3 space-y-2">
+            <div className="flex items-start gap-2">
+              <Landmark className="size-4 text-primary mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0 space-y-1.5 text-[12px]">
+                <div className="flex flex-col">
+                  <span className="text-muted-foreground">Gläubiger-ID:</span>
+                  <span className="font-mono text-foreground break-all">
+                    {buildingMeta?.creditor_id || (
+                      <span className="italic text-muted-foreground">
+                        Wird von der Verwaltung ergänzt
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-muted-foreground">Mandatsreferenz:</span>
+                  <span className="font-mono text-foreground break-all">
+                    {value.sepa_mandate_reference || (
+                      <span className="italic text-muted-foreground">wird erzeugt …</span>
+                    )}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <Field label="Kontoinhaber" required>
             <EmbeddedInput
               value={value.account_holder ?? ""}
@@ -224,11 +304,44 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
               spellCheck={false}
             />
           </Field>
-        </div>
-        <div className="px-4 pb-2.5 -mt-1 text-[11px] text-muted-foreground/80">
-          Wird für die SEPA-Lastschrift Ihres Hausgeldes benötigt.
+
+          {/* Mandatstext + digitale Unterschrift */}
+          <div className="rounded-[10px] border border-border/60 bg-card p-3 space-y-3">
+            <p className="text-[12.5px] leading-relaxed text-foreground/85">
+              Ich ermächtige die RGI Immobilien GmbH &amp; Co. KG, Zahlungen
+              von meinem Konto mittels SEPA-Lastschrift einzuziehen.
+            </p>
+            <label className="flex items-start gap-2.5 cursor-pointer select-none">
+              <Checkbox
+                checked={!!value.sepa_mandate_accepted}
+                onCheckedChange={(checked) => {
+                  const isOn = checked === true;
+                  set({
+                    sepa_mandate_accepted: isOn,
+                    sepa_mandate_signed_at: isOn ? new Date().toISOString() : undefined,
+                  });
+                }}
+                className="mt-0.5"
+              />
+              <span className="text-[12.5px] text-foreground leading-snug">
+                Ich erteile hiermit das SEPA-Lastschriftmandat (digitale
+                Unterschrift).
+              </span>
+            </label>
+            {value.sepa_mandate_accepted && value.sepa_mandate_signed_at && (
+              <p className="text-[11px] text-muted-foreground pl-7">
+                Digital signiert am{" "}
+                {new Date(value.sepa_mandate_signed_at).toLocaleString("de-DE", {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                })}
+                {value.account_holder ? ` von ${value.account_holder}` : ""}.
+              </p>
+            )}
+          </div>
         </div>
       </SectionCard>
+
 
       <SectionCard label="HAUPTANSPRECHPARTNER">
         <div className="p-3 space-y-3">
