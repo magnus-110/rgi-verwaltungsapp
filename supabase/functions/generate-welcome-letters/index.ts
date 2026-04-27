@@ -75,19 +75,41 @@ async function ensureContactAccount(
     .maybeSingle();
   if (!contact) return null;
 
-  // Already linked?
+  // Already linked? -> reset password so it can be printed in the letter.
   if (contact.user_id) {
     const { data: prof } = await admin
       .from("profiles")
-      .select("username, email, auth_pseudo_email")
+      .select("username, email, auth_pseudo_email, first_name, last_name")
       .eq("user_id", contact.user_id)
       .maybeSingle();
-    const username =
-      prof?.username ||
-      prof?.auth_pseudo_email ||
-      prof?.email ||
-      "(unbekannt)";
-    return { username, password: "(bereits vergeben)", created: false };
+
+    let username = prof?.username || null;
+    // If the existing profile has no username yet, generate one and persist it.
+    if (!username) {
+      const base = buildBaseUsername(
+        prof?.first_name || contact.first_name,
+        prof?.last_name || contact.last_name,
+        contact.company_name,
+      );
+      username = await ensureUniqueUsername(admin, base);
+      await admin.from("profiles").update({ username }).eq("user_id", contact.user_id);
+    }
+
+    const newPassword = generateNumericPassword(8);
+    const { error: pwErr } = await admin.auth.admin.updateUserById(contact.user_id, {
+      password: newPassword,
+    });
+    if (pwErr) {
+      console.error("password reset failed for existing user", contact.user_id, pwErr);
+      return { username, password: "(bereits vergeben)", created: false };
+    }
+    await admin.from("profiles").update({
+      force_password_change: true,
+      must_change_password: true,
+      initial_password_set_at: new Date().toISOString(),
+    }).eq("user_id", contact.user_id);
+
+    return { username, password: newPassword, created: false };
   }
 
   // Build a unique username
