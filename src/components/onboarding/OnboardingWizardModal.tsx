@@ -401,8 +401,22 @@ export const OnboardingWizardModal = ({
         </form>
 
         {/* SEPA Warn-Dialog */}
-        <AlertDialog open={pendingSepaWarning} onOpenChange={setPendingSepaWarning}>
-          <AlertDialogContent>
+        <AlertDialog
+          open={pendingSepaWarning}
+          onOpenChange={(o) => {
+            if (!o && pendingSepaWarning) dismissSepaWarning();
+            else setPendingSepaWarning(o);
+          }}
+        >
+          <AlertDialogContent className="relative">
+            <button
+              type="button"
+              onClick={dismissSepaWarning}
+              className="absolute right-3 top-3 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              aria-label="Schließen"
+            >
+              <X className="h-4 w-4" />
+            </button>
             <AlertDialogHeader>
               <AlertDialogTitle>Sind Sie sicher?</AlertDialogTitle>
               <AlertDialogDescription className="space-y-2 text-left">
