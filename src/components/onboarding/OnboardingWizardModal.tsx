@@ -333,7 +333,13 @@ export const OnboardingWizardModal = ({
 
           {/* Scroll area */}
           <div className="flex-1 overflow-y-auto px-4 py-5">
-            {allDone ? (
+            {pendingSepaWarning ? (
+              <SepaWarningCard
+                onConfirmMandate={acceptMandateAndContinue}
+                onContinueWithout={continueWithoutMandate}
+                onDismiss={dismissSepaWarning}
+              />
+            ) : allDone ? (
               <CompletionScreen
                 onClose={() => {
                   onComplete();
@@ -359,7 +365,7 @@ export const OnboardingWizardModal = ({
           </div>
 
           {/* Footer */}
-          {!allDone && !showWelcome && (
+          {!allDone && !showWelcome && !pendingSepaWarning && (
             <div className="bg-card border-t border-border/60 px-4 py-3 flex items-center justify-between gap-2 shrink-0">
               <Button
                 type="button"
@@ -390,50 +396,72 @@ export const OnboardingWizardModal = ({
           )}
         </form>
       </DialogContent>
+    </Dialog>
+  );
+};
 
-      {/* SEPA Warn-Dialog — außerhalb der DialogContent, um Nested-Dialog-Konflikte zu vermeiden */}
-      <AlertDialog
-        open={pendingSepaWarning}
-        onOpenChange={(o) => {
-          if (!o && pendingSepaWarning) dismissSepaWarning();
-          else setPendingSepaWarning(o);
-        }}
-      >
-        <AlertDialogContent className="relative z-[60]">
-          <button
-            type="button"
-            onClick={dismissSepaWarning}
-            className="absolute right-3 top-3 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            aria-label="Schließen"
-          >
-            <X className="h-4 w-4" />
-          </button>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Sind Sie sicher?</AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2 text-left">
-              <span className="block">
+// ---------------------------------------------------------------------------
+const SepaWarningCard = ({
+  onConfirmMandate,
+  onContinueWithout,
+  onDismiss,
+}: {
+  onConfirmMandate: () => void;
+  onContinueWithout: () => void;
+  onDismiss: () => void;
+}) => {
+  return (
+    <div className="max-w-md mx-auto py-2">
+      <div className="relative bg-card rounded-[16px] border border-border/60 overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="absolute right-3 top-3 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          aria-label="Schließen"
+        >
+          <X className="h-4 w-4" />
+        </button>
+        <div className="px-5 py-6 space-y-5">
+          <div className="inline-flex size-12 items-center justify-center rounded-full bg-amber-100 text-amber-700">
+            <AlertTriangle className="size-6" strokeWidth={2.2} />
+          </div>
+          <div className="space-y-2">
+            <h2 className="font-display text-[20px] leading-tight text-foreground">
+              Sind Sie sicher?
+            </h2>
+            <div className="space-y-2 text-[13.5px] leading-relaxed text-foreground/80">
+              <p>
                 Ohne SEPA-Lastschriftmandat entsteht für die Verwaltung ein deutlich
                 höherer Aufwand bei der Erfassung und Zuordnung Ihrer Zahlungen.
-              </span>
-              <span className="block">
+              </p>
+              <p>
                 Diesen Mehraufwand müssen wir mit{" "}
                 <strong>5,00 € pro Monat</strong> zusätzlich zum Hausgeld in Rechnung
                 stellen.
-              </span>
-              <span className="block">Möchten Sie das Mandat doch erteilen?</span>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={continueWithoutMandate}>
+              </p>
+              <p>Möchten Sie das Mandat doch erteilen?</p>
+            </div>
+          </div>
+          <div className="flex flex-col-reverse sm:flex-row gap-2 pt-1">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onContinueWithout}
+              className="flex-1"
+            >
               Nein, ohne Mandat fortfahren
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={acceptMandateAndContinue}>
+            </Button>
+            <Button
+              type="button"
+              onClick={onConfirmMandate}
+              className="flex-1"
+            >
               Ja, Mandat jetzt erteilen
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </Dialog>
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 };
 
