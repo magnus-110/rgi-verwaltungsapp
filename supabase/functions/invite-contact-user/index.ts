@@ -100,7 +100,17 @@ Deno.serve(async (req) => {
     }
     const email = emails[0].email
 
-    const role = management_mode === 'weg' ? 'weg_owner' : 'tenant'
+    // Rolle aus den TATSÄCHLICHEN Building-Assignments des Kontakts ableiten,
+    // nicht stur aus dem management_mode der aktuellen Liegenschaft.
+    // Wer irgendwo Eigentümer/Beirat ist, bekommt das WEG-Owner-Layout.
+    const { data: allAssignments } = await supabaseAdmin
+      .from('contact_building_assignments')
+      .select('role_in_building')
+      .eq('contact_id', contact_id)
+    const isOwnerSomewhere = (allAssignments ?? []).some(
+      (a: any) => a.role_in_building === 'eigentuemer' || a.role_in_building === 'beirat'
+    )
+    const role = isOwnerSomewhere ? 'weg_owner' : 'tenant'
     let authUserId = contact.user_id
     let isNewUser = false
     const password = generateNumericPassword()
