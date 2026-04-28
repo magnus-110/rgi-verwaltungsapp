@@ -606,11 +606,6 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                     )}
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0 flex-wrap">
-                    {!isApartment(kind) && (
-                      <Badge variant={billingMode === "distribution_only" ? "outline" : "secondary"} className="text-xs">
-                        {billingMode === "distribution_only" ? "Nur Verteilung" : "Eigene Abrechnung"}
-                      </Badge>
-                    )}
                     {managementMode === 'weg' && isBeirat(a) && <Badge variant="secondary" className="text-xs">Beirat</Badge>}
                     {managementMode === 'weg' && isCashAuditor(a) && <Badge variant="secondary" className="text-xs">Kassenprüfung</Badge>}
                     {hausgeld !== null && <Badge variant="outline" className="text-xs">{hausgeld.toFixed(2)} €</Badge>}
