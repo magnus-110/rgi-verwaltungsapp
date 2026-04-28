@@ -164,17 +164,24 @@ function AssignmentItem({
     await save(patch);
   };
 
-  const buildingLabel = a.buildings?.name || "Wohnung";
+  const buildingLabel = a.buildings?.name || (isApartment(a.unit_kind) ? "Wohnung" : (UNIT_KIND_LABELS[(a.unit_kind as UnitKind)] || "Einheit"));
   const unitLabel = a.unit_number ? ` · WE ${a.unit_number}` : "";
   const roleLabel = a.role_in_building ? ROLE_LABELS[a.role_in_building] || a.role_in_building : null;
 
   return (
     <AccordionItem value={a.id}>
       <AccordionTrigger className="hover:no-underline">
-        <div className="flex items-center gap-2 flex-1 text-left">
+        <div className="flex items-center gap-2 flex-1 text-left flex-wrap">
           <Building2 className="w-4 h-4 text-muted-foreground shrink-0" />
           <span className="font-medium">{buildingLabel}{unitLabel}</span>
           {roleLabel && <Badge variant="secondary" className="ml-1">{roleLabel}</Badge>}
+          {subUnits.map((s) => (
+            <Badge key={s.id} variant="outline" className="gap-1">
+              <span aria-hidden>{UNIT_KIND_ICONS[(s.unit_kind as UnitKind)] || "📦"}</span>
+              {UNIT_KIND_LABELS[(s.unit_kind as UnitKind)] || "Einheit"}
+              {s.unit_number ? ` ${s.unit_number}` : ""}
+            </Badge>
+          ))}
           {hasOverrides && <Badge variant="outline" className="ml-auto mr-2">Eigene Angaben</Badge>}
         </div>
       </AccordionTrigger>
