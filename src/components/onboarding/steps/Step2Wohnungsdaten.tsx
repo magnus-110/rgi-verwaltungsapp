@@ -42,7 +42,7 @@ const newSecondaryUnit = (): SecondaryUnitDraft => ({
   unit_kind: "parking_garage",
   unit_number: "",
   mea_share: "",
-  billing_mode: "distribution_only",
+  billing_mode: "own_billing",
   monthly_fee: "",
 });
 
