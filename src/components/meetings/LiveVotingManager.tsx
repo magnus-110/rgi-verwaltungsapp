@@ -325,13 +325,7 @@ export const LiveVotingManager = ({ meetingId, buildingId }: LiveVotingManagerPr
     return [contact.first_name, contact.last_name].filter(Boolean).join(" ") || "Unbenannt";
   };
 
-  const getMeaWeight = (attendee: any) => {
-    const a = attendee?.contact_building_assignments;
-    const shares = a?.contact_building_shares || [];
-    const own = (shares.find((s: any) => s.share_type === "mea")?.share_value) || 0;
-    const extra = (a?.contact_id && (distOnlyByContact as Map<string, number>).get(a.contact_id)) || 0;
-    return own + extra;
-  };
+  // (getMeaWeight oben definiert)
 
   return (
     <div className="space-y-6">
