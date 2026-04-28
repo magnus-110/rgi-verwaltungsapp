@@ -1,42 +1,83 @@
 ## Problem
 
-In `supabase/functions/generate-welcome-letters/index.ts` (Zeile 129–156) prüft die Funktion: Wenn der Kontakt bereits einen `user_id` hat (z.B. weil beim Zuordnen zum Gebäude über `invite-contact-user` schon ein Account erstellt wurde), wird **kein neues Passwort gesetzt** und im Brief erscheint nur `(bereits vergeben)`.
+Beim Löschen einer Zuordnung (`contact_building_assignments`) wirft die DB:
+> `update or delete on table "contact_building_assignments" violates foreign key constraint "etv_attendees_assignment_id_fkey" on table "etv_attendees"`
 
-Da bei deinem aktuellen Workflow JEDER Kontakt schon beim Building-Assignment einen Account bekommt (via `AssignContactDialog` → `invite-contact-user`), trifft dieser Fall jetzt für **alle** Briefe zu.
+Ursachen:
+1. `etv_attendees.assignment_id` und `etv_votes.assignment_id` referenzieren `contact_building_assignments(id)` **ohne `ON DELETE`-Regel** → die DB blockiert das Löschen.
+2. Der aktuelle Frontend-Pfad (`BuildingContactsList.removeAssignment`, Zeile 281) macht ein nacktes `DELETE` auf der Assignment-Zeile und kümmert sich weder um ETV-Records noch um den verknüpften Auth-Account.
+3. Es gibt aktuell keine Logik, die nach dem Entfernen der Assignment prüft, ob der Kontakt noch andere Building-Assignments hat — und entsprechend den Auth-Account löscht oder erhält.
 
-## Lösung
+## Ziel-Verhalten
 
-Die Logik in `generate-welcome-letters` umdrehen: Beim Brief-Generieren soll **immer ein neues Initial-Passwort** gesetzt werden — egal ob der Account neu oder schon vorhanden ist. Das ist auch sicherheitstechnisch sauber:
+Beim Entfernen einer Person aus einem Gebäude:
 
-- Der Brief ist der **offizielle Zustellweg** der Login-Daten
-- Solange der Empfänger sich noch nicht eingeloggt hat (`must_change_password = true` und `last_sign_in_at = null`), darf das Passwort gefahrlos überschrieben werden
-- Hat er sich schon einmal eingeloggt → Passwort NICHT überschreiben (er hat es ja selbst geändert), dann weiterhin "(bereits vergeben)" zeigen
+1. **Assignment selbst** + alle abhängigen Sub-Records (Shares, Costs, Bank-Defaults, ETV-Anwesenheiten/Stimmen, Sub-Assignments für Stellplatz/Hobbyraum) löschen.
+2. **Auth-Account-Logik** danach:
+   - Hat der Kontakt **noch andere** `contact_building_assignments` → Account bleibt; nur `weg_owner_buildings` / `tenants`-Eintrag für **dieses** Gebäude entfernen, damit der User dieses Gebäude nicht mehr sieht.
+   - Hat der Kontakt **keine weiteren** Assignments → Auth-User komplett löschen (`auth.admin.deleteUser`), `profiles` per Cascade weg, `contacts.user_id` auf `NULL` setzen. Der **Kontakt selbst bleibt** im Adressbuch erhalten.
 
-### Änderungen
+## Umsetzung
 
-**1. `supabase/functions/generate-welcome-letters/index.ts`**
+### 1. DB-Migration: Cascade-Regeln auf ETV-FKs
 
-In `ensureContactAccount` den Block ab Zeile 129 ersetzen:
-- Wenn `contact.user_id` existiert:
-  - Auth-User laden (`admin.auth.admin.getUserById`) und prüfen, ob `last_sign_in_at` gesetzt ist
-  - **Fall A — noch nie eingeloggt:** Neues `generateNumericPassword(8)` setzen via `updateUserById`, `profiles.must_change_password = true`, `initial_password_set_at = now()`. Username erzeugen falls fehlt. Credentials mit dem neuen Passwort zurückgeben (`created: true`).
-  - **Fall B — schon eingeloggt:** Bisheriges Verhalten, "(bereits vergeben)" + Hinweistext.
+```sql
+ALTER TABLE etv_attendees
+  DROP CONSTRAINT etv_attendees_assignment_id_fkey,
+  ADD  CONSTRAINT etv_attendees_assignment_id_fkey
+       FOREIGN KEY (assignment_id)
+       REFERENCES contact_building_assignments(id) ON DELETE CASCADE;
 
-**2. UI-Hinweistexte anpassen** in `src/components/buildings/BuildingOnboardingTab.tsx` (Zeile 388 + 486):
-- Klarstellen: "Initial-Passwort wird beim Brief-Generieren neu gesetzt, solange sich der Empfänger noch nie eingeloggt hat."
-- "(bereits vergeben)" erscheint nur noch bei Empfängern, die ihr Passwort bereits selbst geändert haben.
+ALTER TABLE etv_votes
+  DROP CONSTRAINT etv_votes_assignment_id_fkey,
+  ADD  CONSTRAINT etv_votes_assignment_id_fkey
+       FOREIGN KEY (assignment_id)
+       REFERENCES contact_building_assignments(id) ON DELETE CASCADE;
+```
 
-### Optional (empfohlen): „Passwort neu setzen"-Button im Brief-Dialog
-Falls ein Eigentümer den Brief verloren hat aber bereits eingeloggt war, kann der Admin manuell ein neues Initial-Passwort erzwingen (Reuse der existierenden `admin-reset-password` Edge Function). Sage Bescheid, falls ich das gleich mit einbauen soll.
+Begründung: Wenn die Person nicht mehr Eigentümer/Mieter ist, sind ihre ETV-Anwesenheits- und Stimmrecords aus diesem Gebäude für diese Liegenschaft ohnehin obsolet. Falls du historische ETV-Stimmen archivieren willst, sage Bescheid — dann nutzen wir stattdessen `ON DELETE SET NULL` + nullable `assignment_id` (größere Anpassung).
 
-## Technische Details
+### 2. Neue Edge Function `remove-contact-from-building`
 
-- `admin.auth.admin.getUserById(userId)` liefert `user.last_sign_in_at`
-- Passwort-Update: `admin.auth.admin.updateUserById(authUserId, { password })`
-- Profile-Update analog zum bestehenden Neu-User-Pfad (Zeilen 202–218)
-- Kein DB-Schema-Change nötig
-- Keine Auswirkung auf `invite-contact-user` (das bleibt für die separate E-Mail-Einladung zuständig)
+Server-seitig (Service Role nötig für `auth.admin.deleteUser`). Ablauf:
+
+```
+input: { assignment_id }
+
+1. Lade assignment (contact_id, building_id, parent_assignment_id).
+2. DELETE FROM contact_building_assignments WHERE id = assignment_id
+   → Cascade entfernt: shares, costs, etv_attendees, etv_votes,
+     plus Sub-Assignments via parent_assignment_id (falls ON DELETE
+     CASCADE; sonst zuerst children löschen).
+3. Lade verbleibende assignments des Kontakts:
+   SELECT building_id FROM contact_building_assignments WHERE contact_id = X
+4. Wenn leer:
+     - contacts.user_id → null setzen
+     - auth.admin.deleteUser(user_id)  (Cascade räumt profiles)
+   Sonst:
+     - DELETE FROM weg_owner_buildings WHERE user_id=… AND building_id=…
+     - DELETE FROM tenants            WHERE user_id=… AND building_id=…
+     - profiles.building_id ggf. neu setzen, falls es exakt das gelöschte war
+       (auf irgendein noch verbleibendes Building oder NULL)
+5. return { success, account_deleted: bool }
+```
+
+### 3. Frontend `BuildingContactsList.removeAssignment` umbauen
+
+- Statt direktem `supabase.from(...).delete()` → `supabase.functions.invoke("remove-contact-from-building", { body: { assignment_id } })`.
+- Bestätigungsdialog erweitern: zeige Hinweis „Account wird gelöscht" vs. „Person verliert nur Zugriff auf dieses Gebäude" (vorab per kleinem Query/RPC zählen, in wie vielen Buildings die Person sonst noch ist).
+- Nach Erfolg `refetch()` und passenden Toast.
+
+### 4. Gleiche Funktion auch in `ContactBuildingAssignments.deleteAssignment` (Kontakt-Detail) verwenden, damit beide Pfade konsistent sind.
+
+## Technische Hinweise
+
+- `contact_building_assignments.parent_assignment_id` (Migration vom 28.04.) hat `ON DELETE SET NULL` → Sub-Assignments (Stellplatz/Hobbyraum mit eigener Abrechnung) bleiben verwaist nach Löschen des Hauptkontakts. Ich erweitere die Edge Function so, dass Sub-Assignments **mit** gelöscht werden, wenn das Parent gelöscht wird (oder du sagst, sie sollen am Gebäude bleiben — bitte kurz bestätigen, sonst nehme ich Mit-Löschen).
+- `weg_owner_buildings` / `tenants` haben heute keine RLS-Probleme für Service-Role, der direkte Delete reicht.
+- Falls beim Auth-Delete ein Fehler auftritt (z. B. User existiert nicht mehr), wird das geloggt aber nicht hart geworfen, damit das Assignment-Delete trotzdem persistiert.
 
 ## Ergebnis
 
-Jeder generierte Welcome-Brief enthält ein gültiges, frisch gesetztes Initial-Passwort — außer der Empfänger hat sich bereits einmal eingeloggt.
+- Löschen funktioniert wieder (kein FK-Fehler).
+- Auth-Account wird sauber zurückgesetzt: behält Zugriff auf andere Gebäude, oder wird komplett entfernt, wenn dies das letzte war.
+- Kontakt bleibt im globalen Adressbuch erhalten.
