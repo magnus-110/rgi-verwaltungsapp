@@ -164,44 +164,14 @@ export const Step2Wohnungsdaten = ({ value, onChange }: Props) => {
                 />
               </div>
 
-              <div className="rounded-md border border-border/50 bg-muted/30 px-3 py-2.5">
-                <Label className="text-[12px] text-muted-foreground">Abrechnung</Label>
-                <RadioGroup
-                  value={item.billing_mode}
-                  onValueChange={(v) => update({ billing_mode: v as BillingMode })}
-                  className="mt-1.5 space-y-1.5"
-                >
-                  <div className="flex items-start gap-2">
-                    <RadioGroupItem value="distribution_only" id={`bm-dist-${item.unit_kind}-${item.unit_number}`} className="mt-0.5" />
-                    <Label
-                      htmlFor={`bm-dist-${item.unit_kind}-${item.unit_number}`}
-                      className="text-[13px] font-normal leading-snug cursor-pointer"
-                    >
-                      Nur Verteilung — kein eigenes Hausgeld, MEA fließt zur Wohnung.
-                    </Label>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <RadioGroupItem value="own_billing" id={`bm-own-${item.unit_kind}-${item.unit_number}`} className="mt-0.5" />
-                    <Label
-                      htmlFor={`bm-own-${item.unit_kind}-${item.unit_number}`}
-                      className="text-[13px] font-normal leading-snug cursor-pointer"
-                    >
-                      Eigene Abrechnung &amp; eigenes Hausgeld.
-                    </Label>
-                  </div>
-                </RadioGroup>
-
-                {item.billing_mode === "own_billing" && (
-                  <div className="mt-2.5">
-                    <FieldLabel>Hausgeld dieser Einheit (€/Monat)</FieldLabel>
-                    <EmbeddedInput
-                      value={item.monthly_fee ?? ""}
-                      onChange={(e) => update({ monthly_fee: e.target.value })}
-                      inputMode="decimal"
-                      placeholder="z. B. 25,00"
-                    />
-                  </div>
-                )}
+              <div>
+                <FieldLabel>Hausgeld (€/Monat, optional)</FieldLabel>
+                <EmbeddedInput
+                  value={item.monthly_fee ?? ""}
+                  onChange={(e) => update({ monthly_fee: e.target.value })}
+                  inputMode="decimal"
+                  placeholder="z. B. 25,00"
+                />
               </div>
             </div>
           )}
