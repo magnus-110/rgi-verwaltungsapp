@@ -1,22 +1,21 @@
 import type { ReactNode } from "react";
 import { SectionCard } from "../ui/SectionCard";
 import { EmbeddedInput } from "../ui/InlineField";
-import { MultiEntryList } from "../ui/MultiEntryList";
+import { YesNoChoice } from "../YesNoChoice";
+import { BigChoiceCard } from "../BigChoiceCard";
 import {
   UNIT_KIND_OPTIONS,
+  UNIT_KIND_LABELS,
   type UnitKind,
   type BillingMode,
 } from "@/lib/secondaryUnits";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
 
 export interface SecondaryUnitDraft {
   unit_kind: UnitKind;
   unit_number?: string;
   mea_share?: string;
   billing_mode: BillingMode;
-  monthly_fee?: string; // nur relevant wenn billing_mode='own_billing'
+  monthly_fee?: string;
 }
 
 export interface Step2Data {
@@ -26,6 +25,9 @@ export interface Step2Data {
   mea_share?: string;
   square_meters?: string;
   secondary_units?: SecondaryUnitDraft[];
+  // UI-only Wizard-State
+  has_secondary_units?: boolean | null;
+  secondary_units_have_own_billing?: boolean | null;
 }
 
 interface Props {
@@ -37,9 +39,8 @@ const FieldLabel = ({ children }: { children: ReactNode }) => (
   <div className="text-[12px] text-muted-foreground mb-1">{children}</div>
 );
 
-// Default für eine neue Nebeneinheit
-const newSecondaryUnit = (): SecondaryUnitDraft => ({
-  unit_kind: "parking_garage",
+const makeUnit = (kind: UnitKind): SecondaryUnitDraft => ({
+  unit_kind: kind,
   unit_number: "",
   mea_share: "",
   billing_mode: "own_billing",
@@ -49,6 +50,53 @@ const newSecondaryUnit = (): SecondaryUnitDraft => ({
 export const Step2Wohnungsdaten = ({ value, onChange }: Props) => {
   const set = (patch: Partial<Step2Data>) => onChange({ ...value, ...patch });
   const secondaryUnits = value.secondary_units ?? [];
+  const selectedKinds = new Set<UnitKind>(secondaryUnits.map((u) => u.unit_kind));
+
+  const handleHasSecondaryUnits = (v: boolean) => {
+    if (v) {
+      set({ has_secondary_units: true });
+    } else {
+      set({
+        has_secondary_units: false,
+        secondary_units: [],
+        secondary_units_have_own_billing: null,
+      });
+    }
+  };
+
+  const toggleKind = (kind: UnitKind) => {
+    if (selectedKinds.has(kind)) {
+      set({ secondary_units: secondaryUnits.filter((u) => u.unit_kind !== kind) });
+    } else {
+      set({ secondary_units: [...secondaryUnits, makeUnit(kind)] });
+    }
+  };
+
+  const handleOwnBilling = (v: boolean) => {
+    if (v) {
+      set({ secondary_units_have_own_billing: true });
+    } else {
+      // Bei "Nein" Hausgeld/MEA leeren
+      set({
+        secondary_units_have_own_billing: false,
+        secondary_units: secondaryUnits.map((u) => ({
+          ...u,
+          mea_share: "",
+          monthly_fee: "",
+        })),
+      });
+    }
+  };
+
+  const updateUnit = (kind: UnitKind, patch: Partial<SecondaryUnitDraft>) => {
+    set({
+      secondary_units: secondaryUnits.map((u) =>
+        u.unit_kind === kind ? { ...u, ...patch } : u
+      ),
+    });
+  };
+
+  const kindOptions = UNIT_KIND_OPTIONS.filter((o) => o.value !== "apartment");
 
   return (
     <div className="space-y-2.5">
@@ -110,73 +158,100 @@ export const Step2Wohnungsdaten = ({ value, onChange }: Props) => {
         </div>
       </SectionCard>
 
-      <SectionCard label="WEITERE EINHEITEN (z. B. Stellplatz, Keller)">
-        <div className="px-4 pt-3 pb-1">
-          <p className="text-[12px] text-muted-foreground">
-            Optional. Tragen Sie hier zusätzliche Einheiten ein, die zu Ihrer Wohnung gehören
-            (z. B. Tiefgaragen-Stellplatz, Keller, Hobbyraum, Gartenanteil).
-          </p>
+      <SectionCard label="WEITERE EINHEITEN">
+        <div className="px-4 py-3 space-y-3">
+          <div className="text-[13px] font-medium text-foreground">
+            Haben Sie zusätzliche Einheiten, die zu Ihrer Wohnung gehören
+            (z. B. Tiefgaragen-Stellplatz, Außenstellplatz, Keller, …)?
+          </div>
+          <YesNoChoice
+            value={value.has_secondary_units ?? null}
+            onChange={handleHasSecondaryUnits}
+          />
         </div>
-        <MultiEntryList
-          items={secondaryUnits}
-          onChange={(next) => set({ secondary_units: next })}
-          newItem={newSecondaryUnit}
-          minItems={0}
-          addLabel="Weitere Einheit hinzufügen"
-          renderItem={(item, update) => (
-            <div className="space-y-2.5 py-1">
-              <div className="grid gap-2" style={{ gridTemplateColumns: "1fr 110px" }}>
-                <div>
-                  <FieldLabel>Art</FieldLabel>
-                  <Select
-                    value={item.unit_kind}
-                    onValueChange={(v) => update({ unit_kind: v as UnitKind })}
-                  >
-                    <SelectTrigger className="h-9 text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {UNIT_KIND_OPTIONS.filter((o) => o.value !== "apartment").map((o) => (
-                        <SelectItem key={o.value} value={o.value}>
-                          {o.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <FieldLabel>Nr./Bez.</FieldLabel>
-                  <EmbeddedInput
-                    value={item.unit_number ?? ""}
-                    onChange={(e) => update({ unit_number: e.target.value })}
-                    placeholder="z. B. TG-04"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <FieldLabel>MEA-Anteil (optional)</FieldLabel>
-                <EmbeddedInput
-                  value={item.mea_share ?? ""}
-                  onChange={(e) => update({ mea_share: e.target.value })}
-                  inputMode="decimal"
-                  placeholder="z. B. 5"
-                />
-              </div>
-
-              <div>
-                <FieldLabel>Hausgeld (€/Monat, optional)</FieldLabel>
-                <EmbeddedInput
-                  value={item.monthly_fee ?? ""}
-                  onChange={(e) => update({ monthly_fee: e.target.value })}
-                  inputMode="decimal"
-                  placeholder="z. B. 25,00"
-                />
-              </div>
-            </div>
-          )}
-        />
       </SectionCard>
+
+      {value.has_secondary_units === true && (
+        <SectionCard label="ART DER EINHEIT">
+          <div className="px-4 py-3 space-y-3">
+            <div className="text-[13px] font-medium text-foreground">
+              Um was handelt es sich? (Mehrfachauswahl möglich)
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {kindOptions.map((opt) => (
+                <BigChoiceCard
+                  key={opt.value}
+                  title={opt.label}
+                  selected={selectedKinds.has(opt.value)}
+                  onClick={() => toggleKind(opt.value)}
+                />
+              ))}
+            </div>
+          </div>
+        </SectionCard>
+      )}
+
+      {value.has_secondary_units === true && secondaryUnits.length > 0 && (
+        <SectionCard label="ABRECHNUNG">
+          <div className="px-4 py-3 space-y-3">
+            <div className="text-[13px] font-medium text-foreground">
+              Gibt es hierfür eine eigene Abrechnung?
+            </div>
+            <YesNoChoice
+              value={value.secondary_units_have_own_billing ?? null}
+              onChange={handleOwnBilling}
+            />
+          </div>
+        </SectionCard>
+      )}
+
+      {value.has_secondary_units === true &&
+        secondaryUnits.length > 0 &&
+        value.secondary_units_have_own_billing === true && (
+          <SectionCard label="DETAILS JE EINHEIT">
+            <div className="px-4 py-3 space-y-4">
+              {secondaryUnits.map((u) => (
+                <div key={u.unit_kind} className="space-y-2.5">
+                  <div className="text-[13px] font-semibold text-foreground">
+                    {UNIT_KIND_LABELS[u.unit_kind]}
+                  </div>
+                  <div>
+                    <FieldLabel>Nr./Bez. (optional)</FieldLabel>
+                    <EmbeddedInput
+                      value={u.unit_number ?? ""}
+                      onChange={(e) =>
+                        updateUnit(u.unit_kind, { unit_number: e.target.value })
+                      }
+                      placeholder="z. B. TG-04"
+                    />
+                  </div>
+                  <div>
+                    <FieldLabel>Hausgeld (€/Monat)</FieldLabel>
+                    <EmbeddedInput
+                      value={u.monthly_fee ?? ""}
+                      onChange={(e) =>
+                        updateUnit(u.unit_kind, { monthly_fee: e.target.value })
+                      }
+                      inputMode="decimal"
+                      placeholder="z. B. 25,00"
+                    />
+                  </div>
+                  <div>
+                    <FieldLabel>Miteigentumsanteile</FieldLabel>
+                    <EmbeddedInput
+                      value={u.mea_share ?? ""}
+                      onChange={(e) =>
+                        updateUnit(u.unit_kind, { mea_share: e.target.value })
+                      }
+                      inputMode="decimal"
+                      placeholder="z. B. 5"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </SectionCard>
+        )}
     </div>
   );
 };
