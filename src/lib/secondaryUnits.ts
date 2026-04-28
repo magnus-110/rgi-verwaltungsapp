@@ -33,13 +33,13 @@ export const UNIT_KIND_LABELS: Record<UnitKind, string> = {
 };
 
 export const UNIT_KIND_ICONS: Record<UnitKind, string> = {
-  apartment: "🏠",
-  parking_garage: "🅿️",
-  parking_outdoor: "🅿️",
-  cellar: "🗄️",
-  hobby_room: "🛋️",
-  garden: "🌳",
-  other: "📦",
+  apartment: "",
+  parking_garage: "",
+  parking_outdoor: "",
+  cellar: "",
+  hobby_room: "",
+  garden: "",
+  other: "",
 };
 
 export const UNIT_KIND_OPTIONS: { value: UnitKind; label: string }[] = (
