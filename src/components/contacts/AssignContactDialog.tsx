@@ -94,6 +94,10 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
     setUnitNumber("");
     setFloorLocation("");
     setAddressMode("existing");
+    setUnitKind("apartment");
+    setBillingMode("own_billing");
+    setParentAssignmentId(null);
+    setExistingOwnUnits([]);
     setEditStreet(""); setEditZip(""); setEditCity("");
     setEditPhones([]); setEditEmails([]); setEditBanks([]);
     setSendInvite(true);
