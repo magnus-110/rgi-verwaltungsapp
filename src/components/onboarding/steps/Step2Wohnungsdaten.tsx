@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { SectionCard } from "../ui/SectionCard";
 import { EmbeddedInput } from "../ui/InlineField";
 import { MultiEntryList } from "../ui/MultiEntryList";
@@ -32,7 +33,7 @@ interface Props {
   onChange: (next: Step2Data) => void;
 }
 
-const FieldLabel = ({ children }: { children: React.ReactNode }) => (
+const FieldLabel = ({ children }: { children: ReactNode }) => (
   <div className="text-[12px] text-muted-foreground mb-1">{children}</div>
 );
 
