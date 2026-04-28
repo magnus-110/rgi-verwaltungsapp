@@ -65,7 +65,10 @@ export function ContactBuildingAssignments({ contactId }: Props) {
   };
 
   const deleteAssignment = async (id: string) => {
-    await supabase.from("contact_building_assignments").delete().eq("id", id);
+    const { error } = await supabase.functions.invoke("remove-contact-from-building", {
+      body: { assignment_id: id },
+    });
+    if (error) console.error("remove-contact-from-building failed", error);
     load();
   };
 

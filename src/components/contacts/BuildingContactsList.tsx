@@ -278,11 +278,23 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
 
   const removeAssignment = async () => {
     if (!deleteTarget) return;
-    const { error } = await supabase.from("contact_building_assignments").delete().eq("id", deleteTarget.id);
-    if (error) {
-      toast({ title: "Fehler", description: error.message, variant: "destructive" });
+    const { data, error } = await supabase.functions.invoke("remove-contact-from-building", {
+      body: { assignment_id: deleteTarget.id },
+    });
+    if (error || (data as any)?.error) {
+      toast({
+        title: "Fehler",
+        description: error?.message || (data as any)?.error || "Unbekannter Fehler",
+        variant: "destructive",
+      });
     } else {
-      toast({ title: "Zuordnung entfernt" });
+      const accountDeleted = (data as any)?.account_deleted;
+      toast({
+        title: "Zuordnung entfernt",
+        description: accountDeleted
+          ? "Account wurde komplett gelöscht (keine weiteren Gebäude)."
+          : "Person hat weiterhin Zugriff auf andere Gebäude.",
+      });
       setDeleteTarget(null);
       setExpanded(null);
       refetch();
