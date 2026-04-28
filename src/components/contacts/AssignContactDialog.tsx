@@ -210,8 +210,8 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
       unit_number: unitNumber || null,
       floor_location: floorLocation || null,
       unit_kind: unitKind as any,
-      billing_mode: billingMode as any,
-      parent_assignment_id: parentAssignmentId,
+      billing_mode: 'own_billing' as any,
+      parent_assignment_id: null,
     } as any);
 
     if (error) {
