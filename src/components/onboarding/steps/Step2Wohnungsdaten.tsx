@@ -218,7 +218,11 @@ export const Step2Wohnungsdaten = ({ value, onChange }: Props) => {
             Haben Sie zusätzliche Einheiten, die zu Ihrer Wohnung gehören
             (z. B. Tiefgaragen-Stellplatz, Außenstellplatz, Keller, …)?
           </div>
-          <YesNoChoice
+          <PillChoice<boolean>
+            options={[
+              { v: true, label: "Ja" },
+              { v: false, label: "Nein" },
+            ]}
             value={value.has_secondary_units ?? null}
             onChange={handleHasSecondaryUnits}
           />
@@ -226,42 +230,69 @@ export const Step2Wohnungsdaten = ({ value, onChange }: Props) => {
       </SectionCard>
 
       {value.has_secondary_units === true && (
-        <SectionCard label="ART DER EINHEIT">
-          <div className="px-4 py-3 space-y-3">
-            <div className="text-[13px] font-medium text-foreground">
-              Um was handelt es sich? (Mehrfachauswahl möglich)
+        <div ref={kindRef} className="scroll-mt-4">
+          <SectionCard label="ART DER EINHEIT">
+            <div className="px-4 py-3 space-y-3">
+              <div className="text-[13px] font-medium text-foreground">
+                Um was handelt es sich? (Mehrfachauswahl möglich)
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                {kindOptions.map((opt) => {
+                  const sel = selectedKinds.has(opt.value);
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => toggleKind(opt.value)}
+                      className={cn(
+                        "h-12 rounded-[10px] border px-3 flex items-center gap-2.5 text-[13.5px] font-medium transition",
+                        sel
+                          ? "border-primary bg-primary/[0.06] text-primary"
+                          : "border-border/60 bg-card text-foreground hover:bg-accent/40"
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "size-[18px] shrink-0 rounded-full border-[1.5px] grid place-items-center transition",
+                          sel ? "border-primary" : "border-muted-foreground/40"
+                        )}
+                      >
+                        {sel && <span className="size-[9px] rounded-full bg-primary" />}
+                      </span>
+                      <span className="truncate">{opt.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {kindOptions.map((opt) => (
-                <BigChoiceCard
-                  key={opt.value}
-                  title={opt.label}
-                  selected={selectedKinds.has(opt.value)}
-                  onClick={() => toggleKind(opt.value)}
-                />
-              ))}
-            </div>
-          </div>
-        </SectionCard>
+          </SectionCard>
+        </div>
       )}
 
       {value.has_secondary_units === true && secondaryUnits.length > 0 && (
-        <SectionCard label="ABRECHNUNG">
-          <div className="px-4 py-3 space-y-3">
-            <div className="text-[13px] font-medium text-foreground">
-              Gibt es hierfür eine eigene Abrechnung?
+        <div ref={billingRef} className="scroll-mt-4">
+          <SectionCard label="ABRECHNUNG">
+            <div className="px-4 py-3 space-y-3">
+              <div className="text-[13px] font-medium text-foreground">
+                Gibt es hierfür eine eigene Abrechnung?
+              </div>
+              <PillChoice<boolean>
+                options={[
+                  { v: true, label: "Ja" },
+                  { v: false, label: "Nein" },
+                ]}
+                value={value.secondary_units_have_own_billing ?? null}
+                onChange={handleOwnBilling}
+              />
             </div>
-            <YesNoChoice
-              value={value.secondary_units_have_own_billing ?? null}
-              onChange={handleOwnBilling}
-            />
-          </div>
-        </SectionCard>
+          </SectionCard>
+        </div>
       )}
 
       {value.has_secondary_units === true &&
         secondaryUnits.length > 0 &&
         value.secondary_units_have_own_billing === true && (
+          <div ref={detailsRef} className="scroll-mt-4">
           <SectionCard label="DETAILS JE EINHEIT">
             <div className="px-4 py-3 space-y-4">
               {secondaryUnits.map((u) => (
