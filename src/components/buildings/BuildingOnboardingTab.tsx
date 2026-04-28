@@ -16,7 +16,7 @@ import {
   Mail, Download, FileText, Copy, Check, CalendarIcon,
 } from "lucide-react";
 import { OnboardingStepOverviews } from "./onboarding/OnboardingStepOverviews";
-import { OnboardingDocumentsCard } from "./onboarding/OnboardingDocumentsCard";
+import { TemplateUploadDialog } from "@/components/communication/TemplateUploadDialog";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
