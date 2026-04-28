@@ -359,23 +359,75 @@ Deno.serve(async (req) => {
     const recipients = await loadRecipients(admin, building_id, { roles: ["eigentuemer"] });
     if (recipients.length === 0) return json({ error: "Keine Eigentümer gefunden." }, 400);
 
+    // Group recipients by (contact_id + normalized postal address):
+    // → one letter per person per distinct postal address.
+    // Multiple units at the same address are merged into a single letter.
+    const normalizeAddr = (vars: Record<string, string>) => {
+      const norm = (s: string) =>
+        (s || "")
+          .toLowerCase()
+          .replace(/ß/g, "ss")
+          .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue")
+          .replace(/[^a-z0-9]+/g, "")
+          .trim();
+      return [norm(vars.strasse), norm(vars.plz), norm(vars.ort)].join("|");
+    };
+
+    type Group = { lead: typeof recipients[number]; units: string[] };
+    const groups = new Map<string, Group>();
+    for (const r of recipients) {
+      const key = `${r.contact_id}|${normalizeAddr(r.vars)}`;
+      const existing = groups.get(key);
+      if (existing) {
+        if (r.vars.einheit) existing.units.push(r.vars.einheit);
+      } else {
+        groups.set(key, {
+          lead: r,
+          units: r.vars.einheit ? [r.vars.einheit] : [],
+        });
+      }
+    }
+
+    // Per-contact credentials cache: ensures we generate the password ONCE
+    // per person, even if they appear in multiple groups (different addresses).
+    const credCache = new Map<string, Credentials>();
+
     const renderedDocs: Uint8Array[] = [];
     let okCount = 0;
     let failCount = 0;
     let createdAccounts = 0;
+    let passwordsGenerated = 0;
     const errors: string[] = [];
 
-    for (let i = 0; i < recipients.length; i++) {
-      const r = recipients[i];
+    for (const g of groups.values()) {
+      const r = g.lead;
       try {
-        const creds = await ensureContactAccount(admin, r.contact_id, building_id, mode);
-        if (creds?.created) createdAccounts++;
+        let creds = credCache.get(r.contact_id);
+        if (!creds) {
+          const fresh = await ensureContactAccount(admin, r.contact_id, building_id, mode);
+          if (!fresh) throw new Error("Konto konnte nicht eingerichtet werden");
+          creds = fresh;
+          credCache.set(r.contact_id, fresh);
+          if (fresh.created) {
+            createdAccounts++;
+            passwordsGenerated++;
+          }
+        }
+
+        // Deduplicate + sort unit list for the letter
+        const uniqueUnits = Array.from(new Set(g.units.filter(Boolean))).sort();
+        const einheitenListe = uniqueUnits.join(", ");
 
         const outBuf = renderDocx(tplBuf, {
           ...r.vars,
-          benutzername: creds?.username || "",
-          passwort: creds?.password || "",
-          account_hinweis: creds?.accountHinweis || "",
+          // Override single "einheit" with the joined list when there are multiple,
+          // so existing templates using {{einheit}} display all units.
+          einheit: uniqueUnits.length > 1 ? einheitenListe : (r.vars.einheit || ""),
+          einheiten_liste: einheitenListe,
+          einheiten_anzahl: String(uniqueUnits.length),
+          benutzername: creds.username || "",
+          passwort: creds.password || "",
+          account_hinweis: creds.accountHinweis || "",
           login_url: APP_LOGIN_URL,
           verwaltungsbeginn,
           verwaltungsbeginn_kurz: verwaltungsbeginnKurz,
@@ -393,6 +445,14 @@ Deno.serve(async (req) => {
         errors.push(`${r.display_name}: ${e?.message || String(e)}`);
       }
     }
+
+    console.log("welcome-letters summary", {
+      recipient_rows: recipients.length,
+      groups: groups.size,
+      contacts_processed: credCache.size,
+      letters_rendered: okCount,
+      passwords_generated: passwordsGenerated,
+    });
 
     if (okCount === 0) {
       return json({ error: "Kein Brief konnte erstellt werden", details: errors }, 500);
