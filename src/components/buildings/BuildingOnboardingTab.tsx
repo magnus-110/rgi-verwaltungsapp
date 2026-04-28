@@ -13,7 +13,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import {
   CheckCircle2, Circle, Inbox, Power, Users, AlertCircle, Loader2, ChevronRight,
-  Mail, Download, FileText, Copy, Check, CalendarIcon,
+  Mail, Download, FileText, Copy, Check, CalendarIcon, Plus,
 } from "lucide-react";
 import { OnboardingStepOverviews } from "./onboarding/OnboardingStepOverviews";
 import { TemplateUploadDialog } from "@/components/communication/TemplateUploadDialog";
