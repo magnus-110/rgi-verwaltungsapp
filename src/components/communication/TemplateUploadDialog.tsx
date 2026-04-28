@@ -62,6 +62,7 @@ export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultTy
     setName(""); setDescription(""); setFile(null);
     setSubject(""); setBodyHtml(""); setType(defaultType);
     setBodyFormat("plain");
+    setIsGlobal(false);
   };
 
   const insertPlaceholder = (ph: string) => {
