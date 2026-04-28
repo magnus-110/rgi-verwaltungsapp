@@ -528,6 +528,10 @@ Deno.serve(async (req) => {
       ok: okCount,
       failed: failCount,
       created_accounts: createdAccounts,
+      contacts_processed: credCache.size,
+      letters_rendered: okCount,
+      passwords_generated: passwordsGenerated,
+      recipient_rows: recipients.length,
       errors,
       docx_path: docxPathOut,
       zip_path: docxPathOut, // backwards-compat alias
