@@ -80,7 +80,7 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
   const [editBanks, setEditBanks] = useState<BankEntry[]>([]);
 
   // Invitation
-  const [sendInvite, setSendInvite] = useState(true);
+  const [sendInvite, setSendInvite] = useState(false);
   const [inviting, setInviting] = useState(false);
 
   useEffect(() => {
@@ -90,10 +90,13 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
       // Prefill für "+ Nebeneinheit"-Flow: vorausgewählte Hauptwohnung + Eigentümer
       if (defaultParentAssignmentId) {
         setUnitKind("parking_garage");
+        setBillingMode("distribution_only");
         setParentAssignmentId(defaultParentAssignmentId);
       }
       if (defaultContactId) {
         setSelectedId(defaultContactId);
+        // Kontakt ist schon bekannt → Auswahl-Schritt überspringen
+        loadContactDetails(defaultContactId).then(() => setStep("details"));
       }
     }
   }, [open, defaultParentAssignmentId, defaultContactId]);
