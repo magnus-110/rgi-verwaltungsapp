@@ -216,7 +216,7 @@ export const Step2Wohnungsdaten = ({ value, onChange }: Props) => {
             Haben Sie zusätzliche Einheiten, die zu Ihrer Wohnung gehören
             (z. B. Tiefgaragen-Stellplatz, Außenstellplatz, Keller, …)?
           </div>
-          <PillChoice<boolean>
+          <PillChoice
             options={[
               { v: true, label: "Ja" },
               { v: false, label: "Nein" },
@@ -274,7 +274,7 @@ export const Step2Wohnungsdaten = ({ value, onChange }: Props) => {
               <div className="text-[13px] font-medium text-foreground">
                 Gibt es hierfür eine eigene Abrechnung?
               </div>
-              <PillChoice<boolean>
+              <PillChoice
                 options={[
                   { v: true, label: "Ja" },
                   { v: false, label: "Nein" },
