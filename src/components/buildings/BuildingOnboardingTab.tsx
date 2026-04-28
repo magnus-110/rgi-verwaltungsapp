@@ -87,7 +87,7 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
     queryFn: async () => {
       const { data } = await supabase
         .from("buildings")
-        .select("id, name, welcome_letter_template_id, management_start_date" as any)
+        .select("id, name, welcome_letter_template_id, management_start_date, management_mode" as any)
         .eq("id", buildingId)
         .maybeSingle();
       const b = data as any;
