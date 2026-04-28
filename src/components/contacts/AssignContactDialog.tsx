@@ -87,8 +87,16 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
     if (open) {
       loadContacts();
       resetForm();
+      // Prefill für "+ Nebeneinheit"-Flow: vorausgewählte Hauptwohnung + Eigentümer
+      if (defaultParentAssignmentId) {
+        setUnitKind("parking_garage");
+        setParentAssignmentId(defaultParentAssignmentId);
+      }
+      if (defaultContactId) {
+        setSelectedId(defaultContactId);
+      }
     }
-  }, [open]);
+  }, [open, defaultParentAssignmentId, defaultContactId]);
 
   const resetForm = () => {
     setStep("select");
