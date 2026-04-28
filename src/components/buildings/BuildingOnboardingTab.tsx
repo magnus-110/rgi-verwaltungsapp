@@ -501,6 +501,12 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
         </CardContent>
       </Card>
 
+      {/* Onboarding documents */}
+      <OnboardingDocumentsCard
+        buildingId={buildingId}
+        managementMode={((building as any)?.management_mode === "rent" ? "rent" : "weg")}
+      />
+
       {/* Progress overview */}
       <Card>
         <CardHeader>
