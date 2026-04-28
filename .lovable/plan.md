@@ -1,83 +1,62 @@
-## Problem
+## Ziel
+Die Sektion „Weitere Einheiten" in `Step2Wohnungsdaten.tsx` wird von einer freien Eingabeliste (MultiEntryList) zu einem geführten Frage-Flow umgebaut – analog zur bestehenden „Hauptansprechpartner"-Logik mit `YesNoChoice` / `BigChoiceCard`.
 
-Beim Löschen einer Zuordnung (`contact_building_assignments`) wirft die DB:
-> `update or delete on table "contact_building_assignments" violates foreign key constraint "etv_attendees_assignment_id_fkey" on table "etv_attendees"`
+## Neuer Frage-Flow
 
-Ursachen:
-1. `etv_attendees.assignment_id` und `etv_votes.assignment_id` referenzieren `contact_building_assignments(id)` **ohne `ON DELETE`-Regel** → die DB blockiert das Löschen.
-2. Der aktuelle Frontend-Pfad (`BuildingContactsList.removeAssignment`, Zeile 281) macht ein nacktes `DELETE` auf der Assignment-Zeile und kümmert sich weder um ETV-Records noch um den verknüpften Auth-Account.
-3. Es gibt aktuell keine Logik, die nach dem Entfernen der Assignment prüft, ob der Kontakt noch andere Building-Assignments hat — und entsprechend den Auth-Account löscht oder erhält.
+**Frage 1 – Ja/Nein:** „Haben Sie zusätzliche Einheiten, die zu Ihrer Wohnung gehören (z. B. Tiefgaragen-Stellplatz, Außenstellplatz, Keller, …)?"
+- UI: `YesNoChoice`
+- Bei „Nein" → Sektion endet, keine Nebeneinheiten.
 
-## Ziel-Verhalten
+**Frage 2 – Mehrfachauswahl (nur bei Ja):** „Um was handelt es sich?"
+- UI: Grid aus `BigChoiceCard`-Buttons, einer je `UNIT_KIND_OPTIONS`-Eintrag (außer `apartment`).
+- Toggle-Verhalten: Klick aktiviert/deaktiviert den Eintrag (Checkmark wie bei Auswahl).
+- Auswahl wird intern in einem `Set<UnitKind>` gehalten.
 
-Beim Entfernen einer Person aus einem Gebäude:
+**Frage 3 – Ja/Nein (nur wenn ≥1 Einheit gewählt):** „Gibt es hierfür eine eigene Abrechnung?"
+- UI: `YesNoChoice`
+- Antwort wird gespeichert, beeinflusst nur die Sichtbarkeit von Frage 4 sowie die Default-Werte beim Persistieren (Hausgeld/MEA bleiben leer bei „Nein").
 
-1. **Assignment selbst** + alle abhängigen Sub-Records (Shares, Costs, Bank-Defaults, ETV-Anwesenheiten/Stimmen, Sub-Assignments für Stellplatz/Hobbyraum) löschen.
-2. **Auth-Account-Logik** danach:
-   - Hat der Kontakt **noch andere** `contact_building_assignments` → Account bleibt; nur `weg_owner_buildings` / `tenants`-Eintrag für **dieses** Gebäude entfernen, damit der User dieses Gebäude nicht mehr sieht.
-   - Hat der Kontakt **keine weiteren** Assignments → Auth-User komplett löschen (`auth.admin.deleteUser`), `profiles` per Cascade weg, `contacts.user_id` auf `NULL` setzen. Der **Kontakt selbst bleibt** im Adressbuch erhalten.
+**Frage 4 – Detail-Felder (nur wenn Frage 3 = Ja):** Für jede in Frage 2 ausgewählte Einheit erscheint ein kleiner Block mit:
+- Label = `UNIT_KIND_LABELS[kind]`
+- Textfeld „Hausgeld (€/Monat)"
+- Textfeld „Miteigentumsanteile"
+- Optional Textfeld „Nr./Bez." (z. B. „TG-04") – damit weiterhin identifizierbar (gleiche Felder wie heute).
 
-## Umsetzung
+## Datenmodell (kompatibel zu bestehendem Code)
 
-### 1. DB-Migration: Cascade-Regeln auf ETV-FKs
+`SecondaryUnitDraft[]` bleibt als persistiertes Format erhalten (downstream-Code in `OnboardingWizardModal` / Persist-Logik bleibt unverändert). Pro ausgewähltem `unit_kind` wird ein Eintrag erzeugt:
 
-```sql
-ALTER TABLE etv_attendees
-  DROP CONSTRAINT etv_attendees_assignment_id_fkey,
-  ADD  CONSTRAINT etv_attendees_assignment_id_fkey
-       FOREIGN KEY (assignment_id)
-       REFERENCES contact_building_assignments(id) ON DELETE CASCADE;
-
-ALTER TABLE etv_votes
-  DROP CONSTRAINT etv_votes_assignment_id_fkey,
-  ADD  CONSTRAINT etv_votes_assignment_id_fkey
-       FOREIGN KEY (assignment_id)
-       REFERENCES contact_building_assignments(id) ON DELETE CASCADE;
+```ts
+{
+  unit_kind,
+  unit_number: "",
+  mea_share: hatEigeneAbrechnung ? userInput : "",
+  monthly_fee: hatEigeneAbrechnung ? userInput : "",
+  billing_mode: "own_billing", // bleibt fix wie zuletzt vereinbart
+}
 ```
 
-Begründung: Wenn die Person nicht mehr Eigentümer/Mieter ist, sind ihre ETV-Anwesenheits- und Stimmrecords aus diesem Gebäude für diese Liegenschaft ohnehin obsolet. Falls du historische ETV-Stimmen archivieren willst, sage Bescheid — dann nutzen wir stattdessen `ON DELETE SET NULL` + nullable `assignment_id` (größere Anpassung).
+Zusätzlich werden zwei UI-State-Felder im `Step2Data` ergänzt (rein für den Wizard-Zustand, müssen nicht in DB landen):
+- `has_secondary_units?: boolean | null`
+- `secondary_units_have_own_billing?: boolean | null`
 
-### 2. Neue Edge Function `remove-contact-from-building`
+Die Liste `secondary_units` wird aus diesen Flags + ausgewählten Kinds derived/synchronisiert (kontrollierte Updates beim Toggle).
 
-Server-seitig (Service Role nötig für `auth.admin.deleteUser`). Ablauf:
+## Technische Änderungen
 
-```
-input: { assignment_id }
+**Nur eine Datei:** `src/components/onboarding/steps/Step2Wohnungsdaten.tsx`
 
-1. Lade assignment (contact_id, building_id, parent_assignment_id).
-2. DELETE FROM contact_building_assignments WHERE id = assignment_id
-   → Cascade entfernt: shares, costs, etv_attendees, etv_votes,
-     plus Sub-Assignments via parent_assignment_id (falls ON DELETE
-     CASCADE; sonst zuerst children löschen).
-3. Lade verbleibende assignments des Kontakts:
-   SELECT building_id FROM contact_building_assignments WHERE contact_id = X
-4. Wenn leer:
-     - contacts.user_id → null setzen
-     - auth.admin.deleteUser(user_id)  (Cascade räumt profiles)
-   Sonst:
-     - DELETE FROM weg_owner_buildings WHERE user_id=… AND building_id=…
-     - DELETE FROM tenants            WHERE user_id=… AND building_id=…
-     - profiles.building_id ggf. neu setzen, falls es exakt das gelöschte war
-       (auf irgendein noch verbleibendes Building oder NULL)
-5. return { success, account_deleted: bool }
-```
+1. Imports ersetzen: `MultiEntryList`, `Select*`, `RadioGroup*`, `Label` raus; `YesNoChoice`, `BigChoiceCard` rein.
+2. `Step2Data` erweitern um `has_secondary_units` und `secondary_units_have_own_billing`.
+3. Sektion „WEITERE EINHEITEN" neu rendern:
+   - `SectionCard` mit Frage 1 (`YesNoChoice`).
+   - Bei Ja: zweite `SectionCard` „ART DER EINHEIT" mit Grid (`grid-cols-1 sm:grid-cols-2`) aus `BigChoiceCard`s über `UNIT_KIND_OPTIONS.filter(o => o.value !== "apartment")`.
+   - Toggle-Handler aktualisiert `secondary_units` (Eintrag hinzufügen/entfernen, Default-Werte erzeugen).
+   - Bei ≥1 Auswahl: `SectionCard` mit Frage 3 (`YesNoChoice`).
+   - Bei Frage 3 = Ja: `SectionCard` „DETAILS" mit pro Einheit einem kleinen Block (Label + 3 `EmbeddedInput`s: Nr./Bez., Hausgeld, MEA).
+4. Bei Frage 1 = Nein → `secondary_units = []`, abhängige Flags zurücksetzen.
+5. Bei Frage 3 = Nein → MEA/Hausgeld in allen Einträgen leeren (Anzeige verschwindet ohnehin).
 
-### 3. Frontend `BuildingContactsList.removeAssignment` umbauen
-
-- Statt direktem `supabase.from(...).delete()` → `supabase.functions.invoke("remove-contact-from-building", { body: { assignment_id } })`.
-- Bestätigungsdialog erweitern: zeige Hinweis „Account wird gelöscht" vs. „Person verliert nur Zugriff auf dieses Gebäude" (vorab per kleinem Query/RPC zählen, in wie vielen Buildings die Person sonst noch ist).
-- Nach Erfolg `refetch()` und passenden Toast.
-
-### 4. Gleiche Funktion auch in `ContactBuildingAssignments.deleteAssignment` (Kontakt-Detail) verwenden, damit beide Pfade konsistent sind.
-
-## Technische Hinweise
-
-- `contact_building_assignments.parent_assignment_id` (Migration vom 28.04.) hat `ON DELETE SET NULL` → Sub-Assignments (Stellplatz/Hobbyraum mit eigener Abrechnung) bleiben verwaist nach Löschen des Hauptkontakts. Ich erweitere die Edge Function so, dass Sub-Assignments **mit** gelöscht werden, wenn das Parent gelöscht wird (oder du sagst, sie sollen am Gebäude bleiben — bitte kurz bestätigen, sonst nehme ich Mit-Löschen).
-- `weg_owner_buildings` / `tenants` haben heute keine RLS-Probleme für Service-Role, der direkte Delete reicht.
-- Falls beim Auth-Delete ein Fehler auftritt (z. B. User existiert nicht mehr), wird das geloggt aber nicht hart geworfen, damit das Assignment-Delete trotzdem persistiert.
-
-## Ergebnis
-
-- Löschen funktioniert wieder (kein FK-Fehler).
-- Auth-Account wird sauber zurückgesetzt: behält Zugriff auf andere Gebäude, oder wird komplett entfernt, wenn dies das letzte war.
-- Kontakt bleibt im globalen Adressbuch erhalten.
+## Out of Scope
+- Keine Änderungen an Persistenz, Edge Functions, AssignContactDialog oder Datenmodell.
+- Kein Migrationsbedarf – `secondary_units` bleibt formatkompatibel.
