@@ -31,6 +31,7 @@ export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultTy
   const [subject, setSubject] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
   const [bodyFormat, setBodyFormat] = useState<"html" | "plain">("plain");
+  const [isGlobal, setIsGlobal] = useState(false);
   const [busy, setBusy] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const bodyRef = useRef<WysiwygPlaceholderEditorHandle>(null);
