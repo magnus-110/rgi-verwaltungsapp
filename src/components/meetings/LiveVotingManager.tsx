@@ -55,8 +55,10 @@ export const LiveVotingManager = ({ meetingId, buildingId }: LiveVotingManagerPr
     },
   });
 
-  // Load attendees (for quorum & voting)
-  const { data: attendees = [] } = useQuery({
+  // Load attendees (for quorum & voting). Wir laden bewusst Felder zur Identifikation
+  // von Nebeneinheiten (unit_kind, billing_mode, parent_assignment_id, contact_id),
+  // damit wir Sub-Units aus der Stimmberechtigung herausfiltern können.
+  const { data: attendeesRaw = [] } = useQuery({
     queryKey: ["etv-attendees-live", meetingId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -64,7 +66,7 @@ export const LiveVotingManager = ({ meetingId, buildingId }: LiveVotingManagerPr
         .select(`
           *,
           contact_building_assignments!inner(
-            id, unit_number,
+            id, unit_number, unit_kind, billing_mode, parent_assignment_id, contact_id,
             contacts!inner(id, first_name, last_name, company_name),
             contact_building_shares(share_type, share_value)
           )
@@ -73,6 +75,40 @@ export const LiveVotingManager = ({ meetingId, buildingId }: LiveVotingManagerPr
       if (error) throw error;
       return data || [];
     },
+  });
+
+  // Lade ALLE Assignments im Building (inkl. Nebeneinheiten ohne Attendee-Datensatz),
+  // um deren MEA auf die Hauptwohnung des gleichen Eigentümers aufzuschlagen.
+  const { data: distOnlyByContact = new Map<string, number>() } = useQuery({
+    queryKey: ["etv-dist-only-mea", buildingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("contact_building_assignments")
+        .select("contact_id, billing_mode, unit_kind, contact_building_shares(share_type, share_value)")
+        .eq("building_id", buildingId)
+        .eq("is_active", true);
+      if (error) throw error;
+      const map = new Map<string, number>();
+      for (const a of (data as any[]) || []) {
+        const isDistOnly = a.billing_mode === "distribution_only" || !isApartment(a.unit_kind);
+        if (!isDistOnly) continue;
+        const cid = a.contact_id;
+        if (!cid) continue;
+        const mea = readMea({ contact_building_shares: a.contact_building_shares });
+        map.set(cid, (map.get(cid) || 0) + mea);
+      }
+      return map;
+    },
+  });
+
+  // Stimmberechtigte Attendees = nur Hauptwohnungen mit eigener Abrechnung.
+  // Nebeneinheiten (TG, Keller, distribution_only) bekommen KEINE eigene Stimme.
+  const attendees = (attendeesRaw as any[]).filter((att: any) => {
+    const a = att.contact_building_assignments;
+    if (!a) return false;
+    if (a.billing_mode === "distribution_only") return false;
+    if (!isApartment(a.unit_kind)) return false;
+    return true;
   });
 
   // Load votes for active item
