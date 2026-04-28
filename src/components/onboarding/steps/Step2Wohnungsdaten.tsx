@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { SectionCard } from "../ui/SectionCard";
 import { EmbeddedInput } from "../ui/InlineField";
 import { MultiEntryList } from "../ui/MultiEntryList";
