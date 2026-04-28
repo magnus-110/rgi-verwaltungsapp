@@ -149,13 +149,6 @@ function AssignmentItem({
           <Building2 className="w-4 h-4 text-muted-foreground shrink-0" />
           <span className="font-medium">{buildingLabel}{unitLabel}</span>
           {roleLabel && <Badge variant="secondary" className="ml-1">{roleLabel}</Badge>}
-          {subUnits.map((s) => (
-            <Badge key={s.id} variant="outline" className="gap-1">
-              <span aria-hidden>{UNIT_KIND_ICONS[(s.unit_kind as UnitKind)] ?? ""}</span>
-              {UNIT_KIND_LABELS[(s.unit_kind as UnitKind)] || "Einheit"}
-              {s.unit_number ? ` ${s.unit_number}` : ""}
-            </Badge>
-          ))}
           {hasOverrides && <Badge variant="outline" className="ml-auto mr-2">Eigene Angaben</Badge>}
         </div>
       </AccordionTrigger>
