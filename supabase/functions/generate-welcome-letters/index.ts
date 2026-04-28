@@ -148,6 +148,42 @@ async function ensureContactAccount(
       await admin.from("profiles").update({ username }).eq("user_id", contact.user_id);
     }
 
+    // Rolle anhand ALLER Building-Assignments dieses Kontakts ableiten:
+    // Wer irgendwo Eigentümer/Beirat ist -> weg_owner, sonst tenant.
+    const { data: allAssignments } = await admin
+      .from("contact_building_assignments")
+      .select("role_in_building")
+      .eq("contact_id", contactId);
+    const isOwnerSomewhere = (allAssignments ?? []).some(
+      (a: any) => a.role_in_building === "eigentuemer" || a.role_in_building === "beirat",
+    );
+    const effectiveRole = isOwnerSomewhere ? "weg_owner" : (mode === "weg" ? "weg_owner" : "tenant");
+
+    // Profil-Rolle ggf. nachziehen (falls Account z.B. zuerst als tenant angelegt war)
+    await admin.from("profiles").update({
+      role: effectiveRole,
+      ...(mode === "rent" ? { building_id: buildingId } : {}),
+    } as any).eq("user_id", contact.user_id);
+
+    // Building-Verknüpfung sicherstellen
+    if (mode === "weg") {
+      await admin.from("weg_owner_buildings").upsert(
+        { user_id: contact.user_id, building_id: buildingId } as any,
+        { onConflict: "user_id,building_id" },
+      );
+    } else {
+      await admin.from("tenants").upsert(
+        {
+          user_id: contact.user_id,
+          building_id: buildingId,
+          email: prof?.email || prof?.auth_pseudo_email || null,
+          first_name: contact.first_name,
+          last_name: contact.last_name,
+        } as any,
+        { onConflict: "user_id,building_id" },
+      );
+    }
+
     // Check if user has ever logged in
     const { data: authUserRes } = await admin.auth.admin.getUserById(contact.user_id);
     const lastSignIn = authUserRes?.user?.last_sign_in_at || null;
@@ -200,7 +236,15 @@ async function ensureContactAccount(
   const realEmail = emails && emails.length > 0 ? emails[0].email : null;
   const authEmail = realEmail || pseudoEmail(username);
   const password = generateNumericPassword(8);
-  const role = mode === "weg" ? "weg_owner" : "tenant";
+  // Rolle aus allen Building-Assignments ableiten (nicht stur aus aktuellem Mode)
+  const { data: allAssignmentsNew } = await admin
+    .from("contact_building_assignments")
+    .select("role_in_building")
+    .eq("contact_id", contactId);
+  const isOwnerSomewhereNew = (allAssignmentsNew ?? []).some(
+    (a: any) => a.role_in_building === "eigentuemer" || a.role_in_building === "beirat",
+  );
+  const role = isOwnerSomewhereNew ? "weg_owner" : (mode === "weg" ? "weg_owner" : "tenant");
 
   // Try to create auth user; if email already exists, fall back to existing user
   let authUserId: string | null = null;
