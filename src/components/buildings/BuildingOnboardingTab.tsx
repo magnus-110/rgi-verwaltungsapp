@@ -16,6 +16,7 @@ import {
   Mail, Download, FileText, Copy, Check, CalendarIcon,
 } from "lucide-react";
 import { OnboardingStepOverviews } from "./onboarding/OnboardingStepOverviews";
+import { OnboardingDocumentsCard } from "./onboarding/OnboardingDocumentsCard";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -87,7 +88,7 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
     queryFn: async () => {
       const { data } = await supabase
         .from("buildings")
-        .select("id, name, welcome_letter_template_id, management_start_date" as any)
+        .select("id, name, welcome_letter_template_id, management_start_date, management_mode" as any)
         .eq("id", buildingId)
         .maybeSingle();
       const b = data as any;
@@ -499,6 +500,12 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
           ) : null}
         </CardContent>
       </Card>
+
+      {/* Onboarding documents */}
+      <OnboardingDocumentsCard
+        buildingId={buildingId}
+        managementMode={((building as any)?.management_mode === "rent" ? "rent" : "weg")}
+      />
 
       {/* Progress overview */}
       <Card>

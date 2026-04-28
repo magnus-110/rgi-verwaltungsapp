@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Upload, FileText, Mail, Code, Type, X, FileCheck2 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Upload, FileText, Mail, Code, Type, X, FileCheck2, Globe } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -30,6 +31,7 @@ export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultTy
   const [subject, setSubject] = useState("");
   const [bodyHtml, setBodyHtml] = useState("");
   const [bodyFormat, setBodyFormat] = useState<"html" | "plain">("plain");
+  const [isGlobal, setIsGlobal] = useState(false);
   const [busy, setBusy] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const bodyRef = useRef<WysiwygPlaceholderEditorHandle>(null);
@@ -60,6 +62,7 @@ export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultTy
     setName(""); setDescription(""); setFile(null);
     setSubject(""); setBodyHtml(""); setType(defaultType);
     setBodyFormat("plain");
+    setIsGlobal(false);
   };
 
   const insertPlaceholder = (ph: string) => {
@@ -101,7 +104,8 @@ export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultTy
           return (cleaned || "datei") + ext.toLowerCase();
         };
         const safeName = sanitizeFileName(file.name);
-        const path = `templates/${buildingId}/${Date.now()}_${safeName}`;
+        const folder = isGlobal ? "global" : buildingId;
+        const path = `templates/${folder}/${Date.now()}_${safeName}`;
         const { error: upErr } = await supabase.storage.from("comm-assets").upload(path, file, {
           contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         });
@@ -120,7 +124,8 @@ export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultTy
         name: name.trim(),
         description: description.trim() || null,
         type,
-        building_id: buildingId,
+        building_id: isGlobal ? null : buildingId,
+        is_global: isGlobal,
         docx_path: docxPath,
         subject: type === "email" ? subject.trim() || null : null,
         body_html: type === "email" ? bodyHtml : null,
@@ -163,6 +168,19 @@ export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultTy
             <div>
               <Label>Beschreibung</Label>
               <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional" />
+            </div>
+
+            <div className="flex items-start justify-between gap-4 rounded-md border bg-muted/30 p-3">
+              <div className="flex items-start gap-2 min-w-0">
+                <Globe className="h-4 w-4 mt-0.5 text-primary flex-shrink-0" />
+                <div className="min-w-0">
+                  <Label htmlFor="tmpl-global" className="cursor-pointer">Gebäudeübergreifend verfügbar</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Wenn aktiviert, ist diese Vorlage in allen Liegenschaften nutzbar (nicht nur in dieser).
+                  </p>
+                </div>
+              </div>
+              <Switch id="tmpl-global" checked={isGlobal} onCheckedChange={setIsGlobal} />
             </div>
 
             <TabsContent value="letter" className="mt-0 space-y-3">
