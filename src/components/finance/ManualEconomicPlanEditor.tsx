@@ -304,20 +304,21 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
 
   // ── Owner plan calculations ───────────────────────────────────────
   const ownerData = useMemo(() => {
-    const meaTotal = assignments.reduce((s: number, a: any) => {
-      const mea = (a.contact_building_shares || []).find((sh: any) => sh.share_type === "mea");
-      return s + (mea ? Number(mea.share_value) : 0);
-    }, 0);
-
+    const meaOf = (a: any) => {
+      const own = (a.contact_building_shares || []).find((sh: any) => sh.share_type === "mea");
+      const ownVal = own ? Number(own.share_value) : 0;
+      const extra = (a.contact_id && extraMeaByContact.get(a.contact_id)) || 0;
+      return ownVal + extra;
+    };
+    const meaTotal = assignments.reduce((s: number, a: any) => s + meaOf(a), 0);
     return assignments.map((a: any) => {
       const c = a.contacts;
       const name = c?.company_name || [c?.first_name, c?.last_name].filter(Boolean).join(" ") || "–";
-      const mea = (a.contact_building_shares || []).find((sh: any) => sh.share_type === "mea");
-      const meaValue = mea ? Number(mea.share_value) : 0;
+      const meaValue = meaOf(a);
       const proportion = meaTotal > 0 ? meaValue / meaTotal : 0;
       return { id: a.id, name, unitNumber: a.unit_number || "–", meaValue, proportion };
     });
-  }, [assignments]);
+  }, [assignments, extraMeaByContact]);
 
   // ── Unit-row builder (with override merge) ────────────────────────
   const buildUnitRows = (unitId: string, proportion: number): PlanRow[] => {
