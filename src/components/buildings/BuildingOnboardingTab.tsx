@@ -385,7 +385,7 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
                   <p className="mb-1 font-semibold text-foreground">Login-Daten</p>
                   <ul className="space-y-1 text-muted-foreground">
                     <li><PlaceholderChip value="{{benutzername}}" /> — Login-Username</li>
-                    <li><PlaceholderChip value="{{passwort}}" /> — Initial-Passwort (oder „bereits vergeben")</li>
+                    <li><PlaceholderChip value="{{passwort}}" /> — Frisches Initial-Passwort (nur „bereits vergeben", wenn der Empfänger sich schon eingeloggt hat)</li>
                     <li><PlaceholderChip value="{{login_url}}" /> — App-Login-URL</li>
                   </ul>
                 </div>
