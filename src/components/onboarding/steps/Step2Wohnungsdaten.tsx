@@ -93,9 +93,20 @@ export const Step2Wohnungsdaten = ({ value, onChange }: Props) => {
   const secondaryUnits = value.secondary_units ?? [];
   const selectedKinds = new Set<UnitKind>(secondaryUnits.map((u) => u.unit_kind));
 
+  const kindRef = useRef<HTMLDivElement>(null);
+  const billingRef = useRef<HTMLDivElement>(null);
+  const detailsRef = useRef<HTMLDivElement>(null);
+
+  const scrollTo = (ref: React.RefObject<HTMLElement>) => {
+    requestAnimationFrame(() => {
+      ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
   const handleHasSecondaryUnits = (v: boolean) => {
     if (v) {
       set({ has_secondary_units: true });
+      scrollTo(kindRef);
     } else {
       set({
         has_secondary_units: false,
@@ -110,12 +121,14 @@ export const Step2Wohnungsdaten = ({ value, onChange }: Props) => {
       set({ secondary_units: secondaryUnits.filter((u) => u.unit_kind !== kind) });
     } else {
       set({ secondary_units: [...secondaryUnits, makeUnit(kind)] });
+      if (secondaryUnits.length === 0) scrollTo(billingRef);
     }
   };
 
   const handleOwnBilling = (v: boolean) => {
     if (v) {
       set({ secondary_units_have_own_billing: true });
+      scrollTo(detailsRef);
     } else {
       // Bei "Nein" Hausgeld/MEA leeren
       set({
