@@ -107,7 +107,7 @@ export const OnboardingDocumentsCard = ({ buildingId, managementMode }: Props) =
         uploaded_by: userId,
         tags: [ONBOARDING_TAG],
         visible_to_users: visibleToOwners,
-        source: "manual_upload" as any,
+        source: "manual" as any,
       });
       if (insErr) {
         await supabase.storage.from("building-files").remove([path]);
