@@ -54,7 +54,7 @@ export const Step2Wohnungsdaten = ({ value, onChange }: Props) => {
     <div className="space-y-2.5">
       <SectionCard label="WOHNUNG">
         <div className="px-4 py-3">
-          <div className="grid grid-cols-[110px_1fr] gap-2">
+          <div className="grid gap-2" style={{ gridTemplateColumns: "110px 1fr" }}>
             <div>
               <FieldLabel>Nr.</FieldLabel>
               <EmbeddedInput
@@ -125,7 +125,7 @@ export const Step2Wohnungsdaten = ({ value, onChange }: Props) => {
           addLabel="Weitere Einheit hinzufügen"
           renderItem={(item, update) => (
             <div className="space-y-2.5 py-1">
-              <div className="grid grid-cols-[1fr_110px] gap-2">
+              <div className="grid gap-2" style={{ gridTemplateColumns: "1fr 110px" }}>
                 <div>
                   <FieldLabel>Art</FieldLabel>
                   <Select
