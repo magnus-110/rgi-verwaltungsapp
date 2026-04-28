@@ -605,6 +605,27 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
+                  {!isSub && (
+                    <TooltipProvider delayDuration={300}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setAssignDefaults({ parentAssignmentId: a.id, contactId: a.contact_id });
+                              setShowAssign(true);
+                            }}
+                          >
+                            <Plus className="h-3.5 w-3.5 text-primary" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Nebeneinheit hinzufügen (z.B. Stellplatz, Keller)</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
                   <Button
                     size="icon"
                     variant="ghost"
