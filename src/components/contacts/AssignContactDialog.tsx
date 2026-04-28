@@ -21,6 +21,10 @@ interface Props {
   onAssigned: () => void;
   existingContactIds: string[];
   managementMode?: "weg" | "rent";
+  /** Wenn gesetzt: Dialog öffnet direkt im Modus "Nebeneinheit anlegen", vorbelegt mit dieser Hauptwohnung. */
+  defaultParentAssignmentId?: string | null;
+  /** Wenn gesetzt: Eigentümer-Kontakt wird vorausgewählt (typisch beim "+ Nebeneinheit"-Flow). */
+  defaultContactId?: string | null;
 }
 
 interface ContactOption {
