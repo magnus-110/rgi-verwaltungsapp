@@ -568,7 +568,7 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
         const kind = ((a as any).unit_kind || "apartment") as UnitKind;
         const billingMode = ((a as any).billing_mode || "own_billing") as "own_billing" | "distribution_only";
         const kindLabel = UNIT_KIND_LABELS[kind] || "Einheit";
-        const kindIcon = UNIT_KIND_ICONS[kind] || "🏠";
+        const kindIcon = UNIT_KIND_ICONS[kind] ?? "";
 
         return (
           <Card key={a.id} className={`overflow-hidden ${isSub ? "ml-6 border-l-2 border-l-primary/30" : ""}`}>
