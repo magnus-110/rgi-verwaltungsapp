@@ -102,13 +102,13 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
   });
 
   // ── Owner/Unit assignments + MEA ──────────────────────────────────
-  const { data: assignments = [] } = useQuery({
+  const { data: assignmentsRaw = [] } = useQuery({
     queryKey: ["mep-assignments", buildingId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("contact_building_assignments")
         .select(`
-          id, unit_number,
+          id, unit_number, contact_id, unit_kind, billing_mode, parent_assignment_id,
           contacts(first_name, last_name, company_name),
           contact_building_shares(share_type, share_value)
         `)
@@ -119,6 +119,22 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
       return data;
     },
   });
+
+  // Nebeneinheiten (Stellplätze etc.) bekommen keine eigene Plan-Zeile.
+  // Ihre MEA wird auf die Hauptwohnung des selben Eigentümers in diesem Building aufgeschlagen.
+  const assignments = (assignmentsRaw as any[]).filter(
+    (a) => a?.billing_mode !== "distribution_only" && (!a?.unit_kind || a.unit_kind === "apartment")
+  );
+  const extraMeaByContact = (() => {
+    const m = new Map<string, number>();
+    for (const a of (assignmentsRaw as any[])) {
+      const isSec = a?.billing_mode === "distribution_only" || (a?.unit_kind && a.unit_kind !== "apartment");
+      if (!isSec || !a.contact_id) continue;
+      const v = (a.contact_building_shares || []).find((sh: any) => sh.share_type === "mea");
+      m.set(a.contact_id, (m.get(a.contact_id) || 0) + (v ? Number(v.share_value) : 0));
+    }
+    return m;
+  })();
 
   // ── Unit overrides ────────────────────────────────────────────────
   const { data: unitItems = [] } = useQuery({
@@ -288,20 +304,21 @@ export function ManualEconomicPlanEditor({ buildingId, fiscalYear }: Props) {
 
   // ── Owner plan calculations ───────────────────────────────────────
   const ownerData = useMemo(() => {
-    const meaTotal = assignments.reduce((s: number, a: any) => {
-      const mea = (a.contact_building_shares || []).find((sh: any) => sh.share_type === "mea");
-      return s + (mea ? Number(mea.share_value) : 0);
-    }, 0);
-
+    const meaOf = (a: any) => {
+      const own = (a.contact_building_shares || []).find((sh: any) => sh.share_type === "mea");
+      const ownVal = own ? Number(own.share_value) : 0;
+      const extra = (a.contact_id && extraMeaByContact.get(a.contact_id)) || 0;
+      return ownVal + extra;
+    };
+    const meaTotal = assignments.reduce((s: number, a: any) => s + meaOf(a), 0);
     return assignments.map((a: any) => {
       const c = a.contacts;
       const name = c?.company_name || [c?.first_name, c?.last_name].filter(Boolean).join(" ") || "–";
-      const mea = (a.contact_building_shares || []).find((sh: any) => sh.share_type === "mea");
-      const meaValue = mea ? Number(mea.share_value) : 0;
+      const meaValue = meaOf(a);
       const proportion = meaTotal > 0 ? meaValue / meaTotal : 0;
       return { id: a.id, name, unitNumber: a.unit_number || "–", meaValue, proportion };
     });
-  }, [assignments]);
+  }, [assignments, extraMeaByContact]);
 
   // ── Unit-row builder (with override merge) ────────────────────────
   const buildUnitRows = (unitId: string, proportion: number): PlanRow[] => {

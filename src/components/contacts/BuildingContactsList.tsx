@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Plus, User, ChevronDown, ChevronUp, Phone, Mail, MapPin, Trash2, Copy, CreditCard, BookOpen, X, Pencil, Check } from "lucide-react";
+import { Plus, User, ChevronDown, ChevronUp, Phone, Mail, MapPin, Trash2, Copy, CreditCard, BookOpen, X, Pencil, Check, CornerDownRight } from "lucide-react";
+import { UNIT_KIND_LABELS, UNIT_KIND_ICONS, UNIT_KIND_OPTIONS, BILLING_MODE_LABELS, isApartment, type UnitKind } from "@/lib/secondaryUnits";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -159,6 +160,7 @@ function CopyableField({ label, value }: { label: string; value: string }) {
 export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showAssign, setShowAssign] = useState(false);
+  const [assignDefaults, setAssignDefaults] = useState<{ parentAssignmentId: string | null; contactId: string | null }>({ parentAssignmentId: null, contactId: null });
   const [deleteTarget, setDeleteTarget] = useState<ContactAssignment | null>(null);
   // For inline editing/adding custom types - { id: record id, field: 'share_type'|'cost_type', value: string, mode: 'add'|'edit' }
   const [editingType, setEditingType] = useState<{ id: string; field: string; value: string; mode: 'add' | 'edit'; oldValue?: string } | null>(null);
@@ -537,12 +539,39 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
         <p className="text-sm text-muted-foreground py-4 text-center">Keine Kontakte zugeordnet</p>
       )}
 
-      {assignments.map((a) => {
+      {(() => {
+        // Hauptwohnungen + Sub-Units gruppieren (Sub-Units bekommen Einrückung)
+        const mains = assignments.filter((a) => isApartment((a as any).unit_kind));
+        const subsAll = assignments.filter((a) => !isApartment((a as any).unit_kind));
+        const subsByParent = new Map<string, ContactAssignment[]>();
+        const looseSubs: ContactAssignment[] = [];
+        for (const s of subsAll) {
+          const pid = (s as any).parent_assignment_id as string | null;
+          if (pid && mains.some((m) => m.id === pid)) {
+            const arr = subsByParent.get(pid) || [];
+            arr.push(s);
+            subsByParent.set(pid, arr);
+          } else {
+            looseSubs.push(s);
+          }
+        }
+        const flat: { a: ContactAssignment; isSub: boolean }[] = [];
+        mains.forEach((m) => {
+          flat.push({ a: m, isSub: false });
+          (subsByParent.get(m.id) || []).forEach((s) => flat.push({ a: s, isSub: true }));
+        });
+        looseSubs.forEach((s) => flat.push({ a: s, isSub: false }));
+
+        return flat.map(({ a, isSub }) => {
         const isExpanded = expanded === a.id;
         const hausgeld = getHausgeld(a);
+        const kind = ((a as any).unit_kind || "apartment") as UnitKind;
+        const billingMode = ((a as any).billing_mode || "own_billing") as "own_billing" | "distribution_only";
+        const kindLabel = UNIT_KIND_LABELS[kind] || "Einheit";
+        const kindIcon = UNIT_KIND_ICONS[kind] || "🏠";
 
         return (
-          <Card key={a.id} className="overflow-hidden">
+          <Card key={a.id} className={`overflow-hidden ${isSub ? "ml-6 border-l-2 border-l-primary/30" : ""}`}>
             <CardContent className="p-0">
               {/* Compact row */}
               <div
@@ -551,23 +580,52 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                    <User className="h-4 w-4 text-primary" />
+                    {isSub ? <CornerDownRight className="h-4 w-4 text-primary" /> : <User className="h-4 w-4 text-primary" />}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium truncate">{getDisplayName(a)}</p>
-                    {(a.unit_number || a.floor_location) && (
+                    <p className="text-sm font-medium truncate flex items-center gap-1.5">
+                      {!isApartment(kind) && <span aria-hidden>{kindIcon}</span>}
+                      {getDisplayName(a)}
+                    </p>
+                    {(a.unit_number || a.floor_location || !isApartment(kind)) && (
                       <p className="text-xs text-muted-foreground truncate">
-                        {[a.unit_number, a.floor_location].filter(Boolean).join(" · ")}
+                        {[!isApartment(kind) ? kindLabel : null, a.unit_number, a.floor_location].filter(Boolean).join(" · ")}
                       </p>
                     )}
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0 flex-wrap">
+                    {!isApartment(kind) && (
+                      <Badge variant={billingMode === "distribution_only" ? "outline" : "secondary"} className="text-xs">
+                        {billingMode === "distribution_only" ? "Nur Verteilung" : "Eigene Abrechnung"}
+                      </Badge>
+                    )}
                     {managementMode === 'weg' && isBeirat(a) && <Badge variant="secondary" className="text-xs">Beirat</Badge>}
                     {managementMode === 'weg' && isCashAuditor(a) && <Badge variant="secondary" className="text-xs">Kassenprüfung</Badge>}
                     {hausgeld !== null && <Badge variant="outline" className="text-xs">{hausgeld.toFixed(2)} €</Badge>}
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
+                  {!isSub && (
+                    <TooltipProvider delayDuration={300}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setAssignDefaults({ parentAssignmentId: a.id, contactId: a.contact_id });
+                              setShowAssign(true);
+                            }}
+                          >
+                            <Plus className="h-3.5 w-3.5 text-primary" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Nebeneinheit hinzufügen (z.B. Stellplatz, Keller)</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
                   <Button
                     size="icon"
                     variant="ghost"
@@ -979,7 +1037,8 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
             </CardContent>
           </Card>
         );
-      })}
+        });
+      })()}
 
       {/* Delete confirmation */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
@@ -1001,11 +1060,13 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
 
       <AssignContactDialog
         open={showAssign}
-        onOpenChange={setShowAssign}
+        onOpenChange={(o) => { setShowAssign(o); if (!o) setAssignDefaults({ parentAssignmentId: null, contactId: null }); }}
         buildingId={buildingId}
         onAssigned={refetch}
         existingContactIds={assignments.map(a => a.contact_id)}
         managementMode={managementMode as "weg" | "rent"}
+        defaultParentAssignmentId={assignDefaults.parentAssignmentId}
+        defaultContactId={assignDefaults.contactId}
       />
     </div>
   );

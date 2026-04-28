@@ -11,12 +11,16 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { Building2, Loader2, Plus, Trash2, MapPin, Phone, Mail, CreditCard, User } from "lucide-react";
 import { SALUTATIONS } from "@/lib/salutations";
+import { UNIT_KIND_LABELS, UNIT_KIND_ICONS, isApartment, type UnitKind } from "@/lib/secondaryUnits";
 
 export interface AssignmentRow {
   id: string;
   building_id: string;
   unit_number: string | null;
   role_in_building: string | null;
+  unit_kind?: string | null;
+  billing_mode?: string | null;
+  parent_assignment_id?: string | null;
   buildings?: { name: string | null; address: string | null } | null;
   bank_account_id: string | null;
 
@@ -55,21 +59,49 @@ const ROLE_LABELS: Record<string, string> = {
 export const AssignmentAccordionCard = ({ assignments, bankOptions, onChanged }: Props) => {
   if (assignments.length === 0) return null;
 
+  // Konsolidierung: Hauptwohnungen + Nebeneinheiten zusammenführen
+  // Hauptwohnung = unit_kind 'apartment' oder leer; Nebeneinheit = sonst.
+  // Zuordnung: Nebeneinheit gehört zur Hauptwohnung mit gleicher parent_assignment_id (= main.id),
+  // oder fällt zurück auf "lose" (eigene Karte) falls kein parent gesetzt.
+  const mainAssignments = assignments.filter((a) => isApartment(a.unit_kind));
+  const subUnits = assignments.filter((a) => !isApartment(a.unit_kind));
+  const subsByParent = new Map<string, AssignmentRow[]>();
+  const looseSubs: AssignmentRow[] = [];
+  for (const s of subUnits) {
+    if (s.parent_assignment_id && mainAssignments.some((m) => m.id === s.parent_assignment_id)) {
+      const arr = subsByParent.get(s.parent_assignment_id) || [];
+      arr.push(s);
+      subsByParent.set(s.parent_assignment_id, arr);
+    } else {
+      // Keine Hauptwohnung gefunden → eigene Karte (z.B. reine TG-Liegenschaft)
+      looseSubs.push(s);
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Building2 className="w-5 h-5" /> Meine Wohnungen
+          <Building2 className="w-5 h-5" /> Meine Einheiten
         </CardTitle>
         <CardDescription>
-          Pro Wohnung können abweichende Daten (Adresse, Kontakt, Bank) hinterlegt werden.
-          Lassen Sie alle Felder leer, gelten Ihre allgemeinen Stammdaten.
+          Pro Einheit können abweichende Daten (Adresse, Kontakt, Bank) hinterlegt werden.
+          Nebeneinheiten (z.B. Stellplätze) werden bei der Hauptwohnung mit angezeigt.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <Accordion type="multiple" className="w-full">
-          {assignments.map((a) => (
-            <AssignmentItem key={a.id} assignment={a} bankOptions={bankOptions} onChanged={onChanged} />
+          {mainAssignments.map((a) => (
+            <AssignmentItem
+              key={a.id}
+              assignment={a}
+              subUnits={subsByParent.get(a.id) || []}
+              bankOptions={bankOptions}
+              onChanged={onChanged}
+            />
+          ))}
+          {looseSubs.map((a) => (
+            <AssignmentItem key={a.id} assignment={a} subUnits={[]} bankOptions={bankOptions} onChanged={onChanged} />
           ))}
         </Accordion>
       </CardContent>
@@ -79,10 +111,12 @@ export const AssignmentAccordionCard = ({ assignments, bankOptions, onChanged }:
 
 function AssignmentItem({
   assignment,
+  subUnits = [],
   bankOptions,
   onChanged,
 }: {
   assignment: AssignmentRow;
+  subUnits?: AssignmentRow[];
   bankOptions: BankOption[];
   onChanged: () => void;
 }) {
@@ -130,23 +164,50 @@ function AssignmentItem({
     await save(patch);
   };
 
-  const buildingLabel = a.buildings?.name || "Wohnung";
+  const buildingLabel = a.buildings?.name || (isApartment(a.unit_kind) ? "Wohnung" : (UNIT_KIND_LABELS[(a.unit_kind as UnitKind)] || "Einheit"));
   const unitLabel = a.unit_number ? ` · WE ${a.unit_number}` : "";
   const roleLabel = a.role_in_building ? ROLE_LABELS[a.role_in_building] || a.role_in_building : null;
 
   return (
     <AccordionItem value={a.id}>
       <AccordionTrigger className="hover:no-underline">
-        <div className="flex items-center gap-2 flex-1 text-left">
+        <div className="flex items-center gap-2 flex-1 text-left flex-wrap">
           <Building2 className="w-4 h-4 text-muted-foreground shrink-0" />
           <span className="font-medium">{buildingLabel}{unitLabel}</span>
           {roleLabel && <Badge variant="secondary" className="ml-1">{roleLabel}</Badge>}
+          {subUnits.map((s) => (
+            <Badge key={s.id} variant="outline" className="gap-1">
+              <span aria-hidden>{UNIT_KIND_ICONS[(s.unit_kind as UnitKind)] || "📦"}</span>
+              {UNIT_KIND_LABELS[(s.unit_kind as UnitKind)] || "Einheit"}
+              {s.unit_number ? ` ${s.unit_number}` : ""}
+            </Badge>
+          ))}
           {hasOverrides && <Badge variant="outline" className="ml-auto mr-2">Eigene Angaben</Badge>}
         </div>
       </AccordionTrigger>
       <AccordionContent className="space-y-5 pt-2">
         {a.buildings?.address && (
           <p className="text-xs text-muted-foreground -mt-1">{a.buildings.address}</p>
+        )}
+
+        {subUnits.length > 0 && (
+          <section className="space-y-1 rounded-md border bg-muted/30 p-3">
+            <div className="text-sm font-medium">Zugeordnete Nebeneinheiten</div>
+            <ul className="text-sm text-muted-foreground space-y-0.5">
+              {subUnits.map((s) => (
+                <li key={s.id} className="flex items-center gap-2">
+                  <span aria-hidden>{UNIT_KIND_ICONS[(s.unit_kind as UnitKind)] || "📦"}</span>
+                  <span>
+                    {UNIT_KIND_LABELS[(s.unit_kind as UnitKind)] || "Einheit"}
+                    {s.unit_number ? ` ${s.unit_number}` : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-muted-foreground pt-1">
+              Diese Einheiten werden gemeinsam mit dieser Wohnung abgerechnet.
+            </p>
+          </section>
         )}
 
         {/* Personendaten Override */}

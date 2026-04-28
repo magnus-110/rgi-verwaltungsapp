@@ -146,6 +146,10 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
   });
 
   // Owners with shares and costs
+  // WICHTIG: Nebeneinheiten (Stellplätze, Keller, …) mit billing_mode='distribution_only'
+  // bekommen KEINE eigene Abrechnungszeile. Ihre Shares (MEA, Einheit, qm, …) werden
+  // unmittelbar nach dem Laden auf die Hauptwohnung des selben Eigentümers im Building
+  // addiert, damit die bestehende Verteilungs-Logik unverändert greift.
   const { data: assignments = [] } = useQuery({
     queryKey: ["owner-assignments-settlement", buildingId],
     queryFn: async () => {
@@ -156,7 +160,39 @@ export function BillingSettlement({ buildingId, periodId, fiscalYear }: BillingS
         .eq("is_active", true)
         .in("role_in_building", ["eigentuemer", "mieter"]);
       if (error) throw error;
-      return data;
+      const all = (data || []) as any[];
+
+      const isSecondary = (a: any) =>
+        a?.billing_mode === "distribution_only" || (a?.unit_kind && a.unit_kind !== "apartment");
+
+      // Map contact_id -> Summe-Map(share_type -> value) aus Sub-Units
+      const subSharesByContact = new Map<string, Map<string, number>>();
+      for (const a of all) {
+        if (!isSecondary(a) || !a.contact_id) continue;
+        const m = subSharesByContact.get(a.contact_id) || new Map<string, number>();
+        for (const s of (a.contact_building_shares || [])) {
+          m.set(s.share_type, (m.get(s.share_type) || 0) + Number(s.share_value || 0));
+        }
+        subSharesByContact.set(a.contact_id, m);
+      }
+
+      // Hauptwohnungen behalten + Shares aufaddieren
+      const mains = all.filter((a) => !isSecondary(a)).map((a) => {
+        const extra = a.contact_id ? subSharesByContact.get(a.contact_id) : null;
+        if (!extra || extra.size === 0) return a;
+        const sharesByType = new Map<string, any>();
+        for (const s of (a.contact_building_shares || [])) sharesByType.set(s.share_type, { ...s });
+        for (const [type, val] of extra.entries()) {
+          if (sharesByType.has(type)) {
+            const cur = sharesByType.get(type);
+            sharesByType.set(type, { ...cur, share_value: Number(cur.share_value || 0) + val });
+          } else {
+            sharesByType.set(type, { share_type: type, share_value: val });
+          }
+        }
+        return { ...a, contact_building_shares: Array.from(sharesByType.values()) };
+      });
+      return mains;
     },
   });
 

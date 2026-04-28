@@ -21,6 +21,10 @@ interface Props {
   onAssigned: () => void;
   existingContactIds: string[];
   managementMode?: "weg" | "rent";
+  /** Wenn gesetzt: Dialog öffnet direkt im Modus "Nebeneinheit anlegen", vorbelegt mit dieser Hauptwohnung. */
+  defaultParentAssignmentId?: string | null;
+  /** Wenn gesetzt: Eigentümer-Kontakt wird vorausgewählt (typisch beim "+ Nebeneinheit"-Flow). */
+  defaultContactId?: string | null;
 }
 
 interface ContactOption {
@@ -46,7 +50,7 @@ function formatIban(raw: string): string {
   return raw.replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim();
 }
 
-export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned, existingContactIds, managementMode = "weg" }: Props) {
+export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned, existingContactIds, managementMode = "weg", defaultParentAssignmentId = null, defaultContactId = null }: Props) {
   const [contacts, setContacts] = useState<ContactOption[]>([]);
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -83,8 +87,16 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
     if (open) {
       loadContacts();
       resetForm();
+      // Prefill für "+ Nebeneinheit"-Flow: vorausgewählte Hauptwohnung + Eigentümer
+      if (defaultParentAssignmentId) {
+        setUnitKind("parking_garage");
+        setParentAssignmentId(defaultParentAssignmentId);
+      }
+      if (defaultContactId) {
+        setSelectedId(defaultContactId);
+      }
     }
-  }, [open]);
+  }, [open, defaultParentAssignmentId, defaultContactId]);
 
   const resetForm = () => {
     setStep("select");

@@ -47,13 +47,13 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
   });
 
   // Owner assignments with shares
-  const { data: owners = [] } = useQuery({
+  const { data: ownersRaw = [] } = useQuery({
     queryKey: ["35a-owners", buildingId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("contact_building_assignments")
         .select(`
-          id, unit_number,
+          id, unit_number, contact_id, unit_kind, billing_mode, parent_assignment_id,
           contacts(first_name, last_name, company_name),
           contact_building_shares(share_type, share_value)
         `)
@@ -65,22 +65,38 @@ export function Paragraph35aSection({ buildingId, periodId, fiscalYear }: Paragr
     },
   });
 
+  // Sub-Units (Stellplätze etc.) bekommen KEINE eigene §35a-Zeile.
+  // Ihre MEA wird auf die Hauptwohnung desselben Eigentümers aufgeschlagen.
+  const isSecondary = (a: any) =>
+    a?.billing_mode === "distribution_only" || (a?.unit_kind && a.unit_kind !== "apartment");
+  const meaVal = (a: any) =>
+    a?.contact_building_shares?.find((sh: any) => sh.share_type === "mea")?.share_value ?? 0;
+  const extraMeaByContact = new Map<string, number>();
+  for (const o of ownersRaw as any[]) {
+    if (isSecondary(o) && o.contact_id) {
+      extraMeaByContact.set(o.contact_id, (extraMeaByContact.get(o.contact_id) || 0) + meaVal(o));
+    }
+  }
+  const owners = (ownersRaw as any[]).filter((o) => !isSecondary(o));
+
   // Calculate total §35a amount – prefer amount_35a (new consolidated model) over amount (legacy split)
   const total35a = bookings35a.reduce((s: number, b: any) => {
     const relevant = b.amount_35a != null ? Math.abs(Number(b.amount_35a)) : Math.abs(Number(b.amount));
     return s + relevant;
   }, 0);
 
-  // Get total MEA shares
+  // Get total MEA shares (effektiv: inkl. Nebeneinheiten)
   const totalMea = owners.reduce((s: number, o: any) => {
-    const meaShare = o.contact_building_shares?.find((sh: any) => sh.share_type === "mea");
-    return s + (meaShare?.share_value ?? 0);
+    const own = meaVal(o);
+    const extra = (o.contact_id && extraMeaByContact.get(o.contact_id)) || 0;
+    return s + own + extra;
   }, 0);
 
   // Calculate per owner
   const ownerRows = owners.map((o: any) => {
-    const meaShare = o.contact_building_shares?.find((sh: any) => sh.share_type === "mea");
-    const share = meaShare?.share_value ?? 0;
+    const own = meaVal(o);
+    const extra = (o.contact_id && extraMeaByContact.get(o.contact_id)) || 0;
+    const share = own + extra;
     const ratio = totalMea > 0 ? share / totalMea : 0;
     const amount = total35a * ratio;
     const name = o.contacts?.company_name || `${o.contacts?.last_name || ""}, ${o.contacts?.first_name || ""}`.trim();

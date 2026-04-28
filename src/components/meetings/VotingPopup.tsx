@@ -75,15 +75,32 @@ export const VotingPopup = () => {
 
     const { data: assignments } = await supabase
       .from("contact_building_assignments")
-      .select("id, unit_number, contact_building_shares(share_type, share_value)")
+      .select("id, unit_number, unit_kind, billing_mode, contact_building_shares(share_type, share_value)")
       .eq("contact_id", contact.id)
       .eq("building_id", meeting.building_id)
       .eq("is_active", true);
 
     const validAssignments: VotingAssignment[] = [];
 
+    // Summe der MEA aus distribution_only / Nebeneinheiten desselben Eigentümers,
+    // die wir auf die Hauptwohnung aufschlagen.
+    const isApartmentRow = (a: any) => !a?.unit_kind || a.unit_kind === "apartment";
+    const isDistributionOnly = (a: any) => a?.billing_mode === "distribution_only" || !isApartmentRow(a);
+    const meaOf = (a: any) =>
+      (a?.contact_building_shares?.find((s: any) => s.share_type === "mea")?.share_value) || 0;
+    const extraMea = (assignments || [])
+      .filter(isDistributionOnly)
+      .reduce((s: number, a: any) => s + meaOf(a), 0);
+    // Auf wie viele Hauptwohnungen verteilen wir den extraMea? Im Normalfall genau 1.
+    // Falls mehrere: gleichmäßig, damit die Summe stimmt.
+    const mainCount = (assignments || []).filter((a) => !isDistributionOnly(a)).length || 1;
+    const extraPerMain = extraMea / mainCount;
+
     if (assignments) {
       for (const assignment of assignments) {
+        // Nebeneinheiten haben keine eigene Stimme
+        if (isDistributionOnly(assignment)) continue;
+
         const { data: attendee } = await supabase
           .from("etv_attendees")
           .select("id, attendance_type")
@@ -100,14 +117,11 @@ export const VotingPopup = () => {
           .maybeSingle();
         if (existingVote) continue;
 
-        const meaShare = (assignment as any).contact_building_shares?.find(
-          (s: any) => s.share_type === "mea"
-        );
         validAssignments.push({
           id: assignment.id,
           unit_number: assignment.unit_number,
           attendee_id: attendee.id,
-          mea_weight: meaShare?.share_value || 0,
+          mea_weight: meaOf(assignment) + extraPerMain,
         });
       }
     }
@@ -134,19 +148,27 @@ export const VotingPopup = () => {
 
         const { data: assignment } = await supabase
           .from("contact_building_assignments")
-          .select("id, unit_number, contact_building_shares(share_type, share_value)")
+          .select("id, unit_number, unit_kind, billing_mode, contact_id, contact_building_shares(share_type, share_value)")
           .eq("id", pa.assignment_id)
           .single();
         if (!assignment) continue;
+        // Skip falls die proxy'd Einheit selbst eine Nebeneinheit ist (sollte nicht vorkommen).
+        if (isDistributionOnly(assignment)) continue;
 
-        const meaShare = (assignment as any).contact_building_shares?.find(
-          (s: any) => s.share_type === "mea"
-        );
+        // Sub-Units desselben (abwesenden) Eigentümers in diesem Building aufschlagen
+        const { data: extraRows } = await supabase
+          .from("contact_building_assignments")
+          .select("id, unit_kind, billing_mode, contact_building_shares(share_type, share_value)")
+          .eq("contact_id", (assignment as any).contact_id)
+          .eq("building_id", meeting.building_id)
+          .eq("is_active", true);
+        const extra = (extraRows || []).filter(isDistributionOnly).reduce((s: number, a: any) => s + meaOf(a), 0);
+
         validAssignments.push({
           id: assignment.id,
           unit_number: assignment.unit_number,
           attendee_id: pa.id,
-          mea_weight: meaShare?.share_value || 0,
+          mea_weight: meaOf(assignment) + extra,
         });
       }
     }
