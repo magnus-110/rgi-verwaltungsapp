@@ -13,10 +13,10 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import {
   CheckCircle2, Circle, Inbox, Power, Users, AlertCircle, Loader2, ChevronRight,
-  Mail, Download, FileText, Copy, Check, CalendarIcon,
+  Mail, Download, FileText, Copy, Check, CalendarIcon, Plus,
 } from "lucide-react";
 import { OnboardingStepOverviews } from "./onboarding/OnboardingStepOverviews";
-import { OnboardingDocumentsCard } from "./onboarding/OnboardingDocumentsCard";
+import { TemplateUploadDialog } from "@/components/communication/TemplateUploadDialog";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -67,6 +67,7 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
   const [generating, setGenerating] = useState(false);
   const [managementStartDate, setManagementStartDate] = useState<Date | undefined>(undefined);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [lastResult, setLastResult] = useState<{ ok: number; failed: number; created_accounts?: number; zip_path: string } | null>(null);
 
   // Activation state
@@ -234,6 +235,10 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
 
   // Welcome letter — set template
   const setTemplate = async (templateId: string) => {
+    if (templateId === "__upload__") {
+      setUploadDialogOpen(true);
+      return;
+    }
     const newId = templateId === "__none__" ? null : templateId;
     if (newId && !(letterTemplates as any[]).some((t) => t.id === newId)) {
       toast({ title: "Vorlage nicht gefunden", description: "Bitte laden Sie die Vorlagenliste neu.", variant: "destructive" });
@@ -360,6 +365,11 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
                 {(letterTemplates as any[]).map((t) => (
                   <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                 ))}
+                <SelectItem value="__upload__" className="text-primary font-medium">
+                  <span className="inline-flex items-center gap-2">
+                    <Plus className="h-4 w-4" /> Neue Vorlage hochladen…
+                  </span>
+                </SelectItem>
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
@@ -501,11 +511,7 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
         </CardContent>
       </Card>
 
-      {/* Onboarding documents */}
-      <OnboardingDocumentsCard
-        buildingId={buildingId}
-        managementMode={((building as any)?.management_mode === "rent" ? "rent" : "weg")}
-      />
+      {/* (Onboarding documents card removed — upload now via Vorlage dropdown) */}
 
       {/* Progress overview */}
       <Card>
@@ -605,6 +611,17 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Template upload (triggered from Vorlage dropdown) */}
+      <TemplateUploadDialog
+        open={uploadDialogOpen}
+        onOpenChange={(o) => {
+          setUploadDialogOpen(o);
+          if (!o) qc.invalidateQueries({ queryKey: ["onb-letter-templates", buildingId] });
+        }}
+        buildingId={buildingId}
+        defaultType="letter"
+      />
     </div>
   );
 };
