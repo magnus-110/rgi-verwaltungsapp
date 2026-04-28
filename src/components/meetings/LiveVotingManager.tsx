@@ -152,17 +152,8 @@ export const LiveVotingManager = ({ meetingId, buildingId }: LiveVotingManagerPr
   const presentCount = presentOrRepresented.length;
   const quorumReached = totalOwners > 0 && presentCount > totalOwners / 2;
 
-  const totalMea = attendees.reduce((sum: number, a: any) => {
-    const shares = a.contact_building_assignments?.contact_building_shares || [];
-    const meaShare = shares.find((s: any) => s.share_type === "mea");
-    return sum + (meaShare?.share_value || 0);
-  }, 0);
-
-  const presentMea = presentOrRepresented.reduce((sum: number, a: any) => {
-    const shares = a.contact_building_assignments?.contact_building_shares || [];
-    const meaShare = shares.find((s: any) => s.share_type === "mea");
-    return sum + (meaShare?.share_value || 0);
-  }, 0);
+  const totalMea = attendees.reduce((sum: number, a: any) => sum + getMeaWeight(a), 0);
+  const presentMea = presentOrRepresented.reduce((sum: number, a: any) => sum + getMeaWeight(a), 0);
 
   // Check-in mutation
   const checkInMutation = useMutation({
