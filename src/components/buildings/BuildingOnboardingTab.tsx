@@ -235,6 +235,10 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
 
   // Welcome letter — set template
   const setTemplate = async (templateId: string) => {
+    if (templateId === "__upload__") {
+      setUploadDialogOpen(true);
+      return;
+    }
     const newId = templateId === "__none__" ? null : templateId;
     if (newId && !(letterTemplates as any[]).some((t) => t.id === newId)) {
       toast({ title: "Vorlage nicht gefunden", description: "Bitte laden Sie die Vorlagenliste neu.", variant: "destructive" });
