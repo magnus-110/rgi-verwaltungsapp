@@ -144,6 +144,15 @@ export const LiveVotingManager = ({ meetingId, buildingId }: LiveVotingManagerPr
     return () => { supabase.removeChannel(channel); };
   }, [activeVoteItem, queryClient]);
 
+  // Effektive MEA-Gewichtung (inkl. Nebeneinheiten desselben Eigentümers)
+  const getMeaWeight = (attendee: any) => {
+    const a = attendee?.contact_building_assignments;
+    const shares = a?.contact_building_shares || [];
+    const own = (shares.find((s: any) => s.share_type === "mea")?.share_value) || 0;
+    const extra = (a?.contact_id && (distOnlyByContact as Map<string, number>).get(a.contact_id)) || 0;
+    return own + extra;
+  };
+
   // Calculate quorum — only count explicitly checked-in attendees
   const presentOrRepresented = attendees.filter(
     (a: any) => a.attendance_type === "present" || (a.attendance_type === "proxy" && a.checked_in_at)
