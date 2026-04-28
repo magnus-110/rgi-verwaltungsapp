@@ -11,12 +11,16 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { Building2, Loader2, Plus, Trash2, MapPin, Phone, Mail, CreditCard, User } from "lucide-react";
 import { SALUTATIONS } from "@/lib/salutations";
+import { UNIT_KIND_LABELS, UNIT_KIND_ICONS, isApartment, type UnitKind } from "@/lib/secondaryUnits";
 
 export interface AssignmentRow {
   id: string;
   building_id: string;
   unit_number: string | null;
   role_in_building: string | null;
+  unit_kind?: string | null;
+  billing_mode?: string | null;
+  parent_assignment_id?: string | null;
   buildings?: { name: string | null; address: string | null } | null;
   bank_account_id: string | null;
 
