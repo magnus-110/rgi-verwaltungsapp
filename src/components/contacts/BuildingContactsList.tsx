@@ -1015,7 +1015,8 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
             </CardContent>
           </Card>
         );
-      })}
+        });
+      })()}
 
       {/* Delete confirmation */}
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
