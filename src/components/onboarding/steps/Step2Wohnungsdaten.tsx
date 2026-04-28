@@ -117,7 +117,7 @@ export const Step2Wohnungsdaten = ({ value, onChange }: Props) => {
             (z. B. Tiefgaragen-Stellplatz, Keller, Hobbyraum, Gartenanteil).
           </p>
         </div>
-        <MultiEntryList<SecondaryUnitDraft>
+        <MultiEntryList
           items={secondaryUnits}
           onChange={(next) => set({ secondary_units: next })}
           newItem={newSecondaryUnit}

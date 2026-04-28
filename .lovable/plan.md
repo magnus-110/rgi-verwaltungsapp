@@ -1,19 +1,22 @@
-## Fehlerursache
+## Echte Fehlerursache (gefunden)
 
-Vite/SWC scheitert beim Parsen von `Step2Wohnungsdaten.tsx`. Der gemeldete Fehler "Unexpected token `div`. Expected jsx identifier" auf Zeile 54 ist ein Folgefehler — der echte Auslöser ist Zeile 57 (und 128) mit dem Tailwind-Arbitrary-Value-Klassennamen:
+Der bisherige Fix (Tailwind-Arbitrary-Klassen ersetzen) war ein Trugschluss. Der Caret im SWC-Fehler zeigt zwar auf Zeile 54, aber der echte Auslöser liegt auf **Zeile 120**:
 
+```tsx
+<MultiEntryList<SecondaryUnitDraft>
+  items={secondaryUnits}
+  ...
 ```
-className="grid grid-cols-[110px_1fr] gap-2"
-className="grid grid-cols-[1fr_110px] gap-2"
-```
 
-Das Lovable-SWC-Plugin injiziert in jedes JSX-Element `data-component-content="...{className: 'grid-cols-[110px_1fr]'}..."` (URL-encoded). Diese Injektion bricht den Parser bei Klassennamen mit eckigen Klammern + Underscore.
+Das ist eine **Generic-Type-Argument-Syntax in JSX** (`<Component<Type>`). Der Vite/SWC-Parser interpretiert `<SecondaryUnitDraft>` als verschachteltes JSX-Element, kommt mit dem Schließen durcheinander und meldet den Folgefehler "Expected jsx identifier" zurück bis zur ersten Top-Level-`<div>` (Zeile 54).
 
 ## Fix
 
-In `src/components/onboarding/steps/Step2Wohnungsdaten.tsx` beide Tailwind-Arbitrary-Grid-Klassen durch inline `style` ersetzen:
+In `src/components/onboarding/steps/Step2Wohnungsdaten.tsx` Zeile 120 das explizite Generic-Argument entfernen — TypeScript leitet `T` aus den Props (`items`, `newItem`, `renderItem`) eindeutig ab:
 
-- Zeile 57: `className="grid grid-cols-[110px_1fr] gap-2"` → `className="grid gap-2" style={{ gridTemplateColumns: "110px 1fr" }}`
-- Zeile 128: `className="grid grid-cols-[1fr_110px] gap-2"` → `className="grid gap-2" style={{ gridTemplateColumns: "1fr 110px" }}`
+```diff
+-        <MultiEntryList<SecondaryUnitDraft>
++        <MultiEntryList
+```
 
-Visuell identisches Ergebnis, aber der SWC-Parser hat keine Eckklammern mehr im Klassennamen.
+Keine weiteren Änderungen nötig. Tailwind-Arbitrary-Klassen wie `text-[12px]` oder `space-y-2.5` sind harmlos und funktionieren projektweit problemlos.
