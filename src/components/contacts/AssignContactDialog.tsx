@@ -50,7 +50,7 @@ function formatIban(raw: string): string {
   return raw.replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim();
 }
 
-export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned, existingContactIds, managementMode = "weg" }: Props) {
+export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned, existingContactIds, managementMode = "weg", defaultParentAssignmentId = null, defaultContactId = null }: Props) {
   const [contacts, setContacts] = useState<ContactOption[]>([]);
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
