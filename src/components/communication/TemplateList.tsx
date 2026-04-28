@@ -53,7 +53,14 @@ export const TemplateList = ({ buildingId, type, onUse }: Props) => {
                 {t.type === "letter" ? <FileText className="h-4 w-4 text-primary flex-shrink-0" /> : <Mail className="h-4 w-4 text-primary flex-shrink-0" />}
                 <span className="font-medium text-sm truncate">{t.name}</span>
               </div>
-              <Badge variant="outline" className="flex-shrink-0">{t.type === "letter" ? "Brief" : "Mail"}</Badge>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                {t.is_global && (
+                  <Badge variant="secondary" className="gap-1">
+                    <Globe className="h-3 w-3" /> Global
+                  </Badge>
+                )}
+                <Badge variant="outline">{t.type === "letter" ? "Brief" : "Mail"}</Badge>
+              </div>
             </div>
             {t.description && <p className="text-xs text-muted-foreground mb-2 line-clamp-2">{t.description}</p>}
             {Array.isArray(t.variables) && t.variables.length > 0 && (
