@@ -160,6 +160,7 @@ function CopyableField({ label, value }: { label: string; value: string }) {
 export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showAssign, setShowAssign] = useState(false);
+  const [assignDefaults, setAssignDefaults] = useState<{ parentAssignmentId: string | null; contactId: string | null }>({ parentAssignmentId: null, contactId: null });
   const [deleteTarget, setDeleteTarget] = useState<ContactAssignment | null>(null);
   // For inline editing/adding custom types - { id: record id, field: 'share_type'|'cost_type', value: string, mode: 'add'|'edit' }
   const [editingType, setEditingType] = useState<{ id: string; field: string; value: string; mode: 'add' | 'edit'; oldValue?: string } | null>(null);
