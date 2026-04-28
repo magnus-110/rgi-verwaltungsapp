@@ -60,6 +60,12 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
   const [unitNumber, setUnitNumber] = useState("");
   const [floorLocation, setFloorLocation] = useState("");
   const [addressMode, setAddressMode] = useState<"existing" | "new">("existing");
+
+  // Unit-kind / billing-mode (Stellplätze, Keller, …)
+  const [unitKind, setUnitKind] = useState<UnitKind>("apartment");
+  const [billingMode, setBillingMode] = useState<BillingMode>("own_billing");
+  const [parentAssignmentId, setParentAssignmentId] = useState<string | null>(null);
+  const [existingOwnUnits, setExistingOwnUnits] = useState<{ id: string; label: string }[]>([]);
   
   // Editable contact data for "new" mode
   const [editStreet, setEditStreet] = useState("");
