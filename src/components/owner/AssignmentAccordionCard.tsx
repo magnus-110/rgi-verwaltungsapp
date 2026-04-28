@@ -190,6 +190,26 @@ function AssignmentItem({
           <p className="text-xs text-muted-foreground -mt-1">{a.buildings.address}</p>
         )}
 
+        {subUnits.length > 0 && (
+          <section className="space-y-1 rounded-md border bg-muted/30 p-3">
+            <div className="text-sm font-medium">Zugeordnete Nebeneinheiten</div>
+            <ul className="text-sm text-muted-foreground space-y-0.5">
+              {subUnits.map((s) => (
+                <li key={s.id} className="flex items-center gap-2">
+                  <span aria-hidden>{UNIT_KIND_ICONS[(s.unit_kind as UnitKind)] || "📦"}</span>
+                  <span>
+                    {UNIT_KIND_LABELS[(s.unit_kind as UnitKind)] || "Einheit"}
+                    {s.unit_number ? ` ${s.unit_number}` : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs text-muted-foreground pt-1">
+              Diese Einheiten werden gemeinsam mit dieser Wohnung abgerechnet.
+            </p>
+          </section>
+        )}
+
         {/* Personendaten Override */}
         <section className="space-y-2">
           <div className="flex items-center gap-2 text-sm font-medium">
