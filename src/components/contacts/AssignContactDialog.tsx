@@ -61,12 +61,9 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
   const [floorLocation, setFloorLocation] = useState("");
   const [addressMode, setAddressMode] = useState<"existing" | "new">("existing");
 
-  // Unit-kind / billing-mode (Stellplätze, Keller, …)
+  // Unit-kind (Wohnung, Stellplatz, Keller, …) — billing_mode ist immer 'own_billing'
   const [unitKind, setUnitKind] = useState<UnitKind>("apartment");
-  const [billingMode, setBillingMode] = useState<BillingMode>("own_billing");
-  const [parentAssignmentId, setParentAssignmentId] = useState<string | null>(null);
-  const [existingOwnUnits, setExistingOwnUnits] = useState<{ id: string; label: string }[]>([]);
-  
+
   // Editable contact data for "new" mode
   const [editStreet, setEditStreet] = useState("");
   const [editZip, setEditZip] = useState("");
@@ -83,19 +80,8 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
     if (open) {
       loadContacts();
       resetForm();
-      // Prefill für "+ Nebeneinheit"-Flow: vorausgewählte Hauptwohnung + Eigentümer
-      if (defaultParentAssignmentId) {
-        setUnitKind("parking_garage");
-        setBillingMode("distribution_only");
-        setParentAssignmentId(defaultParentAssignmentId);
-      }
-      if (defaultContactId) {
-        setSelectedId(defaultContactId);
-        // Kontakt ist schon bekannt → Auswahl-Schritt überspringen
-        loadContactDetails(defaultContactId).then(() => setStep("details"));
-      }
     }
-  }, [open, defaultParentAssignmentId, defaultContactId]);
+  }, [open]);
 
   const resetForm = () => {
     setStep("select");
@@ -106,9 +92,6 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
     setFloorLocation("");
     setAddressMode("existing");
     setUnitKind("apartment");
-    setBillingMode("own_billing");
-    setParentAssignmentId(null);
-    setExistingOwnUnits([]);
     setEditStreet(""); setEditZip(""); setEditCity("");
     setEditPhones([]); setEditEmails([]); setEditBanks([]);
     setSendInvite(false);
