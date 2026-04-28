@@ -137,6 +137,21 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
     setEditPhones((phonesRes.data || []).map(p => ({ phone_number: p.phone_number, label: p.label || "Mobil" })));
     setEditEmails((emailsRes.data || []).map(e => ({ email: e.email, label: e.label || "Privat" })));
     setEditBanks((banksRes.data || []).map(b => ({ iban: b.iban || "", bic: b.bic || "", bank_name: b.bank_name || "", account_holder: b.account_holder || "" })));
+
+    // Load existing own_billing assignments of this contact in this building (for parent selection)
+    const { data: existing } = await supabase
+      .from("contact_building_assignments")
+      .select("id, unit_number, unit_kind")
+      .eq("contact_id", contactId)
+      .eq("building_id", buildingId)
+      .eq("is_active", true)
+      .eq("billing_mode", "own_billing");
+    setExistingOwnUnits(
+      (existing || []).map((u: any) => ({
+        id: u.id,
+        label: `${UNIT_KIND_LABELS[u.unit_kind as UnitKind] ?? "Einheit"} ${u.unit_number ?? ""}`.trim(),
+      }))
+    );
   };
 
   const filtered = contacts.filter(c => {
