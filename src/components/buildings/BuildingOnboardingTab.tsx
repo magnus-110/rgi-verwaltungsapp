@@ -483,7 +483,7 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
           </div>
 
           <div className="rounded-md border border-primary/30 bg-primary/5 p-3 text-xs text-foreground">
-            <strong>Hinweis:</strong> Für Eigentümer ohne Account werden automatisch Login-Daten (Benutzername + Initial-Passwort) erstellt und im Brief abgedruckt. Bestehende Accounts bleiben unverändert — dort steht im Passwort-Feld „(bereits vergeben)".
+            <strong>Hinweis:</strong> Beim Brief-Generieren wird für jeden Empfänger ein frisches Initial-Passwort gesetzt und abgedruckt — auch wenn der Account bereits zugeordnet wurde. Nur bei Empfängern, die sich bereits eingeloggt haben, bleibt das bisherige Passwort bestehen und im Brief steht „(bereits vergeben)".
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
