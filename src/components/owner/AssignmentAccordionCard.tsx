@@ -87,12 +87,10 @@ export const AssignmentAccordionCard = ({ assignments, bankOptions, onChanged }:
 
 function AssignmentItem({
   assignment,
-  subUnits = [],
   bankOptions,
   onChanged,
 }: {
   assignment: AssignmentRow;
-  subUnits?: AssignmentRow[];
   bankOptions: BankOption[];
   onChanged: () => void;
 }) {
