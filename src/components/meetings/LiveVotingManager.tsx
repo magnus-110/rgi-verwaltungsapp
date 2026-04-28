@@ -15,6 +15,7 @@ import {
   Play, Square, CheckCircle2, XCircle, MinusCircle, Users,
   AlertTriangle, BarChart3, UserCheck, UserX
 } from "lucide-react";
+import { isApartment, readMea } from "@/lib/secondaryUnits";
 
 interface LiveVotingManagerProps {
   meetingId: string;
