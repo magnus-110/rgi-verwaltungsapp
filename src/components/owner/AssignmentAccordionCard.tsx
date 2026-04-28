@@ -177,7 +177,7 @@ function AssignmentItem({
           {roleLabel && <Badge variant="secondary" className="ml-1">{roleLabel}</Badge>}
           {subUnits.map((s) => (
             <Badge key={s.id} variant="outline" className="gap-1">
-              <span aria-hidden>{UNIT_KIND_ICONS[(s.unit_kind as UnitKind)] || "📦"}</span>
+              <span aria-hidden>{UNIT_KIND_ICONS[(s.unit_kind as UnitKind)] ?? ""}</span>
               {UNIT_KIND_LABELS[(s.unit_kind as UnitKind)] || "Einheit"}
               {s.unit_number ? ` ${s.unit_number}` : ""}
             </Badge>
