@@ -59,21 +59,49 @@ const ROLE_LABELS: Record<string, string> = {
 export const AssignmentAccordionCard = ({ assignments, bankOptions, onChanged }: Props) => {
   if (assignments.length === 0) return null;
 
+  // Konsolidierung: Hauptwohnungen + Nebeneinheiten zusammenführen
+  // Hauptwohnung = unit_kind 'apartment' oder leer; Nebeneinheit = sonst.
+  // Zuordnung: Nebeneinheit gehört zur Hauptwohnung mit gleicher parent_assignment_id (= main.id),
+  // oder fällt zurück auf "lose" (eigene Karte) falls kein parent gesetzt.
+  const mainAssignments = assignments.filter((a) => isApartment(a.unit_kind));
+  const subUnits = assignments.filter((a) => !isApartment(a.unit_kind));
+  const subsByParent = new Map<string, AssignmentRow[]>();
+  const looseSubs: AssignmentRow[] = [];
+  for (const s of subUnits) {
+    if (s.parent_assignment_id && mainAssignments.some((m) => m.id === s.parent_assignment_id)) {
+      const arr = subsByParent.get(s.parent_assignment_id) || [];
+      arr.push(s);
+      subsByParent.set(s.parent_assignment_id, arr);
+    } else {
+      // Keine Hauptwohnung gefunden → eigene Karte (z.B. reine TG-Liegenschaft)
+      looseSubs.push(s);
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Building2 className="w-5 h-5" /> Meine Wohnungen
+          <Building2 className="w-5 h-5" /> Meine Einheiten
         </CardTitle>
         <CardDescription>
-          Pro Wohnung können abweichende Daten (Adresse, Kontakt, Bank) hinterlegt werden.
-          Lassen Sie alle Felder leer, gelten Ihre allgemeinen Stammdaten.
+          Pro Einheit können abweichende Daten (Adresse, Kontakt, Bank) hinterlegt werden.
+          Nebeneinheiten (z.B. Stellplätze) werden bei der Hauptwohnung mit angezeigt.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <Accordion type="multiple" className="w-full">
-          {assignments.map((a) => (
-            <AssignmentItem key={a.id} assignment={a} bankOptions={bankOptions} onChanged={onChanged} />
+          {mainAssignments.map((a) => (
+            <AssignmentItem
+              key={a.id}
+              assignment={a}
+              subUnits={subsByParent.get(a.id) || []}
+              bankOptions={bankOptions}
+              onChanged={onChanged}
+            />
+          ))}
+          {looseSubs.map((a) => (
+            <AssignmentItem key={a.id} assignment={a} subUnits={[]} bankOptions={bankOptions} onChanged={onChanged} />
           ))}
         </Accordion>
       </CardContent>
