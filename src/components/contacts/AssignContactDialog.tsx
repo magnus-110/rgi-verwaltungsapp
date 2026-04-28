@@ -315,53 +315,15 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
                 )}
               </div>
 
-              {/* Unit kind + billing mode */}
-              <div className="space-y-2">
-                <div>
-                  <Label className="text-xs">Art der Einheit</Label>
-                  <Select value={unitKind} onValueChange={(v) => {
-                    const k = v as UnitKind;
-                    setUnitKind(k);
-                    if (k === "apartment") {
-                      setBillingMode("own_billing");
-                      setParentAssignmentId(null);
-                    }
-                  }}>
-                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {UNIT_KIND_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {unitKind !== "apartment" && (
-                  <>
-                    <div>
-                      <Label className="text-xs">Abrechnungsmodus</Label>
-                      <Select value={billingMode} onValueChange={(v) => setBillingMode(v as BillingMode)}>
-                        <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="distribution_only">Nur Verteilung (MEA fließt zur Wohnung)</SelectItem>
-                          <SelectItem value="own_billing">Eigene Abrechnung &amp; Hausgeld</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {existingOwnUnits.length > 0 && (
-                      <div>
-                        <Label className="text-xs">Gehört zu (optional)</Label>
-                        <Select
-                          value={parentAssignmentId ?? "__none__"}
-                          onValueChange={(v) => setParentAssignmentId(v === "__none__" ? null : v)}
-                        >
-                          <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="— Keine Verknüpfung —" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none__">— Keine Verknüpfung —</SelectItem>
-                            {existingOwnUnits.map(u => <SelectItem key={u.id} value={u.id}>{u.label}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-                  </>
-                )}
+              {/* Unit kind */}
+              <div>
+                <Label className="text-xs">Art der Einheit</Label>
+                <Select value={unitKind} onValueChange={(v) => setUnitKind(v as UnitKind)}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {UNIT_KIND_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Unit details */}
