@@ -2310,6 +2310,7 @@ export type Database = {
           address_zip_override: string | null
           area_sqm_override: number | null
           bank_account_id: string | null
+          billing_mode: Database["public"]["Enums"]["billing_mode"]
           building_id: string
           company_name_override: string | null
           contact_id: string
@@ -2325,6 +2326,7 @@ export type Database = {
           is_cash_auditor: boolean
           last_name_override: string | null
           notes: string | null
+          parent_assignment_id: string | null
           phones_override: Json | null
           primary_contact_other: Json | null
           primary_contact_self: boolean | null
@@ -2333,6 +2335,7 @@ export type Database = {
             | null
           salutation_override: string | null
           service_category: string | null
+          unit_kind: Database["public"]["Enums"]["unit_kind"]
           unit_number: string | null
           updated_at: string
           usage_since: string | null
@@ -2346,6 +2349,7 @@ export type Database = {
           address_zip_override?: string | null
           area_sqm_override?: number | null
           bank_account_id?: string | null
+          billing_mode?: Database["public"]["Enums"]["billing_mode"]
           building_id: string
           company_name_override?: string | null
           contact_id: string
@@ -2361,6 +2365,7 @@ export type Database = {
           is_cash_auditor?: boolean
           last_name_override?: string | null
           notes?: string | null
+          parent_assignment_id?: string | null
           phones_override?: Json | null
           primary_contact_other?: Json | null
           primary_contact_self?: boolean | null
@@ -2369,6 +2374,7 @@ export type Database = {
             | null
           salutation_override?: string | null
           service_category?: string | null
+          unit_kind?: Database["public"]["Enums"]["unit_kind"]
           unit_number?: string | null
           updated_at?: string
           usage_since?: string | null
@@ -2382,6 +2388,7 @@ export type Database = {
           address_zip_override?: string | null
           area_sqm_override?: number | null
           bank_account_id?: string | null
+          billing_mode?: Database["public"]["Enums"]["billing_mode"]
           building_id?: string
           company_name_override?: string | null
           contact_id?: string
@@ -2397,6 +2404,7 @@ export type Database = {
           is_cash_auditor?: boolean
           last_name_override?: string | null
           notes?: string | null
+          parent_assignment_id?: string | null
           phones_override?: Json | null
           primary_contact_other?: Json | null
           primary_contact_self?: boolean | null
@@ -2405,6 +2413,7 @@ export type Database = {
             | null
           salutation_override?: string | null
           service_category?: string | null
+          unit_kind?: Database["public"]["Enums"]["unit_kind"]
           unit_number?: string | null
           updated_at?: string
           usage_since?: string | null
@@ -2432,6 +2441,13 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_building_assignments_parent_assignment_id_fkey"
+            columns: ["parent_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "contact_building_assignments"
             referencedColumns: ["id"]
           },
         ]
@@ -6390,6 +6406,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "weg_owner" | "tenant" | "employee"
+      billing_mode: "own_billing" | "distribution_only"
       case_category:
         | "schaden"
         | "versicherung"
@@ -6451,6 +6468,14 @@ export type Database = {
         | "personen"
       invoice_type: "standard" | "installment" | "annual_settlement"
       management_mode: "weg" | "rent"
+      unit_kind:
+        | "apartment"
+        | "parking_garage"
+        | "parking_outdoor"
+        | "cellar"
+        | "hobby_room"
+        | "garden"
+        | "other"
       utility_type: "gas" | "strom" | "wasser" | "fernwaerme"
     }
     CompositeTypes: {
@@ -6580,6 +6605,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "weg_owner", "tenant", "employee"],
+      billing_mode: ["own_billing", "distribution_only"],
       case_category: [
         "schaden",
         "versicherung",
@@ -6648,6 +6674,15 @@ export const Constants = {
       ],
       invoice_type: ["standard", "installment", "annual_settlement"],
       management_mode: ["weg", "rent"],
+      unit_kind: [
+        "apartment",
+        "parking_garage",
+        "parking_outdoor",
+        "cellar",
+        "hobby_room",
+        "garden",
+        "other",
+      ],
       utility_type: ["gas", "strom", "wasser", "fernwaerme"],
     },
   },
