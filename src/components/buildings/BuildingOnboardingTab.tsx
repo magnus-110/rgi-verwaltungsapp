@@ -67,6 +67,7 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
   const [generating, setGenerating] = useState(false);
   const [managementStartDate, setManagementStartDate] = useState<Date | undefined>(undefined);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const [lastResult, setLastResult] = useState<{ ok: number; failed: number; created_accounts?: number; zip_path: string } | null>(null);
 
   // Activation state
