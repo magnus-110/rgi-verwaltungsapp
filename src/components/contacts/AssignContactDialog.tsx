@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Search, User, Plus, ChevronRight, ChevronLeft, Mail, AlertCircle, Trash2 } from "lucide-react";
 import { CreateContactDialog } from "./CreateContactDialog";
+import { UNIT_KIND_OPTIONS, UNIT_KIND_LABELS, type UnitKind, type BillingMode } from "@/lib/secondaryUnits";
 
 interface Props {
   open: boolean;
@@ -59,6 +60,12 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
   const [unitNumber, setUnitNumber] = useState("");
   const [floorLocation, setFloorLocation] = useState("");
   const [addressMode, setAddressMode] = useState<"existing" | "new">("existing");
+
+  // Unit-kind / billing-mode (Stellplätze, Keller, …)
+  const [unitKind, setUnitKind] = useState<UnitKind>("apartment");
+  const [billingMode, setBillingMode] = useState<BillingMode>("own_billing");
+  const [parentAssignmentId, setParentAssignmentId] = useState<string | null>(null);
+  const [existingOwnUnits, setExistingOwnUnits] = useState<{ id: string; label: string }[]>([]);
   
   // Editable contact data for "new" mode
   const [editStreet, setEditStreet] = useState("");
@@ -87,6 +94,10 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
     setUnitNumber("");
     setFloorLocation("");
     setAddressMode("existing");
+    setUnitKind("apartment");
+    setBillingMode("own_billing");
+    setParentAssignmentId(null);
+    setExistingOwnUnits([]);
     setEditStreet(""); setEditZip(""); setEditCity("");
     setEditPhones([]); setEditEmails([]); setEditBanks([]);
     setSendInvite(true);
@@ -126,6 +137,21 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
     setEditPhones((phonesRes.data || []).map(p => ({ phone_number: p.phone_number, label: p.label || "Mobil" })));
     setEditEmails((emailsRes.data || []).map(e => ({ email: e.email, label: e.label || "Privat" })));
     setEditBanks((banksRes.data || []).map(b => ({ iban: b.iban || "", bic: b.bic || "", bank_name: b.bank_name || "", account_holder: b.account_holder || "" })));
+
+    // Load existing own_billing assignments of this contact in this building (for parent selection)
+    const { data: existing } = await supabase
+      .from("contact_building_assignments")
+      .select("id, unit_number, unit_kind")
+      .eq("contact_id", contactId)
+      .eq("building_id", buildingId)
+      .eq("is_active", true)
+      .eq("billing_mode", "own_billing");
+    setExistingOwnUnits(
+      (existing || []).map((u: any) => ({
+        id: u.id,
+        label: `${UNIT_KIND_LABELS[u.unit_kind as UnitKind] ?? "Einheit"} ${u.unit_number ?? ""}`.trim(),
+      }))
+    );
   };
 
   const filtered = contacts.filter(c => {
@@ -203,7 +229,10 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
       role_in_building: roleValue as any,
       unit_number: unitNumber || null,
       floor_location: floorLocation || null,
-    });
+      unit_kind: unitKind as any,
+      billing_mode: billingMode as any,
+      parent_assignment_id: parentAssignmentId,
+    } as any);
 
     if (error) {
       setSaving(false);
@@ -303,6 +332,55 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
                 <p className="font-medium">{getName(selectedContact)}</p>
                 {getAddress(selectedContact) && (
                   <p className="text-xs text-muted-foreground">{getAddress(selectedContact)}</p>
+                )}
+              </div>
+
+              {/* Unit kind + billing mode */}
+              <div className="space-y-2">
+                <div>
+                  <Label className="text-xs">Art der Einheit</Label>
+                  <Select value={unitKind} onValueChange={(v) => {
+                    const k = v as UnitKind;
+                    setUnitKind(k);
+                    if (k === "apartment") {
+                      setBillingMode("own_billing");
+                      setParentAssignmentId(null);
+                    }
+                  }}>
+                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {UNIT_KIND_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {unitKind !== "apartment" && (
+                  <>
+                    <div>
+                      <Label className="text-xs">Abrechnungsmodus</Label>
+                      <Select value={billingMode} onValueChange={(v) => setBillingMode(v as BillingMode)}>
+                        <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="distribution_only">Nur Verteilung (MEA fließt zur Wohnung)</SelectItem>
+                          <SelectItem value="own_billing">Eigene Abrechnung &amp; Hausgeld</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {existingOwnUnits.length > 0 && (
+                      <div>
+                        <Label className="text-xs">Gehört zu (optional)</Label>
+                        <Select
+                          value={parentAssignmentId ?? "__none__"}
+                          onValueChange={(v) => setParentAssignmentId(v === "__none__" ? null : v)}
+                        >
+                          <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="— Keine Verknüpfung —" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">— Keine Verknüpfung —</SelectItem>
+                            {existingOwnUnits.map(u => <SelectItem key={u.id} value={u.id}>{u.label}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
 
