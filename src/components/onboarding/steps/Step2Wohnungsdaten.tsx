@@ -10,18 +10,16 @@ import {
 } from "@/lib/secondaryUnits";
 
 /** Pill-Button im Stil der Kassenprüfung/Beirat-Auswahl */
-const PillChoice = <T extends string | boolean>({
+const PillChoice = ({
   options,
   value,
   onChange,
-  columns = 2,
 }: {
-  options: { v: T; label: string }[];
-  value: T | null | undefined;
-  onChange: (v: T) => void;
-  columns?: 2 | 3;
+  options: { v: boolean; label: string }[];
+  value: boolean | null | undefined;
+  onChange: (v: boolean) => void;
 }) => (
-  <div className={cn("grid gap-2.5", columns === 3 ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2")}>
+  <div className="grid grid-cols-2 gap-2.5">
     {options.map(({ v, label }) => {
       const sel = value === v;
       return (
@@ -218,7 +216,7 @@ export const Step2Wohnungsdaten = ({ value, onChange }: Props) => {
             Haben Sie zusätzliche Einheiten, die zu Ihrer Wohnung gehören
             (z. B. Tiefgaragen-Stellplatz, Außenstellplatz, Keller, …)?
           </div>
-          <PillChoice<boolean>
+          <PillChoice
             options={[
               { v: true, label: "Ja" },
               { v: false, label: "Nein" },
@@ -276,7 +274,7 @@ export const Step2Wohnungsdaten = ({ value, onChange }: Props) => {
               <div className="text-[13px] font-medium text-foreground">
                 Gibt es hierfür eine eigene Abrechnung?
               </div>
-              <PillChoice<boolean>
+              <PillChoice
                 options={[
                   { v: true, label: "Ja" },
                   { v: false, label: "Nein" },
