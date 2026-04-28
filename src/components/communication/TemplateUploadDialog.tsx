@@ -170,6 +170,19 @@ export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultTy
               <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Optional" />
             </div>
 
+            <div className="flex items-start justify-between gap-4 rounded-md border bg-muted/30 p-3">
+              <div className="flex items-start gap-2 min-w-0">
+                <Globe className="h-4 w-4 mt-0.5 text-primary flex-shrink-0" />
+                <div className="min-w-0">
+                  <Label htmlFor="tmpl-global" className="cursor-pointer">Gebäudeübergreifend verfügbar</Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Wenn aktiviert, ist diese Vorlage in allen Liegenschaften nutzbar (nicht nur in dieser).
+                  </p>
+                </div>
+              </div>
+              <Switch id="tmpl-global" checked={isGlobal} onCheckedChange={setIsGlobal} />
+            </div>
+
             <TabsContent value="letter" className="mt-0 space-y-3">
               <Label>Word-Datei (.docx) *</Label>
               {file ? (
