@@ -236,7 +236,15 @@ async function ensureContactAccount(
   const realEmail = emails && emails.length > 0 ? emails[0].email : null;
   const authEmail = realEmail || pseudoEmail(username);
   const password = generateNumericPassword(8);
-  const role = mode === "weg" ? "weg_owner" : "tenant";
+  // Rolle aus allen Building-Assignments ableiten (nicht stur aus aktuellem Mode)
+  const { data: allAssignmentsNew } = await admin
+    .from("contact_building_assignments")
+    .select("role_in_building")
+    .eq("contact_id", contactId);
+  const isOwnerSomewhereNew = (allAssignmentsNew ?? []).some(
+    (a: any) => a.role_in_building === "eigentuemer" || a.role_in_building === "beirat",
+  );
+  const role = isOwnerSomewhereNew ? "weg_owner" : (mode === "weg" ? "weg_owner" : "tenant");
 
   // Try to create auth user; if email already exists, fall back to existing user
   let authUserId: string | null = null;
