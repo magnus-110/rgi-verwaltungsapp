@@ -611,6 +611,17 @@ export const BuildingOnboardingTab = ({ buildingId }: Props) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Template upload (triggered from Vorlage dropdown) */}
+      <TemplateUploadDialog
+        open={uploadDialogOpen}
+        onOpenChange={(o) => {
+          setUploadDialogOpen(o);
+          if (!o) qc.invalidateQueries({ queryKey: ["onb-letter-templates", buildingId] });
+        }}
+        buildingId={buildingId}
+        defaultType="letter"
+      />
     </div>
   );
 };
