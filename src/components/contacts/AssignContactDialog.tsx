@@ -115,7 +115,7 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
     setExistingOwnUnits([]);
     setEditStreet(""); setEditZip(""); setEditCity("");
     setEditPhones([]); setEditEmails([]); setEditBanks([]);
-    setSendInvite(true);
+    setSendInvite(false);
   };
 
   const loadContacts = async () => {
