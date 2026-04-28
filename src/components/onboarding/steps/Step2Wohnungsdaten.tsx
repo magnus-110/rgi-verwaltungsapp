@@ -1,14 +1,55 @@
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { SectionCard } from "../ui/SectionCard";
 import { EmbeddedInput } from "../ui/InlineField";
-import { YesNoChoice } from "../YesNoChoice";
-import { BigChoiceCard } from "../BigChoiceCard";
+import { cn } from "@/lib/utils";
 import {
   UNIT_KIND_OPTIONS,
   UNIT_KIND_LABELS,
   type UnitKind,
   type BillingMode,
 } from "@/lib/secondaryUnits";
+
+/** Pill-Button im Stil der Kassenprüfung/Beirat-Auswahl */
+const PillChoice = <T extends string | boolean>({
+  options,
+  value,
+  onChange,
+  columns = 2,
+}: {
+  options: { v: T; label: string }[];
+  value: T | null | undefined;
+  onChange: (v: T) => void;
+  columns?: 2 | 3;
+}) => (
+  <div className={cn("grid gap-2.5", columns === 3 ? "grid-cols-2 sm:grid-cols-3" : "grid-cols-2")}>
+    {options.map(({ v, label }) => {
+      const sel = value === v;
+      return (
+        <button
+          key={String(v)}
+          type="button"
+          onClick={() => onChange(v)}
+          className={cn(
+            "h-12 rounded-[10px] border px-3 flex items-center gap-2.5 text-[13.5px] font-medium transition",
+            sel
+              ? "border-primary bg-primary/[0.06] text-primary"
+              : "border-border/60 bg-card text-foreground hover:bg-accent/40"
+          )}
+        >
+          <span
+            className={cn(
+              "size-[18px] shrink-0 rounded-full border-[1.5px] grid place-items-center transition",
+              sel ? "border-primary" : "border-muted-foreground/40"
+            )}
+          >
+            {sel && <span className="size-[9px] rounded-full bg-primary" />}
+          </span>
+          <span className="truncate">{label}</span>
+        </button>
+      );
+    })}
+  </div>
+);
 
 export interface SecondaryUnitDraft {
   unit_kind: UnitKind;
