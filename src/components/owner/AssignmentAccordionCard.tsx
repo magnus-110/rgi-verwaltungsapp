@@ -196,7 +196,7 @@ function AssignmentItem({
             <ul className="text-sm text-muted-foreground space-y-0.5">
               {subUnits.map((s) => (
                 <li key={s.id} className="flex items-center gap-2">
-                  <span aria-hidden>{UNIT_KIND_ICONS[(s.unit_kind as UnitKind)] || "📦"}</span>
+                  <span aria-hidden>{UNIT_KIND_ICONS[(s.unit_kind as UnitKind)] ?? ""}</span>
                   <span>
                     {UNIT_KIND_LABELS[(s.unit_kind as UnitKind)] || "Einheit"}
                     {s.unit_number ? ` ${s.unit_number}` : ""}
