@@ -12,7 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Search, User, Plus, ChevronRight, ChevronLeft, Mail, AlertCircle, Trash2 } from "lucide-react";
 import { CreateContactDialog } from "./CreateContactDialog";
-import { UNIT_KIND_OPTIONS, UNIT_KIND_LABELS, type UnitKind, type BillingMode } from "@/lib/secondaryUnits";
+import { UNIT_KIND_OPTIONS, type UnitKind } from "@/lib/secondaryUnits";
 
 interface Props {
   open: boolean;
@@ -21,10 +21,6 @@ interface Props {
   onAssigned: () => void;
   existingContactIds: string[];
   managementMode?: "weg" | "rent";
-  /** Wenn gesetzt: Dialog öffnet direkt im Modus "Nebeneinheit anlegen", vorbelegt mit dieser Hauptwohnung. */
-  defaultParentAssignmentId?: string | null;
-  /** Wenn gesetzt: Eigentümer-Kontakt wird vorausgewählt (typisch beim "+ Nebeneinheit"-Flow). */
-  defaultContactId?: string | null;
 }
 
 interface ContactOption {
@@ -50,7 +46,7 @@ function formatIban(raw: string): string {
   return raw.replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim();
 }
 
-export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned, existingContactIds, managementMode = "weg", defaultParentAssignmentId = null, defaultContactId = null }: Props) {
+export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned, existingContactIds, managementMode = "weg" }: Props) {
   const [contacts, setContacts] = useState<ContactOption[]>([]);
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -65,12 +61,9 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
   const [floorLocation, setFloorLocation] = useState("");
   const [addressMode, setAddressMode] = useState<"existing" | "new">("existing");
 
-  // Unit-kind / billing-mode (Stellplätze, Keller, …)
+  // Unit-kind (Wohnung, Stellplatz, Keller, …) — billing_mode ist immer 'own_billing'
   const [unitKind, setUnitKind] = useState<UnitKind>("apartment");
-  const [billingMode, setBillingMode] = useState<BillingMode>("own_billing");
-  const [parentAssignmentId, setParentAssignmentId] = useState<string | null>(null);
-  const [existingOwnUnits, setExistingOwnUnits] = useState<{ id: string; label: string }[]>([]);
-  
+
   // Editable contact data for "new" mode
   const [editStreet, setEditStreet] = useState("");
   const [editZip, setEditZip] = useState("");
@@ -87,19 +80,8 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
     if (open) {
       loadContacts();
       resetForm();
-      // Prefill für "+ Nebeneinheit"-Flow: vorausgewählte Hauptwohnung + Eigentümer
-      if (defaultParentAssignmentId) {
-        setUnitKind("parking_garage");
-        setBillingMode("distribution_only");
-        setParentAssignmentId(defaultParentAssignmentId);
-      }
-      if (defaultContactId) {
-        setSelectedId(defaultContactId);
-        // Kontakt ist schon bekannt → Auswahl-Schritt überspringen
-        loadContactDetails(defaultContactId).then(() => setStep("details"));
-      }
     }
-  }, [open, defaultParentAssignmentId, defaultContactId]);
+  }, [open]);
 
   const resetForm = () => {
     setStep("select");
@@ -110,9 +92,6 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
     setFloorLocation("");
     setAddressMode("existing");
     setUnitKind("apartment");
-    setBillingMode("own_billing");
-    setParentAssignmentId(null);
-    setExistingOwnUnits([]);
     setEditStreet(""); setEditZip(""); setEditCity("");
     setEditPhones([]); setEditEmails([]); setEditBanks([]);
     setSendInvite(false);
@@ -153,20 +132,6 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
     setEditEmails((emailsRes.data || []).map(e => ({ email: e.email, label: e.label || "Privat" })));
     setEditBanks((banksRes.data || []).map(b => ({ iban: b.iban || "", bic: b.bic || "", bank_name: b.bank_name || "", account_holder: b.account_holder || "" })));
 
-    // Load existing own_billing assignments of this contact in this building (for parent selection)
-    const { data: existing } = await supabase
-      .from("contact_building_assignments")
-      .select("id, unit_number, unit_kind")
-      .eq("contact_id", contactId)
-      .eq("building_id", buildingId)
-      .eq("is_active", true)
-      .eq("billing_mode", "own_billing");
-    setExistingOwnUnits(
-      (existing || []).map((u: any) => ({
-        id: u.id,
-        label: `${UNIT_KIND_LABELS[u.unit_kind as UnitKind] ?? "Einheit"} ${u.unit_number ?? ""}`.trim(),
-      }))
-    );
   };
 
   const filtered = contacts.filter(c => {
@@ -245,8 +210,8 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
       unit_number: unitNumber || null,
       floor_location: floorLocation || null,
       unit_kind: unitKind as any,
-      billing_mode: billingMode as any,
-      parent_assignment_id: parentAssignmentId,
+      billing_mode: 'own_billing' as any,
+      parent_assignment_id: null,
     } as any);
 
     if (error) {
@@ -350,53 +315,15 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
                 )}
               </div>
 
-              {/* Unit kind + billing mode */}
-              <div className="space-y-2">
-                <div>
-                  <Label className="text-xs">Art der Einheit</Label>
-                  <Select value={unitKind} onValueChange={(v) => {
-                    const k = v as UnitKind;
-                    setUnitKind(k);
-                    if (k === "apartment") {
-                      setBillingMode("own_billing");
-                      setParentAssignmentId(null);
-                    }
-                  }}>
-                    <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {UNIT_KIND_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {unitKind !== "apartment" && (
-                  <>
-                    <div>
-                      <Label className="text-xs">Abrechnungsmodus</Label>
-                      <Select value={billingMode} onValueChange={(v) => setBillingMode(v as BillingMode)}>
-                        <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="distribution_only">Nur Verteilung (MEA fließt zur Wohnung)</SelectItem>
-                          <SelectItem value="own_billing">Eigene Abrechnung &amp; Hausgeld</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {existingOwnUnits.length > 0 && (
-                      <div>
-                        <Label className="text-xs">Gehört zu (optional)</Label>
-                        <Select
-                          value={parentAssignmentId ?? "__none__"}
-                          onValueChange={(v) => setParentAssignmentId(v === "__none__" ? null : v)}
-                        >
-                          <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="— Keine Verknüpfung —" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none__">— Keine Verknüpfung —</SelectItem>
-                            {existingOwnUnits.map(u => <SelectItem key={u.id} value={u.id}>{u.label}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-                  </>
-                )}
+              {/* Unit kind */}
+              <div>
+                <Label className="text-xs">Art der Einheit</Label>
+                <Select value={unitKind} onValueChange={(v) => setUnitKind(v as UnitKind)}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {UNIT_KIND_OPTIONS.map(o => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Unit details */}

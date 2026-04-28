@@ -160,7 +160,7 @@ function CopyableField({ label, value }: { label: string; value: string }) {
 export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showAssign, setShowAssign] = useState(false);
-  const [assignDefaults, setAssignDefaults] = useState<{ parentAssignmentId: string | null; contactId: string | null }>({ parentAssignmentId: null, contactId: null });
+  
   const [deleteTarget, setDeleteTarget] = useState<ContactAssignment | null>(null);
   // For inline editing/adding custom types - { id: record id, field: 'share_type'|'cost_type', value: string, mode: 'add'|'edit' }
   const [editingType, setEditingType] = useState<{ id: string; field: string; value: string; mode: 'add' | 'edit'; oldValue?: string } | null>(null);
@@ -606,38 +606,12 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                     )}
                   </div>
                   <div className="flex gap-1.5 flex-shrink-0 flex-wrap">
-                    {!isApartment(kind) && (
-                      <Badge variant={billingMode === "distribution_only" ? "outline" : "secondary"} className="text-xs">
-                        {billingMode === "distribution_only" ? "Nur Verteilung" : "Eigene Abrechnung"}
-                      </Badge>
-                    )}
                     {managementMode === 'weg' && isBeirat(a) && <Badge variant="secondary" className="text-xs">Beirat</Badge>}
                     {managementMode === 'weg' && isCashAuditor(a) && <Badge variant="secondary" className="text-xs">Kassenprüfung</Badge>}
                     {hausgeld !== null && <Badge variant="outline" className="text-xs">{hausgeld.toFixed(2)} €</Badge>}
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  {!isSub && (
-                    <TooltipProvider delayDuration={300}>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setAssignDefaults({ parentAssignmentId: a.id, contactId: a.contact_id });
-                              setShowAssign(true);
-                            }}
-                          >
-                            <Plus className="h-3.5 w-3.5 text-primary" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Nebeneinheit hinzufügen (z.B. Stellplatz, Keller)</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
                   <Button
                     size="icon"
                     variant="ghost"
@@ -1072,13 +1046,11 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
 
       <AssignContactDialog
         open={showAssign}
-        onOpenChange={(o) => { setShowAssign(o); if (!o) setAssignDefaults({ parentAssignmentId: null, contactId: null }); }}
+        onOpenChange={setShowAssign}
         buildingId={buildingId}
         onAssigned={refetch}
         existingContactIds={assignments.map(a => a.contact_id)}
         managementMode={managementMode as "weg" | "rent"}
-        defaultParentAssignmentId={assignDefaults.parentAssignmentId}
-        defaultContactId={assignDefaults.contactId}
       />
     </div>
   );

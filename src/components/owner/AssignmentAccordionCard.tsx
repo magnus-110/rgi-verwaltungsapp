@@ -59,25 +59,6 @@ const ROLE_LABELS: Record<string, string> = {
 export const AssignmentAccordionCard = ({ assignments, bankOptions, onChanged }: Props) => {
   if (assignments.length === 0) return null;
 
-  // Konsolidierung: Hauptwohnungen + Nebeneinheiten zusammenführen
-  // Hauptwohnung = unit_kind 'apartment' oder leer; Nebeneinheit = sonst.
-  // Zuordnung: Nebeneinheit gehört zur Hauptwohnung mit gleicher parent_assignment_id (= main.id),
-  // oder fällt zurück auf "lose" (eigene Karte) falls kein parent gesetzt.
-  const mainAssignments = assignments.filter((a) => isApartment(a.unit_kind));
-  const subUnits = assignments.filter((a) => !isApartment(a.unit_kind));
-  const subsByParent = new Map<string, AssignmentRow[]>();
-  const looseSubs: AssignmentRow[] = [];
-  for (const s of subUnits) {
-    if (s.parent_assignment_id && mainAssignments.some((m) => m.id === s.parent_assignment_id)) {
-      const arr = subsByParent.get(s.parent_assignment_id) || [];
-      arr.push(s);
-      subsByParent.set(s.parent_assignment_id, arr);
-    } else {
-      // Keine Hauptwohnung gefunden → eigene Karte (z.B. reine TG-Liegenschaft)
-      looseSubs.push(s);
-    }
-  }
-
   return (
     <Card>
       <CardHeader>
@@ -86,22 +67,17 @@ export const AssignmentAccordionCard = ({ assignments, bankOptions, onChanged }:
         </CardTitle>
         <CardDescription>
           Pro Einheit können abweichende Daten (Adresse, Kontakt, Bank) hinterlegt werden.
-          Nebeneinheiten (z.B. Stellplätze) werden bei der Hauptwohnung mit angezeigt.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <Accordion type="multiple" className="w-full">
-          {mainAssignments.map((a) => (
+          {assignments.map((a) => (
             <AssignmentItem
               key={a.id}
               assignment={a}
-              subUnits={subsByParent.get(a.id) || []}
               bankOptions={bankOptions}
               onChanged={onChanged}
             />
-          ))}
-          {looseSubs.map((a) => (
-            <AssignmentItem key={a.id} assignment={a} subUnits={[]} bankOptions={bankOptions} onChanged={onChanged} />
           ))}
         </Accordion>
       </CardContent>
@@ -111,12 +87,10 @@ export const AssignmentAccordionCard = ({ assignments, bankOptions, onChanged }:
 
 function AssignmentItem({
   assignment,
-  subUnits = [],
   bankOptions,
   onChanged,
 }: {
   assignment: AssignmentRow;
-  subUnits?: AssignmentRow[];
   bankOptions: BankOption[];
   onChanged: () => void;
 }) {
@@ -175,13 +149,6 @@ function AssignmentItem({
           <Building2 className="w-4 h-4 text-muted-foreground shrink-0" />
           <span className="font-medium">{buildingLabel}{unitLabel}</span>
           {roleLabel && <Badge variant="secondary" className="ml-1">{roleLabel}</Badge>}
-          {subUnits.map((s) => (
-            <Badge key={s.id} variant="outline" className="gap-1">
-              <span aria-hidden>{UNIT_KIND_ICONS[(s.unit_kind as UnitKind)] ?? ""}</span>
-              {UNIT_KIND_LABELS[(s.unit_kind as UnitKind)] || "Einheit"}
-              {s.unit_number ? ` ${s.unit_number}` : ""}
-            </Badge>
-          ))}
           {hasOverrides && <Badge variant="outline" className="ml-auto mr-2">Eigene Angaben</Badge>}
         </div>
       </AccordionTrigger>
@@ -190,25 +157,6 @@ function AssignmentItem({
           <p className="text-xs text-muted-foreground -mt-1">{a.buildings.address}</p>
         )}
 
-        {subUnits.length > 0 && (
-          <section className="space-y-1 rounded-md border bg-muted/30 p-3">
-            <div className="text-sm font-medium">Zugeordnete Nebeneinheiten</div>
-            <ul className="text-sm text-muted-foreground space-y-0.5">
-              {subUnits.map((s) => (
-                <li key={s.id} className="flex items-center gap-2">
-                  <span aria-hidden>{UNIT_KIND_ICONS[(s.unit_kind as UnitKind)] ?? ""}</span>
-                  <span>
-                    {UNIT_KIND_LABELS[(s.unit_kind as UnitKind)] || "Einheit"}
-                    {s.unit_number ? ` ${s.unit_number}` : ""}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            <p className="text-xs text-muted-foreground pt-1">
-              Diese Einheiten werden gemeinsam mit dieser Wohnung abgerechnet.
-            </p>
-          </section>
-        )}
 
         {/* Personendaten Override */}
         <section className="space-y-2">
