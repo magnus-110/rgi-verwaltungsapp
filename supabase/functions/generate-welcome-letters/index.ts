@@ -126,7 +126,9 @@ async function ensureContactAccount(
     .maybeSingle();
   if (!contact) return null;
 
-  // Already linked? -> do NOT reset password; just return existing username.
+  // Already linked? -> Reset password ONLY if user has never logged in yet.
+  // The letter is the official delivery channel for initial credentials, so as
+  // long as the recipient hasn't logged in, we can safely (re)issue a new one.
   if (contact.user_id) {
     const { data: prof } = await admin
       .from("profiles")
@@ -146,7 +148,37 @@ async function ensureContactAccount(
       await admin.from("profiles").update({ username }).eq("user_id", contact.user_id);
     }
 
-    // Account existiert bereits -> bestehendes Passwort beibehalten
+    // Check if user has ever logged in
+    const { data: authUserRes } = await admin.auth.admin.getUserById(contact.user_id);
+    const lastSignIn = authUserRes?.user?.last_sign_in_at || null;
+
+    if (!lastSignIn) {
+      // Noch nie eingeloggt -> Initial-Passwort neu setzen und im Brief abdrucken
+      const password = generateNumericPassword(8);
+      const { error: updErr } = await admin.auth.admin.updateUserById(contact.user_id, { password });
+      if (updErr) {
+        console.error("updateUserById (existing, never logged in) failed", updErr);
+        // Fallback: bisheriges Verhalten
+        return {
+          username,
+          password: "(bereits vergeben)",
+          created: false,
+          accountHinweis: EXISTING_ACCOUNT_HINT,
+        };
+      }
+      await admin
+        .from("profiles")
+        .update({
+          force_password_change: true,
+          must_change_password: true,
+          initial_password_set_at: new Date().toISOString(),
+          terms_accepted_at: null,
+        } as any)
+        .eq("user_id", contact.user_id);
+      return { username, password, created: true, accountHinweis: "" };
+    }
+
+    // Bereits eingeloggt -> Passwort NICHT überschreiben
     return {
       username,
       password: "(bereits vergeben)",
