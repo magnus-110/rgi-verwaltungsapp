@@ -336,6 +336,7 @@ export const Step2Wohnungsdaten = ({ value, onChange }: Props) => {
               ))}
             </div>
           </SectionCard>
+          </div>
         )}
     </div>
   );
