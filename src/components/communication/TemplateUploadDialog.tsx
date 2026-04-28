@@ -104,7 +104,8 @@ export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultTy
           return (cleaned || "datei") + ext.toLowerCase();
         };
         const safeName = sanitizeFileName(file.name);
-        const path = `templates/${buildingId}/${Date.now()}_${safeName}`;
+        const folder = isGlobal ? "global" : buildingId;
+        const path = `templates/${folder}/${Date.now()}_${safeName}`;
         const { error: upErr } = await supabase.storage.from("comm-assets").upload(path, file, {
           contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         });
@@ -123,7 +124,8 @@ export const TemplateUploadDialog = ({ open, onOpenChange, buildingId, defaultTy
         name: name.trim(),
         description: description.trim() || null,
         type,
-        building_id: buildingId,
+        building_id: isGlobal ? null : buildingId,
+        is_global: isGlobal,
         docx_path: docxPath,
         subject: type === "email" ? subject.trim() || null : null,
         body_html: type === "email" ? bodyHtml : null,
