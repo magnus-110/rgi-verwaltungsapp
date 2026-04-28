@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Search, User, Plus, ChevronRight, ChevronLeft, Mail, AlertCircle, Trash2 } from "lucide-react";
 import { CreateContactDialog } from "./CreateContactDialog";
+import { UNIT_KIND_OPTIONS, UNIT_KIND_LABELS, type UnitKind, type BillingMode } from "@/lib/secondaryUnits";
 
 interface Props {
   open: boolean;
