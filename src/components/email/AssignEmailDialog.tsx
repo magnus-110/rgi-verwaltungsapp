@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Building2, User, Sparkles, FolderOpen, Link2, Plus, X } from "lucide-react";
+import { Building2, User, Sparkles, FolderOpen, Link2, Plus, X, GitBranch } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useCreateCase } from "@/hooks/useCases";
 import { toast } from "@/hooks/use-toast";
@@ -40,6 +40,7 @@ export const AssignEmailDialog = ({
   const [buildingId, setBuildingId] = useState<string>("none");
   const [contactId, setContactId] = useState<string>("none");
   const [caseId, setCaseId] = useState<string>("none");
+  const [subcaseId, setSubcaseId] = useState<string>("none");
   const [archive, setArchive] = useState(false);
   const [creatingCase, setCreatingCase] = useState(false);
   const [newCaseTitle, setNewCaseTitle] = useState("");
@@ -51,6 +52,7 @@ export const AssignEmailDialog = ({
       setBuildingId(prefilledBuildingId || "none");
       setContactId(prefilledContactId || "none");
       setCaseId(prefilledCaseId || "none");
+      setSubcaseId("none");
       setArchive(false);
       setCreatingCase(false);
       setNewCaseTitle("");
