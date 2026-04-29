@@ -497,6 +497,67 @@ export const OnboardingWizardModal = ({
 };
 
 // ---------------------------------------------------------------------------
+const StammdatenModeQuestionCard = ({
+  buildingName,
+  unitCount,
+  onChoose,
+}: {
+  buildingName: string | null;
+  unitCount: number;
+  onChoose: (allSame: boolean) => void;
+}) => {
+  return (
+    <div className="max-w-md mx-auto py-2 space-y-4">
+      <div className="bg-card rounded-[16px] border border-border/60 px-5 py-6 space-y-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+        <div className="space-y-2">
+          <div className="text-[10px] font-semibold tracking-[0.16em] text-muted-foreground/80 uppercase">
+            Mehrere Einheiten
+          </div>
+          <h2 className="font-display text-[20px] leading-tight text-foreground">
+            Sie besitzen {unitCount} Einheiten
+            {buildingName ? ` in ${buildingName}` : ""}.
+          </h2>
+          <p className="text-[13.5px] leading-relaxed text-foreground/80">
+            Sind Ihre <strong>Stammdaten</strong> (Adresse, Telefon, E-Mail,
+            Bankverbindung, Hauptansprechpartner) für alle Einheiten
+            <strong> gleich</strong> — oder möchten Sie diese
+            <strong> getrennt je Einheit</strong> erfassen?
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-2.5">
+          <button
+            type="button"
+            onClick={() => onChoose(true)}
+            className={cn(
+              "min-h-[64px] rounded-[12px] border-2 px-4 py-3 text-left transition",
+              "border-border bg-card hover:border-primary/60 hover:bg-muted/40"
+            )}
+          >
+            <div className="font-medium text-foreground">Für alle Einheiten gleich</div>
+            <div className="text-[12.5px] text-muted-foreground mt-0.5">
+              Ich gebe meine Stammdaten nur einmal ein — sie gelten für alle Einheiten.
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => onChoose(false)}
+            className={cn(
+              "min-h-[64px] rounded-[12px] border-2 px-4 py-3 text-left transition",
+              "border-border bg-card hover:border-primary/60 hover:bg-muted/40"
+            )}
+          >
+            <div className="font-medium text-foreground">Getrennt je Einheit erfassen</div>
+            <div className="text-[12.5px] text-muted-foreground mt-0.5">
+              Z. B. wenn pro Einheit eine andere Bankverbindung oder Adresse gilt.
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
 const SepaWarningCard = ({
   onConfirmMandate,
   onContinueWithout,
