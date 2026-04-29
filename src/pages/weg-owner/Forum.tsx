@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Building, MessageSquare, Calendar, FileText } from "lucide-react";
 import { format } from "date-fns";
+import { EmergencyContactsWidget } from "@/components/forum/EmergencyContactsWidget";
 
 interface Building {
   id: string;
@@ -139,8 +140,37 @@ export const WegOwnerForum = () => {
           <p className="text-lg text-muted-foreground">
             Nachrichten und Ankündigungen
           </p>
-          
+        </div>
+
+        {/* Notfall- & Wichtige Kontakte ganz oben */}
+        {buildings.length > 0 && (
+          <EmergencyContactsWidget buildingIds={buildings.map((b) => b.id)} />
+        )}
+
+        {/* Gebäude-Filter */}
+        <div className="text-center space-y-4">
           {buildings.length > 1 && (
+            <div className="flex gap-2 flex-wrap justify-center">
+              <Button
+                variant={selectedBuilding === "all" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSelectedBuilding("all")}
+              >
+                Alle Gebäude
+              </Button>
+              {buildings.map((building) => (
+                <Button
+                  key={building.id}
+                  variant={selectedBuilding === building.id ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedBuilding(building.id)}
+                >
+                  {building.name}
+                </Button>
+              ))}
+            </div>
+          )}
+        </div>
             <div className="flex gap-2 flex-wrap justify-center mt-6">
               <Button
                 variant={selectedBuilding === "all" ? "default" : "outline"}
