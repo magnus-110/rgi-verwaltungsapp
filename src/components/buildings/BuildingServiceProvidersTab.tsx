@@ -10,9 +10,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Briefcase, Plus, Phone, Mail, Trash2, ExternalLink, Search, Building2, Settings2 } from "lucide-react";
+import { Briefcase, Plus, Phone, Mail, Trash2, ExternalLink, Search, Building2, Settings2, Bell, BellRing } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { CreateContactDialog } from "@/components/contacts/CreateContactDialog";
+import { Switch } from "@/components/ui/switch";
 
 interface Props {
   buildingId: string;
