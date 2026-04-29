@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
     if (!userRes?.user) return json({ error: "Unauthorized" }, 401);
     const userId = userRes.user.id;
 
-    const { building_id, step, payload } = await req.json();
+    const { building_id, step, payload, applies_to_all_assignments } = await req.json();
     if (!building_id || !step) return json({ error: "building_id and step required" }, 400);
     const stepNum = Number(step);
     if (![1, 2, 3, 4, 5].includes(stepNum)) return json({ error: "invalid step" }, 400);
@@ -70,15 +70,18 @@ Deno.serve(async (req) => {
       progressId = created.id;
     }
 
-    // Step 1 (Stammdaten) -> writes building-specific overrides ONLY.
-    // Global contacts / contact_persons / contact_phones / contact_emails / contact_bank_accounts are NOT touched.
-    if (stepNum === 1) {
-      if (!contactId) {
-        return json({ error: "No contact assignment found for user/building" }, 400);
-      }
-      const p = payload || {};
+    // Persist applies_to_all_assignments choice (Multi-Einheiten-Modus) at any step.
+    if (typeof applies_to_all_assignments === "boolean") {
+      await admin
+        .from("onboarding_progress")
+        .update({ applies_to_all_assignments })
+        .eq("id", progressId);
+    }
+
+    // Helper: build override-update for one Step1Data payload
+    const buildOverrideUpdate = (p: any) => {
       const ibanClean = typeof p.iban === "string" ? p.iban.replace(/\s/g, "").toUpperCase() : null;
-      const overrideUpdate: Record<string, any> = {
+      return {
         address_street_override: p.street ?? null,
         address_zip_override: p.zip ?? null,
         address_city_override: p.city ?? null,
@@ -90,50 +93,82 @@ Deno.serve(async (req) => {
         primary_contact_other: p.contact_self === false ? p.contact_other ?? null : null,
         expectations_override: p.expectations || null,
         updated_at: new Date().toISOString(),
-      };
-      // Determine target assignments: by default just this one;
-      // if the owner ticked "applies to all my units" we expand to every active
-      // assignment of this contact.
-      const { data: progRow } = await admin
-        .from("onboarding_progress")
-        .select("applies_to_all_assignments")
-        .eq("user_id", userId)
-        .eq("building_id", building_id)
-        .maybeSingle();
+      } as Record<string, any>;
+    };
 
-      let targetAssignments: { id: string; building_id: string }[] = [
-        { id: "", building_id },
-      ];
-      if ((progRow as any)?.applies_to_all_assignments) {
-        const { data: allAsg } = await admin
-          .from("contact_building_assignments")
-          .select("id, building_id")
-          .eq("contact_id", contactId)
-          .eq("is_active", true);
-        if (allAsg && allAsg.length > 0) {
-          targetAssignments = allAsg as any;
+    // Step 1 (Stammdaten) -> writes building-specific overrides ONLY.
+    if (stepNum === 1) {
+      if (!contactId) {
+        return json({ error: "No contact assignment found for user/building" }, 400);
+      }
+
+      // Multi-Einheiten-Modus: payload.per_unit { [assignment_id]: Step1Data }
+      if (payload && typeof payload === "object" && payload.per_unit && typeof payload.per_unit === "object") {
+        const perUnit = payload.per_unit as Record<string, any>;
+        for (const [assignmentId, p] of Object.entries(perUnit)) {
+          const upd = buildOverrideUpdate(p);
+          const { error } = await admin
+            .from("contact_building_assignments")
+            .update(upd)
+            .eq("id", assignmentId)
+            .eq("contact_id", contactId);
+          if (error) {
+            console.error("override update error (per_unit)", error);
+            return json({ error: error.message }, 500);
+          }
+        }
+      } else {
+        const overrideUpdate = buildOverrideUpdate(payload || {});
+        // Determine target assignments: by default just this one;
+        // if the owner ticked "applies to all my units" we expand to every active
+        // assignment of this contact (in this building only — strikte Trennung).
+        const { data: progRow } = await admin
+          .from("onboarding_progress")
+          .select("applies_to_all_assignments")
+          .eq("user_id", userId)
+          .eq("building_id", building_id)
+          .maybeSingle();
+
+        let targets: { id: string }[] = [];
+        if ((progRow as any)?.applies_to_all_assignments) {
+          const { data: allAsg } = await admin
+            .from("contact_building_assignments")
+            .select("id")
+            .eq("contact_id", contactId)
+            .eq("building_id", building_id)
+            .eq("is_active", true);
+          targets = (allAsg as any) || [];
+        }
+
+        if (targets.length === 0) {
+          // Fallback: alle Assignments dieses Contacts in diesem Gebäude
+          const { error } = await admin
+            .from("contact_building_assignments")
+            .update(overrideUpdate)
+            .eq("contact_id", contactId)
+            .eq("building_id", building_id);
+          if (error) {
+            console.error("override update error", error);
+            return json({ error: error.message }, 500);
+          }
+        } else {
+          for (const t of targets) {
+            const { error } = await admin
+              .from("contact_building_assignments")
+              .update(overrideUpdate)
+              .eq("id", t.id)
+              .eq("contact_id", contactId);
+            if (error) {
+              console.error("override update error (loop)", error);
+              return json({ error: error.message }, 500);
+            }
+          }
         }
       }
-
-      let ovErr: any = null;
-      for (const ta of targetAssignments) {
-        const q = admin
-          .from("contact_building_assignments")
-          .update(overrideUpdate)
-          .eq("contact_id", contactId);
-        const { error } = ta.id
-          ? await q.eq("id", ta.id)
-          : await q.eq("building_id", ta.building_id);
-        if (error) { ovErr = error; break; }
-      }
-      if (ovErr) {
-        console.error("override update error", ovErr);
-        return json({ error: ovErr.message }, 500);
-      }
     } else {
-      // Create submission record for admin review (best-effort: never blocks completion)
+      // Steps 2-5: create submission record(s) for admin review.
       const category = STEP_CATEGORIES[stepNum];
-      // Replace any existing pending submission so we don't accumulate duplicates
+      // Replace any existing pending submissions so we don't accumulate duplicates.
       await admin
         .from("onboarding_submissions")
         .delete()
@@ -141,17 +176,41 @@ Deno.serve(async (req) => {
         .eq("building_id", building_id)
         .eq("category", category)
         .eq("status", "pending");
-      const { error: subErr } = await admin.from("onboarding_submissions").insert({
-        user_id: userId,
-        contact_id: contactId,
-        building_id,
-        category,
-        payload: payload || {},
-        status: "pending",
-      });
-      if (subErr) {
-        // Log but do NOT fail — progress completion must always be persisted.
-        console.error("submission insert error (non-fatal)", subErr);
+
+      // Multi-Einheiten-Modus: pro Assignment einen Datensatz schreiben.
+      if (
+        stepNum === 2 &&
+        payload &&
+        typeof payload === "object" &&
+        payload.per_unit &&
+        typeof payload.per_unit === "object"
+      ) {
+        const perUnit = payload.per_unit as Record<string, any>;
+        const rows = Object.entries(perUnit).map(([assignmentId, p]) => ({
+          user_id: userId,
+          contact_id: contactId,
+          building_id,
+          assignment_id: assignmentId,
+          category,
+          payload: p || {},
+          status: "pending",
+        }));
+        if (rows.length > 0) {
+          const { error: subErr } = await admin.from("onboarding_submissions").insert(rows);
+          if (subErr) console.error("submission insert error per_unit (non-fatal)", subErr);
+        }
+      } else {
+        const { error: subErr } = await admin.from("onboarding_submissions").insert({
+          user_id: userId,
+          contact_id: contactId,
+          building_id,
+          category,
+          payload: payload || {},
+          status: "pending",
+        });
+        if (subErr) {
+          console.error("submission insert error (non-fatal)", subErr);
+        }
       }
     }
 
