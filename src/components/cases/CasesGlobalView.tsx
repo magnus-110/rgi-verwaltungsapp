@@ -97,7 +97,7 @@ export const CasesGlobalView = () => {
       }
       return true;
     });
-  }, [cases, buildingFilter, statusFilter, priorityFilter, categoryFilter, search]);
+  }, [cases, buildingFilter, statusFilter, priorityFilter, categoryFilter, search, showSubcases]);
 
   const counts = useMemo(() => {
     const byStatus: Record<string, number> = {};
