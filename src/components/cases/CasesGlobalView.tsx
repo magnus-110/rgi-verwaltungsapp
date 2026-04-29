@@ -221,9 +221,9 @@ export const CasesGlobalView = () => {
           </p>
         </Card>
       ) : view === "list" ? (
-        <CasesList items={filtered} onOpen={setSelectedCaseId} onChangeStatus={(id, status) => updateCase.mutate({ id, status })} />
+        <CasesList items={filtered} onOpen={setSelectedCaseId} onChangeStatus={(id, status) => updateCase.mutate({ id, status })} onDelete={(c) => setDeleteTarget(c)} />
       ) : (
-        <CasesBoard items={filtered} onOpen={setSelectedCaseId} onChangeStatus={(id, status) => updateCase.mutate({ id, status })} />
+        <CasesBoard items={filtered} onOpen={setSelectedCaseId} onChangeStatus={(id, status) => updateCase.mutate({ id, status })} onDelete={(c) => setDeleteTarget(c)} />
       )}
 
       <CaseDetailView caseId={selectedCaseId} onClose={() => setSelectedCaseId(null)} />
@@ -237,6 +237,33 @@ export const CasesGlobalView = () => {
           onCreated={(c) => setSelectedCaseId(c.id)}
         />
       )}
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Vorgang löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget ? (
+                <>„{deleteTarget.title}" wird unwiderruflich gelöscht – inklusive aller Verlaufseinträge und KI-Zusammenfassungen.</>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteTarget) {
+                  deleteCase.mutate(deleteTarget.id);
+                  setDeleteTarget(null);
+                }
+              }}
+            >
+              Löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
