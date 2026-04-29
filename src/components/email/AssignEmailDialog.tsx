@@ -271,7 +271,7 @@ export const AssignEmailDialog = ({
                 </Button>
               </div>
             ) : (
-              <Select value={caseId} onValueChange={setCaseId} disabled={buildingId === "none"}>
+              <Select value={caseId} onValueChange={(v) => { setCaseId(v); setSubcaseId("none"); }} disabled={buildingId === "none"}>
                 <SelectTrigger>
                   <SelectValue placeholder={buildingId === "none" ? "Erst Liegenschaft wählen" : "Keinem Vorgang"} />
                 </SelectTrigger>
@@ -284,6 +284,26 @@ export const AssignEmailDialog = ({
               </Select>
             )}
           </div>
+
+          {caseId !== "none" && subcases.length > 0 && (
+            <div className="space-y-1.5 pl-4 border-l-2 border-primary/30">
+              <Label className="text-sm flex items-center gap-1.5">
+                <GitBranch className="h-4 w-4 text-primary" />
+                Teilvorgang (optional)
+              </Label>
+              <Select value={subcaseId} onValueChange={setSubcaseId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Hauptvorgang verwenden" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Hauptvorgang verwenden</SelectItem>
+                  {subcases.map((s: any) => (
+                    <SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="flex items-center gap-2 pt-2 border-t">
             <Checkbox id="archive-too" checked={archive} onCheckedChange={(v) => setArchive(!!v)} />
