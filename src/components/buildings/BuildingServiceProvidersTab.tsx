@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -229,6 +229,12 @@ export function BuildingServiceProvidersTab({ buildingId }: Props) {
         onOpenChange={setShowManageCats}
         categories={categories}
         onChanged={() => queryClient.invalidateQueries({ queryKey: ["service-provider-categories"] })}
+      />
+
+      <EmergencyEditDialog
+        assignment={providers.find((p) => p.id === emergencyEditId) || null}
+        onClose={() => setEmergencyEditId(null)}
+        onSaved={() => queryClient.invalidateQueries({ queryKey: ["building-service-providers", buildingId] })}
       />
     </div>
   );
