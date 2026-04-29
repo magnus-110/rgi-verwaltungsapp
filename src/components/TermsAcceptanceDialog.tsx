@@ -6,7 +6,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Play, ExternalLink } from "lucide-react";
 
 interface TermsAcceptanceDialogProps {
   open: boolean;
@@ -14,13 +13,11 @@ interface TermsAcceptanceDialogProps {
   onAccepted: () => void;
 }
 
-const VIDEO_URL = "https://youtube.com/shorts/1LBJFaslZOQ?feature=share";
-
 export const TermsAcceptanceDialog = ({ open, userId, onAccepted }: TermsAcceptanceDialogProps) => {
   const [agbAccepted, setAgbAccepted] = useState(false);
   const [datenschutzAccepted, setDatenschutzAccepted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [step, setStep] = useState<1 | 2>(1);
+
 
   const handleAccept = async () => {
     if (!agbAccepted || !datenschutzAccepted) {
@@ -38,7 +35,7 @@ export const TermsAcceptanceDialog = ({ open, userId, onAccepted }: TermsAccepta
       if (error) throw error;
 
       toast.success("Vielen Dank für Ihre Zustimmung!");
-      setStep(2);
+      onAccepted();
     } catch (error) {
       console.error("Error accepting terms:", error);
       toast.error("Fehler beim Speichern. Bitte versuchen Sie es erneut.");
@@ -50,8 +47,6 @@ export const TermsAcceptanceDialog = ({ open, userId, onAccepted }: TermsAccepta
   return (
     <Dialog open={open} onOpenChange={() => {}}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden" onPointerDownOutside={(e) => e.preventDefault()}>
-        {step === 1 ? (
-          <>
             <DialogHeader>
               <DialogTitle>Nutzungsbedingungen akzeptieren</DialogTitle>
               <DialogDescription>
@@ -211,57 +206,6 @@ export const TermsAcceptanceDialog = ({ open, userId, onAccepted }: TermsAccepta
                 {isSubmitting ? "Wird gespeichert..." : "Akzeptieren und fortfahren"}
               </Button>
             </div>
-          </>
-        ) : (
-          <>
-            <DialogHeader>
-              <DialogTitle>Erklärvideo zur App</DialogTitle>
-              <DialogDescription>
-                Schauen Sie sich unser kurzes Erklärvideo an, um die wichtigsten Funktionen der App kennenzulernen.
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="flex flex-col items-center space-y-6 py-4">
-              <a 
-                href={VIDEO_URL} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="relative group cursor-pointer rounded-xl overflow-hidden shadow-lg hover:shadow-xl transition-shadow"
-              >
-                <img 
-                  src="/images/video-thumbnail.png" 
-                  alt="Erklärvideo zur RGI App" 
-                  className="w-full max-w-md rounded-xl"
-                />
-                <div className="absolute inset-0 bg-black/30 flex items-center justify-center group-hover:bg-black/40 transition-colors">
-                  <div className="w-16 h-16 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
-                    <Play className="w-8 h-8 text-primary ml-1" />
-                  </div>
-                </div>
-              </a>
-
-              <div className="flex gap-3 w-full max-w-md">
-                <Button 
-                  variant="outline" 
-                  className="flex-1"
-                  onClick={onAccepted}
-                >
-                  Überspringen
-                </Button>
-                <Button 
-                  className="flex-1 gap-2"
-                  onClick={() => {
-                    window.open(VIDEO_URL, "_blank");
-                    onAccepted();
-                  }}
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  Video ansehen
-                </Button>
-              </div>
-            </div>
-          </>
-        )}
       </DialogContent>
     </Dialog>
   );

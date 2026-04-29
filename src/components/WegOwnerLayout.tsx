@@ -2,10 +2,12 @@
 import { Navigate, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
  import { TermsAcceptanceDialog } from "@/components/TermsAcceptanceDialog";
+ import { IntroVideoDialog } from "@/components/IntroVideoDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { VotingPopup } from "@/components/meetings/VotingPopup";
 import { useHasVisibleFiles } from "@/hooks/useHasVisibleFiles";
 import { OnboardingFAB } from "@/components/onboarding/OnboardingFAB";
+import { useOnboardingContext } from "@/components/onboarding/useOnboardingContext";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { 
@@ -82,6 +84,27 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
  const handleTermsAccepted = () => {
    setTermsAccepted(true);
    setShowTermsDialog(false);
+ };
+
+ // Intro-Video erst NACH abgeschlossenem Onboarding-Wizard zeigen
+ const onboarding = useOnboardingContext();
+ const videoSeenKey = profile?.user_id ? `intro_video_seen_${profile.user_id}` : null;
+ const [videoDismissed, setVideoDismissed] = useState(false);
+ useEffect(() => {
+   if (videoSeenKey && localStorage.getItem(videoSeenKey) === "1") {
+     setVideoDismissed(true);
+   }
+ }, [videoSeenKey]);
+ const onboardingDone =
+   !onboarding.loading &&
+   (!onboarding.isActive ||
+     !!onboarding.progress?.fully_completed_at ||
+     !!onboarding.progress?.step5_completed_at);
+ const showIntroVideo =
+   termsAccepted === true && onboardingDone && !videoDismissed;
+ const dismissIntroVideo = () => {
+   if (videoSeenKey) localStorage.setItem(videoSeenKey, "1");
+   setVideoDismissed(true);
  };
 
   if (loading) {
@@ -258,6 +281,8 @@ export const WegOwnerLayout = ({ children }: WegOwnerLayoutProps) => {
       <VotingPopup />
       {/* Onboarding-Wizard erst zeigen, wenn AGB akzeptiert wurden */}
       {termsAccepted === true && <OnboardingFAB />}
+      {/* Erklärvideo erst NACH Onboarding-Abschluss */}
+      <IntroVideoDialog open={showIntroVideo} onClose={dismissIntroVideo} />
     </div>
   );
 };
