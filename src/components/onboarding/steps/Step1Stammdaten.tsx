@@ -13,6 +13,14 @@ export type PhoneType = "private" | "mobile" | "business";
 export interface PhoneEntry { number: string; type?: PhoneType; note?: string }
 export interface EmailEntry { address: string }
 
+export interface ProxyDocument {
+  path: string;
+  name: string;
+  size: number;
+  type: string;
+  uploaded_at: string;
+}
+
 export interface OtherContactInfo {
   name?: string;
   street?: string;
@@ -21,6 +29,7 @@ export interface OtherContactInfo {
   phone?: string;
   email?: string;
   relation?: string;
+  proxy_documents?: ProxyDocument[];
 }
 
 export interface Step1Data {
