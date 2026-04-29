@@ -175,7 +175,11 @@ export const WegOwnerSettings = () => {
             </span>
           </div>
           <Button onClick={handleEmailChange} disabled={isUpdatingEmail} className="w-full">
-            {isUpdatingEmail ? "Wird geändert..." : "Login-E-Mail ändern"}
+            {isUpdatingEmail
+              ? "Wird gespeichert..."
+              : currentLoginEmail && !currentLoginEmail.toLowerCase().endsWith("@users.rgi-immobilien.app")
+                ? "Login-E-Mail ändern"
+                : "Login-E-Mail hinterlegen"}
           </Button>
         </CardContent>
       </Card>
