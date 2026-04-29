@@ -87,6 +87,10 @@ export function UploadDocumentDialog({
 
   const handleUpload = async () => {
     if (files.length === 0) { toast.error("Bitte mindestens eine Datei wählen"); return; }
+    if (visibility === 'personen' && selectedContactIds.length === 0) {
+      toast.error("Bitte mindestens einen Eigentümer auswählen");
+      return;
+    }
     setUploading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
