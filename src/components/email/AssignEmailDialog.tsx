@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Building2, User, Sparkles, FolderOpen, Link2, Plus, X } from "lucide-react";
+import { Building2, User, Sparkles, FolderOpen, Link2, Plus, X, GitBranch } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useCreateCase } from "@/hooks/useCases";
 import { toast } from "@/hooks/use-toast";
@@ -40,6 +40,7 @@ export const AssignEmailDialog = ({
   const [buildingId, setBuildingId] = useState<string>("none");
   const [contactId, setContactId] = useState<string>("none");
   const [caseId, setCaseId] = useState<string>("none");
+  const [subcaseId, setSubcaseId] = useState<string>("none");
   const [archive, setArchive] = useState(false);
   const [creatingCase, setCreatingCase] = useState(false);
   const [newCaseTitle, setNewCaseTitle] = useState("");
@@ -51,6 +52,7 @@ export const AssignEmailDialog = ({
       setBuildingId(prefilledBuildingId || "none");
       setContactId(prefilledContactId || "none");
       setCaseId(prefilledCaseId || "none");
+      setSubcaseId("none");
       setArchive(false);
       setCreatingCase(false);
       setNewCaseTitle("");
@@ -83,12 +85,28 @@ export const AssignEmailDialog = ({
         .from("cases")
         .select("id, title, status, category")
         .eq("building_id", buildingId)
+        .is("parent_case_id", null)
         .in("status", ["open", "in_progress", "waiting_external", "waiting_owner"])
         .order("updated_at", { ascending: false });
       if (error) throw error;
       return data;
     },
     enabled: buildingId !== "none",
+  });
+
+  const { data: subcases = [] } = useQuery({
+    queryKey: ["subcases-for-assign", caseId],
+    queryFn: async () => {
+      if (caseId === "none") return [];
+      const { data, error } = await supabase
+        .from("cases")
+        .select("id, title, status")
+        .eq("parent_case_id", caseId)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+    enabled: caseId !== "none",
   });
 
   const handleCreateCase = async () => {
@@ -112,11 +130,15 @@ export const AssignEmailDialog = ({
 
   const handleAssign = () => {
     if (!emailId) return;
+    // Sub-case wins if selected, otherwise the main case (or none)
+    const finalCaseId =
+      subcaseId !== "none" ? subcaseId :
+      caseId !== "none" ? caseId : null;
     onAssign({
       emailId,
       buildingId: buildingId !== "none" ? buildingId : null,
       contactId: contactId !== "none" ? contactId : null,
-      caseId: caseId !== "none" ? caseId : null,
+      caseId: finalCaseId,
       archive,
     });
     onOpenChange(false);
@@ -159,7 +181,7 @@ export const AssignEmailDialog = ({
                 </Badge>
               )}
             </Label>
-            <Select value={buildingId} onValueChange={(v) => { setBuildingId(v); setCaseId("none"); setCreatingCase(false); }}>
+            <Select value={buildingId} onValueChange={(v) => { setBuildingId(v); setCaseId("none"); setSubcaseId("none"); setCreatingCase(false); }}>
               <SelectTrigger><SelectValue placeholder="Keine Zuordnung" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Keine Zuordnung</SelectItem>
@@ -249,7 +271,7 @@ export const AssignEmailDialog = ({
                 </Button>
               </div>
             ) : (
-              <Select value={caseId} onValueChange={setCaseId} disabled={buildingId === "none"}>
+              <Select value={caseId} onValueChange={(v) => { setCaseId(v); setSubcaseId("none"); }} disabled={buildingId === "none"}>
                 <SelectTrigger>
                   <SelectValue placeholder={buildingId === "none" ? "Erst Liegenschaft wählen" : "Keinem Vorgang"} />
                 </SelectTrigger>
@@ -262,6 +284,26 @@ export const AssignEmailDialog = ({
               </Select>
             )}
           </div>
+
+          {caseId !== "none" && subcases.length > 0 && (
+            <div className="space-y-1.5 pl-4 border-l-2 border-primary/30">
+              <Label className="text-sm flex items-center gap-1.5">
+                <GitBranch className="h-4 w-4 text-primary" />
+                Teilvorgang (optional)
+              </Label>
+              <Select value={subcaseId} onValueChange={setSubcaseId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Hauptvorgang verwenden" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Hauptvorgang verwenden</SelectItem>
+                  {subcases.map((s: any) => (
+                    <SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="flex items-center gap-2 pt-2 border-t">
             <Checkbox id="archive-too" checked={archive} onCheckedChange={(v) => setArchive(!!v)} />

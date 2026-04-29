@@ -5,13 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sparkles, RefreshCw, Loader2, Pencil, Check, X } from "lucide-react";
+import { Sparkles, RefreshCw, Loader2, Pencil, Check, X, ChevronLeft, GitBranch } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { de } from "date-fns/locale";
 import { useCase, useCaseEvents, useUpdateCase, useSummarizeCase, CASE_STATUS_LABEL, CASE_PRIORITY_LABEL, CASE_CATEGORY_LABEL, CaseStatus, CasePriority } from "@/hooks/useCases";
 import { CaseTimeline } from "./CaseTimeline";
 import { CaseQuickAdd } from "./CaseQuickAdd";
 import { CaseAskAi } from "./CaseAskAi";
+import { SubcasesPanel } from "./SubcasesPanel";
 
 interface Props {
   caseId: string | null;
@@ -26,13 +27,26 @@ const PRIORITY_VARIANT: Record<CasePriority, "default" | "secondary" | "destruct
 };
 
 export const CaseDetailView = ({ caseId, onClose }: Props) => {
-  const { data: caseRow, isLoading } = useCase(caseId);
-  const { data: events = [] } = useCaseEvents(caseId);
+  // Stack of opened cases (for sub-case drilldown). Active = last entry.
+  const [stack, setStack] = useState<string[]>([]);
+  const activeId = stack.length > 0 ? stack[stack.length - 1] : caseId;
+
+  // Reset stack whenever the externally controlled root case changes
+  useEffect(() => {
+    setStack([]);
+  }, [caseId]);
+
+  const { data: caseRow, isLoading } = useCase(activeId);
+  const { data: parentRow } = useCase(caseRow?.parent_case_id || null);
+  const { data: events = [] } = useCaseEvents(activeId);
   const update = useUpdateCase();
   const summarize = useSummarizeCase();
   const [editingMeta, setEditingMeta] = useState(false);
   const [draftTitle, setDraftTitle] = useState("");
   const [draftDescription, setDraftDescription] = useState("");
+
+  const goBack = () => setStack((s) => s.slice(0, -1));
+  const openSub = (id: string) => setStack((s) => [...s, id]);
 
   useEffect(() => {
     if (caseRow && !editingMeta) {
@@ -66,6 +80,21 @@ export const CaseDetailView = ({ caseId, onClose }: Props) => {
           <>
             {/* Header */}
             <div className="p-4 border-b bg-card">
+              {(stack.length > 0 || caseRow.parent_case_id) && (
+                <button
+                  onClick={() => {
+                    if (stack.length > 0) goBack();
+                    else if (caseRow.parent_case_id) setStack([caseRow.parent_case_id]);
+                  }}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mb-2"
+                >
+                  <ChevronLeft className="h-3 w-3" />
+                  <GitBranch className="h-3 w-3" />
+                  <span className="truncate">
+                    Teilvorgang von: {parentRow?.title || "Hauptvorgang"}
+                  </span>
+                </button>
+              )}
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   {editingMeta ? (
@@ -173,6 +202,16 @@ export const CaseDetailView = ({ caseId, onClose }: Props) => {
                     </p>
                   )}
                 </div>
+
+                {/* Sub-cases (only on top-level cases) */}
+                {!caseRow.parent_case_id && (
+                  <SubcasesPanel
+                    parentCaseId={caseRow.id}
+                    buildingId={caseRow.building_id}
+                    managementMode={caseRow.management_mode}
+                    onOpenSubcase={openSub}
+                  />
+                )}
               </div>
             </div>
 

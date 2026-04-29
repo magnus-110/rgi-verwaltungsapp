@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { useCreateCase, CASE_CATEGORY_LABEL, CASE_PRIORITY_LABEL, CaseCategory, CasePriority, CaseRow, ManagementMode } from "@/hooks/useCases";
+import { GitBranch } from "lucide-react";
+import { useCreateCase, useActiveCasesForBuilding, CASE_CATEGORY_LABEL, CASE_PRIORITY_LABEL, CaseCategory, CasePriority, CaseRow, ManagementMode } from "@/hooks/useCases";
 
 interface Props {
   open: boolean;
@@ -13,18 +14,23 @@ interface Props {
   buildingId: string;
   managementMode: ManagementMode;
   onCreated?: (caseRow: CaseRow) => void;
-  defaults?: { title?: string; description?: string; category?: CaseCategory };
+  defaults?: { title?: string; description?: string; category?: CaseCategory; parent_case_id?: string | null };
+  /** When provided, dialog is locked to creating a sub-case of this parent. */
+  forcedParentId?: string | null;
 }
 
-export const CreateCaseDialog = ({ open, onOpenChange, buildingId, managementMode, onCreated, defaults }: Props) => {
+export const CreateCaseDialog = ({ open, onOpenChange, buildingId, managementMode, onCreated, defaults, forcedParentId }: Props) => {
   const [title, setTitle] = useState(defaults?.title || "");
   const [description, setDescription] = useState(defaults?.description || "");
   const [category, setCategory] = useState<CaseCategory>(defaults?.category || "sonstiges");
   const [priority, setPriority] = useState<CasePriority>("medium");
+  const [parentId, setParentId] = useState<string>(forcedParentId || defaults?.parent_case_id || "none");
   const create = useCreateCase();
+  const { data: activeParents = [] } = useActiveCasesForBuilding(forcedParentId ? null : buildingId);
 
   const submit = async () => {
     if (!title.trim()) return;
+    const finalParent = forcedParentId ?? (parentId !== "none" ? parentId : null);
     const c = await create.mutateAsync({
       building_id: buildingId,
       management_mode: managementMode,
@@ -32,17 +38,18 @@ export const CreateCaseDialog = ({ open, onOpenChange, buildingId, managementMod
       description: description.trim() || undefined,
       category,
       priority,
+      parent_case_id: finalParent,
     });
     onCreated?.(c);
     onOpenChange(false);
-    setTitle(""); setDescription(""); setCategory("sonstiges"); setPriority("medium");
+    setTitle(""); setDescription(""); setCategory("sonstiges"); setPriority("medium"); setParentId("none");
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Neuer Vorgang</DialogTitle>
+          <DialogTitle>{forcedParentId ? "Neuer Teilvorgang" : "Neuer Vorgang"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <div>
@@ -77,6 +84,23 @@ export const CreateCaseDialog = ({ open, onOpenChange, buildingId, managementMod
               </Select>
             </div>
           </div>
+          {!forcedParentId && activeParents.length > 0 && (
+            <div>
+              <Label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <GitBranch className="h-3.5 w-3.5" />
+                Optional: Als Teilvorgang von…
+              </Label>
+              <Select value={parentId} onValueChange={setParentId}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Eigenständiger Vorgang</SelectItem>
+                  {activeParents.map((p: any) => (
+                    <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Abbrechen</Button>

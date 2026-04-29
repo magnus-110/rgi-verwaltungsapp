@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { CaseDetailView } from "./CaseDetailView";
 import { CreateCaseDialog } from "./CreateCaseDialog";
-import { Search, LayoutList, Columns, Plus, Building2, Clock, MessageSquare, Loader2, AlertCircle, Trash2 } from "lucide-react";
+import { Search, LayoutList, Columns, Plus, Building2, Clock, MessageSquare, Loader2, AlertCircle, Trash2, GitBranch } from "lucide-react";
 import { formatDistanceToNow, format, isPast } from "date-fns";
 import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -80,9 +80,11 @@ export const CasesGlobalView = () => {
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [createBuildingId, setCreateBuildingId] = useState<string>("");
+  const [showSubcases, setShowSubcases] = useState(false);
 
   const filtered = useMemo(() => {
     return cases.filter((c) => {
+      if (!showSubcases && c.parent_case_id) return false;
       if (buildingFilter !== "all" && c.building_id !== buildingFilter) return false;
       if (statusFilter === "all_open" && c.status === "resolved") return false;
       if (statusFilter !== "all_open" && statusFilter !== "all" && c.status !== statusFilter) return false;
@@ -95,7 +97,7 @@ export const CasesGlobalView = () => {
       }
       return true;
     });
-  }, [cases, buildingFilter, statusFilter, priorityFilter, categoryFilter, search]);
+  }, [cases, buildingFilter, statusFilter, priorityFilter, categoryFilter, search, showSubcases]);
 
   const counts = useMemo(() => {
     const byStatus: Record<string, number> = {};
@@ -165,6 +167,18 @@ export const CasesGlobalView = () => {
               ))}
             </SelectContent>
           </Select>
+
+          <Button
+            type="button"
+            variant={showSubcases ? "secondary" : "outline"}
+            size="sm"
+            className="h-10 gap-1.5"
+            onClick={() => setShowSubcases((v) => !v)}
+            title={showSubcases ? "Teilvorgänge ausblenden" : "Teilvorgänge einblenden"}
+          >
+            <GitBranch className="h-4 w-4" />
+            <span className="hidden md:inline">{showSubcases ? "Teilvorgänge an" : "Teilvorgänge aus"}</span>
+          </Button>
 
           {/* View toggle */}
           <div className="flex border border-border rounded-md overflow-hidden h-10">

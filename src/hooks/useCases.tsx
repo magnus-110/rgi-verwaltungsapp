@@ -27,6 +27,7 @@ export interface CaseRow {
   ai_summary_updated_at: string | null;
   ai_keywords: string[];
   ai_next_steps: string[];
+  parent_case_id: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -133,6 +134,42 @@ export const useCaseEvents = (caseId: string | null) => {
   });
 };
 
+export const useSubcases = (parentCaseId: string | null) => {
+  return useQuery({
+    queryKey: ["subcases", parentCaseId],
+    queryFn: async () => {
+      if (!parentCaseId) return [];
+      const { data, error } = await supabase
+        .from("cases")
+        .select("*")
+        .eq("parent_case_id", parentCaseId)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return (data || []) as CaseRow[];
+    },
+    enabled: !!parentCaseId,
+  });
+};
+
+export const useActiveCasesForBuilding = (buildingId: string | null) => {
+  return useQuery({
+    queryKey: ["cases-active-for-building", buildingId],
+    queryFn: async () => {
+      if (!buildingId) return [];
+      const { data, error } = await supabase
+        .from("cases")
+        .select("id, title, parent_case_id, status")
+        .eq("building_id", buildingId)
+        .is("parent_case_id", null)
+        .in("status", ["open", "in_progress", "waiting_external", "waiting_owner"])
+        .order("updated_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!buildingId,
+  });
+};
+
 export const useCreateCase = () => {
   const qc = useQueryClient();
   return useMutation({
@@ -145,6 +182,7 @@ export const useCreateCase = () => {
       priority?: CasePriority;
       unit_number?: string;
       due_at?: string;
+      parent_case_id?: string | null;
     }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Nicht angemeldet");
@@ -159,7 +197,12 @@ export const useCreateCase = () => {
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["cases", data.building_id] });
       qc.invalidateQueries({ queryKey: ["cases-all"] });
-      toast({ title: "Vorgang angelegt" });
+      qc.invalidateQueries({ queryKey: ["cases-active-for-building", data.building_id] });
+      if (data.parent_case_id) {
+        qc.invalidateQueries({ queryKey: ["subcases", data.parent_case_id] });
+        qc.invalidateQueries({ queryKey: ["case-events", data.parent_case_id] });
+      }
+      toast({ title: data.parent_case_id ? "Teilvorgang angelegt" : "Vorgang angelegt" });
     },
     onError: (e: any) => toast({ title: "Fehler", description: e.message, variant: "destructive" }),
   });
@@ -273,6 +316,11 @@ export const useUpdateCase = () => {
       qc.invalidateQueries({ queryKey: ["cases", data.building_id] });
       qc.invalidateQueries({ queryKey: ["case", data.id] });
       qc.invalidateQueries({ queryKey: ["cases-all"] });
+      if (data.parent_case_id) {
+        qc.invalidateQueries({ queryKey: ["subcases", data.parent_case_id] });
+        qc.invalidateQueries({ queryKey: ["case-events", data.parent_case_id] });
+      }
+      qc.invalidateQueries({ queryKey: ["subcases", data.id] });
     },
   });
 };
