@@ -171,27 +171,6 @@ export const WegOwnerForum = () => {
             </div>
           )}
         </div>
-            <div className="flex gap-2 flex-wrap justify-center mt-6">
-              <Button
-                variant={selectedBuilding === "all" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSelectedBuilding("all")}
-              >
-                Alle Gebäude
-              </Button>
-              {buildings.map((building) => (
-                <Button
-                  key={building.id}
-                  variant={selectedBuilding === building.id ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSelectedBuilding(building.id)}
-                >
-                  {building.name}
-                </Button>
-              ))}
-            </div>
-          )}
-        </div>
 
         {buildings.length === 0 ? (
           <Card className="border-0 shadow-sm bg-white">
