@@ -1,5 +1,7 @@
 // Apply a single field from an onboarding submission to the target tables.
 // Tracks applied fields in submissions.applied_fields (jsonb array of strings).
+// IMPORTANT: For Step-2-fields (qm/mea/hausgeld) the per-unit assignment_id MUST
+// be respected so multi-unit owners get their data on the correct unit.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
 
 const corsHeaders = {
@@ -10,6 +12,22 @@ const corsHeaders = {
 const HEATING_LABELS: Record<string, string> = {
   gas: "Gas", oel: "Öl", fernwaerme: "Fernwärme", waermepumpe: "Wärmepumpe",
   pellets: "Pellets", strom: "Strom",
+};
+
+const UNIT_KIND_LABELS: Record<string, string> = {
+  parking_garage: "Tiefgaragen-Stellplatz",
+  parking_outdoor: "Außenstellplatz",
+  cellar: "Keller",
+  attic: "Speicher/Dachboden",
+  garden: "Gartenanteil",
+  storage: "Abstellraum",
+  other: "Sonstige Einheit",
+};
+
+const parseNum = (v: any): number | null => {
+  if (v == null || v === "") return null;
+  const n = Number(String(v).replace(",", "."));
+  return Number.isFinite(n) ? n : null;
 };
 
 Deno.serve(async (req) => {
@@ -56,7 +74,23 @@ Deno.serve(async (req) => {
 
     const buildingId = (sub as any).building_id as string;
     const contactId = (sub as any).contact_id as string | null;
-    const payload = ((sub as any).payload || {}) as Record<string, any>;
+    const subAssignmentId = (sub as any).assignment_id as string | null;
+    let payload = ((sub as any).payload || {}) as Record<string, any>;
+
+    // If the submission still carries a legacy per_unit map AND value tells us
+    // which unit, narrow the payload to that unit so qm/mea/hausgeld work.
+    const targetAssignmentId: string | null =
+      (value && typeof value === "object" && value.assignment_id) ||
+      subAssignmentId ||
+      null;
+    if (
+      payload.per_unit &&
+      typeof payload.per_unit === "object" &&
+      targetAssignmentId &&
+      payload.per_unit[targetAssignmentId]
+    ) {
+      payload = { ...payload, ...payload.per_unit[targetAssignmentId] };
+    }
 
     // Compute the unique field-key we store in applied_fields
     let appliedKey = field as string;
@@ -68,26 +102,33 @@ Deno.serve(async (req) => {
         case "mea":
         case "hausgeld": {
           if (!contactId) return json({ error: "Kein Kontakt zugeordnet" }, 400);
-          const { data: assignment } = await admin
-            .from("contact_building_assignments")
-            .select("id")
-            .eq("contact_id", contactId)
-            .eq("building_id", buildingId)
-            .limit(1)
-            .maybeSingle();
-          if (!assignment) return json({ error: "Keine Zuordnung gefunden" }, 400);
-          const aid = (assignment as any).id;
+          // Resolve assignment: explicit > submission > fallback (single-unit)
+          let aid: string | null = targetAssignmentId;
+          if (!aid) {
+            const { data: assignment } = await admin
+              .from("contact_building_assignments")
+              .select("id")
+              .eq("contact_id", contactId)
+              .eq("building_id", buildingId)
+              .is("parent_assignment_id", null)
+              .eq("is_active", true)
+              .limit(1)
+              .maybeSingle();
+            aid = (assignment as any)?.id ?? null;
+          }
+          if (!aid) return json({ error: "Keine Zuordnung gefunden" }, 400);
 
           if (field === "qm") {
             const v = payload.square_meters ?? payload.qm;
-            if (v == null) return json({ error: "Kein Wert vorhanden" }, 400);
+            const num = parseNum(v);
+            if (num == null) return json({ error: "Kein Wert vorhanden" }, 400);
             await admin
               .from("contact_building_assignments")
-              .update({ area_sqm_override: Number(String(v).replace(",", ".")) })
+              .update({ area_sqm_override: num })
               .eq("id", aid);
           } else if (field === "mea") {
             const v = payload.mea_share ?? payload.mea;
-            if (v == null) return json({ error: "Kein Wert vorhanden" }, 400);
+            if (v == null || v === "") return json({ error: "Kein Wert vorhanden" }, 400);
             const meaValue = String(v);
             const { data: existingShare } = await admin
               .from("contact_building_shares")
@@ -108,8 +149,8 @@ Deno.serve(async (req) => {
             }
           } else if (field === "hausgeld") {
             const v = payload.monthly_fee ?? payload.hausgeld;
-            if (v == null) return json({ error: "Kein Wert vorhanden" }, 400);
-            const amt = Number(String(v).replace(",", "."));
+            const amt = parseNum(v);
+            if (amt == null) return json({ error: "Kein Wert vorhanden" }, 400);
             const { data: existingCost } = await admin
               .from("contact_building_costs")
               .select("id")
@@ -128,6 +169,118 @@ Deno.serve(async (req) => {
                 .insert({ assignment_id: aid, cost_type: "Hausgeld", amount: amt });
             }
           }
+          // Per-unit applied key
+          appliedKey = `${field}:${aid}`;
+          break;
+        }
+
+        // ---------- STEP 2 extra: Sub-Einheit (TG, Stellplatz, Keller, ...) ----------
+        case "secondary_unit": {
+          if (!contactId) return json({ error: "Kein Kontakt zugeordnet" }, 400);
+          const idx = Number(value?.index ?? -1);
+          const su = (payload.secondary_units || [])[idx];
+          if (!su) return json({ error: "Sub-Einheit nicht gefunden" }, 400);
+
+          // Parent assignment = main assignment of this submission/owner in this building
+          let parentAid: string | null = targetAssignmentId;
+          if (!parentAid) {
+            const { data: assignment } = await admin
+              .from("contact_building_assignments")
+              .select("id")
+              .eq("contact_id", contactId)
+              .eq("building_id", buildingId)
+              .is("parent_assignment_id", null)
+              .eq("is_active", true)
+              .limit(1)
+              .maybeSingle();
+            parentAid = (assignment as any)?.id ?? null;
+          }
+          if (!parentAid) return json({ error: "Hauptzuordnung nicht gefunden" }, 400);
+
+          // Insert sub-assignment (skip if a similar one already exists)
+          const unitKind = String(su.unit_kind || "other");
+          const unitNumber = (su.unit_number || "").toString().trim() || null;
+          const { data: existingSub } = await admin
+            .from("contact_building_assignments")
+            .select("id")
+            .eq("parent_assignment_id", parentAid)
+            .eq("unit_kind", unitKind)
+            .eq("contact_id", contactId)
+            .eq("building_id", buildingId)
+            .limit(1)
+            .maybeSingle();
+
+          let subAid: string;
+          if (existingSub) {
+            subAid = (existingSub as any).id;
+            await admin
+              .from("contact_building_assignments")
+              .update({ unit_number: unitNumber, is_active: true })
+              .eq("id", subAid);
+          } else {
+            const { data: created, error: insErr } = await admin
+              .from("contact_building_assignments")
+              .insert({
+                contact_id: contactId,
+                building_id: buildingId,
+                parent_assignment_id: parentAid,
+                role_in_building: "eigentuemer",
+                unit_kind: unitKind,
+                unit_number: unitNumber,
+                is_active: true,
+                notes: `Aus Onboarding übernommen (${UNIT_KIND_LABELS[unitKind] || unitKind})`,
+              })
+              .select("id")
+              .single();
+            if (insErr || !created) {
+              return json({ error: `Sub-Einheit anlegen fehlgeschlagen: ${insErr?.message}` }, 500);
+            }
+            subAid = (created as any).id;
+          }
+
+          // Optional: MEA + Hausgeld
+          const meaVal = su.mea_share;
+          if (meaVal != null && String(meaVal).trim() !== "") {
+            const { data: existingShare } = await admin
+              .from("contact_building_shares")
+              .select("id")
+              .eq("assignment_id", subAid)
+              .eq("share_type", "mea")
+              .limit(1)
+              .maybeSingle();
+            if (existingShare) {
+              await admin
+                .from("contact_building_shares")
+                .update({ share_value: String(meaVal) })
+                .eq("id", (existingShare as any).id);
+            } else {
+              await admin
+                .from("contact_building_shares")
+                .insert({ assignment_id: subAid, share_type: "mea", share_value: String(meaVal) });
+            }
+          }
+          const feeNum = parseNum(su.monthly_fee);
+          if (feeNum != null) {
+            const { data: existingCost } = await admin
+              .from("contact_building_costs")
+              .select("id")
+              .eq("assignment_id", subAid)
+              .ilike("cost_type", "%hausgeld%")
+              .limit(1)
+              .maybeSingle();
+            if (existingCost) {
+              await admin
+                .from("contact_building_costs")
+                .update({ amount: feeNum })
+                .eq("id", (existingCost as any).id);
+            } else {
+              await admin
+                .from("contact_building_costs")
+                .insert({ assignment_id: subAid, cost_type: "Hausgeld", amount: feeNum });
+            }
+          }
+
+          appliedKey = `secondary_unit:${parentAid}:${idx}`;
           break;
         }
 
