@@ -27,13 +27,26 @@ const PRIORITY_VARIANT: Record<CasePriority, "default" | "secondary" | "destruct
 };
 
 export const CaseDetailView = ({ caseId, onClose }: Props) => {
-  const { data: caseRow, isLoading } = useCase(caseId);
-  const { data: events = [] } = useCaseEvents(caseId);
+  // Stack of opened cases (for sub-case drilldown). Active = last entry.
+  const [stack, setStack] = useState<string[]>([]);
+  const activeId = stack.length > 0 ? stack[stack.length - 1] : caseId;
+
+  // Reset stack whenever the externally controlled root case changes
+  useEffect(() => {
+    setStack([]);
+  }, [caseId]);
+
+  const { data: caseRow, isLoading } = useCase(activeId);
+  const { data: parentRow } = useCase(caseRow?.parent_case_id || null);
+  const { data: events = [] } = useCaseEvents(activeId);
   const update = useUpdateCase();
   const summarize = useSummarizeCase();
   const [editingMeta, setEditingMeta] = useState(false);
   const [draftTitle, setDraftTitle] = useState("");
   const [draftDescription, setDraftDescription] = useState("");
+
+  const goBack = () => setStack((s) => s.slice(0, -1));
+  const openSub = (id: string) => setStack((s) => [...s, id]);
 
   useEffect(() => {
     if (caseRow && !editingMeta) {
