@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Accordion, AccordionContent, AccordionItem, AccordionTrigger,
 } from "@/components/ui/accordion";
@@ -11,8 +10,8 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import {
-  User, Home, Building2, Wrench, Sparkles, AlertTriangle, CheckCircle2,
-  TrendingUp, MapPin, Star, Flame, Users,
+  Home, Building2, Wrench, Sparkles, AlertTriangle, CheckCircle2,
+  TrendingUp, MapPin, Star, Flame, Users, ParkingSquare,
 } from "lucide-react";
 import { ApplyFieldButton } from "./ApplyFieldButton";
 import { SERVICE_PROVIDER_CATEGORIES } from "@/lib/serviceProviderCategories";
@@ -31,6 +30,16 @@ const PROBLEM_AREA_LABELS: Record<string, string> = {
   fenster: "Fenster", aufzug: "Aufzug",
 };
 
+const UNIT_KIND_LABELS: Record<string, string> = {
+  parking_garage: "Tiefgaragen-Stellplatz",
+  parking_outdoor: "Außenstellplatz",
+  cellar: "Keller",
+  attic: "Speicher/Dachboden",
+  garden: "Gartenanteil",
+  storage: "Abstellraum",
+  other: "Sonstige Einheit",
+};
+
 export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props) => {
   // All submissions (any status) for this building
   const { data: submissions = [] } = useQuery({
@@ -45,21 +54,19 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
     },
   });
 
-  // Owner assignments incl. names
+  // Owner assignments (top-level units only) incl. names
   const { data: assignments = [] } = useQuery({
     queryKey: ["onb-overview-assignments", buildingId],
     queryFn: async () => {
       const { data } = await supabase
         .from("contact_building_assignments")
         .select(`
-          id, contact_id, unit_number, area_sqm_override,
-          address_street_override, address_zip_override, address_city_override,
-          phones_override, emails_override, primary_contact_self, primary_contact_other,
-          expectations_override, is_cash_auditor,
-          contact:contacts(id, salutation, first_name, last_name, company_name, user_id, address_street, address_zip, address_city)
+          id, contact_id, unit_number, parent_assignment_id,
+          contact:contacts(id, salutation, first_name, last_name, company_name, user_id)
         `)
         .eq("building_id", buildingId)
         .eq("is_active", true)
+        .is("parent_assignment_id", null)
         .in("role_in_building", ["eigentuemer", "beirat"]);
       return (data ?? []) as any[];
     },
@@ -89,7 +96,13 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
     },
   });
 
-  // Map user_id → assignment / display name
+  // Lookup maps
+  const assignmentById = useMemo(() => {
+    const m = new Map<string, any>();
+    assignments.forEach((a: any) => m.set(a.id, a));
+    return m;
+  }, [assignments]);
+
   const assignmentByUser = useMemo(() => {
     const m = new Map<string, any>();
     assignments.forEach((a: any) => {
@@ -98,18 +111,46 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
     return m;
   }, [assignments]);
 
-  const nameOf = (userId: string) => {
-    const a = assignmentByUser.get(userId);
-    if (!a?.contact) return userId.slice(0, 8);
-    const c = a.contact;
+  const contactById = useMemo(() => {
+    const m = new Map<string, any>();
+    assignments.forEach((a: any) => {
+      if (a.contact?.id) m.set(a.contact.id, a.contact);
+    });
+    return m;
+  }, [assignments]);
+
+  const formatContactName = (c: any) => {
+    if (!c) return null;
     if (c.company_name) return c.company_name;
-    return [c.first_name, c.last_name].filter(Boolean).join(" ") || userId.slice(0, 8);
+    return [c.first_name, c.last_name].filter(Boolean).join(" ") || null;
   };
 
-  // Submissions sind in der DB nach `category` gruppiert (es gibt kein `step`-Feld).
-  // Mapping: wohnungsdaten=Step2, gebaeudeinformationen=Step3, dienstleister=Step4, bewertung=Step5.
-  // Dedupe: pro Eigentümer (user_id) + Kategorie nur die NEUESTE Einreichung anzeigen.
-  // (submissions ist bereits nach created_at DESC sortiert.)
+  // Resolve owner display name from a submission row using multiple fallbacks.
+  const nameOf = (sub: any): string => {
+    // 1) via assignment_id → unique unit's contact
+    const a1 = sub?.assignment_id ? assignmentById.get(sub.assignment_id) : null;
+    const n1 = formatContactName(a1?.contact);
+    if (n1) return n1;
+    // 2) via contact_id
+    const c2 = sub?.contact_id ? contactById.get(sub.contact_id) : null;
+    const n2 = formatContactName(c2);
+    if (n2) return n2;
+    // 3) via user_id
+    const a3 = sub?.user_id ? assignmentByUser.get(sub.user_id) : null;
+    const n3 = formatContactName(a3?.contact);
+    if (n3) return n3;
+    return "Unbekannter Eigentümer";
+  };
+
+  // Backwards-compat helper for sections that only have a user_id (Step 5)
+  const nameByUserId = (userId: string): string => {
+    const a = assignmentByUser.get(userId);
+    return formatContactName(a?.contact) || "Unbekannter Eigentümer";
+  };
+
+  // Submissions sind in der DB nach `category` gruppiert.
+  // Step 2 wird per (user_id, assignment_id) dedupliziert (latest gewinnt),
+  // alle anderen Kategorien per user_id.
   const dedupeLatestPerUser = (rows: any[]) => {
     const seen = new Set<string>();
     const out: any[] = [];
@@ -122,49 +163,156 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
     return out;
   };
 
-  // ---- STEP 2: Wohnungsdaten ----
-  const step2Submissions = dedupeLatestPerUser(
-    submissions.filter((s: any) => s.category === "wohnungsdaten")
-  );
+  const dedupeLatestPerUserAndUnit = (rows: any[]) => {
+    const seen = new Set<string>();
+    const out: any[] = [];
+    for (const r of rows) {
+      const key = `${r.user_id || r.contact_id || r.id}|${r.assignment_id || "_"}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(r);
+    }
+    return out;
+  };
+
   const parseNum = (v: any): number => {
     if (v == null || v === "") return NaN;
     const n = parseFloat(String(v).replace(",", "."));
     return isNaN(n) ? NaN : n;
   };
+
+  // ---- STEP 2: Wohnungsdaten (per Einheit) ----
+  type UnitRow = {
+    submissionId: string;
+    submission: any;
+    assignmentId: string | null;
+    ownerName: string;
+    unitLabel: string;
+    qm: any;
+    mea: any;
+    hg: any;
+    secondaryUnits: any[];
+  };
+
+  const step2RawSubs = submissions.filter((s: any) => s.category === "wohnungsdaten");
+
+  // Expand each submission into one or more rows (assignment_id present → 1 row,
+  // legacy per_unit payload → N rows)
+  const step2Rows = useMemo<UnitRow[]>(() => {
+    const expanded: UnitRow[] = [];
+    const subs = dedupeLatestPerUserAndUnit(step2RawSubs);
+
+    // For legacy rows (no assignment_id, no per_unit), keep one entry
+    subs.forEach((s: any) => {
+      const ownerName = nameOf(s);
+      if (s.payload?.per_unit && typeof s.payload.per_unit === "object") {
+        Object.entries(s.payload.per_unit).forEach(([aid, p]: [string, any]) => {
+          const a = assignmentById.get(aid);
+          expanded.push({
+            submissionId: s.id,
+            submission: s,
+            assignmentId: aid,
+            ownerName,
+            unitLabel: a?.unit_number || aid.slice(0, 8),
+            qm: p?.square_meters ?? p?.qm,
+            mea: p?.mea_share ?? p?.mea,
+            hg: p?.monthly_fee ?? p?.hausgeld,
+            secondaryUnits: Array.isArray(p?.secondary_units) ? p.secondary_units : [],
+          });
+        });
+      } else {
+        const aid = s.assignment_id || null;
+        const a = aid ? assignmentById.get(aid) : null;
+        expanded.push({
+          submissionId: s.id,
+          submission: s,
+          assignmentId: aid,
+          ownerName,
+          unitLabel: a?.unit_number || (aid ? aid.slice(0, 8) : "—"),
+          qm: s.payload?.square_meters ?? s.payload?.qm,
+          mea: s.payload?.mea_share ?? s.payload?.mea,
+          hg: s.payload?.monthly_fee ?? s.payload?.hausgeld,
+          secondaryUnits: Array.isArray(s.payload?.secondary_units) ? s.payload.secondary_units : [],
+        });
+      }
+    });
+
+    // Sort by ownerName, then unitLabel
+    expanded.sort((a, b) => {
+      const c = a.ownerName.localeCompare(b.ownerName);
+      if (c !== 0) return c;
+      return String(a.unitLabel).localeCompare(String(b.unitLabel));
+    });
+    return expanded;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step2RawSubs, assignmentById, contactById, assignmentByUser]);
+
   const meaSum = useMemo(() => {
-    return step2Submissions.reduce((sum: number, s: any) => {
-      const v = parseNum(s.payload?.mea_share ?? s.payload?.mea);
+    return step2Rows.reduce((sum, r) => {
+      const v = parseNum(r.mea);
       return sum + (isNaN(v) ? 0 : v);
     }, 0);
-  }, [step2Submissions]);
+  }, [step2Rows]);
 
   // ---- STEP 3: Gebäudezustand ----
   const step3Subs = dedupeLatestPerUser(submissions.filter((s: any) => s.category === "gebaeudeinformationen"));
   const ratings = [
     ...assessments,
     ...step3Subs.map((s: any) => ({
-      condition_rating: s.payload?.condition_rating,
+      condition_rating: s.payload?.condition_rating ?? s.payload?.general_impression_score,
       problem_areas: s.payload?.problem_areas || [],
+      problem_notes: s.payload?.problem_notes || {},
+      refill_contact: s.payload?.refill_contact,
       user_id: s.user_id,
+      submission_id: s.id,
+      applied_fields: s.applied_fields || [],
     })),
   ].filter((r: any) => r.condition_rating != null || (r.problem_areas && r.problem_areas.length > 0));
   const ratedOnly = ratings.filter((r: any) => r.condition_rating != null);
   const avgRating = ratedOnly.length
     ? ratedOnly.reduce((s: number, r: any) => s + Number(r.condition_rating), 0) / ratedOnly.length
     : null;
-  const problemFreq: Record<string, number> = {};
-  ratings.forEach((r: any) => {
-    (r.problem_areas || []).forEach((p: string) => {
-      problemFreq[p] = (problemFreq[p] || 0) + 1;
+  // Problem-Aggregation mit Notizen
+  type ProblemRow = { area: string; count: number; notes: { name: string; note: string; submission_id: string; applied: boolean }[] };
+  const problemAggregation = useMemo<ProblemRow[]>(() => {
+    const m = new Map<string, ProblemRow>();
+    step3Subs.forEach((s: any) => {
+      const af: string[] = Array.isArray(s.applied_fields) ? s.applied_fields : [];
+      const areas: string[] = Array.isArray(s.payload?.problem_areas) ? s.payload.problem_areas : [];
+      const notes: Record<string, string> = s.payload?.problem_notes || {};
+      areas.forEach((area) => {
+        const row = m.get(area) || { area, count: 0, notes: [] };
+        row.count += 1;
+        const note = notes[area];
+        if (note) {
+          row.notes.push({
+            name: nameByUserId(s.user_id),
+            note: String(note),
+            submission_id: s.id,
+            applied: af.includes(`problem_area:${area}`),
+          });
+        }
+        m.set(area, row);
+      });
     });
-  });
-  const sortedProblems = Object.entries(problemFreq).sort((a, b) => b[1] - a[1]);
+    return Array.from(m.values()).sort((a, b) => b.count - a.count);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step3Subs, assignmentByUser, contactById]);
+
+  // Refill-Contact-Vorschläge
+  const refillContacts = useMemo(() => {
+    return step3Subs
+      .filter((s: any) => s.payload?.refill_contact)
+      .map((s: any) => ({
+        name: nameByUserId(s.user_id),
+        suggestion: String(s.payload.refill_contact),
+      }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step3Subs, assignmentByUser]);
 
   // ---- STEP 4: Dienstleister (consensus) ----
-  // Payload-Struktur: { selections: { trade: [contactId, ...] }, custom: [{ trade, category, name }] }
   const step4Subs = dedupeLatestPerUser(submissions.filter((s: any) => s.category === "dienstleister"));
 
-  // Lookup für Kontakt-Namen (aus Step-4 Selections referenziert)
   const referencedContactIds = useMemo(() => {
     const ids = new Set<string>();
     step4Subs.forEach((s: any) => {
@@ -196,7 +344,6 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
     return m;
   }, [providerContacts]);
 
-  // Lookup of already-approved providers (case-insensitive name+category match)
   const approvedProviderSet = useMemo(() => {
     const s = new Set<string>();
     (providers as any[]).forEach((p: any) => {
@@ -210,13 +357,15 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
     category: string;
     count: number;
     mentioned_by: string[];
-    submission_id: string;        // first submission this came from (for apply button)
+    submission_id: string;
+    phone?: string | null;
+    email?: string | null;
     applied_in_submission: boolean;
     already_approved: boolean;
   };
   const providerCounts = useMemo<ProviderRow[]>(() => {
     const m = new Map<string, ProviderRow>();
-    const bump = (key: string, name: string, category: string, userId: string, sub: any) => {
+    const bump = (key: string, name: string, category: string, userId: string, sub: any, extras?: { phone?: string | null; email?: string | null }) => {
       const existing = m.get(key);
       const appliedKey = `provider:${category}:${name.toLowerCase()}`;
       const appliedInSub = Array.isArray(sub.applied_fields) && sub.applied_fields.includes(appliedKey);
@@ -224,10 +373,14 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
         existing.count += 1;
         if (!existing.mentioned_by.includes(userId)) existing.mentioned_by.push(userId);
         existing.applied_in_submission = existing.applied_in_submission || appliedInSub;
+        if (!existing.phone && extras?.phone) existing.phone = extras.phone;
+        if (!existing.email && extras?.email) existing.email = extras.email;
       } else {
         m.set(key, {
           name, category, count: 1, mentioned_by: [userId],
           submission_id: sub.id,
+          phone: extras?.phone ?? null,
+          email: extras?.email ?? null,
           applied_in_submission: appliedInSub,
           already_approved: approvedProviderSet.has(`${category.toLowerCase()}|${name.toLowerCase()}`),
         });
@@ -247,7 +400,10 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
         const name = String(c?.name || "").trim();
         if (!name) return;
         const cat = c?.category || c?.trade || "sonstige";
-        bump(`custom:${name.toLowerCase()}|${cat}`, name, cat, s.user_id, s);
+        bump(`custom:${name.toLowerCase()}|${cat}`, name, cat, s.user_id, s, {
+          phone: c?.phone || null,
+          email: c?.email || null,
+        });
       });
     });
     return Array.from(m.values()).sort((a, b) => b.count - a.count);
@@ -347,12 +503,13 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
               <div className="flex items-center gap-2">
                 <Home className="h-4 w-4" />
                 <span className="font-medium">Schritt 2: Wohnungsdaten</span>
-                <Badge variant="secondary">{step2Submissions.length} Eingaben</Badge>
+                <Badge variant="secondary">{step2Rows.length} Einheiten</Badge>
               </div>
             </AccordionTrigger>
             <AccordionContent>
               <p className="text-xs text-muted-foreground mb-3">
-                MEA-Anteile, Wohnfläche und Hausgeld pro Wohneinheit.
+                MEA-Anteile, Wohnfläche und Hausgeld pro Wohneinheit. Multi-Unit-Eigentümer
+                erscheinen mit einer eigenen Zeile pro Einheit.
                 {meaSum > 0 && (
                   <span className={`ml-2 font-medium ${Math.abs(meaSum - 1000) < 1 || Math.abs(meaSum - 1) < 0.001 ? "text-success" : "text-warning"}`}>
                     Summe MEA: {meaSum.toFixed(2)}
@@ -360,7 +517,7 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
                   </span>
                 )}
               </p>
-              {step2Submissions.length === 0 ? (
+              {step2Rows.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4 text-center">Noch keine Eingaben.</p>
               ) : (
                 <Table>
@@ -374,22 +531,23 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {step2Submissions.map((s: any) => {
-                      const p = s.payload || {};
-                      const a = assignmentByUser.get(s.user_id);
-                      const af: string[] = Array.isArray(s.applied_fields) ? s.applied_fields : [];
-                      const qm = p.square_meters ?? p.qm;
-                      const mea = p.mea_share ?? p.mea;
-                      const hg = p.monthly_fee ?? p.hausgeld;
+                    {step2Rows.map((r) => {
+                      const af: string[] = Array.isArray(r.submission.applied_fields) ? r.submission.applied_fields : [];
+                      const aid = r.assignmentId;
+                      // Per-unit applied keys, plus legacy single-unit keys
+                      const isApplied = (field: "qm" | "mea" | "hausgeld") =>
+                        (aid && af.includes(`${field}:${aid}`)) || af.includes(field);
+
                       const cell = (val: any, suffix: string, field: "qm" | "mea" | "hausgeld") => {
                         if (val == null || val === "") return <span className="text-muted-foreground">—</span>;
-                        const applied = af.includes(field);
+                        const applied = isApplied(field);
                         return (
                           <div className={`flex items-center gap-2 rounded-md px-1.5 py-1 ${applied ? "bg-success/10 border border-success/30" : ""}`}>
                             <span className="font-medium">{val}{suffix}</span>
                             <ApplyFieldButton
-                              submissionId={s.id}
+                              submissionId={r.submissionId}
                               field={field}
+                              value={aid ? { assignment_id: aid } : undefined}
                               applied={applied}
                               buildingId={buildingId}
                               label="Übernehmen"
@@ -398,13 +556,57 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
                         );
                       };
                       return (
-                        <TableRow key={s.id}>
-                          <TableCell className="font-medium">{nameOf(s.user_id)}</TableCell>
-                          <TableCell>{a?.unit_number || "—"}</TableCell>
-                          <TableCell>{cell(qm, "", "qm")}</TableCell>
-                          <TableCell>{cell(mea, "", "mea")}</TableCell>
-                          <TableCell>{cell(hg, " €", "hausgeld")}</TableCell>
-                        </TableRow>
+                        <>
+                          <TableRow key={`${r.submissionId}-${aid ?? "main"}`}>
+                            <TableCell className="font-medium">{r.ownerName}</TableCell>
+                            <TableCell>
+                              <span className="font-mono text-xs">{r.unitLabel}</span>
+                            </TableCell>
+                            <TableCell>{cell(r.qm, " m²", "qm")}</TableCell>
+                            <TableCell>{cell(r.mea, "", "mea")}</TableCell>
+                            <TableCell>{cell(r.hg, " €", "hausgeld")}</TableCell>
+                          </TableRow>
+                          {/* Sub-units (Tiefgarage, Stellplatz, Keller …) */}
+                          {r.secondaryUnits.length > 0 && r.secondaryUnits.map((su: any, idx: number) => {
+                            const appliedKey = aid ? `secondary_unit:${aid}:${idx}` : null;
+                            const applied = appliedKey ? af.includes(appliedKey) : false;
+                            const label = UNIT_KIND_LABELS[su.unit_kind] || su.unit_kind || "Nebeneinheit";
+                            const subUnitLabel = [label, su.unit_number].filter(Boolean).join(" · ");
+                            return (
+                              <TableRow key={`${r.submissionId}-${aid ?? "main"}-su-${idx}`} className="bg-muted/20">
+                                <TableCell />
+                                <TableCell>
+                                  <div className="flex items-center gap-2 text-xs text-muted-foreground pl-3">
+                                    <ParkingSquare className="h-3.5 w-3.5" />
+                                    <span>{subUnitLabel}</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell />
+                                <TableCell>
+                                  {su.mea_share && String(su.mea_share).trim() !== "" ? (
+                                    <span className="text-xs">{su.mea_share}</span>
+                                  ) : <span className="text-muted-foreground text-xs">—</span>}
+                                </TableCell>
+                                <TableCell>
+                                  <div className={`flex items-center gap-2 rounded-md px-1.5 py-1 ${applied ? "bg-success/10 border border-success/30" : ""}`}>
+                                    {su.monthly_fee && String(su.monthly_fee).trim() !== "" ? (
+                                      <span className="text-xs font-medium">{su.monthly_fee} €</span>
+                                    ) : <span className="text-muted-foreground text-xs">—</span>}
+                                    <ApplyFieldButton
+                                      submissionId={r.submissionId}
+                                      field="secondary_unit"
+                                      value={{ index: idx, assignment_id: aid }}
+                                      applied={applied}
+                                      buildingId={buildingId}
+                                      label="Anlegen"
+                                      appliedLabel="Angelegt"
+                                    />
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </>
                       );
                     })}
                   </TableBody>
@@ -468,28 +670,78 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
                     <AlertTriangle className="h-4 w-4 text-warning" />
                     Häufigste Problembereiche
                   </div>
-                  {sortedProblems.length === 0 ? (
+                  {problemAggregation.length === 0 ? (
                     <p className="text-xs text-muted-foreground">Keine Probleme gemeldet.</p>
                   ) : (
                     <div className="space-y-1">
-                      {sortedProblems.slice(0, 5).map(([area, count]) => (
-                        <div key={area} className="flex items-center justify-between text-xs">
-                          <span>{PROBLEM_AREA_LABELS[area] || area}</span>
-                          <Badge variant="outline">{count}× genannt</Badge>
+                      {problemAggregation.slice(0, 5).map((p) => (
+                        <div key={p.area} className="flex items-center justify-between text-xs">
+                          <span>{PROBLEM_AREA_LABELS[p.area] || p.area}</span>
+                          <Badge variant="outline">{p.count}× genannt</Badge>
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
               </div>
-              {sortedProblems.length > 0 && sortedProblems[0][1] >= 2 && (
+
+              {/* Detail-Notizen je Problembereich */}
+              {problemAggregation.some((p) => p.notes.length > 0) && (
+                <div className="rounded-md border p-3 mb-3">
+                  <div className="text-sm font-medium mb-2">Detail-Notizen der Eigentümer</div>
+                  <div className="space-y-3">
+                    {problemAggregation.filter((p) => p.notes.length > 0).map((p) => (
+                      <div key={p.area}>
+                        <div className="text-xs font-medium text-muted-foreground mb-1">
+                          {PROBLEM_AREA_LABELS[p.area] || p.area}
+                        </div>
+                        <div className="space-y-1.5">
+                          {p.notes.map((n, i) => (
+                            <div key={i} className={`flex items-start justify-between gap-2 text-xs rounded px-2 py-1.5 border ${n.applied ? "bg-success/10 border-success/30" : "bg-muted/30"}`}>
+                              <div className="min-w-0">
+                                <div className="font-medium">{n.name}</div>
+                                <div className="text-muted-foreground">{n.note}</div>
+                              </div>
+                              <ApplyFieldButton
+                                submissionId={n.submission_id}
+                                field="problem_area"
+                                value={{ area: p.area }}
+                                applied={n.applied}
+                                buildingId={buildingId}
+                                label="Übernehmen"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Heizöl-Nachfüllkontakte */}
+              {refillContacts.length > 0 && (
+                <div className="rounded-md border p-3 mb-3">
+                  <div className="text-sm font-medium mb-2">Heizöl-Nachfüllkontakt (Vorschläge)</div>
+                  <div className="space-y-1.5">
+                    {refillContacts.map((rc, i) => (
+                      <div key={i} className="text-xs flex items-center gap-2">
+                        <Badge variant="outline" className="text-[10px]">{rc.name}</Badge>
+                        <span>{rc.suggestion}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {problemAggregation.length > 0 && problemAggregation[0].count >= 2 && (
                 <div className="rounded-md border border-warning/30 bg-warning/5 p-3 text-sm">
                   <div className="flex items-start gap-2">
                     <TrendingUp className="h-4 w-4 text-warning mt-0.5" />
                     <div>
                       <p className="font-medium">Empfehlung</p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Mehrere Eigentümer melden Probleme im Bereich <b>{PROBLEM_AREA_LABELS[sortedProblems[0][0]] || sortedProblems[0][0]}</b>. Prüfen Sie eine Inspektion oder Wartungsmaßnahme.
+                        Mehrere Eigentümer melden Probleme im Bereich <b>{PROBLEM_AREA_LABELS[problemAggregation[0].area] || problemAggregation[0].area}</b>. Prüfen Sie eine Inspektion oder Wartungsmaßnahme.
                       </p>
                     </div>
                   </div>
@@ -533,6 +785,12 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
                           <div className="min-w-0">
                             <div className="font-medium text-sm">{p.name}</div>
                             <div className="text-xs text-muted-foreground">{TRADE_LABEL(p.category)}</div>
+                            {(p.phone || p.email) && (
+                              <div className="text-[11px] text-muted-foreground mt-0.5 flex flex-wrap gap-x-3">
+                                {p.phone && <span>📞 {p.phone}</span>}
+                                {p.email && <span>✉ {p.email}</span>}
+                              </div>
+                            )}
                           </div>
                           <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                             <Badge variant={high ? "default" : "outline"}>
@@ -547,7 +805,7 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
                             <ApplyFieldButton
                               submissionId={p.submission_id}
                               field="provider"
-                              value={{ name: p.name, category: p.category, trade: p.category }}
+                              value={{ name: p.name, category: p.category, trade: p.category, phone: p.phone, email: p.email }}
                               applied={isApplied}
                               buildingId={buildingId}
                               label="Übernehmen"
@@ -626,7 +884,7 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
                     <div className="space-y-1.5">
                       {cashAuditors.map(({ user_id, submission_id, applied }) => (
                         <div key={user_id} className={`flex items-center justify-between gap-2 text-xs rounded px-1.5 py-1 ${applied ? "bg-success/10 border border-success/30" : ""}`}>
-                          <span className="truncate">{nameOf(user_id)}</span>
+                          <span className="truncate">{nameByUserId(user_id)}</span>
                           <ApplyFieldButton
                             submissionId={submission_id}
                             field="cash_auditor"
@@ -651,7 +909,7 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
                     <div className="space-y-1.5">
                       {beiratMembers.map(({ user_id, submission_id, applied }) => (
                         <div key={user_id} className={`flex items-center justify-between gap-2 text-xs rounded px-1.5 py-1 ${applied ? "bg-success/10 border border-success/30" : ""}`}>
-                          <span className="truncate">{nameOf(user_id)}</span>
+                          <span className="truncate">{nameByUserId(user_id)}</span>
                           <ApplyFieldButton
                             submissionId={submission_id}
                             field="beirat_member"
