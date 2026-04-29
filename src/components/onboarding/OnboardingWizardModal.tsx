@@ -537,52 +537,86 @@ const StammdatenModeQuestionCard = ({
   onChoose: (allSame: boolean) => void;
 }) => {
   return (
-    <div className="max-w-md mx-auto py-2 space-y-4">
-      <div className="bg-card rounded-[16px] border border-border/60 px-5 py-6 space-y-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-        <div className="space-y-2">
-          <div className="text-[10px] font-semibold tracking-[0.16em] text-muted-foreground/80 uppercase">
-            Mehrere Einheiten
+    <div className="max-w-md mx-auto py-2 space-y-5">
+      {/* Header-Karte mit dezenter Orange-Akzentlinie */}
+      <div className="bg-card rounded-[16px] border border-border/50 overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+        <div className="h-1 bg-primary" />
+        <div className="px-5 py-5 space-y-4">
+          <div className="flex items-center gap-2.5">
+            <div className="inline-flex size-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <Building2 className="size-[18px]" strokeWidth={2} />
+            </div>
+            <div className="text-[10px] font-semibold tracking-[0.16em] text-primary uppercase">
+              Mehrere Einheiten
+            </div>
           </div>
-          <h2 className="font-display text-[20px] leading-tight text-foreground">
-            Sie besitzen {unitCount} Einheiten
-            {buildingName ? ` in ${buildingName}` : ""}.
+          <h2 className="font-display !font-normal text-[22px] leading-[1.25] tracking-[-0.01em] text-foreground">
+            Sie besitzen{" "}
+            <span className="text-primary font-medium">{unitCount} Einheiten</span>
+            {buildingName ? <> in {buildingName}</> : null}.
           </h2>
-          <p className="text-[13.5px] leading-relaxed text-foreground/80">
-            Sind Ihre <strong>Stammdaten</strong> (Adresse, Telefon, E-Mail,
-            Bankverbindung, Hauptansprechpartner) für alle Einheiten
-            <strong> gleich</strong> — oder möchten Sie diese
-            <strong> getrennt je Einheit</strong> erfassen?
+          <p className="text-[13.5px] leading-relaxed text-foreground/75">
+            Sind Ihre Stammdaten (Adresse, Telefon, E-Mail, Bankverbindung,
+            Hauptansprechpartner) für alle Einheiten gleich — oder möchten Sie
+            diese getrennt erfassen?
           </p>
         </div>
-        <div className="grid grid-cols-1 gap-2.5">
-          <button
-            type="button"
-            onClick={() => onChoose(true)}
-            className={cn(
-              "min-h-[64px] rounded-[12px] border-2 px-4 py-3 text-left transition",
-              "border-border bg-card hover:border-primary/60 hover:bg-muted/40"
-            )}
-          >
-            <div className="font-medium text-foreground">Für alle Einheiten gleich</div>
-            <div className="text-[12.5px] text-muted-foreground mt-0.5">
-              Ich gebe meine Stammdaten nur einmal ein — sie gelten für alle Einheiten.
-            </div>
-          </button>
-          <button
-            type="button"
-            onClick={() => onChoose(false)}
-            className={cn(
-              "min-h-[64px] rounded-[12px] border-2 px-4 py-3 text-left transition",
-              "border-border bg-card hover:border-primary/60 hover:bg-muted/40"
-            )}
-          >
-            <div className="font-medium text-foreground">Getrennt je Einheit erfassen</div>
-            <div className="text-[12.5px] text-muted-foreground mt-0.5">
-              Z. B. wenn pro Einheit eine andere Bankverbindung oder Adresse gilt.
-            </div>
-          </button>
-        </div>
       </div>
+
+      {/* Zwei klare Auswahl-Karten */}
+      <div className="grid grid-cols-1 gap-2.5">
+        <button
+          type="button"
+          onClick={() => onChoose(true)}
+          className={cn(
+            "group rounded-[14px] border-2 border-border/60 bg-card px-4 py-4 text-left transition-all",
+            "hover:border-primary hover:bg-primary/[0.03] hover:shadow-[0_2px_10px_-4px_hsl(var(--primary)/0.25)]"
+          )}
+        >
+          <div className="flex items-start gap-3.5">
+            <div className="inline-flex size-10 shrink-0 items-center justify-center rounded-[10px] bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+              <Users className="size-5" strokeWidth={2} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-[15px] text-foreground">
+                Für alle Einheiten gleich
+              </div>
+              <div className="text-[12.5px] text-muted-foreground mt-1 leading-snug">
+                Stammdaten nur einmal eingeben — sie gelten für alle Einheiten.
+              </div>
+            </div>
+            <ArrowRight className="size-4 text-muted-foreground/40 group-hover:text-primary mt-1 shrink-0 transition-colors" />
+          </div>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onChoose(false)}
+          className={cn(
+            "group rounded-[14px] border-2 border-border/60 bg-card px-4 py-4 text-left transition-all",
+            "hover:border-primary hover:bg-primary/[0.03] hover:shadow-[0_2px_10px_-4px_hsl(var(--primary)/0.25)]"
+          )}
+        >
+          <div className="flex items-start gap-3.5">
+            <div className="inline-flex size-10 shrink-0 items-center justify-center rounded-[10px] bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+              <SplitSquareVertical className="size-5" strokeWidth={2} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-[15px] text-foreground">
+                Getrennt je Einheit erfassen
+              </div>
+              <div className="text-[12.5px] text-muted-foreground mt-1 leading-snug">
+                Z. B. wenn pro Einheit eine andere Bankverbindung oder Adresse gilt.
+              </div>
+            </div>
+            <ArrowRight className="size-4 text-muted-foreground/40 group-hover:text-primary mt-1 shrink-0 transition-colors" />
+          </div>
+        </button>
+      </div>
+
+      <p className="text-center text-[11px] text-muted-foreground/70">
+        Sie können die Auswahl später jederzeit ändern.
+      </p>
     </div>
   );
 };
