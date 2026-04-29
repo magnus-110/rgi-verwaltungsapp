@@ -210,7 +210,6 @@ export const TermsAcceptanceDialog = ({ open, userId, onAccepted }: TermsAccepta
               </Button>
             </div>
           </>
-
       </DialogContent>
     </Dialog>
   );
