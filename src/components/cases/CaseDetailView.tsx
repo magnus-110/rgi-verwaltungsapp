@@ -202,6 +202,16 @@ export const CaseDetailView = ({ caseId, onClose }: Props) => {
                     </p>
                   )}
                 </div>
+
+                {/* Sub-cases (only on top-level cases) */}
+                {!caseRow.parent_case_id && (
+                  <SubcasesPanel
+                    parentCaseId={caseRow.id}
+                    buildingId={caseRow.building_id}
+                    managementMode={caseRow.management_mode}
+                    onOpenSubcase={openSub}
+                  />
+                )}
               </div>
             </div>
 
