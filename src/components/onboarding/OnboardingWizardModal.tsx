@@ -381,7 +381,7 @@ export const OnboardingWizardModal = ({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (!allDone && !showWelcome && !submitting) {
+            if (!allDone && !showWelcome && !showStammdatenModeQuestion && !submitting) {
               handleSubmitStep();
             }
           }}
