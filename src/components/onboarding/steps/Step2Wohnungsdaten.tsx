@@ -74,6 +74,48 @@ interface Props {
   onChange: (next: Step2Data) => void;
 }
 
+/** Multi-Einheiten-Wrapper: rendert pro Assignment einen vollständigen Block. */
+export interface Step2MultiData {
+  per_unit?: Record<string, Step2Data>;
+}
+
+interface MultiProps {
+  assignments: { id: string; label: string }[];
+  value: Step2MultiData;
+  onChange: (next: Step2MultiData) => void;
+}
+
+export const Step2WohnungsdatenMulti = ({ assignments, value, onChange }: MultiProps) => {
+  const perUnit = value.per_unit ?? {};
+  const setUnit = (id: string, next: Step2Data) => {
+    onChange({ ...value, per_unit: { ...perUnit, [id]: next } });
+  };
+  return (
+    <div className="space-y-6">
+      {assignments.map((a, idx) => (
+        <div key={a.id} className="space-y-2.5">
+          <div className="flex items-center gap-2 px-1">
+            <div className="size-6 rounded-full bg-primary/10 text-primary text-[12px] font-semibold grid place-items-center">
+              {idx + 1}
+            </div>
+            <div className="text-[13px] font-semibold text-foreground">
+              Einheit {idx + 1} von {assignments.length}
+              <span className="text-muted-foreground font-normal"> · {a.label}</span>
+            </div>
+          </div>
+          <Step2Wohnungsdaten
+            value={perUnit[a.id] ?? {}}
+            onChange={(v) => setUnit(a.id, v)}
+          />
+          {idx < assignments.length - 1 && (
+            <div className="h-px bg-border/60 mt-4" />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+};
+
 const FieldLabel = ({ children }: { children: ReactNode }) => (
   <div className="text-[12px] text-muted-foreground mb-1">{children}</div>
 );

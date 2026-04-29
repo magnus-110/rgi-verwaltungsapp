@@ -4903,6 +4903,7 @@ export type Database = {
       onboarding_submissions: {
         Row: {
           applied_fields: Json
+          assignment_id: string | null
           building_id: string
           category: string
           contact_id: string | null
@@ -4918,6 +4919,7 @@ export type Database = {
         }
         Insert: {
           applied_fields?: Json
+          assignment_id?: string | null
           building_id: string
           category: string
           contact_id?: string | null
@@ -4933,6 +4935,7 @@ export type Database = {
         }
         Update: {
           applied_fields?: Json
+          assignment_id?: string | null
           building_id?: string
           category?: string
           contact_id?: string | null
@@ -4947,6 +4950,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "onboarding_submissions_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "contact_building_assignments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "onboarding_submissions_building_id_fkey"
             columns: ["building_id"]

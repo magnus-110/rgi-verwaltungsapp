@@ -17,6 +17,15 @@ export interface OnboardingProgress {
   fully_completed_at: string | null;
   fab_dismissed_at: string | null;
   is_repeat_owner: boolean;
+  applies_to_all_assignments?: boolean | null;
+}
+
+export interface OnboardingAssignment {
+  id: string;
+  unit_number: string | null;
+  floor_location: string | null;
+  unit_kind: string | null;
+  label: string;
 }
 
 export interface OnboardingContext {
@@ -25,6 +34,7 @@ export interface OnboardingContext {
   buildingName: string | null;
   isActive: boolean;
   progress: OnboardingProgress | null;
+  assignments: OnboardingAssignment[];
   refresh: () => Promise<void>;
 }
 
@@ -42,6 +52,7 @@ export const useOnboardingContext = (): OnboardingContext => {
   const [buildingName, setBuildingName] = useState<string | null>(null);
   const [isActive, setIsActive] = useState(false);
   const [progress, setProgress] = useState<OnboardingProgress | null>(null);
+  const [unitAssignments, setUnitAssignments] = useState<OnboardingAssignment[]>([]);
 
   const load = useCallback(async () => {
     if (!profile?.user_id) {
@@ -97,6 +108,36 @@ export const useOnboardingContext = (): OnboardingContext => {
       );
       setBuildingName(matchingAssignment?.buildings?.name ?? null);
 
+      // Load all active assignments for this contact + building
+      // (a single contact may own multiple units in the same building)
+      const matchingContactId = contactIds[0]; // contact_id is unique per user
+      const { data: unitRows } = await supabase
+        .from("contact_building_assignments" as any)
+        .select("id, unit_number, floor_location, unit_kind, parent_assignment_id, is_active, created_at")
+        .eq("contact_id", matchingContactId)
+        .eq("building_id", activeBuildingId)
+        .eq("is_active", true)
+        .order("created_at", { ascending: true });
+
+      // Filter to top-level unit assignments only (exclude sub-units like Stellplätze)
+      const topLevel = (unitRows as any[] ?? []).filter(
+        (r) => !r.parent_assignment_id
+      );
+      const mapped: OnboardingAssignment[] = topLevel.map((r, idx) => {
+        const parts: string[] = [];
+        if (r.unit_number) parts.push(`Wohnung ${r.unit_number}`);
+        if (r.floor_location) parts.push(r.floor_location);
+        const label = parts.length > 0 ? parts.join(" · ") : `Einheit ${idx + 1}`;
+        return {
+          id: r.id,
+          unit_number: r.unit_number,
+          floor_location: r.floor_location,
+          unit_kind: r.unit_kind,
+          label,
+        };
+      });
+      setUnitAssignments(mapped);
+
       // Fetch or create progress row
       const { data: existing } = await supabase
         .from("onboarding_progress" as any)
@@ -108,12 +149,6 @@ export const useOnboardingContext = (): OnboardingContext => {
       if (existing && !(existing as any).fully_completed_at) {
         setProgress(existing as any);
       } else if (!existing) {
-        const matchingContactId = (contacts ?? []).find((c) =>
-          (assignments as any[]).some(
-            (a) => a.building_id === activeBuildingId
-          )
-        )?.id;
-
         const { data: created } = await supabase
           .from("onboarding_progress" as any)
           .insert({
@@ -146,6 +181,7 @@ export const useOnboardingContext = (): OnboardingContext => {
     buildingName,
     isActive,
     progress,
+    assignments: unitAssignments,
     refresh: load,
   };
 };

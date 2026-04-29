@@ -1,0 +1,2 @@
+ALTER TABLE public.onboarding_submissions ADD COLUMN IF NOT EXISTS assignment_id uuid NULL REFERENCES public.contact_building_assignments(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_onboarding_submissions_assignment_id ON public.onboarding_submissions(assignment_id);

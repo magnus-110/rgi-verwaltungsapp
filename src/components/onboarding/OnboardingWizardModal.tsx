@@ -11,10 +11,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
   OnboardingProgress,
+  OnboardingAssignment,
   useStepAutoSave,
 } from "./useOnboardingContext";
-import { Step1Stammdaten, Step1Data, validateStep1 } from "./steps/Step1Stammdaten";
-import { Step2Wohnungsdaten, Step2Data } from "./steps/Step2Wohnungsdaten";
+import { Step1Stammdaten, Step1Data, validateStep1, Step1StammdatenMulti, Step1MultiData, validateStep1Multi } from "./steps/Step1Stammdaten";
+import { Step2Wohnungsdaten, Step2Data, Step2WohnungsdatenMulti, Step2MultiData } from "./steps/Step2Wohnungsdaten";
 import { Step3Gebaeude, Step3Data } from "./steps/Step3Gebaeude";
 import { Step4Dienstleister, Step4Data } from "./steps/Step4Dienstleister";
 import { Step5Einschaetzung, Step5Data } from "./steps/Step5Einschaetzung";
@@ -29,6 +30,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   progress: OnboardingProgress;
   buildingName: string | null;
+  assignments: OnboardingAssignment[];
   onComplete: () => void;
 }
 
@@ -53,6 +55,7 @@ export const OnboardingWizardModal = ({
   onOpenChange,
   progress,
   buildingName,
+  assignments,
   onComplete,
 }: Props) => {
   const { toast } = useToast();
@@ -62,15 +65,30 @@ export const OnboardingWizardModal = ({
   const [submitting, setSubmitting] = useState(false);
   const [justFinished, setJustFinished] = useState(false);
 
+  // Multi-Einheiten-Modus: mehr als ein aktives Assignment im Gebäude
+  const multiUnit = assignments.length > 1;
+  const [appliesToAll, setAppliesToAll] = useState<boolean | null>(
+    progress.applies_to_all_assignments ?? null
+  );
+  // Stammdaten je Einheit getrennt erfassen?
+  const stammdatenSplit = multiUnit && appliesToAll === false;
+
   // Welcome-Screen nur beim allerersten Öffnen anzeigen
   const initialStep1 = (progress.step_data as any)?.step1;
+  const initialStep1Multi = (progress.step_data as any)?.step1_multi;
   const step1HasData =
-    !!initialStep1 && Object.keys(initialStep1).length > 0;
+    (!!initialStep1 && Object.keys(initialStep1).length > 0) ||
+    (!!initialStep1Multi && Object.keys(initialStep1Multi).length > 0);
   const [showWelcome, setShowWelcome] = useState<boolean>(
     !progress.step1_completed_at &&
       !progress.is_repeat_owner &&
       !step1HasData &&
       (progress.current_step ?? 1) <= 1
+  );
+  // Stammdaten-Mode-Frage nach Welcome (nur bei mehreren Einheiten und solange
+  // noch keine Auswahl getroffen ist und Step 1 noch nicht abgeschlossen ist).
+  const [showStammdatenModeQuestion, setShowStammdatenModeQuestion] = useState<boolean>(
+    multiUnit && appliesToAll === null && !progress.step1_completed_at
   );
 
   useEffect(() => {
@@ -110,12 +128,32 @@ export const OnboardingWizardModal = ({
 
   const [pendingSepaWarning, setPendingSepaWarning] = useState(false);
 
+  // Helper: bei Step 1 im Split-Modus die "erste" Step1Data extrahieren
+  // (für SEPA-Warn-Check & Mandate-Update verwenden wir die jeweils erste
+  // Einheit; im Backend wird der Mandate-Status pro Einheit gleich übernommen,
+  // weil das Mandat kontaktbezogen ist).
+  const collectStep1Datas = (): Step1Data[] => {
+    if (stammdatenSplit) {
+      const md = (currentData as Step1MultiData).per_unit ?? {};
+      return Object.values(md);
+    }
+    return [currentData as Step1Data];
+  };
+
   const doSubmitStep = async () => {
     if (step === 1) {
-      const err = validateStep1(currentData as Step1Data);
-      if (err) {
-        toast({ title: "Bitte vervollständigen", description: err, variant: "destructive" });
-        return;
+      if (stammdatenSplit) {
+        const err = validateStep1Multi(currentData as Step1MultiData, assignments);
+        if (err) {
+          toast({ title: "Bitte vervollständigen", description: err, variant: "destructive" });
+          return;
+        }
+      } else {
+        const err = validateStep1(currentData as Step1Data);
+        if (err) {
+          toast({ title: "Bitte vervollständigen", description: err, variant: "destructive" });
+          return;
+        }
       }
     }
 
@@ -129,8 +167,20 @@ export const OnboardingWizardModal = ({
     setSubmitting(true);
     try {
       await flush();
+      // Multi-Modus: per_unit-Payload an die Edge Function geben.
+      let payload: any = currentData;
+      if (step === 1 && stammdatenSplit) {
+        payload = { per_unit: (currentData as Step1MultiData).per_unit ?? {} };
+      } else if (step === 2 && multiUnit) {
+        payload = { per_unit: (currentData as Step2MultiData).per_unit ?? {} };
+      }
       const { error } = await supabase.functions.invoke("submit-onboarding-step", {
-        body: { building_id: progress.building_id, step, payload: currentData },
+        body: {
+          building_id: progress.building_id,
+          step,
+          payload,
+          applies_to_all_assignments: step === 1 ? appliesToAll : undefined,
+        },
       });
       if (error) throw error;
       if (step < 5) {
@@ -162,23 +212,25 @@ export const OnboardingWizardModal = ({
   };
 
   const handleSubmitStep = async () => {
-    // Bei Step 1: Wenn IBAN da ist, aber SEPA-Mandat-Checkbox NICHT angeklickt → Warn-Dialog
+    // Bei Step 1: Wenn IBAN da ist, aber SEPA-Mandat NICHT angeklickt → Warn-Dialog.
+    // Im Multi-Modus prüfen wir alle Einheiten und warnen, sobald irgendeine
+    // IBAN ohne Mandat erfasst wurde.
     if (step === 1) {
-      const d = currentData as Step1Data;
-      const ibanFilled = !!d.iban?.trim();
-      const mandateAccepted = !!(d as any).sepa_mandate_accepted;
-      if (ibanFilled && !mandateAccepted) {
+      const datas = collectStep1Datas();
+      const offending = datas.find(
+        (d) => !!d?.iban?.trim() && !(d as any)?.sepa_mandate_accepted
+      );
+      if (offending) {
         setPendingSepaWarning(true);
-        // Warn-Dialog-Anzeige protokollieren
         logSepaMandateEvent({
           event_type: "mandate_warning_shown",
           building_id: progress.building_id,
-          mandate_reference: (d as any).sepa_mandate_reference ?? null,
-          creditor_id: (d as any).sepa_creditor_id ?? null,
-          iban: d.iban ?? null,
-          account_holder: d.account_holder ?? null,
+          mandate_reference: (offending as any).sepa_mandate_reference ?? null,
+          creditor_id: (offending as any).sepa_creditor_id ?? null,
+          iban: offending.iban ?? null,
+          account_holder: offending.account_holder ?? null,
           accepted: false,
-          metadata: { source: "wizard.step1.next" },
+          metadata: { source: "wizard.step1.next", multi: stammdatenSplit },
         });
         return;
       }
@@ -186,65 +238,82 @@ export const OnboardingWizardModal = ({
     await doSubmitStep();
   };
 
+  // Setzt das SEPA-Mandat in jeder Step1Data-Instanz (Single oder Multi).
   const acceptMandateAndContinue = async () => {
     const now = new Date().toISOString();
-    const d = currentData as Step1Data;
-    const next = {
-      ...d,
-      sepa_mandate_accepted: true,
-      sepa_mandate_signed_at: now,
-    };
-    setCurrentData(next);
+    if (stammdatenSplit) {
+      const md = currentData as Step1MultiData;
+      const nextPerUnit: Record<string, Step1Data> = {};
+      for (const a of assignments) {
+        const u = md.per_unit?.[a.id] ?? {};
+        nextPerUnit[a.id] = u.iban?.trim()
+          ? { ...u, sepa_mandate_accepted: true, sepa_mandate_signed_at: now }
+          : u;
+      }
+      setCurrentData({ ...md, per_unit: nextPerUnit });
+    } else {
+      const d = currentData as Step1Data;
+      setCurrentData({ ...d, sepa_mandate_accepted: true, sepa_mandate_signed_at: now });
+    }
     setPendingSepaWarning(false);
-    // Mandat nach Warnung erteilt → eigenes Audit-Event
+    const sample = collectStep1Datas()[0] ?? {};
     logSepaMandateEvent({
       event_type: "mandate_changed_after_warning",
       building_id: progress.building_id,
-      mandate_reference: (d as any).sepa_mandate_reference ?? null,
-      creditor_id: (d as any).sepa_creditor_id ?? null,
-      iban: d.iban ?? null,
-      account_holder: d.account_holder ?? null,
+      mandate_reference: (sample as any).sepa_mandate_reference ?? null,
+      creditor_id: (sample as any).sepa_creditor_id ?? null,
+      iban: sample.iban ?? null,
+      account_holder: sample.account_holder ?? null,
       accepted: true,
-      metadata: { source: "wizard.step1.warning_dialog.accept", signed_at_client: now },
+      metadata: { source: "wizard.step1.warning_dialog.accept", signed_at_client: now, multi: stammdatenSplit },
     });
-    // kurzer Tick, damit State propagiert wird
     setTimeout(() => doSubmitStep(), 0);
   };
 
   const continueWithoutMandate = async () => {
-    const d = currentData as Step1Data;
+    const sample = collectStep1Datas()[0] ?? {};
     setPendingSepaWarning(false);
     logSepaMandateEvent({
       event_type: "mandate_declined",
       building_id: progress.building_id,
-      mandate_reference: (d as any).sepa_mandate_reference ?? null,
-      creditor_id: (d as any).sepa_creditor_id ?? null,
-      iban: d.iban ?? null,
-      account_holder: d.account_holder ?? null,
+      mandate_reference: (sample as any).sepa_mandate_reference ?? null,
+      creditor_id: (sample as any).sepa_creditor_id ?? null,
+      iban: sample.iban ?? null,
+      account_holder: sample.account_holder ?? null,
       accepted: false,
-      metadata: { source: "wizard.step1.warning_dialog.decline" },
+      metadata: { source: "wizard.step1.warning_dialog.decline", multi: stammdatenSplit },
     });
     setTimeout(() => doSubmitStep(), 0);
   };
 
   const dismissSepaWarning = () => {
-    const d = currentData as Step1Data;
+    const sample = collectStep1Datas()[0] ?? {};
     setPendingSepaWarning(false);
     logSepaMandateEvent({
       event_type: "mandate_warning_dismissed",
       building_id: progress.building_id,
-      mandate_reference: (d as any).sepa_mandate_reference ?? null,
-      creditor_id: (d as any).sepa_creditor_id ?? null,
-      iban: d.iban ?? null,
-      account_holder: d.account_holder ?? null,
+      mandate_reference: (sample as any).sepa_mandate_reference ?? null,
+      creditor_id: (sample as any).sepa_creditor_id ?? null,
+      iban: sample.iban ?? null,
+      account_holder: sample.account_holder ?? null,
       accepted: false,
-      metadata: { source: "wizard.step1.warning_dialog.dismiss" },
+      metadata: { source: "wizard.step1.warning_dialog.dismiss", multi: stammdatenSplit },
     });
   };
 
   const renderStep = () => {
     switch (step) {
       case 1:
+        if (stammdatenSplit) {
+          return (
+            <Step1StammdatenMulti
+              assignments={assignments}
+              value={currentData as Step1MultiData}
+              onChange={setCurrentData}
+              buildingId={progress.building_id}
+            />
+          );
+        }
         return (
           <Step1Stammdaten
             value={currentData as Step1Data}
@@ -253,6 +322,15 @@ export const OnboardingWizardModal = ({
           />
         );
       case 2:
+        if (multiUnit) {
+          return (
+            <Step2WohnungsdatenMulti
+              assignments={assignments}
+              value={currentData as Step2MultiData}
+              onChange={setCurrentData}
+            />
+          );
+        }
         return <Step2Wohnungsdaten value={currentData as Step2Data} onChange={setCurrentData} />;
       case 3:
         return <Step3Gebaeude value={currentData as Step3Data} onChange={setCurrentData} />;
@@ -303,7 +381,7 @@ export const OnboardingWizardModal = ({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (!allDone && !showWelcome && !submitting) {
+            if (!allDone && !showWelcome && !showStammdatenModeQuestion && !submitting) {
               handleSubmitStep();
             }
           }}
@@ -319,13 +397,13 @@ export const OnboardingWizardModal = ({
             <div className="bg-card border-b border-border/40 px-5 py-3.5 shrink-0">
               <StepSlider
                 steps={STEP_LABELS}
-                currentStep={showWelcome ? 0 : step}
-                completed={showWelcome ? {} : completed}
+                currentStep={showWelcome || showStammdatenModeQuestion ? 0 : step}
+                completed={showWelcome || showStammdatenModeQuestion ? {} : completed}
                 onStepClick={(n) =>
-                  !showWelcome && !isStep1HardLocked && setStep(n)
+                  !showWelcome && !showStammdatenModeQuestion && !isStep1HardLocked && setStep(n)
                 }
                 lockedFromStep={
-                  showWelcome ? 1 : isStep1HardLocked ? 2 : undefined
+                  showWelcome || showStammdatenModeQuestion ? 1 : isStep1HardLocked ? 2 : undefined
                 }
               />
             </div>
@@ -349,6 +427,24 @@ export const OnboardingWizardModal = ({
               />
             ) : showWelcome ? (
               <WelcomeScreen onStart={() => setShowWelcome(false)} />
+            ) : showStammdatenModeQuestion ? (
+              <StammdatenModeQuestionCard
+                buildingName={buildingName}
+                unitCount={assignments.length}
+                onChoose={async (allSame) => {
+                  setAppliesToAll(allSame);
+                  setShowStammdatenModeQuestion(false);
+                  // direkt im progress-Datensatz persistieren
+                  try {
+                    await supabase
+                      .from("onboarding_progress" as any)
+                      .update({ applies_to_all_assignments: allSame })
+                      .eq("id", progress.id);
+                  } catch (e) {
+                    console.error("could not persist applies_to_all_assignments", e);
+                  }
+                }}
+              />
             ) : (
               <div className="space-y-3">
                 <div>
@@ -365,7 +461,7 @@ export const OnboardingWizardModal = ({
           </div>
 
           {/* Footer */}
-          {!allDone && !showWelcome && !pendingSepaWarning && (
+          {!allDone && !showWelcome && !showStammdatenModeQuestion && !pendingSepaWarning && (
             <div className="bg-card border-t border-border/60 px-4 py-3 flex items-center justify-between gap-2 shrink-0">
               <Button
                 type="button"
@@ -397,6 +493,67 @@ export const OnboardingWizardModal = ({
         </form>
       </DialogContent>
     </Dialog>
+  );
+};
+
+// ---------------------------------------------------------------------------
+const StammdatenModeQuestionCard = ({
+  buildingName,
+  unitCount,
+  onChoose,
+}: {
+  buildingName: string | null;
+  unitCount: number;
+  onChoose: (allSame: boolean) => void;
+}) => {
+  return (
+    <div className="max-w-md mx-auto py-2 space-y-4">
+      <div className="bg-card rounded-[16px] border border-border/60 px-5 py-6 space-y-5 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+        <div className="space-y-2">
+          <div className="text-[10px] font-semibold tracking-[0.16em] text-muted-foreground/80 uppercase">
+            Mehrere Einheiten
+          </div>
+          <h2 className="font-display text-[20px] leading-tight text-foreground">
+            Sie besitzen {unitCount} Einheiten
+            {buildingName ? ` in ${buildingName}` : ""}.
+          </h2>
+          <p className="text-[13.5px] leading-relaxed text-foreground/80">
+            Sind Ihre <strong>Stammdaten</strong> (Adresse, Telefon, E-Mail,
+            Bankverbindung, Hauptansprechpartner) für alle Einheiten
+            <strong> gleich</strong> — oder möchten Sie diese
+            <strong> getrennt je Einheit</strong> erfassen?
+          </p>
+        </div>
+        <div className="grid grid-cols-1 gap-2.5">
+          <button
+            type="button"
+            onClick={() => onChoose(true)}
+            className={cn(
+              "min-h-[64px] rounded-[12px] border-2 px-4 py-3 text-left transition",
+              "border-border bg-card hover:border-primary/60 hover:bg-muted/40"
+            )}
+          >
+            <div className="font-medium text-foreground">Für alle Einheiten gleich</div>
+            <div className="text-[12.5px] text-muted-foreground mt-0.5">
+              Ich gebe meine Stammdaten nur einmal ein — sie gelten für alle Einheiten.
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => onChoose(false)}
+            className={cn(
+              "min-h-[64px] rounded-[12px] border-2 px-4 py-3 text-left transition",
+              "border-border bg-card hover:border-primary/60 hover:bg-muted/40"
+            )}
+          >
+            <div className="font-medium text-foreground">Getrennt je Einheit erfassen</div>
+            <div className="text-[12.5px] text-muted-foreground mt-0.5">
+              Z. B. wenn pro Einheit eine andere Bankverbindung oder Adresse gilt.
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
   );
 };
 
