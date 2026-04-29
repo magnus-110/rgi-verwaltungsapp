@@ -80,6 +80,21 @@ export const CaseDetailView = ({ caseId, onClose }: Props) => {
           <>
             {/* Header */}
             <div className="p-4 border-b bg-card">
+              {(stack.length > 0 || caseRow.parent_case_id) && (
+                <button
+                  onClick={() => {
+                    if (stack.length > 0) goBack();
+                    else if (caseRow.parent_case_id) setStack([caseRow.parent_case_id]);
+                  }}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors mb-2"
+                >
+                  <ChevronLeft className="h-3 w-3" />
+                  <GitBranch className="h-3 w-3" />
+                  <span className="truncate">
+                    Teilvorgang von: {parentRow?.title || "Hauptvorgang"}
+                  </span>
+                </button>
+              )}
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   {editingMeta ? (
