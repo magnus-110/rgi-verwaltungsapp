@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Phone, Mail, Building2, ChevronDown, ShieldAlert, Flame, Stethoscope, Shield } from "lucide-react";
+import { Phone, Mail, ChevronDown, ShieldAlert, Building2, Wrench, Siren, AlertTriangle } from "lucide-react";
 import {
-  PROPERTY_MANAGER_HINT,
   PROPERTY_MANAGER_FALLBACK,
   PUBLIC_EMERGENCY_NUMBERS,
   getCategoryHint,
@@ -30,18 +29,108 @@ interface EmergencyAssignment {
   } | null;
 }
 
-const HANDWERKER_INTRO =
-  "Bitte nur kontaktieren, wenn die Hausverwaltung außerhalb der Bürozeiten nicht erreichbar ist. Tippen Sie auf das passende Gewerk, um Telefonnummer und Hinweise zu sehen.";
+type SectionKey = "verwaltung" | "technisch" | "notrufe";
+type Accent = "orange" | "destructive";
 
-const NOTRUF_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  Feuerwehr: Flame,
-  Rettungsdienst: Stethoscope,
-  Polizei: Shield,
-};
+interface EntryRow {
+  key: string;
+  label: string;
+  value: string;
+  hint?: string | null;
+  phoneHref?: string;
+}
+
+function Entry({ row, accent }: { row: EntryRow; accent: Accent }) {
+  const linkColor =
+    accent === "orange"
+      ? "hover:text-rgi-orange"
+      : "hover:text-destructive";
+  return (
+    <div className="space-y-0.5">
+      <div className="text-sm leading-snug">
+        <span className="font-semibold text-foreground">{row.label}:</span>{" "}
+        {row.phoneHref ? (
+          <a
+            href={row.phoneHref}
+            className={cn("text-foreground transition-colors font-medium tabular-nums", linkColor)}
+          >
+            {row.value}
+          </a>
+        ) : (
+          <span className="text-foreground font-medium tabular-nums">{row.value}</span>
+        )}
+      </div>
+      {row.hint && (
+        <p className="text-xs italic text-muted-foreground leading-relaxed">{row.hint}</p>
+      )}
+    </div>
+  );
+}
+
+interface SectionCardProps {
+  sectionKey: SectionKey;
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  accent: Accent;
+  expanded: boolean;
+  onToggle: () => void;
+  rows: EntryRow[];
+  emptyText?: string;
+}
+
+function SectionCard({
+  title,
+  icon: Icon,
+  accent,
+  expanded,
+  onToggle,
+  rows,
+  emptyText,
+}: SectionCardProps) {
+  const accentBar = accent === "orange" ? "bg-rgi-orange" : "bg-destructive";
+  const iconBg =
+    accent === "orange"
+      ? "bg-rgi-orange/10 text-rgi-orange"
+      : "bg-destructive/10 text-destructive";
+
+  return (
+    <div className="bg-card rounded-[16px] border border-border/50 overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+      <div className={cn("h-1", accentBar)} />
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={expanded}
+        className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-muted/30 transition-colors"
+      >
+        <div className={cn("inline-flex size-9 shrink-0 items-center justify-center rounded-full", iconBg)}>
+          <Icon className="h-4 w-4" />
+        </div>
+        <span className="flex-1 text-sm font-semibold text-foreground">{title}</span>
+        <ChevronDown
+          className={cn(
+            "h-4 w-4 text-muted-foreground transition-transform duration-200",
+            expanded && "rotate-180"
+          )}
+        />
+      </button>
+      {expanded && (
+        <div className="border-t border-border/50 px-5 py-4 space-y-3 animate-accordion-down">
+          {rows.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic">
+              {emptyText || "Keine Einträge hinterlegt."}
+            </p>
+          ) : (
+            rows.map((row) => <Entry key={row.key} row={row} accent={accent} />)
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function EmergencyContactsWidget({ buildingIds }: Props) {
   const [open, setOpen] = useState(false);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedSection, setExpandedSection] = useState<SectionKey | null>(null);
   const [assignments, setAssignments] = useState<EmergencyAssignment[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -72,27 +161,69 @@ export function EmergencyContactsWidget({ buildingIds }: Props) {
     load();
   }, [JSON.stringify(buildingIds)]);
 
-  // Group assignments by service_category
-  const grouped: Record<string, EmergencyAssignment[]> = {};
-  for (const a of assignments) {
-    const key = a.service_category || "Sonstiges";
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push(a);
-  }
-  Object.values(grouped).forEach((list) =>
-    list.sort((x, y) => (x.emergency_sort_order ?? 999) - (y.emergency_sort_order ?? 999))
-  );
-
-  const sortedCategories = Object.keys(grouped).sort();
+  const toggleSection = (key: SectionKey) =>
+    setExpandedSection((prev) => (prev === key ? null : key));
 
   const getName = (c: EmergencyAssignment["contact"]) =>
     c?.company_name || [c?.first_name, c?.last_name].filter(Boolean).join(" ") || "Dienstleister";
 
-  const toggle = (id: string) => setExpandedId((prev) => (prev === id ? null : id));
+  // Split into Verwaltung (Hausmeister) and Technisch (rest)
+  const isVerwaltung = (cat: string) => cat.toLowerCase().includes("hausmeister");
+  const sortedAssignments = [...assignments].sort(
+    (x, y) => (x.emergency_sort_order ?? 999) - (y.emergency_sort_order ?? 999)
+  );
+  const verwaltungAssignments = sortedAssignments.filter(
+    (a) => a.service_category && isVerwaltung(a.service_category)
+  );
+  const technischAssignments = sortedAssignments.filter(
+    (a) => a.service_category && !isVerwaltung(a.service_category)
+  );
+
+  const buildRow = (a: EmergencyAssignment, fallbackCat: string): EntryRow | null => {
+    const c = a.contact;
+    if (!c) return null;
+    const phone = (c.contact_phones || [])[0];
+    const cat = a.service_category || fallbackCat;
+    const value = phone ? `${getName(c)} ${phone.phone_number}` : getName(c);
+    return {
+      key: a.id,
+      label: cat,
+      value,
+      phoneHref: phone ? `tel:${phone.phone_number.replace(/\s+/g, "")}` : undefined,
+      hint: a.emergency_note || getCategoryHint(cat),
+    };
+  };
+
+  // Verwaltung rows: Hausverwaltung first (fix), then assigned Hausmeister
+  const verwaltungRows: EntryRow[] = [
+    {
+      key: "hv",
+      label: "Hausverwaltung",
+      value: PROPERTY_MANAGER_FALLBACK.phone,
+      phoneHref: `tel:${PROPERTY_MANAGER_FALLBACK.phone.replace(/\s+/g, "")}`,
+      hint: "Für alle Schäden am Gemeinschaftseigentum während der Bürozeiten.",
+    },
+    ...verwaltungAssignments
+      .map((a) => buildRow(a, "Hausmeister"))
+      .filter((r): r is EntryRow => r !== null),
+  ];
+
+  const technischRows: EntryRow[] = technischAssignments
+    .map((a) => buildRow(a, "Sonstiges"))
+    .filter((r): r is EntryRow => r !== null);
+
+  const notrufRows: EntryRow[] = PUBLIC_EMERGENCY_NUMBERS.map((n, idx) => ({
+    key: `notruf-${idx}`,
+    label: n.label,
+    value: n.number,
+    phoneHref: `tel:${n.number}`,
+    hint: n.whenToCall,
+  }));
 
   return (
     <Card className="border-border/60 shadow-sm overflow-hidden">
       <CardContent className="p-0">
+        {/* Outer header / toggle */}
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
@@ -104,9 +235,9 @@ export function EmergencyContactsWidget({ buildingIds }: Props) {
               <ShieldAlert className="h-4 w-4 text-rgi-orange" />
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-foreground leading-tight">Notfallkontakte</h2>
+              <h2 className="text-sm font-semibold text-foreground leading-tight">Notfall-Nummern</h2>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Hausverwaltung, Handwerksbetriebe und öffentliche Notrufe
+                Verwaltung, Technische Betreuung und öffentliche Notrufe
               </p>
             </div>
           </div>
@@ -119,209 +250,74 @@ export function EmergencyContactsWidget({ buildingIds }: Props) {
         </button>
 
         {open && (
-          <div className="px-5 pb-5 pt-1 space-y-6 border-t border-border/60 bg-gradient-to-b from-rgi-orange/[0.02] to-transparent">
-            {/* Eskalations-Hinweis */}
-            <p className="text-xs text-muted-foreground leading-relaxed pt-4">
-              {PROPERTY_MANAGER_HINT}
-            </p>
-
-            {/* Hausverwaltung */}
-            <section className="space-y-2.5">
-              <SectionTitle>Hausverwaltung</SectionTitle>
-              <div className="rounded-lg border border-rgi-orange/30 bg-rgi-orange/[0.04] p-4 border-l-4 border-l-rgi-orange">
-                <div className="flex items-start gap-3">
-                  <div className="h-8 w-8 rounded-md bg-rgi-orange/15 flex items-center justify-center flex-shrink-0">
-                    <Building2 className="h-4 w-4 text-rgi-orange" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-foreground">{PROPERTY_MANAGER_FALLBACK.name}</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Erste Anlaufstelle für alle Schäden am Gemeinschaftseigentum während der Bürozeiten.
-                    </p>
-                    <div className="flex flex-wrap gap-2 mt-3">
-                      <a
-                        href={`tel:${PROPERTY_MANAGER_FALLBACK.phone.replace(/\s+/g, "")}`}
-                        className="inline-flex items-center gap-1.5 rounded-full bg-rgi-orange text-white px-3 py-1.5 text-xs font-medium hover:bg-rgi-orange-dark transition-colors"
-                      >
-                        <Phone className="h-3.5 w-3.5" /> {PROPERTY_MANAGER_FALLBACK.phone}
-                      </a>
-                      <a
-                        href={`mailto:${PROPERTY_MANAGER_FALLBACK.email}`}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-rgi-orange/40 text-rgi-orange-dark px-3 py-1.5 text-xs font-medium hover:bg-rgi-orange/10 transition-colors"
-                      >
-                        <Mail className="h-3.5 w-3.5" /> E-Mail
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {/* Externe Handwerksbetriebe */}
+          <div className="border-t border-border/60 bg-background">
             {loading ? (
-              <p className="text-xs text-muted-foreground">Lade…</p>
-            ) : sortedCategories.length > 0 ? (
-              <section className="space-y-2.5">
-                <SectionTitle>Handwerksbetriebe</SectionTitle>
-                <p className="text-xs text-muted-foreground leading-relaxed">{HANDWERKER_INTRO}</p>
-                <div className="space-y-4 mt-2">
-                  {sortedCategories.map((cat) => {
-                    const list = grouped[cat];
-                    const hint = getCategoryHint(cat);
-                    return (
-                      <div key={cat} className="space-y-2">
-                        <div className="flex items-baseline gap-2 flex-wrap">
-                          <p className="text-sm font-semibold text-foreground">{cat}</p>
-                          {hint && (
-                            <p className="text-xs text-muted-foreground">— {hint}</p>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {list.map((a) => {
-                            const c = a.contact;
-                            if (!c) return null;
-                            const isOpen = expandedId === a.id;
-                            const phone = (c.contact_phones || [])[0];
-                            const email =
-                              (c.contact_emails || []).find((e) => e.is_primary) ||
-                              (c.contact_emails || [])[0];
-                            return (
-                              <div key={a.id} className="w-full">
-                                <button
-                                  type="button"
-                                  onClick={() => toggle(a.id)}
-                                  aria-expanded={isOpen}
-                                  className={cn(
-                                    "inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs font-medium transition-all",
-                                    isOpen
-                                      ? "bg-rgi-orange text-white border-rgi-orange shadow-sm"
-                                      : "bg-rgi-orange/10 text-rgi-orange-dark border-rgi-orange/30 hover:bg-rgi-orange/20"
-                                  )}
-                                >
-                                  <Phone className="h-3.5 w-3.5" />
-                                  <span className="truncate max-w-[220px]">{getName(c)}</span>
-                                  <ChevronDown
-                                    className={cn(
-                                      "h-3.5 w-3.5 transition-transform duration-200",
-                                      isOpen && "rotate-180"
-                                    )}
-                                  />
-                                </button>
-                                {isOpen && (
-                                  <div className="mt-2 ml-1 rounded-lg border border-rgi-orange/30 bg-card p-3 animate-accordion-down">
-                                    {phone && (
-                                      <a
-                                        href={`tel:${phone.phone_number.replace(/\s+/g, "")}`}
-                                        className="inline-flex items-center gap-2 rounded-md bg-rgi-orange/10 hover:bg-rgi-orange/20 transition-colors px-3 py-2 text-sm font-semibold text-rgi-orange-dark tabular-nums"
-                                      >
-                                        <Phone className="h-4 w-4" /> {phone.phone_number}
-                                      </a>
-                                    )}
-                                    {email && (
-                                      <div className="mt-2">
-                                        <a
-                                          href={`mailto:${email.email}`}
-                                          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                                        >
-                                          <Mail className="h-3 w-3" /> {email.email}
-                                        </a>
-                                      </div>
-                                    )}
-                                    {a.emergency_note && (
-                                      <p className="text-xs text-muted-foreground leading-relaxed mt-2 pt-2 border-t border-border/60">
-                                        {a.emergency_note}
-                                      </p>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
+              <p className="text-xs text-muted-foreground px-6 py-6">Lade…</p>
+            ) : (
+              <div className="px-5 sm:px-6 py-5 space-y-3">
+                {/* WICHTIG hint */}
+                <div className="flex gap-3 rounded-[14px] bg-rgi-orange/[0.06] border border-rgi-orange/20 px-4 py-3">
+                  <AlertTriangle className="h-4 w-4 text-rgi-orange shrink-0 mt-0.5" />
+                  <p className="text-sm leading-relaxed text-foreground">
+                    <span className="font-bold text-rgi-orange-dark">WICHTIG:</span> Bitte
+                    kontaktieren Sie in jedem Fall zuerst die Hausverwaltung. Externe
+                    Handwerksbetriebe dürfen nur dann eigenständig beauftragt werden, wenn die
+                    Hausverwaltung nicht erreichbar ist.
+                  </p>
                 </div>
-              </section>
-            ) : null}
 
-            {/* Öffentliche Notrufe */}
-            <section className="space-y-2.5">
-              <SectionTitle accent="red">Öffentliche Notrufe</SectionTitle>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                Bei akuter Gefahr für Leben, Gesundheit oder Eigentum.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {PUBLIC_EMERGENCY_NUMBERS.map((n, idx) => {
-                  const id = `notruf-${idx}`;
-                  const isOpen = expandedId === id;
-                  const Icon = NOTRUF_ICONS[n.label] || ShieldAlert;
-                  return (
-                    <div key={id} className="w-full">
-                      <button
-                        type="button"
-                        onClick={() => toggle(id)}
-                        aria-expanded={isOpen}
-                        className={cn(
-                          "inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs font-medium transition-all",
-                          isOpen
-                            ? "bg-destructive text-destructive-foreground border-destructive shadow-sm"
-                            : "bg-destructive/10 text-destructive border-destructive/30 hover:bg-destructive/20"
-                        )}
-                      >
-                        <Icon className="h-3.5 w-3.5" />
-                        <span>{n.label}</span>
-                        <span className="tabular-nums font-semibold">{n.number}</span>
-                        <ChevronDown
-                          className={cn(
-                            "h-3.5 w-3.5 transition-transform duration-200",
-                            isOpen && "rotate-180"
-                          )}
-                        />
-                      </button>
-                      {isOpen && (
-                        <div className="mt-2 ml-1 rounded-lg border border-destructive/30 bg-card p-3 animate-accordion-down">
-                          <a
-                            href={`tel:${n.number}`}
-                            className="inline-flex items-center gap-2 rounded-md bg-destructive/10 hover:bg-destructive/20 transition-colors px-3 py-2 text-base font-bold text-destructive tabular-nums"
-                          >
-                            <Phone className="h-4 w-4" /> {n.number}
-                          </a>
-                          <p className="text-xs text-muted-foreground leading-relaxed mt-2">
-                            {n.whenToCall}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                {/* Section cards */}
+                <SectionCard
+                  sectionKey="verwaltung"
+                  title="Verwaltung & Betreuung"
+                  icon={Building2}
+                  accent="orange"
+                  expanded={expandedSection === "verwaltung"}
+                  onToggle={() => toggleSection("verwaltung")}
+                  rows={verwaltungRows}
+                />
+                <SectionCard
+                  sectionKey="technisch"
+                  title="Technische Betreuung"
+                  icon={Wrench}
+                  accent="orange"
+                  expanded={expandedSection === "technisch"}
+                  onToggle={() => toggleSection("technisch")}
+                  rows={technischRows}
+                  emptyText="Aktuell sind keine Handwerksbetriebe als Notfallkontakt freigeschaltet."
+                />
+                <SectionCard
+                  sectionKey="notrufe"
+                  title="Öffentliche Notrufe"
+                  icon={Siren}
+                  accent="destructive"
+                  expanded={expandedSection === "notrufe"}
+                  onToggle={() => toggleSection("notrufe")}
+                  rows={notrufRows}
+                />
+
+                {/* Footer contact bar */}
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-3 px-1 text-xs text-muted-foreground">
+                  <a
+                    href={`tel:${PROPERTY_MANAGER_FALLBACK.phone.replace(/\s+/g, "")}`}
+                    className="inline-flex items-center gap-2 hover:text-rgi-orange transition-colors"
+                  >
+                    <Phone className="h-3.5 w-3.5 text-rgi-orange" />
+                    <span className="tabular-nums">{PROPERTY_MANAGER_FALLBACK.phone}</span>
+                  </a>
+                  <a
+                    href={`mailto:${PROPERTY_MANAGER_FALLBACK.email}`}
+                    className="inline-flex items-center gap-2 hover:text-rgi-orange transition-colors"
+                  >
+                    <Mail className="h-3.5 w-3.5 text-rgi-orange" />
+                    <span>{PROPERTY_MANAGER_FALLBACK.email}</span>
+                  </a>
+                </div>
               </div>
-            </section>
+            )}
           </div>
         )}
       </CardContent>
     </Card>
-  );
-}
-
-function SectionTitle({
-  children,
-  accent = "orange",
-}: {
-  children: React.ReactNode;
-  accent?: "orange" | "red";
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <span
-        className={cn(
-          "h-3.5 w-1 rounded-full",
-          accent === "orange" ? "bg-rgi-orange" : "bg-destructive"
-        )}
-      />
-      <h3 className="text-[11px] font-semibold text-foreground uppercase tracking-wider">
-        {children}
-      </h3>
-    </div>
   );
 }

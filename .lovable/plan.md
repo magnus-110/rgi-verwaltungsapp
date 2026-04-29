@@ -1,61 +1,77 @@
 ## Ziel
 
-Das Notfallkontakte-Widget am Schwarzen Brett bekommt ein pillen-basiertes Design mit RGI-Orange-Akzenten. Jede Firma sowie jeder öffentliche Notruf wird als kompakte, klickbare Pille dargestellt. Per Klick fährt darunter ein Detailbereich mit Telefonnummer, E-Mail und – bei Handwerksbetrieben – einem kurzen Erklärtext aus.
+Notfallkontakte bleiben inhaltlich strukturiert wie der Aushang (drei Sektionen + WICHTIG-Hinweis), werden aber im **cleanen Onboarding-Wizard-Stil** dargestellt: jede Sektion ist eine eigene weiche Card, die einzeln aus- und einklappbar ist. Default: alle drei zugeklappt.
+
+## Layout-Struktur
+
+```
+┌────────────────────────────────────────────────┐
+│ [Shield-Icon]  Notfall-Nummern           [v]   │ ← äußerer Toggle (bleibt)
+├────────────────────────────────────────────────┤
+│                                                │
+│  ┌──────────────────────────────────────────┐  │
+│  │ ⚠ WICHTIG: Bitte zuerst die Haus-        │  │ ← weicher Hinweis (rounded-[14px])
+│  │   verwaltung kontaktieren …              │  │
+│  └──────────────────────────────────────────┘  │
+│                                                │
+│  ┌──────────────────────────────────────────┐  │
+│  │ ▔▔▔▔▔▔▔▔▔ (1px orange top-bar)          │  │
+│  │ [◆] Verwaltung & Betreuung         [v]   │  │ ← Card-Header, klickbar
+│  └──────────────────────────────────────────┘  │
+│                                                │
+│  ┌──────────────────────────────────────────┐  │
+│  │ ▔▔▔▔▔▔▔▔▔                                │  │
+│  │ [◆] Technische Betreuung           [^]   │  │ ← geöffnet
+│  │ ────────────────────────────────────────  │  │
+│  │   Heizung & Sanitär: Leser …             │  │
+│  │   Nur bei Totalausfall …                 │  │
+│  │   Rohrreinigung: Scherer …               │  │
+│  │   …                                      │  │
+│  └──────────────────────────────────────────┘  │
+│                                                │
+│  ┌──────────────────────────────────────────┐  │
+│  │ ▔▔▔▔▔▔▔▔▔ (1px destructive top-bar)      │  │
+│  │ [⚡] Öffentliche Notrufe            [v]   │  │
+│  └──────────────────────────────────────────┘  │
+│                                                │
+│  📞 08363 / 96 06 56     ✉ info@rgi…           │ ← Footer-Leiste
+└────────────────────────────────────────────────┘
+```
 
 ## Änderungen
 
-### 1. `src/components/forum/EmergencyContactsWidget.tsx`
+### `src/components/forum/EmergencyContactsWidget.tsx` (Neufassung)
 
-**Hausverwaltung** (bleibt prominent oben):
-- Karte mit dezentem Orange-Akzent (linker Border in `rgi-orange`, leichter Orange-Tint im Hintergrund)
-- Telefon + E-Mail als kompakte Buttons darunter
+**Sektions-Cards** (Onboarding-Wizard-Stil):
+- Jede Sektion = eigene Card: `rounded-[16px] border border-border/50 bg-card shadow-[0_1px_2px_rgba(0,0,0,0.02)] overflow-hidden`
+- **Top-Akzent-Bar** `h-1`: Verwaltung & Technik in `bg-rgi-orange`, Notrufe in `bg-destructive`
+- **Header** als Button: links eine runde Icon-Pille (`size-9 rounded-full bg-rgi-orange/10 text-rgi-orange`, bei Notrufen `bg-destructive/10 text-destructive`), Sektionstitel mittig, ChevronDown rechts (rotiert beim Öffnen)
+- Default `expandedSection: null` — nichts offen, Nutzer öffnet einzeln
+- Optional: nur eine Sektion gleichzeitig offen (Akkordeon-Verhalten)
 
-**Handwerksbetriebe** (Kernumbau):
-- Pro Kategorie (z. B. „Heizung/Sanitär", „Hausmeister") eine Sektion mit:
-  - Kategorie-Titel
-  - Kurzer Erklärtext (`getCategoryHint`) — generelle Erklärung wann die Kategorie kontaktiert wird
-  - Darunter ein Flex-Wrap aller Firmen als **orangene Pillen** (rounded-full, weicher Orange-Hintergrund, Orange-Border, Phone-Icon links, Firmenname rechts)
-- Klick auf eine Pille → expandiert direkt darunter (innerhalb der Sektion) ein Detailpanel mit:
-  - Telefonnummer als großer Tel-Link (mit Phone-Icon)
-  - E-Mail als kleiner sekundärer Link (optional, dezent)
-  - `emergency_note` der Firma als zusätzlicher Kontext-Text
-- Nur eine Pille gleichzeitig geöffnet (lokaler State `expandedId`)
+**Sektions-Inhalt** (nach Aufklappen):
+- Trennlinie `border-t border-border/50` unter dem Header
+- Padding `px-5 py-4`, Liste mit Einträgen im Stil:
+  - **Fettes Label** + Telefonnummer als `tel:`-Link (Hover → orange)
+  - Darunter kursiver Erklärtext in `text-muted-foreground`
+- Sanftes Aufklappen via `animate-accordion-down`
 
-**Öffentliche Notrufe** (gleiche Pillen-Optik):
-- Statt Grid-Karten ebenfalls Pillen (Feuerwehr, Rettungsdienst, Polizei)
-- Notruf-Pillen in dezentem Rot-Akzent zur visuellen Unterscheidung von Handwerker-Orange
-- Klick → fährt darunter aus mit Nummer (groß, tap-to-call) und Hinweis wann anrufen
+**WICHTIG-Hinweis**:
+- Eigene kleine Card mit dezentem Orange-Tint: `rounded-[14px] bg-rgi-orange/[0.05] border border-rgi-orange/20 px-4 py-3`
+- Fettes „WICHTIG:" in `text-rgi-orange-dark`, Resttext normal
 
-### 2. Farbgebung (RGI-Orange Integration)
+**Footer-Leiste**:
+- Telefon + Mail als Inline-Links mit kleinen orangenen Icons, dezent in `text-muted-foreground`
 
-- Header-Icon-Box (`ShieldAlert`) bekommt Orange-Tint statt neutralem Grau
-- Sektionsüberschriften mit kleinem Orange-Akzent-Strich links
-- Pillen Handwerker: `bg-orange-50/80` + `border-orange-200` + `text-orange-900` (dark mode entsprechend)
-- Pillen Notruf: dezenter Rot-Tint
-- Aktive/expandierte Pille: kräftigeres Orange + Schatten
-- Hover-States mit sanftem Übergang
+### Sektionen & Datenquelle
 
-### 3. Texte (`src/lib/emergencyContactInfo.ts`)
+1. **Verwaltung & Betreuung** — RGI-Hausverwaltung (fix) + alle Einträge mit Kategorie „Hausmeister"
+2. **Technische Betreuung** — alle übrigen Handwerker-Kategorien
+3. **Öffentliche Notrufe** — Feuerwehr, Rettungsdienst, Polizei (aus `PUBLIC_EMERGENCY_NUMBERS`)
 
-Kleine Anpassung: Generelle Einleitung für die Handwerker-Sektion ergänzen:
-```
-HANDWERKER_INTRO = "Bitte nur kontaktieren, wenn die Hausverwaltung nicht erreichbar ist. Wählen Sie das passende Gewerk:"
-```
-Die `EMERGENCY_CATEGORY_INFO` bleiben als Kategorie-Erklärtexte. Pro Firma wird zusätzlich `emergency_note` (firmenspezifisch) im ausgefahrenen Bereich angezeigt.
+DB-Schema und `emergencyContactInfo.ts` bleiben unverändert.
 
-### 4. Default-Zustand
+### Out of Scope
 
-Bleibt geschlossen (wie zuletzt vereinbart). Innerhalb des geöffneten Widgets sind alle Firmen-Pillen ebenfalls eingeklappt — Nutzer klickt gezielt eine Firma an.
-
-## Technisches
-
-- Lokaler State: `const [expandedId, setExpandedId] = useState<string | null>(null)` — eine ID umfasst sowohl Assignment-IDs als auch Notruf-Indizes (Prefix `notruf-`)
-- Pillen sind `<button>` Elemente (nicht `<a>`), Tel/Mail-Links erst im ausgefahrenen Bereich → klares Zwei-Schritt-Verhalten
-- Animation: `data-state` getriebenes `max-height` Transition oder einfach Conditional Render mit `animate-accordion-down` falls vorhanden
-- Tailwind-Klassen via direkter HSL-Tokens (kein `text-orange-*` Hardcoding wenn möglich) — nutze ggf. existierende `rgi-orange` Tokens aus `tailwind.config.ts`. Falls nicht vorhanden, verwende sparsam `bg-[hsl(var(--primary)/0.1)]` Pattern.
-
-## Out of Scope
-
-- DB-Schema bleibt unverändert
-- BuildingServiceProvidersTab (Admin-Seite) wird nicht angefasst
-- Keine neuen Migrations
+- Admin-UI (`BuildingServiceProvidersTab`) wird nicht angefasst
+- Keine Migrations
