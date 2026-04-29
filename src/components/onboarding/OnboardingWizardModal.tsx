@@ -427,6 +427,24 @@ export const OnboardingWizardModal = ({
               />
             ) : showWelcome ? (
               <WelcomeScreen onStart={() => setShowWelcome(false)} />
+            ) : showStammdatenModeQuestion ? (
+              <StammdatenModeQuestionCard
+                buildingName={buildingName}
+                unitCount={assignments.length}
+                onChoose={async (allSame) => {
+                  setAppliesToAll(allSame);
+                  setShowStammdatenModeQuestion(false);
+                  // direkt im progress-Datensatz persistieren
+                  try {
+                    await supabase
+                      .from("onboarding_progress" as any)
+                      .update({ applies_to_all_assignments: allSame })
+                      .eq("id", progress.id);
+                  } catch (e) {
+                    console.error("could not persist applies_to_all_assignments", e);
+                  }
+                }}
+              />
             ) : (
               <div className="space-y-3">
                 <div>
