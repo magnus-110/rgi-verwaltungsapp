@@ -87,9 +87,16 @@ export const OnboardingWizardModal = ({
   );
   // Stammdaten-Mode-Frage nach Welcome (nur bei mehreren Einheiten und solange
   // noch keine Auswahl getroffen ist und Step 1 noch nicht abgeschlossen ist).
-  const [showStammdatenModeQuestion, setShowStammdatenModeQuestion] = useState<boolean>(
-    multiUnit && appliesToAll === null && !progress.step1_completed_at
-  );
+  // WICHTIG: reaktiv ableiten — `assignments` wird async geladen und ist beim
+  // ersten Render evtl. noch leer. Ein useState-Initializer würde dann für
+  // immer auf `false` hängenbleiben.
+  const [stammdatenModeDismissed, setStammdatenModeDismissed] = useState(false);
+  const showStammdatenModeQuestion =
+    !showWelcome &&
+    multiUnit &&
+    appliesToAll === null &&
+    !progress.step1_completed_at &&
+    !stammdatenModeDismissed;
 
   useEffect(() => {
     if (progress.is_repeat_owner && step === 1 && !progress.step1_completed_at) {
@@ -433,7 +440,7 @@ export const OnboardingWizardModal = ({
                 unitCount={assignments.length}
                 onChoose={async (allSame) => {
                   setAppliesToAll(allSame);
-                  setShowStammdatenModeQuestion(false);
+                  setStammdatenModeDismissed(true);
                   // direkt im progress-Datensatz persistieren
                   try {
                     await supabase
