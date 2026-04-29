@@ -229,6 +229,7 @@ export const TenantLayout = ({ children }: TenantLayoutProps) => {
          onAccepted={handleTermsAccepted}
        />
      )}
+     <IntroVideoDialog open={showIntroVideo} onClose={dismissIntroVideo} />
     </div>
   );
 };
