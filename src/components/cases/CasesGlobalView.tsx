@@ -398,10 +398,19 @@ const CasesBoard = ({ items, onOpen, onChangeStatus, onDelete }: ListProps) => {
                 return (
                   <Card
                     key={c.id}
-                    className="p-2.5 cursor-pointer hover:shadow-md transition-shadow"
+                    className="p-2.5 cursor-pointer hover:shadow-md transition-shadow group relative"
                     onClick={() => onOpen(c.id)}
                   >
-                    <div className="flex items-start gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute top-1 right-1 h-6 w-6 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => { e.stopPropagation(); onDelete(c); }}
+                      aria-label="Vorgang löschen"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                    <div className="flex items-start gap-2 pr-6">
                       <span className={cn("h-2 w-2 rounded-full mt-1.5 shrink-0", PRIORITY_DOT[c.priority])} />
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-medium leading-snug line-clamp-2">{c.title}</div>
