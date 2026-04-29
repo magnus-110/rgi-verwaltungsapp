@@ -279,7 +279,7 @@ interface ListProps {
 const CasesList = ({ items, onOpen, onChangeStatus, onDelete }: ListProps) => {
   return (
     <Card className="overflow-hidden">
-      <div className="hidden lg:grid grid-cols-[1fr_180px_120px_140px_140px_120px_110px] gap-3 px-4 py-2.5 bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground font-medium border-b">
+      <div className="hidden lg:grid grid-cols-[1fr_180px_120px_140px_140px_120px_110px_40px] gap-3 px-4 py-2.5 bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground font-medium border-b">
         <div>Titel</div>
         <div>Gebäude</div>
         <div>Kategorie</div>
@@ -287,6 +287,7 @@ const CasesList = ({ items, onOpen, onChangeStatus, onDelete }: ListProps) => {
         <div>Status</div>
         <div>Fällig</div>
         <div className="text-right">Aktualisiert</div>
+        <div></div>
       </div>
       <div className="divide-y divide-border">
         {items.map((c) => {
