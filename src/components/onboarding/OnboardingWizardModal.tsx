@@ -398,7 +398,7 @@ export const OnboardingWizardModal = ({
           className="flex flex-col flex-1 min-h-0"
         >
           {/* Top Bar */}
-          <div className="bg-card border-b border-border/40 px-5 h-[56px] flex items-center shrink-0">
+          <div className="bg-card border-b border-border/40 px-5 py-2 min-h-[72px] flex items-center shrink-0">
             <RgiWordmark />
           </div>
 
