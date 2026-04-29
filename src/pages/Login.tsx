@@ -22,13 +22,6 @@ export const Login = () => {
 
   // Redirect authenticated users
   if (user && profile) {
-    // Force password change for admins (legacy) or any user with must_change_password
-    if (
-      (profile.force_password_change && profile.role === 'admin') ||
-      profile.must_change_password
-    ) {
-      return <Navigate to="/change-password" replace />;
-    }
     return <Navigate to="/" replace />;
   }
 
