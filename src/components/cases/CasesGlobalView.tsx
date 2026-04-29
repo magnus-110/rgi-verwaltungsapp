@@ -68,6 +68,8 @@ export const CasesGlobalView = () => {
   const { data: cases = [], isLoading } = useAllCases(managementMode);
   const { data: buildings = [] } = useBuildingsForFilter(managementMode);
   const updateCase = useUpdateCase();
+  const deleteCase = useDeleteCase();
+  const [deleteTarget, setDeleteTarget] = useState<CaseWithBuilding | null>(null);
 
   const [view, setView] = useState<ViewMode>("list");
   const [search, setSearch] = useState("");
