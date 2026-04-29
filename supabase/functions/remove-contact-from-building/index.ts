@@ -97,12 +97,19 @@ Deno.serve(async (req) => {
         await admin.from("weg_owner_buildings").delete().eq("user_id", userId);
         await admin.from("tenants").delete().eq("user_id", userId);
 
+        // Null out NO ACTION foreign keys that would otherwise block auth user deletion
+        await admin.from("forum_posts").update({ author_id: null }).eq("author_id", userId);
+        await admin.from("bank_reconciliations").update({ confirmed_by: null }).eq("confirmed_by", userId);
+        await admin.from("onboarding_activations").update({ activated_by: null }).eq("activated_by", userId);
+        await admin.from("onboarding_letter_log").update({ generated_by: null }).eq("generated_by", userId);
+        await admin.from("onboarding_submissions").update({ reviewed_by: null }).eq("reviewed_by", userId);
+
         const { error: authDelErr } = await admin.auth.admin.deleteUser(userId);
         if (authDelErr) {
           console.error("auth.admin.deleteUser failed", authDelErr);
-        } else {
-          accountDeleted = true;
+          return json({ error: `Account konnte nicht gelöscht werden: ${authDelErr.message}` }, 500);
         }
+        accountDeleted = true;
       } else {
         // Contact still has other assignments -> only revoke this building.
         await admin
