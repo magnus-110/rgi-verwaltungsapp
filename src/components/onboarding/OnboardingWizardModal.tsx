@@ -304,6 +304,16 @@ export const OnboardingWizardModal = ({
   const renderStep = () => {
     switch (step) {
       case 1:
+        if (stammdatenSplit) {
+          return (
+            <Step1StammdatenMulti
+              assignments={assignments}
+              value={currentData as Step1MultiData}
+              onChange={setCurrentData}
+              buildingId={progress.building_id}
+            />
+          );
+        }
         return (
           <Step1Stammdaten
             value={currentData as Step1Data}
@@ -312,6 +322,15 @@ export const OnboardingWizardModal = ({
           />
         );
       case 2:
+        if (multiUnit) {
+          return (
+            <Step2WohnungsdatenMulti
+              assignments={assignments}
+              value={currentData as Step2MultiData}
+              onChange={setCurrentData}
+            />
+          );
+        }
         return <Step2Wohnungsdaten value={currentData as Step2Data} onChange={setCurrentData} />;
       case 3:
         return <Step3Gebaeude value={currentData as Step3Data} onChange={setCurrentData} />;
