@@ -59,10 +59,11 @@ Deno.serve(async (req) => {
 
     // 2. Delete sub-assignments (parent_assignment_id) explicitly first — they have ON DELETE SET NULL,
     //    but for hierarchy cleanup we want them gone with the parent.
-    await admin
+    const { error: subDelErr } = await admin
       .from("contact_building_assignments")
       .delete()
       .eq("parent_assignment_id", assignment_id);
+    if (subDelErr) return json({ error: subDelErr.message }, 500);
 
     // 3. Delete the assignment itself (cascades shares, costs, etv_attendees, etv_votes)
     const { error: delErr } = await admin
@@ -107,7 +108,20 @@ Deno.serve(async (req) => {
         const { error: authDelErr } = await admin.auth.admin.deleteUser(userId);
         if (authDelErr) {
           console.error("auth.admin.deleteUser failed", authDelErr);
-          return json({ error: `Account konnte nicht gelöscht werden: ${authDelErr.message}` }, 500);
+          // The important part for access control is already done above: the contact is detached
+          // and all building links are revoked. Some legacy audit references can still block a
+          // hard auth deletion, so do not fail the whole UI action at this point.
+          const { error: banErr } = await admin.auth.admin.updateUserById(userId, {
+            ban_duration: "876000h",
+          });
+          if (banErr) console.error("auth.admin.updateUserById ban failed", banErr);
+          return json({
+            success: true,
+            account_deleted: false,
+            account_deactivated: !banErr,
+            auth_delete_warning: authDelErr.message,
+            remaining_assignments: 0,
+          });
         }
         accountDeleted = true;
       } else {
