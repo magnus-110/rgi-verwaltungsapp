@@ -45,7 +45,7 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
         { icon: Sparkles, label: "NOVA", path: '/documents', active: location.pathname.startsWith('/documents') },
         { icon: CheckSquare, label: "Aufgaben", path: '/todos', active: location.pathname.startsWith('/todos') },
         { icon: CalendarDays, label: "Kalender", path: '/calendar', active: location.pathname.startsWith('/calendar') },
-        { icon: ClipboardList, label: "Meldungen", path: '/reports', active: location.pathname.startsWith('/reports') },
+        { icon: ClipboardList, label: "Tickets", path: '/tickets', active: location.pathname.startsWith('/tickets') || location.pathname.startsWith('/reports') },
         { icon: Castle, label: "Gebäude", path: '/buildings', active: location.pathname.startsWith('/buildings') },
         { icon: BookUser, label: "Adressen", path: '/contacts', active: location.pathname.startsWith('/contacts') },
         { icon: Users, label: "Versammlungen", path: '/versammlungen', active: location.pathname.startsWith('/versammlungen') },
