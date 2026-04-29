@@ -55,6 +55,7 @@ export const OnboardingWizardModal = ({
   onOpenChange,
   progress,
   buildingName,
+  assignments,
   onComplete,
 }: Props) => {
   const { toast } = useToast();
@@ -64,15 +65,30 @@ export const OnboardingWizardModal = ({
   const [submitting, setSubmitting] = useState(false);
   const [justFinished, setJustFinished] = useState(false);
 
+  // Multi-Einheiten-Modus: mehr als ein aktives Assignment im Gebäude
+  const multiUnit = assignments.length > 1;
+  const [appliesToAll, setAppliesToAll] = useState<boolean | null>(
+    progress.applies_to_all_assignments ?? null
+  );
+  // Stammdaten je Einheit getrennt erfassen?
+  const stammdatenSplit = multiUnit && appliesToAll === false;
+
   // Welcome-Screen nur beim allerersten Öffnen anzeigen
   const initialStep1 = (progress.step_data as any)?.step1;
+  const initialStep1Multi = (progress.step_data as any)?.step1_multi;
   const step1HasData =
-    !!initialStep1 && Object.keys(initialStep1).length > 0;
+    (!!initialStep1 && Object.keys(initialStep1).length > 0) ||
+    (!!initialStep1Multi && Object.keys(initialStep1Multi).length > 0);
   const [showWelcome, setShowWelcome] = useState<boolean>(
     !progress.step1_completed_at &&
       !progress.is_repeat_owner &&
       !step1HasData &&
       (progress.current_step ?? 1) <= 1
+  );
+  // Stammdaten-Mode-Frage nach Welcome (nur bei mehreren Einheiten und solange
+  // noch keine Auswahl getroffen ist und Step 1 noch nicht abgeschlossen ist).
+  const [showStammdatenModeQuestion, setShowStammdatenModeQuestion] = useState<boolean>(
+    multiUnit && appliesToAll === null && !progress.step1_completed_at
   );
 
   useEffect(() => {
