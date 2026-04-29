@@ -9,7 +9,7 @@ import { OnboardingWizardModal } from "./OnboardingWizardModal";
  * Cannot be permanently dismissed — the X only minimizes it to a small icon.
  */
 export const OnboardingFAB = () => {
-  const { loading, isActive, progress, buildingName, refresh } = useOnboardingContext();
+  const { loading, isActive, progress, buildingName, assignments, refresh } = useOnboardingContext();
   const [open, setOpen] = useState(false);
   const [autoOpened, setAutoOpened] = useState(false);
   const [minimized, setMinimized] = useState(false);
@@ -87,6 +87,7 @@ export const OnboardingFAB = () => {
         onOpenChange={setOpen}
         progress={progress}
         buildingName={buildingName}
+        assignments={assignments}
         onComplete={() => {
           setOpen(false);
           refresh();
