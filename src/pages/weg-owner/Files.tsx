@@ -63,18 +63,45 @@ function FilesByCategory({ files, categories, search }: { files: FileItem[]; cat
     });
   }, [filtered, categories]);
 
-  const handleDownload = async (file: FileItem) => {
-    setDownloading(file.id);
+  const getSignedUrl = async (file: FileItem): Promise<string | null> => {
     try {
       const { data, error } = await supabase.functions.invoke("get-building-file-url", {
         body: { filePath: file.file_path },
       });
       if (error) throw error;
-      window.open(data.signedUrl, "_blank");
+      return data.signedUrl as string;
     } catch {
-      toast.error("Download fehlgeschlagen");
-    } finally {
-      setDownloading(null);
+      return null;
+    }
+  };
+
+  const handleOpen = async (file: FileItem) => {
+    setDownloading(file.id);
+    const url = await getSignedUrl(file);
+    setDownloading(null);
+    if (!url) { toast.error("Öffnen fehlgeschlagen"); return; }
+    window.open(url, "_blank", "noopener");
+  };
+
+  const handleDownload = async (file: FileItem) => {
+    setDownloading(file.id);
+    const url = await getSignedUrl(file);
+    setDownloading(null);
+    if (!url) { toast.error("Download fehlgeschlagen"); return; }
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = file.display_name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+    } catch {
+      // Fallback: open in new tab
+      window.open(url, "_blank", "noopener");
     }
   };
 
