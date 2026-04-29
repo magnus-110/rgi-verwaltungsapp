@@ -141,18 +141,46 @@ export function WegOwnerFiles() {
   const fetchFiles = async () => {
     setLoading(true);
 
-    const [personalRes, buildingRes, catRes] = await Promise.all([
+    // Find all contact ids linked to this user (a user may map to multiple contacts)
+    const { data: contactRows } = await supabase
+      .from("contacts")
+      .select("id")
+      .eq("user_id", profile!.user_id);
+    const contactIds = (contactRows || []).map((c: any) => c.id);
+
+    // File ids explicitly shared with these contacts
+    let visibilityFileIds: string[] = [];
+    if (contactIds.length > 0) {
+      const { data: visRows } = await supabase
+        .from("building_file_visibility")
+        .select("file_id")
+        .in("contact_id", contactIds);
+      visibilityFileIds = Array.from(new Set((visRows || []).map((r: any) => r.file_id)));
+    }
+
+    const [assignedRes, personenRes, buildingRes, catRes] = await Promise.all([
+      // Files directly assigned to this user
       supabase
         .from("building_files")
         .select("*")
         .eq("assigned_user_id", profile!.user_id)
         .eq("visible_to_users", true)
         .order("created_at", { ascending: false }),
+      // Files shared specifically with one of this user's contacts
+      visibilityFileIds.length > 0
+        ? supabase
+            .from("building_files")
+            .select("*")
+            .in("id", visibilityFileIds)
+            .order("created_at", { ascending: false })
+        : Promise.resolve({ data: [] as any[] }),
+      // Building-wide files: visible to all, NOT person-specific, NOT individually assigned
       supabase
         .from("building_files")
         .select("*")
         .is("assigned_user_id", null)
         .eq("visible_to_users", true)
+        .neq("visibility_role", "personen")
         .order("created_at", { ascending: false }),
       supabase
         .from("building_file_categories")
@@ -161,8 +189,13 @@ export function WegOwnerFiles() {
         .order("sort_order"),
     ]);
 
-    if (personalRes.data) setPersonalFiles(personalRes.data);
-    if (buildingRes.data) setBuildingFiles(buildingRes.data);
+    // Merge personal sources, dedupe by id
+    const personalMap = new Map<string, FileItem>();
+    (assignedRes.data || []).forEach((f: any) => personalMap.set(f.id, f));
+    (personenRes.data || []).forEach((f: any) => personalMap.set(f.id, f));
+    setPersonalFiles(Array.from(personalMap.values()));
+
+    if (buildingRes.data) setBuildingFiles(buildingRes.data as any);
     if (catRes.data) setCategories(catRes.data);
     setLoading(false);
   };
