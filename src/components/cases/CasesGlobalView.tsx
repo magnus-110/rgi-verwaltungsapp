@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { CaseDetailView } from "./CaseDetailView";
 import { CreateCaseDialog } from "./CreateCaseDialog";
-import { Search, LayoutList, Columns, Plus, Building2, Clock, MessageSquare, Loader2, AlertCircle, Trash2 } from "lucide-react";
+import { Search, LayoutList, Columns, Plus, Building2, Clock, MessageSquare, Loader2, AlertCircle, Trash2, GitBranch } from "lucide-react";
 import { formatDistanceToNow, format, isPast } from "date-fns";
 import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -80,9 +80,11 @@ export const CasesGlobalView = () => {
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [createBuildingId, setCreateBuildingId] = useState<string>("");
+  const [showSubcases, setShowSubcases] = useState(false);
 
   const filtered = useMemo(() => {
     return cases.filter((c) => {
+      if (!showSubcases && c.parent_case_id) return false;
       if (buildingFilter !== "all" && c.building_id !== buildingFilter) return false;
       if (statusFilter === "all_open" && c.status === "resolved") return false;
       if (statusFilter !== "all_open" && statusFilter !== "all" && c.status !== statusFilter) return false;
