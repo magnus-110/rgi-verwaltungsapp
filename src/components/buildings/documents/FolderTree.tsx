@@ -1,9 +1,42 @@
 import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { ChevronRight, ChevronDown, Folder, FolderOpen, AlertCircle } from "lucide-react";
+import {
+  ChevronRight,
+  ChevronDown,
+  Folder,
+  FolderOpen,
+  AlertCircle,
+  MoreHorizontal,
+  FolderPlus,
+  Pencil,
+  Trash2,
+  Plus,
+  Check,
+  X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 import { DocCategory } from "./types";
 
 interface FolderTreeProps {
@@ -18,12 +51,17 @@ interface TreeNode extends DocCategory {
 }
 
 export function FolderTree({ buildingId, selectedCategoryId, onSelect }: FolderTreeProps) {
+  const qc = useQueryClient();
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const [addingUnderId, setAddingUnderId] = useState<string | null | "root">(null);
+  const [addingName, setAddingName] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<TreeNode | null>(null);
 
   const { data: categories = [] } = useQuery({
     queryKey: ['stammakte-categories', buildingId],
     queryFn: async () => {
-      // Ensure standard categories exist (idempotent)
       await supabase.rpc('ensure_stammakte_categories', { p_building_id: buildingId });
       const { data, error } = await supabase
         .from('building_file_categories')
@@ -71,6 +109,11 @@ export function FolderTree({ buildingId, selectedCategoryId, onSelect }: FolderT
     return build(null);
   }, [categories, counts]);
 
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ['stammakte-categories', buildingId] });
+    qc.invalidateQueries({ queryKey: ['stammakte-counts', buildingId] });
+  };
+
   const toggle = (id: string) => {
     setExpanded(s => {
       const n = new Set(s);
@@ -79,38 +122,211 @@ export function FolderTree({ buildingId, selectedCategoryId, onSelect }: FolderT
     });
   };
 
+  const startRename = (node: TreeNode) => {
+    setEditingId(node.id);
+    setEditingName(node.name);
+  };
+
+  const commitRename = async () => {
+    if (!editingId) return;
+    const name = editingName.trim();
+    if (!name) { setEditingId(null); return; }
+    const { error } = await supabase
+      .from('building_file_categories')
+      .update({ name })
+      .eq('id', editingId);
+    if (error) {
+      toast.error("Umbenennen fehlgeschlagen");
+    } else {
+      toast.success("Ordner umbenannt");
+      refresh();
+    }
+    setEditingId(null);
+  };
+
+  const startAdd = (parentId: string | null) => {
+    setAddingUnderId(parentId ?? "root");
+    setAddingName("");
+    if (parentId) {
+      setExpanded(s => new Set(s).add(parentId));
+    }
+  };
+
+  const commitAdd = async () => {
+    const name = addingName.trim();
+    if (!name) { setAddingUnderId(null); return; }
+    const parent = addingUnderId === "root" ? null : addingUnderId;
+    // Determine management_mode for this building
+    const { data: bld } = await supabase
+      .from('buildings')
+      .select('management_mode')
+      .eq('id', buildingId)
+      .maybeSingle();
+    const mgmt = (bld?.management_mode as string) || 'weg';
+    const siblings = categories.filter(c => (c.parent_id || null) === parent);
+    const nextSort = (siblings.reduce((m, c) => Math.max(m, c.sort_order || 0), 0) || 0) + 10;
+    const { error } = await supabase
+      .from('building_file_categories')
+      .insert({
+        name,
+        parent_id: parent,
+        building_id: buildingId,
+        management_mode: mgmt,
+        sort_order: nextSort,
+        is_recommended: false,
+        auto_rag_enabled: false,
+      } as any);
+    if (error) {
+      toast.error("Anlegen fehlgeschlagen: " + error.message);
+    } else {
+      toast.success("Ordner angelegt");
+      refresh();
+    }
+    setAddingUnderId(null);
+    setAddingName("");
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    // Block delete if any files in this category or any descendant
+    const allIds: string[] = [];
+    const collect = (n: TreeNode) => { allIds.push(n.id); n.children.forEach(collect); };
+    collect(deleteTarget);
+    const totalFiles = allIds.reduce((s, id) => s + (counts[id] || 0), 0);
+    if (totalFiles > 0) {
+      toast.error(`Ordner enthält ${totalFiles} Datei(en). Bitte zuerst verschieben oder löschen.`);
+      setDeleteTarget(null);
+      return;
+    }
+    const { error } = await supabase
+      .from('building_file_categories')
+      .delete()
+      .in('id', allIds);
+    if (error) {
+      toast.error("Löschen fehlgeschlagen: " + error.message);
+    } else {
+      toast.success("Ordner gelöscht");
+      refresh();
+      if (allIds.includes(selectedCategoryId || '')) onSelect(null);
+    }
+    setDeleteTarget(null);
+  };
+
   const renderNode = (node: TreeNode, depth: number) => {
     const isOpen = expanded.has(node.id);
     const isSelected = selectedCategoryId === node.id;
     const hasChildren = node.children.length > 0;
+    const isEditing = editingId === node.id;
 
     return (
       <div key={node.id}>
-        <button
-          onClick={() => onSelect(node.id)}
+        <div
           className={cn(
-            "w-full flex items-center gap-1.5 py-1.5 px-2 rounded-md text-sm hover:bg-accent text-left",
+            "group w-full flex items-center gap-1.5 py-1.5 px-2 rounded-md text-sm hover:bg-accent",
             isSelected && "bg-accent font-medium"
           )}
           style={{ paddingLeft: `${depth * 12 + 8}px` }}
         >
           <span
             onClick={(e) => { if (hasChildren) { e.stopPropagation(); toggle(node.id); } }}
-            className="flex-shrink-0 w-4"
+            className="flex-shrink-0 w-4 cursor-pointer"
           >
             {hasChildren ? (
               isOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />
             ) : null}
           </span>
-          {isOpen && hasChildren ? <FolderOpen className="h-4 w-4 text-muted-foreground flex-shrink-0" /> : <Folder className="h-4 w-4 text-muted-foreground flex-shrink-0" />}
-          <span className="truncate flex-1">{node.name}</span>
-          {node.is_recommended && node.fileCount === 0 && (
-            <AlertCircle className="h-3.5 w-3.5 text-destructive" aria-label="Empfohlenes Dokument fehlt" />
+          {isOpen && hasChildren ? (
+            <FolderOpen className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+          ) : (
+            <Folder className="h-4 w-4 text-muted-foreground flex-shrink-0" />
           )}
-          {node.fileCount > 0 && (
-            <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{node.fileCount}</Badge>
+
+          {isEditing ? (
+            <div className="flex-1 flex items-center gap-1">
+              <Input
+                autoFocus
+                value={editingName}
+                onChange={(e) => setEditingName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitRename();
+                  if (e.key === 'Escape') setEditingId(null);
+                }}
+                className="h-7 text-sm"
+              />
+              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={commitRename}>
+                <Check className="h-3.5 w-3.5" />
+              </Button>
+              <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditingId(null)}>
+                <X className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={() => onSelect(node.id)}
+                className="truncate flex-1 text-left bg-transparent border-0 p-0"
+              >
+                {node.name}
+              </button>
+              {node.is_recommended && node.fileCount === 0 && (
+                <AlertCircle className="h-3.5 w-3.5 text-destructive" aria-label="Empfohlenes Dokument fehlt" />
+              )}
+              {node.fileCount > 0 && (
+                <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{node.fileCount}</Badge>
+              )}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <MoreHorizontal className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={() => startAdd(node.id)}>
+                    <FolderPlus className="h-4 w-4 mr-2" /> Unterordner anlegen
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => startRename(node)}>
+                    <Pencil className="h-4 w-4 mr-2" /> Umbenennen
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={() => setDeleteTarget(node)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" /> Löschen
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
           )}
-        </button>
+        </div>
+
+        {addingUnderId === node.id && (
+          <div className="flex items-center gap-1 py-1" style={{ paddingLeft: `${(depth + 1) * 12 + 28}px` }}>
+            <Input
+              autoFocus
+              placeholder="Ordnername..."
+              value={addingName}
+              onChange={(e) => setAddingName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitAdd();
+                if (e.key === 'Escape') setAddingUnderId(null);
+              }}
+              className="h-7 text-sm"
+            />
+            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={commitAdd}>
+              <Check className="h-3.5 w-3.5" />
+            </Button>
+            <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setAddingUnderId(null)}>
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
+
         {isOpen && hasChildren && (
           <div>{node.children.map(c => renderNode(c, depth + 1))}</div>
         )}
@@ -122,19 +338,69 @@ export function FolderTree({ buildingId, selectedCategoryId, onSelect }: FolderT
 
   return (
     <div className="space-y-0.5">
-      <button
-        onClick={() => onSelect(null)}
-        className={cn(
-          "w-full flex items-center gap-1.5 py-1.5 px-2 rounded-md text-sm hover:bg-accent text-left",
-          selectedCategoryId === null && "bg-accent font-medium"
-        )}
-      >
-        <span className="w-4" />
-        <Folder className="h-4 w-4 text-muted-foreground" />
-        <span className="flex-1">Alle Dokumente</span>
-        {totalCount > 0 && <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{totalCount}</Badge>}
-      </button>
+      <div className="flex items-center justify-between mb-2 px-1">
+        <button
+          onClick={() => onSelect(null)}
+          className={cn(
+            "flex-1 flex items-center gap-1.5 py-1.5 px-2 rounded-md text-sm hover:bg-accent text-left",
+            selectedCategoryId === null && "bg-accent font-medium"
+          )}
+        >
+          <Folder className="h-4 w-4 text-muted-foreground" />
+          <span className="flex-1">Alle Dokumente</span>
+          {totalCount > 0 && <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{totalCount}</Badge>}
+        </button>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-7 w-7 ml-1"
+          onClick={() => startAdd(null)}
+          title="Ordner auf oberster Ebene anlegen"
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
+      </div>
+
+      {addingUnderId === "root" && (
+        <div className="flex items-center gap-1 py-1 pl-3">
+          <Input
+            autoFocus
+            placeholder="Ordnername..."
+            value={addingName}
+            onChange={(e) => setAddingName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitAdd();
+              if (e.key === 'Escape') setAddingUnderId(null);
+            }}
+            className="h-7 text-sm"
+          />
+          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={commitAdd}>
+            <Check className="h-3.5 w-3.5" />
+          </Button>
+          <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setAddingUnderId(null)}>
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      )}
+
       {tree.map(n => renderNode(n, 0))}
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Ordner „{deleteTarget?.name}" löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Der Ordner und alle Unterordner werden gelöscht. Dateien müssen vorher verschoben oder gelöscht werden.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
