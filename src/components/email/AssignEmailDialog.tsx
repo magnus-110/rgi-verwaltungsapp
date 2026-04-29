@@ -85,12 +85,28 @@ export const AssignEmailDialog = ({
         .from("cases")
         .select("id, title, status, category")
         .eq("building_id", buildingId)
+        .is("parent_case_id", null)
         .in("status", ["open", "in_progress", "waiting_external", "waiting_owner"])
         .order("updated_at", { ascending: false });
       if (error) throw error;
       return data;
     },
     enabled: buildingId !== "none",
+  });
+
+  const { data: subcases = [] } = useQuery({
+    queryKey: ["subcases-for-assign", caseId],
+    queryFn: async () => {
+      if (caseId === "none") return [];
+      const { data, error } = await supabase
+        .from("cases")
+        .select("id, title, status")
+        .eq("parent_case_id", caseId)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+    enabled: caseId !== "none",
   });
 
   const handleCreateCase = async () => {
