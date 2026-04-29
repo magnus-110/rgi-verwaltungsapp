@@ -129,8 +129,9 @@ export const OnboardingWizardModal = ({
   const completedCount = Object.values(completed).filter(Boolean).length;
   const allDone = justFinished || completedCount === 5 || !!progress.fully_completed_at || !!progress.step5_completed_at;
 
-  const isStep1HardLocked =
-    step === 1 && !progress.step1_completed_at && !progress.is_repeat_owner;
+  // Step 1 darf nicht mehr hart gesperrt werden — Nutzer darf jederzeit
+  // schließen (Onboarding-FAB bleibt sichtbar bis abgeschlossen).
+  const isStep1HardLocked = false;
 
   const isEmptyData = (data: any) =>
     !data || Object.values(data).every((v) => v === undefined || v === null || v === "" || (Array.isArray(v) && v.length === 0));
