@@ -17,6 +17,7 @@ interface FileItem {
   mime_type: string | null;
   description: string | null;
   visible_to_users: boolean;
+  visibility_role: string | null;
   created_at: string;
   category_id: string | null;
 }
