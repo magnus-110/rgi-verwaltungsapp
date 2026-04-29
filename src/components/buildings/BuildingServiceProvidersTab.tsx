@@ -156,8 +156,8 @@ export function BuildingServiceProvidersTab({ buildingId }: Props) {
                           {p.service_category || "Sonstiges"}
                         </Badge>
                         {p.is_emergency_contact && (
-                          <Badge className="text-[10px] bg-orange-500/15 text-orange-700 hover:bg-orange-500/15 border border-orange-500/30 gap-1">
-                            <BellRing className="h-3 w-3" /> Notfallkontakt
+                          <Badge variant="outline" className="text-[10px] gap-1 border-foreground/30">
+                            <ShieldAlert className="h-3 w-3" /> Notfallkontakt
                           </Badge>
                         )}
                       </div>
