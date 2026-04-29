@@ -64,6 +64,45 @@ export const useCases = (buildingId: string) => {
   });
 };
 
+export interface CaseWithBuilding extends CaseRow {
+  buildings: { id: string; name: string; address: string | null } | null;
+  events_count: number;
+}
+
+export const useAllCases = (managementMode: ManagementMode) => {
+  return useQuery({
+    queryKey: ["cases-all", managementMode],
+    queryFn: async () => {
+      // Filter via building.management_mode using inner join
+      const { data, error } = await supabase
+        .from("cases")
+        .select("*, buildings!inner(id, name, address, management_mode)")
+        .eq("buildings.management_mode", managementMode)
+        .order("updated_at", { ascending: false })
+        .limit(1000);
+      if (error) throw error;
+      const rows = (data || []) as any[];
+
+      // Fetch event counts in one query
+      const ids = rows.map((r) => r.id);
+      const counts = new Map<string, number>();
+      if (ids.length) {
+        const { data: ev } = await supabase
+          .from("case_events")
+          .select("case_id")
+          .in("case_id", ids);
+        (ev || []).forEach((e: any) => counts.set(e.case_id, (counts.get(e.case_id) || 0) + 1));
+      }
+
+      return rows.map((r) => ({
+        ...r,
+        buildings: r.buildings ? { id: r.buildings.id, name: r.buildings.name, address: r.buildings.address } : null,
+        events_count: counts.get(r.id) || 0,
+      })) as CaseWithBuilding[];
+    },
+  });
+};
+
 export const useCase = (caseId: string | null) => {
   return useQuery({
     queryKey: ["case", caseId],
