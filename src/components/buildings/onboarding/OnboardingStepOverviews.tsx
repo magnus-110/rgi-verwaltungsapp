@@ -556,8 +556,8 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
                         );
                       };
                       return (
-                        <>
-                          <TableRow key={`${r.submissionId}-${aid ?? "main"}`}>
+                        <React.Fragment key={`${r.submissionId}-${aid ?? "main"}`}>
+                          <TableRow>
                             <TableCell className="font-medium">{r.ownerName}</TableCell>
                             <TableCell>
                               <span className="font-mono text-xs">{r.unitLabel}</span>
@@ -606,7 +606,7 @@ export const OnboardingStepOverviews = ({ buildingId, onOpenSubmission }: Props)
                               </TableRow>
                             );
                           })}
-                        </>
+                        </React.Fragment>
                       );
                     })}
                   </TableBody>
