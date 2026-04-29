@@ -5,13 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sparkles, RefreshCw, Loader2, Pencil, Check, X } from "lucide-react";
+import { Sparkles, RefreshCw, Loader2, Pencil, Check, X, ChevronLeft, GitBranch } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { de } from "date-fns/locale";
 import { useCase, useCaseEvents, useUpdateCase, useSummarizeCase, CASE_STATUS_LABEL, CASE_PRIORITY_LABEL, CASE_CATEGORY_LABEL, CaseStatus, CasePriority } from "@/hooks/useCases";
 import { CaseTimeline } from "./CaseTimeline";
 import { CaseQuickAdd } from "./CaseQuickAdd";
 import { CaseAskAi } from "./CaseAskAi";
+import { SubcasesPanel } from "./SubcasesPanel";
 
 interface Props {
   caseId: string | null;
