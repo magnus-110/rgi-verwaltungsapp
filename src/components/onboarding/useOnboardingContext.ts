@@ -17,6 +17,15 @@ export interface OnboardingProgress {
   fully_completed_at: string | null;
   fab_dismissed_at: string | null;
   is_repeat_owner: boolean;
+  applies_to_all_assignments?: boolean | null;
+}
+
+export interface OnboardingAssignment {
+  id: string;
+  unit_number: string | null;
+  floor_location: string | null;
+  unit_kind: string | null;
+  label: string;
 }
 
 export interface OnboardingContext {
@@ -25,6 +34,7 @@ export interface OnboardingContext {
   buildingName: string | null;
   isActive: boolean;
   progress: OnboardingProgress | null;
+  assignments: OnboardingAssignment[];
   refresh: () => Promise<void>;
 }
 
