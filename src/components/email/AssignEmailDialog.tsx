@@ -130,11 +130,15 @@ export const AssignEmailDialog = ({
 
   const handleAssign = () => {
     if (!emailId) return;
+    // Sub-case wins if selected, otherwise the main case (or none)
+    const finalCaseId =
+      subcaseId !== "none" ? subcaseId :
+      caseId !== "none" ? caseId : null;
     onAssign({
       emailId,
       buildingId: buildingId !== "none" ? buildingId : null,
       contactId: contactId !== "none" ? contactId : null,
-      caseId: caseId !== "none" ? caseId : null,
+      caseId: finalCaseId,
       archive,
     });
     onOpenChange(false);
