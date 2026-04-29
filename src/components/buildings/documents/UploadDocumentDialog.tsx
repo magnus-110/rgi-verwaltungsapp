@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, FileText, X } from "lucide-react";
 import { toast } from "sonner";
 import { VisibilityRole, VISIBILITY_LABELS, DocCategory } from "./types";
+import { PersonVisibilityPicker } from "./PersonVisibilityPicker";
 
 interface UploadDocumentDialogProps {
   open: boolean;
@@ -29,6 +30,8 @@ export function UploadDocumentDialog({
   const [validUntil, setValidUntil] = useState<string>("");
   const [uploading, setUploading] = useState(false);
   const [categories, setCategories] = useState<DocCategory[]>([]);
+  const [owners, setOwners] = useState<Array<{ id: string; first_name?: string | null; last_name?: string | null; company_name?: string | null }>>([]);
+  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (open) {
@@ -36,12 +39,32 @@ export function UploadDocumentDialog({
       setCategoryId(initialCategoryId || "");
       setVisibility('intern');
       setValidUntil("");
+      setSelectedContactIds([]);
       supabase
         .from('building_file_categories')
         .select('*')
         .eq('building_id', buildingId)
         .order('sort_order')
         .then(({ data }) => setCategories((data || []) as DocCategory[]));
+      supabase
+        .from('contact_building_assignments')
+        .select('contact_id, contacts(id, first_name, last_name, company_name)')
+        .eq('building_id', buildingId)
+        .eq('is_active', true)
+        .eq('role_in_building', 'eigentuemer')
+        .then(({ data }) => {
+          const list = (data || [])
+            .map((r: any) => r.contacts)
+            .filter(Boolean);
+          // dedupe by id
+          const seen = new Set<string>();
+          const unique = list.filter((c: any) => {
+            if (seen.has(c.id)) return false;
+            seen.add(c.id);
+            return true;
+          });
+          setOwners(unique);
+        });
     }
   }, [open, buildingId, initialCategoryId, initialFiles]);
 
@@ -64,6 +87,10 @@ export function UploadDocumentDialog({
 
   const handleUpload = async () => {
     if (files.length === 0) { toast.error("Bitte mindestens eine Datei wählen"); return; }
+    if (visibility === 'personen' && selectedContactIds.length === 0) {
+      toast.error("Bitte mindestens einen Eigentümer auswählen");
+      return;
+    }
     setUploading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -112,6 +139,13 @@ export function UploadDocumentDialog({
           user_id: user.id,
           action: 'uploaded',
         });
+
+        // Persist per-person visibility
+        if (visibility === 'personen' && selectedContactIds.length > 0) {
+          await supabase.from('building_file_visibility').insert(
+            selectedContactIds.map(cid => ({ file_id: inserted.id, contact_id: cid }))
+          );
+        }
 
         // Trigger OCR for supported types in background
         const ocrTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
@@ -183,6 +217,19 @@ export function UploadDocumentDialog({
               </SelectContent>
             </Select>
           </div>
+
+          {visibility === 'personen' && (
+            <div>
+              <Label>Eigentümer auswählen</Label>
+              <PersonVisibilityPicker
+                contacts={owners}
+                selectedIds={selectedContactIds}
+                onToggle={(id) => setSelectedContactIds(s =>
+                  s.includes(id) ? s.filter(x => x !== id) : [...s, id]
+                )}
+              />
+            </div>
+          )}
 
           <div>
             <Label>Ablaufdatum (optional)</Label>
