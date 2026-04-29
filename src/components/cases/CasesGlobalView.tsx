@@ -1,15 +1,19 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAllCases, useUpdateCase, CASE_STATUS_LABEL, CASE_PRIORITY_LABEL, CASE_CATEGORY_LABEL, CaseStatus, CasePriority, CaseCategory, CaseWithBuilding } from "@/hooks/useCases";
+import { useAllCases, useUpdateCase, useDeleteCase, CASE_STATUS_LABEL, CASE_PRIORITY_LABEL, CASE_CATEGORY_LABEL, CaseStatus, CasePriority, CaseCategory, CaseWithBuilding } from "@/hooks/useCases";
 import { useManagementMode } from "@/hooks/useManagementMode";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { CaseDetailView } from "./CaseDetailView";
 import { CreateCaseDialog } from "./CreateCaseDialog";
-import { Search, LayoutList, Columns, Plus, Building2, Clock, MessageSquare, Loader2, AlertCircle } from "lucide-react";
+import { Search, LayoutList, Columns, Plus, Building2, Clock, MessageSquare, Loader2, AlertCircle, Trash2 } from "lucide-react";
 import { formatDistanceToNow, format, isPast } from "date-fns";
 import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -64,6 +68,8 @@ export const CasesGlobalView = () => {
   const { data: cases = [], isLoading } = useAllCases(managementMode);
   const { data: buildings = [] } = useBuildingsForFilter(managementMode);
   const updateCase = useUpdateCase();
+  const deleteCase = useDeleteCase();
+  const [deleteTarget, setDeleteTarget] = useState<CaseWithBuilding | null>(null);
 
   const [view, setView] = useState<ViewMode>("list");
   const [search, setSearch] = useState("");
@@ -215,9 +221,9 @@ export const CasesGlobalView = () => {
           </p>
         </Card>
       ) : view === "list" ? (
-        <CasesList items={filtered} onOpen={setSelectedCaseId} onChangeStatus={(id, status) => updateCase.mutate({ id, status })} />
+        <CasesList items={filtered} onOpen={setSelectedCaseId} onChangeStatus={(id, status) => updateCase.mutate({ id, status })} onDelete={(c) => setDeleteTarget(c)} />
       ) : (
-        <CasesBoard items={filtered} onOpen={setSelectedCaseId} onChangeStatus={(id, status) => updateCase.mutate({ id, status })} />
+        <CasesBoard items={filtered} onOpen={setSelectedCaseId} onChangeStatus={(id, status) => updateCase.mutate({ id, status })} onDelete={(c) => setDeleteTarget(c)} />
       )}
 
       <CaseDetailView caseId={selectedCaseId} onClose={() => setSelectedCaseId(null)} />
@@ -231,6 +237,33 @@ export const CasesGlobalView = () => {
           onCreated={(c) => setSelectedCaseId(c.id)}
         />
       )}
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Vorgang löschen?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget ? (
+                <>„{deleteTarget.title}" wird unwiderruflich gelöscht – inklusive aller Verlaufseinträge und KI-Zusammenfassungen.</>
+              ) : null}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (deleteTarget) {
+                  deleteCase.mutate(deleteTarget.id);
+                  setDeleteTarget(null);
+                }
+              }}
+            >
+              Löschen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
@@ -240,12 +273,13 @@ interface ListProps {
   items: CaseWithBuilding[];
   onOpen: (id: string) => void;
   onChangeStatus: (id: string, status: CaseStatus) => void;
+  onDelete: (c: CaseWithBuilding) => void;
 }
 
-const CasesList = ({ items, onOpen, onChangeStatus }: ListProps) => {
+const CasesList = ({ items, onOpen, onChangeStatus, onDelete }: ListProps) => {
   return (
     <Card className="overflow-hidden">
-      <div className="hidden lg:grid grid-cols-[1fr_180px_120px_140px_140px_120px_110px] gap-3 px-4 py-2.5 bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground font-medium border-b">
+      <div className="hidden lg:grid grid-cols-[1fr_180px_120px_140px_140px_120px_110px_40px] gap-3 px-4 py-2.5 bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground font-medium border-b">
         <div>Titel</div>
         <div>Gebäude</div>
         <div>Kategorie</div>
@@ -253,6 +287,7 @@ const CasesList = ({ items, onOpen, onChangeStatus }: ListProps) => {
         <div>Status</div>
         <div>Fällig</div>
         <div className="text-right">Aktualisiert</div>
+        <div></div>
       </div>
       <div className="divide-y divide-border">
         {items.map((c) => {
@@ -260,7 +295,7 @@ const CasesList = ({ items, onOpen, onChangeStatus }: ListProps) => {
           return (
             <div
               key={c.id}
-              className="grid grid-cols-1 lg:grid-cols-[1fr_180px_120px_140px_140px_120px_110px] gap-3 px-4 py-3 hover:bg-muted/40 cursor-pointer items-center"
+              className="grid grid-cols-1 lg:grid-cols-[1fr_180px_120px_140px_140px_120px_110px_40px] gap-3 px-4 py-3 hover:bg-muted/40 cursor-pointer items-center group"
               onClick={() => onOpen(c.id)}
             >
               <div className="min-w-0">
@@ -316,6 +351,17 @@ const CasesList = ({ items, onOpen, onChangeStatus }: ListProps) => {
               <div className="text-xs text-muted-foreground text-right">
                 {formatDistanceToNow(new Date(c.updated_at), { addSuffix: true, locale: de })}
               </div>
+              <div onClick={(e) => e.stopPropagation()} className="flex justify-end">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={() => onDelete(c)}
+                  aria-label="Vorgang löschen"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           );
         })}
@@ -325,7 +371,7 @@ const CasesList = ({ items, onOpen, onChangeStatus }: ListProps) => {
 };
 
 // ======================== Board ========================
-const CasesBoard = ({ items, onOpen, onChangeStatus }: ListProps) => {
+const CasesBoard = ({ items, onOpen, onChangeStatus, onDelete }: ListProps) => {
   const grouped = useMemo(() => {
     const g: Record<CaseStatus, CaseWithBuilding[]> = {
       open: [], in_progress: [], waiting_external: [], waiting_owner: [], resolved: [], archived: [],
@@ -352,10 +398,19 @@ const CasesBoard = ({ items, onOpen, onChangeStatus }: ListProps) => {
                 return (
                   <Card
                     key={c.id}
-                    className="p-2.5 cursor-pointer hover:shadow-md transition-shadow"
+                    className="p-2.5 cursor-pointer hover:shadow-md transition-shadow group relative"
                     onClick={() => onOpen(c.id)}
                   >
-                    <div className="flex items-start gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute top-1 right-1 h-6 w-6 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => { e.stopPropagation(); onDelete(c); }}
+                      aria-label="Vorgang löschen"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                    <div className="flex items-start gap-2 pr-6">
                       <span className={cn("h-2 w-2 rounded-full mt-1.5 shrink-0", PRIORITY_DOT[c.priority])} />
                       <div className="min-w-0 flex-1">
                         <div className="text-sm font-medium leading-snug line-clamp-2">{c.title}</div>
