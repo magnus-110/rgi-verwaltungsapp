@@ -48,7 +48,7 @@ export function UploadDocumentDialog({
         .then(({ data }) => setCategories((data || []) as DocCategory[]));
       supabase
         .from('contact_building_assignments')
-        .select('contact_id, contacts(id, first_name, last_name, company_name)')
+        .select('contact_id, contacts(id, user_id, first_name, last_name, company_name)')
         .eq('building_id', buildingId)
         .eq('is_active', true)
         .eq('role_in_building', 'eigentuemer')
@@ -56,11 +56,13 @@ export function UploadDocumentDialog({
           const list = (data || [])
             .map((r: any) => r.contacts)
             .filter(Boolean);
-          // dedupe by id
+          // Dedupe: prefer user_id (one entry per account), fallback to normalized name
           const seen = new Set<string>();
           const unique = list.filter((c: any) => {
-            if (seen.has(c.id)) return false;
-            seen.add(c.id);
+            const nameKey = `${(c.company_name || '').trim().toLowerCase()}|${(c.first_name || '').trim().toLowerCase()}|${(c.last_name || '').trim().toLowerCase()}`;
+            const key = c.user_id ? `u:${c.user_id}` : `n:${nameKey}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
             return true;
           });
           setOwners(unique);
