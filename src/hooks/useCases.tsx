@@ -134,6 +134,42 @@ export const useCaseEvents = (caseId: string | null) => {
   });
 };
 
+export const useSubcases = (parentCaseId: string | null) => {
+  return useQuery({
+    queryKey: ["subcases", parentCaseId],
+    queryFn: async () => {
+      if (!parentCaseId) return [];
+      const { data, error } = await supabase
+        .from("cases")
+        .select("*")
+        .eq("parent_case_id", parentCaseId)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return (data || []) as CaseRow[];
+    },
+    enabled: !!parentCaseId,
+  });
+};
+
+export const useActiveCasesForBuilding = (buildingId: string | null) => {
+  return useQuery({
+    queryKey: ["cases-active-for-building", buildingId],
+    queryFn: async () => {
+      if (!buildingId) return [];
+      const { data, error } = await supabase
+        .from("cases")
+        .select("id, title, parent_case_id, status")
+        .eq("building_id", buildingId)
+        .is("parent_case_id", null)
+        .in("status", ["open", "in_progress", "waiting_external", "waiting_owner"])
+        .order("updated_at", { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!buildingId,
+  });
+};
+
 export const useCreateCase = () => {
   const qc = useQueryClient();
   return useMutation({
