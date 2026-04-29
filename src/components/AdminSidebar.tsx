@@ -39,7 +39,7 @@ const menuItems = [
   { title: "NOVA", url: "/documents", icon: Sparkles },
   { title: "Aufgaben", url: "/todos", icon: CheckSquare },
   { title: "Kalender", url: "/calendar", icon: CalendarDays },
-  { title: "Meldungen", url: "/reports", icon: ClipboardList },
+  { title: "Tickets", url: "/tickets", icon: ClipboardList },
   { title: "Gebäude", url: "/buildings", icon: Castle },
   { title: "Adressen", url: "/contacts", icon: BookUser },
   { title: "Versammlungen", url: "/versammlungen", icon: Users },

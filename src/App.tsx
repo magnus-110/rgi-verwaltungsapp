@@ -22,7 +22,7 @@ import { TenantLayout } from "./components/TenantLayout";
 const ChangePassword = lazy(() => import("./pages/ChangePassword").then(m => ({ default: m.ChangePassword })));
 const MagicLinkLogin = lazy(() => import("./pages/MagicLinkLogin").then(m => ({ default: m.MagicLinkLogin })));
 const ConfirmEmailChange = lazy(() => import("./pages/ConfirmEmailChange").then(m => ({ default: m.ConfirmEmailChange })));
-const Reports = lazy(() => import("./pages/Reports").then(m => ({ default: m.Reports })));
+const Tickets = lazy(() => import("./pages/Tickets").then(m => ({ default: m.Tickets })));
 const Buildings = lazy(() => import("./pages/Buildings").then(m => ({ default: m.Buildings })));
 const Settings = lazy(() => import("./pages/Settings").then(m => ({ default: m.Settings })));
 const Documents = lazy(() => import("./pages/Documents").then(m => ({ default: m.Documents })));
@@ -99,7 +99,9 @@ const App = () => (
               {/* Admin Routes */}
               <Route path="/admin/change-password" element={<AdminLayout><ChangePassword /></AdminLayout>} />
               <Route path="/dashboard" element={<AdminLayout><Dashboard /></AdminLayout>} />
-              <Route path="/reports" element={<AdminLayout><Reports /></AdminLayout>} />
+              <Route path="/reports" element={<AdminLayout><Tickets /></AdminLayout>} />
+              <Route path="/tickets" element={<AdminLayout><Tickets /></AdminLayout>} />
+              <Route path="/tickets/vorgaenge" element={<AdminLayout><Tickets /></AdminLayout>} />
               <Route path="/buildings" element={<AdminLayout><Buildings /></AdminLayout>} />
               <Route path="/buildings/:id" element={<AdminLayout><Buildings /></AdminLayout>} />
               <Route path="/forum" element={<Navigate to="/buildings" replace />} />
@@ -123,7 +125,7 @@ const App = () => (
               {/* Legacy admin routes for compatibility */}
               <Route path="/admin" element={<AdminLayout><Dashboard /></AdminLayout>} />
               <Route path="/admin/dashboard" element={<AdminLayout><Dashboard /></AdminLayout>} />
-              <Route path="/admin/reports" element={<AdminLayout><Reports /></AdminLayout>} />
+              <Route path="/admin/reports" element={<AdminLayout><Tickets /></AdminLayout>} />
               <Route path="/admin/buildings" element={<AdminLayout><Buildings /></AdminLayout>} />
               <Route path="/admin/forum" element={<Navigate to="/buildings" replace />} />
               <Route path="/admin/chatbot-settings" element={<Navigate to="/settings?tab=chatbot" replace />} />
