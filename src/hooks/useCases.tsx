@@ -158,6 +158,7 @@ export const useCreateCase = () => {
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["cases", data.building_id] });
+      qc.invalidateQueries({ queryKey: ["cases-all"] });
       toast({ title: "Vorgang angelegt" });
     },
     onError: (e: any) => toast({ title: "Fehler", description: e.message, variant: "destructive" }),
