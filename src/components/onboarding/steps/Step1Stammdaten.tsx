@@ -465,6 +465,11 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
                   placeholder="z. B. anna.mueller@beispiel.de"
                 />
               </Field>
+
+              <ProxyDocumentsUpload
+                documents={other.proxy_documents ?? []}
+                onChange={(docs) => setOther({ proxy_documents: docs })}
+              />
             </div>
           )}
         </div>
