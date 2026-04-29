@@ -47,6 +47,7 @@ export function BuildingServiceProvidersTab({ buildingId }: Props) {
         .from("contact_building_assignments")
         .select(`
           id, service_category, notes, unit_number,
+          is_emergency_contact, emergency_note, emergency_sort_order,
           contact:contacts(
             id, company_name, first_name, last_name, salutation, contact_type,
             address_street, address_zip, address_city,
