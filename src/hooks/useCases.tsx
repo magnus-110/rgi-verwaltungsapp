@@ -242,6 +242,25 @@ export const useSummarizeCase = () => {
   });
 };
 
+export const useDeleteCase = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      // Best-effort: delete events first (in case FK has no cascade)
+      await supabase.from("case_events").delete().eq("case_id", id);
+      const { error } = await supabase.from("cases").delete().eq("id", id);
+      if (error) throw error;
+      return id;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["cases-all"] });
+      qc.invalidateQueries({ queryKey: ["cases"] });
+      toast({ title: "Vorgang gelöscht" });
+    },
+    onError: (e: any) => toast({ title: "Fehler", description: e.message, variant: "destructive" }),
+  });
+};
+
 export const useUpdateCase = () => {
   const qc = useQueryClient();
   return useMutation({
