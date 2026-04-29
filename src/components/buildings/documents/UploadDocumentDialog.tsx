@@ -140,6 +140,13 @@ export function UploadDocumentDialog({
           action: 'uploaded',
         });
 
+        // Persist per-person visibility
+        if (visibility === 'personen' && selectedContactIds.length > 0) {
+          await supabase.from('building_file_visibility').insert(
+            selectedContactIds.map(cid => ({ file_id: inserted.id, contact_id: cid }))
+          );
+        }
+
         // Trigger OCR for supported types in background
         const ocrTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
         if (ocrTypes.includes(file.type)) {
