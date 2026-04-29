@@ -2316,6 +2316,8 @@ export type Database = {
           contact_id: string
           created_at: string
           emails_override: Json | null
+          emergency_note: string | null
+          emergency_sort_order: number | null
           expectations_override: string | null
           first_name_override: string | null
           floor_location: string | null
@@ -2324,6 +2326,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           is_cash_auditor: boolean
+          is_emergency_contact: boolean
           last_name_override: string | null
           notes: string | null
           parent_assignment_id: string | null
@@ -2355,6 +2358,8 @@ export type Database = {
           contact_id: string
           created_at?: string
           emails_override?: Json | null
+          emergency_note?: string | null
+          emergency_sort_order?: number | null
           expectations_override?: string | null
           first_name_override?: string | null
           floor_location?: string | null
@@ -2363,6 +2368,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           is_cash_auditor?: boolean
+          is_emergency_contact?: boolean
           last_name_override?: string | null
           notes?: string | null
           parent_assignment_id?: string | null
@@ -2394,6 +2400,8 @@ export type Database = {
           contact_id?: string
           created_at?: string
           emails_override?: Json | null
+          emergency_note?: string | null
+          emergency_sort_order?: number | null
           expectations_override?: string | null
           first_name_override?: string | null
           floor_location?: string | null
@@ -2402,6 +2410,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           is_cash_auditor?: boolean
+          is_emergency_contact?: boolean
           last_name_override?: string | null
           notes?: string | null
           parent_assignment_id?: string | null

@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { MessageSquare, User, FileText, Calendar } from "lucide-react";
 import { format } from "date-fns";
+import { EmergencyContactsWidget } from "@/components/forum/EmergencyContactsWidget";
 
 interface ForumPost {
   id: string;
@@ -22,6 +23,7 @@ export const TenantForum = () => {
   const { profile } = useAuth();
   const [posts, setPosts] = useState<ForumPost[]>([]);
   const [loading, setLoading] = useState(true);
+  const [buildingId, setBuildingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (profile) {
@@ -53,6 +55,7 @@ export const TenantForum = () => {
         setPosts([]);
         return;
       }
+      setBuildingId(buildingId);
 
       const { data, error } = await supabase
         .from("forum_posts")
@@ -102,6 +105,9 @@ export const TenantForum = () => {
             Nachrichten und Ankündigungen
           </p>
         </div>
+
+        {/* Notfall- & Wichtige Kontakte ganz oben */}
+        {buildingId && <EmergencyContactsWidget buildingIds={[buildingId]} />}
 
         {/* Posts */}
         {posts.length === 0 ? (

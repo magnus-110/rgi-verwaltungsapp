@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,9 +10,10 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Briefcase, Plus, Phone, Mail, Trash2, ExternalLink, Search, Building2, Settings2 } from "lucide-react";
+import { Briefcase, Plus, Phone, Mail, Trash2, ExternalLink, Search, Building2, Settings2, Bell, BellRing } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { CreateContactDialog } from "@/components/contacts/CreateContactDialog";
+import { Switch } from "@/components/ui/switch";
 
 interface Props {
   buildingId: string;
@@ -25,6 +26,7 @@ export function BuildingServiceProvidersTab({ buildingId }: Props) {
   const [filter, setFilter] = useState<string>("alle");
   const [showAdd, setShowAdd] = useState(false);
   const [showManageCats, setShowManageCats] = useState(false);
+  const [emergencyEditId, setEmergencyEditId] = useState<string | null>(null);
 
   const { data: categories = [] } = useQuery({
     queryKey: ["service-provider-categories"],
@@ -45,6 +47,7 @@ export function BuildingServiceProvidersTab({ buildingId }: Props) {
         .from("contact_building_assignments")
         .select(`
           id, service_category, notes, unit_number,
+          is_emergency_contact, emergency_note, emergency_sort_order,
           contact:contacts(
             id, company_name, first_name, last_name, salutation, contact_type,
             address_street, address_zip, address_city,
@@ -152,6 +155,11 @@ export function BuildingServiceProvidersTab({ buildingId }: Props) {
                         <Badge variant="secondary" className="text-[10px]">
                           {p.service_category || "Sonstiges"}
                         </Badge>
+                        {p.is_emergency_contact && (
+                          <Badge className="text-[10px] bg-orange-500/15 text-orange-700 hover:bg-orange-500/15 border border-orange-500/30 gap-1">
+                            <BellRing className="h-3 w-3" /> Notfallkontakt
+                          </Badge>
+                        )}
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs text-muted-foreground">
                         {primaryPhone && (
@@ -166,8 +174,20 @@ export function BuildingServiceProvidersTab({ buildingId }: Props) {
                         )}
                       </div>
                       {p.notes && <p className="text-xs text-muted-foreground mt-1.5 italic">„{p.notes}"</p>}
+                      {p.is_emergency_contact && p.emergency_note && (
+                        <p className="text-xs text-orange-700 mt-1.5">🔔 {p.emergency_note}</p>
+                      )}
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className={`h-7 w-7 ${p.is_emergency_contact ? "text-orange-600 hover:text-orange-700" : ""}`}
+                        title="Notfallkontakt-Einstellungen"
+                        onClick={() => setEmergencyEditId(p.id)}
+                      >
+                        {p.is_emergency_contact ? <BellRing className="h-3.5 w-3.5" /> : <Bell className="h-3.5 w-3.5" />}
+                      </Button>
                       <Button
                         size="icon"
                         variant="ghost"
@@ -209,6 +229,12 @@ export function BuildingServiceProvidersTab({ buildingId }: Props) {
         onOpenChange={setShowManageCats}
         categories={categories}
         onChanged={() => queryClient.invalidateQueries({ queryKey: ["service-provider-categories"] })}
+      />
+
+      <EmergencyEditDialog
+        assignment={providers.find((p) => p.id === emergencyEditId) || null}
+        onClose={() => setEmergencyEditId(null)}
+        onSaved={() => queryClient.invalidateQueries({ queryKey: ["building-service-providers", buildingId] })}
       />
     </div>
   );
@@ -476,6 +502,120 @@ function ManageCategoriesDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Schließen</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EmergencyEditDialog({
+  assignment, onClose, onSaved,
+}: {
+  assignment: any | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { toast } = useToast();
+  const [enabled, setEnabled] = useState(false);
+  const [note, setNote] = useState("");
+  const [sortOrder, setSortOrder] = useState<string>("");
+  const [saving, setSaving] = useState(false);
+
+  const open = !!assignment;
+  const assignmentId = assignment?.id;
+
+  useEffect(() => {
+    if (assignment) {
+      setEnabled(!!assignment.is_emergency_contact);
+      setNote(assignment.emergency_note || "");
+      setSortOrder(
+        assignment.emergency_sort_order !== null && assignment.emergency_sort_order !== undefined
+          ? String(assignment.emergency_sort_order)
+          : ""
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assignmentId]);
+
+  const handleSave = async () => {
+    if (!assignment) return;
+    setSaving(true);
+    const { error } = await supabase
+      .from("contact_building_assignments")
+      .update({
+        is_emergency_contact: enabled,
+        emergency_note: note.trim() || null,
+        emergency_sort_order: sortOrder ? parseInt(sortOrder, 10) : null,
+      })
+      .eq("id", assignment.id);
+    setSaving(false);
+    if (error) {
+      toast({ title: "Fehler", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Notfall-Einstellungen gespeichert" });
+    onSaved();
+    onClose();
+  };
+
+  const contactName =
+    assignment?.contact?.company_name ||
+    [assignment?.contact?.first_name, assignment?.contact?.last_name].filter(Boolean).join(" ") ||
+    "Dienstleister";
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <BellRing className="h-4 w-4 text-orange-600" />
+            Notfallkontakt-Einstellungen
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">{contactName}</span>
+            {assignment?.service_category && <> · {assignment.service_category}</>}
+          </div>
+
+          <div className="flex items-center justify-between rounded-md border p-3">
+            <div className="space-y-0.5 pr-3">
+              <Label className="text-sm">Als Notfallkontakt anzeigen</Label>
+              <p className="text-xs text-muted-foreground">
+                Wird Bewohnern oben am Schwarzen Brett angezeigt.
+              </p>
+            </div>
+            <Switch checked={enabled} onCheckedChange={setEnabled} />
+          </div>
+
+          <div>
+            <Label className="text-xs">Hinweis für Bewohner (optional)</Label>
+            <Textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="z. B. 24/7 erreichbar, nur Werktags 7–17 Uhr..."
+              className="text-sm min-h-[60px]"
+              disabled={!enabled}
+            />
+          </div>
+
+          <div>
+            <Label className="text-xs">Reihenfolge (optional)</Label>
+            <Input
+              type="number"
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value)}
+              placeholder="z. B. 10 (kleinere Zahl = weiter oben)"
+              className="h-9 text-sm"
+              disabled={!enabled}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>Abbrechen</Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? "Speichern..." : "Speichern"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
