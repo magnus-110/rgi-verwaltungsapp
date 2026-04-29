@@ -316,6 +316,11 @@ export const useUpdateCase = () => {
       qc.invalidateQueries({ queryKey: ["cases", data.building_id] });
       qc.invalidateQueries({ queryKey: ["case", data.id] });
       qc.invalidateQueries({ queryKey: ["cases-all"] });
+      if (data.parent_case_id) {
+        qc.invalidateQueries({ queryKey: ["subcases", data.parent_case_id] });
+        qc.invalidateQueries({ queryKey: ["case-events", data.parent_case_id] });
+      }
+      qc.invalidateQueries({ queryKey: ["subcases", data.id] });
     },
   });
 };
