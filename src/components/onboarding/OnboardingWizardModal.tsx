@@ -128,12 +128,32 @@ export const OnboardingWizardModal = ({
 
   const [pendingSepaWarning, setPendingSepaWarning] = useState(false);
 
+  // Helper: bei Step 1 im Split-Modus die "erste" Step1Data extrahieren
+  // (für SEPA-Warn-Check & Mandate-Update verwenden wir die jeweils erste
+  // Einheit; im Backend wird der Mandate-Status pro Einheit gleich übernommen,
+  // weil das Mandat kontaktbezogen ist).
+  const collectStep1Datas = (): Step1Data[] => {
+    if (stammdatenSplit) {
+      const md = (currentData as Step1MultiData).per_unit ?? {};
+      return Object.values(md);
+    }
+    return [currentData as Step1Data];
+  };
+
   const doSubmitStep = async () => {
     if (step === 1) {
-      const err = validateStep1(currentData as Step1Data);
-      if (err) {
-        toast({ title: "Bitte vervollständigen", description: err, variant: "destructive" });
-        return;
+      if (stammdatenSplit) {
+        const err = validateStep1Multi(currentData as Step1MultiData, assignments);
+        if (err) {
+          toast({ title: "Bitte vervollständigen", description: err, variant: "destructive" });
+          return;
+        }
+      } else {
+        const err = validateStep1(currentData as Step1Data);
+        if (err) {
+          toast({ title: "Bitte vervollständigen", description: err, variant: "destructive" });
+          return;
+        }
       }
     }
 
@@ -147,8 +167,20 @@ export const OnboardingWizardModal = ({
     setSubmitting(true);
     try {
       await flush();
+      // Multi-Modus: per_unit-Payload an die Edge Function geben.
+      let payload: any = currentData;
+      if (step === 1 && stammdatenSplit) {
+        payload = { per_unit: (currentData as Step1MultiData).per_unit ?? {} };
+      } else if (step === 2 && multiUnit) {
+        payload = { per_unit: (currentData as Step2MultiData).per_unit ?? {} };
+      }
       const { error } = await supabase.functions.invoke("submit-onboarding-step", {
-        body: { building_id: progress.building_id, step, payload: currentData },
+        body: {
+          building_id: progress.building_id,
+          step,
+          payload,
+          applies_to_all_assignments: step === 1 ? appliesToAll : undefined,
+        },
       });
       if (error) throw error;
       if (step < 5) {
@@ -180,23 +212,25 @@ export const OnboardingWizardModal = ({
   };
 
   const handleSubmitStep = async () => {
-    // Bei Step 1: Wenn IBAN da ist, aber SEPA-Mandat-Checkbox NICHT angeklickt → Warn-Dialog
+    // Bei Step 1: Wenn IBAN da ist, aber SEPA-Mandat NICHT angeklickt → Warn-Dialog.
+    // Im Multi-Modus prüfen wir alle Einheiten und warnen, sobald irgendeine
+    // IBAN ohne Mandat erfasst wurde.
     if (step === 1) {
-      const d = currentData as Step1Data;
-      const ibanFilled = !!d.iban?.trim();
-      const mandateAccepted = !!(d as any).sepa_mandate_accepted;
-      if (ibanFilled && !mandateAccepted) {
+      const datas = collectStep1Datas();
+      const offending = datas.find(
+        (d) => !!d?.iban?.trim() && !(d as any)?.sepa_mandate_accepted
+      );
+      if (offending) {
         setPendingSepaWarning(true);
-        // Warn-Dialog-Anzeige protokollieren
         logSepaMandateEvent({
           event_type: "mandate_warning_shown",
           building_id: progress.building_id,
-          mandate_reference: (d as any).sepa_mandate_reference ?? null,
-          creditor_id: (d as any).sepa_creditor_id ?? null,
-          iban: d.iban ?? null,
-          account_holder: d.account_holder ?? null,
+          mandate_reference: (offending as any).sepa_mandate_reference ?? null,
+          creditor_id: (offending as any).sepa_creditor_id ?? null,
+          iban: offending.iban ?? null,
+          account_holder: offending.account_holder ?? null,
           accepted: false,
-          metadata: { source: "wizard.step1.next" },
+          metadata: { source: "wizard.step1.next", multi: stammdatenSplit },
         });
         return;
       }
