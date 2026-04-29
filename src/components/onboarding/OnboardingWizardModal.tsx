@@ -91,10 +91,12 @@ export const OnboardingWizardModal = ({
   // ersten Render evtl. noch leer. Ein useState-Initializer würde dann für
   // immer auf `false` hängenbleiben.
   const [stammdatenModeDismissed, setStammdatenModeDismissed] = useState(false);
+  // Frage IMMER zeigen, solange Step 1 noch nicht abgeschlossen ist und der
+  // Nutzer sie in dieser Session noch nicht beantwortet hat — unabhängig vom
+  // (evtl. bereits gespeicherten) Default-Wert in `applies_to_all_assignments`.
   const showStammdatenModeQuestion =
     !showWelcome &&
     multiUnit &&
-    appliesToAll === null &&
     !progress.step1_completed_at &&
     !stammdatenModeDismissed;
 
