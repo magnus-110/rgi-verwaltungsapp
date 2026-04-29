@@ -143,10 +143,20 @@ export const WegOwnerSettings = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label className="text-xs">Aktuelle Login-E-Mail</Label>
-            <Input value={currentLoginEmail} disabled />
-          </div>
+          {currentLoginEmail && !currentLoginEmail.toLowerCase().endsWith("@users.rgi-immobilien.app") ? (
+            <div className="space-y-2">
+              <Label className="text-xs">Aktuelle Login-E-Mail</Label>
+              <Input value={currentLoginEmail} disabled />
+            </div>
+          ) : (
+            <div className="flex items-start gap-2 p-3 bg-muted/50 border border-muted rounded-md text-xs text-muted-foreground">
+              <Info className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>
+                Aktuell ist <b>keine persönliche E-Mail-Adresse</b> hinterlegt. Sie melden sich nur mit Ihrem Benutzernamen an.
+                Hinterlegen Sie hier eine E-Mail-Adresse, damit Sie sich künftig auch per E-Mail anmelden und „Passwort vergessen" nutzen können.
+              </span>
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="new-email" className="text-xs">Neue Login-E-Mail</Label>
             <Input
@@ -165,7 +175,11 @@ export const WegOwnerSettings = () => {
             </span>
           </div>
           <Button onClick={handleEmailChange} disabled={isUpdatingEmail} className="w-full">
-            {isUpdatingEmail ? "Wird geändert..." : "Login-E-Mail ändern"}
+            {isUpdatingEmail
+              ? "Wird gespeichert..."
+              : currentLoginEmail && !currentLoginEmail.toLowerCase().endsWith("@users.rgi-immobilien.app")
+                ? "Login-E-Mail ändern"
+                : "Login-E-Mail hinterlegen"}
           </Button>
         </CardContent>
       </Card>
