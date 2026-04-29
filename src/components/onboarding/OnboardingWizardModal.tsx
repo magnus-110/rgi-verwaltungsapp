@@ -238,59 +238,66 @@ export const OnboardingWizardModal = ({
     await doSubmitStep();
   };
 
+  // Setzt das SEPA-Mandat in jeder Step1Data-Instanz (Single oder Multi).
   const acceptMandateAndContinue = async () => {
     const now = new Date().toISOString();
-    const d = currentData as Step1Data;
-    const next = {
-      ...d,
-      sepa_mandate_accepted: true,
-      sepa_mandate_signed_at: now,
-    };
-    setCurrentData(next);
+    if (stammdatenSplit) {
+      const md = currentData as Step1MultiData;
+      const nextPerUnit: Record<string, Step1Data> = {};
+      for (const a of assignments) {
+        const u = md.per_unit?.[a.id] ?? {};
+        nextPerUnit[a.id] = u.iban?.trim()
+          ? { ...u, sepa_mandate_accepted: true, sepa_mandate_signed_at: now }
+          : u;
+      }
+      setCurrentData({ ...md, per_unit: nextPerUnit });
+    } else {
+      const d = currentData as Step1Data;
+      setCurrentData({ ...d, sepa_mandate_accepted: true, sepa_mandate_signed_at: now });
+    }
     setPendingSepaWarning(false);
-    // Mandat nach Warnung erteilt → eigenes Audit-Event
+    const sample = collectStep1Datas()[0] ?? {};
     logSepaMandateEvent({
       event_type: "mandate_changed_after_warning",
       building_id: progress.building_id,
-      mandate_reference: (d as any).sepa_mandate_reference ?? null,
-      creditor_id: (d as any).sepa_creditor_id ?? null,
-      iban: d.iban ?? null,
-      account_holder: d.account_holder ?? null,
+      mandate_reference: (sample as any).sepa_mandate_reference ?? null,
+      creditor_id: (sample as any).sepa_creditor_id ?? null,
+      iban: sample.iban ?? null,
+      account_holder: sample.account_holder ?? null,
       accepted: true,
-      metadata: { source: "wizard.step1.warning_dialog.accept", signed_at_client: now },
+      metadata: { source: "wizard.step1.warning_dialog.accept", signed_at_client: now, multi: stammdatenSplit },
     });
-    // kurzer Tick, damit State propagiert wird
     setTimeout(() => doSubmitStep(), 0);
   };
 
   const continueWithoutMandate = async () => {
-    const d = currentData as Step1Data;
+    const sample = collectStep1Datas()[0] ?? {};
     setPendingSepaWarning(false);
     logSepaMandateEvent({
       event_type: "mandate_declined",
       building_id: progress.building_id,
-      mandate_reference: (d as any).sepa_mandate_reference ?? null,
-      creditor_id: (d as any).sepa_creditor_id ?? null,
-      iban: d.iban ?? null,
-      account_holder: d.account_holder ?? null,
+      mandate_reference: (sample as any).sepa_mandate_reference ?? null,
+      creditor_id: (sample as any).sepa_creditor_id ?? null,
+      iban: sample.iban ?? null,
+      account_holder: sample.account_holder ?? null,
       accepted: false,
-      metadata: { source: "wizard.step1.warning_dialog.decline" },
+      metadata: { source: "wizard.step1.warning_dialog.decline", multi: stammdatenSplit },
     });
     setTimeout(() => doSubmitStep(), 0);
   };
 
   const dismissSepaWarning = () => {
-    const d = currentData as Step1Data;
+    const sample = collectStep1Datas()[0] ?? {};
     setPendingSepaWarning(false);
     logSepaMandateEvent({
       event_type: "mandate_warning_dismissed",
       building_id: progress.building_id,
-      mandate_reference: (d as any).sepa_mandate_reference ?? null,
-      creditor_id: (d as any).sepa_creditor_id ?? null,
-      iban: d.iban ?? null,
-      account_holder: d.account_holder ?? null,
+      mandate_reference: (sample as any).sepa_mandate_reference ?? null,
+      creditor_id: (sample as any).sepa_creditor_id ?? null,
+      iban: sample.iban ?? null,
+      account_holder: sample.account_holder ?? null,
       accepted: false,
-      metadata: { source: "wizard.step1.warning_dialog.dismiss" },
+      metadata: { source: "wizard.step1.warning_dialog.dismiss", multi: stammdatenSplit },
     });
   };
 
