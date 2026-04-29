@@ -6,7 +6,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Play, ExternalLink } from "lucide-react";
 
 interface TermsAcceptanceDialogProps {
   open: boolean;
@@ -14,13 +13,11 @@ interface TermsAcceptanceDialogProps {
   onAccepted: () => void;
 }
 
-const VIDEO_URL = "https://youtube.com/shorts/1LBJFaslZOQ?feature=share";
-
 export const TermsAcceptanceDialog = ({ open, userId, onAccepted }: TermsAcceptanceDialogProps) => {
   const [agbAccepted, setAgbAccepted] = useState(false);
   const [datenschutzAccepted, setDatenschutzAccepted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [step, setStep] = useState<1 | 2>(1);
+
 
   const handleAccept = async () => {
     if (!agbAccepted || !datenschutzAccepted) {
