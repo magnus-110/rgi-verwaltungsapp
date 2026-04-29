@@ -1,98 +1,122 @@
-## Notfallkontakte für Dienstleister
+## Ziel
 
-### Ziel
-Admins können pro Dienstleister festlegen, ob er als **Notfallkontakt** beim Eigentümer angezeigt wird. Diese Kontakte erscheinen ganz oben im **Schwarzen Brett**, gruppiert nach Gewerk, mit Telefon-/E-Mail-Buttons und einem Erklärtext zur Eskalation.
+Die Seite „Meldungen" wird zu einem zentralen Modul **„Tickets"** ausgebaut. Darin werden zwei eng verwandte Dinge zusammengeführt, die heute getrennt sind:
 
----
+- **Meldungen** – einzelne Eingänge (z.B. Schaden, Beschwerde, Anfrage), die ein Bewohner oder Eigentümer absetzt.
+- **Vorgänge** – die übergeordnete Akte, die mehrere Meldungen, E-Mails, Termine, Dokumente und Notizen zu einem Thema bündelt.
 
-### Teil 1: Admin-UI – Notfallkontakt-Schalter pro Dienstleister
+Die separate Seite „Prozesse" (Standard-Workflows mit Templates, z.B. Eigentümerwechsel) bleibt unverändert eigenständig.
 
-**Datei:** `src/components/buildings/BuildingServiceProvidersTab.tsx`
+## Navigation & Benennung
 
-Pro Dienstleister-Karte einen **Notfall**-Button hinzufügen (Glocken-Icon). Klick öffnet einen kleinen Dialog mit:
-- Schalter „Als Notfallkontakt anzeigen"
-- Freitextfeld „Hinweis für Bewohner" (optional, z. B. „24/7 erreichbar", „nur Werktags 7–17 Uhr")
-- Reihenfolge innerhalb des Gewerks (Zahl, optional)
+- Sidebar-Eintrag „Meldungen" → **„Tickets"** (Icon bleibt: ClipboardList).
+- Route bleibt `/reports` (für Bookmarks), Tabs entscheiden über Inhalt.
+- Pfad-Aliase: `/tickets` und `/tickets/vorgaenge` lenken auf dieselbe Seite mit vorausgewähltem Tab.
 
-Visuelle Markierung: aktive Notfallkontakte bekommen ein orangenes Glocken-Badge auf der Karte.
+## Seitenaufbau
 
-**Datenmodell:** Neue Spalten in `contact_building_assignments` via Migration:
-- `is_emergency_contact boolean default false`
-- `emergency_note text`
-- `emergency_sort_order integer`
-
-(Hängt am Assignment, nicht am Kontakt selbst — derselbe Dienstleister kann pro Gebäude unterschiedlich konfiguriert sein.)
-
----
-
-### Teil 2: Notfall-Widget am Schwarzen Brett (Eigentümer)
-
-**Datei:** `src/pages/weg-owner/Forum.tsx`
-
-Neue Komponente `EmergencyContactsWidget` ganz oben (vor den Forenposts). Aufbau:
-
-**1. Hausverwaltung-Block (immer zuerst, orange hervorgehoben)**
-- Name, Telefon, E-Mail aus `building.manager_name` + zentralen Hausverwaltungs-Kontaktdaten (info@rgi-immobilien.de / 08363 960656)
-- Buttons: „Anrufen" (`tel:`) und „E-Mail" (`mailto:`)
-- Hinweistext (fest):
-
-  > **Bitte zuerst die Hausverwaltung kontaktieren.** Externe Handwerksbetriebe sollen nur dann eigenständig beauftragt werden, wenn die Hausverwaltung nicht erreichbar ist.
-
-**2. Externe Notfallkontakte (nach Gewerk gruppiert)**
-- Geladen aus `contact_building_assignments` mit `is_emergency_contact = true`, gefiltert nach den Gebäuden des Eigentümers
-- Pro Gewerk (z. B. „Heizung & Sanitär", „Rohrreinigung", „Schlüsseldienst") eine Zeile mit:
-  - Firmenname
-  - Wann anrufen-Hinweis (festgelegte Texte je Gewerk, ergänzt um den freien `emergency_note`)
-  - Telefon-Button (groß, primär) und E-Mail-Button
-
-**Festtexte je Gewerk** (in `src/lib/emergencyContactInfo.ts`, gemappt auf `service_category`):
-
-| Gewerk | Wann anrufen |
-|---|---|
-| Hausmeister | Kleine technische Defekte im Haus (z. B. Lichttüren, Garten) |
-| Heizung & Sanitär | Nur bei Totalausfall der Heizung, akuten Wasserschäden oder Rohrbruch |
-| Rohrreinigung | Massive Verstopfungen, wenn Abwasser in Wohnung oder Keller drückt |
-| Schlüsseldienst | Defekte am Haustürschloss oder Wohnungsaussperrungen |
-
-**3. Öffentliche Notrufe (statisch, am Ende, rot)**
-- **112 Feuerwehr** – Rauch, Brand, Gasgeruch
-- **112 Rettungsdienst** – Medizinische Notfälle
-- **110 Polizei** – Einbruch oder akute Gefahr
-
-Jeweils als großer `tel:`-Button.
-
-**Verhalten:** Das Widget ist einklappbar (Default: aufgeklappt). Wenn keine externen Notfallkontakte gepflegt sind, werden trotzdem Hausverwaltung + öffentliche Notrufe gezeigt.
-
----
-
-### Technische Details
-
-**Migration:**
-```sql
-ALTER TABLE public.contact_building_assignments
-  ADD COLUMN is_emergency_contact boolean NOT NULL DEFAULT false,
-  ADD COLUMN emergency_note text,
-  ADD COLUMN emergency_sort_order integer;
-
-CREATE INDEX idx_cba_emergency
-  ON public.contact_building_assignments (building_id)
-  WHERE is_emergency_contact = true;
+```text
+┌─ Tickets ─────────────────────────────────────────────┐
+│  [ Meldungen ]  [ Vorgänge ]            (Tab-Switch)  │
+├───────────────────────────────────────────────────────┤
+│  Filterleiste: Gebäude ▾  Status ▾  Priorität ▾       │
+│                Kategorie ▾  Zuständig ▾  🔍 Suche      │
+│                                       [ Liste | Board ]│
+├───────────────────────────────────────────────────────┤
+│  Inhalt je nach Tab + Ansicht                         │
+└───────────────────────────────────────────────────────┘
 ```
 
-**Neue Datei:** `src/lib/emergencyContactInfo.ts` – Mapping `service_category → { whenToCall: string }` plus die Festtexte für öffentliche Notrufe und den Hausverwaltungs-Hinweis.
+### Tab 1: Meldungen
+Bleibt funktional wie heute (Reports), nur visuell harmonisiert mit Tab 2. Aktion „In Vorgang überführen / verknüpfen" bleibt erhalten.
 
-**Neue Komponente:** `src/components/forum/EmergencyContactsWidget.tsx`
-- Lädt parallel: Buildings des Users, Notfall-Assignments mit Contact + Phones/Emails
-- Verwendet bestehendes shadcn Card/Button/Badge
-- Nutzt orange Akzentfarbe (`text-primary`/`bg-primary/10`) für Hausverwaltung, rot (`text-destructive`) für öffentliche Notrufe
+### Tab 2: Vorgänge (NEU als globale Übersicht)
+Heute gibt es Vorgänge nur pro Gebäude (`useCases(buildingId)`). Wir ergänzen eine **gebäudeübergreifende** Liste mit zwei Darstellungen:
 
-**RLS:** `contact_building_assignments` hat bereits RLS. Eigentümer dürfen Assignments für ihre Gebäude lesen — neue Spalten sind unkritisch (kein PII).
+**Liste (Default)** – kompakte Tabelle:
 
-**Tenant-Portal:** Dieselbe Logik analog auch in `src/pages/tenant/Forum.tsx` einbauen, falls vorhanden (Kurzcheck im Implementierungsschritt).
+| Titel | Gebäude | Kategorie | Priorität | Status | Zuständig | Fällig | Aktualisiert |
 
----
+- Inline-Sortierung pro Spalte, Klick öffnet die bestehende `CaseDetailView` als Drawer/Sheet.
+- Badges für Priorität (Farben gemäß Core-Memory: Niedrig grün, Mittel orange, Hoch rot, Dringend dunkelrot).
+- Statusfarben dezent (offen / in Bearbeitung / wartet / erledigt).
+- Mini-Indikatoren: Anzahl Events, verknüpfte Meldungen, offene To-Dos.
 
-### Out of Scope
-- Bearbeiten der Festtexte je Gewerk durch Admins (kommt erst, wenn nötig)
-- Push-Benachrichtigungen
-- Mehrere Hausverwaltungs-Hotlines pro Gebäude
+**Board (Toggle)** – Kanban nach Status:
+
+```text
+Offen  │ In Bearbeitung │ Warte auf Extern │ Warte auf Eigent. │ Erledigt
+───────┼────────────────┼──────────────────┼───────────────────┼─────────
+[Card] │ [Card]         │ [Card]           │ [Card]            │ [Card]
+[Card] │ [Card]         │                  │                   │ [Card]
+```
+
+- Karten zeigen: Titel, Gebäude (kleines Label), Priorität-Dot, Fälligkeit, Zuständig (Avatar).
+- Drag & Drop zwischen Spalten ändert `status` (über `useUpdateCase`).
+- Spalten zählen Tickets oben; „Erledigt" ist standardmäßig auf 30 Tage begrenzt, aufklappbar.
+
+### Gemeinsame Filterleiste
+Wirkt auf beide Tabs (Filter bleiben bei Tab-Wechsel erhalten):
+- Gebäude (Multi-Select, Default „Alle aktiven")
+- Status (passend pro Tab)
+- Priorität, Kategorie, Zuständig, Suche (Volltext über Titel/Beschreibung)
+- Respektiert `management_mode` (weg/rent) wie heute global gesetzt.
+
+### Schnellaktionen oben rechts
+- **+ Neuer Vorgang** (öffnet bestehenden `CreateCaseDialog`, Gebäude vorwählbar)
+- **+ Neue Meldung** (bestehender Pfad)
+- Export Excel (wie heute bei Meldungen)
+
+## Detail-Drawer
+
+Bei Klick auf einen Vorgang in Liste oder Board öffnet sich ein **rechter Drawer** (`Sheet`, ~720 px) mit der vorhandenen `CaseDetailView` (Timeline, KI-Zusammenfassung, Events, Ask-AI). Vorteil: Übersicht bleibt sichtbar, schnelles Durchklicken mehrerer Vorgänge möglich.
+
+## KI-Readiness (gemäß Projektprinzipien)
+
+- Vorgänge tragen bereits `ai_summary`, `ai_keywords`, `ai_next_steps` – diese werden in der Liste als kurze 1-Zeilen-Zusammenfassung unter dem Titel (truncated) angezeigt.
+- Filter- und Suchfeld erlauben gezielte Auswahl als künftiger Kontext für Mistral/Nova.
+- Verknüpfung Meldung ↔ Vorgang bleibt strukturierter Trainings-/Kontext-Anker.
+
+## Technische Umsetzung
+
+**Neue/erweiterte Hooks**
+- `useCases.tsx`: zusätzliche Funktion `useAllCases(filters)` ohne `buildingId`-Pflicht; selektiert über erlaubte Gebäude + RLS, Joins auf `buildings(name)`, Aggregation Event-Anzahl per `case_events_count` (Subquery oder zweiter Query).
+- Re-use `useUpdateCase` für DnD-Status-Update.
+
+**Neue Komponenten** (in `src/components/cases/`)
+- `CasesGlobalList.tsx` – Tabellen-Ansicht mit Sortier-Headern.
+- `CasesBoard.tsx` – Kanban (eine einfache Spalten-Lösung; falls DnD bereits via `@dnd-kit` im Projekt nutzbar, wiederverwenden – sonst optimistisches Update per Klick-Menü „Status ändern").
+- `CaseRowCard.tsx` / `CaseBoardCard.tsx` – wiederverwendbare Karte.
+- `CaseDetailDrawer.tsx` – Sheet-Wrapper um die vorhandene `CaseDetailView`.
+- `TicketsFilterBar.tsx` – gemeinsame Filterleiste (URL-Sync via `useSearchParams`).
+
+**Seiten-Refactor `src/pages/Reports.tsx`**
+- Datei wird zu `src/pages/Tickets.tsx` umbenannt (alter Default-Export bleibt als Re-Export für Kompatibilität).
+- Oberster `Tabs`-Wrapper mit `value` aus URL (`?tab=meldungen|vorgaenge`).
+- Bestehende Meldungen-Logik wandert in Sub-Komponente `MeldungenTab.tsx` (Code-Split, da heute >1000 Zeilen).
+
+**Routing (`src/App.tsx`)**
+- `/reports`, `/admin/reports` weiterhin auf neue Komponente.
+- Zusätzlich `/tickets` und `/tickets/vorgaenge` als Aliase.
+
+**Sidebar (`src/components/AdminSidebar.tsx`)**
+- Eintrag `title: "Tickets"`, `url: "/tickets"`. Active-Match ergänzen, dass beide Pfade markieren.
+
+**Mobile**
+- Filterleiste klappt in „Filter"-Button mit Sheet.
+- Board horizontal scrollbar; Liste wird zu Kartenliste mit den wichtigsten Feldern.
+
+## Was nicht geändert wird
+
+- Datenmodell `cases` / `case_events` / Reports bleibt unverändert – keine Migration nötig.
+- Eigentümer-/Mieter-Portale bleiben funktional gleich (sie sehen weiterhin nur ihre eigenen Meldungen).
+- Seite „Prozesse" (Standard-Workflows) bleibt eigenständig im Menü.
+
+## Lieferumfang
+
+1. Sidebar-Umbenennung „Meldungen" → „Tickets".
+2. Refactor `Reports.tsx` in `Tickets.tsx` mit Tab-Switch (Meldungen / Vorgänge), URL-State.
+3. Globale Vorgänge-Übersicht mit Liste + Board-Toggle, gemeinsame Filterleiste.
+4. Detail-Drawer für Vorgänge (wiederverwendet `CaseDetailView`).
+5. Drag-&-Drop Statuswechsel im Board (oder Statusmenü als Fallback).
+6. URL-Aliase `/tickets` und `/tickets/vorgaenge`.
