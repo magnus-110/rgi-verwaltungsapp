@@ -218,6 +218,19 @@ export function UploadDocumentDialog({
             </Select>
           </div>
 
+          {visibility === 'personen' && (
+            <div>
+              <Label>Eigentümer auswählen</Label>
+              <PersonVisibilityPicker
+                contacts={owners}
+                selectedIds={selectedContactIds}
+                onToggle={(id) => setSelectedContactIds(s =>
+                  s.includes(id) ? s.filter(x => x !== id) : [...s, id]
+                )}
+              />
+            </div>
+          )}
+
           <div>
             <Label>Ablaufdatum (optional)</Label>
             <Input type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} />
