@@ -6312,6 +6312,10 @@ export type Database = {
         Args: { user_uuid: string }
         Returns: Database["public"]["Enums"]["app_role"]
       }
+      is_emergency_contact_for_user: {
+        Args: { _contact_id: string; _user_id: string }
+        Returns: boolean
+      }
       remove_building_manager: {
         Args: { manager_id_param: string }
         Returns: undefined
