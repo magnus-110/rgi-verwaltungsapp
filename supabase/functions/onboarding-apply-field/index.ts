@@ -122,10 +122,29 @@ Deno.serve(async (req) => {
             const v = payload.square_meters ?? payload.qm;
             const num = parseNum(v);
             if (num == null) return json({ error: "Kein Wert vorhanden" }, 400);
+            // 1) Override auf der Zuordnung
             await admin
               .from("contact_building_assignments")
               .update({ area_sqm_override: num })
               .eq("id", aid);
+            // 2) Zusätzlich als Verteilerschlüssel in contact_building_shares (share_type='qm')
+            const { data: existingQmShare } = await admin
+              .from("contact_building_shares")
+              .select("id")
+              .eq("assignment_id", aid)
+              .eq("share_type", "qm")
+              .limit(1)
+              .maybeSingle();
+            if (existingQmShare) {
+              await admin
+                .from("contact_building_shares")
+                .update({ share_value: num })
+                .eq("id", (existingQmShare as any).id);
+            } else {
+              await admin
+                .from("contact_building_shares")
+                .insert({ assignment_id: aid, share_type: "qm", share_value: num });
+            }
           } else if (field === "mea") {
             const v = payload.mea_share ?? payload.mea;
             if (v == null || v === "") return json({ error: "Kein Wert vorhanden" }, 400);

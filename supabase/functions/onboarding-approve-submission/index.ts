@@ -82,12 +82,30 @@ Deno.serve(async (req) => {
               .limit(1)
               .maybeSingle();
 
-            // Wohnfläche → area_sqm_override
+            // Wohnfläche → area_sqm_override + Verteilerschlüssel (share_type='qm')
             if (payload.qm != null && assignment) {
+              const qmNum = Number(payload.qm);
               await admin
                 .from("contact_building_assignments")
-                .update({ area_sqm_override: Number(payload.qm) })
+                .update({ area_sqm_override: qmNum })
                 .eq("id", assignment.id);
+              const { data: existingQm } = await admin
+                .from("contact_building_shares")
+                .select("id")
+                .eq("assignment_id", assignment.id)
+                .eq("share_type", "qm")
+                .limit(1)
+                .maybeSingle();
+              if (existingQm) {
+                await admin
+                  .from("contact_building_shares")
+                  .update({ share_value: qmNum })
+                  .eq("id", existingQm.id);
+              } else {
+                await admin
+                  .from("contact_building_shares")
+                  .insert({ assignment_id: assignment.id, share_type: "qm", share_value: qmNum });
+              }
             }
 
             // MEA → contact_building_shares (share_type='mea')
