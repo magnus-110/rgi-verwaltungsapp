@@ -1,15 +1,19 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAllCases, useUpdateCase, CASE_STATUS_LABEL, CASE_PRIORITY_LABEL, CASE_CATEGORY_LABEL, CaseStatus, CasePriority, CaseCategory, CaseWithBuilding } from "@/hooks/useCases";
+import { useAllCases, useUpdateCase, useDeleteCase, CASE_STATUS_LABEL, CASE_PRIORITY_LABEL, CASE_CATEGORY_LABEL, CaseStatus, CasePriority, CaseCategory, CaseWithBuilding } from "@/hooks/useCases";
 import { useManagementMode } from "@/hooks/useManagementMode";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { CaseDetailView } from "./CaseDetailView";
 import { CreateCaseDialog } from "./CreateCaseDialog";
-import { Search, LayoutList, Columns, Plus, Building2, Clock, MessageSquare, Loader2, AlertCircle } from "lucide-react";
+import { Search, LayoutList, Columns, Plus, Building2, Clock, MessageSquare, Loader2, AlertCircle, Trash2 } from "lucide-react";
 import { formatDistanceToNow, format, isPast } from "date-fns";
 import { de } from "date-fns/locale";
 import { cn } from "@/lib/utils";
