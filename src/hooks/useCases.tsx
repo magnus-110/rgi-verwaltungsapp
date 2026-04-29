@@ -197,7 +197,12 @@ export const useCreateCase = () => {
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["cases", data.building_id] });
       qc.invalidateQueries({ queryKey: ["cases-all"] });
-      toast({ title: "Vorgang angelegt" });
+      qc.invalidateQueries({ queryKey: ["cases-active-for-building", data.building_id] });
+      if (data.parent_case_id) {
+        qc.invalidateQueries({ queryKey: ["subcases", data.parent_case_id] });
+        qc.invalidateQueries({ queryKey: ["case-events", data.parent_case_id] });
+      }
+      toast({ title: data.parent_case_id ? "Teilvorgang angelegt" : "Vorgang angelegt" });
     },
     onError: (e: any) => toast({ title: "Fehler", description: e.message, variant: "destructive" }),
   });
