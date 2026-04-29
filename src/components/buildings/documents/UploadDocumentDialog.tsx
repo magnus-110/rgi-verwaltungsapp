@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, FileText, X } from "lucide-react";
 import { toast } from "sonner";
 import { VisibilityRole, VISIBILITY_LABELS, DocCategory } from "./types";
+import { PersonVisibilityPicker } from "./PersonVisibilityPicker";
 
 interface UploadDocumentDialogProps {
   open: boolean;
