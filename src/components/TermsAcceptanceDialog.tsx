@@ -47,8 +47,6 @@ export const TermsAcceptanceDialog = ({ open, userId, onAccepted }: TermsAccepta
   return (
     <Dialog open={open} onOpenChange={() => {}}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden" onPointerDownOutside={(e) => e.preventDefault()}>
-
-          <>
             <DialogHeader>
               <DialogTitle>Nutzungsbedingungen akzeptieren</DialogTitle>
               <DialogDescription>
