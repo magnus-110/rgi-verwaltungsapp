@@ -35,7 +35,7 @@ export const TermsAcceptanceDialog = ({ open, userId, onAccepted }: TermsAccepta
       if (error) throw error;
 
       toast.success("Vielen Dank für Ihre Zustimmung!");
-      setStep(2);
+      onAccepted();
     } catch (error) {
       console.error("Error accepting terms:", error);
       toast.error("Fehler beim Speichern. Bitte versuchen Sie es erneut.");
@@ -47,7 +47,8 @@ export const TermsAcceptanceDialog = ({ open, userId, onAccepted }: TermsAccepta
   return (
     <Dialog open={open} onOpenChange={() => {}}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden" onPointerDownOutside={(e) => e.preventDefault()}>
-        {step === 1 ? (
+        <>
+
           <>
             <DialogHeader>
               <DialogTitle>Nutzungsbedingungen akzeptieren</DialogTitle>
