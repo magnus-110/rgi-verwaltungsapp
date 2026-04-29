@@ -1,77 +1,98 @@
-# Onboarding-Wizard ↔ Admin-Onboarding: korrekte Verknüpfung pro Einheit
+## Notfallkontakte für Dienstleister
 
-## Befund (anhand Maxi Göttinger)
+### Ziel
+Admins können pro Dienstleister festlegen, ob er als **Notfallkontakt** beim Eigentümer angezeigt wird. Diese Kontakte erscheinen ganz oben im **Schwarzen Brett**, gruppiert nach Gewerk, mit Telefon-/E-Mail-Buttons und einem Erklärtext zur Eskalation.
 
-Maxi Göttinger besitzt 3 Einheiten im Beispielgebäude (0007, 0008, 0009) und hat im Wizard pro Einheit unterschiedliche Werte eingegeben (m², MEA, Hausgeld + Nebeneinheiten). Die Daten landen aktuell **nicht korrekt** auf der Admin-Onboarding-Seite:
+---
 
-1. **Step 2 wird als ein einziges Submission-Row gespeichert** (`payload.per_unit = {assignmentId: {...}}`, `assignment_id = null`). Die Admin-Übersicht liest aber `payload.square_meters / mea_share / monthly_fee` direkt → für Multi-Unit-Owner werden **gar keine Werte angezeigt** (nur "—").
-2. **Eigentümer-Lookup ist user-basiert** (`assignmentByUser` per `user_id`). Bei 3 Einheiten desselben Owners wird nur **eine** Einheitennummer angezeigt; im Screenshot taucht für einen anderen Eigentümer sogar nur die UUID `866a292b…` als Name auf, weil kein Contact für diese User-ID im Building gefunden wird.
-3. **Apply-Field für `qm/mea/hausgeld` ignoriert die Einheit** (`limit(1)` über alle Assignments des Contacts) → "Übernehmen" schreibt im Multi-Unit-Fall **auf die falsche Einheit**.
-4. **Nebeneinheiten** (Tiefgarage / Stellplatz / Keller mit eigenen MEA/Hausgeld-Werten) aus Step 2 werden in der Admin-Übersicht nirgends angezeigt und haben keinen Übernehmen-Button.
-5. **Step 3 Problem-Notizen** (`problem_notes[area]`), **`general_impression_score`** und **`refill_contact`** werden weder angezeigt noch sind sie übernehmbar.
-6. **Step 4 Custom-Provider** (Freitexteinträge mit `phone/email`) werden zwar aggregiert, aber `phone/email` werden beim Anlegen der Firma nicht durchgereicht; Trade-Label fehlt für Custom-Kategorien.
-7. **Step 1 Multi-Unit-Daten** werden zwar korrekt in `*_override`-Spalten geschrieben, aber im Admin-Onboarding-Tab gibt es **keine Übersicht** der per Einheit unterschiedlichen Adresse/Telefon/IBAN-Overrides — nur Step 2–5 sind sichtbar.
+### Teil 1: Admin-UI – Notfallkontakt-Schalter pro Dienstleister
 
-## Was wir bauen
+**Datei:** `src/components/buildings/BuildingServiceProvidersTab.tsx`
 
-### A. Backend — pro-Einheit-Submissions garantieren
+Pro Dienstleister-Karte einen **Notfall**-Button hinzufügen (Glocken-Icon). Klick öffnet einen kleinen Dialog mit:
+- Schalter „Als Notfallkontakt anzeigen"
+- Freitextfeld „Hinweis für Bewohner" (optional, z. B. „24/7 erreichbar", „nur Werktags 7–17 Uhr")
+- Reihenfolge innerhalb des Gewerks (Zahl, optional)
 
-`supabase/functions/submit-onboarding-step` ist bereits darauf vorbereitet, Step 2 mit `payload.per_unit` in N Rows zu splitten (jeweils mit `assignment_id`). Bestehender Datensatz für Maxi liegt aber als 1 Row vor → Edge Function neu deployen + **Migration**, die existierende `wohnungsdaten`-Submissions mit `payload.per_unit` in N Rows aufsplittet (`assignment_id` setzen, alte Sammelzeile löschen).
+Visuelle Markierung: aktive Notfallkontakte bekommen ein orangenes Glocken-Badge auf der Karte.
 
-### B. Admin-Übersicht (`OnboardingStepOverviews.tsx`)
+**Datenmodell:** Neue Spalten in `contact_building_assignments` via Migration:
+- `is_emergency_contact boolean default false`
+- `emergency_note text`
+- `emergency_sort_order integer`
 
-- **Step-2-Tabelle** umbauen: pro Submission **eine Zeile pro Einheit** rendern.
-  - Wenn `assignment_id` gesetzt ist → diese Einheit anzeigen.
-  - Wenn (Legacy) noch `payload.per_unit` vorhanden ist → für jeden Key eine Zeile rendern.
-  - Spalte „Einheit" zeigt die korrekte `unit_number` aus `assignments` per `assignment_id` (nicht user-basiert).
-- **Eigentümer-Lookup** zusätzlich per `assignment_id` und `contact_id` (nicht nur `user_id`), Fallback auf Contact-Name statt UUID.
-- **Dedupe-Logik**: nicht mehr nur „latest pro user", sondern „latest pro `(user_id, assignment_id)`" für Step 2.
-- **Sub-Einheiten-Subtable**: unter jeder Hauptzeile eine kompakte Liste der `secondary_units` (Tiefgarage, Stellplatz, Keller…) mit eigenen Übernehmen-Buttons.
-- **Step 3**: Problemnotizen je Bereich anzeigen (`problem_notes[area]`), `refill_contact` als eigenes Feld, `general_impression_score` als zusätzliche Bewertung neben `condition_rating`.
-- **Step 4 Custom**: `phone`/`email`/Notiz aus `payload.custom[i]` durchreichen an Apply.
+(Hängt am Assignment, nicht am Kontakt selbst — derselbe Dienstleister kann pro Gebäude unterschiedlich konfiguriert sein.)
 
-### C. Apply-Field-Function (`onboarding-apply-field`)
+---
 
-- Neue Felder akzeptieren: `qm | mea | hausgeld` mit **`assignment_id`** im `value` (Pflicht im Multi-Modus). Lookup-Reihenfolge:
-  1. `value.assignment_id` falls vorhanden
-  2. `submission.assignment_id` falls vorhanden
-  3. Fallback (Single-Unit): erste Zuordnung für Contact+Building.
-- Wenn Submission per_unit-Legacy-Format hat: Wert aus `payload.per_unit[assignment_id]` lesen statt `payload.*`.
-- Neue Felder:
-  - `secondary_unit` → legt Sub-Assignment an (`parent_assignment_id` = Hauptzuordnung, `unit_kind`, `unit_number`) + optional `mea_share` / `monthly_fee` über die bestehenden Tabellen `contact_building_shares` / `contact_building_costs`.
-  - `problem_note` → schreibt `problem_areas` + `notes` korrekt zusammen.
-  - `refill_contact` → optional auf `building.refill_contact_note` (oder Assessment-Notiz).
-- `applied_fields`-Key wird einheitenspezifisch gemacht: `qm:<assignment_id>` etc., damit der Übernehmen-Status pro Einheit korrekt ist.
+### Teil 2: Notfall-Widget am Schwarzen Brett (Eigentümer)
 
-### D. Step 1 Übersicht (neu, klein)
+**Datei:** `src/pages/weg-owner/Forum.tsx`
 
-In `OnboardingStepOverviews` ein neues Accordion **„Schritt 1: Stammdaten"** ergänzen, das pro Eigentümer×Einheit die `*_override`-Werte aus `contact_building_assignments` (Adresse, Telefon, E-Mail, IBAN, Kontakt-Wahl) anzeigt — read-only (Step 1 wird ohnehin direkt geschrieben), aber sichtbar fürs Audit.
+Neue Komponente `EmergencyContactsWidget` ganz oben (vor den Forenposts). Aufbau:
 
-### E. UX-Detail (Screenshot-Bug "866a292b")
+**1. Hausverwaltung-Block (immer zuerst, orange hervorgehoben)**
+- Name, Telefon, E-Mail aus `building.manager_name` + zentralen Hausverwaltungs-Kontaktdaten (info@rgi-immobilien.de / 08363 960656)
+- Buttons: „Anrufen" (`tel:`) und „E-Mail" (`mailto:`)
+- Hinweistext (fest):
 
-Im `nameOf`-Fallback statt der Hex-UUID „Unbekannter Eigentümer" + Kontakt-ID-Suffix anzeigen, und zusätzlich eine Warn-Badge „Kontakt nicht zugeordnet" rendern, damit Admin den Datenfehler sieht.
+  > **Bitte zuerst die Hausverwaltung kontaktieren.** Externe Handwerksbetriebe sollen nur dann eigenständig beauftragt werden, wenn die Hausverwaltung nicht erreichbar ist.
 
-## Technische Details
+**2. Externe Notfallkontakte (nach Gewerk gruppiert)**
+- Geladen aus `contact_building_assignments` mit `is_emergency_contact = true`, gefiltert nach den Gebäuden des Eigentümers
+- Pro Gewerk (z. B. „Heizung & Sanitär", „Rohrreinigung", „Schlüsseldienst") eine Zeile mit:
+  - Firmenname
+  - Wann anrufen-Hinweis (festgelegte Texte je Gewerk, ergänzt um den freien `emergency_note`)
+  - Telefon-Button (groß, primär) und E-Mail-Button
 
-- Migration: SQL splittet bestehende Legacy-Wohnungsdaten-Submissions:
-  ```text
-  for row in onboarding_submissions where category='wohnungsdaten' and payload?'per_unit':
-    for (aid, data) in jsonb_each(payload->'per_unit'):
-      insert (..., assignment_id=aid, payload=data)
-    delete row
-  ```
-- `applied_fields` migrieren: alte Keys `qm/mea/hausgeld` (ohne assignment_id) bleiben gültig, neue Keys werden `qm:<aid>` schreiben; Übersicht prüft beide.
-- Komponenten betroffen:
-  - `src/components/buildings/onboarding/OnboardingStepOverviews.tsx`
-  - `src/components/buildings/onboarding/ApplyFieldButton.tsx` (akzeptiert beliebiges `value`-Objekt — schon ok, nur Aufrufer ändern)
-  - Edge Functions: `onboarding-apply-field`, ggf. `submit-onboarding-step` (nur Re-Deploy)
-- Keine Änderung am Wizard-Frontend (Step 1–5 senden bereits korrekte Strukturen).
+**Festtexte je Gewerk** (in `src/lib/emergencyContactInfo.ts`, gemappt auf `service_category`):
 
-## Ergebnis
+| Gewerk | Wann anrufen |
+|---|---|
+| Hausmeister | Kleine technische Defekte im Haus (z. B. Lichttüren, Garten) |
+| Heizung & Sanitär | Nur bei Totalausfall der Heizung, akuten Wasserschäden oder Rohrbruch |
+| Rohrreinigung | Massive Verstopfungen, wenn Abwasser in Wohnung oder Keller drückt |
+| Schlüsseldienst | Defekte am Haustürschloss oder Wohnungsaussperrungen |
 
-Nach der Umsetzung sehen Admins:
-- Pro Einheit eine Zeile mit korrekter Einheitennummer und korrektem Eigentümernamen.
-- Pro Einheit unterschiedliche m²/MEA/Hausgeld-Werte mit jeweils eigenem „Übernehmen"-Button, der **genau diese Einheit** befüllt.
-- Nebeneinheiten (TG, Stellplatz, Keller) inkl. Übernehmen-Aktion.
-- Step 3 Problemnotizen, Step 4 Custom-Provider mit Phone/Email, Step 5 unverändert.
-- Neuer Step-1-Audit-Block mit Override-Werten pro Einheit.
+**3. Öffentliche Notrufe (statisch, am Ende, rot)**
+- **112 Feuerwehr** – Rauch, Brand, Gasgeruch
+- **112 Rettungsdienst** – Medizinische Notfälle
+- **110 Polizei** – Einbruch oder akute Gefahr
+
+Jeweils als großer `tel:`-Button.
+
+**Verhalten:** Das Widget ist einklappbar (Default: aufgeklappt). Wenn keine externen Notfallkontakte gepflegt sind, werden trotzdem Hausverwaltung + öffentliche Notrufe gezeigt.
+
+---
+
+### Technische Details
+
+**Migration:**
+```sql
+ALTER TABLE public.contact_building_assignments
+  ADD COLUMN is_emergency_contact boolean NOT NULL DEFAULT false,
+  ADD COLUMN emergency_note text,
+  ADD COLUMN emergency_sort_order integer;
+
+CREATE INDEX idx_cba_emergency
+  ON public.contact_building_assignments (building_id)
+  WHERE is_emergency_contact = true;
+```
+
+**Neue Datei:** `src/lib/emergencyContactInfo.ts` – Mapping `service_category → { whenToCall: string }` plus die Festtexte für öffentliche Notrufe und den Hausverwaltungs-Hinweis.
+
+**Neue Komponente:** `src/components/forum/EmergencyContactsWidget.tsx`
+- Lädt parallel: Buildings des Users, Notfall-Assignments mit Contact + Phones/Emails
+- Verwendet bestehendes shadcn Card/Button/Badge
+- Nutzt orange Akzentfarbe (`text-primary`/`bg-primary/10`) für Hausverwaltung, rot (`text-destructive`) für öffentliche Notrufe
+
+**RLS:** `contact_building_assignments` hat bereits RLS. Eigentümer dürfen Assignments für ihre Gebäude lesen — neue Spalten sind unkritisch (kein PII).
+
+**Tenant-Portal:** Dieselbe Logik analog auch in `src/pages/tenant/Forum.tsx` einbauen, falls vorhanden (Kurzcheck im Implementierungsschritt).
+
+---
+
+### Out of Scope
+- Bearbeiten der Festtexte je Gewerk durch Admins (kommt erst, wenn nötig)
+- Push-Benachrichtigungen
+- Mehrere Hausverwaltungs-Hotlines pro Gebäude
