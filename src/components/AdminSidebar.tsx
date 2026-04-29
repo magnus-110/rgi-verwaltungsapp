@@ -39,7 +39,7 @@ const menuItems = [
   { title: "NOVA", url: "/documents", icon: Sparkles },
   { title: "Aufgaben", url: "/todos", icon: CheckSquare },
   { title: "Kalender", url: "/calendar", icon: CalendarDays },
-  { title: "Meldungen", url: "/reports", icon: ClipboardList },
+  { title: "Tickets", url: "/tickets", icon: ClipboardList },
   { title: "Gebäude", url: "/buildings", icon: Castle },
   { title: "Adressen", url: "/contacts", icon: BookUser },
   { title: "Versammlungen", url: "/versammlungen", icon: Users },
@@ -159,12 +159,20 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
                   }
                   return true;
                 })
-                .map((item) => (
+                .map((item) => {
+                  // Aliases: /reports & /tickets/* should activate the "Tickets" item
+                  const aliasActive =
+                    item.url === "/tickets" &&
+                    (currentPath === "/reports" ||
+                      currentPath === "/admin/reports" ||
+                      currentPath.startsWith("/tickets"));
+                  return (
                 <SidebarMenuItem key={item.title}>
                    <NavLink 
                     to={item.url} 
+                    end={item.url === "/tickets"}
                     className={({ isActive }) =>
-                      isActive
+                      (isActive || aliasActive)
                         ? "bg-primary text-white group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors"
                         : "text-foreground hover:bg-muted hover:text-foreground group flex items-center px-3 py-2.5 text-sm font-medium rounded-md transition-colors"
                     }
@@ -172,12 +180,13 @@ export function AdminSidebar({ managementMode, onModeChange }: AdminSidebarProps
                     {({ isActive }) => (
                       <>
                         <item.icon className="h-4 w-4 mr-3 flex-shrink-0" />
-                        {!collapsed && <span className={`label-text ${isActive ? 'text-white' : ''}`}>{item.title}</span>}
+                        {!collapsed && <span className={`label-text ${(isActive || aliasActive) ? 'text-white' : ''}`}>{item.title}</span>}
                       </>
                     )}
                   </NavLink>
                 </SidebarMenuItem>
-              ))}
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
