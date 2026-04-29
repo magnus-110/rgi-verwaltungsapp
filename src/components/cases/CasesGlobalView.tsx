@@ -168,6 +168,18 @@ export const CasesGlobalView = () => {
             </SelectContent>
           </Select>
 
+          <Button
+            type="button"
+            variant={showSubcases ? "secondary" : "outline"}
+            size="sm"
+            className="h-10 gap-1.5"
+            onClick={() => setShowSubcases((v) => !v)}
+            title={showSubcases ? "Teilvorgänge ausblenden" : "Teilvorgänge einblenden"}
+          >
+            <GitBranch className="h-4 w-4" />
+            <span className="hidden md:inline">{showSubcases ? "Teilvorgänge an" : "Teilvorgänge aus"}</span>
+          </Button>
+
           {/* View toggle */}
           <div className="flex border border-border rounded-md overflow-hidden h-10">
             <Button
