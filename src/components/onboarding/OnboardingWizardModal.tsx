@@ -397,13 +397,13 @@ export const OnboardingWizardModal = ({
             <div className="bg-card border-b border-border/40 px-5 py-3.5 shrink-0">
               <StepSlider
                 steps={STEP_LABELS}
-                currentStep={showWelcome ? 0 : step}
-                completed={showWelcome ? {} : completed}
+                currentStep={showWelcome || showStammdatenModeQuestion ? 0 : step}
+                completed={showWelcome || showStammdatenModeQuestion ? {} : completed}
                 onStepClick={(n) =>
-                  !showWelcome && !isStep1HardLocked && setStep(n)
+                  !showWelcome && !showStammdatenModeQuestion && !isStep1HardLocked && setStep(n)
                 }
                 lockedFromStep={
-                  showWelcome ? 1 : isStep1HardLocked ? 2 : undefined
+                  showWelcome || showStammdatenModeQuestion ? 1 : isStep1HardLocked ? 2 : undefined
                 }
               />
             </div>
