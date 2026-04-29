@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Briefcase, Plus, Phone, Mail, Trash2, ExternalLink, Search, Building2, Settings2, Bell, BellRing } from "lucide-react";
+import { Briefcase, Plus, Phone, Mail, Trash2, ExternalLink, Search, Building2, Settings2, Bell, BellRing, ShieldAlert } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { CreateContactDialog } from "@/components/contacts/CreateContactDialog";
 import { Switch } from "@/components/ui/switch";
@@ -156,8 +156,8 @@ export function BuildingServiceProvidersTab({ buildingId }: Props) {
                           {p.service_category || "Sonstiges"}
                         </Badge>
                         {p.is_emergency_contact && (
-                          <Badge className="text-[10px] bg-orange-500/15 text-orange-700 hover:bg-orange-500/15 border border-orange-500/30 gap-1">
-                            <BellRing className="h-3 w-3" /> Notfallkontakt
+                          <Badge variant="outline" className="text-[10px] gap-1 border-foreground/30">
+                            <ShieldAlert className="h-3 w-3" /> Notfallkontakt
                           </Badge>
                         )}
                       </div>
