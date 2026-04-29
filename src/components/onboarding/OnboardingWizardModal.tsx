@@ -440,7 +440,7 @@ export const OnboardingWizardModal = ({
                 unitCount={assignments.length}
                 onChoose={async (allSame) => {
                   setAppliesToAll(allSame);
-                  setShowStammdatenModeQuestion(false);
+                  setStammdatenModeDismissed(true);
                   // direkt im progress-Datensatz persistieren
                   try {
                     await supabase
