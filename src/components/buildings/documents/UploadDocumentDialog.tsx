@@ -30,6 +30,8 @@ export function UploadDocumentDialog({
   const [validUntil, setValidUntil] = useState<string>("");
   const [uploading, setUploading] = useState(false);
   const [categories, setCategories] = useState<DocCategory[]>([]);
+  const [owners, setOwners] = useState<Array<{ id: string; first_name?: string | null; last_name?: string | null; company_name?: string | null }>>([]);
+  const [selectedContactIds, setSelectedContactIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (open) {
@@ -37,12 +39,32 @@ export function UploadDocumentDialog({
       setCategoryId(initialCategoryId || "");
       setVisibility('intern');
       setValidUntil("");
+      setSelectedContactIds([]);
       supabase
         .from('building_file_categories')
         .select('*')
         .eq('building_id', buildingId)
         .order('sort_order')
         .then(({ data }) => setCategories((data || []) as DocCategory[]));
+      supabase
+        .from('contact_building_assignments')
+        .select('contact_id, contacts(id, first_name, last_name, company_name)')
+        .eq('building_id', buildingId)
+        .eq('is_active', true)
+        .eq('role_in_building', 'eigentuemer')
+        .then(({ data }) => {
+          const list = (data || [])
+            .map((r: any) => r.contacts)
+            .filter(Boolean);
+          // dedupe by id
+          const seen = new Set<string>();
+          const unique = list.filter((c: any) => {
+            if (seen.has(c.id)) return false;
+            seen.add(c.id);
+            return true;
+          });
+          setOwners(unique);
+        });
     }
   }, [open, buildingId, initialCategoryId, initialFiles]);
 
