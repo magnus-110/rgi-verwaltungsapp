@@ -155,6 +155,11 @@ export function BuildingServiceProvidersTab({ buildingId }: Props) {
                         <Badge variant="secondary" className="text-[10px]">
                           {p.service_category || "Sonstiges"}
                         </Badge>
+                        {p.is_emergency_contact && (
+                          <Badge className="text-[10px] bg-orange-500/15 text-orange-700 hover:bg-orange-500/15 border border-orange-500/30 gap-1">
+                            <BellRing className="h-3 w-3" /> Notfallkontakt
+                          </Badge>
+                        )}
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs text-muted-foreground">
                         {primaryPhone && (
@@ -169,8 +174,20 @@ export function BuildingServiceProvidersTab({ buildingId }: Props) {
                         )}
                       </div>
                       {p.notes && <p className="text-xs text-muted-foreground mt-1.5 italic">„{p.notes}"</p>}
+                      {p.is_emergency_contact && p.emergency_note && (
+                        <p className="text-xs text-orange-700 mt-1.5">🔔 {p.emergency_note}</p>
+                      )}
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className={`h-7 w-7 ${p.is_emergency_contact ? "text-orange-600 hover:text-orange-700" : ""}`}
+                        title="Notfallkontakt-Einstellungen"
+                        onClick={() => setEmergencyEditId(p.id)}
+                      >
+                        {p.is_emergency_contact ? <BellRing className="h-3.5 w-3.5" /> : <Bell className="h-3.5 w-3.5" />}
+                      </Button>
                       <Button
                         size="icon"
                         variant="ghost"
