@@ -507,3 +507,117 @@ function ManageCategoriesDialog({
     </Dialog>
   );
 }
+
+function EmergencyEditDialog({
+  assignment, onClose, onSaved,
+}: {
+  assignment: any | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { toast } = useToast();
+  const [enabled, setEnabled] = useState(false);
+  const [note, setNote] = useState("");
+  const [sortOrder, setSortOrder] = useState<string>("");
+  const [saving, setSaving] = useState(false);
+
+  const open = !!assignment;
+  const assignmentId = assignment?.id;
+
+  useEffect(() => {
+    if (assignment) {
+      setEnabled(!!assignment.is_emergency_contact);
+      setNote(assignment.emergency_note || "");
+      setSortOrder(
+        assignment.emergency_sort_order !== null && assignment.emergency_sort_order !== undefined
+          ? String(assignment.emergency_sort_order)
+          : ""
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assignmentId]);
+
+  const handleSave = async () => {
+    if (!assignment) return;
+    setSaving(true);
+    const { error } = await supabase
+      .from("contact_building_assignments")
+      .update({
+        is_emergency_contact: enabled,
+        emergency_note: note.trim() || null,
+        emergency_sort_order: sortOrder ? parseInt(sortOrder, 10) : null,
+      })
+      .eq("id", assignment.id);
+    setSaving(false);
+    if (error) {
+      toast({ title: "Fehler", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Notfall-Einstellungen gespeichert" });
+    onSaved();
+    onClose();
+  };
+
+  const contactName =
+    assignment?.contact?.company_name ||
+    [assignment?.contact?.first_name, assignment?.contact?.last_name].filter(Boolean).join(" ") ||
+    "Dienstleister";
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <BellRing className="h-4 w-4 text-orange-600" />
+            Notfallkontakt-Einstellungen
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground">{contactName}</span>
+            {assignment?.service_category && <> · {assignment.service_category}</>}
+          </div>
+
+          <div className="flex items-center justify-between rounded-md border p-3">
+            <div className="space-y-0.5 pr-3">
+              <Label className="text-sm">Als Notfallkontakt anzeigen</Label>
+              <p className="text-xs text-muted-foreground">
+                Wird Bewohnern oben am Schwarzen Brett angezeigt.
+              </p>
+            </div>
+            <Switch checked={enabled} onCheckedChange={setEnabled} />
+          </div>
+
+          <div>
+            <Label className="text-xs">Hinweis für Bewohner (optional)</Label>
+            <Textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="z. B. 24/7 erreichbar, nur Werktags 7–17 Uhr..."
+              className="text-sm min-h-[60px]"
+              disabled={!enabled}
+            />
+          </div>
+
+          <div>
+            <Label className="text-xs">Reihenfolge (optional)</Label>
+            <Input
+              type="number"
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value)}
+              placeholder="z. B. 10 (kleinere Zahl = weiter oben)"
+              className="h-9 text-sm"
+              disabled={!enabled}
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose}>Abbrechen</Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? "Speichern..." : "Speichern"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
