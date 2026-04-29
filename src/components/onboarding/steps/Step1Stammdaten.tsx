@@ -6,12 +6,21 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { Info, Landmark, ShieldCheck } from "lucide-react";
+import { Info, Landmark, ShieldCheck, Upload, FileText, X, Loader2, Image as ImageIcon } from "lucide-react";
+import { toast } from "sonner";
 import { SEPA_MANDATE_TEXT, logSepaMandateEvent } from "../sepaAuditLog";
 
 export type PhoneType = "private" | "mobile" | "business";
 export interface PhoneEntry { number: string; type?: PhoneType; note?: string }
 export interface EmailEntry { address: string }
+
+export interface ProxyDocument {
+  path: string;
+  name: string;
+  size: number;
+  type: string;
+  uploaded_at: string;
+}
 
 export interface OtherContactInfo {
   name?: string;
@@ -21,6 +30,7 @@ export interface OtherContactInfo {
   phone?: string;
   email?: string;
   relation?: string;
+  proxy_documents?: ProxyDocument[];
 }
 
 export interface Step1Data {
@@ -455,6 +465,11 @@ export const Step1Stammdaten = ({ value, onChange, buildingId }: Props) => {
                   placeholder="z. B. anna.mueller@beispiel.de"
                 />
               </Field>
+
+              <ProxyDocumentsUpload
+                documents={other.proxy_documents ?? []}
+                onChange={(docs) => setOther({ proxy_documents: docs })}
+              />
             </div>
           )}
         </div>
@@ -494,6 +509,179 @@ const Field = ({
     {children}
   </div>
 );
+
+// ---------------------------------------------------------------------------
+// Vollmacht / Proxy documents upload — minimalistic, matches wizard style
+// ---------------------------------------------------------------------------
+const MAX_PROXY_FILES = 5;
+const MAX_PROXY_SIZE_MB = 10;
+const ACCEPTED_PROXY = "application/pdf,image/png,image/jpeg,image/heic,image/webp";
+
+const ProxyDocumentsUpload = ({
+  documents,
+  onChange,
+}: {
+  documents: ProxyDocument[];
+  onChange: (next: ProxyDocument[]) => void;
+}) => {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
+
+  const handleFiles = async (files: FileList | File[]) => {
+    const list = Array.from(files);
+    if (documents.length + list.length > MAX_PROXY_FILES) {
+      toast.error(`Maximal ${MAX_PROXY_FILES} Dateien.`);
+      return;
+    }
+    setUploading(true);
+    try {
+      const { data: userRes } = await supabase.auth.getUser();
+      const uid = userRes.user?.id;
+      if (!uid) {
+        toast.error("Nicht angemeldet.");
+        return;
+      }
+      const uploaded: ProxyDocument[] = [];
+      for (const file of list) {
+        if (file.size > MAX_PROXY_SIZE_MB * 1024 * 1024) {
+          toast.error(`${file.name}: max. ${MAX_PROXY_SIZE_MB} MB.`);
+          continue;
+        }
+        const ext = file.name.includes(".") ? file.name.split(".").pop() : "bin";
+        const path = `${uid}/proxy/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const { error } = await supabase.storage
+          .from("onboarding-attachments")
+          .upload(path, file, { contentType: file.type, upsert: false });
+        if (error) {
+          toast.error(`Upload fehlgeschlagen: ${file.name}`);
+          continue;
+        }
+        uploaded.push({
+          path,
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          uploaded_at: new Date().toISOString(),
+        });
+      }
+      if (uploaded.length > 0) {
+        onChange([...documents, ...uploaded]);
+        toast.success(
+          uploaded.length === 1 ? "Dokument hochgeladen." : `${uploaded.length} Dokumente hochgeladen.`
+        );
+      }
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  const removeDoc = async (doc: ProxyDocument) => {
+    await supabase.storage.from("onboarding-attachments").remove([doc.path]);
+    onChange(documents.filter((d) => d.path !== doc.path));
+  };
+
+  return (
+    <div className="space-y-2 pt-1">
+      <div className="text-[12px] text-muted-foreground mb-1 flex items-center gap-1.5">
+        <ShieldCheck className="size-3.5 text-primary" />
+        Vollmacht / Nachweis (optional)
+      </div>
+
+      {documents.length > 0 && (
+        <div className="space-y-1.5">
+          {documents.map((doc) => {
+            const isImg = doc.type.startsWith("image/");
+            return (
+              <div
+                key={doc.path}
+                className="flex items-center gap-2.5 rounded-[10px] border border-border/60 bg-card px-2.5 py-2"
+              >
+                <div className="size-8 rounded-[8px] bg-primary/10 grid place-items-center shrink-0">
+                  {isImg ? (
+                    <ImageIcon className="size-4 text-primary" />
+                  ) : (
+                    <FileText className="size-4 text-primary" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] text-foreground truncate">{doc.name}</div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {(doc.size / 1024 / 1024).toFixed(2)} MB
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeDoc(doc)}
+                  className="size-7 rounded-[8px] grid place-items-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition"
+                  aria-label="Entfernen"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {documents.length < MAX_PROXY_FILES && (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragOver(true);
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragOver(false);
+            if (e.dataTransfer.files?.length) handleFiles(e.dataTransfer.files);
+          }}
+          disabled={uploading}
+          className={cn(
+            "w-full rounded-[10px] border border-dashed px-3 py-3 flex items-center justify-center gap-2 text-[12.5px] transition",
+            dragOver
+              ? "border-primary bg-primary/[0.06] text-primary"
+              : "border-border/70 bg-muted/20 text-muted-foreground hover:bg-muted/40 hover:text-foreground",
+            uploading && "opacity-60 cursor-wait"
+          )}
+        >
+          {uploading ? (
+            <>
+              <Loader2 className="size-3.5 animate-spin" />
+              Wird hochgeladen …
+            </>
+          ) : (
+            <>
+              <Upload className="size-3.5" />
+              {documents.length === 0
+                ? "Vollmacht hochladen (PDF oder Foto)"
+                : "Weiteres Dokument hinzufügen"}
+            </>
+          )}
+        </button>
+      )}
+
+      <p className="text-[11px] text-muted-foreground/80 leading-snug">
+        Bitte laden Sie eine unterschriebene Vollmacht oder einen Nachweis hoch (z. B. PDF oder Foto).
+        Max. {MAX_PROXY_FILES} Dateien · je {MAX_PROXY_SIZE_MB} MB.
+      </p>
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept={ACCEPTED_PROXY}
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          if (e.target.files?.length) handleFiles(e.target.files);
+        }}
+      />
+    </div>
+  );
+};
 
 // IBAN helpers — German IBAN only: starts with "DE" + 20 digits = 22 chars
 const formatIban = (raw: string): string => {
