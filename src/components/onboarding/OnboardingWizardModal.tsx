@@ -30,6 +30,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   progress: OnboardingProgress;
   buildingName: string | null;
+  assignments: OnboardingAssignment[];
   onComplete: () => void;
 }
 
