@@ -181,7 +181,7 @@ export const AssignEmailDialog = ({
                 </Badge>
               )}
             </Label>
-            <Select value={buildingId} onValueChange={(v) => { setBuildingId(v); setCaseId("none"); setCreatingCase(false); }}>
+            <Select value={buildingId} onValueChange={(v) => { setBuildingId(v); setCaseId("none"); setSubcaseId("none"); setCreatingCase(false); }}>
               <SelectTrigger><SelectValue placeholder="Keine Zuordnung" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Keine Zuordnung</SelectItem>
