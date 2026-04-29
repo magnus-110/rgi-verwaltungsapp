@@ -2,6 +2,7 @@
 import { Navigate, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
  import { TermsAcceptanceDialog } from "@/components/TermsAcceptanceDialog";
+ import { IntroVideoDialog } from "@/components/IntroVideoDialog";
  import { supabase } from "@/integrations/supabase/client";
 import { useHasVisibleFiles } from "@/hooks/useHasVisibleFiles";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,20 @@ export const TenantLayout = ({ children }: TenantLayoutProps) => {
  const handleTermsAccepted = () => {
    setTermsAccepted(true);
    setShowTermsDialog(false);
+ };
+
+ // Intro-Video direkt nach AGB (Mieter haben kein Onboarding)
+ const videoSeenKey = profile?.user_id ? `intro_video_seen_${profile.user_id}` : null;
+ const [videoDismissed, setVideoDismissed] = useState(false);
+ useEffect(() => {
+   if (videoSeenKey && localStorage.getItem(videoSeenKey) === "1") {
+     setVideoDismissed(true);
+   }
+ }, [videoSeenKey]);
+ const showIntroVideo = termsAccepted === true && !videoDismissed;
+ const dismissIntroVideo = () => {
+   if (videoSeenKey) localStorage.setItem(videoSeenKey, "1");
+   setVideoDismissed(true);
  };
 
   if (loading) {
