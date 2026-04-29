@@ -471,33 +471,53 @@ export const OnboardingWizardModal = ({
           </div>
 
           {/* Footer */}
-          {!allDone && !showWelcome && !showStammdatenModeQuestion && !pendingSepaWarning && (
+          {!allDone && !showWelcome && !pendingSepaWarning && (
             <div className="bg-card border-t border-border/60 px-4 py-3 flex items-center justify-between gap-2 shrink-0">
               <Button
                 type="button"
                 variant="outline"
                 size="icon"
-                onClick={async () => { await flush(); setStep(step - 1); }}
-                disabled={submitting || isStep1HardLocked || step <= 1}
+                onClick={async () => {
+                  // Aus der Stammdaten-Modus-Frage zurück zum Welcome-Screen
+                  if (showStammdatenModeQuestion) {
+                    setShowWelcome(true);
+                    return;
+                  }
+                  // Aus Step 1 zurück: bei MultiUnit zurück zur Modus-Frage,
+                  // sonst zurück zum Welcome-Screen.
+                  if (step <= 1) {
+                    if (multiUnit) {
+                      setStammdatenModeDismissed(false);
+                    } else {
+                      setShowWelcome(true);
+                    }
+                    return;
+                  }
+                  await flush();
+                  setStep(step - 1);
+                }}
+                disabled={submitting}
                 className="border-border/60"
                 aria-label="Zurück"
               >
                 <ArrowLeft className="h-4 w-4" />
               </Button>
-              <Button
-                type="submit"
-                disabled={submitting}
-                size="icon"
-                aria-label={step === 5 ? "Abschließen" : "Weiter"}
-              >
-                {submitting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : step === 5 ? (
-                  <Check className="h-4 w-4" />
-                ) : (
-                  <ArrowRight className="h-4 w-4" />
-                )}
-              </Button>
+              {!showStammdatenModeQuestion && (
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                  size="icon"
+                  aria-label={step === 5 ? "Abschließen" : "Weiter"}
+                >
+                  {submitting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : step === 5 ? (
+                    <Check className="h-4 w-4" />
+                  ) : (
+                    <ArrowRight className="h-4 w-4" />
+                  )}
+                </Button>
+              )}
             </div>
           )}
         </form>
