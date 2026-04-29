@@ -35,6 +35,7 @@ export function ContactBuildingAssignments({ contactId }: Props) {
   const [buildings, setBuildings] = useState<{ id: string; name: string; address: string }[]>([]);
   const [showAddBuilding, setShowAddBuilding] = useState(false);
   const [selectedBuildingId, setSelectedBuildingId] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => { load(); }, [contactId]);
 
@@ -65,10 +66,21 @@ export function ContactBuildingAssignments({ contactId }: Props) {
   };
 
   const deleteAssignment = async (id: string) => {
-    const { error } = await supabase.functions.invoke("remove-contact-from-building", {
+    setDeletingId(id);
+    const { data, error } = await supabase.functions.invoke("remove-contact-from-building", {
       body: { assignment_id: id },
     });
-    if (error) console.error("remove-contact-from-building failed", error);
+    setDeletingId(null);
+    if (error || (data as any)?.error) {
+      const message = (data as any)?.error || error?.message || "Zuordnung konnte nicht entfernt werden";
+      toast({ title: "Fehler beim Entfernen", description: message, variant: "destructive" });
+      return;
+    }
+    if ((data as any)?.account_deactivated) {
+      toast({ title: "Zuordnung entfernt", description: "Der verknüpfte Zugang wurde deaktiviert." });
+    } else {
+      toast({ title: "Zuordnung entfernt" });
+    }
     load();
   };
 
@@ -127,7 +139,7 @@ export function ContactBuildingAssignments({ contactId }: Props) {
                 </Badge>
               )}
             </div>
-            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => deleteAssignment(a.id)}>
+            <Button size="icon" variant="ghost" className="h-7 w-7" disabled={deletingId === a.id} onClick={() => deleteAssignment(a.id)}>
               <Trash2 className="h-3.5 w-3.5 text-destructive" />
             </Button>
           </CardContent>
