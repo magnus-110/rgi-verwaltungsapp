@@ -11,10 +11,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
   OnboardingProgress,
+  OnboardingAssignment,
   useStepAutoSave,
 } from "./useOnboardingContext";
-import { Step1Stammdaten, Step1Data, validateStep1 } from "./steps/Step1Stammdaten";
-import { Step2Wohnungsdaten, Step2Data } from "./steps/Step2Wohnungsdaten";
+import { Step1Stammdaten, Step1Data, validateStep1, Step1StammdatenMulti, Step1MultiData, validateStep1Multi } from "./steps/Step1Stammdaten";
+import { Step2Wohnungsdaten, Step2Data, Step2WohnungsdatenMulti, Step2MultiData } from "./steps/Step2Wohnungsdaten";
 import { Step3Gebaeude, Step3Data } from "./steps/Step3Gebaeude";
 import { Step4Dienstleister, Step4Data } from "./steps/Step4Dienstleister";
 import { Step5Einschaetzung, Step5Data } from "./steps/Step5Einschaetzung";
