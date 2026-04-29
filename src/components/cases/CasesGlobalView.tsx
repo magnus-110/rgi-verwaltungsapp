@@ -295,7 +295,7 @@ const CasesList = ({ items, onOpen, onChangeStatus, onDelete }: ListProps) => {
           return (
             <div
               key={c.id}
-              className="grid grid-cols-1 lg:grid-cols-[1fr_180px_120px_140px_140px_120px_110px] gap-3 px-4 py-3 hover:bg-muted/40 cursor-pointer items-center"
+              className="grid grid-cols-1 lg:grid-cols-[1fr_180px_120px_140px_140px_120px_110px_40px] gap-3 px-4 py-3 hover:bg-muted/40 cursor-pointer items-center group"
               onClick={() => onOpen(c.id)}
             >
               <div className="min-w-0">
