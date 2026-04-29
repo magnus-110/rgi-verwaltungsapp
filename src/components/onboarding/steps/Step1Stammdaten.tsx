@@ -537,3 +537,67 @@ export const validateStep1 = (d: Step1Data): string | null => {
   }
   return null;
 };
+
+// ---------------------------------------------------------------------------
+// Multi-Einheiten-Wrapper für Step 1 (wenn Stammdaten je Einheit getrennt
+// erfasst werden sollen)
+// ---------------------------------------------------------------------------
+export interface Step1MultiData {
+  per_unit?: Record<string, Step1Data>;
+}
+
+interface Step1MultiProps {
+  assignments: { id: string; label: string }[];
+  value: Step1MultiData;
+  onChange: (next: Step1MultiData) => void;
+  buildingId?: string;
+}
+
+export const Step1StammdatenMulti = ({
+  assignments,
+  value,
+  onChange,
+  buildingId,
+}: Step1MultiProps) => {
+  const perUnit = value.per_unit ?? {};
+  const setUnit = (id: string, next: Step1Data) => {
+    onChange({ ...value, per_unit: { ...perUnit, [id]: next } });
+  };
+  return (
+    <div className="space-y-6">
+      {assignments.map((a, idx) => (
+        <div key={a.id} className="space-y-2.5">
+          <div className="flex items-center gap-2 px-1">
+            <div className="size-6 rounded-full bg-primary/10 text-primary text-[12px] font-semibold grid place-items-center">
+              {idx + 1}
+            </div>
+            <div className="text-[13px] font-semibold text-foreground">
+              Einheit {idx + 1} von {assignments.length}
+              <span className="text-muted-foreground font-normal"> · {a.label}</span>
+            </div>
+          </div>
+          <Step1Stammdaten
+            value={perUnit[a.id] ?? {}}
+            onChange={(v) => setUnit(a.id, v)}
+            buildingId={buildingId}
+          />
+          {idx < assignments.length - 1 && (
+            <div className="h-px bg-border/60 mt-4" />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+export const validateStep1Multi = (
+  d: Step1MultiData,
+  assignments: { id: string; label: string }[]
+): string | null => {
+  for (const a of assignments) {
+    const unit = d.per_unit?.[a.id] ?? {};
+    const err = validateStep1(unit as Step1Data);
+    if (err) return `${a.label}: ${err}`;
+  }
+  return null;
+};
