@@ -27,6 +27,7 @@ export interface CaseRow {
   ai_summary_updated_at: string | null;
   ai_keywords: string[];
   ai_next_steps: string[];
+  parent_case_id: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -145,6 +146,7 @@ export const useCreateCase = () => {
       priority?: CasePriority;
       unit_number?: string;
       due_at?: string;
+      parent_case_id?: string | null;
     }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Nicht angemeldet");
