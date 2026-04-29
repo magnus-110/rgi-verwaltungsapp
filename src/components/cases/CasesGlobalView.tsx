@@ -351,6 +351,17 @@ const CasesList = ({ items, onOpen, onChangeStatus, onDelete }: ListProps) => {
               <div className="text-xs text-muted-foreground text-right">
                 {formatDistanceToNow(new Date(c.updated_at), { addSuffix: true, locale: de })}
               </div>
+              <div onClick={(e) => e.stopPropagation()} className="flex justify-end">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={() => onDelete(c)}
+                  aria-label="Vorgang löschen"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
             </div>
           );
         })}
