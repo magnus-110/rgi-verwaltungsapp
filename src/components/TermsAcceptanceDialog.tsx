@@ -47,7 +47,6 @@ export const TermsAcceptanceDialog = ({ open, userId, onAccepted }: TermsAccepta
   return (
     <Dialog open={open} onOpenChange={() => {}}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden" onPointerDownOutside={(e) => e.preventDefault()}>
-        <>
 
           <>
             <DialogHeader>
@@ -209,7 +208,6 @@ export const TermsAcceptanceDialog = ({ open, userId, onAccepted }: TermsAccepta
                 {isSubmitting ? "Wird gespeichert..." : "Akzeptieren und fortfahren"}
               </Button>
             </div>
-          </>
       </DialogContent>
     </Dialog>
   );
