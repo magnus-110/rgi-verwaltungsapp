@@ -371,7 +371,7 @@ const CasesList = ({ items, onOpen, onChangeStatus, onDelete }: ListProps) => {
 };
 
 // ======================== Board ========================
-const CasesBoard = ({ items, onOpen, onChangeStatus }: ListProps) => {
+const CasesBoard = ({ items, onOpen, onChangeStatus, onDelete }: ListProps) => {
   const grouped = useMemo(() => {
     const g: Record<CaseStatus, CaseWithBuilding[]> = {
       open: [], in_progress: [], waiting_external: [], waiting_owner: [], resolved: [], archived: [],
