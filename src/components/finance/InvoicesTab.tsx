@@ -38,6 +38,78 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
   const filterBuilding = sharedBuildingId ? sharedBuildingId : internalFilterBuilding;
   const [page, setPage] = useState(0);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+  const [bulkRetrying, setBulkRetrying] = useState(false);
+
+  // Count of stuck OCR jobs (error / pending) — drives the bulk-retry button
+  const { data: stuckCount = 0 } = useQuery({
+    queryKey: ["invoices-stuck-ocr-count"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("invoices")
+        .select("id", { count: "exact", head: true })
+        .in("ocr_status", ["error", "pending"]);
+      if (error) return 0;
+      return count || 0;
+    },
+    refetchInterval: 15000,
+  });
+
+  const retryOcr = async (invoiceId: string) => {
+    setRetryingId(invoiceId);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const { error } = await supabase.functions.invoke("extract-invoice", {
+        body: { invoiceId },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      if (error) throw error;
+      toast.success("OCR neu gestartet");
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["invoices-stuck-ocr-count"] });
+    } catch (e: any) {
+      toast.error(`OCR-Fehler: ${e?.message || "Unbekannt"}`);
+    } finally {
+      setRetryingId(null);
+    }
+  };
+
+  const retryAllStuck = async () => {
+    setBulkRetrying(true);
+    try {
+      const { data: stuck, error } = await supabase
+        .from("invoices")
+        .select("id")
+        .in("ocr_status", ["error", "pending"])
+        .limit(100);
+      if (error) throw error;
+      if (!stuck || stuck.length === 0) {
+        toast.info("Keine ausstehenden OCR-Jobs");
+        return;
+      }
+      const { data: { session } } = await supabase.auth.getSession();
+      // Sequentiell mit kleiner Pause, um Mistral-Ratelimit zu schonen
+      let ok = 0;
+      let fail = 0;
+      for (const row of stuck) {
+        try {
+          const { error: invErr } = await supabase.functions.invoke("extract-invoice", {
+            body: { invoiceId: row.id },
+            headers: { Authorization: `Bearer ${session?.access_token}` },
+          });
+          if (invErr) fail++; else ok++;
+        } catch { fail++; }
+        await new Promise(r => setTimeout(r, 600));
+      }
+      toast.success(`OCR neu gestartet: ${ok} erfolgreich${fail ? `, ${fail} fehlgeschlagen` : ""}`);
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["invoices-stuck-ocr-count"] });
+    } catch (e: any) {
+      toast.error(`Bulk-OCR fehlgeschlagen: ${e?.message || "Unbekannt"}`);
+    } finally {
+      setBulkRetrying(false);
+    }
+  };
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
