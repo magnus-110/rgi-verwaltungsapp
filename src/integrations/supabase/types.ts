@@ -3243,6 +3243,7 @@ export type Database = {
           imap_password: string
           imap_port: number
           imap_user: string
+          import_since: string | null
           is_active: boolean
           last_sync_at: string | null
           last_sync_error: string | null
@@ -3267,6 +3268,7 @@ export type Database = {
           imap_password: string
           imap_port?: number
           imap_user: string
+          import_since?: string | null
           is_active?: boolean
           last_sync_at?: string | null
           last_sync_error?: string | null
@@ -3291,6 +3293,7 @@ export type Database = {
           imap_password?: string
           imap_port?: number
           imap_user?: string
+          import_since?: string | null
           is_active?: boolean
           last_sync_at?: string | null
           last_sync_error?: string | null
