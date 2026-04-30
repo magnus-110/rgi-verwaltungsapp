@@ -718,8 +718,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       if (r.id !== rowId) return r;
       const sum = indices.reduce((s, idx) => {
         const it = items[idx];
-        const amt = typeof it?.amount === "number" ? it.amount : parseFloat(it?.amount) || 0;
-        return s + amt;
+        return s + getLineItemGross(it, fallbackVatRate);
       }, 0);
       const patch: Partial<BookingRowData> = {
         amount: sum > 0 ? sum.toFixed(2) : r.amount,
@@ -743,7 +742,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       }
       return { ...r, ...patch } as BookingRowData;
     }));
-  }, [invoiceDetail]);
+  }, [invoiceDetail, fallbackVatRate]);
 
   const toggleLineItemForActiveRow = useCallback((index: number, items: any[]) => {
     if (!expandedRowId) {
