@@ -15,6 +15,7 @@ import { AgendaItemEditor } from "./AgendaItemEditor";
 import { MeetingInvitationPdf } from "./MeetingInvitationPdf";
 import { MeetingLiveSession } from "./MeetingLiveSession";
 import { MeetingProtocol } from "./MeetingProtocol";
+import { EtvRelevantEmailsList } from "./EtvRelevantEmailsList";
 import { Save, ChevronDown, ChevronUp, CheckCircle2, Globe } from "lucide-react";
 
 interface MeetingEditorProps {
