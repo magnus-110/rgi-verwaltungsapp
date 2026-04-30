@@ -1,9 +1,13 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { de } from "date-fns/locale";
-import { Building2, FileText, CalendarDays, Hash } from "lucide-react";
+import { Building2, FileText, CalendarDays, Hash, Percent } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { getLineItemGross, inferInvoiceVatRate } from "./lib/lineItemAmount";
+import { parseAmount } from "./lib/parseAmount";
 
 const formatCurrency = (amount: number | null | undefined) =>
   amount != null && !isNaN(amount)
@@ -19,6 +23,9 @@ interface InvoiceLineItemsViewProps {
   onToggleItem: (index: number) => void;
   onCreateNewBookingFromSelection?: () => void;
   hasActiveRow: boolean;
+  /** Notifies parent when the user changes the fallback VAT rate so that
+   *  booking sums are recalculated with the same rate. */
+  onFallbackVatRateChange?: (rate: number) => void;
 }
 
 export function InvoiceLineItemsView({
@@ -28,6 +35,7 @@ export function InvoiceLineItemsView({
   onToggleItem,
   onCreateNewBookingFromSelection,
   hasActiveRow,
+  onFallbackVatRateChange,
 }: InvoiceLineItemsViewProps) {
   const items: Array<{ description: string; amount: number; vat_rate?: number; quantity?: number }> =
     useMemo(() => {
@@ -35,22 +43,36 @@ export function InvoiceLineItemsView({
       if (!Array.isArray(raw)) return [];
       return raw.map((it: any) => ({
         description: String(it?.description ?? "").trim(),
-        amount: typeof it?.amount === "number" ? it.amount : parseFloat(it?.amount) || 0,
+        amount: parseAmount(it?.amount),
         vat_rate: it?.vat_rate != null ? Number(it.vat_rate) : undefined,
         quantity: it?.quantity != null ? Number(it.quantity) : undefined,
       }));
     }, [invoice?.line_items]);
 
+  // Editable fallback VAT rate (used for items without an own vat_rate).
+  const initialRate = useMemo(() => inferInvoiceVatRate(invoice), [invoice]);
+  const [fallbackRate, setFallbackRate] = useState<number>(initialRate);
+
+  // Reset rate when invoice changes
+  useEffect(() => {
+    setFallbackRate(initialRate);
+  }, [initialRate, invoice?.id]);
+
+  // Notify parent about the current effective rate
+  useEffect(() => {
+    onFallbackVatRateChange?.(fallbackRate);
+  }, [fallbackRate, onFallbackVatRateChange]);
+
   const selectedSet = new Set(selectedIndices);
-  const itemsTotal = items.reduce((s, i) => s + i.amount, 0);
-  const selectedTotal = items.reduce((s, i, idx) => (selectedSet.has(idx) ? s + i.amount : s), 0);
+  const itemsTotalGross = items.reduce((s, i) => s + getLineItemGross(i, fallbackRate), 0);
+  const selectedTotalGross = items.reduce(
+    (s, i, idx) => (selectedSet.has(idx) ? s + getLineItemGross(i, fallbackRate) : s),
+    0
+  );
 
   const net = invoice?.net_amount ?? null;
   const vat = invoice?.vat_amount ?? null;
   const gross = invoice?.gross_amount ?? null;
-
-  // If line items appear to be net amounts but invoice is gross, show a hint
-  const itemsLookLikeNet = net != null && Math.abs(itemsTotal - net) < Math.abs(itemsTotal - (gross ?? 0));
 
   const invoiceDate = invoice?.invoice_date ? safeFormat(invoice.invoice_date) : null;
 
@@ -92,11 +114,41 @@ export function InvoiceLineItemsView({
             </div>
           </div>
 
+          {/* VAT rate control */}
+          <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/30 px-3 py-2">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Percent className="h-3.5 w-3.5" />
+              MwSt-Satz für Positionen ohne eigenen Satz
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="fallback-vat" className="sr-only">
+                MwSt-Satz
+              </Label>
+              <Input
+                id="fallback-vat"
+                type="number"
+                step="0.1"
+                min="0"
+                max="100"
+                value={fallbackRate}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  setFallbackRate(isNaN(v) ? 0 : v);
+                }}
+                className="h-7 w-20 text-right text-sm tabular-nums"
+              />
+              <span className="text-sm text-muted-foreground">%</span>
+            </div>
+          </div>
+
           {/* Line items table */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                <FileText className="h-4 w-4" /> Positionen
+                <FileText className="h-4 w-4" /> Positionen{" "}
+                <span className="text-[11px] font-normal text-muted-foreground">
+                  (Beträge inkl. MwSt)
+                </span>
               </h4>
               <span className="text-xs text-muted-foreground">
                 Klick = der aktuellen Buchung zuordnen
@@ -115,12 +167,15 @@ export function InvoiceLineItemsView({
                     <span className="w-5">#</span>
                     <span>Beschreibung</span>
                     <span className="text-right w-14">MwSt</span>
-                    <span className="text-right w-24">Betrag</span>
+                    <span className="text-right w-24">Brutto</span>
                   </div>
                   {items.map((item, idx) => {
                     const selected = selectedSet.has(idx);
                     const usedInRow = usedInOtherRows[idx];
                     const dimmed = !selected && (selectedSet.size > 0 || usedInRow != null);
+                    const effRate = item.vat_rate != null ? item.vat_rate : fallbackRate;
+                    const grossAmt = getLineItemGross(item, fallbackRate);
+                    const isFallback = item.vat_rate == null;
 
                     return (
                       <button
@@ -160,8 +215,14 @@ export function InvoiceLineItemsView({
                             </Badge>
                           )}
                         </span>
-                        <span className="text-right text-xs text-muted-foreground tabular-nums w-14">
-                          {item.vat_rate != null ? `${item.vat_rate}%` : "–"}
+                        <span
+                          className={cn(
+                            "text-right text-xs tabular-nums w-14",
+                            isFallback ? "text-muted-foreground/70 italic" : "text-muted-foreground"
+                          )}
+                          title={isFallback ? "Fallback-Satz verwendet" : "Eigener Satz aus Position"}
+                        >
+                          {effRate}%
                         </span>
                         <span
                           className={cn(
@@ -169,7 +230,7 @@ export function InvoiceLineItemsView({
                             selected ? "font-semibold" : "font-medium"
                           )}
                         >
-                          {formatCurrency(item.amount)}
+                          {formatCurrency(grossAmt)}
                         </span>
                       </button>
                     );
@@ -189,9 +250,9 @@ export function InvoiceLineItemsView({
                     )}
                   </div>
                   <div className="text-right">
-                    <div className="text-xs text-muted-foreground">Summe Auswahl</div>
+                    <div className="text-xs text-muted-foreground">Summe Auswahl (brutto)</div>
                     <div className="font-semibold tabular-nums text-foreground">
-                      {formatCurrency(selectedTotal)}
+                      {formatCurrency(selectedTotalGross)}
                     </div>
                   </div>
                 </div>
@@ -223,9 +284,10 @@ export function InvoiceLineItemsView({
               <span>Bruttobetrag</span>
               <span className="tabular-nums">{formatCurrency(gross)}</span>
             </div>
-            {items.length > 0 && itemsLookLikeNet && net != null && Math.abs(itemsTotal - net) > 0.05 && (
+            {items.length > 0 && gross != null && Math.abs(itemsTotalGross - parseAmount(gross)) > 0.05 && (
               <div className="text-[11px] text-amber-600 dark:text-amber-400 pt-1">
-                Hinweis: Summe der Positionen ({formatCurrency(itemsTotal)}) weicht vom Netto ab.
+                Hinweis: Summe der Positionen brutto ({formatCurrency(itemsTotalGross)}) weicht vom
+                Rechnungsbrutto ab. Ggf. MwSt-Satz anpassen.
               </div>
             )}
           </div>

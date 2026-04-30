@@ -29,6 +29,7 @@ import { Section35aEditor } from "./Section35aEditor";
 import { build35aDetailFromSuggestion } from "./build35aDetail";
 import { buildTemplateBookingText } from "./lib/templateBookingText";
 import { parseAmount } from "./lib/parseAmount";
+import { getLineItemGross } from "./lib/lineItemAmount";
 import { InvoiceLineItemsView } from "./InvoiceLineItemsView";
 
 interface TransactionReviewModeProps {
@@ -124,6 +125,10 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
   const [invoiceViewTab, setInvoiceViewTab] = useState<"pdf" | "items">("pdf");
   // Per-row line-item selection (rowId -> indices of selected line_items)
   const [rowLineSelections, setRowLineSelections] = useState<Record<string, number[]>>({});
+  // Fallback VAT rate (in %) used when a line item has no own vat_rate.
+  // Set by InvoiceLineItemsView and used here so booking sums match the
+  // gross amounts shown on the right.
+  const [fallbackVatRate, setFallbackVatRate] = useState<number>(19);
 
   // Cache of unsaved edits per transaction id, so navigating away and back keeps changes
   const editsCacheRef = useRef<Record<string, BookingRowData[]>>({});
@@ -714,8 +719,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       if (r.id !== rowId) return r;
       const sum = indices.reduce((s, idx) => {
         const it = items[idx];
-        const amt = typeof it?.amount === "number" ? it.amount : parseFloat(it?.amount) || 0;
-        return s + amt;
+        return s + getLineItemGross(it, fallbackVatRate);
       }, 0);
       const patch: Partial<BookingRowData> = {
         amount: sum > 0 ? sum.toFixed(2) : r.amount,
@@ -739,7 +743,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       }
       return { ...r, ...patch } as BookingRowData;
     }));
-  }, [invoiceDetail]);
+  }, [invoiceDetail, fallbackVatRate]);
 
   const toggleLineItemForActiveRow = useCallback((index: number, items: any[]) => {
     if (!expandedRowId) {
@@ -1625,6 +1629,15 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                                   hasActiveRow={!!expandedRowId}
                                   onToggleItem={(idx) => toggleLineItemForActiveRow(idx, lineItems)}
                                   onCreateNewBookingFromSelection={() => createNewBookingFromSelection(lineItems)}
+                                  onFallbackVatRateChange={(rate) => {
+                                    setFallbackVatRate(rate);
+                                    // Re-apply each row's selection so amounts reflect the new rate
+                                    Object.entries(rowLineSelections).forEach(([rid, idxs]) => {
+                                      if (idxs && idxs.length > 0) {
+                                        applySelectionToRow(rid, idxs, lineItems);
+                                      }
+                                    });
+                                  }}
                                 />
                               </TabsContent>
                             </Tabs>
