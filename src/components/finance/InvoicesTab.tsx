@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, FileText, Loader2, ChevronLeft, ChevronRight, Sparkles, FileCode } from "lucide-react";
+import { Plus, FileText, Loader2, ChevronLeft, ChevronRight, Sparkles, FileCode, RefreshCw, AlertTriangle } from "lucide-react";
 import { CreateInvoiceDialog } from "./CreateInvoiceDialog";
 import { InvoiceDropZone } from "./InvoiceDropZone";
 import { InvoiceDetailSheet } from "./InvoiceDetailSheet";
@@ -38,6 +38,78 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
   const filterBuilding = sharedBuildingId ? sharedBuildingId : internalFilterBuilding;
   const [page, setPage] = useState(0);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+  const [bulkRetrying, setBulkRetrying] = useState(false);
+
+  // Count of stuck OCR jobs (error / pending) — drives the bulk-retry button
+  const { data: stuckCount = 0 } = useQuery({
+    queryKey: ["invoices-stuck-ocr-count"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("invoices")
+        .select("id", { count: "exact", head: true })
+        .in("ocr_status", ["error", "pending"]);
+      if (error) return 0;
+      return count || 0;
+    },
+    refetchInterval: 15000,
+  });
+
+  const retryOcr = async (invoiceId: string) => {
+    setRetryingId(invoiceId);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const { error } = await supabase.functions.invoke("extract-invoice", {
+        body: { invoiceId },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      if (error) throw error;
+      toast.success("OCR neu gestartet");
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["invoices-stuck-ocr-count"] });
+    } catch (e: any) {
+      toast.error(`OCR-Fehler: ${e?.message || "Unbekannt"}`);
+    } finally {
+      setRetryingId(null);
+    }
+  };
+
+  const retryAllStuck = async () => {
+    setBulkRetrying(true);
+    try {
+      const { data: stuck, error } = await supabase
+        .from("invoices")
+        .select("id")
+        .in("ocr_status", ["error", "pending"])
+        .limit(100);
+      if (error) throw error;
+      if (!stuck || stuck.length === 0) {
+        toast.info("Keine ausstehenden OCR-Jobs");
+        return;
+      }
+      const { data: { session } } = await supabase.auth.getSession();
+      // Sequentiell mit kleiner Pause, um Mistral-Ratelimit zu schonen
+      let ok = 0;
+      let fail = 0;
+      for (const row of stuck) {
+        try {
+          const { error: invErr } = await supabase.functions.invoke("extract-invoice", {
+            body: { invoiceId: row.id },
+            headers: { Authorization: `Bearer ${session?.access_token}` },
+          });
+          if (invErr) fail++; else ok++;
+        } catch { fail++; }
+        await new Promise(r => setTimeout(r, 600));
+      }
+      toast.success(`OCR neu gestartet: ${ok} erfolgreich${fail ? `, ${fail} fehlgeschlagen` : ""}`);
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["invoices-stuck-ocr-count"] });
+    } catch (e: any) {
+      toast.error(`Bulk-OCR fehlgeschlagen: ${e?.message || "Unbekannt"}`);
+    } finally {
+      setBulkRetrying(false);
+    }
+  };
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list-finance"],
@@ -134,6 +206,22 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
                 <SelectItem value="verified">✓ Geprüft</SelectItem>
               </SelectContent>
             </Select>
+            {stuckCount > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={retryAllStuck}
+                disabled={bulkRetrying}
+                className="border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-800"
+              >
+                {bulkRetrying ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                )}
+                {stuckCount} OCR neu starten
+              </Button>
+            )}
             <Button size="sm" onClick={() => setIsCreateOpen(true)}>
               <Plus className="h-4 w-4 mr-1" /> Manuell anlegen
             </Button>
@@ -162,6 +250,7 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
                     <TableHead className="text-right">Brutto</TableHead>
                     <TableHead>Bezahlung</TableHead>
                     <TableHead>Prüfung</TableHead>
+                    <TableHead className="w-[60px]">OCR</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -226,6 +315,34 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
                           >
                             {isVerified ? "Geprüft" : "Offen"}
                           </Badge>
+                        </TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          {inv.ocr_status === "processing" && (
+                            <Loader2 className="h-4 w-4 animate-spin text-primary" aria-label="OCR läuft" />
+                          )}
+                          {(inv.ocr_status === "error" || inv.ocr_status === "pending") && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-amber-700 hover:text-amber-800 hover:bg-amber-50"
+                              disabled={retryingId === inv.id}
+                              onClick={() => retryOcr(inv.id)}
+                              aria-label="OCR neu starten"
+                              title={inv.ocr_error || "OCR neu starten"}
+                            >
+                              {retryingId === inv.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <AlertTriangle className="h-3.5 w-3.5 mr-1" />
+                                  <RefreshCw className="h-3.5 w-3.5" />
+                                </>
+                              )}
+                            </Button>
+                          )}
+                          {inv.ocr_status === "done" && (
+                            <Sparkles className="h-3.5 w-3.5 text-green-600" aria-label="OCR erfolgreich" />
+                          )}
                         </TableCell>
                       </TableRow>
                     );

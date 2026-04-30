@@ -1,77 +1,28 @@
-## Ziel
+## Rechnungs-OCR debuggen
 
-Notfallkontakte bleiben inhaltlich strukturiert wie der Aushang (drei Sektionen + WICHTIG-Hinweis), werden aber im **cleanen Onboarding-Wizard-Stil** dargestellt: jede Sektion ist eine eigene weiche Card, die einzeln aus- und einklappbar ist. Default: alle drei zugeklappt.
+E-Mail-KI funktioniert wieder, aber `extract-invoice` läuft nicht. Logs der Function sind komplett leer → die Function wird gar nicht erst aufgerufen, oder existierende Rechnungen hängen mit `ocr_status='pending'` aus der 401-Phase fest.
 
-## Layout-Struktur
+### Diagnose-Schritte (Build-Mode)
 
-```
-┌────────────────────────────────────────────────┐
-│ [Shield-Icon]  Notfall-Nummern           [v]   │ ← äußerer Toggle (bleibt)
-├────────────────────────────────────────────────┤
-│                                                │
-│  ┌──────────────────────────────────────────┐  │
-│  │ ⚠ WICHTIG: Bitte zuerst die Haus-        │  │ ← weicher Hinweis (rounded-[14px])
-│  │   verwaltung kontaktieren …              │  │
-│  └──────────────────────────────────────────┘  │
-│                                                │
-│  ┌──────────────────────────────────────────┐  │
-│  │ ▔▔▔▔▔▔▔▔▔ (1px orange top-bar)          │  │
-│  │ [◆] Verwaltung & Betreuung         [v]   │  │ ← Card-Header, klickbar
-│  └──────────────────────────────────────────┘  │
-│                                                │
-│  ┌──────────────────────────────────────────┐  │
-│  │ ▔▔▔▔▔▔▔▔▔                                │  │
-│  │ [◆] Technische Betreuung           [^]   │  │ ← geöffnet
-│  │ ────────────────────────────────────────  │  │
-│  │   Heizung & Sanitär: Leser …             │  │
-│  │   Nur bei Totalausfall …                 │  │
-│  │   Rohrreinigung: Scherer …               │  │
-│  │   …                                      │  │
-│  └──────────────────────────────────────────┘  │
-│                                                │
-│  ┌──────────────────────────────────────────┐  │
-│  │ ▔▔▔▔▔▔▔▔▔ (1px destructive top-bar)      │  │
-│  │ [⚡] Öffentliche Notrufe            [v]   │  │
-│  └──────────────────────────────────────────┘  │
-│                                                │
-│  📞 08363 / 96 06 56     ✉ info@rgi…           │ ← Footer-Leiste
-└────────────────────────────────────────────────┘
-```
+1. **DB-Check**: Wie viele `invoices` haben aktuell `ocr_status` in `('pending', 'processing', 'error')`? Sind das die Rechnungen, die nicht ausgelesen wurden?
 
-## Änderungen
+2. **Re-Trigger-Mechanismus**: In `InvoiceDropZone.tsx` (Zeile 84) wird OCR fire-and-forget per `supabase.functions.invoke("extract-invoice", ...)` getriggert. Wenn der Aufruf zur 401-Zeit lief, ist die Rechnung jetzt in `pending`/`error` und wird nie mehr automatisch verarbeitet.
 
-### `src/components/forum/EmergencyContactsWidget.tsx` (Neufassung)
+   → Ich baue einen **„OCR erneut starten"-Button** in der Rechnungsliste neben jeder Rechnung mit `ocr_status ∈ {pending, error}`, der `extract-invoice` neu triggert.
+   
+   → Plus einen **„Alle ausstehenden OCR neu starten"** Bulk-Button im Finance-Header.
 
-**Sektions-Cards** (Onboarding-Wizard-Stil):
-- Jede Sektion = eigene Card: `rounded-[16px] border border-border/50 bg-card shadow-[0_1px_2px_rgba(0,0,0,0.02)] overflow-hidden`
-- **Top-Akzent-Bar** `h-1`: Verwaltung & Technik in `bg-rgi-orange`, Notrufe in `bg-destructive`
-- **Header** als Button: links eine runde Icon-Pille (`size-9 rounded-full bg-rgi-orange/10 text-rgi-orange`, bei Notrufen `bg-destructive/10 text-destructive`), Sektionstitel mittig, ChevronDown rechts (rotiert beim Öffnen)
-- Default `expandedSection: null` — nichts offen, Nutzer öffnet einzeln
-- Optional: nur eine Sektion gleichzeitig offen (Akkordeon-Verhalten)
+3. **Live-Test einer frischen Rechnung**: Nach Deploy/UI-Änderung lade ich eine neue Rechnung hoch und prüfe `extract-invoice` Logs auf erfolgreiche Verarbeitung (oder neue Fehler).
 
-**Sektions-Inhalt** (nach Aufklappen):
-- Trennlinie `border-t border-border/50` unter dem Header
-- Padding `px-5 py-4`, Liste mit Einträgen im Stil:
-  - **Fettes Label** + Telefonnummer als `tel:`-Link (Hover → orange)
-  - Darunter kursiver Erklärtext in `text-muted-foreground`
-- Sanftes Aufklappen via `animate-accordion-down`
+4. **Falls Fehler in Logs erscheinen** (z.B. Mistral OCR-Endpoint oder Tool-Calling): gezielt patchen. Mistral hat zwei separate Endpoints im Spiel:
+   - `/v1/ocr` mit `mistral-ocr-latest` 
+   - `/v1/chat/completions` mit `mistral-small-latest`
+   
+   Beide brauchen denselben Key, aber der OCR-Endpoint braucht ggf. **OCR-Berechtigung im Mistral-Account**. Falls dort 401/403 kommt: User muss im Mistral-Console prüfen, ob OCR aktiviert ist.
 
-**WICHTIG-Hinweis**:
-- Eigene kleine Card mit dezentem Orange-Tint: `rounded-[14px] bg-rgi-orange/[0.05] border border-rgi-orange/20 px-4 py-3`
-- Fettes „WICHTIG:" in `text-rgi-orange-dark`, Resttext normal
+### Was nicht passiert
+- Kein Refactor der Function-Logik selbst (Code ist solide).
+- Keine DB-Migration (`ocr_status` ist schon da).
 
-**Footer-Leiste**:
-- Telefon + Mail als Inline-Links mit kleinen orangenen Icons, dezent in `text-muted-foreground`
-
-### Sektionen & Datenquelle
-
-1. **Verwaltung & Betreuung** — RGI-Hausverwaltung (fix) + alle Einträge mit Kategorie „Hausmeister"
-2. **Technische Betreuung** — alle übrigen Handwerker-Kategorien
-3. **Öffentliche Notrufe** — Feuerwehr, Rettungsdienst, Polizei (aus `PUBLIC_EMERGENCY_NUMBERS`)
-
-DB-Schema und `emergencyContactInfo.ts` bleiben unverändert.
-
-### Out of Scope
-
-- Admin-UI (`BuildingServiceProvidersTab`) wird nicht angefasst
-- Keine Migrations
+### Frage
+Wenn das ok ist: ich gehe direkt in Build-Mode, prüfe die hängenden Rechnungen via SQL, baue den Re-Trigger-Button und teste live. Du musst nichts vorbereiten.
