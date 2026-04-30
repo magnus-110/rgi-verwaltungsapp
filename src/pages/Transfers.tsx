@@ -700,13 +700,14 @@ function ManualMatchDialog({
     queryKey: ["manual-credit-match-candidates", invoice?.id, invoice?.building_id],
     enabled: !!invoice,
     queryFn: async () => {
-      // Positive Bank-Transaktionen der letzten 90 Tage
+      // Positive Bank-Transaktionen der letzten 90 Tage, noch nicht zugeordnet
       const since = new Date();
       since.setDate(since.getDate() - 90);
       let q = supabase
         .from("bank_transactions")
-        .select("id, booking_date, amount, purpose, counterparty_name, counterparty_iban, building_id")
+        .select("id, booking_date, amount, purpose, debtor_name, debtor_iban, building_id, matched_invoice_id")
         .gt("amount", 0)
+        .is("matched_invoice_id", null)
         .gte("booking_date", since.toISOString().slice(0, 10))
         .order("booking_date", { ascending: false })
         .limit(200);
@@ -723,15 +724,26 @@ function ManualMatchDialog({
     if (!invoice) return;
     setLinking(tx.id);
     try {
-      const { error } = await supabase
+      // 1. Bank-Transaktion mit Beleg verknüpfen
+      const { error: txErr } = await supabase
+        .from("bank_transactions")
+        .update({
+          matched_invoice_id: invoice.id,
+          match_status: "matched",
+        } as any)
+        .eq("id", tx.id);
+      if (txErr) throw txErr;
+
+      // 2. Beleg auf 'paid' setzen mit Zahlungsdatum
+      const { error: invErr } = await supabase
         .from("invoices")
         .update({
-          status: "credit_matched",
-          suggested_transaction_id: tx.id,
+          status: "paid",
           paid_at: tx.booking_date ? new Date(tx.booking_date).toISOString() : new Date().toISOString(),
         } as any)
         .eq("id", invoice.id);
-      if (error) throw error;
+      if (invErr) throw invErr;
+
       toast.success("Beleg manuell zugeordnet");
       onMatched();
     } catch (e: any) {
