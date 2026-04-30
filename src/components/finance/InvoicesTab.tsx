@@ -206,6 +206,22 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
                 <SelectItem value="verified">✓ Geprüft</SelectItem>
               </SelectContent>
             </Select>
+            {stuckCount > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={retryAllStuck}
+                disabled={bulkRetrying}
+                className="border-amber-300 text-amber-700 hover:bg-amber-50 hover:text-amber-800"
+              >
+                {bulkRetrying ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                )}
+                {stuckCount} OCR neu starten
+              </Button>
+            )}
             <Button size="sm" onClick={() => setIsCreateOpen(true)}>
               <Plus className="h-4 w-4 mr-1" /> Manuell anlegen
             </Button>
