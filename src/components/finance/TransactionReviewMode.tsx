@@ -1629,6 +1629,15 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                                   hasActiveRow={!!expandedRowId}
                                   onToggleItem={(idx) => toggleLineItemForActiveRow(idx, lineItems)}
                                   onCreateNewBookingFromSelection={() => createNewBookingFromSelection(lineItems)}
+                                  onFallbackVatRateChange={(rate) => {
+                                    setFallbackVatRate(rate);
+                                    // Re-apply each row's selection so amounts reflect the new rate
+                                    Object.entries(rowLineSelections).forEach(([rid, idxs]) => {
+                                      if (idxs && idxs.length > 0) {
+                                        applySelectionToRow(rid, idxs, lineItems);
+                                      }
+                                    });
+                                  }}
                                 />
                               </TabsContent>
                             </Tabs>
