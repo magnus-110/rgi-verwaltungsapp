@@ -1,8 +1,8 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, isPast, isToday } from "date-fns";
-import { CreditCard, AlertTriangle, Play, StickyNote, Check, FileCode } from "lucide-react";
+import { CreditCard, AlertTriangle, Play, StickyNote, Check, FileCode, Loader2, RefreshCw, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -15,6 +15,7 @@ import { TransferReviewMode } from "@/components/transfers/TransferReviewMode";
 import { InvoiceDropZone } from "@/components/finance/InvoiceDropZone";
 
 export function Transfers() {
+  const queryClient = useQueryClient();
   const [buildingFilter, setBuildingFilter] = useState<string>("all");
   const [reviewMode, setReviewMode] = useState(false);
   const [reviewIndex, setReviewIndex] = useState(0);
@@ -22,6 +23,7 @@ export function Transfers() {
   const [showPaid, setShowPaid] = useState(false);
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
+  const [retryingOcr, setRetryingOcr] = useState<string | null>(null);
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-list"],
@@ -63,6 +65,10 @@ export function Transfers() {
 
   const unpaidInvoices = useMemo(() => invoices.filter(i => i.status !== "paid"), [invoices]);
   const unreviewedInvoices = useMemo(() => invoices.filter(i => i.status !== "paid" && i.review_status !== "verified"), [invoices]);
+  const stuckOcrInvoices = useMemo(
+    () => invoices.filter((i: any) => i.ocr_status === "pending" || i.ocr_status === "error"),
+    [invoices]
+  );
 
   const formatCurrency = (val: number | null) => {
     if (val == null) return "–";
@@ -113,6 +119,54 @@ export function Transfers() {
     } else {
       toast.success(newStatus === "paid" ? "Als bezahlt markiert" : "Auf offen zurückgesetzt");
       refetch();
+    }
+  };
+
+  const retryOcr = async (invoiceId: string, isCompanyInvoice?: boolean) => {
+    setRetryingOcr(invoiceId);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const { error } = await supabase.functions.invoke("extract-invoice", {
+        body: { invoiceId, isCompanyInvoice: !!isCompanyInvoice },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+
+      if (error) throw error;
+      toast.success("OCR wurde neu gestartet");
+      refetch();
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+    } catch (err: any) {
+      toast.error(`OCR konnte nicht gestartet werden: ${err.message || "Unbekannter Fehler"}`);
+    } finally {
+      setRetryingOcr(null);
+    }
+  };
+
+  const retryAllStuckOcr = async () => {
+    if (stuckOcrInvoices.length === 0) return;
+    setRetryingOcr("all");
+    let failed = 0;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      for (const inv of stuckOcrInvoices) {
+        const { error } = await supabase.functions.invoke("extract-invoice", {
+          body: { invoiceId: inv.id, isCompanyInvoice: !!(inv as any).is_company_invoice },
+          headers: { Authorization: `Bearer ${session?.access_token}` },
+        });
+        if (error) failed += 1;
+        await new Promise((resolve) => setTimeout(resolve, 600));
+      }
+
+      toast[failed ? "warning" : "success"](
+        failed
+          ? `${stuckOcrInvoices.length - failed} OCR-Jobs neu gestartet, ${failed} fehlgeschlagen`
+          : `${stuckOcrInvoices.length} OCR-Jobs neu gestartet`
+      );
+      refetch();
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+    } finally {
+      setRetryingOcr(null);
     }
   };
 
@@ -178,6 +232,21 @@ export function Transfers() {
             <Button onClick={() => { setReviewInvoices(unreviewedInvoices); setReviewIndex(0); setReviewMode(true); }} className="h-11 md:h-10 order-3">
               <Play className="h-4 w-4 mr-2" />
               Prüfmodus ({unreviewedInvoices.length})
+            </Button>
+          )}
+          {stuckOcrInvoices.length > 0 && (
+            <Button
+              variant="outline"
+              onClick={retryAllStuckOcr}
+              disabled={retryingOcr === "all"}
+              className="h-11 md:h-10 order-4"
+            >
+              {retryingOcr === "all" ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
+              OCR neu starten ({stuckOcrInvoices.length})
             </Button>
           )}
         </div>
