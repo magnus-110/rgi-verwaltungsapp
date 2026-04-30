@@ -1394,7 +1394,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                             if (tpl.account_id) updated.counter_account_id = tpl.account_id;
                             if (tpl.vat_rate != null) updated.vat_rate = String(tpl.vat_rate);
                             if (tpl.is_35a_relevant) updated.is_35a_relevant = true;
-                            if (tpl.name) updated.description = tpl.name;
+                            updated.description = buildTemplateBookingText(tpl, currentTxn?.booking_date);
                             return updated;
                           }));
                           await supabase.from("bank_transactions").update({
