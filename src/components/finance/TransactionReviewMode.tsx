@@ -1392,15 +1392,21 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                           if (!targetRowId) return;
                           setFormRows(rows => rows.map(r => {
                             if (r.id !== targetRowId) return r;
-                            const updated = { ...r, invoice_id: inv.id };
+                            const updated = { ...r, invoice_id: inv.id, matched_template_id: "" };
                             if (inv.invoice_number) updated.receipt_number = inv.invoice_number;
                             if (inv.vendor_name) updated.description = [inv.vendor_name, inv.invoice_number].filter(Boolean).join(" ");
                             return updated;
                           }));
                           await supabase.from("bank_transactions").update({
                             matched_invoice_id: inv.id,
+                            matched_template_id: null,
                           }).eq("id", currentTxn.id);
+                          setAssignmentOverrides(prev => ({
+                            ...prev,
+                            [currentTxn.id]: { invoiceId: inv.id, templateId: null },
+                          }));
                           queryClient.invalidateQueries({ queryKey: ["txn-review-invoice"] });
+                          queryClient.invalidateQueries({ queryKey: ["txn-review-template"] });
                           toast.success("Rechnung zugeordnet");
                         }}
                         onAssignTemplate={async (tpl: any) => {
@@ -1408,7 +1414,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                           if (!targetRowId) return;
                           setFormRows(rows => rows.map(r => {
                             if (r.id !== targetRowId) return r;
-                            const updated = { ...r, matched_template_id: tpl.id };
+                            const updated = { ...r, matched_template_id: tpl.id, invoice_id: "" };
                             if (tpl.account_id) updated.counter_account_id = tpl.account_id;
                             if (tpl.vat_rate != null) updated.vat_rate = String(tpl.vat_rate);
                             if (tpl.is_35a_relevant) updated.is_35a_relevant = true;
@@ -1417,8 +1423,14 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                           }));
                           await supabase.from("bank_transactions").update({
                             matched_template_id: tpl.id,
+                            matched_invoice_id: null,
                           }).eq("id", currentTxn.id);
+                          setAssignmentOverrides(prev => ({
+                            ...prev,
+                            [currentTxn.id]: { templateId: tpl.id, invoiceId: null },
+                          }));
                           queryClient.invalidateQueries({ queryKey: ["txn-review-template"] });
+                          queryClient.invalidateQueries({ queryKey: ["txn-review-invoice"] });
                           toast.success("Vorlage zugeordnet");
                         }}
                         formatCurrency={formatCurrency}
