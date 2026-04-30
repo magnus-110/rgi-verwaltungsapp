@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, FileText, Loader2, ChevronLeft, ChevronRight, Sparkles, FileCode } from "lucide-react";
+import { Plus, FileText, Loader2, ChevronLeft, ChevronRight, Sparkles, FileCode, RefreshCw, AlertTriangle } from "lucide-react";
 import { CreateInvoiceDialog } from "./CreateInvoiceDialog";
 import { InvoiceDropZone } from "./InvoiceDropZone";
 import { InvoiceDetailSheet } from "./InvoiceDetailSheet";
