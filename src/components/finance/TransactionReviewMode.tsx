@@ -264,7 +264,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     queryFn: async () => {
       const { data } = await supabase
         .from("booking_templates")
-        .select("id, name, vendor_name, expected_amount, interval, account_id, vat_rate, is_35a_relevant, vendor_iban, chart_of_accounts(account_number, account_name)")
+        .select("id, name, vendor_name, expected_amount, amount_tolerance, interval, account_id, vat_rate, is_35a_relevant, vendor_iban, valid_from, valid_to, chart_of_accounts(account_number, account_name)")
         .eq("building_id", buildingId)
         .order("name");
       return data || [];
