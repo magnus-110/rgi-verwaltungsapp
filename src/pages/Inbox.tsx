@@ -1098,6 +1098,7 @@ export const Inbox = () => {
                         {email.has_attachments && <Paperclip className="h-3 w-3 text-muted-foreground" />}
                         {email.is_starred && <Flag className="h-3 w-3 text-orange-500 fill-orange-500" />}
                         {email.is_pinned && <Pin className="h-3 w-3 text-primary fill-primary" />}
+                        {email.is_etv_relevant && <Vote className="h-3 w-3 text-primary" />}
                         <span className={cn("text-[11px]", !email.is_read ? "text-foreground font-semibold" : "text-muted-foreground")}>
                           {email.date ? new Date(email.date).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) : ""}
                         </span>
