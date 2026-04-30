@@ -44,6 +44,7 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [buildingPickerOpen, setBuildingPickerOpen] = useState(false);
 
   const { data: invoice, isLoading } = useQuery({
     queryKey: ["invoice-detail", invoiceId],
