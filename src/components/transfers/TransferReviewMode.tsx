@@ -380,7 +380,7 @@ export function TransferReviewMode({ invoices, initialIndex, onClose, onRefetch 
             <X className="h-4 w-4" />
           </Button>
           <h2 className="font-semibold">
-            {isPaid ? "Rechnungsdetails" : "Prüfmodus — Überweisungen"}
+            {isPaid ? "Rechnungsdetails" : "Prüfmodus — Zahlungen"}
           </h2>
           {isPaid && <Badge variant="secondary">Bezahlt</Badge>}
           {!isPaid && (

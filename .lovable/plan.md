@@ -1,28 +1,67 @@
-## Rechnungs-OCR debuggen
+## Ziel
 
-E-Mail-KI funktioniert wieder, aber `extract-invoice` läuft nicht. Logs der Function sind komplett leer → die Function wird gar nicht erst aufgerufen, oder existierende Rechnungen hängen mit `ocr_status='pending'` aus der 401-Phase fest.
+Die Route **„Überweisungen"** wird zu **„Zahlungen"** umbenannt und in zwei Tabs gegliedert — analog zur Rechnungsliste-Logik:
 
-### Diagnose-Schritte (Build-Mode)
+- **Ausgehend** (Default) — alle Eingangsrechnungen, die wir bezahlen müssen (`invoice_type ≠ credit_note`)
+- **Eingehend** — alle Belege für Zahlungseingänge (`invoice_type = credit_note`), z. B. Versicherungs-Erstattungen
 
-1. **DB-Check**: Wie viele `invoices` haben aktuell `ocr_status` in `('pending', 'processing', 'error')`? Sind das die Rechnungen, die nicht ausgelesen wurden?
+Dazu die 404-Bugs fixen, damit importierte Belege nicht mehr „verschwinden".
 
-2. **Re-Trigger-Mechanismus**: In `InvoiceDropZone.tsx` (Zeile 84) wird OCR fire-and-forget per `supabase.functions.invoke("extract-invoice", ...)` getriggert. Wenn der Aufruf zur 401-Zeit lief, ist die Rechnung jetzt in `pending`/`error` und wird nie mehr automatisch verarbeitet.
+## Änderungen
 
-   → Ich baue einen **„OCR erneut starten"-Button** in der Rechnungsliste neben jeder Rechnung mit `ocr_status ∈ {pending, error}`, der `extract-invoice` neu triggert.
-   
-   → Plus einen **„Alle ausstehenden OCR neu starten"** Bulk-Button im Finance-Header.
+### 1. Route + Navigation umbenennen
+- **Neue Route** `/zahlungen` ergänzen (zeigt `Payments`-Komponente).
+- **Alte Route** `/ueberweisungen` per `<Navigate to="/zahlungen" replace />` weiterleiten — keine Broken Links für Bookmarks.
+- **Sidebar** (`AdminSidebar.tsx`): Label `Überweisungen` → `Zahlungen`, URL → `/zahlungen`. Icon bleibt `CreditCard`.
+- **MobileHeader** (`MobileHeader.tsx`): gleiches Update.
+- **Dashboard** Quick-Link auf `/zahlungen` aktualisieren.
 
-3. **Live-Test einer frischen Rechnung**: Nach Deploy/UI-Änderung lade ich eine neue Rechnung hoch und prüfe `extract-invoice` Logs auf erfolgreiche Verarbeitung (oder neue Fehler).
+### 2. Seite umbauen (`src/pages/Transfers.tsx` → `src/pages/Payments.tsx`)
+- Datei umbenennen, Komponente in `Payments` exportieren.
+- Oben im Header: H1 = **„Zahlungen"**.
+- Direkt darunter ein **Segmented-Tab** (`Tabs`, `variant="segment"`):
+  - **„Ausgehend"** (Default, aktiv beim ersten Aufruf)
+  - **„Eingehend"**
+- Tab-Wahl über URL-Param `?direction=outgoing|incoming` persistierbar (für Deep-Links aus Toasts).
 
-4. **Falls Fehler in Logs erscheinen** (z.B. Mistral OCR-Endpoint oder Tool-Calling): gezielt patchen. Mistral hat zwei separate Endpoints im Spiel:
-   - `/v1/ocr` mit `mistral-ocr-latest` 
-   - `/v1/chat/completions` mit `mistral-small-latest`
-   
-   Beide brauchen denselben Key, aber der OCR-Endpoint braucht ggf. **OCR-Berechtigung im Mistral-Account**. Falls dort 401/403 kommt: User muss im Mistral-Console prüfen, ob OCR aktiviert ist.
+### 3. Query nach Tab differenzieren
+- **Ausgehend** (bleibt wie heute): `invoices` mit `.neq("invoice_type", "credit_note")`, sortiert nach Fälligkeit, mit allen bestehenden Aktionen (Prüfmodus, Bezahlt-Markieren, OCR-Retry, Notizen).
+- **Eingehend** (neu): `invoices` mit `.eq("invoice_type", "credit_note")`, sortiert nach `created_at` desc.
+  - Spalten angepasst: **Datum · Absender · Betrag · Status (offen / zugeordnet) · Bank-Match · Aktionen**.
+  - Status-Badge:
+    - `credit_open` ohne Match → gelb **„Wartet auf Bank-Eingang"**
+    - `credit_open` mit `suggested_transaction_id` → blau **„Vorschlag prüfen"**
+    - `credit_matched` → grün **„Zugeordnet"**
+  - Aktionen: **„Bank-Eingang manuell zuordnen"** (öffnet Dialog mit positiven Bank-Transaktionen der letzten 90 Tage des passenden Gebäudes) + OCR-Retry + Notiz.
 
-### Was nicht passiert
-- Kein Refactor der Function-Logik selbst (Code ist solide).
-- Keine DB-Migration (`ocr_status` ist schon da).
+### 4. Mini-Dashboard oben
+Über beiden Tabs eine kleine Summenleiste:
+- **„Offen ausgehend"** (rot) = Summe unbezahlter Eingangsrechnungen
+- **„Offen eingehend"** (grün) = Summe noch nicht zugeordneter Belege
 
-### Frage
-Wenn das ok ist: ich gehe direkt in Build-Mode, prüfe die hängenden Rechnungen via SQL, baue den Re-Trigger-Button und teste live. Du musst nichts vorbereiten.
+### 5. Toast-Bug aus E-Mail-Import fixen (`EmailAttachments.tsx`)
+- Bei `asCreditNote = true`: Action-Label **„Zu Zahlungen (Eingehend)"**, Ziel `/zahlungen?direction=incoming`.
+- Bei normaler Eingangsrechnung: Label **„Zu Zahlungen"**, Ziel `/zahlungen?direction=outgoing`.
+→ Das fixt die 404-Meldung und führt direkt in den richtigen Tab.
+
+### 6. Belege fallen nicht mehr durchs Raster
+Da der „Eingehend"-Tab **alle** `credit_note`-Einträge zeigt — egal ob Auto-Match erfolgreich war oder nicht — verschwindet kein Beleg mehr. Bei fehlgeschlagenem Match ist der Status sofort sichtbar („Wartet auf Bank-Eingang") und manuell zuordenbar.
+
+## Files
+
+- **Edit/Rename** `src/pages/Transfers.tsx` → `src/pages/Payments.tsx` (Komponente + Tabs + Eingehend-Sektion)
+- **Edit** `src/App.tsx` — neue Route `/zahlungen`, Redirect von `/ueberweisungen`, Lazy-Import auf `Payments`
+- **Edit** `src/components/AdminSidebar.tsx` — Label + URL
+- **Edit** `src/components/MobileHeader.tsx` — Label + URL
+- **Edit** `src/pages/Dashboard.tsx` — Navigationsziel
+- **Edit** `src/components/email/EmailAttachments.tsx` — Toast-Action-URL fixen
+- **Edit** `src/components/transfers/TransferReviewMode.tsx` — Header-Text „Überweisungen" → „Zahlungen"
+
+Keine DB-Migration nötig — alle Felder existieren bereits (`invoice_type`, `status = credit_open / credit_matched`, `suggested_transaction_id`).
+
+## Ergebnis
+
+- Sidebar zeigt **„Zahlungen"**.
+- Beim Öffnen sieht der Nutzer wie gewohnt alle ausgehenden Rechnungen — nichts an seinem Workflow ändert sich.
+- Ein Klick auf Tab **„Eingehend"** zeigt alle importierten Belege für Zahlungseingänge mit klarem Status.
+- Nach E-Mail-Import landet man per Toast-Klick direkt im passenden Tab — kein 404 mehr.

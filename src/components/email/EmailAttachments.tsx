@@ -154,8 +154,8 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
           : "Rechnung importiert – OCR läuft",
         {
           action: {
-            label: asCreditNote ? "Zur Buchhaltung" : "Zu Überweisungen",
-            onClick: () => navigate(asCreditNote ? "/buchhaltung" : "/ueberweisungen"),
+            label: asCreditNote ? "Zu Zahlungen (Eingehend)" : "Zu Zahlungen",
+            onClick: () => navigate(asCreditNote ? "/zahlungen?direction=incoming" : "/zahlungen?direction=outgoing"),
           },
         }
       );

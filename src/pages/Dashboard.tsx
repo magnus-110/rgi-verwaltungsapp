@@ -199,7 +199,7 @@ export const Dashboard = () => {
           value={stats.open_invoices}
           icon={FileText}
           tone={stats.open_invoices > 0 ? "info" : "neutral"}
-          onClick={() => navigate("/ueberweisungen")}
+          onClick={() => navigate("/zahlungen")}
           isLoading={isLoading}
         />
         <KpiCard
