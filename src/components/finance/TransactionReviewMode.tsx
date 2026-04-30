@@ -1569,13 +1569,60 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                             )}
                           </div>
                         </div>
-                        {pdfUrl ? (
-                          <iframe src={pdfUrl} className="w-full border-0 flex-1 min-h-[300px]" title="Rechnung PDF" />
-                        ) : (
-                          <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">
-                            PDF wird geladen...
-                          </div>
-                        )}
+                        {(() => {
+                          const lineItems: any[] = Array.isArray(invoiceDetail?.line_items) ? invoiceDetail.line_items : [];
+                          const hasItems = lineItems.length > 0;
+                          const activeSel = expandedRowId ? (rowLineSelections[expandedRowId] || []) : [];
+                          // Map item-index → row number where it is used (for badges in other rows)
+                          const usedInOtherRows: Record<number, number> = {};
+                          Object.entries(rowLineSelections).forEach(([rid, idxs]) => {
+                            if (rid === expandedRowId) return;
+                            const rowNum = formRows.findIndex(r => r.id === rid) + 1;
+                            if (rowNum < 1) return;
+                            idxs.forEach(i => { if (!(i in usedInOtherRows)) usedInOtherRows[i] = rowNum; });
+                          });
+                          return (
+                            <Tabs
+                              value={invoiceViewTab}
+                              onValueChange={(v) => setInvoiceViewTab(v as "pdf" | "items")}
+                              className="flex-1 flex flex-col min-h-0"
+                            >
+                              <TabsList className="mx-4 mt-2 self-start h-8">
+                                <TabsTrigger value="pdf" className="text-xs px-3 h-6">
+                                  <FileText className="h-3.5 w-3.5 mr-1" /> PDF
+                                </TabsTrigger>
+                                <TabsTrigger
+                                  value="items"
+                                  disabled={!hasItems}
+                                  className="text-xs px-3 h-6"
+                                  title={hasItems ? "Positionen klicken zum Splitten" : "Keine OCR-Positionen vorhanden"}
+                                >
+                                  <PackagePlus className="h-3.5 w-3.5 mr-1" />
+                                  Positionen{hasItems ? ` (${lineItems.length})` : ""}
+                                </TabsTrigger>
+                              </TabsList>
+                              <TabsContent value="pdf" className="flex-1 m-0 mt-2 min-h-0 flex flex-col">
+                                {pdfUrl ? (
+                                  <iframe src={pdfUrl} className="w-full border-0 flex-1 min-h-[300px]" title="Rechnung PDF" />
+                                ) : (
+                                  <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">
+                                    PDF wird geladen...
+                                  </div>
+                                )}
+                              </TabsContent>
+                              <TabsContent value="items" className="flex-1 m-0 mt-2 min-h-0 flex flex-col">
+                                <InvoiceLineItemsView
+                                  invoice={invoiceDetail}
+                                  selectedIndices={activeSel}
+                                  usedInOtherRows={usedInOtherRows}
+                                  hasActiveRow={!!expandedRowId}
+                                  onToggleItem={(idx) => toggleLineItemForActiveRow(idx, lineItems)}
+                                  onCreateNewBookingFromSelection={() => createNewBookingFromSelection(lineItems)}
+                                />
+                              </TabsContent>
+                            </Tabs>
+                          );
+                        })()}
                       </div>
                     ) : templateDetail ? (
                       <div className="p-4 space-y-3">
