@@ -1,0 +1,1 @@
+ALTER TYPE invoice_type ADD VALUE IF NOT EXISTS 'credit_note';

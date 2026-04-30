@@ -38,7 +38,8 @@ export function Transfers() {
     queryFn: async () => {
       let query = supabase
         .from("invoices")
-        .select("*, buildings(name, building_code)");
+        .select("*, buildings(name, building_code)")
+        .neq("invoice_type", "credit_note"); // Belege für Zahlungseingang gehören nicht in die Überweisungsliste
 
       if (showPaid) {
         // Bezahlte zuerst nach Zahlungsdatum (neueste zuerst), dann nach Fälligkeit

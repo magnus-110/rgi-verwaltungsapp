@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, FileText, Loader2, ChevronLeft, ChevronRight, Sparkles, FileCode, RefreshCw, AlertTriangle } from "lucide-react";
+import { Plus, FileText, Loader2, ChevronLeft, ChevronRight, Sparkles, FileCode, RefreshCw, AlertTriangle, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
 import { CreateInvoiceDialog } from "./CreateInvoiceDialog";
 import { InvoiceDropZone } from "./InvoiceDropZone";
 import { InvoiceDetailSheet } from "./InvoiceDetailSheet";
@@ -33,6 +33,8 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [internalFilterBuilding, setInternalFilterBuilding] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  // 'all' | 'expense' (echte Eingangsrechnungen) | 'income' (Belege für Zahlungseingang)
+  const [filterDirection, setFilterDirection] = useState<"all" | "expense" | "income">("all");
 
   // Use shared building if provided, otherwise use internal filter
   const filterBuilding = sharedBuildingId ? sharedBuildingId : internalFilterBuilding;
@@ -121,7 +123,7 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
   });
 
   const { data: invoiceData, isLoading } = useQuery({
-    queryKey: ["invoices", filterBuilding, filterStatus, page],
+    queryKey: ["invoices", filterBuilding, filterStatus, filterDirection, page],
     queryFn: async () => {
       let query = supabase
         .from("invoices")
@@ -134,6 +136,12 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
       } else if (filterBuilding !== "all") {
         query = query.eq("building_id", filterBuilding);
       }
+      // Direction filter (Einnahme vs Ausgabe)
+      if (filterDirection === "income") {
+        query = query.eq("invoice_type", "credit_note");
+      } else if (filterDirection === "expense") {
+        query = query.neq("invoice_type", "credit_note");
+      }
       if (filterStatus === "paid") query = query.eq("status", "paid");
       else if (filterStatus === "unpaid") query = query.eq("status", "open");
       else if (filterStatus === "verified") query = query.eq("review_status", "verified");
@@ -144,6 +152,35 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
       return { invoices: data || [], totalCount: count || 0 };
     },
     refetchInterval: 10000,
+  });
+
+  // Mini-Dashboard: offene Beträge (Ausgaben rot vs Einnahmen grün)
+  const { data: summary } = useQuery({
+    queryKey: ["invoices-summary", filterBuilding],
+    queryFn: async () => {
+      let qOpenExpense = supabase
+        .from("invoices")
+        .select("gross_amount")
+        .eq("status", "open")
+        .neq("invoice_type", "credit_note");
+      let qOpenIncome = supabase
+        .from("invoices")
+        .select("gross_amount")
+        .eq("status", "credit_open")
+        .eq("invoice_type", "credit_note");
+      if (filterBuilding === "unassigned") {
+        qOpenExpense = qOpenExpense.is("building_id", null);
+        qOpenIncome = qOpenIncome.is("building_id", null);
+      } else if (filterBuilding !== "all") {
+        qOpenExpense = qOpenExpense.eq("building_id", filterBuilding);
+        qOpenIncome = qOpenIncome.eq("building_id", filterBuilding);
+      }
+      const [{ data: exp }, { data: inc }] = await Promise.all([qOpenExpense, qOpenIncome]);
+      const sum = (rows: any[] | null) =>
+        (rows || []).reduce((a, r) => a + (Number(r.gross_amount) || 0), 0);
+      return { openExpense: sum(exp), openIncome: sum(inc) };
+    },
+    refetchInterval: 15000,
   });
 
   const invoices = invoiceData?.invoices || [];
@@ -173,13 +210,70 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
         </CardContent>
       </Card>
 
+      {/* Mini-Dashboard: Offene Beträge in beide Richtungen */}
+      {summary && (summary.openExpense > 0 || summary.openIncome > 0) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Card className="border-destructive/30">
+            <CardContent className="flex items-center justify-between py-4">
+              <div className="flex items-center gap-2">
+                <ArrowUpFromLine className="h-4 w-4 text-destructive" />
+                <span className="text-sm text-muted-foreground">Offene Ausgaben</span>
+              </div>
+              <span className="text-lg font-semibold text-destructive">
+                {formatCurrency(summary.openExpense)}
+              </span>
+            </CardContent>
+          </Card>
+          <Card className="border-success/30">
+            <CardContent className="flex items-center justify-between py-4">
+              <div className="flex items-center gap-2">
+                <ArrowDownToLine className="h-4 w-4 text-success" />
+                <span className="text-sm text-muted-foreground">Offene Einnahmen</span>
+              </div>
+              <span className="text-lg font-semibold text-success">
+                {formatCurrency(summary.openIncome)}
+              </span>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-4">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <CardTitle className="text-lg">Rechnungen</CardTitle>
             {totalCount > 0 && (
               <Badge variant="secondary" className="text-xs">{totalCount}</Badge>
             )}
+            {/* Direction-Filter-Chips */}
+            <div className="flex items-center gap-1 ml-2">
+              <Button
+                size="sm"
+                variant={filterDirection === "all" ? "default" : "outline"}
+                className="h-7 px-2.5 text-xs"
+                onClick={() => { setFilterDirection("all"); setPage(0); }}
+              >
+                Alle
+              </Button>
+              <Button
+                size="sm"
+                variant={filterDirection === "expense" ? "default" : "outline"}
+                className="h-7 px-2.5 text-xs"
+                onClick={() => { setFilterDirection("expense"); setPage(0); }}
+              >
+                <ArrowUpFromLine className="h-3 w-3 mr-1" />
+                Ausgaben
+              </Button>
+              <Button
+                size="sm"
+                variant={filterDirection === "income" ? "default" : "outline"}
+                className="h-7 px-2.5 text-xs"
+                onClick={() => { setFilterDirection("income"); setPage(0); }}
+              >
+                <ArrowDownToLine className="h-3 w-3 mr-1" />
+                Einnahmen
+              </Button>
+            </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {!sharedBuildingId && (
@@ -255,11 +349,14 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
                 </TableHeader>
                 <TableBody>
                   {invoices.map((inv: any) => {
+                    const isCredit = inv.invoice_type === "credit_note";
                     const isPaid = inv.status === "paid";
+                    const isCreditMatched = inv.status === "credit_matched";
                     const isVerified = (inv.review_status || "open") === "verified";
 
                     const togglePayment = async (e: React.MouseEvent) => {
                       e.stopPropagation();
+                      if (isCredit) return; // Belege werden über Bank-Match abgewickelt
                       const newStatus = isPaid ? "open" : "paid";
                       const updates: any = { status: newStatus };
                       if (newStatus === "paid") updates.paid_at = new Date().toISOString();
@@ -276,7 +373,14 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
                         className="cursor-pointer"
                         onClick={() => setSelectedInvoiceId(inv.id)}
                       >
-                        <TableCell className="font-mono text-xs">{inv.invoice_number || "–"}</TableCell>
+                        <TableCell className="font-mono text-xs">
+                          <div className="flex items-center gap-1.5">
+                            {isCredit && (
+                              <ArrowDownToLine className="h-3.5 w-3.5 text-success shrink-0" aria-label="Beleg für Zahlungseingang" />
+                            )}
+                            {inv.invoice_number || "–"}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-sm">
                           <div className="flex items-center gap-1.5">
                             {inv.einvoice_format && (
@@ -298,15 +402,30 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
                         <TableCell className="text-sm">
                           {inv.invoice_date ? format(new Date(inv.invoice_date), "dd.MM.yyyy", { locale: de }) : "–"}
                         </TableCell>
-                        <TableCell className="text-right font-medium text-sm">{formatCurrency(inv.gross_amount)}</TableCell>
+                        <TableCell className={`text-right font-medium text-sm ${isCredit ? "text-success" : ""}`}>
+                          {isCredit && inv.gross_amount ? "+" : ""}{formatCurrency(inv.gross_amount)}
+                        </TableCell>
                         <TableCell>
-                          <Badge
-                            variant={isPaid ? "default" : "destructive"}
-                            className={`cursor-pointer ${isPaid ? "bg-green-600 text-white text-xs hover:bg-green-700" : "text-xs hover:bg-destructive/80"}`}
-                            onClick={togglePayment}
-                          >
-                            {isPaid ? "Bezahlt" : "Offen"}
-                          </Badge>
+                          {isCredit ? (
+                            <Badge
+                              variant="outline"
+                              className={
+                                isCreditMatched
+                                  ? "bg-green-600 text-white text-xs border-green-700"
+                                  : "text-xs text-success border-success/40"
+                              }
+                            >
+                              {isCreditMatched ? "Verbucht" : "Beleg offen"}
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant={isPaid ? "default" : "destructive"}
+                              className={`cursor-pointer ${isPaid ? "bg-green-600 text-white text-xs hover:bg-green-700" : "text-xs hover:bg-destructive/80"}`}
+                              onClick={togglePayment}
+                            >
+                              {isPaid ? "Bezahlt" : "Offen"}
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell>
                           <Badge
