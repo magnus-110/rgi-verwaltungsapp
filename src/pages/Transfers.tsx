@@ -575,7 +575,7 @@ export function Transfers() {
 // Incoming list (Belege für Zahlungseingänge)
 // ============================================================
 function IncomingList({
-  invoices, buildings, formatCurrency, retryOcr, retryingOcr, onMatch, onRefetch,
+  invoices, buildings, formatCurrency, retryOcr, retryingOcr, onMatch, onRefetch, onOpen,
 }: {
   invoices: any[];
   buildings: any[];
@@ -584,6 +584,7 @@ function IncomingList({
   retryingOcr: string | null;
   onMatch: (inv: any) => void;
   onRefetch: () => void;
+  onOpen: (inv: any) => void;
 }) {
   const renderStatus = (inv: any) => {
     const tx = inv._linked_tx;
