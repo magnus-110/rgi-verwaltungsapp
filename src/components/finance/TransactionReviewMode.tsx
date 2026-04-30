@@ -1601,7 +1601,11 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                                   Positionen{hasItems ? ` (${lineItems.length})` : ""}
                                 </TabsTrigger>
                               </TabsList>
-                              <TabsContent value="pdf" className="flex-1 m-0 mt-2 min-h-0 flex flex-col">
+                              <TabsContent
+                                value="pdf"
+                                forceMount
+                                className="flex-1 m-0 mt-2 min-h-0 data-[state=active]:flex data-[state=active]:flex-col data-[state=inactive]:hidden"
+                              >
                                 {pdfUrl ? (
                                   <iframe src={pdfUrl} className="w-full border-0 flex-1 min-h-[300px]" title="Rechnung PDF" />
                                 ) : (
@@ -1610,7 +1614,10 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                                   </div>
                                 )}
                               </TabsContent>
-                              <TabsContent value="items" className="flex-1 m-0 mt-2 min-h-0 flex flex-col">
+                              <TabsContent
+                                value="items"
+                                className="flex-1 m-0 mt-2 min-h-0 data-[state=active]:flex data-[state=active]:flex-col"
+                              >
                                 <InvoiceLineItemsView
                                   invoice={invoiceDetail}
                                   selectedIndices={activeSel}
