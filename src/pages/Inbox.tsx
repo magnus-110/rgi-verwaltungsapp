@@ -967,6 +967,57 @@ export const Inbox = () => {
               </div>
             )}
 
+            {/* Bulk selection bar */}
+            {filteredEmails.length > 0 && (
+              <div className="px-3 py-1.5 border-b bg-muted/30 flex items-center gap-2">
+                <Checkbox
+                  checked={
+                    selectedEmailIds.size > 0 && selectedEmailIds.size === filteredEmails.length
+                      ? true
+                      : selectedEmailIds.size > 0
+                        ? "indeterminate"
+                        : false
+                  }
+                  onCheckedChange={(checked) => {
+                    if (checked) setSelectedEmailIds(new Set(filteredEmails.map(e => e.id)));
+                    else clearSelection();
+                  }}
+                  aria-label="Alle auswählen"
+                />
+                {selectedEmailIds.size > 0 ? (
+                  <>
+                    <span className="text-xs text-muted-foreground">
+                      {selectedEmailIds.size} ausgewählt
+                    </span>
+                    <div className="ml-auto flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-xs"
+                        onClick={clearSelection}
+                      >
+                        Aufheben
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="h-7 px-2 text-xs gap-1"
+                        disabled={bulkDeleting}
+                        onClick={bulkDeleteSelected}
+                      >
+                        {bulkDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                        {isTrashFolder ? "Endgültig löschen" : "Löschen"}
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <span className="text-xs text-muted-foreground">
+                    Mehrere auswählen
+                  </span>
+                )}
+              </div>
+            )}
+
             <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
               {emailsLoading ? (
                 <div className="p-4 text-center text-sm text-muted-foreground">Laden...</div>
