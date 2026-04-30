@@ -435,6 +435,7 @@ export const Inbox = () => {
     buildingId: string | null;
     contactId: string | null;
     caseId: string | null;
+    parentEventId: string | null;
     archive: boolean;
     isEtvRelevant: boolean;
     etvMeetingId: string | null;
@@ -493,6 +494,7 @@ export const Inbox = () => {
               from_name: emailRow?.from_name || null,
               has_ai_summary: !!summary,
             },
+            parent_event_id: params.parentEventId || null,
             trigger_summary: true,
           },
         });

@@ -13,7 +13,16 @@ interface PendingFile {
   error?: string;
 }
 
-export const CaseQuickAdd = ({ caseId, buildingId }: { caseId: string; buildingId: string }) => {
+interface Props {
+  caseId: string;
+  buildingId: string;
+  /** When set, the new event will be a child of this event (one level only). */
+  parentEventId?: string | null;
+  /** Called after a successful submit. */
+  onDone?: () => void;
+}
+
+export const CaseQuickAdd = ({ caseId, buildingId, parentEventId, onDone }: Props) => {
   const [text, setText] = useState("");
   const [type, setType] = useState<"note" | "phone">("note");
   const [files, setFiles] = useState<PendingFile[]>([]);
@@ -65,10 +74,12 @@ export const CaseQuickAdd = ({ caseId, buildingId }: { caseId: string; buildingI
       title: type === "phone" ? "Telefonat" : undefined,
       body: text.trim() || undefined,
       attachments,
+      parent_event_id: parentEventId || null,
     });
     setText("");
     setType("note");
     setFiles([]);
+    onDone?.();
   };
 
   return (

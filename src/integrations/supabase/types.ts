@@ -1515,6 +1515,7 @@ export type Database = {
           extracted_data: Json
           id: string
           occurred_at: string
+          parent_event_id: string | null
           source_id: string | null
           source_table: string | null
           title: string | null
@@ -1530,6 +1531,7 @@ export type Database = {
           extracted_data?: Json
           id?: string
           occurred_at?: string
+          parent_event_id?: string | null
           source_id?: string | null
           source_table?: string | null
           title?: string | null
@@ -1545,6 +1547,7 @@ export type Database = {
           extracted_data?: Json
           id?: string
           occurred_at?: string
+          parent_event_id?: string | null
           source_id?: string | null
           source_table?: string | null
           title?: string | null
@@ -1562,6 +1565,13 @@ export type Database = {
             columns: ["case_id"]
             isOneToOne: false
             referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "case_events_parent_event_id_fkey"
+            columns: ["parent_event_id"]
+            isOneToOne: false
+            referencedRelation: "case_events"
             referencedColumns: ["id"]
           },
         ]
@@ -1628,7 +1638,6 @@ export type Database = {
           external_refs: Json
           id: string
           management_mode: Database["public"]["Enums"]["management_mode"]
-          parent_case_id: string | null
           priority: Database["public"]["Enums"]["case_priority"]
           status: Database["public"]["Enums"]["case_status"]
           title: string
@@ -1651,7 +1660,6 @@ export type Database = {
           external_refs?: Json
           id?: string
           management_mode: Database["public"]["Enums"]["management_mode"]
-          parent_case_id?: string | null
           priority?: Database["public"]["Enums"]["case_priority"]
           status?: Database["public"]["Enums"]["case_status"]
           title: string
@@ -1674,7 +1682,6 @@ export type Database = {
           external_refs?: Json
           id?: string
           management_mode?: Database["public"]["Enums"]["management_mode"]
-          parent_case_id?: string | null
           priority?: Database["public"]["Enums"]["case_priority"]
           status?: Database["public"]["Enums"]["case_status"]
           title?: string
@@ -1694,13 +1701,6 @@ export type Database = {
             columns: ["building_id"]
             isOneToOne: false
             referencedRelation: "buildings"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "cases_parent_case_id_fkey"
-            columns: ["parent_case_id"]
-            isOneToOne: false
-            referencedRelation: "cases"
             referencedColumns: ["id"]
           },
         ]
