@@ -26,10 +26,36 @@ import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 50;
 
-export function BookingsTab({ sharedBuildingId }: { sharedBuildingId?: string | null }) {
+export function BookingsTab({
+  sharedBuildingId,
+  sharedPeriodId,
+}: {
+  sharedBuildingId?: string | null;
+  sharedPeriodId?: string | null;
+}) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [filterYear, setFilterYear] = useState<string>(String(new Date().getFullYear()));
+
+  // Resolve fiscal year from the selected billing period (matches Abrechnung tab)
+  const { data: selectedPeriod } = useQuery({
+    queryKey: ["billing-period-detail-bookings", sharedPeriodId],
+    queryFn: async () => {
+      if (!sharedPeriodId) return null;
+      const { data, error } = await supabase
+        .from("billing_periods")
+        .select("id, fiscal_year, period_from, period_to")
+        .eq("id", sharedPeriodId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!sharedPeriodId,
+  });
+
+  const filterYear = selectedPeriod?.fiscal_year
+    ? String(selectedPeriod.fiscal_year)
+    : String(new Date().getFullYear());
+
   const [searchQuery, setSearchQuery] = useState("");
   const [editBooking, setEditBooking] = useState<any>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
