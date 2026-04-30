@@ -491,6 +491,52 @@ export const Inbox = () => {
     toast.success("E-Mail endgültig gelöscht");
   };
 
+  const toggleSelectEmail = (emailId: string, checked: boolean) => {
+    setSelectedEmailIds(prev => {
+      const next = new Set(prev);
+      if (checked) next.add(emailId); else next.delete(emailId);
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedEmailIds(new Set());
+
+  const bulkDeleteSelected = async () => {
+    const ids = Array.from(selectedEmailIds);
+    if (ids.length === 0) return;
+    setBulkDeleting(true);
+    try {
+      if (isTrashFolder) {
+        // Permanent delete
+        await supabase.from("email_attachments").delete().in("email_id", ids);
+        const { error } = await supabase.from("emails").delete().in("id", ids);
+        if (error) throw error;
+        toast.success(`${ids.length} E-Mail(s) endgültig gelöscht`);
+      } else {
+        const trashFolder = folders.find(f => f.name === "Papierkorb");
+        if (trashFolder) {
+          const { error } = await supabase
+            .from("emails")
+            .update({ folder_id: trashFolder.id, deleted_at: new Date().toISOString() })
+            .in("id", ids);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from("emails").delete().in("id", ids);
+          if (error) throw error;
+        }
+        toast.success(`${ids.length} E-Mail(s) in Papierkorb verschoben`);
+      }
+      if (selectedEmailId && ids.includes(selectedEmailId)) setSelectedEmailId(null);
+      clearSelection();
+      queryClient.invalidateQueries({ queryKey: ["emails"] });
+      queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+    } catch (err: any) {
+      toast.error("Fehler: " + (err.message || "Unbekannt"));
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
   const toggleRead = async (emailId: string, currentRead: boolean) => {
     await supabase.from("emails").update({ is_read: !currentRead }).eq("id", emailId);
     queryClient.invalidateQueries({ queryKey: ["emails"] });
