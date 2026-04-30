@@ -696,8 +696,86 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
   const removeRow = (rowId: string) => {
     setFormRows(rows => rows.filter(r => r.id !== rowId));
+    setRowLineSelections(prev => {
+      const next = { ...prev };
+      delete next[rowId];
+      return next;
+    });
     if (expandedRowId === rowId) setExpandedRowId(null);
   };
+
+  /**
+   * Apply a set of selected invoice line-item indices to a booking row:
+   * sets amount = sum of selected items, and updates description if the
+   * user has not customised it (still equal to the auto-fill default).
+   */
+  const applySelectionToRow = useCallback((rowId: string, indices: number[], items: any[]) => {
+    setFormRows(rows => rows.map(r => {
+      if (r.id !== rowId) return r;
+      const sum = indices.reduce((s, idx) => {
+        const it = items[idx];
+        const amt = typeof it?.amount === "number" ? it.amount : parseFloat(it?.amount) || 0;
+        return s + amt;
+      }, 0);
+      const patch: Partial<BookingRowData> = {
+        amount: sum > 0 ? sum.toFixed(2) : r.amount,
+      };
+      // Only auto-update description if it still looks like the default vendor+invoice text
+      if (indices.length > 0) {
+        const defaultDesc = [
+          (invoiceDetail as any)?.vendor_name,
+          (invoiceDetail as any)?.invoice_number,
+        ].filter(Boolean).join(" ").trim();
+        const looksDefault = !r.description.trim() || r.description.trim() === defaultDesc;
+        if (looksDefault) {
+          const labels = indices
+            .map(idx => String(items[idx]?.description ?? "").trim())
+            .filter(Boolean);
+          if (labels.length > 0) {
+            const joined = labels.join(", ");
+            patch.description = joined.length > 80 ? joined.slice(0, 77) + "…" : joined;
+          }
+        }
+      }
+      return { ...r, ...patch } as BookingRowData;
+    }));
+  }, [invoiceDetail]);
+
+  const toggleLineItemForActiveRow = useCallback((index: number, items: any[]) => {
+    if (!expandedRowId) {
+      toast.info("Bitte zuerst eine Buchung links aufklappen");
+      return;
+    }
+    const rowId = expandedRowId;
+    setRowLineSelections(prev => {
+      const current = prev[rowId] || [];
+      const next = current.includes(index)
+        ? current.filter(i => i !== index)
+        : [...current, index];
+      const updated = { ...prev, [rowId]: next };
+      // Apply to booking row in next tick (state already prepared)
+      queueMicrotask(() => applySelectionToRow(rowId, next, items));
+      return updated;
+    });
+  }, [expandedRowId, applySelectionToRow]);
+
+  const createNewBookingFromSelection = useCallback((items: any[]) => {
+    if (!expandedRowId) return;
+    const sourceSelection = rowLineSelections[expandedRowId] || [];
+    if (sourceSelection.length === 0) return;
+    // Take indices NOT yet selected for the next row
+    const usedAnywhere = new Set<number>();
+    Object.values(rowLineSelections).forEach(arr => arr.forEach(i => usedAnywhere.add(i)));
+    const remaining = items.map((_, i) => i).filter(i => !usedAnywhere.has(i));
+    const newRow = createDefaultRow({ amount: "0.00" });
+    setFormRows(rows => [...rows, newRow]);
+    setExpandedRowId(newRow.id);
+    if (remaining.length > 0) {
+      setRowLineSelections(prev => ({ ...prev, [newRow.id]: [] }));
+      // user picks from remaining — no auto-selection
+    }
+  }, [expandedRowId, rowLineSelections]);
+
 
   const focusFieldByName = useCallback((nextField: string) => {
     const el = fieldRefs.current[nextField];
