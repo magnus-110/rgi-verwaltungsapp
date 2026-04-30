@@ -15,7 +15,36 @@ import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 import { cn } from "@/lib/utils";
 
 export const FloatingComposeWindow = () => {
-  const { compose, closeCompose, toggleMinimize, updateCompose } = useComposeEmail();
+  const { compose, closeCompose, toggleMinimize, updateCompose, openCompose } = useComposeEmail();
+  // Detect fullscreen mode via URL parameter (?compose=fullscreen)
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.search).get("compose") === "fullscreen";
+  });
+
+  // On first mount in fullscreen mode, hydrate compose state from URL parameters
+  // and clean the params from the address bar.
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (!isFullscreen || hydratedRef.current) return;
+    hydratedRef.current = true;
+    const sp = new URLSearchParams(window.location.search);
+    openCompose({
+      prefill: {
+        to: sp.get("to") || "",
+        cc: sp.get("cc") || "",
+        bcc: sp.get("bcc") || "",
+        subject: sp.get("subject") || "",
+        bodyText: sp.get("body") || "",
+        accountId: sp.get("accountId") || "",
+      },
+    });
+    // Strip params so a refresh doesn't re-hydrate
+    const url = new URL(window.location.href);
+    ["compose", "to", "cc", "bcc", "subject", "body", "accountId"].forEach(k => url.searchParams.delete(k));
+    window.history.replaceState({}, "", url.toString());
+  }, [isFullscreen, openCompose]);
+
   const [isSending, setIsSending] = useState(false);
   const [isImproving, setIsImproving] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
