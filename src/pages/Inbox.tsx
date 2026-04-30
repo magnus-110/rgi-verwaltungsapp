@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Mail, Search, Flag, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip, ChevronDown, ChevronUp, PanelLeftClose, PanelLeftOpen, UserPlus, UserCheck, Undo2, Link2, Sparkles, Menu, ArrowLeft } from "lucide-react";
+import { Mail, Search, Flag, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip, ChevronDown, ChevronUp, PanelLeftClose, PanelLeftOpen, UserPlus, UserCheck, Undo2, Link2, Sparkles, Menu, ArrowLeft, Pin, PinOff } from "lucide-react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -205,7 +205,7 @@ export const Inbox = () => {
     queryFn: async () => {
       let query = supabase
         .from("emails")
-        .select("id, account_id, folder_id, subject, from_name, from_address, to_addresses, cc_addresses, date, is_read, is_starred, is_archived, has_attachments, ai_category, ai_priority, ai_summary, building_id, contact_id, assigned_to, deleted_at, case_id, message_id")
+        .select("id, account_id, folder_id, subject, from_name, from_address, to_addresses, cc_addresses, date, is_read, is_starred, is_pinned, pinned_at, is_archived, has_attachments, ai_category, ai_priority, ai_summary, building_id, contact_id, assigned_to, deleted_at, case_id, message_id")
         .order("date", { ascending: false })
         .limit(100);
 
@@ -265,10 +265,25 @@ export const Inbox = () => {
   const unreadCount = useMemo(() => emails.filter(e => !e.is_read).length, [emails]);
 
   const filteredEmails = useMemo(() => {
-    if (filterCategory === "followup") return emails.filter(e => e.is_starred);
-    if (filterCategory === "unread") return emails.filter(e => !e.is_read);
-    if (filterCategory === "all") return emails;
-    return emails.filter(e => normalizeCategory(e.ai_category) === filterCategory);
+    let list: typeof emails;
+    if (filterCategory === "followup") list = emails.filter(e => e.is_starred);
+    else if (filterCategory === "unread") list = emails.filter(e => !e.is_read);
+    else if (filterCategory === "all") list = emails;
+    else list = emails.filter(e => normalizeCategory(e.ai_category) === filterCategory);
+    // Pinned emails immer oben, dann nach Datum (DESC, wie aus Query)
+    return [...list].sort((a, b) => {
+      const ap = a.is_pinned ? 1 : 0;
+      const bp = b.is_pinned ? 1 : 0;
+      if (ap !== bp) return bp - ap;
+      if (a.is_pinned && b.is_pinned) {
+        const at = a.pinned_at ? new Date(a.pinned_at).getTime() : 0;
+        const bt = b.pinned_at ? new Date(b.pinned_at).getTime() : 0;
+        if (at !== bt) return bt - at;
+      }
+      const ad = a.date ? new Date(a.date).getTime() : 0;
+      const bd = b.date ? new Date(b.date).getTime() : 0;
+      return bd - ad;
+    });
   }, [emails, filterCategory]);
 
   const selectedEmailMeta = filteredEmails.find(e => e.id === selectedEmailId) || emails.find(e => e.id === selectedEmailId);
@@ -395,6 +410,16 @@ export const Inbox = () => {
   const toggleFollowUp = async (emailId: string, currentStarred: boolean) => {
     await supabase.from("emails").update({ is_starred: !currentStarred }).eq("id", emailId);
     queryClient.invalidateQueries({ queryKey: ["emails"] });
+  };
+
+  const togglePin = async (emailId: string, currentPinned: boolean) => {
+    const next = !currentPinned;
+    await supabase.from("emails").update({
+      is_pinned: next,
+      pinned_at: next ? new Date().toISOString() : null,
+    }).eq("id", emailId);
+    queryClient.invalidateQueries({ queryKey: ["emails"] });
+    toast.success(next ? "E-Mail oben angepinnt" : "Anpinnung entfernt");
   };
 
   const openArchiveDialog = (emailId: string) => {
@@ -1070,6 +1095,7 @@ export const Inbox = () => {
                       <div className="flex items-center gap-1 shrink-0">
                         {email.has_attachments && <Paperclip className="h-3 w-3 text-muted-foreground" />}
                         {email.is_starred && <Flag className="h-3 w-3 text-orange-500 fill-orange-500" />}
+                        {email.is_pinned && <Pin className="h-3 w-3 text-primary fill-primary" />}
                         <span className={cn("text-[11px]", !email.is_read ? "text-foreground font-semibold" : "text-muted-foreground")}>
                           {email.date ? new Date(email.date).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) : ""}
                         </span>
@@ -1240,6 +1266,9 @@ export const Inbox = () => {
                             </Button>
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleFollowUp(selectedEmail.id, selectedEmail.is_starred)} title={selectedEmail.is_starred ? "Nachverfolgung entfernen" : "Zur Nachverfolgung markieren"}>
                               <Flag className={cn("h-4 w-4", selectedEmail.is_starred && "text-orange-500 fill-orange-500")} />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => togglePin(selectedEmail.id, !!selectedEmail.is_pinned)} title={selectedEmail.is_pinned ? "Anpinnung entfernen" : "Oben anpinnen"}>
+                              {selectedEmail.is_pinned ? <PinOff className="h-4 w-4 text-primary" /> : <Pin className="h-4 w-4" />}
                             </Button>
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openArchiveDialog(selectedEmail.id)} title="Zuordnen">
                               <Link2 className="h-4 w-4" />

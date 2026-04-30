@@ -3516,10 +3516,12 @@ export type Database = {
           in_reply_to: string | null
           is_archived: boolean
           is_draft: boolean
+          is_pinned: boolean
           is_read: boolean
           is_starred: boolean
           message_id: string | null
           message_id_header: string | null
+          pinned_at: string | null
           process_id: string | null
           subject: string | null
           thread_id: string | null
@@ -3555,10 +3557,12 @@ export type Database = {
           in_reply_to?: string | null
           is_archived?: boolean
           is_draft?: boolean
+          is_pinned?: boolean
           is_read?: boolean
           is_starred?: boolean
           message_id?: string | null
           message_id_header?: string | null
+          pinned_at?: string | null
           process_id?: string | null
           subject?: string | null
           thread_id?: string | null
@@ -3594,10 +3598,12 @@ export type Database = {
           in_reply_to?: string | null
           is_archived?: boolean
           is_draft?: boolean
+          is_pinned?: boolean
           is_read?: boolean
           is_starred?: boolean
           message_id?: string | null
           message_id_header?: string | null
+          pinned_at?: string | null
           process_id?: string | null
           subject?: string | null
           thread_id?: string | null
