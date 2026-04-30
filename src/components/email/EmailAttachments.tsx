@@ -234,11 +234,11 @@ export const EmailAttachments = ({ emailId }: EmailAttachmentsProps) => {
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={() => handleImportAsInvoice(att, false)}>
                       <Sparkles className="h-3.5 w-3.5 mr-2" />
-                      Für Liegenschaft (Auto-Erkennung)
+                      Eingangsrechnung (zu zahlen)
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => handleImportAsInvoice(att, true)}>
-                      <Building2 className="h-3.5 w-3.5 mr-2" />
-                      🏢 RGI Immobilien (Firma)
+                      <ArrowDownToLine className="h-3.5 w-3.5 mr-2 text-green-600" />
+                      Beleg für Zahlungseingang
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
