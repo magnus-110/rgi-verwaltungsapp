@@ -210,13 +210,70 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
         </CardContent>
       </Card>
 
+      {/* Mini-Dashboard: Offene Beträge in beide Richtungen */}
+      {summary && (summary.openExpense > 0 || summary.openIncome > 0) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Card className="border-destructive/30">
+            <CardContent className="flex items-center justify-between py-4">
+              <div className="flex items-center gap-2">
+                <ArrowUpFromLine className="h-4 w-4 text-destructive" />
+                <span className="text-sm text-muted-foreground">Offene Ausgaben</span>
+              </div>
+              <span className="text-lg font-semibold text-destructive">
+                {formatCurrency(summary.openExpense)}
+              </span>
+            </CardContent>
+          </Card>
+          <Card className="border-success/30">
+            <CardContent className="flex items-center justify-between py-4">
+              <div className="flex items-center gap-2">
+                <ArrowDownToLine className="h-4 w-4 text-success" />
+                <span className="text-sm text-muted-foreground">Offene Einnahmen</span>
+              </div>
+              <span className="text-lg font-semibold text-success">
+                {formatCurrency(summary.openIncome)}
+              </span>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between flex-wrap gap-4">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <CardTitle className="text-lg">Rechnungen</CardTitle>
             {totalCount > 0 && (
               <Badge variant="secondary" className="text-xs">{totalCount}</Badge>
             )}
+            {/* Direction-Filter-Chips */}
+            <div className="flex items-center gap-1 ml-2">
+              <Button
+                size="sm"
+                variant={filterDirection === "all" ? "default" : "outline"}
+                className="h-7 px-2.5 text-xs"
+                onClick={() => { setFilterDirection("all"); setPage(0); }}
+              >
+                Alle
+              </Button>
+              <Button
+                size="sm"
+                variant={filterDirection === "expense" ? "default" : "outline"}
+                className="h-7 px-2.5 text-xs"
+                onClick={() => { setFilterDirection("expense"); setPage(0); }}
+              >
+                <ArrowUpFromLine className="h-3 w-3 mr-1" />
+                Ausgaben
+              </Button>
+              <Button
+                size="sm"
+                variant={filterDirection === "income" ? "default" : "outline"}
+                className="h-7 px-2.5 text-xs"
+                onClick={() => { setFilterDirection("income"); setPage(0); }}
+              >
+                <ArrowDownToLine className="h-3 w-3 mr-1" />
+                Einnahmen
+              </Button>
+            </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {!sharedBuildingId && (
