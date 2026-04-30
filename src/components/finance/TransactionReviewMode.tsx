@@ -120,6 +120,11 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
   // Multi-row booking state
   const [formRows, setFormRows] = useState<BookingRowData[]>([]);
 
+  // Right-panel tab: original PDF vs. structured OCR view
+  const [invoiceViewTab, setInvoiceViewTab] = useState<"pdf" | "items">("pdf");
+  // Per-row line-item selection (rowId -> indices of selected line_items)
+  const [rowLineSelections, setRowLineSelections] = useState<Record<string, number[]>>({});
+
   // Cache of unsaved edits per transaction id, so navigating away and back keeps changes
   const editsCacheRef = useRef<Record<string, BookingRowData[]>>({});
   const previousTxnIdRef = useRef<string | null>(null);
