@@ -21,7 +21,7 @@ import { toast } from "sonner";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 import { EmailAttachments } from "@/components/email/EmailAttachments";
 import { AssignEmailDialog } from "@/components/email/AssignEmailDialog";
-import { EtvRelevancePopover } from "@/components/email/EtvRelevancePopover";
+
 import { EmailHtmlBody } from "@/components/email/EmailHtmlBody";
 import { EmailSettingsSection } from "@/components/email/EmailSettingsSection";
 import { useAuth } from "@/hooks/useAuth";
