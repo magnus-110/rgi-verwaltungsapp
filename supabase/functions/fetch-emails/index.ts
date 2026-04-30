@@ -18,6 +18,7 @@ interface EmailAccount {
   last_uid: string | null;
   delete_after_import: boolean;
   is_active: boolean;
+  import_since: string | null;
 }
 
 interface ParsedAttachment {
@@ -250,6 +251,18 @@ async function fetchAccountEmails(
         if (!msg) continue;
 
         const envelope = msg.envelope;
+
+        // Skip emails older than the account's import_since cutoff
+        if (account.import_since && envelope.date) {
+          const emailDate = new Date(envelope.date);
+          const cutoff = new Date(account.import_since);
+          if (emailDate < cutoff) {
+            if (uid > maxUid) maxUid = uid;
+            console.log(`Skipping UID ${uid} (older than import_since): ${envelope.subject}`);
+            continue;
+          }
+        }
+
         const source = msg.source?.toString() || "";
 
         // Recursive MIME parsing

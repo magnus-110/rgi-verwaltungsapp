@@ -1,0 +1,2 @@
+ALTER TABLE public.email_accounts ADD COLUMN IF NOT EXISTS import_since timestamptz;
+UPDATE public.email_accounts SET import_since = now() WHERE email_address IN ('info@rgi-immobilien.de','regina.goettinger@rgi-immobilien.de') AND import_since IS NULL;
