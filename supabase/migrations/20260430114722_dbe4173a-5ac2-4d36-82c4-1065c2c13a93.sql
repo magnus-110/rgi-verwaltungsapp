@@ -1,0 +1,2 @@
+ALTER TABLE public.emails ADD COLUMN IF NOT EXISTS is_pinned boolean NOT NULL DEFAULT false, ADD COLUMN IF NOT EXISTS pinned_at timestamptz;
+CREATE INDEX IF NOT EXISTS idx_emails_pinned ON public.emails (is_pinned, pinned_at DESC) WHERE is_pinned = true;
