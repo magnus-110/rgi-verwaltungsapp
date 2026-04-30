@@ -15,7 +15,36 @@ import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 import { cn } from "@/lib/utils";
 
 export const FloatingComposeWindow = () => {
-  const { compose, closeCompose, toggleMinimize, updateCompose } = useComposeEmail();
+  const { compose, closeCompose, toggleMinimize, updateCompose, openCompose } = useComposeEmail();
+  // Detect fullscreen mode via URL parameter (?compose=fullscreen)
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.search).get("compose") === "fullscreen";
+  });
+
+  // On first mount in fullscreen mode, hydrate compose state from URL parameters
+  // and clean the params from the address bar.
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (!isFullscreen || hydratedRef.current) return;
+    hydratedRef.current = true;
+    const sp = new URLSearchParams(window.location.search);
+    openCompose({
+      prefill: {
+        to: sp.get("to") || "",
+        cc: sp.get("cc") || "",
+        bcc: sp.get("bcc") || "",
+        subject: sp.get("subject") || "",
+        bodyText: sp.get("body") || "",
+        accountId: sp.get("accountId") || "",
+      },
+    });
+    // Strip params so a refresh doesn't re-hydrate
+    const url = new URL(window.location.href);
+    ["compose", "to", "cc", "bcc", "subject", "body", "accountId"].forEach(k => url.searchParams.delete(k));
+    window.history.replaceState({}, "", url.toString());
+  }, [isFullscreen, openCompose]);
+
   const [isSending, setIsSending] = useState(false);
   const [isImproving, setIsImproving] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
@@ -258,14 +287,17 @@ export const FloatingComposeWindow = () => {
 
   const handlePopOut = () => {
     const params = new URLSearchParams({
+      compose: "fullscreen",
       to: compose.to,
       cc: compose.cc,
+      bcc: compose.bcc,
       subject: compose.subject,
       body: compose.bodyText,
       accountId: compose.accountId,
     });
-    const url = `${window.location.origin}/postfach?compose=popout&${params.toString()}`;
-    window.open(url, "compose-email", "width=700,height=600,menubar=no,toolbar=no,location=no,status=no");
+    const url = `${window.location.origin}/postfach?${params.toString()}`;
+    // No size args -> opens as a real new tab in modern browsers
+    window.open(url, "_blank", "noopener,noreferrer");
     closeCompose();
   };
 
@@ -295,35 +327,65 @@ export const FloatingComposeWindow = () => {
 
   return (
     <div
-      className="fixed z-50 bg-card border border-border rounded-lg shadow-2xl flex flex-col overflow-hidden"
-      style={{ left: position.x, top: position.y, width: size.width, height: size.height }}
+      className={cn(
+        "bg-card flex flex-col overflow-hidden",
+        isFullscreen
+          ? "fixed inset-0 z-50 border-0 rounded-none shadow-none"
+          : "fixed z-50 border border-border rounded-lg shadow-2xl"
+      )}
+      style={
+        isFullscreen
+          ? undefined
+          : { left: position.x, top: position.y, width: size.width, height: size.height }
+      }
     >
-      {/* Resize handles - all edges and corners */}
-      <div className="absolute top-0 left-0 w-3 h-3 cursor-nw-resize z-10" onMouseDown={onResizeStart("nw")} />
-      <div className="absolute top-0 right-0 w-3 h-3 cursor-ne-resize z-10" onMouseDown={onResizeStart("ne")} />
-      <div className="absolute bottom-0 left-0 w-3 h-3 cursor-sw-resize z-10" onMouseDown={onResizeStart("sw")} />
-      <div className="absolute bottom-0 right-0 w-3 h-3 cursor-se-resize z-10" onMouseDown={onResizeStart("se")} />
-      <div className="absolute top-0 left-3 right-3 h-1 cursor-n-resize z-10" onMouseDown={onResizeStart("n")} />
-      <div className="absolute bottom-0 left-3 right-3 h-1 cursor-s-resize z-10" onMouseDown={onResizeStart("s")} />
-      <div className="absolute left-0 top-3 bottom-3 w-1 cursor-w-resize z-10" onMouseDown={onResizeStart("w")} />
-      <div className="absolute right-0 top-3 bottom-3 w-1 cursor-e-resize z-10" onMouseDown={onResizeStart("e")} />
+      {/* Resize handles - only in floating mode */}
+      {!isFullscreen && (
+        <>
+          <div className="absolute top-0 left-0 w-3 h-3 cursor-nw-resize z-10" onMouseDown={onResizeStart("nw")} />
+          <div className="absolute top-0 right-0 w-3 h-3 cursor-ne-resize z-10" onMouseDown={onResizeStart("ne")} />
+          <div className="absolute bottom-0 left-0 w-3 h-3 cursor-sw-resize z-10" onMouseDown={onResizeStart("sw")} />
+          <div className="absolute bottom-0 right-0 w-3 h-3 cursor-se-resize z-10" onMouseDown={onResizeStart("se")} />
+          <div className="absolute top-0 left-3 right-3 h-1 cursor-n-resize z-10" onMouseDown={onResizeStart("n")} />
+          <div className="absolute bottom-0 left-3 right-3 h-1 cursor-s-resize z-10" onMouseDown={onResizeStart("s")} />
+          <div className="absolute left-0 top-3 bottom-3 w-1 cursor-w-resize z-10" onMouseDown={onResizeStart("w")} />
+          <div className="absolute right-0 top-3 bottom-3 w-1 cursor-e-resize z-10" onMouseDown={onResizeStart("e")} />
+        </>
+      )}
 
-      {/* Title bar - draggable */}
+      {/* Title bar - draggable only in floating mode */}
       <div
-        className="flex items-center justify-between px-3 py-2 bg-primary text-primary-foreground cursor-move select-none shrink-0 rounded-t-lg"
-        onMouseDown={onDragStart}
+        className={cn(
+          "flex items-center justify-between px-3 py-2 bg-primary text-primary-foreground select-none shrink-0",
+          isFullscreen ? "rounded-none" : "cursor-move rounded-t-lg"
+        )}
+        onMouseDown={isFullscreen ? undefined : onDragStart}
       >
         <span className="text-sm font-medium">
           {compose.replyTo ? "Antworten" : compose.forward ? "Weiterleiten" : "Neue E-Mail"}
+          {isFullscreen && compose.subject ? ` – ${compose.subject}` : ""}
         </span>
         <div className="flex items-center gap-0.5">
-          <Button variant="ghost" size="icon" className="h-6 w-6 text-primary-foreground hover:bg-primary-foreground/20" onClick={handlePopOut} title="In neuem Fenster öffnen">
-            <ExternalLink className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6 text-primary-foreground hover:bg-primary-foreground/20" onClick={toggleMinimize} title="Minimieren">
-            <Minus className="h-3.5 w-3.5" />
-          </Button>
-          <Button variant="ghost" size="icon" className="h-6 w-6 text-primary-foreground hover:bg-primary-foreground/20" onClick={closeCompose} title="Schließen">
+          {!isFullscreen && (
+            <Button variant="ghost" size="icon" className="h-6 w-6 text-primary-foreground hover:bg-primary-foreground/20" onClick={handlePopOut} title="In neuem Tab öffnen">
+              <ExternalLink className="h-3.5 w-3.5" />
+            </Button>
+          )}
+          {!isFullscreen && (
+            <Button variant="ghost" size="icon" className="h-6 w-6 text-primary-foreground hover:bg-primary-foreground/20" onClick={toggleMinimize} title="Minimieren">
+              <Minus className="h-3.5 w-3.5" />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 text-primary-foreground hover:bg-primary-foreground/20"
+            onClick={() => {
+              closeCompose();
+              if (isFullscreen) window.close();
+            }}
+            title="Schließen"
+          >
             <X className="h-3.5 w-3.5" />
           </Button>
         </div>
