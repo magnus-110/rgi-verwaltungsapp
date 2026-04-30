@@ -9,10 +9,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { Loader2, FileText, ExternalLink, CheckCircle, CreditCard, Sparkles, Plus, Trash2, Fuel, ChevronDown, ChevronRight } from "lucide-react";
+import { Loader2, FileText, ExternalLink, CheckCircle, CreditCard, Sparkles, Plus, Trash2, Fuel, ChevronDown, ChevronRight, Check, ChevronsUpDown } from "lucide-react";
 
 const PAYMENT_STATUS: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   open: { label: "Offen", variant: "destructive" },
@@ -41,6 +44,7 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
   const [loadingPdf, setLoadingPdf] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [buildingPickerOpen, setBuildingPickerOpen] = useState(false);
 
   const { data: invoice, isLoading } = useQuery({
     queryKey: ["invoice-detail", invoiceId],
@@ -331,12 +335,65 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
             <div className="space-y-4">
               <div>
                 <Label>Liegenschaft</Label>
-                <Select value={form.building_id} onValueChange={v => set("building_id", v)}>
-                  <SelectTrigger><SelectValue placeholder="Auswählen..." /></SelectTrigger>
-                  <SelectContent>
-                    {buildings.map(b => <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <Popover open={buildingPickerOpen} onOpenChange={setBuildingPickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={buildingPickerOpen}
+                      className="w-full justify-between font-normal"
+                    >
+                      <span className={cn("truncate", !form.building_id && "text-muted-foreground")}>
+                        {form.building_id
+                          ? (() => {
+                              const b = buildings.find((x: any) => x.id === form.building_id);
+                              if (!b) return "Auswählen...";
+                              return (b as any).building_code
+                                ? `${(b as any).building_code} – ${b.name}`
+                                : b.name;
+                            })()
+                          : "Auswählen..."}
+                      </span>
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                    <Command
+                      filter={(value, search) => {
+                        // value is the building.id; we encode label in keywords via item children, so do a manual contains
+                        return value.toLowerCase().includes(search.toLowerCase()) ? 1 : 0;
+                      }}
+                    >
+                      <CommandInput placeholder="Liegenschaft suchen..." />
+                      <CommandList>
+                        <CommandEmpty>Keine Liegenschaft gefunden.</CommandEmpty>
+                        <CommandGroup>
+                          {buildings.map((b: any) => {
+                            const label = b.building_code ? `${b.building_code} – ${b.name}` : b.name;
+                            return (
+                              <CommandItem
+                                key={b.id}
+                                value={`${label} ${b.building_code || ""} ${b.name || ""}`}
+                                onSelect={() => {
+                                  set("building_id", b.id);
+                                  setBuildingPickerOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 h-4 w-4",
+                                    form.building_id === b.id ? "opacity-100" : "opacity-0"
+                                  )}
+                                />
+                                {label}
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
