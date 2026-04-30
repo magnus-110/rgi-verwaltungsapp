@@ -131,7 +131,7 @@ async function matchTransactions(supabase: any, statementId: string, buildingId:
 
   let templatesQuery = supabase
     .from("booking_templates")
-    .select("id, vendor_iban, vendor_name, expected_amount");
+    .select("id, vendor_iban, vendor_name, expected_amount, amount_tolerance, valid_from, valid_to");
   if (buildingId) templatesQuery = templatesQuery.eq("building_id", buildingId);
   const { data: templates } = await templatesQuery;
 
@@ -193,7 +193,18 @@ async function matchTransactions(supabase: any, statementId: string, buildingId:
     }
 
     if (templates) {
+      const txnDateStr = (txn.booking_date || "").slice(0, 10);
       const templateMatch = templates.find((t: any) => {
+        // Time-based validity: only match if txn date is within valid_from/valid_to
+        if (txnDateStr) {
+          if (t.valid_from && txnDateStr < String(t.valid_from).slice(0, 10)) return false;
+          if (t.valid_to && txnDateStr > String(t.valid_to).slice(0, 10)) return false;
+        }
+        // Amount tolerance check (if expected_amount set)
+        if (t.expected_amount != null) {
+          const tol = Number(t.amount_tolerance) || 0;
+          if (Math.abs(txnAbs - Math.abs(Number(t.expected_amount))) > tol + 0.01) return false;
+        }
         if (t.vendor_iban && txnIban) {
           return t.vendor_iban.replace(/\s/g, "").toUpperCase() === txnIban.replace(/\s/g, "").toUpperCase();
         }

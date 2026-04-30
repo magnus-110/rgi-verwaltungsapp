@@ -27,6 +27,7 @@ import { VendorHistorySection } from "./VendorHistorySection";
 import { AccountSearchSelect } from "./AccountSearchSelect";
 import { Section35aEditor } from "./Section35aEditor";
 import { build35aDetailFromSuggestion } from "./build35aDetail";
+import { buildTemplateBookingText } from "./lib/templateBookingText";
 
 interface TransactionReviewModeProps {
   open: boolean;
@@ -263,7 +264,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
     queryFn: async () => {
       const { data } = await supabase
         .from("booking_templates")
-        .select("id, name, vendor_name, expected_amount, interval, account_id, vat_rate, is_35a_relevant, vendor_iban, chart_of_accounts(account_number, account_name)")
+        .select("id, name, vendor_name, expected_amount, amount_tolerance, interval, account_id, vat_rate, is_35a_relevant, vendor_iban, valid_from, valid_to, chart_of_accounts(account_number, account_name)")
         .eq("building_id", buildingId)
         .order("name");
       return data || [];
@@ -472,7 +473,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       if (templateDetail.account_id) row.counter_account_id = templateDetail.account_id;
       if (templateDetail.vat_rate != null) row.vat_rate = String(templateDetail.vat_rate);
       if (templateDetail.is_35a_relevant) row.is_35a_relevant = true;
-      row.description = templateDetail.name || "";
+      row.description = buildTemplateBookingText(templateDetail, txnDate);
       row.matched_template_id = templateDetail.id;
       const vatRate = templateDetail.vat_rate || 0;
       if (vatRate > 0) {
@@ -1393,7 +1394,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                             if (tpl.account_id) updated.counter_account_id = tpl.account_id;
                             if (tpl.vat_rate != null) updated.vat_rate = String(tpl.vat_rate);
                             if (tpl.is_35a_relevant) updated.is_35a_relevant = true;
-                            if (tpl.name) updated.description = tpl.name;
+                            updated.description = buildTemplateBookingText(tpl, currentTxn?.booking_date);
                             return updated;
                           }));
                           await supabase.from("bank_transactions").update({
@@ -2634,6 +2635,12 @@ function AssignmentTabContent({
 
   const getTemplateMatchReason = useCallback((tpl: any): string | null => {
     if (templateMatches.has(tpl.id)) return null;
+    // Time-based validity check: skip templates that don't apply to this txn date
+    const txnDateStr = (currentTxn?.booking_date || "").slice(0, 10);
+    if (txnDateStr) {
+      if (tpl.valid_from && txnDateStr < String(tpl.valid_from).slice(0, 10)) return null;
+      if (tpl.valid_to && txnDateStr > String(tpl.valid_to).slice(0, 10)) return null;
+    }
     const reasons: string[] = [];
     if (txnIban && tpl.vendor_iban && txnIban.replace(/\s/g, "").toUpperCase() === tpl.vendor_iban.replace(/\s/g, "").toUpperCase()) {
       reasons.push("IBAN stimmt überein");
@@ -2652,7 +2659,7 @@ function AssignmentTabContent({
       }
     }
     return reasons.length > 0 ? reasons.join(" · ") : null;
-  }, [txnIban, txnName, txnAmount, templateMatches]);
+  }, [txnIban, txnName, txnAmount, templateMatches, currentTxn?.booking_date]);
 
   // Sort: AI matches first, then smart matches, then rest
   const filteredInvoices = useMemo(() => {
