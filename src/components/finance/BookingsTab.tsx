@@ -119,9 +119,9 @@ export function BookingsTab({
   });
 
   const { data: pendingBookings = [], isLoading } = useQuery({
-    queryKey: ["bookings-all", filterYear],
+    queryKey: ["bookings-all", filterYear, sharedBuildingId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("bookings")
+      let query = supabase.from("bookings")
         .select(`
           *,
           buildings(id, name, building_code),
@@ -133,17 +133,20 @@ export function BookingsTab({
         .eq("fiscal_year", parseInt(filterYear))
         .in("status", ["pending", "confirmed"])
         .order("booking_date", { ascending: false });
+      if (sharedBuildingId) query = query.eq("building_id", sharedBuildingId);
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
+    enabled: !!sharedBuildingId,
   });
 
   const confirmedBookings: any[] = [];
 
   const { data: manualBookings = [] } = useQuery({
-    queryKey: ["bookings-manual", filterYear],
+    queryKey: ["bookings-manual", filterYear, sharedBuildingId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("bookings")
+      let query = supabase.from("bookings")
         .select(`
           *,
           buildings(id, name, building_code),
@@ -156,10 +159,12 @@ export function BookingsTab({
         .eq("source", "manual")
         .neq("booking_reference", "KI")
         .order("booking_date", { ascending: false });
+      if (sharedBuildingId) query = query.eq("building_id", sharedBuildingId);
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
-    enabled: manualOpen,
+    enabled: manualOpen && !!sharedBuildingId,
   });
 
   // Universal search across all fields
