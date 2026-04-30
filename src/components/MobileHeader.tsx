@@ -50,7 +50,7 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
         { icon: BookUser, label: "Adressen", path: '/contacts', active: location.pathname.startsWith('/contacts') },
         { icon: Users, label: "Versammlungen", path: '/versammlungen', active: location.pathname.startsWith('/versammlungen') },
         { icon: Landmark, label: "Buchhaltung", path: '/finanzen', active: location.pathname.startsWith('/finanzen') },
-        { icon: CreditCard, label: "Überweisungen", path: '/ueberweisungen', active: location.pathname.startsWith('/ueberweisungen') },
+        { icon: CreditCard, label: "Zahlungen", path: '/zahlungen', active: location.pathname.startsWith('/zahlungen') || location.pathname.startsWith('/ueberweisungen') },
         { icon: Settings, label: "Einstellungen", path: '/settings', active: location.pathname.startsWith('/settings'), adminOnly: true },
       ];
 
