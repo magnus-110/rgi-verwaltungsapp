@@ -274,8 +274,29 @@ export function InvoiceDetailSheet({ invoiceId, onClose, buildings }: Props) {
               </div>
             )}
             {inv.ocr_status === "error" && (
-              <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-                OCR-Fehler: {inv.ocr_error || "Unbekannt"}
+              <div className="p-3 rounded-lg bg-destructive/10 text-destructive text-sm flex items-center justify-between gap-3">
+                <span>OCR-Fehler: {inv.ocr_error || "Unbekannt"}</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={async () => {
+                    try {
+                      const { data: { session } } = await supabase.auth.getSession();
+                      const { error } = await supabase.functions.invoke("extract-invoice", {
+                        body: { invoiceId: inv.id },
+                        headers: { Authorization: `Bearer ${session?.access_token}` },
+                      });
+                      if (error) throw error;
+                      toast.success("OCR neu gestartet");
+                      queryClient.invalidateQueries({ queryKey: ["invoice-detail", inv.id] });
+                      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+                    } catch (e: any) {
+                      toast.error(`Fehler: ${e?.message || "Unbekannt"}`);
+                    }
+                  }}
+                >
+                  <Sparkles className="h-3.5 w-3.5 mr-1" /> OCR neu starten
+                </Button>
               </div>
             )}
             {inv.ocr_status === "done" && (
