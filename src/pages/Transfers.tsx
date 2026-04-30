@@ -242,7 +242,13 @@ export function Transfers() {
   };
 
   const openReviewForInvoice = (inv: any) => {
-    if (direction === "incoming") return; // kein Prüfmodus für Belege
+    if (direction === "incoming") {
+      // Belege: Detailansicht (Einzelbeleg) zum Bearbeiten / Löschen
+      setReviewInvoices([inv]);
+      setReviewIndex(0);
+      setReviewMode(true);
+      return;
+    }
     const isPaid = inv.status === "paid";
     if (isPaid) { setReviewInvoices([inv]); setReviewIndex(0); }
     else {
