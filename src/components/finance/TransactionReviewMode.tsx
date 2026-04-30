@@ -1169,6 +1169,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
   useEffect(() => { setCurrentIndex(initialIndex ?? 0); setBookedCount(0); }, [open, initialIndex]);
   useEffect(() => { setZuordnungOpen(false); }, [currentTxn?.id]);
+  useEffect(() => { setRowLineSelections({}); setInvoiceViewTab("pdf"); }, [currentTxn?.id]);
 
   const sourceType = useMemo(() => {
     if (!currentTxn) return "none";
