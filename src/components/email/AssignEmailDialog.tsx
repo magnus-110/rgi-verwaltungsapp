@@ -335,6 +335,40 @@ export const AssignEmailDialog = ({
             </div>
           )}
 
+          <div className="space-y-2 pt-2 border-t">
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="etv-relevant" className="text-sm flex items-center gap-1.5 cursor-pointer">
+                <Vote className="h-4 w-4" />
+                Relevant für Eigentümerversammlung
+              </Label>
+              <Switch
+                id="etv-relevant"
+                checked={isEtvRelevant}
+                disabled={buildingId === "none"}
+                onCheckedChange={(v) => setIsEtvRelevant(!!v)}
+              />
+            </div>
+            {buildingId === "none" && (
+              <p className="text-xs text-muted-foreground pl-6">Erst eine Liegenschaft zuordnen, um diese E-Mail einer Versammlung zuzuordnen.</p>
+            )}
+            {isEtvRelevant && buildingId !== "none" && (
+              <div className="pl-6 space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Konkrete Versammlung (optional)</Label>
+                <Select value={etvMeetingId} onValueChange={setEtvMeetingId}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="general">Allgemein / nächste Versammlung</SelectItem>
+                    {etvMeetings.map((m: any) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.title} – {new Date(m.meeting_date).toLocaleDateString("de-DE")}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+
           <div className="flex items-center gap-2 pt-2 border-t">
             <Checkbox id="archive-too" checked={archive} onCheckedChange={(v) => setArchive(!!v)} />
             <Label htmlFor="archive-too" className="text-sm font-normal cursor-pointer">
