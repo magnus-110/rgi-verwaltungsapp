@@ -114,7 +114,10 @@ export const FloatingComposeWindow = () => {
   useEffect(() => {
     if (!compose.accountId || compose.accountId === prevAccountRef.current) return;
     const account = accounts.find(a => a.id === compose.accountId);
-    if (!account?.signature_html) { prevAccountRef.current = compose.accountId; return; }
+    // Wait until the accounts list is loaded — otherwise we'd mark the account
+    // as "processed" before the signature could be inserted.
+    if (!account) return;
+    if (!account.signature_html) { prevAccountRef.current = compose.accountId; return; }
 
     const sig = `\n\n--\n${account.signature_html}`;
     const oldAccount = accounts.find(a => a.id === prevAccountRef.current);
