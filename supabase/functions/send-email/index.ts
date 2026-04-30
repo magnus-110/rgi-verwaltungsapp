@@ -127,15 +127,26 @@ Deno.serve(async (req) => {
 
     // Handle attachments (base64 encoded from client)
     if (attachments && Array.isArray(attachments) && attachments.length > 0) {
-      mailOptions.attachments = attachments.map((att: any) => ({
-        filename: att.filename,
-        content: att.content, // base64 string
-        encoding: "base64",
-        contentType: att.contentType,
-      }));
+      console.log(`Processing ${attachments.length} attachment(s)`);
+      mailOptions.attachments = attachments.map((att: any) => {
+        const sizeBytes = att.content ? Math.floor((att.content.length * 3) / 4) : 0;
+        console.log(`  - ${att.filename} (${att.contentType}, ~${sizeBytes} bytes)`);
+        // Convert base64 string to Buffer for reliable nodemailer handling in Deno
+        const buf = Uint8Array.from(atob(att.content), (c) => c.charCodeAt(0));
+        return {
+          filename: att.filename,
+          content: buf,
+          contentType: att.contentType || "application/octet-stream",
+        };
+      });
     }
 
-    await transporter.sendMail(mailOptions);
+    try {
+      await transporter.sendMail(mailOptions);
+    } catch (sendErr: any) {
+      console.error("nodemailer sendMail failed:", sendErr?.message, sendErr);
+      throw sendErr;
+    }
 
     // Save sent email in DB
     const toAddresses = Array.isArray(to) ? to : [to];
