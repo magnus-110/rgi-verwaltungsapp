@@ -287,14 +287,17 @@ export const FloatingComposeWindow = () => {
 
   const handlePopOut = () => {
     const params = new URLSearchParams({
+      compose: "fullscreen",
       to: compose.to,
       cc: compose.cc,
+      bcc: compose.bcc,
       subject: compose.subject,
       body: compose.bodyText,
       accountId: compose.accountId,
     });
-    const url = `${window.location.origin}/postfach?compose=popout&${params.toString()}`;
-    window.open(url, "compose-email", "width=700,height=600,menubar=no,toolbar=no,location=no,status=no");
+    const url = `${window.location.origin}/postfach?${params.toString()}`;
+    // No size args -> opens as a real new tab in modern browsers
+    window.open(url, "_blank", "noopener,noreferrer");
     closeCompose();
   };
 
