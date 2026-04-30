@@ -15,7 +15,8 @@ import { ChevronDown, ChevronRight, FileText, Landmark, Receipt } from "lucide-r
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-const NEEDS_PERIOD = ["abrechnung", "planung"];
+const NEEDS_PERIOD_TABS = ["abrechnung", "planung"];
+const NEEDS_PERIOD_SUB = ["bookings"]; // Sub-tabs under "buchen" that need a period
 
 const SUB_TABS = [
   { value: "templates", label: "Vorlagen" },
@@ -67,7 +68,9 @@ export const Finance = () => {
     } catch {}
   }, [selectedBuildingId, selectedPeriodId, activeTab, activeSubTab, expandedSections]);
 
-  const showPeriod = NEEDS_PERIOD.includes(activeTab);
+  const showPeriod =
+    NEEDS_PERIOD_TABS.includes(activeTab) ||
+    (activeTab === "buchen" && NEEDS_PERIOD_SUB.includes(activeSubTab));
 
   const { data: period } = useQuery({
     queryKey: ["billing-period-detail", selectedPeriodId],
@@ -191,7 +194,7 @@ export const Finance = () => {
             />
           )}
           {activeSubTab === "bookings" && (
-            <BookingsTab sharedBuildingId={selectedBuildingId} />
+            <BookingsTab sharedBuildingId={selectedBuildingId} sharedPeriodId={selectedPeriodId} />
           )}
           {activeSubTab === "abgleich" && (
             <BankReconciliationTab

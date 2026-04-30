@@ -26,10 +26,36 @@ import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 50;
 
-export function BookingsTab({ sharedBuildingId }: { sharedBuildingId?: string | null }) {
+export function BookingsTab({
+  sharedBuildingId,
+  sharedPeriodId,
+}: {
+  sharedBuildingId?: string | null;
+  sharedPeriodId?: string | null;
+}) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [filterYear, setFilterYear] = useState<string>(String(new Date().getFullYear()));
+
+  // Resolve fiscal year from the selected billing period (matches Abrechnung tab)
+  const { data: selectedPeriod } = useQuery({
+    queryKey: ["billing-period-detail-bookings", sharedPeriodId],
+    queryFn: async () => {
+      if (!sharedPeriodId) return null;
+      const { data, error } = await supabase
+        .from("billing_periods")
+        .select("id, fiscal_year, period_from, period_to")
+        .eq("id", sharedPeriodId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!sharedPeriodId,
+  });
+
+  const filterYear = selectedPeriod?.fiscal_year
+    ? String(selectedPeriod.fiscal_year)
+    : String(new Date().getFullYear());
+
   const [searchQuery, setSearchQuery] = useState("");
   const [editBooking, setEditBooking] = useState<any>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
@@ -93,9 +119,9 @@ export function BookingsTab({ sharedBuildingId }: { sharedBuildingId?: string | 
   });
 
   const { data: pendingBookings = [], isLoading } = useQuery({
-    queryKey: ["bookings-all", filterYear],
+    queryKey: ["bookings-all", filterYear, sharedBuildingId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("bookings")
+      let query = supabase.from("bookings")
         .select(`
           *,
           buildings(id, name, building_code),
@@ -107,17 +133,20 @@ export function BookingsTab({ sharedBuildingId }: { sharedBuildingId?: string | 
         .eq("fiscal_year", parseInt(filterYear))
         .in("status", ["pending", "confirmed"])
         .order("booking_date", { ascending: false });
+      if (sharedBuildingId) query = query.eq("building_id", sharedBuildingId);
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
+    enabled: !!sharedBuildingId,
   });
 
   const confirmedBookings: any[] = [];
 
   const { data: manualBookings = [] } = useQuery({
-    queryKey: ["bookings-manual", filterYear],
+    queryKey: ["bookings-manual", filterYear, sharedBuildingId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("bookings")
+      let query = supabase.from("bookings")
         .select(`
           *,
           buildings(id, name, building_code),
@@ -130,10 +159,12 @@ export function BookingsTab({ sharedBuildingId }: { sharedBuildingId?: string | 
         .eq("source", "manual")
         .neq("booking_reference", "KI")
         .order("booking_date", { ascending: false });
+      if (sharedBuildingId) query = query.eq("building_id", sharedBuildingId);
+      const { data, error } = await query;
       if (error) throw error;
       return data;
     },
-    enabled: manualOpen,
+    enabled: manualOpen && !!sharedBuildingId,
   });
 
   // Universal search across all fields
@@ -339,6 +370,16 @@ export function BookingsTab({ sharedBuildingId }: { sharedBuildingId?: string | 
     </>
   );
 
+  if (!sharedBuildingId) {
+    return (
+      <Card>
+        <CardContent className="py-12 text-center text-muted-foreground text-sm">
+          Bitte wähle oben eine Liegenschaft, um die Buchungen anzuzeigen.
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {/* Toolbar */}
@@ -352,12 +393,7 @@ export function BookingsTab({ sharedBuildingId }: { sharedBuildingId?: string | 
             className="pl-9 h-9"
           />
         </div>
-        <Select value={filterYear} onValueChange={(v) => { setFilterYear(v); setCurrentPage(0); }}>
-          <SelectTrigger className="w-28 h-9"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        {/* Zeitraum & Liegenschaft werden oben über den BillingPeriodSelector gesteuert */}
         <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && handleViewModeChange(v)} className="h-9">
           <ToggleGroupItem value="list" size="sm" className="h-9 w-9 p-0" title="Liste">
             <List className="h-4 w-4" />
