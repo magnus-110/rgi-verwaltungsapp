@@ -628,7 +628,11 @@ function IncomingList({
         </TableHeader>
         <TableBody>
           {invoices.map((inv) => (
-            <TableRow key={inv.id} className="hover:bg-muted/50">
+            <TableRow
+              key={inv.id}
+              className="hover:bg-muted/50 cursor-pointer"
+              onClick={() => onOpen(inv)}
+            >
               <TableCell className="text-sm">
                 {inv.invoice_date
                   ? format(new Date(inv.invoice_date), "dd.MM.yyyy")
@@ -649,7 +653,7 @@ function IncomingList({
               <TableCell className="text-muted-foreground text-sm">
                 {inv.buildings?.name || "–"}
               </TableCell>
-              <TableCell>
+              <TableCell onClick={(e) => e.stopPropagation()}>
                 {inv.ocr_status === "processing" && (
                   <Badge variant="outline" className="text-xs gap-1 text-primary border-primary/30">
                     <Loader2 className="h-3 w-3 animate-spin" /> Läuft
@@ -673,7 +677,7 @@ function IncomingList({
                 )}
               </TableCell>
               <TableCell>{renderStatus(inv)}</TableCell>
-              <TableCell className="text-right">
+              <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                 {!(inv._linked_tx && inv._linked_tx.match_status === "matched") && (
                   <Button
                     variant="outline" size="sm" className="h-8 gap-1.5"
