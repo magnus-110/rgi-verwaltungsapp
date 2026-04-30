@@ -27,7 +27,6 @@ export interface CaseRow {
   ai_summary_updated_at: string | null;
   ai_keywords: string[];
   ai_next_steps: string[];
-  parent_case_id: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -45,6 +44,7 @@ export interface CaseEvent {
   source_id: string | null;
   attachments: any[];
   extracted_data: any;
+  parent_event_id: string | null;
   created_by: string;
   created_at: string;
 }
@@ -59,7 +59,7 @@ export const useCases = (buildingId: string) => {
         .eq("building_id", buildingId)
         .order("updated_at", { ascending: false });
       if (error) throw error;
-      return (data || []) as CaseRow[];
+      return (data || []) as unknown as CaseRow[];
     },
     enabled: !!buildingId,
   });
@@ -74,7 +74,6 @@ export const useAllCases = (managementMode: ManagementMode) => {
   return useQuery({
     queryKey: ["cases-all", managementMode],
     queryFn: async () => {
-      // Filter via building.management_mode using inner join
       const { data, error } = await supabase
         .from("cases")
         .select("*, buildings!inner(id, name, address, management_mode)")
@@ -84,7 +83,6 @@ export const useAllCases = (managementMode: ManagementMode) => {
       if (error) throw error;
       const rows = (data || []) as any[];
 
-      // Fetch event counts in one query
       const ids = rows.map((r) => r.id);
       const counts = new Map<string, number>();
       if (ids.length) {
@@ -111,7 +109,7 @@ export const useCase = (caseId: string | null) => {
       if (!caseId) return null;
       const { data, error } = await supabase.from("cases").select("*").eq("id", caseId).single();
       if (error) throw error;
-      return data as CaseRow;
+      return data as unknown as CaseRow;
     },
     enabled: !!caseId,
   });
@@ -128,26 +126,9 @@ export const useCaseEvents = (caseId: string | null) => {
         .eq("case_id", caseId)
         .order("occurred_at", { ascending: false });
       if (error) throw error;
-      return (data || []) as CaseEvent[];
+      return (data || []) as unknown as CaseEvent[];
     },
     enabled: !!caseId,
-  });
-};
-
-export const useSubcases = (parentCaseId: string | null) => {
-  return useQuery({
-    queryKey: ["subcases", parentCaseId],
-    queryFn: async () => {
-      if (!parentCaseId) return [];
-      const { data, error } = await supabase
-        .from("cases")
-        .select("*")
-        .eq("parent_case_id", parentCaseId)
-        .order("created_at", { ascending: true });
-      if (error) throw error;
-      return (data || []) as CaseRow[];
-    },
-    enabled: !!parentCaseId,
   });
 };
 
@@ -158,9 +139,8 @@ export const useActiveCasesForBuilding = (buildingId: string | null) => {
       if (!buildingId) return [];
       const { data, error } = await supabase
         .from("cases")
-        .select("id, title, parent_case_id, status")
+        .select("id, title, status")
         .eq("building_id", buildingId)
-        .is("parent_case_id", null)
         .in("status", ["open", "in_progress", "waiting_external", "waiting_owner"])
         .order("updated_at", { ascending: false });
       if (error) throw error;
@@ -182,7 +162,6 @@ export const useCreateCase = () => {
       priority?: CasePriority;
       unit_number?: string;
       due_at?: string;
-      parent_case_id?: string | null;
     }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Nicht angemeldet");
@@ -198,11 +177,7 @@ export const useCreateCase = () => {
       qc.invalidateQueries({ queryKey: ["cases", data.building_id] });
       qc.invalidateQueries({ queryKey: ["cases-all"] });
       qc.invalidateQueries({ queryKey: ["cases-active-for-building", data.building_id] });
-      if (data.parent_case_id) {
-        qc.invalidateQueries({ queryKey: ["subcases", data.parent_case_id] });
-        qc.invalidateQueries({ queryKey: ["case-events", data.parent_case_id] });
-      }
-      toast({ title: data.parent_case_id ? "Teilvorgang angelegt" : "Vorgang angelegt" });
+      toast({ title: "Vorgang angelegt" });
     },
     onError: (e: any) => toast({ title: "Fehler", description: e.message, variant: "destructive" }),
   });
@@ -221,6 +196,7 @@ export const useAddCaseEvent = () => {
       source_id?: string;
       attachments?: any[];
       extracted_data?: any;
+      parent_event_id?: string | null;
       trigger_summary?: boolean;
     }) => {
       const { data, error } = await supabase.functions.invoke("case-add-event", { body: input });
@@ -289,7 +265,6 @@ export const useDeleteCase = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      // Best-effort: delete events first (in case FK has no cascade)
       await supabase.from("case_events").delete().eq("case_id", id);
       const { error } = await supabase.from("cases").delete().eq("id", id);
       if (error) throw error;
@@ -310,17 +285,12 @@ export const useUpdateCase = () => {
     mutationFn: async ({ id, ...patch }: Partial<CaseRow> & { id: string }) => {
       const { data, error } = await supabase.from("cases").update(patch).eq("id", id).select().single();
       if (error) throw error;
-      return data as CaseRow;
+      return data as unknown as CaseRow;
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["cases", data.building_id] });
       qc.invalidateQueries({ queryKey: ["case", data.id] });
       qc.invalidateQueries({ queryKey: ["cases-all"] });
-      if (data.parent_case_id) {
-        qc.invalidateQueries({ queryKey: ["subcases", data.parent_case_id] });
-        qc.invalidateQueries({ queryKey: ["case-events", data.parent_case_id] });
-      }
-      qc.invalidateQueries({ queryKey: ["subcases", data.id] });
     },
   });
 };
