@@ -1201,7 +1201,8 @@ export const Inbox = () => {
                         </button>
                       </div>
                     )}
-                  </button>
+                    </button>
+                  </div>
                 ))
               )}
             </div>
