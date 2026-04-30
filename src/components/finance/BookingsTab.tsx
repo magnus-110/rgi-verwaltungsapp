@@ -370,6 +370,16 @@ export function BookingsTab({
     </>
   );
 
+  if (!sharedBuildingId) {
+    return (
+      <Card>
+        <CardContent className="py-12 text-center text-muted-foreground text-sm">
+          Bitte wähle oben eine Liegenschaft, um die Buchungen anzuzeigen.
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {/* Toolbar */}
