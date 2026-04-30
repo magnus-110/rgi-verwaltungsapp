@@ -666,7 +666,7 @@ function IncomingList({
               </TableCell>
               <TableCell>{renderStatus(inv)}</TableCell>
               <TableCell className="text-right">
-                {inv.status !== "credit_matched" && (
+                {!(inv._linked_tx && inv._linked_tx.match_status === "matched") && (
                   <Button
                     variant="outline" size="sm" className="h-8 gap-1.5"
                     onClick={() => onMatch(inv)}
