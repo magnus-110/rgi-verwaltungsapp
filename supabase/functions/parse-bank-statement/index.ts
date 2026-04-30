@@ -131,7 +131,7 @@ async function matchTransactions(supabase: any, statementId: string, buildingId:
 
   let templatesQuery = supabase
     .from("booking_templates")
-    .select("id, vendor_iban, vendor_name, expected_amount");
+    .select("id, vendor_iban, vendor_name, expected_amount, amount_tolerance, valid_from, valid_to");
   if (buildingId) templatesQuery = templatesQuery.eq("building_id", buildingId);
   const { data: templates } = await templatesQuery;
 
