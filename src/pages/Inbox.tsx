@@ -265,10 +265,25 @@ export const Inbox = () => {
   const unreadCount = useMemo(() => emails.filter(e => !e.is_read).length, [emails]);
 
   const filteredEmails = useMemo(() => {
-    if (filterCategory === "followup") return emails.filter(e => e.is_starred);
-    if (filterCategory === "unread") return emails.filter(e => !e.is_read);
-    if (filterCategory === "all") return emails;
-    return emails.filter(e => normalizeCategory(e.ai_category) === filterCategory);
+    let list: typeof emails;
+    if (filterCategory === "followup") list = emails.filter(e => e.is_starred);
+    else if (filterCategory === "unread") list = emails.filter(e => !e.is_read);
+    else if (filterCategory === "all") list = emails;
+    else list = emails.filter(e => normalizeCategory(e.ai_category) === filterCategory);
+    // Pinned emails immer oben, dann nach Datum (DESC, wie aus Query)
+    return [...list].sort((a, b) => {
+      const ap = a.is_pinned ? 1 : 0;
+      const bp = b.is_pinned ? 1 : 0;
+      if (ap !== bp) return bp - ap;
+      if (a.is_pinned && b.is_pinned) {
+        const at = a.pinned_at ? new Date(a.pinned_at).getTime() : 0;
+        const bt = b.pinned_at ? new Date(b.pinned_at).getTime() : 0;
+        if (at !== bt) return bt - at;
+      }
+      const ad = a.date ? new Date(a.date).getTime() : 0;
+      const bd = b.date ? new Date(b.date).getTime() : 0;
+      return bd - ad;
+    });
   }, [emails, filterCategory]);
 
   const selectedEmailMeta = filteredEmails.find(e => e.id === selectedEmailId) || emails.find(e => e.id === selectedEmailId);
@@ -395,6 +410,16 @@ export const Inbox = () => {
   const toggleFollowUp = async (emailId: string, currentStarred: boolean) => {
     await supabase.from("emails").update({ is_starred: !currentStarred }).eq("id", emailId);
     queryClient.invalidateQueries({ queryKey: ["emails"] });
+  };
+
+  const togglePin = async (emailId: string, currentPinned: boolean) => {
+    const next = !currentPinned;
+    await supabase.from("emails").update({
+      is_pinned: next,
+      pinned_at: next ? new Date().toISOString() : null,
+    }).eq("id", emailId);
+    queryClient.invalidateQueries({ queryKey: ["emails"] });
+    toast.success(next ? "E-Mail oben angepinnt" : "Anpinnung entfernt");
   };
 
   const openArchiveDialog = (emailId: string) => {
