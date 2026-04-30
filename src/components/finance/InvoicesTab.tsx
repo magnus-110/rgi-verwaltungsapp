@@ -33,6 +33,8 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [internalFilterBuilding, setInternalFilterBuilding] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  // 'all' | 'expense' (echte Eingangsrechnungen) | 'income' (Belege für Zahlungseingang)
+  const [filterDirection, setFilterDirection] = useState<"all" | "expense" | "income">("all");
 
   // Use shared building if provided, otherwise use internal filter
   const filterBuilding = sharedBuildingId ? sharedBuildingId : internalFilterBuilding;
