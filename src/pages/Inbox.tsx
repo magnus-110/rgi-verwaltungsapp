@@ -1028,15 +1028,37 @@ export const Inbox = () => {
                 </div>
               ) : (
                 filteredEmails.map(email => (
-                  <button
+                  <div
                     key={email.id}
-                    onClick={() => setSelectedEmailId(email.id)}
                     className={cn(
-                      "w-full text-left px-3 py-2 border-b transition-colors relative",
-                      selectedEmailId === email.id ? "bg-accent" : "hover:bg-muted/50",
-                      !email.is_read && "bg-primary/10 border-l-4 border-l-primary"
+                      "relative group border-b",
+                      selectedEmailIds.has(email.id) && "bg-primary/5"
                     )}
                   >
+                    <div
+                      className={cn(
+                        "absolute left-1 top-1/2 -translate-y-1/2 z-10 transition-opacity",
+                        selectedEmailIds.size > 0 || selectedEmailIds.has(email.id)
+                          ? "opacity-100"
+                          : "opacity-0 group-hover:opacity-100 focus-within:opacity-100"
+                      )}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Checkbox
+                        checked={selectedEmailIds.has(email.id)}
+                        onCheckedChange={(checked) => toggleSelectEmail(email.id, !!checked)}
+                        aria-label="E-Mail auswählen"
+                        className="bg-background"
+                      />
+                    </div>
+                    <button
+                      onClick={() => setSelectedEmailId(email.id)}
+                      className={cn(
+                        "w-full text-left pl-8 pr-3 py-2 transition-colors relative",
+                        selectedEmailId === email.id ? "bg-accent" : "hover:bg-muted/50",
+                        !email.is_read && "bg-primary/10 border-l-4 border-l-primary"
+                      )}
+                    >
                     <div className="flex items-center justify-between gap-1">
                       <span className={cn(
                         "text-sm truncate flex items-center gap-1.5",
