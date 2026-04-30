@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Mail, Search, Flag, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip, ChevronDown, ChevronUp, PanelLeftClose, PanelLeftOpen, UserPlus, UserCheck, Undo2, Link2, Sparkles, Menu, ArrowLeft } from "lucide-react";
+import { Mail, Search, Flag, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip, ChevronDown, ChevronUp, PanelLeftClose, PanelLeftOpen, UserPlus, UserCheck, Undo2, Link2, Sparkles, Menu, ArrowLeft, Pin, PinOff } from "lucide-react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -205,7 +205,7 @@ export const Inbox = () => {
     queryFn: async () => {
       let query = supabase
         .from("emails")
-        .select("id, account_id, folder_id, subject, from_name, from_address, to_addresses, cc_addresses, date, is_read, is_starred, is_archived, has_attachments, ai_category, ai_priority, ai_summary, building_id, contact_id, assigned_to, deleted_at, case_id, message_id")
+        .select("id, account_id, folder_id, subject, from_name, from_address, to_addresses, cc_addresses, date, is_read, is_starred, is_pinned, pinned_at, is_archived, has_attachments, ai_category, ai_priority, ai_summary, building_id, contact_id, assigned_to, deleted_at, case_id, message_id")
         .order("date", { ascending: false })
         .limit(100);
 
