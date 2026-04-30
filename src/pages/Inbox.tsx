@@ -505,6 +505,7 @@ export const Inbox = () => {
     queryClient.invalidateQueries({ queryKey: ["emails"] });
     queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
     queryClient.invalidateQueries({ queryKey: ["case-events"] });
+    queryClient.invalidateQueries({ queryKey: ["etv-relevant-emails"] });
     toast.success(params.archive ? "E-Mail zugeordnet & archiviert" : "E-Mail zugeordnet");
   };
 
