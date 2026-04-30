@@ -110,7 +110,17 @@ export function Transfers() {
       }
       const { data, error } = await query;
       if (error) throw error;
-      return data || [];
+      const invs = data || [];
+      // Verknüpfte Bank-Transaktionen nachladen, um Status (Vorschlag / Zugeordnet) abzuleiten
+      const ids = invs.map((i: any) => i.id);
+      if (ids.length === 0) return invs;
+      const { data: txs } = await supabase
+        .from("bank_transactions")
+        .select("id, matched_invoice_id, match_status, booking_date, amount")
+        .in("matched_invoice_id", ids);
+      const txByInv = new Map<string, any>();
+      (txs || []).forEach((t: any) => txByInv.set(t.matched_invoice_id, t));
+      return invs.map((i: any) => ({ ...i, _linked_tx: txByInv.get(i.id) || null }));
     },
   });
 
