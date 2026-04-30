@@ -178,8 +178,14 @@ Deno.serve(async (req) => {
     );
   } catch (error: any) {
     console.error("send-email error:", error);
+    let userMessage = error?.message || "Fehler beim Senden";
+    // Friendly message for invalid recipient domains
+    if (error?.code === "EENVELOPE" || /Domain does not exist|recipients were rejected/i.test(userMessage)) {
+      const rejected = Array.isArray(error?.rejected) ? error.rejected.join(", ") : "";
+      userMessage = `Ungültige Empfänger-Adresse${rejected ? `: ${rejected}` : ""}. Die Domain existiert nicht — bitte E-Mail-Adresse prüfen.`;
+    }
     return new Response(
-      JSON.stringify({ error: error.message || "Fehler beim Senden" }),
+      JSON.stringify({ error: userMessage, code: error?.code, rejected: error?.rejected }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
