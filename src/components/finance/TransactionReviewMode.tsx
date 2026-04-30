@@ -473,7 +473,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
       if (templateDetail.account_id) row.counter_account_id = templateDetail.account_id;
       if (templateDetail.vat_rate != null) row.vat_rate = String(templateDetail.vat_rate);
       if (templateDetail.is_35a_relevant) row.is_35a_relevant = true;
-      row.description = templateDetail.name || "";
+      row.description = buildTemplateBookingText(templateDetail, txnDate);
       row.matched_template_id = templateDetail.id;
       const vatRate = templateDetail.vat_rate || 0;
       if (vatRate > 0) {
