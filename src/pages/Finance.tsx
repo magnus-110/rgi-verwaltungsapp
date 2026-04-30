@@ -68,7 +68,9 @@ export const Finance = () => {
     } catch {}
   }, [selectedBuildingId, selectedPeriodId, activeTab, activeSubTab, expandedSections]);
 
-  const showPeriod = NEEDS_PERIOD.includes(activeTab);
+  const showPeriod =
+    NEEDS_PERIOD_TABS.includes(activeTab) ||
+    (activeTab === "buchen" && NEEDS_PERIOD_SUB.includes(activeSubTab));
 
   const { data: period } = useQuery({
     queryKey: ["billing-period-detail", selectedPeriodId],
