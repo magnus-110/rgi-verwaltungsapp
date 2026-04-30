@@ -539,7 +539,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
               (invoiceDetail as any)?.line_items,
               Number(sb.amount_35a) || 0,
               t35a,
-              sb.vat_rate != null ? Number(sb.vat_rate) : (parseFloat(row.vat_rate) || 19),
+              sb.vat_rate != null ? Number(sb.vat_rate) : (parseAmount(row.vat_rate) || 19),
             );
           }
         }
@@ -609,7 +609,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
               (invoiceDetail as any)?.line_items,
               Number(sb.amount_35a) || 0,
               t35a,
-              sb.vat_rate != null ? Number(sb.vat_rate) : (parseFloat(row.vat_rate) || 19),
+              sb.vat_rate != null ? Number(sb.vat_rate) : (parseAmount(row.vat_rate) || 19),
             );
           }
         }
@@ -753,10 +753,10 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
     setBookingSingle(rowId);
     try {
-      const amount = parseFloat(row.amount) || 0;
-      const vatRate = parseFloat(row.vat_rate) || 0;
-      const vatAmount = parseFloat(row.vat_amount) || 0;
-      const amount35a = row.is_35a_relevant && row.amount_35a ? parseFloat(row.amount_35a) : null;
+      const amount = parseAmount(row.amount) || 0;
+      const vatRate = parseAmount(row.vat_rate) || 0;
+      const vatAmount = parseAmount(row.vat_amount) || 0;
+      const amount35a = row.is_35a_relevant && row.amount_35a ? parseAmount(row.amount_35a) : null;
       const totalParts = formRows.length;
       const partIndex = formRows.findIndex(r => r.id === rowId) + 1;
 
@@ -834,8 +834,8 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         const fuelUnit = row.fuel_type === "oil" ? "l"
           : row.fuel_type === "pellets" ? "kg"
           : "kWh";
-        const quantity = parseFloat(row.fuel_quantity) || 0;
-        const totalPrice = parseFloat(row.fuel_total_price) || 0;
+        const quantity = parseAmount(row.fuel_quantity) || 0;
+        const totalPrice = parseAmount(row.fuel_total_price) || 0;
         const unitPrice = quantity > 0 ? totalPrice / quantity : 0;
 
         // Find matching billing period
@@ -851,9 +851,9 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           : row.fuel_type === "gas" ? "Gas"
           : "Fernwärme";
 
-        const co2Emissions = parseFloat(row.fuel_co2_emissions_kg);
-        const co2Tax = parseFloat(row.fuel_co2_tax_amount);
-        const energyKwh = parseFloat(row.fuel_energy_content_kwh);
+        const co2Emissions = parseAmount(row.fuel_co2_emissions_kg);
+        const co2Tax = parseAmount(row.fuel_co2_tax_amount);
+        const energyKwh = parseAmount(row.fuel_energy_content_kwh);
 
         await supabase.from("fuel_inventory").insert({
           building_id: buildingId,
@@ -1153,7 +1153,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
   // Sum validation for split bookings
   const currentTotal = useMemo(() => {
-    return formRows.reduce((sum, row) => sum + (parseFloat(row.amount) || 0), 0);
+    return formRows.reduce((sum, row) => sum + (parseAmount(row.amount) || 0), 0);
   }, [formRows]);
 
   const isAmountMatching = currentTxn ? Math.abs(currentTotal - Math.abs(currentTxn.amount)) < 0.01 : false;
@@ -1682,8 +1682,8 @@ function BookingRowCard({
 
   // Auto-calculate VAT when amount/rate changes
   useEffect(() => {
-    const amount = parseFloat(row.amount) || 0;
-    const vatRate = parseFloat(row.vat_rate) || 0;
+    const amount = parseAmount(row.amount) || 0;
+    const vatRate = parseAmount(row.vat_rate) || 0;
     if (vatRate > 0 && amount > 0) {
       const vatAmount = amount - (amount / (1 + vatRate / 100));
       onUpdateField("vat_amount", vatAmount.toFixed(2));
@@ -1737,7 +1737,7 @@ function BookingRowCard({
                 Prüfen
               </button>
               <span className={cn("text-sm font-bold", row.booking_type === "income" ? "text-green-600" : "text-destructive")}>
-                {row.booking_type === "income" ? "+" : "−"}{formatCurrency(parseFloat(row.amount) || 0)}
+                {row.booking_type === "income" ? "+" : "−"}{formatCurrency(parseAmount(row.amount) || 0)}
               </span>
               {onRemove && !row.booked && (
                 <button
@@ -1842,8 +1842,8 @@ function BookingRowCard({
                 className={cn("h-8 w-8 shrink-0 text-sm font-bold", row.booking_type === "income" && "bg-green-600 hover:bg-green-700 text-white")}
                 onClick={() => onUpdateField("booking_type", "income")}>+</Button>
             </div>
-            {parseFloat(row.vat_amount) > 0 && row.vat_rate && (
-              <p className="text-xs text-muted-foreground">davon MwSt: {formatCurrency(parseFloat(row.vat_amount))} ({row.vat_rate}%)</p>
+            {parseAmount(row.vat_amount) > 0 && row.vat_rate && (
+              <p className="text-xs text-muted-foreground">davon MwSt: {formatCurrency(parseAmount(row.vat_amount))} ({row.vat_rate}%)</p>
             )}
             {(() => {
               const ca = accounts.find((a: any) => a.id === row.counter_account_id);
@@ -2021,12 +2021,12 @@ function BookingRowCard({
               lineItemsDetail={Array.isArray(row.line_items_detail) ? (row.line_items_detail as any) : []}
               onLineItemsDetailChange={(items) => onUpdateField("line_items_detail", JSON.stringify(items))}
               onAmount35aChange={(val) => onUpdateField("amount_35a", val)}
-              defaultVatRate={parseFloat(row.vat_rate) || 0}
+              defaultVatRate={parseAmount(row.vat_rate) || 0}
               defaultType35a={(() => {
                 const acc: any = (accounts as any[]).find(a => a.id === row.account_id) || (accounts as any[]).find(a => a.id === row.counter_account_id);
                 return (acc?.settlement_35a_type === "handwerker" ? "handwerker" : "dienste");
               })()}
-              currentAmount35a={parseFloat(row.amount_35a) || 0}
+              currentAmount35a={parseAmount(row.amount_35a) || 0}
               toggleIdSuffix={String(index)}
             />
           </div>
