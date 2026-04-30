@@ -120,6 +120,23 @@ export const AssignEmailDialog = ({
     enabled: caseId !== "none",
   });
 
+  const { data: etvMeetings = [] } = useQuery({
+    queryKey: ["etv-meetings-for-assign", buildingId],
+    queryFn: async () => {
+      if (buildingId === "none") return [];
+      const today = new Date().toISOString().slice(0, 10);
+      const { data, error } = await supabase
+        .from("etv_meetings")
+        .select("id, title, meeting_date")
+        .eq("building_id", buildingId)
+        .gte("meeting_date", today)
+        .order("meeting_date", { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: buildingId !== "none",
+  });
+
   const handleCreateCase = async () => {
     if (buildingId === "none" || !newCaseTitle.trim()) return;
     const building = buildings.find((b) => b.id === buildingId);
@@ -141,16 +158,18 @@ export const AssignEmailDialog = ({
 
   const handleAssign = () => {
     if (!emailId) return;
-    // Sub-case wins if selected, otherwise the main case (or none)
     const finalCaseId =
       subcaseId !== "none" ? subcaseId :
       caseId !== "none" ? caseId : null;
+    const finalBuildingId = buildingId !== "none" ? buildingId : null;
     onAssign({
       emailId,
-      buildingId: buildingId !== "none" ? buildingId : null,
+      buildingId: finalBuildingId,
       contactId: contactId !== "none" ? contactId : null,
       caseId: finalCaseId,
       archive,
+      isEtvRelevant: !!finalBuildingId && isEtvRelevant,
+      etvMeetingId: !!finalBuildingId && isEtvRelevant && etvMeetingId !== "general" ? etvMeetingId : null,
     });
     onOpenChange(false);
   };
