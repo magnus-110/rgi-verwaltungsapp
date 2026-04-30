@@ -383,12 +383,7 @@ export function BookingsTab({
             className="pl-9 h-9"
           />
         </div>
-        <Select value={filterYear} onValueChange={(v) => { setFilterYear(v); setCurrentPage(0); }}>
-          <SelectTrigger className="w-28 h-9"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {years.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
-          </SelectContent>
-        </Select>
+        {/* Zeitraum & Liegenschaft werden oben über den BillingPeriodSelector gesteuert */}
         <ToggleGroup type="single" value={viewMode} onValueChange={(v) => v && handleViewModeChange(v)} className="h-9">
           <ToggleGroupItem value="list" size="sm" className="h-9 w-9 p-0" title="Liste">
             <List className="h-4 w-4" />
