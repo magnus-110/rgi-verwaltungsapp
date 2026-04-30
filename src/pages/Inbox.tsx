@@ -21,7 +21,7 @@ import { toast } from "sonner";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 import { EmailAttachments } from "@/components/email/EmailAttachments";
 import { AssignEmailDialog } from "@/components/email/AssignEmailDialog";
-import { EtvRelevancePopover } from "@/components/email/EtvRelevancePopover";
+
 import { EmailHtmlBody } from "@/components/email/EmailHtmlBody";
 import { EmailSettingsSection } from "@/components/email/EmailSettingsSection";
 import { useAuth } from "@/hooks/useAuth";
@@ -436,11 +436,15 @@ export const Inbox = () => {
     contactId: string | null;
     caseId: string | null;
     archive: boolean;
+    isEtvRelevant: boolean;
+    etvMeetingId: string | null;
   }) => {
     const update: any = {
       building_id: params.buildingId,
       contact_id: params.contactId,
       case_id: params.caseId,
+      is_etv_relevant: params.isEtvRelevant,
+      etv_meeting_id: params.etvMeetingId,
     };
     if (params.archive) update.is_archived = true;
     await supabase.from("emails").update(update).eq("id", params.emailId);
@@ -501,6 +505,7 @@ export const Inbox = () => {
     queryClient.invalidateQueries({ queryKey: ["emails"] });
     queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
     queryClient.invalidateQueries({ queryKey: ["case-events"] });
+    queryClient.invalidateQueries({ queryKey: ["etv-relevant-emails"] });
     toast.success(params.archive ? "E-Mail zugeordnet & archiviert" : "E-Mail zugeordnet");
   };
 
@@ -1277,7 +1282,7 @@ export const Inbox = () => {
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openArchiveDialog(selectedEmail.id)} title="Zuordnen / Archivieren">
                               <Link2 className="h-4 w-4" />
                             </Button>
-                            <EtvRelevancePopover email={selectedEmail} />
+                            
                             {selectedEmail.is_archived && (
                               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={async () => {
                                 await supabase.from("emails").update({ is_archived: false }).eq("id", selectedEmail.id);
@@ -1458,6 +1463,8 @@ export const Inbox = () => {
         prefilledContactId={archiveEmailId ? (emails.find(e => e.id === archiveEmailId)?.contact_id || null) : null}
         prefilledBuildingId={archiveEmailId ? (emails.find(e => e.id === archiveEmailId)?.building_id || null) : null}
         prefilledCaseId={archiveEmailId ? ((emails.find(e => e.id === archiveEmailId) as any)?.case_id || (emails.find(e => e.id === archiveEmailId) as any)?.ai_case_suggestion_id || null) : null}
+        prefilledIsEtvRelevant={archiveEmailId ? !!(emails.find(e => e.id === archiveEmailId) as any)?.is_etv_relevant : false}
+        prefilledEtvMeetingId={archiveEmailId ? ((emails.find(e => e.id === archiveEmailId) as any)?.etv_meeting_id || null) : null}
       />
 
       <Dialog open={newContactDialogOpen} onOpenChange={setNewContactDialogOpen}>

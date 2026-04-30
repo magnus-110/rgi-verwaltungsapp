@@ -7,8 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Building2, User, Sparkles, FolderOpen, Link2, Plus, X, GitBranch } from "lucide-react";
+import { Building2, User, Sparkles, FolderOpen, Link2, Plus, X, GitBranch, Vote } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { useCreateCase } from "@/hooks/useCases";
 import { toast } from "@/hooks/use-toast";
 
@@ -22,10 +23,14 @@ interface AssignEmailDialogProps {
     contactId: string | null;
     caseId: string | null;
     archive: boolean;
+    isEtvRelevant: boolean;
+    etvMeetingId: string | null;
   }) => void;
   prefilledBuildingId?: string | null;
   prefilledContactId?: string | null;
   prefilledCaseId?: string | null;
+  prefilledIsEtvRelevant?: boolean;
+  prefilledEtvMeetingId?: string | null;
 }
 
 export const AssignEmailDialog = ({
@@ -36,12 +41,16 @@ export const AssignEmailDialog = ({
   prefilledBuildingId,
   prefilledContactId,
   prefilledCaseId,
+  prefilledIsEtvRelevant,
+  prefilledEtvMeetingId,
 }: AssignEmailDialogProps) => {
   const [buildingId, setBuildingId] = useState<string>("none");
   const [contactId, setContactId] = useState<string>("none");
   const [caseId, setCaseId] = useState<string>("none");
   const [subcaseId, setSubcaseId] = useState<string>("none");
   const [archive, setArchive] = useState(false);
+  const [isEtvRelevant, setIsEtvRelevant] = useState(false);
+  const [etvMeetingId, setEtvMeetingId] = useState<string>("general");
   const [creatingCase, setCreatingCase] = useState(false);
   const [newCaseTitle, setNewCaseTitle] = useState("");
   const createCase = useCreateCase();
@@ -54,10 +63,12 @@ export const AssignEmailDialog = ({
       setCaseId(prefilledCaseId || "none");
       setSubcaseId("none");
       setArchive(false);
+      setIsEtvRelevant(!!prefilledIsEtvRelevant);
+      setEtvMeetingId(prefilledEtvMeetingId || "general");
       setCreatingCase(false);
       setNewCaseTitle("");
     }
-  }, [open, prefilledBuildingId, prefilledContactId, prefilledCaseId]);
+  }, [open, prefilledBuildingId, prefilledContactId, prefilledCaseId, prefilledIsEtvRelevant, prefilledEtvMeetingId]);
 
   const { data: buildings = [] } = useQuery({
     queryKey: ["buildings-for-assign"],
@@ -109,6 +120,23 @@ export const AssignEmailDialog = ({
     enabled: caseId !== "none",
   });
 
+  const { data: etvMeetings = [] } = useQuery({
+    queryKey: ["etv-meetings-for-assign", buildingId],
+    queryFn: async () => {
+      if (buildingId === "none") return [];
+      const today = new Date().toISOString().slice(0, 10);
+      const { data, error } = await supabase
+        .from("etv_meetings")
+        .select("id, title, meeting_date")
+        .eq("building_id", buildingId)
+        .gte("meeting_date", today)
+        .order("meeting_date", { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: buildingId !== "none",
+  });
+
   const handleCreateCase = async () => {
     if (buildingId === "none" || !newCaseTitle.trim()) return;
     const building = buildings.find((b) => b.id === buildingId);
@@ -130,16 +158,18 @@ export const AssignEmailDialog = ({
 
   const handleAssign = () => {
     if (!emailId) return;
-    // Sub-case wins if selected, otherwise the main case (or none)
     const finalCaseId =
       subcaseId !== "none" ? subcaseId :
       caseId !== "none" ? caseId : null;
+    const finalBuildingId = buildingId !== "none" ? buildingId : null;
     onAssign({
       emailId,
-      buildingId: buildingId !== "none" ? buildingId : null,
+      buildingId: finalBuildingId,
       contactId: contactId !== "none" ? contactId : null,
       caseId: finalCaseId,
       archive,
+      isEtvRelevant: !!finalBuildingId && isEtvRelevant,
+      etvMeetingId: !!finalBuildingId && isEtvRelevant && etvMeetingId !== "general" ? etvMeetingId : null,
     });
     onOpenChange(false);
   };
@@ -304,6 +334,40 @@ export const AssignEmailDialog = ({
               </Select>
             </div>
           )}
+
+          <div className="space-y-2 pt-2 border-t">
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="etv-relevant" className="text-sm flex items-center gap-1.5 cursor-pointer">
+                <Vote className="h-4 w-4" />
+                Relevant für Eigentümerversammlung
+              </Label>
+              <Switch
+                id="etv-relevant"
+                checked={isEtvRelevant}
+                disabled={buildingId === "none"}
+                onCheckedChange={(v) => setIsEtvRelevant(!!v)}
+              />
+            </div>
+            {buildingId === "none" && (
+              <p className="text-xs text-muted-foreground pl-6">Erst eine Liegenschaft zuordnen, um diese E-Mail einer Versammlung zuzuordnen.</p>
+            )}
+            {isEtvRelevant && buildingId !== "none" && (
+              <div className="pl-6 space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Konkrete Versammlung (optional)</Label>
+                <Select value={etvMeetingId} onValueChange={setEtvMeetingId}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="general">Allgemein / nächste Versammlung</SelectItem>
+                    {etvMeetings.map((m: any) => (
+                      <SelectItem key={m.id} value={m.id}>
+                        {m.title} – {new Date(m.meeting_date).toLocaleDateString("de-DE")}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
 
           <div className="flex items-center gap-2 pt-2 border-t">
             <Checkbox id="archive-too" checked={archive} onCheckedChange={(v) => setArchive(!!v)} />
