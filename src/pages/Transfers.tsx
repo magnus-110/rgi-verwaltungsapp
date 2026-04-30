@@ -801,7 +801,7 @@ function ManualMatchDialog({
                       <TableCell className="text-sm">
                         {tx.booking_date ? format(new Date(tx.booking_date), "dd.MM.yyyy") : "–"}
                       </TableCell>
-                      <TableCell className="text-sm font-medium">{tx.counterparty_name || "–"}</TableCell>
+                      <TableCell className="text-sm font-medium">{tx.debtor_name || "–"}</TableCell>
                       <TableCell className="text-xs text-muted-foreground max-w-[300px] truncate">
                         {tx.purpose || "–"}
                       </TableCell>
