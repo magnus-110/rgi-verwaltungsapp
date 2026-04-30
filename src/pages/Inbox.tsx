@@ -70,6 +70,8 @@ export const Inbox = () => {
   const [newContactData, setNewContactData] = useState({ first_name: "", last_name: "", company_name: "", email: "" });
   const [contactSearchTerm, setContactSearchTerm] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [selectedEmailIds, setSelectedEmailIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -270,6 +272,23 @@ export const Inbox = () => {
   }, [emails, filterCategory]);
 
   const selectedEmailMeta = filteredEmails.find(e => e.id === selectedEmailId) || emails.find(e => e.id === selectedEmailId);
+
+  // Reset multi-selection when folder/filter/search changes
+  useEffect(() => {
+    setSelectedEmailIds(new Set());
+  }, [selectedFolderId, filterCategory, filterBuildingId, filterContactId, filterAssignedTo, searchTerm]);
+
+  // Drop selections that are no longer visible
+  useEffect(() => {
+    if (selectedEmailIds.size === 0) return;
+    const visible = new Set(filteredEmails.map(e => e.id));
+    let changed = false;
+    const next = new Set<string>();
+    selectedEmailIds.forEach(id => {
+      if (visible.has(id)) next.add(id); else changed = true;
+    });
+    if (changed) setSelectedEmailIds(next);
+  }, [filteredEmails, selectedEmailIds]);
 
   // Lazy-Load Email-Body nur für die selektierte E-Mail
   const { data: selectedEmailBody } = useQuery({
@@ -487,6 +506,52 @@ export const Inbox = () => {
     queryClient.invalidateQueries({ queryKey: ["emails"] });
     queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
     toast.success("E-Mail endgültig gelöscht");
+  };
+
+  const toggleSelectEmail = (emailId: string, checked: boolean) => {
+    setSelectedEmailIds(prev => {
+      const next = new Set(prev);
+      if (checked) next.add(emailId); else next.delete(emailId);
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedEmailIds(new Set());
+
+  const bulkDeleteSelected = async () => {
+    const ids = Array.from(selectedEmailIds);
+    if (ids.length === 0) return;
+    setBulkDeleting(true);
+    try {
+      if (isTrashFolder) {
+        // Permanent delete
+        await supabase.from("email_attachments").delete().in("email_id", ids);
+        const { error } = await supabase.from("emails").delete().in("id", ids);
+        if (error) throw error;
+        toast.success(`${ids.length} E-Mail(s) endgültig gelöscht`);
+      } else {
+        const trashFolder = folders.find(f => f.name === "Papierkorb");
+        if (trashFolder) {
+          const { error } = await supabase
+            .from("emails")
+            .update({ folder_id: trashFolder.id, deleted_at: new Date().toISOString() })
+            .in("id", ids);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.from("emails").delete().in("id", ids);
+          if (error) throw error;
+        }
+        toast.success(`${ids.length} E-Mail(s) in Papierkorb verschoben`);
+      }
+      if (selectedEmailId && ids.includes(selectedEmailId)) setSelectedEmailId(null);
+      clearSelection();
+      queryClient.invalidateQueries({ queryKey: ["emails"] });
+      queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
+    } catch (err: any) {
+      toast.error("Fehler: " + (err.message || "Unbekannt"));
+    } finally {
+      setBulkDeleting(false);
+    }
   };
 
   const toggleRead = async (emailId: string, currentRead: boolean) => {
@@ -808,16 +873,6 @@ export const Inbox = () => {
                 Alle ({emails.length})
               </button>
               <button
-                onClick={() => setFilterCategory(filterCategory === "followup" ? "all" : "followup")}
-                className={cn(
-                  "px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0 flex items-center gap-1",
-                  filterCategory === "followup" ? "bg-orange-500 text-white" : "hover:bg-muted text-muted-foreground"
-                )}
-              >
-                <Flag className="h-3 w-3" />
-                Nachverfolgung ({followUpCount})
-              </button>
-              <button
                 onClick={() => setFilterCategory(filterCategory === "unread" ? "all" : "unread")}
                 className={cn(
                   "px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0 flex items-center gap-1 font-medium",
@@ -826,6 +881,16 @@ export const Inbox = () => {
               >
                 <span className="h-2 w-2 rounded-full bg-current" />
                 Ungelesen ({unreadCount})
+              </button>
+              <button
+                onClick={() => setFilterCategory(filterCategory === "followup" ? "all" : "followup")}
+                className={cn(
+                  "px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0 flex items-center gap-1",
+                  filterCategory === "followup" ? "bg-orange-500 text-white" : "hover:bg-muted text-muted-foreground"
+                )}
+              >
+                <Flag className="h-3 w-3" />
+                Nachverfolgung ({followUpCount})
               </button>
               {ALL_CATEGORIES.map(cat => (
                 <button
@@ -902,6 +967,57 @@ export const Inbox = () => {
               </div>
             )}
 
+            {/* Bulk selection bar */}
+            {filteredEmails.length > 0 && (
+              <div className="px-3 py-1.5 border-b bg-muted/30 flex items-center gap-2">
+                <Checkbox
+                  checked={
+                    selectedEmailIds.size > 0 && selectedEmailIds.size === filteredEmails.length
+                      ? true
+                      : selectedEmailIds.size > 0
+                        ? "indeterminate"
+                        : false
+                  }
+                  onCheckedChange={(checked) => {
+                    if (checked) setSelectedEmailIds(new Set(filteredEmails.map(e => e.id)));
+                    else clearSelection();
+                  }}
+                  aria-label="Alle auswählen"
+                />
+                {selectedEmailIds.size > 0 ? (
+                  <>
+                    <span className="text-xs text-muted-foreground">
+                      {selectedEmailIds.size} ausgewählt
+                    </span>
+                    <div className="ml-auto flex items-center gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-xs"
+                        onClick={clearSelection}
+                      >
+                        Aufheben
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="h-7 px-2 text-xs gap-1"
+                        disabled={bulkDeleting}
+                        onClick={bulkDeleteSelected}
+                      >
+                        {bulkDeleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                        {isTrashFolder ? "Endgültig löschen" : "Löschen"}
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <span className="text-xs text-muted-foreground">
+                    Mehrere auswählen
+                  </span>
+                )}
+              </div>
+            )}
+
             <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
               {emailsLoading ? (
                 <div className="p-4 text-center text-sm text-muted-foreground">Laden...</div>
@@ -912,15 +1028,37 @@ export const Inbox = () => {
                 </div>
               ) : (
                 filteredEmails.map(email => (
-                  <button
+                  <div
                     key={email.id}
-                    onClick={() => setSelectedEmailId(email.id)}
                     className={cn(
-                      "w-full text-left px-3 py-2 border-b transition-colors relative",
-                      selectedEmailId === email.id ? "bg-accent" : "hover:bg-muted/50",
-                      !email.is_read && "bg-primary/10 border-l-4 border-l-primary"
+                      "relative group border-b",
+                      selectedEmailIds.has(email.id) && "bg-primary/5"
                     )}
                   >
+                    <div
+                      className={cn(
+                        "absolute left-1 top-1/2 -translate-y-1/2 z-10 transition-opacity",
+                        selectedEmailIds.size > 0 || selectedEmailIds.has(email.id)
+                          ? "opacity-100"
+                          : "opacity-0 group-hover:opacity-100 focus-within:opacity-100"
+                      )}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Checkbox
+                        checked={selectedEmailIds.has(email.id)}
+                        onCheckedChange={(checked) => toggleSelectEmail(email.id, !!checked)}
+                        aria-label="E-Mail auswählen"
+                        className="bg-background"
+                      />
+                    </div>
+                    <button
+                      onClick={() => setSelectedEmailId(email.id)}
+                      className={cn(
+                        "w-full text-left pl-8 pr-3 py-2 transition-colors relative",
+                        selectedEmailId === email.id ? "bg-accent" : "hover:bg-muted/50",
+                        !email.is_read && "bg-primary/10 border-l-4 border-l-primary"
+                      )}
+                    >
                     <div className="flex items-center justify-between gap-1">
                       <span className={cn(
                         "text-sm truncate flex items-center gap-1.5",
@@ -1063,7 +1201,8 @@ export const Inbox = () => {
                         </button>
                       </div>
                     )}
-                  </button>
+                    </button>
+                  </div>
                 ))
               )}
             </div>
