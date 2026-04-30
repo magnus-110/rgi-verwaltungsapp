@@ -124,6 +124,10 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
   const [invoiceViewTab, setInvoiceViewTab] = useState<"pdf" | "items">("pdf");
   // Per-row line-item selection (rowId -> indices of selected line_items)
   const [rowLineSelections, setRowLineSelections] = useState<Record<string, number[]>>({});
+  // Fallback VAT rate (in %) used when a line item has no own vat_rate.
+  // Set by InvoiceLineItemsView and used here so booking sums match the
+  // gross amounts shown on the right.
+  const [fallbackVatRate, setFallbackVatRate] = useState<number>(19);
 
   // Cache of unsaved edits per transaction id, so navigating away and back keeps changes
   const editsCacheRef = useRef<Record<string, BookingRowData[]>>({});
