@@ -86,12 +86,15 @@ export function InvoiceDropZone({ buildings }: Props) {
         headers: { Authorization: `Bearer ${session?.access_token}` },
       }).then(() => {
         queryClient.invalidateQueries({ queryKey: ["invoices"] });
+        queryClient.invalidateQueries({ queryKey: ["transfer-invoices"] });
       }).catch(err => {
         console.error("OCR error:", err);
         queryClient.invalidateQueries({ queryKey: ["invoices"] });
+        queryClient.invalidateQueries({ queryKey: ["transfer-invoices"] });
       });
 
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      queryClient.invalidateQueries({ queryKey: ["transfer-invoices"] });
     } catch (err: any) {
       console.error("Upload error:", err);
       toast.error(`Fehler bei "${fileName}": ${err.message}`);
