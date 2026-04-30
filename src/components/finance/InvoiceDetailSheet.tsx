@@ -9,10 +9,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { Loader2, FileText, ExternalLink, CheckCircle, CreditCard, Sparkles, Plus, Trash2, Fuel, ChevronDown, ChevronRight } from "lucide-react";
+import { Loader2, FileText, ExternalLink, CheckCircle, CreditCard, Sparkles, Plus, Trash2, Fuel, ChevronDown, ChevronRight, Check, ChevronsUpDown } from "lucide-react";
 
 const PAYMENT_STATUS: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   open: { label: "Offen", variant: "destructive" },
