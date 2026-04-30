@@ -42,7 +42,6 @@ export const BuildingCasesTab = ({ buildingId, managementMode }: Props) => {
 
   const filtered = useMemo(() => {
     return cases.filter((c) => {
-      if (c.parent_case_id) return false; // Sub-Vorgänge in Buildings-Liste immer ausgeblendet
       if (statusFilter === "active" && (c.status === "resolved" || c.status === "archived")) return false;
       if (statusFilter !== "all" && statusFilter !== "active" && c.status !== statusFilter) return false;
       if (search && !`${c.title} ${c.description || ""}`.toLowerCase().includes(search.toLowerCase())) return false;
