@@ -558,6 +558,7 @@ export function Transfers() {
           retryingOcr={retryingOcr}
           onMatch={(inv) => setMatchInvoice(inv)}
           onRefetch={refetch}
+          onOpen={(inv) => openReviewForInvoice(inv)}
         />
       )}
 
