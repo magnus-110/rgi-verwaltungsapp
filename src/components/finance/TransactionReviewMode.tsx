@@ -28,6 +28,8 @@ import { AccountSearchSelect } from "./AccountSearchSelect";
 import { Section35aEditor } from "./Section35aEditor";
 import { build35aDetailFromSuggestion } from "./build35aDetail";
 import { buildTemplateBookingText } from "./lib/templateBookingText";
+import { parseAmount } from "./lib/parseAmount";
+import { InvoiceLineItemsView } from "./InvoiceLineItemsView";
 
 interface TransactionReviewModeProps {
   open: boolean;
@@ -117,6 +119,11 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
   // Multi-row booking state
   const [formRows, setFormRows] = useState<BookingRowData[]>([]);
+
+  // Right-panel tab: original PDF vs. structured OCR view
+  const [invoiceViewTab, setInvoiceViewTab] = useState<"pdf" | "items">("pdf");
+  // Per-row line-item selection (rowId -> indices of selected line_items)
+  const [rowLineSelections, setRowLineSelections] = useState<Record<string, number[]>>({});
 
   // Cache of unsaved edits per transaction id, so navigating away and back keeps changes
   const editsCacheRef = useRef<Record<string, BookingRowData[]>>({});
@@ -537,7 +544,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
               (invoiceDetail as any)?.line_items,
               Number(sb.amount_35a) || 0,
               t35a,
-              sb.vat_rate != null ? Number(sb.vat_rate) : (parseFloat(row.vat_rate) || 19),
+              sb.vat_rate != null ? Number(sb.vat_rate) : (parseAmount(row.vat_rate) || 19),
             );
           }
         }
@@ -607,7 +614,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
               (invoiceDetail as any)?.line_items,
               Number(sb.amount_35a) || 0,
               t35a,
-              sb.vat_rate != null ? Number(sb.vat_rate) : (parseFloat(row.vat_rate) || 19),
+              sb.vat_rate != null ? Number(sb.vat_rate) : (parseAmount(row.vat_rate) || 19),
             );
           }
         }
@@ -689,8 +696,86 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
   const removeRow = (rowId: string) => {
     setFormRows(rows => rows.filter(r => r.id !== rowId));
+    setRowLineSelections(prev => {
+      const next = { ...prev };
+      delete next[rowId];
+      return next;
+    });
     if (expandedRowId === rowId) setExpandedRowId(null);
   };
+
+  /**
+   * Apply a set of selected invoice line-item indices to a booking row:
+   * sets amount = sum of selected items, and updates description if the
+   * user has not customised it (still equal to the auto-fill default).
+   */
+  const applySelectionToRow = useCallback((rowId: string, indices: number[], items: any[]) => {
+    setFormRows(rows => rows.map(r => {
+      if (r.id !== rowId) return r;
+      const sum = indices.reduce((s, idx) => {
+        const it = items[idx];
+        const amt = typeof it?.amount === "number" ? it.amount : parseFloat(it?.amount) || 0;
+        return s + amt;
+      }, 0);
+      const patch: Partial<BookingRowData> = {
+        amount: sum > 0 ? sum.toFixed(2) : r.amount,
+      };
+      // Only auto-update description if it still looks like the default vendor+invoice text
+      if (indices.length > 0) {
+        const defaultDesc = [
+          (invoiceDetail as any)?.vendor_name,
+          (invoiceDetail as any)?.invoice_number,
+        ].filter(Boolean).join(" ").trim();
+        const looksDefault = !r.description.trim() || r.description.trim() === defaultDesc;
+        if (looksDefault) {
+          const labels = indices
+            .map(idx => String(items[idx]?.description ?? "").trim())
+            .filter(Boolean);
+          if (labels.length > 0) {
+            const joined = labels.join(", ");
+            patch.description = joined.length > 80 ? joined.slice(0, 77) + "…" : joined;
+          }
+        }
+      }
+      return { ...r, ...patch } as BookingRowData;
+    }));
+  }, [invoiceDetail]);
+
+  const toggleLineItemForActiveRow = useCallback((index: number, items: any[]) => {
+    if (!expandedRowId) {
+      toast.info("Bitte zuerst eine Buchung links aufklappen");
+      return;
+    }
+    const rowId = expandedRowId;
+    setRowLineSelections(prev => {
+      const current = prev[rowId] || [];
+      const next = current.includes(index)
+        ? current.filter(i => i !== index)
+        : [...current, index];
+      const updated = { ...prev, [rowId]: next };
+      // Apply to booking row in next tick (state already prepared)
+      queueMicrotask(() => applySelectionToRow(rowId, next, items));
+      return updated;
+    });
+  }, [expandedRowId, applySelectionToRow]);
+
+  const createNewBookingFromSelection = useCallback((items: any[]) => {
+    if (!expandedRowId) return;
+    const sourceSelection = rowLineSelections[expandedRowId] || [];
+    if (sourceSelection.length === 0) return;
+    // Take indices NOT yet selected for the next row
+    const usedAnywhere = new Set<number>();
+    Object.values(rowLineSelections).forEach(arr => arr.forEach(i => usedAnywhere.add(i)));
+    const remaining = items.map((_, i) => i).filter(i => !usedAnywhere.has(i));
+    const newRow = createDefaultRow({ amount: "0.00" });
+    setFormRows(rows => [...rows, newRow]);
+    setExpandedRowId(newRow.id);
+    if (remaining.length > 0) {
+      setRowLineSelections(prev => ({ ...prev, [newRow.id]: [] }));
+      // user picks from remaining — no auto-selection
+    }
+  }, [expandedRowId, rowLineSelections]);
+
 
   const focusFieldByName = useCallback((nextField: string) => {
     const el = fieldRefs.current[nextField];
@@ -751,10 +836,10 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
     setBookingSingle(rowId);
     try {
-      const amount = parseFloat(row.amount) || 0;
-      const vatRate = parseFloat(row.vat_rate) || 0;
-      const vatAmount = parseFloat(row.vat_amount) || 0;
-      const amount35a = row.is_35a_relevant && row.amount_35a ? parseFloat(row.amount_35a) : null;
+      const amount = parseAmount(row.amount) || 0;
+      const vatRate = parseAmount(row.vat_rate) || 0;
+      const vatAmount = parseAmount(row.vat_amount) || 0;
+      const amount35a = row.is_35a_relevant && row.amount_35a ? parseAmount(row.amount_35a) : null;
       const totalParts = formRows.length;
       const partIndex = formRows.findIndex(r => r.id === rowId) + 1;
 
@@ -832,8 +917,8 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
         const fuelUnit = row.fuel_type === "oil" ? "l"
           : row.fuel_type === "pellets" ? "kg"
           : "kWh";
-        const quantity = parseFloat(row.fuel_quantity) || 0;
-        const totalPrice = parseFloat(row.fuel_total_price) || 0;
+        const quantity = parseAmount(row.fuel_quantity) || 0;
+        const totalPrice = parseAmount(row.fuel_total_price) || 0;
         const unitPrice = quantity > 0 ? totalPrice / quantity : 0;
 
         // Find matching billing period
@@ -849,9 +934,9 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
           : row.fuel_type === "gas" ? "Gas"
           : "Fernwärme";
 
-        const co2Emissions = parseFloat(row.fuel_co2_emissions_kg);
-        const co2Tax = parseFloat(row.fuel_co2_tax_amount);
-        const energyKwh = parseFloat(row.fuel_energy_content_kwh);
+        const co2Emissions = parseAmount(row.fuel_co2_emissions_kg);
+        const co2Tax = parseAmount(row.fuel_co2_tax_amount);
+        const energyKwh = parseAmount(row.fuel_energy_content_kwh);
 
         await supabase.from("fuel_inventory").insert({
           building_id: buildingId,
@@ -1151,7 +1236,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
   // Sum validation for split bookings
   const currentTotal = useMemo(() => {
-    return formRows.reduce((sum, row) => sum + (parseFloat(row.amount) || 0), 0);
+    return formRows.reduce((sum, row) => sum + (parseAmount(row.amount) || 0), 0);
   }, [formRows]);
 
   const isAmountMatching = currentTxn ? Math.abs(currentTotal - Math.abs(currentTxn.amount)) < 0.01 : false;
@@ -1162,6 +1247,7 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
 
   useEffect(() => { setCurrentIndex(initialIndex ?? 0); setBookedCount(0); }, [open, initialIndex]);
   useEffect(() => { setZuordnungOpen(false); }, [currentTxn?.id]);
+  useEffect(() => { setRowLineSelections({}); setInvoiceViewTab("pdf"); }, [currentTxn?.id]);
 
   const sourceType = useMemo(() => {
     if (!currentTxn) return "none";
@@ -1483,13 +1569,60 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
                             )}
                           </div>
                         </div>
-                        {pdfUrl ? (
-                          <iframe src={pdfUrl} className="w-full border-0 flex-1 min-h-[300px]" title="Rechnung PDF" />
-                        ) : (
-                          <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">
-                            PDF wird geladen...
-                          </div>
-                        )}
+                        {(() => {
+                          const lineItems: any[] = Array.isArray(invoiceDetail?.line_items) ? invoiceDetail.line_items : [];
+                          const hasItems = lineItems.length > 0;
+                          const activeSel = expandedRowId ? (rowLineSelections[expandedRowId] || []) : [];
+                          // Map item-index → row number where it is used (for badges in other rows)
+                          const usedInOtherRows: Record<number, number> = {};
+                          Object.entries(rowLineSelections).forEach(([rid, idxs]) => {
+                            if (rid === expandedRowId) return;
+                            const rowNum = formRows.findIndex(r => r.id === rid) + 1;
+                            if (rowNum < 1) return;
+                            idxs.forEach(i => { if (!(i in usedInOtherRows)) usedInOtherRows[i] = rowNum; });
+                          });
+                          return (
+                            <Tabs
+                              value={invoiceViewTab}
+                              onValueChange={(v) => setInvoiceViewTab(v as "pdf" | "items")}
+                              className="flex-1 flex flex-col min-h-0"
+                            >
+                              <TabsList className="mx-4 mt-2 self-start h-8">
+                                <TabsTrigger value="pdf" className="text-xs px-3 h-6">
+                                  <FileText className="h-3.5 w-3.5 mr-1" /> PDF
+                                </TabsTrigger>
+                                <TabsTrigger
+                                  value="items"
+                                  disabled={!hasItems}
+                                  className="text-xs px-3 h-6"
+                                  title={hasItems ? "Positionen klicken zum Splitten" : "Keine OCR-Positionen vorhanden"}
+                                >
+                                  <PackagePlus className="h-3.5 w-3.5 mr-1" />
+                                  Positionen{hasItems ? ` (${lineItems.length})` : ""}
+                                </TabsTrigger>
+                              </TabsList>
+                              <TabsContent value="pdf" className="flex-1 m-0 mt-2 min-h-0 flex flex-col">
+                                {pdfUrl ? (
+                                  <iframe src={pdfUrl} className="w-full border-0 flex-1 min-h-[300px]" title="Rechnung PDF" />
+                                ) : (
+                                  <div className="flex items-center justify-center py-8 text-muted-foreground text-sm">
+                                    PDF wird geladen...
+                                  </div>
+                                )}
+                              </TabsContent>
+                              <TabsContent value="items" className="flex-1 m-0 mt-2 min-h-0 flex flex-col">
+                                <InvoiceLineItemsView
+                                  invoice={invoiceDetail}
+                                  selectedIndices={activeSel}
+                                  usedInOtherRows={usedInOtherRows}
+                                  hasActiveRow={!!expandedRowId}
+                                  onToggleItem={(idx) => toggleLineItemForActiveRow(idx, lineItems)}
+                                  onCreateNewBookingFromSelection={() => createNewBookingFromSelection(lineItems)}
+                                />
+                              </TabsContent>
+                            </Tabs>
+                          );
+                        })()}
                       </div>
                     ) : templateDetail ? (
                       <div className="p-4 space-y-3">
@@ -1680,8 +1813,8 @@ function BookingRowCard({
 
   // Auto-calculate VAT when amount/rate changes
   useEffect(() => {
-    const amount = parseFloat(row.amount) || 0;
-    const vatRate = parseFloat(row.vat_rate) || 0;
+    const amount = parseAmount(row.amount) || 0;
+    const vatRate = parseAmount(row.vat_rate) || 0;
     if (vatRate > 0 && amount > 0) {
       const vatAmount = amount - (amount / (1 + vatRate / 100));
       onUpdateField("vat_amount", vatAmount.toFixed(2));
@@ -1735,7 +1868,7 @@ function BookingRowCard({
                 Prüfen
               </button>
               <span className={cn("text-sm font-bold", row.booking_type === "income" ? "text-green-600" : "text-destructive")}>
-                {row.booking_type === "income" ? "+" : "−"}{formatCurrency(parseFloat(row.amount) || 0)}
+                {row.booking_type === "income" ? "+" : "−"}{formatCurrency(parseAmount(row.amount) || 0)}
               </span>
               {onRemove && !row.booked && (
                 <button
@@ -1840,8 +1973,8 @@ function BookingRowCard({
                 className={cn("h-8 w-8 shrink-0 text-sm font-bold", row.booking_type === "income" && "bg-green-600 hover:bg-green-700 text-white")}
                 onClick={() => onUpdateField("booking_type", "income")}>+</Button>
             </div>
-            {parseFloat(row.vat_amount) > 0 && row.vat_rate && (
-              <p className="text-xs text-muted-foreground">davon MwSt: {formatCurrency(parseFloat(row.vat_amount))} ({row.vat_rate}%)</p>
+            {parseAmount(row.vat_amount) > 0 && row.vat_rate && (
+              <p className="text-xs text-muted-foreground">davon MwSt: {formatCurrency(parseAmount(row.vat_amount))} ({row.vat_rate}%)</p>
             )}
             {(() => {
               const ca = accounts.find((a: any) => a.id === row.counter_account_id);
@@ -2019,12 +2152,12 @@ function BookingRowCard({
               lineItemsDetail={Array.isArray(row.line_items_detail) ? (row.line_items_detail as any) : []}
               onLineItemsDetailChange={(items) => onUpdateField("line_items_detail", JSON.stringify(items))}
               onAmount35aChange={(val) => onUpdateField("amount_35a", val)}
-              defaultVatRate={parseFloat(row.vat_rate) || 0}
+              defaultVatRate={parseAmount(row.vat_rate) || 0}
               defaultType35a={(() => {
                 const acc: any = (accounts as any[]).find(a => a.id === row.account_id) || (accounts as any[]).find(a => a.id === row.counter_account_id);
                 return (acc?.settlement_35a_type === "handwerker" ? "handwerker" : "dienste");
               })()}
-              currentAmount35a={parseFloat(row.amount_35a) || 0}
+              currentAmount35a={parseAmount(row.amount_35a) || 0}
               toggleIdSuffix={String(index)}
             />
           </div>
