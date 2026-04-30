@@ -7,8 +7,9 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Building2, User, Sparkles, FolderOpen, Link2, Plus, X, GitBranch } from "lucide-react";
+import { Building2, User, Sparkles, FolderOpen, Link2, Plus, X, GitBranch, Vote } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { useCreateCase } from "@/hooks/useCases";
 import { toast } from "@/hooks/use-toast";
 
@@ -22,10 +23,14 @@ interface AssignEmailDialogProps {
     contactId: string | null;
     caseId: string | null;
     archive: boolean;
+    isEtvRelevant: boolean;
+    etvMeetingId: string | null;
   }) => void;
   prefilledBuildingId?: string | null;
   prefilledContactId?: string | null;
   prefilledCaseId?: string | null;
+  prefilledIsEtvRelevant?: boolean;
+  prefilledEtvMeetingId?: string | null;
 }
 
 export const AssignEmailDialog = ({
