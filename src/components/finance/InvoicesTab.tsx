@@ -250,6 +250,7 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
                     <TableHead className="text-right">Brutto</TableHead>
                     <TableHead>Bezahlung</TableHead>
                     <TableHead>Prüfung</TableHead>
+                    <TableHead className="w-[60px]">OCR</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -314,6 +315,34 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
                           >
                             {isVerified ? "Geprüft" : "Offen"}
                           </Badge>
+                        </TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          {inv.ocr_status === "processing" && (
+                            <Loader2 className="h-4 w-4 animate-spin text-primary" aria-label="OCR läuft" />
+                          )}
+                          {(inv.ocr_status === "error" || inv.ocr_status === "pending") && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-amber-700 hover:text-amber-800 hover:bg-amber-50"
+                              disabled={retryingId === inv.id}
+                              onClick={() => retryOcr(inv.id)}
+                              aria-label="OCR neu starten"
+                              title={inv.ocr_error || "OCR neu starten"}
+                            >
+                              {retryingId === inv.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <AlertTriangle className="h-3.5 w-3.5 mr-1" />
+                                  <RefreshCw className="h-3.5 w-3.5" />
+                                </>
+                              )}
+                            </Button>
+                          )}
+                          {inv.ocr_status === "done" && (
+                            <Sparkles className="h-3.5 w-3.5 text-green-600" aria-label="OCR erfolgreich" />
+                          )}
                         </TableCell>
                       </TableRow>
                     );
