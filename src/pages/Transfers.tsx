@@ -158,11 +158,11 @@ export function Transfers() {
         await new Promise((resolve) => setTimeout(resolve, 600));
       }
 
-      toast[failed ? "warning" : "success"](
-        failed
-          ? `${stuckOcrInvoices.length - failed} OCR-Jobs neu gestartet, ${failed} fehlgeschlagen`
-          : `${stuckOcrInvoices.length} OCR-Jobs neu gestartet`
-      );
+      if (failed) {
+        toast.warning(`${stuckOcrInvoices.length - failed} OCR-Jobs neu gestartet, ${failed} fehlgeschlagen`);
+      } else {
+        toast.success(`${stuckOcrInvoices.length} OCR-Jobs neu gestartet`);
+      }
       refetch();
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
     } finally {
