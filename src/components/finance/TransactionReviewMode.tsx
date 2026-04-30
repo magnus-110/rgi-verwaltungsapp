@@ -83,7 +83,11 @@ const formatCurrency = (amount: number | null) =>
 const formatMonthYearRef = (dateStr: string | null | undefined): string => {
   if (!dateStr) return "";
   try {
-    return format(new Date(dateStr), "LLLL yyyy", { locale: de });
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "";
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const yy = String(d.getFullYear()).slice(-2);
+    return `${mm}/${yy}`;
   } catch {
     return "";
   }
