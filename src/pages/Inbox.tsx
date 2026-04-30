@@ -273,6 +273,23 @@ export const Inbox = () => {
 
   const selectedEmailMeta = filteredEmails.find(e => e.id === selectedEmailId) || emails.find(e => e.id === selectedEmailId);
 
+  // Reset multi-selection when folder/filter/search changes
+  useEffect(() => {
+    setSelectedEmailIds(new Set());
+  }, [selectedFolderId, filterCategory, filterBuildingId, filterContactId, filterAssignedTo, searchTerm]);
+
+  // Drop selections that are no longer visible
+  useEffect(() => {
+    if (selectedEmailIds.size === 0) return;
+    const visible = new Set(filteredEmails.map(e => e.id));
+    let changed = false;
+    const next = new Set<string>();
+    selectedEmailIds.forEach(id => {
+      if (visible.has(id)) next.add(id); else changed = true;
+    });
+    if (changed) setSelectedEmailIds(next);
+  }, [filteredEmails, selectedEmailIds]);
+
   // Lazy-Load Email-Body nur für die selektierte E-Mail
   const { data: selectedEmailBody } = useQuery({
     queryKey: ["email-body", selectedEmailId],
