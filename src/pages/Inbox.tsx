@@ -808,16 +808,6 @@ export const Inbox = () => {
                 Alle ({emails.length})
               </button>
               <button
-                onClick={() => setFilterCategory(filterCategory === "followup" ? "all" : "followup")}
-                className={cn(
-                  "px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0 flex items-center gap-1",
-                  filterCategory === "followup" ? "bg-orange-500 text-white" : "hover:bg-muted text-muted-foreground"
-                )}
-              >
-                <Flag className="h-3 w-3" />
-                Nachverfolgung ({followUpCount})
-              </button>
-              <button
                 onClick={() => setFilterCategory(filterCategory === "unread" ? "all" : "unread")}
                 className={cn(
                   "px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0 flex items-center gap-1 font-medium",
@@ -826,6 +816,16 @@ export const Inbox = () => {
               >
                 <span className="h-2 w-2 rounded-full bg-current" />
                 Ungelesen ({unreadCount})
+              </button>
+              <button
+                onClick={() => setFilterCategory(filterCategory === "followup" ? "all" : "followup")}
+                className={cn(
+                  "px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0 flex items-center gap-1",
+                  filterCategory === "followup" ? "bg-orange-500 text-white" : "hover:bg-muted text-muted-foreground"
+                )}
+              >
+                <Flag className="h-3 w-3" />
+                Nachverfolgung ({followUpCount})
               </button>
               {ALL_CATEGORIES.map(cat => (
                 <button
