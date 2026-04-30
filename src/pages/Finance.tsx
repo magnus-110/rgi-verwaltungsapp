@@ -194,7 +194,7 @@ export const Finance = () => {
             />
           )}
           {activeSubTab === "bookings" && (
-            <BookingsTab sharedBuildingId={selectedBuildingId} />
+            <BookingsTab sharedBuildingId={selectedBuildingId} sharedPeriodId={selectedPeriodId} />
           )}
           {activeSubTab === "abgleich" && (
             <BankReconciliationTab
