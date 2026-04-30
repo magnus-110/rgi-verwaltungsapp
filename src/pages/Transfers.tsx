@@ -412,7 +412,7 @@ export function Transfers() {
                           <Sparkles className="h-3 w-3" /> Fertig
                         </Badge>
                       )}
-                      {((inv as any).ocr_status === "pending" || (inv as any).ocr_status === "error") && (
+                      {(!(inv as any).ocr_status || (inv as any).ocr_status === "pending" || (inv as any).ocr_status === "error") && (
                         <Button
                           variant="outline"
                           size="sm"
