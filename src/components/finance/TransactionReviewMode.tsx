@@ -27,6 +27,7 @@ import { VendorHistorySection } from "./VendorHistorySection";
 import { AccountSearchSelect } from "./AccountSearchSelect";
 import { Section35aEditor } from "./Section35aEditor";
 import { build35aDetailFromSuggestion } from "./build35aDetail";
+import { buildTemplateBookingText } from "./lib/templateBookingText";
 
 interface TransactionReviewModeProps {
   open: boolean;
