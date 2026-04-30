@@ -137,7 +137,21 @@ export function TransactionReviewMode({ open, onOpenChange, transactions, buildi
   const [undoStack, setUndoStack] = useState<UndoEntry[]>([]);
   const [undoing, setUndoing] = useState(false);
 
-  const currentTxn = transactions[currentIndex];
+  // Local override for manual re-assignments (matched_template_id / matched_invoice_id)
+  // currentTxn comes from a parent snapshot and is not refetched, so we track overrides here.
+  const [assignmentOverrides, setAssignmentOverrides] = useState<Record<string, { templateId?: string | null; invoiceId?: string | null }>>({});
+
+  const rawTxn = transactions[currentIndex];
+  const currentTxn = useMemo(() => {
+    if (!rawTxn) return rawTxn;
+    const ovr = assignmentOverrides[rawTxn.id];
+    if (!ovr) return rawTxn;
+    return {
+      ...rawTxn,
+      matched_template_id: ovr.templateId !== undefined ? ovr.templateId : rawTxn.matched_template_id,
+      matched_invoice_id: ovr.invoiceId !== undefined ? ovr.invoiceId : rawTxn.matched_invoice_id,
+    };
+  }, [rawTxn, assignmentOverrides]);
 
   const { data: accounts = [] } = useQuery({
     queryKey: ["chart-of-accounts-review", buildingId],
