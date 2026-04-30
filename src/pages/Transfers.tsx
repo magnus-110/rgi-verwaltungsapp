@@ -242,7 +242,13 @@ export function Transfers() {
   };
 
   const openReviewForInvoice = (inv: any) => {
-    if (direction === "incoming") return; // kein Prüfmodus für Belege
+    if (direction === "incoming") {
+      // Belege: Detailansicht (Einzelbeleg) zum Bearbeiten / Löschen
+      setReviewInvoices([inv]);
+      setReviewIndex(0);
+      setReviewMode(true);
+      return;
+    }
     const isPaid = inv.status === "paid";
     if (isPaid) { setReviewInvoices([inv]); setReviewIndex(0); }
     else {
@@ -552,6 +558,7 @@ export function Transfers() {
           retryingOcr={retryingOcr}
           onMatch={(inv) => setMatchInvoice(inv)}
           onRefetch={refetch}
+          onOpen={(inv) => openReviewForInvoice(inv)}
         />
       )}
 
@@ -568,7 +575,7 @@ export function Transfers() {
 // Incoming list (Belege für Zahlungseingänge)
 // ============================================================
 function IncomingList({
-  invoices, buildings, formatCurrency, retryOcr, retryingOcr, onMatch, onRefetch,
+  invoices, buildings, formatCurrency, retryOcr, retryingOcr, onMatch, onRefetch, onOpen,
 }: {
   invoices: any[];
   buildings: any[];
@@ -577,6 +584,7 @@ function IncomingList({
   retryingOcr: string | null;
   onMatch: (inv: any) => void;
   onRefetch: () => void;
+  onOpen: (inv: any) => void;
 }) {
   const renderStatus = (inv: any) => {
     const tx = inv._linked_tx;
@@ -620,7 +628,11 @@ function IncomingList({
         </TableHeader>
         <TableBody>
           {invoices.map((inv) => (
-            <TableRow key={inv.id} className="hover:bg-muted/50">
+            <TableRow
+              key={inv.id}
+              className="hover:bg-muted/50 cursor-pointer"
+              onClick={() => onOpen(inv)}
+            >
               <TableCell className="text-sm">
                 {inv.invoice_date
                   ? format(new Date(inv.invoice_date), "dd.MM.yyyy")
@@ -641,7 +653,7 @@ function IncomingList({
               <TableCell className="text-muted-foreground text-sm">
                 {inv.buildings?.name || "–"}
               </TableCell>
-              <TableCell>
+              <TableCell onClick={(e) => e.stopPropagation()}>
                 {inv.ocr_status === "processing" && (
                   <Badge variant="outline" className="text-xs gap-1 text-primary border-primary/30">
                     <Loader2 className="h-3 w-3 animate-spin" /> Läuft
@@ -665,7 +677,7 @@ function IncomingList({
                 )}
               </TableCell>
               <TableCell>{renderStatus(inv)}</TableCell>
-              <TableCell className="text-right">
+              <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                 {!(inv._linked_tx && inv._linked_tx.match_status === "matched") && (
                   <Button
                     variant="outline" size="sm" className="h-8 gap-1.5"
