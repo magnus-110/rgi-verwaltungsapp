@@ -1272,18 +1272,18 @@ export const Inbox = () => {
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => togglePin(selectedEmail.id, !!selectedEmail.is_pinned)} title={selectedEmail.is_pinned ? "Anpinnung entfernen" : "Oben anpinnen"}>
                               {selectedEmail.is_pinned ? <PinOff className="h-4 w-4 text-primary" /> : <Pin className="h-4 w-4" />}
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openArchiveDialog(selectedEmail.id)} title="Zuordnen">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openArchiveDialog(selectedEmail.id)} title="Zuordnen / Archivieren">
                               <Link2 className="h-4 w-4" />
                             </Button>
-                            {!selectedEmail.is_archived && (
+                            <EtvRelevancePopover email={selectedEmail} />
+                            {selectedEmail.is_archived && (
                               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={async () => {
-                                await supabase.from("emails").update({ is_archived: true }).eq("id", selectedEmail.id);
-                                setSelectedEmailId(null);
+                                await supabase.from("emails").update({ is_archived: false }).eq("id", selectedEmail.id);
                                 queryClient.invalidateQueries({ queryKey: ["emails"] });
                                 queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
-                                toast.success("E-Mail archiviert");
-                              }} title="Archivieren">
-                                <Archive className="h-4 w-4" />
+                                toast.success("E-Mail aus Archiv entfernt");
+                              }} title="Aus Archiv entfernen">
+                                <ArchiveRestore className="h-4 w-4" />
                               </Button>
                             )}
                             <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => deleteEmail(selectedEmail.id)}>
