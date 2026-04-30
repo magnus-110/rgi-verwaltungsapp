@@ -3507,6 +3507,7 @@ export type Database = {
           created_at: string
           date: string | null
           deleted_at: string | null
+          etv_meeting_id: string | null
           folder_id: string | null
           from_address: string | null
           from_name: string | null
@@ -3516,6 +3517,7 @@ export type Database = {
           in_reply_to: string | null
           is_archived: boolean
           is_draft: boolean
+          is_etv_relevant: boolean
           is_pinned: boolean
           is_read: boolean
           is_starred: boolean
@@ -3548,6 +3550,7 @@ export type Database = {
           created_at?: string
           date?: string | null
           deleted_at?: string | null
+          etv_meeting_id?: string | null
           folder_id?: string | null
           from_address?: string | null
           from_name?: string | null
@@ -3557,6 +3560,7 @@ export type Database = {
           in_reply_to?: string | null
           is_archived?: boolean
           is_draft?: boolean
+          is_etv_relevant?: boolean
           is_pinned?: boolean
           is_read?: boolean
           is_starred?: boolean
@@ -3589,6 +3593,7 @@ export type Database = {
           created_at?: string
           date?: string | null
           deleted_at?: string | null
+          etv_meeting_id?: string | null
           folder_id?: string | null
           from_address?: string | null
           from_name?: string | null
@@ -3598,6 +3603,7 @@ export type Database = {
           in_reply_to?: string | null
           is_archived?: boolean
           is_draft?: boolean
+          is_etv_relevant?: boolean
           is_pinned?: boolean
           is_read?: boolean
           is_starred?: boolean
@@ -3652,6 +3658,13 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emails_etv_meeting_id_fkey"
+            columns: ["etv_meeting_id"]
+            isOneToOne: false
+            referencedRelation: "etv_meetings"
             referencedColumns: ["id"]
           },
           {
