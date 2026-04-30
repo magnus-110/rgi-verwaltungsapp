@@ -2635,6 +2635,12 @@ function AssignmentTabContent({
 
   const getTemplateMatchReason = useCallback((tpl: any): string | null => {
     if (templateMatches.has(tpl.id)) return null;
+    // Time-based validity check: skip templates that don't apply to this txn date
+    const txnDateStr = (currentTxn?.booking_date || "").slice(0, 10);
+    if (txnDateStr) {
+      if (tpl.valid_from && txnDateStr < String(tpl.valid_from).slice(0, 10)) return null;
+      if (tpl.valid_to && txnDateStr > String(tpl.valid_to).slice(0, 10)) return null;
+    }
     const reasons: string[] = [];
     if (txnIban && tpl.vendor_iban && txnIban.replace(/\s/g, "").toUpperCase() === tpl.vendor_iban.replace(/\s/g, "").toUpperCase()) {
       reasons.push("IBAN stimmt überein");
@@ -2653,7 +2659,7 @@ function AssignmentTabContent({
       }
     }
     return reasons.length > 0 ? reasons.join(" · ") : null;
-  }, [txnIban, txnName, txnAmount, templateMatches]);
+  }, [txnIban, txnName, txnAmount, templateMatches, currentTxn?.booking_date]);
 
   // Sort: AI matches first, then smart matches, then rest
   const filteredInvoices = useMemo(() => {
