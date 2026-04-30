@@ -66,7 +66,7 @@ export function Transfers() {
   const unpaidInvoices = useMemo(() => invoices.filter(i => i.status !== "paid"), [invoices]);
   const unreviewedInvoices = useMemo(() => invoices.filter(i => i.status !== "paid" && i.review_status !== "verified"), [invoices]);
   const stuckOcrInvoices = useMemo(
-    () => invoices.filter((i: any) => i.ocr_status === "pending" || i.ocr_status === "error"),
+    () => invoices.filter((i: any) => !i.ocr_status || i.ocr_status === "pending" || i.ocr_status === "error"),
     [invoices]
   );
 
@@ -310,7 +310,7 @@ export function Transfers() {
                     <Sparkles className="h-3 w-3" /> OCR fertig
                   </span>
                 )}
-                {((inv as any).ocr_status === "pending" || (inv as any).ocr_status === "error") && (
+                {(!(inv as any).ocr_status || (inv as any).ocr_status === "pending" || (inv as any).ocr_status === "error") && (
                   <span
                     role="button"
                     tabIndex={0}
