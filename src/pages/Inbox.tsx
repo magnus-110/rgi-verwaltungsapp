@@ -436,11 +436,15 @@ export const Inbox = () => {
     contactId: string | null;
     caseId: string | null;
     archive: boolean;
+    isEtvRelevant: boolean;
+    etvMeetingId: string | null;
   }) => {
     const update: any = {
       building_id: params.buildingId,
       contact_id: params.contactId,
       case_id: params.caseId,
+      is_etv_relevant: params.isEtvRelevant,
+      etv_meeting_id: params.etvMeetingId,
     };
     if (params.archive) update.is_archived = true;
     await supabase.from("emails").update(update).eq("id", params.emailId);
