@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Mail, Search, Flag, Archive, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip, ChevronDown, ChevronUp, PanelLeftClose, PanelLeftOpen, UserPlus, UserCheck, Undo2, Link2, Sparkles, Menu, ArrowLeft, Pin, PinOff } from "lucide-react";
+import { Mail, Search, Flag, Archive, ArchiveRestore, Trash2, Inbox as InboxIcon, Send, FileEdit, ShieldAlert, Plus, RefreshCw, Settings, Loader2, MailOpen, Reply, Forward, Building2, User, Paperclip, ChevronDown, ChevronUp, PanelLeftClose, PanelLeftOpen, UserPlus, UserCheck, Undo2, Link2, Sparkles, Menu, ArrowLeft, Pin, PinOff, Vote } from "lucide-react";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -14,11 +14,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 import { EmailAttachments } from "@/components/email/EmailAttachments";
 import { AssignEmailDialog } from "@/components/email/AssignEmailDialog";
+import { EtvRelevancePopover } from "@/components/email/EtvRelevancePopover";
 import { EmailHtmlBody } from "@/components/email/EmailHtmlBody";
 import { EmailSettingsSection } from "@/components/email/EmailSettingsSection";
 import { useAuth } from "@/hooks/useAuth";
@@ -205,7 +208,7 @@ export const Inbox = () => {
     queryFn: async () => {
       let query = supabase
         .from("emails")
-        .select("id, account_id, folder_id, subject, from_name, from_address, to_addresses, cc_addresses, date, is_read, is_starred, is_pinned, pinned_at, is_archived, has_attachments, ai_category, ai_priority, ai_summary, building_id, contact_id, assigned_to, deleted_at, case_id, message_id")
+        .select("id, account_id, folder_id, subject, from_name, from_address, to_addresses, cc_addresses, date, is_read, is_starred, is_pinned, pinned_at, is_archived, has_attachments, ai_category, ai_priority, ai_summary, building_id, contact_id, assigned_to, deleted_at, case_id, message_id, is_etv_relevant, etv_meeting_id")
         .order("date", { ascending: false })
         .limit(100);
 
@@ -1096,6 +1099,7 @@ export const Inbox = () => {
                         {email.has_attachments && <Paperclip className="h-3 w-3 text-muted-foreground" />}
                         {email.is_starred && <Flag className="h-3 w-3 text-orange-500 fill-orange-500" />}
                         {email.is_pinned && <Pin className="h-3 w-3 text-primary fill-primary" />}
+                        {email.is_etv_relevant && <Vote className="h-3 w-3 text-primary" />}
                         <span className={cn("text-[11px]", !email.is_read ? "text-foreground font-semibold" : "text-muted-foreground")}>
                           {email.date ? new Date(email.date).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }) : ""}
                         </span>
@@ -1270,18 +1274,18 @@ export const Inbox = () => {
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => togglePin(selectedEmail.id, !!selectedEmail.is_pinned)} title={selectedEmail.is_pinned ? "Anpinnung entfernen" : "Oben anpinnen"}>
                               {selectedEmail.is_pinned ? <PinOff className="h-4 w-4 text-primary" /> : <Pin className="h-4 w-4" />}
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openArchiveDialog(selectedEmail.id)} title="Zuordnen">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openArchiveDialog(selectedEmail.id)} title="Zuordnen / Archivieren">
                               <Link2 className="h-4 w-4" />
                             </Button>
-                            {!selectedEmail.is_archived && (
+                            <EtvRelevancePopover email={selectedEmail} />
+                            {selectedEmail.is_archived && (
                               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={async () => {
-                                await supabase.from("emails").update({ is_archived: true }).eq("id", selectedEmail.id);
-                                setSelectedEmailId(null);
+                                await supabase.from("emails").update({ is_archived: false }).eq("id", selectedEmail.id);
                                 queryClient.invalidateQueries({ queryKey: ["emails"] });
                                 queryClient.invalidateQueries({ queryKey: ["email-folder-counts"] });
-                                toast.success("E-Mail archiviert");
-                              }} title="Archivieren">
-                                <Archive className="h-4 w-4" />
+                                toast.success("E-Mail aus Archiv entfernt");
+                              }} title="Aus Archiv entfernen">
+                                <ArchiveRestore className="h-4 w-4" />
                               </Button>
                             )}
                             <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => deleteEmail(selectedEmail.id)}>

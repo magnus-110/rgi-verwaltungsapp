@@ -15,6 +15,7 @@ import { AgendaItemEditor } from "./AgendaItemEditor";
 import { MeetingInvitationPdf } from "./MeetingInvitationPdf";
 import { MeetingLiveSession } from "./MeetingLiveSession";
 import { MeetingProtocol } from "./MeetingProtocol";
+import { EtvRelevantEmailsList } from "./EtvRelevantEmailsList";
 import { Save, ChevronDown, ChevronUp, CheckCircle2, Globe } from "lucide-react";
 
 interface MeetingEditorProps {
@@ -246,6 +247,11 @@ export const MeetingEditor = ({ meetingId, onSaved, onCancel }: MeetingEditorPro
               </CollapsibleContent>
             </Card>
           </Collapsible>
+
+          {/* ETV-relevante E-Mails */}
+          {savedMeetingId && buildingId && (
+            <EtvRelevantEmailsList meetingId={savedMeetingId} buildingId={buildingId} />
+          )}
 
           {/* Einladung */}
           <Collapsible open={openSteps[2]} onOpenChange={() => toggleStep(2)}>

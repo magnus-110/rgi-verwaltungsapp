@@ -1,67 +1,71 @@
 ## Ziel
 
-Die Route **„Überweisungen"** wird zu **„Zahlungen"** umbenannt und in zwei Tabs gegliedert — analog zur Rechnungsliste-Logik:
+1. **Archive-Button entfernen** — Archivierung läuft nur noch über den Zuordnen-Dialog (Checkbox "E-Mail zusätzlich archivieren").
+2. **Entarchivieren** ergänzen — wenn eine E-Mail im Archiv-Ordner ist, gibt es einen Button "Aus Archiv entfernen".
+3. **"Relevant für Eigentümerversammlung"-Button** in der Detailansicht — nur klickbar, wenn der E-Mail eine Liegenschaft zugeordnet ist. Optional kann ein konkretes anstehendes Meeting gewählt werden.
+4. Markierte E-Mails im **MeetingEditor** (also direkt in der Versammlungs-Bearbeitung) als Sektion **"Eingegangene E-Mails zur Versammlung"** anzeigen — kein neuer Gebäude-Tab, keine Case-Verknüpfung.
 
-- **Ausgehend** (Default) — alle Eingangsrechnungen, die wir bezahlen müssen (`invoice_type ≠ credit_note`)
-- **Eingehend** — alle Belege für Zahlungseingänge (`invoice_type = credit_note`), z. B. Versicherungs-Erstattungen
+---
 
-Dazu die 404-Bugs fixen, damit importierte Belege nicht mehr „verschwinden".
+## Schritt 1 — Datenbank
 
-## Änderungen
+Migration mit zwei neuen Spalten in `emails`:
+- `is_etv_relevant boolean NOT NULL DEFAULT false`
+- `etv_meeting_id uuid NULL REFERENCES etv_meetings(id) ON DELETE SET NULL`
 
-### 1. Route + Navigation umbenennen
-- **Neue Route** `/zahlungen` ergänzen (zeigt `Payments`-Komponente).
-- **Alte Route** `/ueberweisungen` per `<Navigate to="/zahlungen" replace />` weiterleiten — keine Broken Links für Bookmarks.
-- **Sidebar** (`AdminSidebar.tsx`): Label `Überweisungen` → `Zahlungen`, URL → `/zahlungen`. Icon bleibt `CreditCard`.
-- **MobileHeader** (`MobileHeader.tsx`): gleiches Update.
-- **Dashboard** Quick-Link auf `/zahlungen` aktualisieren.
+Plus partieller Index `(building_id, etv_meeting_id) WHERE is_etv_relevant = true`.
 
-### 2. Seite umbauen (`src/pages/Transfers.tsx` → `src/pages/Payments.tsx`)
-- Datei umbenennen, Komponente in `Payments` exportieren.
-- Oben im Header: H1 = **„Zahlungen"**.
-- Direkt darunter ein **Segmented-Tab** (`Tabs`, `variant="segment"`):
-  - **„Ausgehend"** (Default, aktiv beim ersten Aufruf)
-  - **„Eingehend"**
-- Tab-Wahl über URL-Param `?direction=outgoing|incoming` persistierbar (für Deep-Links aus Toasts).
+---
 
-### 3. Query nach Tab differenzieren
-- **Ausgehend** (bleibt wie heute): `invoices` mit `.neq("invoice_type", "credit_note")`, sortiert nach Fälligkeit, mit allen bestehenden Aktionen (Prüfmodus, Bezahlt-Markieren, OCR-Retry, Notizen).
-- **Eingehend** (neu): `invoices` mit `.eq("invoice_type", "credit_note")`, sortiert nach `created_at` desc.
-  - Spalten angepasst: **Datum · Absender · Betrag · Status (offen / zugeordnet) · Bank-Match · Aktionen**.
-  - Status-Badge:
-    - `credit_open` ohne Match → gelb **„Wartet auf Bank-Eingang"**
-    - `credit_open` mit `suggested_transaction_id` → blau **„Vorschlag prüfen"**
-    - `credit_matched` → grün **„Zugeordnet"**
-  - Aktionen: **„Bank-Eingang manuell zuordnen"** (öffnet Dialog mit positiven Bank-Transaktionen der letzten 90 Tage des passenden Gebäudes) + OCR-Retry + Notiz.
+## Schritt 2 — Inbox-UI (`src/pages/Inbox.tsx`)
 
-### 4. Mini-Dashboard oben
-Über beiden Tabs eine kleine Summenleiste:
-- **„Offen ausgehend"** (rot) = Summe unbezahlter Eingangsrechnungen
-- **„Offen eingehend"** (grün) = Summe noch nicht zugeordneter Belege
+**Toolbar in der E-Mail-Detailansicht:**
+- Den separaten Archive-Button (aktuell Zeilen ~1276–1285) **entfernen**.
+- Neuer Button **"Aus Archiv entfernen"** (Icon `ArchiveRestore`), nur sichtbar wenn `selectedEmail.is_archived === true`. Setzt `is_archived = false`.
+- Der "Zuordnen"-Button bleibt — er übernimmt das Archivieren via Dialog.
+- Neuer Button **"Für ETV markieren"** (Icon `Vote`):
+  - Disabled wenn `selectedEmail.building_id` leer (Tooltip: *"Erst eine Liegenschaft zuordnen"*).
+  - Aktiv: öffnet kleinen Popover mit:
+    - Toggle "Relevant für Eigentümerversammlung"
+    - Optional Select: anstehende Meetings dieses Gebäudes (`etv_meetings` mit `meeting_date >= today`, sortiert) — Default "Allgemein / nächste Versammlung".
+  - Speichert `is_etv_relevant` + `etv_meeting_id`. Erneutes Klicken erlaubt Änderung/Entfernen.
 
-### 5. Toast-Bug aus E-Mail-Import fixen (`EmailAttachments.tsx`)
-- Bei `asCreditNote = true`: Action-Label **„Zu Zahlungen (Eingehend)"**, Ziel `/zahlungen?direction=incoming`.
-- Bei normaler Eingangsrechnung: Label **„Zu Zahlungen"**, Ziel `/zahlungen?direction=outgoing`.
-→ Das fixt die 404-Meldung und führt direkt in den richtigen Tab.
+**Liste:**
+- Kleines Badge **"ETV"** an Listeneinträgen mit `is_etv_relevant = true`.
 
-### 6. Belege fallen nicht mehr durchs Raster
-Da der „Eingehend"-Tab **alle** `credit_note`-Einträge zeigt — egal ob Auto-Match erfolgreich war oder nicht — verschwindet kein Beleg mehr. Bei fehlgeschlagenem Match ist der Status sofort sichtbar („Wartet auf Bank-Eingang") und manuell zuordenbar.
+**Query:**
+- `select`-Liste in der Email-Hauptquery um `is_etv_relevant, etv_meeting_id` erweitern.
 
-## Files
+---
 
-- **Edit/Rename** `src/pages/Transfers.tsx` → `src/pages/Payments.tsx` (Komponente + Tabs + Eingehend-Sektion)
-- **Edit** `src/App.tsx` — neue Route `/zahlungen`, Redirect von `/ueberweisungen`, Lazy-Import auf `Payments`
-- **Edit** `src/components/AdminSidebar.tsx` — Label + URL
-- **Edit** `src/components/MobileHeader.tsx` — Label + URL
-- **Edit** `src/pages/Dashboard.tsx` — Navigationsziel
-- **Edit** `src/components/email/EmailAttachments.tsx` — Toast-Action-URL fixen
-- **Edit** `src/components/transfers/TransferReviewMode.tsx` — Header-Text „Überweisungen" → „Zahlungen"
+## Schritt 3 — Meeting-Editor
 
-Keine DB-Migration nötig — alle Felder existieren bereits (`invoice_type`, `status = credit_open / credit_matched`, `suggested_transaction_id`).
+Neue Komponente `src/components/meetings/EtvRelevantEmailsList.tsx`:
+- Props: `meetingId`, `buildingId`
+- Query: `emails` where `building_id = buildingId AND is_etv_relevant = true AND (etv_meeting_id = meetingId OR etv_meeting_id IS NULL)`
+- Zeigt Subject, Absender, Datum, AI-Summary
+- Klick → Deep-Link `/inbox?email=<id>` (existiert bereits)
+- Aktion **"Markierung entfernen"** (setzt `is_etv_relevant = false`)
+- Einbindung in `src/components/meetings/MeetingEditor.tsx` als eigene Sektion (z. B. oberhalb oder neben der TOP-Liste).
 
-## Ergebnis
+---
 
-- Sidebar zeigt **„Zahlungen"**.
-- Beim Öffnen sieht der Nutzer wie gewohnt alle ausgehenden Rechnungen — nichts an seinem Workflow ändert sich.
-- Ein Klick auf Tab **„Eingehend"** zeigt alle importierten Belege für Zahlungseingänge mit klarem Status.
-- Nach E-Mail-Import landet man per Toast-Klick direkt im passenden Tab — kein 404 mehr.
+## Technische Details
+
+**SQL-Migration:**
+```sql
+ALTER TABLE emails
+  ADD COLUMN is_etv_relevant boolean NOT NULL DEFAULT false,
+  ADD COLUMN etv_meeting_id uuid REFERENCES etv_meetings(id) ON DELETE SET NULL;
+CREATE INDEX idx_emails_etv_relevant
+  ON emails(building_id, etv_meeting_id)
+  WHERE is_etv_relevant = true;
+```
+
+**Geänderte / neue Dateien:**
+- `supabase/migrations/...sql` (neu)
+- `src/pages/Inbox.tsx` — Archive-Button raus, Entarchivieren-Button rein, ETV-Button + Popover, Badge in Liste, Query-Erweiterung
+- `src/components/meetings/EtvRelevantEmailsList.tsx` (neu)
+- `src/components/meetings/MeetingEditor.tsx` — Sektion einbinden
+
+`src/integrations/supabase/types.ts` wird automatisch regeneriert.
