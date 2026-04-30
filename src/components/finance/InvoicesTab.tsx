@@ -123,7 +123,7 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
   });
 
   const { data: invoiceData, isLoading } = useQuery({
-    queryKey: ["invoices", filterBuilding, filterStatus, page],
+    queryKey: ["invoices", filterBuilding, filterStatus, filterDirection, page],
     queryFn: async () => {
       let query = supabase
         .from("invoices")
@@ -136,6 +136,12 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
       } else if (filterBuilding !== "all") {
         query = query.eq("building_id", filterBuilding);
       }
+      // Direction filter (Einnahme vs Ausgabe)
+      if (filterDirection === "income") {
+        query = query.eq("invoice_type", "credit_note");
+      } else if (filterDirection === "expense") {
+        query = query.neq("invoice_type", "credit_note");
+      }
       if (filterStatus === "paid") query = query.eq("status", "paid");
       else if (filterStatus === "unpaid") query = query.eq("status", "open");
       else if (filterStatus === "verified") query = query.eq("review_status", "verified");
@@ -146,6 +152,35 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
       return { invoices: data || [], totalCount: count || 0 };
     },
     refetchInterval: 10000,
+  });
+
+  // Mini-Dashboard: offene Beträge (Ausgaben rot vs Einnahmen grün)
+  const { data: summary } = useQuery({
+    queryKey: ["invoices-summary", filterBuilding],
+    queryFn: async () => {
+      let qOpenExpense = supabase
+        .from("invoices")
+        .select("gross_amount")
+        .eq("status", "open")
+        .neq("invoice_type", "credit_note");
+      let qOpenIncome = supabase
+        .from("invoices")
+        .select("gross_amount")
+        .eq("status", "credit_open")
+        .eq("invoice_type", "credit_note");
+      if (filterBuilding === "unassigned") {
+        qOpenExpense = qOpenExpense.is("building_id", null);
+        qOpenIncome = qOpenIncome.is("building_id", null);
+      } else if (filterBuilding !== "all") {
+        qOpenExpense = qOpenExpense.eq("building_id", filterBuilding);
+        qOpenIncome = qOpenIncome.eq("building_id", filterBuilding);
+      }
+      const [{ data: exp }, { data: inc }] = await Promise.all([qOpenExpense, qOpenIncome]);
+      const sum = (rows: any[] | null) =>
+        (rows || []).reduce((a, r) => a + (Number(r.gross_amount) || 0), 0);
+      return { openExpense: sum(exp), openIncome: sum(inc) };
+    },
+    refetchInterval: 15000,
   });
 
   const invoices = invoiceData?.invoices || [];
