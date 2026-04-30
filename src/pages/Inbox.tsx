@@ -1281,7 +1281,7 @@ export const Inbox = () => {
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openArchiveDialog(selectedEmail.id)} title="Zuordnen / Archivieren">
                               <Link2 className="h-4 w-4" />
                             </Button>
-                            <EtvRelevancePopover email={selectedEmail} />
+                            
                             {selectedEmail.is_archived && (
                               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={async () => {
                                 await supabase.from("emails").update({ is_archived: false }).eq("id", selectedEmail.id);
