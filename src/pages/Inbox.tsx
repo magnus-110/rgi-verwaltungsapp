@@ -260,8 +260,11 @@ export const Inbox = () => {
     return counts;
   }, [emails]);
 
+  const unreadCount = useMemo(() => emails.filter(e => !e.is_read).length, [emails]);
+
   const filteredEmails = useMemo(() => {
     if (filterCategory === "followup") return emails.filter(e => e.is_starred);
+    if (filterCategory === "unread") return emails.filter(e => !e.is_read);
     if (filterCategory === "all") return emails;
     return emails.filter(e => normalizeCategory(e.ai_category) === filterCategory);
   }, [emails, filterCategory]);
