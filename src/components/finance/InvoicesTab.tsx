@@ -349,11 +349,14 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
                 </TableHeader>
                 <TableBody>
                   {invoices.map((inv: any) => {
+                    const isCredit = inv.invoice_type === "credit_note";
                     const isPaid = inv.status === "paid";
+                    const isCreditMatched = inv.status === "credit_matched";
                     const isVerified = (inv.review_status || "open") === "verified";
 
                     const togglePayment = async (e: React.MouseEvent) => {
                       e.stopPropagation();
+                      if (isCredit) return; // Belege werden über Bank-Match abgewickelt
                       const newStatus = isPaid ? "open" : "paid";
                       const updates: any = { status: newStatus };
                       if (newStatus === "paid") updates.paid_at = new Date().toISOString();
@@ -370,7 +373,14 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
                         className="cursor-pointer"
                         onClick={() => setSelectedInvoiceId(inv.id)}
                       >
-                        <TableCell className="font-mono text-xs">{inv.invoice_number || "–"}</TableCell>
+                        <TableCell className="font-mono text-xs">
+                          <div className="flex items-center gap-1.5">
+                            {isCredit && (
+                              <ArrowDownToLine className="h-3.5 w-3.5 text-success shrink-0" aria-label="Beleg für Zahlungseingang" />
+                            )}
+                            {inv.invoice_number || "–"}
+                          </div>
+                        </TableCell>
                         <TableCell className="text-sm">
                           <div className="flex items-center gap-1.5">
                             {inv.einvoice_format && (
@@ -392,15 +402,30 @@ export function InvoicesTab({ sharedBuildingId, onBuildingChange }: InvoicesTabP
                         <TableCell className="text-sm">
                           {inv.invoice_date ? format(new Date(inv.invoice_date), "dd.MM.yyyy", { locale: de }) : "–"}
                         </TableCell>
-                        <TableCell className="text-right font-medium text-sm">{formatCurrency(inv.gross_amount)}</TableCell>
+                        <TableCell className={`text-right font-medium text-sm ${isCredit ? "text-success" : ""}`}>
+                          {isCredit && inv.gross_amount ? "+" : ""}{formatCurrency(inv.gross_amount)}
+                        </TableCell>
                         <TableCell>
-                          <Badge
-                            variant={isPaid ? "default" : "destructive"}
-                            className={`cursor-pointer ${isPaid ? "bg-green-600 text-white text-xs hover:bg-green-700" : "text-xs hover:bg-destructive/80"}`}
-                            onClick={togglePayment}
-                          >
-                            {isPaid ? "Bezahlt" : "Offen"}
-                          </Badge>
+                          {isCredit ? (
+                            <Badge
+                              variant="outline"
+                              className={
+                                isCreditMatched
+                                  ? "bg-green-600 text-white text-xs border-green-700"
+                                  : "text-xs text-success border-success/40"
+                              }
+                            >
+                              {isCreditMatched ? "Verbucht" : "Beleg offen"}
+                            </Badge>
+                          ) : (
+                            <Badge
+                              variant={isPaid ? "default" : "destructive"}
+                              className={`cursor-pointer ${isPaid ? "bg-green-600 text-white text-xs hover:bg-green-700" : "text-xs hover:bg-destructive/80"}`}
+                              onClick={togglePayment}
+                            >
+                              {isPaid ? "Bezahlt" : "Offen"}
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell>
                           <Badge
