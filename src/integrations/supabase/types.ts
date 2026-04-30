@@ -6499,7 +6499,11 @@ export type Database = {
         | "eigentuemer"
         | "mieter"
         | "personen"
-      invoice_type: "standard" | "installment" | "annual_settlement"
+      invoice_type:
+        | "standard"
+        | "installment"
+        | "annual_settlement"
+        | "credit_note"
       management_mode: "weg" | "rent"
       unit_kind:
         | "apartment"
@@ -6705,7 +6709,12 @@ export const Constants = {
         "mieter",
         "personen",
       ],
-      invoice_type: ["standard", "installment", "annual_settlement"],
+      invoice_type: [
+        "standard",
+        "installment",
+        "annual_settlement",
+        "credit_note",
+      ],
       management_mode: ["weg", "rent"],
       unit_kind: [
         "apartment",
