@@ -260,8 +260,11 @@ export const Inbox = () => {
     return counts;
   }, [emails]);
 
+  const unreadCount = useMemo(() => emails.filter(e => !e.is_read).length, [emails]);
+
   const filteredEmails = useMemo(() => {
     if (filterCategory === "followup") return emails.filter(e => e.is_starred);
+    if (filterCategory === "unread") return emails.filter(e => !e.is_read);
     if (filterCategory === "all") return emails;
     return emails.filter(e => normalizeCategory(e.ai_category) === filterCategory);
   }, [emails, filterCategory]);
@@ -813,6 +816,16 @@ export const Inbox = () => {
               >
                 <Flag className="h-3 w-3" />
                 Nachverfolgung ({followUpCount})
+              </button>
+              <button
+                onClick={() => setFilterCategory(filterCategory === "unread" ? "all" : "unread")}
+                className={cn(
+                  "px-2.5 py-1 rounded text-[11px] whitespace-nowrap transition-colors shrink-0 flex items-center gap-1 font-medium",
+                  filterCategory === "unread" ? "bg-blue-600 text-white" : "hover:bg-muted text-muted-foreground"
+                )}
+              >
+                <span className="h-2 w-2 rounded-full bg-current" />
+                Ungelesen ({unreadCount})
               </button>
               {ALL_CATEGORIES.map(cat => (
                 <button

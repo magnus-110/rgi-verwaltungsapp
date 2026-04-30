@@ -107,26 +107,48 @@ export const FloatingComposeWindow = () => {
     }
   }, [accounts, compose.accountId, updateCompose]);
 
-  // Append signature when account changes (only for new compose, not reply/forward)
+  // Insert signature when account changes.
+  // For replies/forwards: place the signature directly after the user's text
+  // and BEFORE the quoted original message ("--- Ursprüngliche/Weitergeleitete Nachricht ---").
   const prevAccountRef = useRef<string>("");
   useEffect(() => {
     if (!compose.accountId || compose.accountId === prevAccountRef.current) return;
     const account = accounts.find(a => a.id === compose.accountId);
     if (!account?.signature_html) { prevAccountRef.current = compose.accountId; return; }
-    
+
     const sig = `\n\n--\n${account.signature_html}`;
-    // Remove old signature if switching accounts
     const oldAccount = accounts.find(a => a.id === prevAccountRef.current);
-    let currentBody = compose.bodyText;
-    if (oldAccount?.signature_html) {
-      const oldSig = `\n\n--\n${oldAccount.signature_html}`;
-      if (currentBody.endsWith(oldSig)) {
-        currentBody = currentBody.slice(0, -oldSig.length);
-      }
+    const oldSig = oldAccount?.signature_html ? `\n\n--\n${oldAccount.signature_html}` : null;
+
+    // Locate the quote separator to split the body into [user text | quoted text]
+    const QUOTE_RE = /\n*---\s*(?:Ursprüngliche|Weitergeleitete)\s+Nachricht\s*---/;
+    const body = compose.bodyText;
+    const match = body.match(QUOTE_RE);
+
+    let head: string;
+    let tail: string;
+    if (match && match.index !== undefined) {
+      head = body.slice(0, match.index);
+      tail = body.slice(match.index); // starts with \n--- ... ---
+    } else {
+      head = body;
+      tail = "";
     }
-    // Only append if not already present
-    if (!currentBody.endsWith(sig)) {
-      updateCompose({ bodyText: currentBody + sig });
+
+    // Strip a previously inserted (old account) signature from the head
+    if (oldSig && head.endsWith(oldSig)) {
+      head = head.slice(0, -oldSig.length);
+    }
+
+    // Avoid duplicate insertion
+    if (head.endsWith(sig)) {
+      prevAccountRef.current = compose.accountId;
+      return;
+    }
+
+    const newBody = head + sig + tail;
+    if (newBody !== body) {
+      updateCompose({ bodyText: newBody });
     }
     prevAccountRef.current = compose.accountId;
   }, [compose.accountId, accounts]);
