@@ -7,11 +7,13 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Building2, User, Sparkles, FolderOpen, Link2, Plus, X, GitBranch, Vote } from "lucide-react";
+import { Building2, User, Sparkles, FolderOpen, Link2, Plus, X, Vote, ListTree } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { useCreateCase } from "@/hooks/useCases";
 import { toast } from "@/hooks/use-toast";
+import { format } from "date-fns";
+import { de } from "date-fns/locale";
 
 interface AssignEmailDialogProps {
   open: boolean;
@@ -22,6 +24,7 @@ interface AssignEmailDialogProps {
     buildingId: string | null;
     contactId: string | null;
     caseId: string | null;
+    parentEventId: string | null;
     archive: boolean;
     isEtvRelevant: boolean;
     etvMeetingId: string | null;
@@ -32,6 +35,20 @@ interface AssignEmailDialogProps {
   prefilledIsEtvRelevant?: boolean;
   prefilledEtvMeetingId?: string | null;
 }
+
+const EVENT_TYPE_LABEL: Record<string, string> = {
+  note: "Notiz",
+  email: "E-Mail",
+  document: "Dokument",
+  image: "Bild",
+  todo: "Aufgabe",
+  booking: "Buchung",
+  meeting: "Termin",
+  phone: "Telefonat",
+  status_change: "Statuswechsel",
+  ai_summary: "KI-Zusammenfassung",
+  file: "Datei",
+};
 
 export const AssignEmailDialog = ({
   open,
@@ -47,7 +64,7 @@ export const AssignEmailDialog = ({
   const [buildingId, setBuildingId] = useState<string>("none");
   const [contactId, setContactId] = useState<string>("none");
   const [caseId, setCaseId] = useState<string>("none");
-  const [subcaseId, setSubcaseId] = useState<string>("none");
+  const [parentEventId, setParentEventId] = useState<string>("none");
   const [archive, setArchive] = useState(false);
   const [isEtvRelevant, setIsEtvRelevant] = useState(false);
   const [etvMeetingId, setEtvMeetingId] = useState<string>("general");
@@ -61,7 +78,7 @@ export const AssignEmailDialog = ({
       setBuildingId(prefilledBuildingId || "none");
       setContactId(prefilledContactId || "none");
       setCaseId(prefilledCaseId || "none");
-      setSubcaseId("none");
+      setParentEventId("none");
       setArchive(false);
       setIsEtvRelevant(!!prefilledIsEtvRelevant);
       setEtvMeetingId(prefilledEtvMeetingId || "general");
@@ -91,31 +108,34 @@ export const AssignEmailDialog = ({
   const { data: cases = [] } = useQuery({
     queryKey: ["cases-for-assign", buildingId],
     queryFn: async () => {
-      if (buildingId === "none") return [];
-      const { data, error } = await supabase
+      if (buildingId === "none") return [] as any[];
+      const { data, error } = await (supabase as any)
         .from("cases")
         .select("id, title, status, category")
         .eq("building_id", buildingId)
-        .is("parent_case_id", null)
         .in("status", ["open", "in_progress", "waiting_external", "waiting_owner"])
         .order("updated_at", { ascending: false });
       if (error) throw error;
-      return data;
+      return (data || []) as any[];
     },
     enabled: buildingId !== "none",
   });
 
-  const { data: subcases = [] } = useQuery({
-    queryKey: ["subcases-for-assign", caseId],
+  // Top-level events of the chosen case — used as optional attach target
+  const { data: parentEvents = [] } = useQuery({
+    queryKey: ["case-top-events-for-assign", caseId],
     queryFn: async () => {
-      if (caseId === "none") return [];
-      const { data, error } = await supabase
-        .from("cases")
-        .select("id, title, status")
-        .eq("parent_case_id", caseId)
-        .order("created_at", { ascending: true });
+      if (caseId === "none") return [] as any[];
+      const { data, error } = await (supabase as any)
+        .from("case_events")
+        .select("id, title, body, event_type, occurred_at")
+        .eq("case_id", caseId)
+        .is("parent_event_id", null)
+        .neq("event_type", "ai_summary")
+        .order("occurred_at", { ascending: false })
+        .limit(50);
       if (error) throw error;
-      return data;
+      return (data || []) as any[];
     },
     enabled: caseId !== "none",
   });
@@ -158,15 +178,15 @@ export const AssignEmailDialog = ({
 
   const handleAssign = () => {
     if (!emailId) return;
-    const finalCaseId =
-      subcaseId !== "none" ? subcaseId :
-      caseId !== "none" ? caseId : null;
+    const finalCaseId = caseId !== "none" ? caseId : null;
     const finalBuildingId = buildingId !== "none" ? buildingId : null;
+    const finalParentEventId = finalCaseId && parentEventId !== "none" ? parentEventId : null;
     onAssign({
       emailId,
       buildingId: finalBuildingId,
       contactId: contactId !== "none" ? contactId : null,
       caseId: finalCaseId,
+      parentEventId: finalParentEventId,
       archive,
       isEtvRelevant: !!finalBuildingId && isEtvRelevant,
       etvMeetingId: !!finalBuildingId && isEtvRelevant && etvMeetingId !== "general" ? etvMeetingId : null,
@@ -178,6 +198,13 @@ export const AssignEmailDialog = ({
     const parts = [c.first_name, c.last_name].filter(Boolean).join(" ");
     if (parts && c.company_name) return `${parts} (${c.company_name})`;
     return parts || c.company_name || "Unbenannt";
+  };
+
+  const eventLabel = (ev: any) => {
+    const type = EVENT_TYPE_LABEL[ev.event_type] || ev.event_type;
+    const text = ev.title || (ev.body ? ev.body.substring(0, 60) : "");
+    const date = ev.occurred_at ? format(new Date(ev.occurred_at), "dd.MM.yyyy", { locale: de }) : "";
+    return `${type}: ${text || "(ohne Titel)"} – ${date}`;
   };
 
   const hasSuggestion = prefilledContactId || prefilledBuildingId || prefilledCaseId;
@@ -211,7 +238,7 @@ export const AssignEmailDialog = ({
                 </Badge>
               )}
             </Label>
-            <Select value={buildingId} onValueChange={(v) => { setBuildingId(v); setCaseId("none"); setSubcaseId("none"); setCreatingCase(false); }}>
+            <Select value={buildingId} onValueChange={(v) => { setBuildingId(v); setCaseId("none"); setParentEventId("none"); setCreatingCase(false); }}>
               <SelectTrigger><SelectValue placeholder="Keine Zuordnung" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">Keine Zuordnung</SelectItem>
@@ -301,7 +328,7 @@ export const AssignEmailDialog = ({
                 </Button>
               </div>
             ) : (
-              <Select value={caseId} onValueChange={(v) => { setCaseId(v); setSubcaseId("none"); }} disabled={buildingId === "none"}>
+              <Select value={caseId} onValueChange={(v) => { setCaseId(v); setParentEventId("none"); }} disabled={buildingId === "none"}>
                 <SelectTrigger>
                   <SelectValue placeholder={buildingId === "none" ? "Erst Liegenschaft wählen" : "Keinem Vorgang"} />
                 </SelectTrigger>
@@ -315,23 +342,28 @@ export const AssignEmailDialog = ({
             )}
           </div>
 
-          {caseId !== "none" && subcases.length > 0 && (
+          {caseId !== "none" && parentEvents.length > 0 && (
             <div className="space-y-1.5 pl-4 border-l-2 border-primary/30">
               <Label className="text-sm flex items-center gap-1.5">
-                <GitBranch className="h-4 w-4 text-primary" />
-                Teilvorgang (optional)
+                <ListTree className="h-4 w-4 text-primary" />
+                An Eintrag anhängen (optional)
               </Label>
-              <Select value={subcaseId} onValueChange={setSubcaseId}>
+              <Select value={parentEventId} onValueChange={setParentEventId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Hauptvorgang verwenden" />
+                  <SelectValue placeholder="Als eigenständiger Eintrag" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Hauptvorgang verwenden</SelectItem>
-                  {subcases.map((s: any) => (
-                    <SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>
+                  <SelectItem value="none">Als eigenständiger Eintrag</SelectItem>
+                  {parentEvents.map((ev: any) => (
+                    <SelectItem key={ev.id} value={ev.id}>
+                      <span className="truncate inline-block max-w-[340px]">{eventLabel(ev)}</span>
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-[11px] text-muted-foreground">
+                Gruppiert die E-Mail unter diesen bestehenden Eintrag (z. B. eine Notiz mit mehreren E-Mails).
+              </p>
             </div>
           )}
 
