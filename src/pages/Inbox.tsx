@@ -205,7 +205,7 @@ export const Inbox = () => {
     queryFn: async () => {
       let query = supabase
         .from("emails")
-        .select("id, account_id, folder_id, subject, from_name, from_address, to_addresses, cc_addresses, date, is_read, is_starred, is_pinned, pinned_at, is_archived, has_attachments, ai_category, ai_priority, ai_summary, building_id, contact_id, assigned_to, deleted_at, case_id, message_id")
+        .select("id, account_id, folder_id, subject, from_name, from_address, to_addresses, cc_addresses, date, is_read, is_starred, is_pinned, pinned_at, is_archived, has_attachments, ai_category, ai_priority, ai_summary, building_id, contact_id, assigned_to, deleted_at, case_id, message_id, is_etv_relevant, etv_meeting_id")
         .order("date", { ascending: false })
         .limit(100);
 
