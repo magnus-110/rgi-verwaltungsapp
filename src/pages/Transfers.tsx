@@ -579,12 +579,13 @@ function IncomingList({
   onRefetch: () => void;
 }) {
   const renderStatus = (inv: any) => {
-    if (inv.status === "credit_matched") {
+    const tx = inv._linked_tx;
+    if (tx && tx.match_status === "matched") {
       return <Badge variant="outline" className="text-xs gap-1 text-success border-success/30">
         <Check className="h-3 w-3" /> Zugeordnet
       </Badge>;
     }
-    if (inv.suggested_transaction_id) {
+    if (tx && tx.match_status === "suggested") {
       return <Badge variant="outline" className="text-xs gap-1 text-primary border-primary/30">
         <Sparkles className="h-3 w-3" /> Vorschlag prüfen
       </Badge>;
