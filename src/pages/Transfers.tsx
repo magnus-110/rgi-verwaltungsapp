@@ -300,6 +300,31 @@ export function Transfers() {
                 ) : (inv as any).buildings?.name ? (
                   <span className="text-muted-foreground truncate">· {(inv as any).buildings?.name}</span>
                 ) : null}
+                {(inv as any).ocr_status === "processing" && (
+                  <span className="flex items-center gap-1 text-primary">
+                    <Loader2 className="h-3 w-3 animate-spin" /> OCR läuft
+                  </span>
+                )}
+                {(inv as any).ocr_status === "done" && (
+                  <span className="flex items-center gap-1 text-success">
+                    <Sparkles className="h-3 w-3" /> OCR fertig
+                  </span>
+                )}
+                {((inv as any).ocr_status === "pending" || (inv as any).ocr_status === "error") && (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      retryOcr(inv.id, (inv as any).is_company_invoice);
+                    }}
+                    className="flex items-center gap-1 text-warning font-medium"
+                    title={(inv as any).ocr_error || "OCR noch nicht verarbeitet"}
+                  >
+                    {retryingOcr === inv.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                    OCR starten
+                  </span>
+                )}
                 {hasNote && <StickyNote className="h-3 w-3 text-primary ml-auto" />}
               </div>
               {hasNote && (
@@ -323,6 +348,7 @@ export function Transfers() {
               <TableHead>IBAN</TableHead>
               <TableHead className="text-right">Betrag</TableHead>
               <TableHead>Liegenschaft</TableHead>
+              <TableHead>OCR</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="w-10"></TableHead>
             </TableRow>
@@ -330,7 +356,7 @@ export function Transfers() {
           <TableBody>
             {invoices.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
                   {showPaid ? "Keine Rechnungen vorhanden" : "Keine offenen Rechnungen vorhanden"}
                 </TableCell>
               </TableRow>
@@ -373,6 +399,35 @@ export function Transfers() {
                         </Badge>
                       ) : (
                         (inv as any).buildings?.name || "–"
+                      )}
+                    </TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      {(inv as any).ocr_status === "processing" && (
+                        <Badge variant="outline" className="text-xs gap-1 text-primary border-primary/30">
+                          <Loader2 className="h-3 w-3 animate-spin" /> Läuft
+                        </Badge>
+                      )}
+                      {(inv as any).ocr_status === "done" && (
+                        <Badge variant="outline" className="text-xs gap-1 text-success border-success/30">
+                          <Sparkles className="h-3 w-3" /> Fertig
+                        </Badge>
+                      )}
+                      {((inv as any).ocr_status === "pending" || (inv as any).ocr_status === "error") && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2 text-xs text-warning border-warning/30"
+                          title={(inv as any).ocr_error || "OCR noch nicht verarbeitet"}
+                          disabled={retryingOcr === inv.id || retryingOcr === "all"}
+                          onClick={() => retryOcr(inv.id, (inv as any).is_company_invoice)}
+                        >
+                          {retryingOcr === inv.id ? (
+                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-3 w-3 mr-1" />
+                          )}
+                          Starten
+                        </Button>
                       )}
                     </TableCell>
                     <TableCell>
@@ -438,7 +493,7 @@ export function Transfers() {
                   </TableRow>
                   {hasNote && (
                     <TableRow key={`${inv.id}-note`} className={`border-b-0 ${isPaid ? "opacity-60" : ""}`}>
-                      <TableCell colSpan={8} className="pt-0 pb-2 pl-8">
+                      <TableCell colSpan={9} className="pt-0 pb-2 pl-8">
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                           <StickyNote className="h-3 w-3 text-primary" />
                           {(inv as any).payment_notes}
