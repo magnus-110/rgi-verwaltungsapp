@@ -15,7 +15,8 @@ import { ChevronDown, ChevronRight, FileText, Landmark, Receipt } from "lucide-r
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-const NEEDS_PERIOD = ["abrechnung", "planung"];
+const NEEDS_PERIOD_TABS = ["abrechnung", "planung"];
+const NEEDS_PERIOD_SUB = ["bookings"]; // Sub-tabs under "buchen" that need a period
 
 const SUB_TABS = [
   { value: "templates", label: "Vorlagen" },
