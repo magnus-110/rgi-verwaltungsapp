@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AccountSettingsPopover } from "./AccountSettingsPopover";
+import { useCustomShareTypes } from "@/hooks/useCustomShareTypes";
 
 const DISTRIBUTION_KEYS = [
   { value: "mea", label: "MEA" },
@@ -167,7 +168,17 @@ export function ChartOfAccountsTab() {
     queryClient.invalidateQueries({ queryKey: ["chart-of-accounts"] });
   };
 
-  const getKeyLabel = (key: string | null) => DISTRIBUTION_KEYS.find(k => k.value === key)?.label || key || "–";
+  // Im globalen Tab building-übergreifend laden, sonst building-spezifisch
+  const { data: customShareTypes = [] } = useCustomShareTypes(
+    selectedBuilding && selectedBuilding !== "global" ? selectedBuilding : undefined
+  );
+  const customDistKeys = [...new Set(customShareTypes)];
+  const allDistKeys = [
+    ...DISTRIBUTION_KEYS,
+    ...customDistKeys.map(k => ({ value: k, label: k })),
+  ];
+
+  const getKeyLabel = (key: string | null) => allDistKeys.find(k => k.value === key)?.label || key || "–";
 
   if (isLoading) return <div className="text-muted-foreground p-4">Laden...</div>;
 
@@ -244,7 +255,7 @@ export function ChartOfAccountsTab() {
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {DISTRIBUTION_KEYS.map(k => <SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>)}
+                                    {allDistKeys.map(k => <SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>)}
                                   </SelectContent>
                                 </Select>
                               ) : (
@@ -327,7 +338,7 @@ export function ChartOfAccountsTab() {
                 <Select value={newAccount.default_distribution_key} onValueChange={v => setNewAccount(p => ({ ...p, default_distribution_key: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {DISTRIBUTION_KEYS.map(k => <SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>)}
+                    {allDistKeys.map(k => <SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
