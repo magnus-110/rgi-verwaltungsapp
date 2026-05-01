@@ -257,12 +257,14 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       setNewPrinciple(template.voting_principle || "mea");
       setNewCategory(template.category || "sonstiges");
       setNewRequiresDQ(template.requires_double_qualified || false);
+      setNewRequiresResolution(true);
     } else {
       setEditItemTitle(template.title);
       setEditItemResolution(template.resolution_text);
       setEditItemPrinciple(template.voting_principle || "mea");
       setEditItemCategory(template.category || "sonstiges");
       setEditRequiresDQ(template.requires_double_qualified || false);
+      setEditRequiresResolution(true);
     }
     toast({ title: "Vorlage übernommen" });
   };
