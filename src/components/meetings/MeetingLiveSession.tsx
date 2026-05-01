@@ -634,7 +634,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
             {selectedItem.description && (
               <div>
                 <p className="text-xs font-medium text-muted-foreground mb-1">Beschreibung</p>
-                <p className="text-sm">{selectedItem.description}</p>
+                <p className="text-sm whitespace-pre-wrap">{selectedItem.description}</p>
               </div>
             )}
 
