@@ -920,7 +920,7 @@ const TemplateManager = ({ templates, queryClient, toast }: { templates: any[]; 
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                   <Settings className="h-4 w-4" />
-                  Beschlussvorlagen verwalten ({templates.length})
+                  TOP-Vorlagen verwalten ({templates.length})
                 </span>
                 {open ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
               </div>
