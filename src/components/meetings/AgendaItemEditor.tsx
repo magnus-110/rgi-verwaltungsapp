@@ -89,6 +89,11 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
   const [editAiSuggestion, setEditAiSuggestion] = useState<string | null>(null);
   const [isGeneratingEdit, setIsGeneratingEdit] = useState(false);
 
+  // DMS picker state
+  const [newDmsOpen, setNewDmsOpen] = useState(false);
+  const [editDmsOpen, setEditDmsOpen] = useState(false);
+  const [newDmsPaths, setNewDmsPaths] = useState<string[]>([]);
+
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["etv-agenda-items", meetingId],
     queryFn: async () => {
@@ -128,7 +133,8 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
 
   const addMutation = useMutation({
     mutationFn: async () => {
-      const attachmentPaths = await uploadFiles(newFiles);
+      const uploadedPaths = await uploadFiles(newFiles);
+      const attachmentPaths = [...newDmsPaths, ...uploadedPaths];
       const { error } = await supabase.from("etv_agenda_items").insert({
         meeting_id: meetingId,
         sort_order: items.length + 1,
@@ -152,6 +158,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       setNewPrinciple("mea");
       setNewCategory("sonstiges");
       setNewFiles([]);
+      setNewDmsPaths([]);
       setNewAiSuggestion(null);
       setNewRequiresDQ(false);
       setNewDQRelevant(false);
@@ -367,7 +374,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="max-h-64 overflow-y-auto">
-          <DropdownMenuLabel className="text-xs">Beschlussvorlage wählen</DropdownMenuLabel>
+          <DropdownMenuLabel className="text-xs">TOP-Vorlage wählen</DropdownMenuLabel>
           <DropdownMenuSeparator />
           {templates.map((t: any) => (
             <DropdownMenuItem key={t.id} onClick={() => applyTemplate(t, target)} className="text-xs">
@@ -735,16 +742,52 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                   }
                 }}
               />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="gap-2 text-muted-foreground"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Upload className="h-4 w-4" />
-                Dateien auswählen
-              </Button>
+              <div className="flex gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="gap-2 text-muted-foreground"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload className="h-4 w-4" />
+                  Vom Computer
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="gap-2 text-muted-foreground"
+                  onClick={() => setNewDmsOpen(true)}
+                >
+                  <FolderOpen className="h-4 w-4" />
+                  Aus DMS
+                </Button>
+              </div>
+              {newDmsPaths.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {newDmsPaths.map((path, i) => {
+                    const fileName = (path.split("/").pop() || path).replace(/^\d+-/, "");
+                    return (
+                      <div key={`dms-${i}`} className="flex items-center justify-between text-xs bg-muted rounded px-2 py-1">
+                        <span className="flex items-center gap-1 truncate">
+                          <FileText className="h-3 w-3 flex-shrink-0" />
+                          {fileName}
+                          <Badge variant="secondary" className="text-[9px] h-4">DMS</Badge>
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5"
+                          onClick={() => setNewDmsPaths((prev) => prev.filter((_, j) => j !== i))}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
               {newFiles.length > 0 && (
                 <div className="mt-2 space-y-1">
                   {newFiles.map((file, i) => (
@@ -783,6 +826,22 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
 
       {/* Inline Template Management */}
       <TemplateManager templates={templates} queryClient={queryClient} toast={toast} />
+
+      {/* DMS Picker Dialogs */}
+      <DmsFilePickerDialog
+        open={newDmsOpen}
+        onOpenChange={setNewDmsOpen}
+        buildingId={buildingId}
+        excludePaths={newDmsPaths}
+        onSelect={(paths) => setNewDmsPaths((prev) => [...prev, ...paths])}
+      />
+      <DmsFilePickerDialog
+        open={editDmsOpen}
+        onOpenChange={setEditDmsOpen}
+        buildingId={buildingId}
+        excludePaths={editItemExistingPaths}
+        onSelect={(paths) => setEditItemExistingPaths((prev) => [...prev, ...paths])}
+      />
     </div>
   );
 };
@@ -861,7 +920,7 @@ const TemplateManager = ({ templates, queryClient, toast }: { templates: any[]; 
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                   <Settings className="h-4 w-4" />
-                  Beschlussvorlagen verwalten ({templates.length})
+                  TOP-Vorlagen verwalten ({templates.length})
                 </span>
                 {open ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
               </div>
@@ -896,7 +955,7 @@ const TemplateManager = ({ templates, queryClient, toast }: { templates: any[]; 
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>{editingId ? "Vorlage bearbeiten" : "Neue Beschlussvorlage"}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editingId ? "Vorlage bearbeiten" : "Neue TOP-Vorlage"}</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
               <Label className="text-xs">Titel *</Label>

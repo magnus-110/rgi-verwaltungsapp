@@ -26,7 +26,7 @@ export const DmsFilePickerDialog = ({ open, onOpenChange, buildingId, excludePat
     queryFn: async () => {
       let q = supabase
         .from("building_files")
-        .select("id, display_name, file_path, mime_type, file_size, created_at, building_files_categories:building_file_categories(name)")
+        .select("id, display_name, file_path, mime_type, file_size, created_at, category:building_file_categories(name)")
         .eq("is_current_version", true)
         .order("created_at", { ascending: false })
         .limit(500);
@@ -82,7 +82,7 @@ export const DmsFilePickerDialog = ({ open, onOpenChange, buildingId, excludePat
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium truncate">{f.display_name || f.file_path.split("/").pop()}</p>
                     <p className="text-[11px] text-muted-foreground truncate">
-                      {f.building_files_categories?.name && <span>{f.building_files_categories.name} · </span>}
+                      {f.category?.name && <span>{f.category.name} · </span>}
                       {f.mime_type}
                       {typeof f.file_size === "number" && ` · ${(f.file_size / 1024).toFixed(0)} KB`}
                     </p>
