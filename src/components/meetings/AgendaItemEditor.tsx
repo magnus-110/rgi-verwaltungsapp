@@ -955,7 +955,7 @@ const TemplateManager = ({ templates, queryClient, toast }: { templates: any[]; 
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>{editingId ? "Vorlage bearbeiten" : "Neue Beschlussvorlage"}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editingId ? "Vorlage bearbeiten" : "Neue TOP-Vorlage"}</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
               <Label className="text-xs">Titel *</Label>
