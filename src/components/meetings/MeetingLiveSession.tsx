@@ -829,6 +829,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                 </div>
               )}
             </div>
+            </>)}
 
             {/* Protocol Notes */}
             <div className="border-t pt-4">
