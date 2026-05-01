@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { toast } from "sonner";
 import { ChevronDown, ChevronRight, Plus, Search, Trash2 } from "lucide-react";
 import { AccountSettingsPopover } from "./AccountSettingsPopover";
+import { useCustomShareTypes } from "@/hooks/useCustomShareTypes";
 
 const DISTRIBUTION_KEYS = [
   { value: "mea", label: "MEA" },
