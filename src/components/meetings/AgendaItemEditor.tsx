@@ -261,18 +261,22 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
   const applyTemplate = (template: any, target: "new" | "edit") => {
     if (target === "new") {
       setNewTitle(template.title);
-      setNewResolution(template.resolution_text);
+      setNewDescription(template.description || "");
+      setNewResolution(template.resolution_text || "");
       setNewPrinciple(template.voting_principle || "mea");
       setNewCategory(template.category || "sonstiges");
       setNewRequiresDQ(template.requires_double_qualified || false);
-      setNewRequiresResolution(true);
+      setNewDQRelevant(template.double_qualified_relevant || false);
+      setNewRequiresResolution(template.requires_resolution !== false);
     } else {
       setEditItemTitle(template.title);
-      setEditItemResolution(template.resolution_text);
+      setEditItemDescription(template.description || "");
+      setEditItemResolution(template.resolution_text || "");
       setEditItemPrinciple(template.voting_principle || "mea");
       setEditItemCategory(template.category || "sonstiges");
       setEditRequiresDQ(template.requires_double_qualified || false);
-      setEditRequiresResolution(true);
+      setEditDQRelevant(template.double_qualified_relevant || false);
+      setEditRequiresResolution(template.requires_resolution !== false);
     }
     toast({ title: "Vorlage übernommen" });
   };
