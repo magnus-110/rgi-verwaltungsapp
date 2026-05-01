@@ -852,10 +852,13 @@ const TemplateManager = ({ templates, queryClient, toast }: { templates: any[]; 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [resolutionText, setResolutionText] = useState("");
   const [votingPrinciple, setVotingPrinciple] = useState("mea");
   const [category, setCategory] = useState("sonstiges");
+  const [requiresResolution, setRequiresResolution] = useState(true);
   const [requiresDQ, setRequiresDQ] = useState(false);
+  const [dqRelevant, setDqRelevant] = useState(false);
 
   const votingPrinciples = [
     { value: "mea", label: "MEA (Wertprinzip)" },
@@ -870,20 +873,37 @@ const TemplateManager = ({ templates, queryClient, toast }: { templates: any[]; 
   ];
 
   const resetForm = () => {
-    setTitle(""); setResolutionText(""); setVotingPrinciple("mea");
-    setCategory("sonstiges"); setRequiresDQ(false); setEditingId(null);
+    setTitle(""); setDescription(""); setResolutionText(""); setVotingPrinciple("mea");
+    setCategory("sonstiges"); setRequiresResolution(true);
+    setRequiresDQ(false); setDqRelevant(false); setEditingId(null);
   };
 
   const openCreate = () => { resetForm(); setDialogOpen(true); };
   const openEdit = (t: any) => {
-    setEditingId(t.id); setTitle(t.title); setResolutionText(t.resolution_text || "");
-    setVotingPrinciple(t.voting_principle || "mea"); setCategory(t.category || "sonstiges");
-    setRequiresDQ(t.requires_double_qualified || false); setDialogOpen(true);
+    setEditingId(t.id);
+    setTitle(t.title);
+    setDescription(t.description || "");
+    setResolutionText(t.resolution_text || "");
+    setVotingPrinciple(t.voting_principle || "mea");
+    setCategory(t.category || "sonstiges");
+    setRequiresResolution(t.requires_resolution !== false);
+    setRequiresDQ(t.requires_double_qualified || false);
+    setDqRelevant(t.double_qualified_relevant || false);
+    setDialogOpen(true);
   };
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const payload = { title, resolution_text: resolutionText || null, voting_principle: votingPrinciple, category, requires_double_qualified: requiresDQ } as any;
+      const payload = {
+        title,
+        description: description || null,
+        resolution_text: requiresResolution ? (resolutionText || null) : null,
+        voting_principle: votingPrinciple,
+        category,
+        requires_resolution: requiresResolution,
+        requires_double_qualified: requiresResolution ? requiresDQ : false,
+        double_qualified_relevant: requiresResolution ? dqRelevant : false,
+      } as any;
       if (editingId) {
         const { error } = await supabase.from("etv_resolution_templates").update(payload).eq("id", editingId);
         if (error) throw error;
@@ -932,11 +952,17 @@ const TemplateManager = ({ templates, queryClient, toast }: { templates: any[]; 
                 <div key={t.id} className="flex items-center justify-between p-2 rounded border text-sm">
                   <div className="flex-1 min-w-0">
                     <span className="font-medium">{t.title}</span>
-                    <div className="flex gap-1 mt-0.5">
-                      <Badge variant="outline" className="text-[10px]">
-                        {votingPrinciples.find(v => v.value === t.voting_principle)?.label || t.voting_principle}
-                      </Badge>
-                      {t.requires_double_qualified && <Badge className="text-[10px] bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">DQ</Badge>}
+                    <div className="flex gap-1 mt-0.5 flex-wrap">
+                      {t.requires_resolution === false ? (
+                        <Badge variant="outline" className="text-[10px] border-blue-300 text-blue-700 dark:text-blue-300">Informativ</Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px]">
+                          {votingPrinciples.find(v => v.value === t.voting_principle)?.label || t.voting_principle}
+                        </Badge>
+                      )}
+                      {t.requires_resolution !== false && t.requires_double_qualified && (
+                        <Badge className="text-[10px] bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">DQ</Badge>
+                      )}
                     </div>
                   </div>
                   <div className="flex gap-1 shrink-0">
@@ -954,7 +980,7 @@ const TemplateManager = ({ templates, queryClient, toast }: { templates: any[]; 
       </Collapsible>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editingId ? "Vorlage bearbeiten" : "Neue TOP-Vorlage"}</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1.5">
@@ -962,32 +988,71 @@ const TemplateManager = ({ templates, queryClient, toast }: { templates: any[]; 
               <Input placeholder="z.B. Genehmigung der Jahresabrechnung" value={title} onChange={(e) => setTitle(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Beschlusstext</Label>
-              <Textarea placeholder="Die Eigentümer beschließen..." value={resolutionText} onChange={(e) => setResolutionText(e.target.value)} rows={4} />
+              <Label className="text-xs">Beschreibung</Label>
+              <Textarea
+                placeholder="Hintergrund, Erläuterungen, Kontext zum TOP..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={6}
+              />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Abstimmungsmethode</Label>
-                <Select value={votingPrinciple} onValueChange={setVotingPrinciple}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {votingPrinciples.map(v => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Kategorie</Label>
-                <Select value={category} onValueChange={setCategory}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {categories.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Kategorie</Label>
+              <Select value={category} onValueChange={setCategory}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {categories.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
-            <div className="flex items-center gap-2">
-              <Checkbox id="tpl-dq" checked={requiresDQ} onCheckedChange={(c) => setRequiresDQ(!!c)} />
-              <Label htmlFor="tpl-dq" className="text-xs cursor-pointer">Erfordert doppelt qualifizierte Mehrheit</Label>
+
+            {/* Beschluss erforderlich */}
+            <div className="border rounded-md p-3 bg-muted/20 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-xs font-medium flex items-center gap-1.5">
+                    <Gavel className="h-3.5 w-3.5" /> Beschluss erforderlich
+                  </Label>
+                  <p className="text-[11px] text-muted-foreground">Aus = rein informativer TOP (keine Abstimmung).</p>
+                </div>
+                <Checkbox checked={requiresResolution} onCheckedChange={(c) => setRequiresResolution(!!c)} />
+              </div>
+
+              {requiresResolution ? (
+                <>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Beschlusstext</Label>
+                    <Textarea
+                      placeholder="Die Eigentümer beschließen..."
+                      value={resolutionText}
+                      onChange={(e) => setResolutionText(e.target.value)}
+                      rows={4}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Abstimmungsmethode</Label>
+                    <Select value={votingPrinciple} onValueChange={setVotingPrinciple}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {votingPrinciples.map(v => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox id="tpl-dq" checked={requiresDQ} onCheckedChange={(c) => setRequiresDQ(!!c)} />
+                    <Label htmlFor="tpl-dq" className="text-xs cursor-pointer">Erfordert doppelt qualifizierte Mehrheit</Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Checkbox id="tpl-dq-rel" checked={dqRelevant} onCheckedChange={(c) => setDqRelevant(!!c)} />
+                    <Label htmlFor="tpl-dq-rel" className="text-xs cursor-pointer">Doppelt qualifizierte Mehrheit relevant (Ergebnis anzeigen)</Label>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-start gap-2 text-xs text-muted-foreground bg-background rounded-md p-3 border">
+                  <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                  <span>Rein informativer TOP — kein Beschluss, keine Abstimmung.</span>
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
