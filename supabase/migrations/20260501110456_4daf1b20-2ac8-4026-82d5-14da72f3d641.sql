@@ -1,0 +1,1 @@
+ALTER TABLE public.etv_meetings ALTER COLUMN meeting_date DROP NOT NULL;

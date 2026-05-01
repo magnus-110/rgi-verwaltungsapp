@@ -20,11 +20,12 @@ import { Save, ChevronDown, ChevronUp, CheckCircle2, Globe } from "lucide-react"
 
 interface MeetingEditorProps {
   meetingId: string | null;
+  initialBuildingId?: string;
   onSaved: () => void;
   onCancel: () => void;
 }
 
-export const MeetingEditor = ({ meetingId, onSaved, onCancel }: MeetingEditorProps) => {
+export const MeetingEditor = ({ meetingId, initialBuildingId, onSaved, onCancel }: MeetingEditorProps) => {
   const { profile } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -34,8 +35,8 @@ export const MeetingEditor = ({ meetingId, onSaved, onCancel }: MeetingEditorPro
   const [savedMeetingId, setSavedMeetingId] = useState<string | null>(meetingId);
 
   // Form state
-  const [title, setTitle] = useState("");
-  const [buildingId, setBuildingId] = useState("");
+  const [title, setTitle] = useState("Eigentümerversammlung");
+  const [buildingId, setBuildingId] = useState(initialBuildingId || "");
   const [meetingDate, setMeetingDate] = useState("");
   const [meetingTime, setMeetingTime] = useState("18:00");
   const [location, setLocation] = useState("");
@@ -43,19 +44,30 @@ export const MeetingEditor = ({ meetingId, onSaved, onCancel }: MeetingEditorPro
   const [meetingChair, setMeetingChair] = useState("");
   const [minutesTaker, setMinutesTaker] = useState("");
 
-  // Load WEG buildings
+  // Load WEG buildings (incl. default location)
   const { data: buildings = [] } = useQuery({
     queryKey: ["weg-buildings"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("buildings")
-        .select("id, name, address")
+        .select("id, name, address, etv_default_location")
         .eq("management_mode", "weg")
         .order("name");
       if (error) throw error;
       return data || [];
     },
   });
+
+  // Auto-fill location when building changes (only if location is empty and no existing meeting)
+  useEffect(() => {
+    if (!buildingId || savedMeetingId) return;
+    const b = buildings.find((x: any) => x.id === buildingId);
+    if (b && !location) {
+      const def = (b as any).etv_default_location || b.address;
+      if (def) setLocation(def);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buildingId, buildings]);
 
   // Load existing meeting
   const { data: existingMeeting } = useQuery({
@@ -90,8 +102,13 @@ export const MeetingEditor = ({ meetingId, onSaved, onCancel }: MeetingEditorPro
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const meetingDateTime = new Date(`${meetingDate}T${meetingTime}:00`).toISOString();
-      const lockTime = new Date(new Date(`${meetingDate}T${meetingTime}:00`).getTime() - 60 * 60 * 1000).toISOString();
+      let meetingDateTime: string | null = null;
+      let lockTime: string | null = null;
+      if (meetingDate) {
+        const time = meetingTime || "00:00";
+        meetingDateTime = new Date(`${meetingDate}T${time}:00`).toISOString();
+        lockTime = new Date(new Date(`${meetingDate}T${time}:00`).getTime() - 60 * 60 * 1000).toISOString();
+      }
 
       const payload: any = {
         title,
@@ -130,7 +147,7 @@ export const MeetingEditor = ({ meetingId, onSaved, onCancel }: MeetingEditorPro
     setOpenSteps((prev) => ({ ...prev, [s]: !prev[s] }));
   };
 
-  const isStep0Valid = title && buildingId && meetingDate && meetingTime;
+  const isStep0Valid = title && buildingId;
 
   return (
     <div className="space-y-4 max-w-4xl">
@@ -189,11 +206,11 @@ export const MeetingEditor = ({ meetingId, onSaved, onCancel }: MeetingEditorPro
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="date">Datum *</Label>
+                      <Label htmlFor="date">Datum</Label>
                       <Input id="date" type="date" value={meetingDate} onChange={(e) => setMeetingDate(e.target.value)} />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="time">Uhrzeit *</Label>
+                      <Label htmlFor="time">Uhrzeit</Label>
                       <Input id="time" type="time" value={meetingTime} onChange={(e) => setMeetingTime(e.target.value)} />
                     </div>
                     <div className="space-y-2">
