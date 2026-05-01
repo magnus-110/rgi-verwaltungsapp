@@ -14,7 +14,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Plus, GripVertical, Trash2, Pencil, Upload, FileText, X, Wand2, Loader2, Check, BookTemplate, ChevronDown, ChevronUp, Settings, Gavel, Info } from "lucide-react";
+import { Plus, GripVertical, Trash2, Pencil, Upload, FileText, X, Wand2, Loader2, Check, BookTemplate, ChevronDown, ChevronUp, Settings, Gavel, Info, FolderOpen } from "lucide-react";
+import { DmsFilePickerDialog } from "./DmsFilePickerDialog";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
@@ -393,10 +394,16 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
             }
           }}
         />
-        <Button type="button" variant="ghost" size="sm" className="gap-2 text-muted-foreground" onClick={() => editFileInputRef.current?.click()}>
-          <Upload className="h-4 w-4" />
-          Dateien hinzufügen
-        </Button>
+        <div className="flex gap-1">
+          <Button type="button" variant="ghost" size="sm" className="gap-2 text-muted-foreground" onClick={() => editFileInputRef.current?.click()}>
+            <Upload className="h-4 w-4" />
+            Vom Computer
+          </Button>
+          <Button type="button" variant="ghost" size="sm" className="gap-2 text-muted-foreground" onClick={() => setEditDmsOpen(true)}>
+            <FolderOpen className="h-4 w-4" />
+            Aus DMS
+          </Button>
+        </div>
         {editItemExistingPaths.length > 0 && (
           <div className="mt-2 space-y-1">
             {editItemExistingPaths.map((path, i) => {

@@ -20,6 +20,7 @@ import {
   ArrowLeft, ArrowRight, ChevronRight, ChevronLeft, Save, Shield, Copy, Lock, AlertTriangle,
   RefreshCw, StickyNote, FileText, Plus, Gavel
 } from "lucide-react";
+import { AgendaItemEmailsSection } from "./AgendaItemEmailsSection";
 
 interface MeetingLiveSessionProps {
   meetingId: string;
@@ -636,6 +637,9 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                 <p className="text-sm">{selectedItem.description}</p>
               </div>
             )}
+
+            {/* Zugeordnete E-Mails (kompakt, aufklappbar) */}
+            <AgendaItemEmailsSection agendaItemId={selectedItem.id} />
 
             {/* Live-editable settings: Beschluss-Toggle, Abstimmungsmethode, DQ */}
             <div className="border rounded-md p-3 bg-muted/20 space-y-3">

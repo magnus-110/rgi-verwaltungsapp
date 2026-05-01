@@ -3510,6 +3510,7 @@ export type Database = {
           created_at: string
           date: string | null
           deleted_at: string | null
+          etv_agenda_item_id: string | null
           etv_meeting_id: string | null
           folder_id: string | null
           from_address: string | null
@@ -3553,6 +3554,7 @@ export type Database = {
           created_at?: string
           date?: string | null
           deleted_at?: string | null
+          etv_agenda_item_id?: string | null
           etv_meeting_id?: string | null
           folder_id?: string | null
           from_address?: string | null
@@ -3596,6 +3598,7 @@ export type Database = {
           created_at?: string
           date?: string | null
           deleted_at?: string | null
+          etv_agenda_item_id?: string | null
           etv_meeting_id?: string | null
           folder_id?: string | null
           from_address?: string | null
@@ -3661,6 +3664,13 @@ export type Database = {
             columns: ["contact_id"]
             isOneToOne: false
             referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emails_etv_agenda_item_id_fkey"
+            columns: ["etv_agenda_item_id"]
+            isOneToOne: false
+            referencedRelation: "etv_agenda_items"
             referencedColumns: ["id"]
           },
           {

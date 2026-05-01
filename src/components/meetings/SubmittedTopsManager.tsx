@@ -9,10 +9,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { CheckCircle2, XCircle, FileText, Inbox, Building2, ExternalLink, ChevronDown, ChevronRight } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CheckCircle2, XCircle, FileText, Inbox, Building2, ExternalLink, ChevronDown, ChevronRight, Mail } from "lucide-react";
 import { format as formatDate } from "date-fns";
 import { de } from "date-fns/locale";
 import { Skeleton } from "@/components/ui/skeleton";
+import { EtvRelevantEmailsManager } from "./EtvRelevantEmailsManager";
 
 interface SubmittedTopsManagerProps {
   buildingFilter?: string;
@@ -220,56 +222,73 @@ export const SubmittedTopsManager = ({ buildingFilter: externalBuildingFilter }:
 
   return (
     <div className="space-y-4">
+      <Tabs defaultValue="app">
+        <TabsList>
+          <TabsTrigger value="app" className="gap-1.5">
+            <Inbox className="h-3.5 w-3.5" /> Anträge aus der App
+            {pendingTops.length > 0 && <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-xs">{pendingTops.length}</Badge>}
+          </TabsTrigger>
+          <TabsTrigger value="emails" className="gap-1.5">
+            <Mail className="h-3.5 w-3.5" /> ETV-relevante E-Mails
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Pending */}
-      {pendingTops.length > 0 ? (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Inbox className="h-4 w-4 text-amber-500" />
-            <h3 className="text-sm font-semibold">Offene Anträge ({pendingTops.length})</h3>
-          </div>
-          {pendingTops.map((top: any) => renderTopCard(top, true))}
-        </div>
-      ) : (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <Inbox className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">Keine offenen Anträge vorhanden.</p>
-          </CardContent>
-        </Card>
-      )}
+        <TabsContent value="app" className="space-y-4 mt-4">
+          {/* Pending */}
+          {pendingTops.length > 0 ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Inbox className="h-4 w-4 text-amber-500" />
+                <h3 className="text-sm font-semibold">Offene Anträge ({pendingTops.length})</h3>
+              </div>
+              {pendingTops.map((top: any) => renderTopCard(top, true))}
+            </div>
+          ) : (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Inbox className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">Keine offenen Anträge vorhanden.</p>
+              </CardContent>
+            </Card>
+          )}
 
-      {/* Processed - collapsible */}
-      {(acceptedTops.length > 0 || rejectedTops.length > 0) && (
-        <Collapsible open={showProcessed} onOpenChange={setShowProcessed}>
-          <CollapsibleTrigger asChild>
-            <Button variant="ghost" className="gap-2 text-muted-foreground w-full justify-start">
-              {showProcessed ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-              Bearbeitete Anträge ({acceptedTops.length + rejectedTops.length})
-            </Button>
-          </CollapsibleTrigger>
-          <CollapsibleContent className="space-y-4 mt-2">
-            {acceptedTops.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
-                  Angenommen ({acceptedTops.length})
-                </h4>
-                {acceptedTops.map((top: any) => renderTopCard(top, false))}
-              </div>
-            )}
-            {rejectedTops.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-                  <XCircle className="h-3.5 w-3.5 text-destructive" />
-                  Abgelehnt ({rejectedTops.length})
-                </h4>
-                {rejectedTops.map((top: any) => renderTopCard(top, false))}
-              </div>
-            )}
-          </CollapsibleContent>
-        </Collapsible>
-      )}
+          {/* Processed - collapsible */}
+          {(acceptedTops.length > 0 || rejectedTops.length > 0) && (
+            <Collapsible open={showProcessed} onOpenChange={setShowProcessed}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="gap-2 text-muted-foreground w-full justify-start">
+                  {showProcessed ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                  Bearbeitete Anträge ({acceptedTops.length + rejectedTops.length})
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-4 mt-2">
+                {acceptedTops.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+                      Angenommen ({acceptedTops.length})
+                    </h4>
+                    {acceptedTops.map((top: any) => renderTopCard(top, false))}
+                  </div>
+                )}
+                {rejectedTops.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                      <XCircle className="h-3.5 w-3.5 text-destructive" />
+                      Abgelehnt ({rejectedTops.length})
+                    </h4>
+                    {rejectedTops.map((top: any) => renderTopCard(top, false))}
+                  </div>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
+          )}
+        </TabsContent>
+
+        <TabsContent value="emails" className="mt-4">
+          <EtvRelevantEmailsManager buildingFilter={filterBuildingId} />
+        </TabsContent>
+      </Tabs>
 
       {/* Detail dialog */}
       <Dialog open={!!detailTopId} onOpenChange={() => setDetailTopId(null)}>
