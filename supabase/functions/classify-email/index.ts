@@ -57,16 +57,28 @@ Deno.serve(async (req) => {
       .from("contact_emails")
       .select("contact_id, email");
 
+    // Auch E-Mails von Ansprechpartnern (contact_persons) berücksichtigen
+    const { data: contactPersonEmails } = await supabaseAdmin
+      .from("contact_persons")
+      .select("contact_id, email")
+      .not("email", "is", null);
+
     // Get building assignments for auto-mapping
     const { data: contactBuildingAssignments } = await supabaseAdmin
       .from("contact_building_assignments")
       .select("contact_id, building_id")
       .eq("is_active", true);
 
-    // Build contact email lookup
+    // Build contact email lookup (1 Kontakt kann mehrere E-Mails haben)
     const emailToContactId: Record<string, string> = {};
     for (const ce of contactEmails || []) {
-      emailToContactId[ce.email.toLowerCase()] = ce.contact_id;
+      if (ce.email) emailToContactId[ce.email.trim().toLowerCase()] = ce.contact_id;
+    }
+    for (const cp of contactPersonEmails || []) {
+      if (cp.email) {
+        const key = cp.email.trim().toLowerCase();
+        if (!emailToContactId[key]) emailToContactId[key] = cp.contact_id;
+      }
     }
 
     // Build contact -> buildings lookup
