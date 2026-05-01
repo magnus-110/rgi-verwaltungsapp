@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AccountSettingsPopover } from "./AccountSettingsPopover";
+import { useCustomShareTypes } from "@/hooks/useCustomShareTypes";
 
 const DISTRIBUTION_KEYS = [
   { value: "mea", label: "MEA" },
