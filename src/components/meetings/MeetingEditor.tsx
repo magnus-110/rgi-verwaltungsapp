@@ -102,8 +102,13 @@ export const MeetingEditor = ({ meetingId, initialBuildingId, onSaved, onCancel 
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const meetingDateTime = new Date(`${meetingDate}T${meetingTime}:00`).toISOString();
-      const lockTime = new Date(new Date(`${meetingDate}T${meetingTime}:00`).getTime() - 60 * 60 * 1000).toISOString();
+      let meetingDateTime: string | null = null;
+      let lockTime: string | null = null;
+      if (meetingDate) {
+        const time = meetingTime || "00:00";
+        meetingDateTime = new Date(`${meetingDate}T${time}:00`).toISOString();
+        lockTime = new Date(new Date(`${meetingDate}T${time}:00`).getTime() - 60 * 60 * 1000).toISOString();
+      }
 
       const payload: any = {
         title,
@@ -142,7 +147,7 @@ export const MeetingEditor = ({ meetingId, initialBuildingId, onSaved, onCancel 
     setOpenSteps((prev) => ({ ...prev, [s]: !prev[s] }));
   };
 
-  const isStep0Valid = title && buildingId && meetingDate && meetingTime;
+  const isStep0Valid = title && buildingId;
 
   return (
     <div className="space-y-4 max-w-4xl">
