@@ -551,10 +551,16 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                                   <div className="flex items-center justify-between">
                                     <h4 className="font-semibold text-foreground">{item.title}</h4>
                                     <div className="flex items-center gap-2">
-                                      <Badge variant="outline" className="text-xs">
-                                        {votingPrinciples.find((v) => v.value === item.voting_principle)?.label || item.voting_principle}
-                                      </Badge>
-                                      {item.requires_double_qualified && (
+                                      {item.requires_resolution === false ? (
+                                        <Badge variant="outline" className="text-xs border-blue-300 text-blue-700 dark:text-blue-300">
+                                          <Info className="h-3 w-3 mr-1" /> Informativ
+                                        </Badge>
+                                      ) : (
+                                        <Badge variant="outline" className="text-xs">
+                                          {votingPrinciples.find((v) => v.value === item.voting_principle)?.label || item.voting_principle}
+                                        </Badge>
+                                      )}
+                                      {item.requires_resolution !== false && item.requires_double_qualified && (
                                         <Badge variant="secondary" className="text-xs bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
                                           DQ erforderlich
                                         </Badge>
