@@ -188,6 +188,14 @@ export function DistributionKeysTab() {
                                         {k.label} {k.value === account.default_distribution_key ? "(Standard)" : ""}
                                       </SelectItem>
                                     ))}
+                                    {customDistKeys.length > 0 && (
+                                      <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Eigene</div>
+                                    )}
+                                    {customDistKeys.map(k => (
+                                      <SelectItem key={k} value={k}>
+                                        {k} {k === account.default_distribution_key ? "(Standard)" : ""}
+                                      </SelectItem>
+                                    ))}
                                   </SelectContent>
                                 </Select>
                               </TableCell>
