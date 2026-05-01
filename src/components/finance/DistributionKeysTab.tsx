@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
+import { useCustomShareTypes } from "@/hooks/useCustomShareTypes";
 
 const DISTRIBUTION_KEYS = [
   { value: "mea", label: "MEA" },
