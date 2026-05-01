@@ -393,10 +393,16 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
             }
           }}
         />
-        <Button type="button" variant="ghost" size="sm" className="gap-2 text-muted-foreground" onClick={() => editFileInputRef.current?.click()}>
-          <Upload className="h-4 w-4" />
-          Dateien hinzufügen
-        </Button>
+        <div className="flex gap-1">
+          <Button type="button" variant="ghost" size="sm" className="gap-2 text-muted-foreground" onClick={() => editFileInputRef.current?.click()}>
+            <Upload className="h-4 w-4" />
+            Vom Computer
+          </Button>
+          <Button type="button" variant="ghost" size="sm" className="gap-2 text-muted-foreground" onClick={() => setEditDmsOpen(true)}>
+            <FolderOpen className="h-4 w-4" />
+            Aus DMS
+          </Button>
+        </div>
         {editItemExistingPaths.length > 0 && (
           <div className="mt-2 space-y-1">
             {editItemExistingPaths.map((path, i) => {
