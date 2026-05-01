@@ -20,6 +20,7 @@ import {
   ArrowLeft, ArrowRight, ChevronRight, ChevronLeft, Save, Shield, Copy, Lock, AlertTriangle,
   RefreshCw, StickyNote, FileText, Plus, Gavel
 } from "lucide-react";
+import { AgendaItemEmailsSection } from "./AgendaItemEmailsSection";
 
 interface MeetingLiveSessionProps {
   meetingId: string;
