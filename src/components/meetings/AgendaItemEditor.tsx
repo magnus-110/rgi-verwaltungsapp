@@ -621,20 +621,53 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-semibold text-muted-foreground">Neuen TOP hinzufügen</h4>
-            {renderTemplateDropdown("new")}
+            {newRequiresResolution && renderTemplateDropdown("new")}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs">Titel *</Label>
               <Input
-                placeholder="z.B. Genehmigung der Jahresabrechnung"
+                placeholder="z.B. Bericht der Verwaltung über das Geschäftsjahr"
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
               />
             </div>
-            <div className="flex gap-3">
-              <div className="flex-1 space-y-1.5">
-                <Label className="text-xs">Abstimmung</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Kategorie</Label>
+              <Select value={newCategory} onValueChange={setNewCategory}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {categories.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Beschreibung</Label>
+            <Textarea
+              placeholder="Ausführliche Beschreibung des Tagesordnungspunkts..."
+              value={newDescription}
+              onChange={(e) => setNewDescription(e.target.value)}
+              rows={6}
+            />
+          </div>
+          <div className="flex items-center justify-between rounded-md border p-3 bg-muted/20">
+            <div className="space-y-0.5">
+              <Label className="text-xs font-medium flex items-center gap-1.5">
+                <Gavel className="h-3.5 w-3.5" /> Beschluss erforderlich
+              </Label>
+              <p className="text-[11px] text-muted-foreground">
+                Aktivieren, falls über diesen TOP abgestimmt werden soll. Andernfalls rein informativ (z.B. Verwaltungsbericht).
+              </p>
+            </div>
+            <Switch checked={newRequiresResolution} onCheckedChange={setNewRequiresResolution} />
+          </div>
+          {newRequiresResolution ? (
+            <>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Abstimmungsmethode</Label>
                 <Select value={newPrinciple} onValueChange={setNewPrinciple}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -644,57 +677,42 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex-1 space-y-1.5">
-                <Label className="text-xs">Kategorie</Label>
-                <Select value={newCategory} onValueChange={setNewCategory}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {categories.map((c) => (
-                      <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-xs">Beschlusstext</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 text-muted-foreground hover:text-primary"
+                    onClick={() => generateResolution(newTitle, newDescription, setIsGeneratingNew, setNewAiSuggestion)}
+                    disabled={isGeneratingNew || !newTitle}
+                    title="Beschlusstext mit KI generieren"
+                  >
+                    {isGeneratingNew ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+                  </Button>
+                </div>
+                <Textarea
+                  placeholder="Die Eigentümer beschließen..."
+                  value={newResolution}
+                  onChange={(e) => setNewResolution(e.target.value)}
+                  rows={3}
+                />
+                {renderAiSuggestion(
+                  newAiSuggestion,
+                  () => { setNewResolution(newAiSuggestion!); setNewAiSuggestion(null); },
+                  () => setNewAiSuggestion(null),
+                  setNewAiSuggestion,
+                )}
               </div>
+              {renderDoubleQualifiedCheckboxes(newRequiresDQ, setNewRequiresDQ, newDQRelevant, setNewDQRelevant)}
+            </>
+          ) : (
+            <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/30 rounded-md p-3 border">
+              <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>Dieser TOP ist rein informativ — kein Beschluss, keine Abstimmung.</span>
             </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Erläuterung</Label>
-            <Textarea
-              placeholder="Beschreibung des Tagesordnungspunkts..."
-              value={newDescription}
-              onChange={(e) => setNewDescription(e.target.value)}
-              rows={2}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-1.5">
-              <Label className="text-xs">Beschlusstext (optional)</Label>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-5 w-5 text-muted-foreground hover:text-primary"
-                onClick={() => generateResolution(newTitle, newDescription, setIsGeneratingNew, setNewAiSuggestion)}
-                disabled={isGeneratingNew || !newTitle}
-                title="Beschlusstext mit KI generieren"
-              >
-                {isGeneratingNew ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
-              </Button>
-            </div>
-            <Textarea
-              placeholder="Die Eigentümer beschließen..."
-              value={newResolution}
-              onChange={(e) => setNewResolution(e.target.value)}
-              rows={3}
-            />
-            {renderAiSuggestion(
-              newAiSuggestion,
-              () => { setNewResolution(newAiSuggestion!); setNewAiSuggestion(null); },
-              () => setNewAiSuggestion(null),
-              setNewAiSuggestion,
-            )}
-          </div>
-          {renderDoubleQualifiedCheckboxes(newRequiresDQ, setNewRequiresDQ, newDQRelevant, setNewDQRelevant)}
+          )}
           {/* File upload */}
           <div className="space-y-1.5">
             <Label className="text-xs">Anhänge (optional)</Label>
