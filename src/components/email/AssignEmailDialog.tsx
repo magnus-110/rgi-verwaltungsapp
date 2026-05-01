@@ -105,6 +105,66 @@ export const AssignEmailDialog = ({
     },
   });
 
+  // Lade aktuelle E-Mail (für Absender-Matching)
+  const { data: currentEmail } = useQuery({
+    queryKey: ["assign-email-meta", emailId],
+    enabled: !!emailId && open,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("emails")
+        .select("id, from_address")
+        .eq("id", emailId!)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Lade alle bekannten Kontakt-E-Mails (contact_emails + contact_persons.email)
+  const { data: contactEmailMap = new Map<string, string>() } = useQuery({
+    queryKey: ["contact-email-lookup"],
+    queryFn: async () => {
+      const map = new Map<string, string>();
+      const { data: ce } = await supabase.from("contact_emails").select("contact_id, email");
+      (ce || []).forEach((r: any) => {
+        if (r.email) map.set(r.email.trim().toLowerCase(), r.contact_id);
+      });
+      const { data: cp } = await supabase.from("contact_persons").select("contact_id, email").not("email", "is", null);
+      (cp || []).forEach((r: any) => {
+        if (r.email) {
+          const key = r.email.trim().toLowerCase();
+          if (!map.has(key)) map.set(key, r.contact_id);
+        }
+      });
+      return map;
+    },
+  });
+
+  // Auto-Vorschlag Kontakt anhand Absender-E-Mail (wenn KI noch nichts vorgeschlagen hat)
+  const senderMatchedContactId = currentEmail?.from_address
+    ? contactEmailMap.get(currentEmail.from_address.trim().toLowerCase()) || null
+    : null;
+
+  useEffect(() => {
+    if (!open) return;
+    if (contactId === "none" && !prefilledContactId && senderMatchedContactId) {
+      setContactId(senderMatchedContactId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [senderMatchedContactId, open]);
+
+  const [contactSearch, setContactSearch] = useState("");
+  useEffect(() => { if (open) setContactSearch(""); }, [open]);
+
+  const filteredContacts = (() => {
+    const s = contactSearch.trim().toLowerCase();
+    if (!s) return contacts;
+    return contacts.filter((c: any) => {
+      const name = `${c.first_name || ""} ${c.last_name || ""} ${c.company_name || ""}`.toLowerCase();
+      return name.includes(s);
+    });
+  })();
+
   const { data: cases = [] } = useQuery({
     queryKey: ["cases-for-assign", buildingId],
     queryFn: async () => {
