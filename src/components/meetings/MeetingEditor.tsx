@@ -265,11 +265,6 @@ export const MeetingEditor = ({ meetingId, initialBuildingId, onSaved, onCancel 
             </Card>
           </Collapsible>
 
-          {/* ETV-relevante E-Mails */}
-          {savedMeetingId && buildingId && (
-            <EtvRelevantEmailsList meetingId={savedMeetingId} buildingId={buildingId} />
-          )}
-
           {/* Einladung */}
           <Collapsible open={openSteps[2]} onOpenChange={() => toggleStep(2)}>
             <Card className={!savedMeetingId ? "opacity-50 pointer-events-none" : ""}>
