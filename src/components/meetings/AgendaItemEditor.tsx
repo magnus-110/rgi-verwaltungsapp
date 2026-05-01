@@ -826,6 +826,22 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
 
       {/* Inline Template Management */}
       <TemplateManager templates={templates} queryClient={queryClient} toast={toast} />
+
+      {/* DMS Picker Dialogs */}
+      <DmsFilePickerDialog
+        open={newDmsOpen}
+        onOpenChange={setNewDmsOpen}
+        buildingId={buildingId}
+        excludePaths={newDmsPaths}
+        onSelect={(paths) => setNewDmsPaths((prev) => [...prev, ...paths])}
+      />
+      <DmsFilePickerDialog
+        open={editDmsOpen}
+        onOpenChange={setEditDmsOpen}
+        buildingId={buildingId}
+        excludePaths={editItemExistingPaths}
+        onSelect={(paths) => setEditItemExistingPaths((prev) => [...prev, ...paths])}
+      />
     </div>
   );
 };
