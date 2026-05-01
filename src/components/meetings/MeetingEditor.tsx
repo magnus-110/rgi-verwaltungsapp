@@ -44,19 +44,30 @@ export const MeetingEditor = ({ meetingId, initialBuildingId, onSaved, onCancel 
   const [meetingChair, setMeetingChair] = useState("");
   const [minutesTaker, setMinutesTaker] = useState("");
 
-  // Load WEG buildings
+  // Load WEG buildings (incl. default location)
   const { data: buildings = [] } = useQuery({
     queryKey: ["weg-buildings"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("buildings")
-        .select("id, name, address")
+        .select("id, name, address, etv_default_location")
         .eq("management_mode", "weg")
         .order("name");
       if (error) throw error;
       return data || [];
     },
   });
+
+  // Auto-fill location when building changes (only if location is empty and no existing meeting)
+  useEffect(() => {
+    if (!buildingId || savedMeetingId) return;
+    const b = buildings.find((x: any) => x.id === buildingId);
+    if (b && !location) {
+      const def = (b as any).etv_default_location || b.address;
+      if (def) setLocation(def);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buildingId, buildings]);
 
   // Load existing meeting
   const { data: existingMeeting } = useQuery({
