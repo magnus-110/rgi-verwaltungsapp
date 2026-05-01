@@ -35,6 +35,7 @@ interface AgendaItem {
   attachment_paths: string[] | null;
   requires_double_qualified: boolean;
   double_qualified_relevant: boolean;
+  requires_resolution: boolean;
 }
 
 const votingPrinciples = [
