@@ -85,6 +85,7 @@ export const Meetings = () => {
         </Button>
         <MeetingEditor
           meetingId={selectedMeetingId}
+          initialBuildingId={isCreating && selectedBuildingId !== "all" ? selectedBuildingId : undefined}
           onSaved={handleBack}
           onCancel={handleBack}
         />
