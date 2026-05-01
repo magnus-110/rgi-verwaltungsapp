@@ -140,10 +140,16 @@ export async function loadRecipients(
     const titel = primaryPerson?.position || "";
     const vollname = [firstName, lastName].filter(Boolean).join(" ").trim();
 
-    // Email selection: primary contact_emails > person.email > first contact_emails
+    // Email selection: scan all stored emails (primary first), sanitize each value
+    // (handles "x@y.de (Name)", "a@x.de, b@x.de", "Name <x@y.de>"), pick first valid.
     const eList = emailsByContact.get(a.contact_id) || [];
-    const primaryEmail = eList.find((e) => e.is_primary) || eList[0];
-    const email = primaryEmail?.email || primaryPerson?.email || null;
+    const sortedEmails = [...eList].sort((x, y) => Number(!!y.is_primary) - Number(!!x.is_primary));
+    let email: string | null = null;
+    for (const row of sortedEmails) {
+      const v = firstValidEmail(row?.email);
+      if (v) { email = v; break; }
+    }
+    if (!email) email = firstValidEmail(primaryPerson?.email);
 
     if (filter.require_email && !email) continue;
 
