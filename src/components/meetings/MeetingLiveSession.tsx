@@ -43,6 +43,7 @@ interface AgendaItem {
   category: string | null;
   requires_double_qualified: boolean;
   double_qualified_relevant: boolean;
+  requires_resolution: boolean;
 }
 
 const votingPrincipleLabels: Record<string, string> = {
