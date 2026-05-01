@@ -255,7 +255,7 @@ export function ChartOfAccountsTab() {
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {DISTRIBUTION_KEYS.map(k => <SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>)}
+                                    {allDistKeys.map(k => <SelectItem key={k.value} value={k.value}>{k.label}</SelectItem>)}
                                   </SelectContent>
                                 </Select>
                               ) : (
