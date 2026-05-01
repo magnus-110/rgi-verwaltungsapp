@@ -637,6 +637,9 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
               </div>
             )}
 
+            {/* Zugeordnete E-Mails (kompakt, aufklappbar) */}
+            <AgendaItemEmailsSection agendaItemId={selectedItem.id} />
+
             {/* Live-editable settings: Beschluss-Toggle, Abstimmungsmethode, DQ */}
             <div className="border rounded-md p-3 bg-muted/20 space-y-3">
               <div className="flex items-center justify-between">
