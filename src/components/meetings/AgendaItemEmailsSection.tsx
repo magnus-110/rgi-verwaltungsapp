@@ -101,7 +101,7 @@ export const AgendaItemEmailsSection = ({ agendaItemId }: Props) => {
               )}
               <div className="text-sm">
                 {detailEmail.body_html ? (
-                  <EmailHtmlBody html={detailEmail.body_html} />
+                  <EmailHtmlBody html={detailEmail.body_html} emailId={detailEmail.id} />
                 ) : (
                   <pre className="whitespace-pre-wrap font-sans text-sm">{detailEmail.body_text || ""}</pre>
                 )}
