@@ -742,16 +742,52 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                   }
                 }}
               />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="gap-2 text-muted-foreground"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Upload className="h-4 w-4" />
-                Dateien auswählen
-              </Button>
+              <div className="flex gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="gap-2 text-muted-foreground"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Upload className="h-4 w-4" />
+                  Vom Computer
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="gap-2 text-muted-foreground"
+                  onClick={() => setNewDmsOpen(true)}
+                >
+                  <FolderOpen className="h-4 w-4" />
+                  Aus DMS
+                </Button>
+              </div>
+              {newDmsPaths.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {newDmsPaths.map((path, i) => {
+                    const fileName = (path.split("/").pop() || path).replace(/^\d+-/, "");
+                    return (
+                      <div key={`dms-${i}`} className="flex items-center justify-between text-xs bg-muted rounded px-2 py-1">
+                        <span className="flex items-center gap-1 truncate">
+                          <FileText className="h-3 w-3 flex-shrink-0" />
+                          {fileName}
+                          <Badge variant="secondary" className="text-[9px] h-4">DMS</Badge>
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-5 w-5"
+                          onClick={() => setNewDmsPaths((prev) => prev.filter((_, j) => j !== i))}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
               {newFiles.length > 0 && (
                 <div className="mt-2 space-y-1">
                   {newFiles.map((file, i) => (
