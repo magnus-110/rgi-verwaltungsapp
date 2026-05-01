@@ -374,7 +374,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="max-h-64 overflow-y-auto">
-          <DropdownMenuLabel className="text-xs">Beschlussvorlage wählen</DropdownMenuLabel>
+          <DropdownMenuLabel className="text-xs">TOP-Vorlage wählen</DropdownMenuLabel>
           <DropdownMenuSeparator />
           {templates.map((t: any) => (
             <DropdownMenuItem key={t.id} onClick={() => applyTemplate(t, target)} className="text-xs">
