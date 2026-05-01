@@ -1,5 +1,6 @@
 // Shared helpers for the Communication module: building recipients + variable resolution.
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.52.1";
+import { firstValidEmail } from "./sanitize-email.ts";
 
 export type RecipientFilter = {
   roles?: string[]; // e.g. ["eigentuemer","mieter"]
