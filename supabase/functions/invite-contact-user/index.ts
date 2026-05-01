@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.52.1'
+import { firstValidEmail } from '../_shared/sanitize-email.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -98,7 +99,20 @@ Deno.serve(async (req) => {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
-    const email = emails[0].email
+    // Sanitize: strip "(Name)", "<...>", split on comma/semicolon, validate format.
+    // Try each stored row in order; pick the first valid address.
+    let email: string | null = null
+    const rawTried: string[] = []
+    for (const row of emails) {
+      rawTried.push(row.email)
+      const v = firstValidEmail(row.email)
+      if (v) { email = v; break }
+    }
+    if (!email) {
+      return new Response(JSON.stringify({
+        error: `Keine gültige E-Mail-Adresse für diesen Kontakt. Gespeicherte Werte: ${rawTried.join(' | ')}. Bitte im Kontakt bereinigen (eine Adresse pro Eintrag, ohne Klammern oder Kommata).`
+      }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
 
     // Rolle aus den TATSÄCHLICHEN Building-Assignments des Kontakts ableiten,
     // nicht stur aus dem management_mode der aktuellen Liegenschaft.
