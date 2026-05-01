@@ -206,11 +206,11 @@ export const MeetingEditor = ({ meetingId, initialBuildingId, onSaved, onCancel 
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="date">Datum *</Label>
+                      <Label htmlFor="date">Datum</Label>
                       <Input id="date" type="date" value={meetingDate} onChange={(e) => setMeetingDate(e.target.value)} />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="time">Uhrzeit *</Label>
+                      <Label htmlFor="time">Uhrzeit</Label>
                       <Input id="time" type="time" value={meetingTime} onChange={(e) => setMeetingTime(e.target.value)} />
                     </div>
                     <div className="space-y-2">
