@@ -26,7 +26,7 @@ export const DmsFilePickerDialog = ({ open, onOpenChange, buildingId, excludePat
     queryFn: async () => {
       let q = supabase
         .from("building_files")
-        .select("id, display_name, file_path, mime_type, file_size, created_at, building_files_categories:building_file_categories(name)")
+        .select("id, display_name, file_path, mime_type, file_size, created_at, category:building_file_categories(name)")
         .eq("is_current_version", true)
         .order("created_at", { ascending: false })
         .limit(500);
