@@ -637,6 +637,62 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
               </div>
             )}
 
+            {/* Live-editable settings: Beschluss-Toggle, Abstimmungsmethode, DQ */}
+            <div className="border rounded-md p-3 bg-muted/20 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-xs font-medium flex items-center gap-1.5">
+                    <Gavel className="h-3.5 w-3.5" /> Beschluss erforderlich
+                  </Label>
+                  <p className="text-[11px] text-muted-foreground">Aus = rein informativer TOP (keine Abstimmung).</p>
+                </div>
+                <Switch
+                  checked={selectedItem.requires_resolution !== false}
+                  disabled={!!activeVoteItem}
+                  onCheckedChange={(v) => updateItemMutation.mutate({ itemId: selectedItem.id, patch: { requires_resolution: v } })}
+                />
+              </div>
+              {selectedItem.requires_resolution !== false && (
+                <>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Abstimmungsmethode</Label>
+                    <Select
+                      value={selectedItem.voting_principle}
+                      disabled={!!activeVoteItem}
+                      onValueChange={(v) => updateItemMutation.mutate({ itemId: selectedItem.id, patch: { voting_principle: v } })}
+                    >
+                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(votingPrincipleLabels).map(([k, l]) => (
+                          <SelectItem key={k} value={k}>{l}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">DQ erforderlich</Label>
+                    <Switch
+                      checked={selectedItem.requires_double_qualified}
+                      disabled={!!activeVoteItem}
+                      onCheckedChange={(v) => updateItemMutation.mutate({ itemId: selectedItem.id, patch: { requires_double_qualified: v } })}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">DQ relevant (Ergebnis anzeigen)</Label>
+                    <Switch
+                      checked={selectedItem.double_qualified_relevant}
+                      disabled={!!activeVoteItem}
+                      onCheckedChange={(v) => updateItemMutation.mutate({ itemId: selectedItem.id, patch: { double_qualified_relevant: v } })}
+                    />
+                  </div>
+                </>
+              )}
+              {!!activeVoteItem && (
+                <p className="text-[11px] text-amber-600 dark:text-amber-400">Während laufender Abstimmung gesperrt.</p>
+              )}
+            </div>
+
+            {selectedItem.requires_resolution !== false && (<>
             {/* Editable Resolution Text */}
             <div>
               <div className="flex items-center justify-between mb-1">
