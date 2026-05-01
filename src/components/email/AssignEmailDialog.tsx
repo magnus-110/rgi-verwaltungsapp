@@ -319,14 +319,32 @@ export const AssignEmailDialog = ({
                   Vorschlag
                 </Badge>
               )}
+              {!prefilledContactId && senderMatchedContactId && contactId === senderMatchedContactId && (
+                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 gap-0.5">
+                  <Sparkles className="h-2.5 w-2.5" />
+                  Absender erkannt
+                </Badge>
+              )}
             </Label>
             <Select value={contactId} onValueChange={setContactId}>
               <SelectTrigger><SelectValue placeholder="Keine Zuordnung" /></SelectTrigger>
               <SelectContent>
+                <div className="p-2 sticky top-0 bg-popover z-10 border-b">
+                  <Input
+                    placeholder="Kontakt suchen…"
+                    value={contactSearch}
+                    onChange={(e) => setContactSearch(e.target.value)}
+                    onKeyDown={(e) => e.stopPropagation()}
+                    className="h-8"
+                  />
+                </div>
                 <SelectItem value="none">Keine Zuordnung</SelectItem>
-                {contacts.map((c) => (
+                {filteredContacts.map((c) => (
                   <SelectItem key={c.id} value={c.id}>{getContactName(c)}</SelectItem>
                 ))}
+                {filteredContacts.length === 0 && (
+                  <div className="p-2 text-xs text-muted-foreground text-center">Keine Treffer</div>
+                )}
               </SelectContent>
             </Select>
           </div>
