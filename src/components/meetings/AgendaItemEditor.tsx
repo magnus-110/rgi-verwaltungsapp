@@ -221,6 +221,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
     setEditAiSuggestion(null);
     setEditRequiresDQ(item.requires_double_qualified || false);
     setEditDQRelevant(item.double_qualified_relevant || false);
+    setEditRequiresResolution(item.requires_resolution !== false);
   };
 
   const saveEdit = async () => {
@@ -236,13 +237,14 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       id: editingItemId,
       title: editItemTitle,
       description: editItemDescription || null,
-      resolution_text: editItemResolution || null,
+      resolution_text: editRequiresResolution ? (editItemResolution || null) : null,
       voting_principle: editItemPrinciple,
       category: editItemCategory,
       attachment_paths: allPaths.length > 0 ? allPaths : null,
-      requires_double_qualified: editRequiresDQ,
-      double_qualified_relevant: editDQRelevant,
-    });
+      requires_double_qualified: editRequiresResolution ? editRequiresDQ : false,
+      double_qualified_relevant: editRequiresResolution ? editDQRelevant : false,
+      requires_resolution: editRequiresResolution,
+    } as any);
     setEditingItemId(null);
     setEditNewFiles([]);
     setEditAiSuggestion(null);
