@@ -158,6 +158,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       setNewPrinciple("mea");
       setNewCategory("sonstiges");
       setNewFiles([]);
+      setNewDmsPaths([]);
       setNewAiSuggestion(null);
       setNewRequiresDQ(false);
       setNewDQRelevant(false);
