@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.52.1'
+import { firstValidEmail } from '../_shared/sanitize-email.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
