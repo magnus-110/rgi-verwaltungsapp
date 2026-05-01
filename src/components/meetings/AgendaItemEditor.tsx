@@ -89,6 +89,11 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
   const [editAiSuggestion, setEditAiSuggestion] = useState<string | null>(null);
   const [isGeneratingEdit, setIsGeneratingEdit] = useState(false);
 
+  // DMS picker state
+  const [newDmsOpen, setNewDmsOpen] = useState(false);
+  const [editDmsOpen, setEditDmsOpen] = useState(false);
+  const [newDmsPaths, setNewDmsPaths] = useState<string[]>([]);
+
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["etv-agenda-items", meetingId],
     queryFn: async () => {
