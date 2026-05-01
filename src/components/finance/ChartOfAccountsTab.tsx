@@ -168,7 +168,17 @@ export function ChartOfAccountsTab() {
     queryClient.invalidateQueries({ queryKey: ["chart-of-accounts"] });
   };
 
-  const getKeyLabel = (key: string | null) => DISTRIBUTION_KEYS.find(k => k.value === key)?.label || key || "–";
+  // Im globalen Tab building-übergreifend laden, sonst building-spezifisch
+  const { data: customShareTypes = [] } = useCustomShareTypes(
+    selectedBuilding && selectedBuilding !== "global" ? selectedBuilding : undefined
+  );
+  const customDistKeys = [...new Set(customShareTypes)];
+  const allDistKeys = [
+    ...DISTRIBUTION_KEYS,
+    ...customDistKeys.map(k => ({ value: k, label: k })),
+  ];
+
+  const getKeyLabel = (key: string | null) => allDistKeys.find(k => k.value === key)?.label || key || "–";
 
   if (isLoading) return <div className="text-muted-foreground p-4">Laden...</div>;
 
