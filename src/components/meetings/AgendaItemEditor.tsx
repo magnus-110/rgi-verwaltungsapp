@@ -11,9 +11,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Plus, GripVertical, Trash2, Pencil, Upload, FileText, X, Wand2, Loader2, Check, BookTemplate, ChevronDown, ChevronUp, Settings } from "lucide-react";
+import { Plus, GripVertical, Trash2, Pencil, Upload, FileText, X, Wand2, Loader2, Check, BookTemplate, ChevronDown, ChevronUp, Settings, Gavel, Info } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
@@ -35,6 +36,7 @@ interface AgendaItem {
   attachment_paths: string[] | null;
   requires_double_qualified: boolean;
   double_qualified_relevant: boolean;
+  requires_resolution: boolean;
 }
 
 const votingPrinciples = [
@@ -67,6 +69,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
   const [editNewFiles, setEditNewFiles] = useState<File[]>([]);
   const [editRequiresDQ, setEditRequiresDQ] = useState(false);
   const [editDQRelevant, setEditDQRelevant] = useState(false);
+  const [editRequiresResolution, setEditRequiresResolution] = useState(true);
 
   // New item form
   const [newTitle, setNewTitle] = useState("");
@@ -77,6 +80,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const [newRequiresDQ, setNewRequiresDQ] = useState(false);
   const [newDQRelevant, setNewDQRelevant] = useState(false);
+  const [newRequiresResolution, setNewRequiresResolution] = useState(true);
 
   // AI suggestion state
   const [newAiSuggestion, setNewAiSuggestion] = useState<string | null>(null);
@@ -129,12 +133,13 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
         sort_order: items.length + 1,
         title: newTitle,
         description: newDescription || null,
-        resolution_text: newResolution || null,
+        resolution_text: newRequiresResolution ? (newResolution || null) : null,
         voting_principle: newPrinciple,
         category: newCategory,
         attachment_paths: attachmentPaths.length > 0 ? attachmentPaths : null,
-        requires_double_qualified: newRequiresDQ,
-        double_qualified_relevant: newDQRelevant,
+        requires_double_qualified: newRequiresResolution ? newRequiresDQ : false,
+        double_qualified_relevant: newRequiresResolution ? newDQRelevant : false,
+        requires_resolution: newRequiresResolution,
       } as any);
       if (error) throw error;
     },
@@ -149,6 +154,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       setNewAiSuggestion(null);
       setNewRequiresDQ(false);
       setNewDQRelevant(false);
+      setNewRequiresResolution(true);
       toast({ title: "TOP hinzugefügt" });
     },
     onError: (err: any) => {
@@ -215,6 +221,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
     setEditAiSuggestion(null);
     setEditRequiresDQ(item.requires_double_qualified || false);
     setEditDQRelevant(item.double_qualified_relevant || false);
+    setEditRequiresResolution(item.requires_resolution !== false);
   };
 
   const saveEdit = async () => {
@@ -230,13 +237,14 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       id: editingItemId,
       title: editItemTitle,
       description: editItemDescription || null,
-      resolution_text: editItemResolution || null,
+      resolution_text: editRequiresResolution ? (editItemResolution || null) : null,
       voting_principle: editItemPrinciple,
       category: editItemCategory,
       attachment_paths: allPaths.length > 0 ? allPaths : null,
-      requires_double_qualified: editRequiresDQ,
-      double_qualified_relevant: editDQRelevant,
-    });
+      requires_double_qualified: editRequiresResolution ? editRequiresDQ : false,
+      double_qualified_relevant: editRequiresResolution ? editDQRelevant : false,
+      requires_resolution: editRequiresResolution,
+    } as any);
     setEditingItemId(null);
     setEditNewFiles([]);
     setEditAiSuggestion(null);
@@ -249,12 +257,14 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       setNewPrinciple(template.voting_principle || "mea");
       setNewCategory(template.category || "sonstiges");
       setNewRequiresDQ(template.requires_double_qualified || false);
+      setNewRequiresResolution(true);
     } else {
       setEditItemTitle(template.title);
       setEditItemResolution(template.resolution_text);
       setEditItemPrinciple(template.voting_principle || "mea");
       setEditItemCategory(template.category || "sonstiges");
       setEditRequiresDQ(template.requires_double_qualified || false);
+      setEditRequiresResolution(true);
     }
     toast({ title: "Vorlage übernommen" });
   };
@@ -451,16 +461,44 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                                 <div className="space-y-3">
                                   <div className="flex items-center justify-between">
                                     <Label className="text-xs font-semibold">TOP bearbeiten</Label>
-                                    {renderTemplateDropdown("edit")}
+                                    {editRequiresResolution && renderTemplateDropdown("edit")}
                                   </div>
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     <div className="space-y-1.5">
                                       <Label className="text-xs">Titel *</Label>
                                       <Input value={editItemTitle} onChange={(e) => setEditItemTitle(e.target.value)} />
                                     </div>
-                                    <div className="flex gap-3">
-                                      <div className="flex-1 space-y-1.5">
-                                        <Label className="text-xs">Abstimmung</Label>
+                                    <div className="space-y-1.5">
+                                      <Label className="text-xs">Kategorie</Label>
+                                      <Select value={editItemCategory} onValueChange={setEditItemCategory}>
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                          {categories.map((c) => (
+                                            <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs">Beschreibung</Label>
+                                    <Textarea value={editItemDescription} onChange={(e) => setEditItemDescription(e.target.value)} rows={6} placeholder="Ausführliche Beschreibung des Tagesordnungspunkts..." />
+                                  </div>
+                                  <div className="flex items-center justify-between rounded-md border p-3 bg-muted/20">
+                                    <div className="space-y-0.5">
+                                      <Label className="text-xs font-medium flex items-center gap-1.5">
+                                        <Gavel className="h-3.5 w-3.5" /> Beschluss erforderlich
+                                      </Label>
+                                      <p className="text-[11px] text-muted-foreground">
+                                        Aktivieren, falls über diesen TOP abgestimmt werden soll. Andernfalls rein informativ.
+                                      </p>
+                                    </div>
+                                    <Switch checked={editRequiresResolution} onCheckedChange={setEditRequiresResolution} />
+                                  </div>
+                                  {editRequiresResolution ? (
+                                    <>
+                                      <div className="space-y-1.5">
+                                        <Label className="text-xs">Abstimmungsmethode</Label>
                                         <Select value={editItemPrinciple} onValueChange={setEditItemPrinciple}>
                                           <SelectTrigger><SelectValue /></SelectTrigger>
                                           <SelectContent>
@@ -470,47 +508,37 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                                           </SelectContent>
                                         </Select>
                                       </div>
-                                      <div className="flex-1 space-y-1.5">
-                                        <Label className="text-xs">Kategorie</Label>
-                                        <Select value={editItemCategory} onValueChange={setEditItemCategory}>
-                                          <SelectTrigger><SelectValue /></SelectTrigger>
-                                          <SelectContent>
-                                            {categories.map((c) => (
-                                              <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                                            ))}
-                                          </SelectContent>
-                                        </Select>
+                                      <div className="space-y-1.5">
+                                        <div className="flex items-center gap-1.5">
+                                          <Label className="text-xs">Beschlusstext</Label>
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-5 w-5 text-muted-foreground hover:text-primary"
+                                            onClick={() => generateResolution(editItemTitle, editItemDescription, setIsGeneratingEdit, setEditAiSuggestion)}
+                                            disabled={isGeneratingEdit || !editItemTitle}
+                                            title="Beschlusstext mit KI generieren"
+                                          >
+                                            {isGeneratingEdit ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+                                          </Button>
+                                        </div>
+                                        <Textarea value={editItemResolution} onChange={(e) => setEditItemResolution(e.target.value)} rows={3} placeholder="Die Eigentümer beschließen..." />
+                                        {renderAiSuggestion(
+                                          editAiSuggestion,
+                                          () => { setEditItemResolution(editAiSuggestion!); setEditAiSuggestion(null); },
+                                          () => setEditAiSuggestion(null),
+                                          setEditAiSuggestion,
+                                        )}
                                       </div>
+                                      {renderDoubleQualifiedCheckboxes(editRequiresDQ, setEditRequiresDQ, editDQRelevant, setEditDQRelevant)}
+                                    </>
+                                  ) : (
+                                    <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/30 rounded-md p-3 border">
+                                      <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                                      <span>Dieser TOP ist rein informativ — kein Beschluss, keine Abstimmung.</span>
                                     </div>
-                                  </div>
-                                  <div className="space-y-1.5">
-                                    <Label className="text-xs">Erläuterung</Label>
-                                    <Textarea value={editItemDescription} onChange={(e) => setEditItemDescription(e.target.value)} rows={2} />
-                                  </div>
-                                  <div className="space-y-1.5">
-                                    <div className="flex items-center gap-1.5">
-                                      <Label className="text-xs">Beschlusstext</Label>
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-5 w-5 text-muted-foreground hover:text-primary"
-                                        onClick={() => generateResolution(editItemTitle, editItemDescription, setIsGeneratingEdit, setEditAiSuggestion)}
-                                        disabled={isGeneratingEdit || !editItemTitle}
-                                        title="Beschlusstext mit KI generieren"
-                                      >
-                                        {isGeneratingEdit ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
-                                      </Button>
-                                    </div>
-                                    <Textarea value={editItemResolution} onChange={(e) => setEditItemResolution(e.target.value)} rows={3} placeholder="Die Eigentümer beschließen..." />
-                                    {renderAiSuggestion(
-                                      editAiSuggestion,
-                                      () => { setEditItemResolution(editAiSuggestion!); setEditAiSuggestion(null); },
-                                      () => setEditAiSuggestion(null),
-                                      setEditAiSuggestion,
-                                    )}
-                                  </div>
-                                  {renderDoubleQualifiedCheckboxes(editRequiresDQ, setEditRequiresDQ, editDQRelevant, setEditDQRelevant)}
+                                  )}
                                   {renderEditAttachments()}
                                   <div className="flex justify-end gap-2">
                                     <Button variant="outline" size="sm" onClick={() => { setEditingItemId(null); setEditAiSuggestion(null); }}>Abbrechen</Button>
@@ -523,10 +551,16 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                                   <div className="flex items-center justify-between">
                                     <h4 className="font-semibold text-foreground">{item.title}</h4>
                                     <div className="flex items-center gap-2">
-                                      <Badge variant="outline" className="text-xs">
-                                        {votingPrinciples.find((v) => v.value === item.voting_principle)?.label || item.voting_principle}
-                                      </Badge>
-                                      {item.requires_double_qualified && (
+                                      {item.requires_resolution === false ? (
+                                        <Badge variant="outline" className="text-xs border-blue-300 text-blue-700 dark:text-blue-300">
+                                          <Info className="h-3 w-3 mr-1" /> Informativ
+                                        </Badge>
+                                      ) : (
+                                        <Badge variant="outline" className="text-xs">
+                                          {votingPrinciples.find((v) => v.value === item.voting_principle)?.label || item.voting_principle}
+                                        </Badge>
+                                      )}
+                                      {item.requires_resolution !== false && item.requires_double_qualified && (
                                         <Badge variant="secondary" className="text-xs bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
                                           DQ erforderlich
                                         </Badge>
@@ -587,20 +621,53 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-semibold text-muted-foreground">Neuen TOP hinzufügen</h4>
-            {renderTemplateDropdown("new")}
+            {newRequiresResolution && renderTemplateDropdown("new")}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label className="text-xs">Titel *</Label>
               <Input
-                placeholder="z.B. Genehmigung der Jahresabrechnung"
+                placeholder="z.B. Bericht der Verwaltung über das Geschäftsjahr"
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
               />
             </div>
-            <div className="flex gap-3">
-              <div className="flex-1 space-y-1.5">
-                <Label className="text-xs">Abstimmung</Label>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Kategorie</Label>
+              <Select value={newCategory} onValueChange={setNewCategory}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {categories.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Beschreibung</Label>
+            <Textarea
+              placeholder="Ausführliche Beschreibung des Tagesordnungspunkts..."
+              value={newDescription}
+              onChange={(e) => setNewDescription(e.target.value)}
+              rows={6}
+            />
+          </div>
+          <div className="flex items-center justify-between rounded-md border p-3 bg-muted/20">
+            <div className="space-y-0.5">
+              <Label className="text-xs font-medium flex items-center gap-1.5">
+                <Gavel className="h-3.5 w-3.5" /> Beschluss erforderlich
+              </Label>
+              <p className="text-[11px] text-muted-foreground">
+                Aktivieren, falls über diesen TOP abgestimmt werden soll. Andernfalls rein informativ (z.B. Verwaltungsbericht).
+              </p>
+            </div>
+            <Switch checked={newRequiresResolution} onCheckedChange={setNewRequiresResolution} />
+          </div>
+          {newRequiresResolution ? (
+            <>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Abstimmungsmethode</Label>
                 <Select value={newPrinciple} onValueChange={setNewPrinciple}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -610,57 +677,42 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                   </SelectContent>
                 </Select>
               </div>
-              <div className="flex-1 space-y-1.5">
-                <Label className="text-xs">Kategorie</Label>
-                <Select value={newCategory} onValueChange={setNewCategory}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {categories.map((c) => (
-                      <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Label className="text-xs">Beschlusstext</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 text-muted-foreground hover:text-primary"
+                    onClick={() => generateResolution(newTitle, newDescription, setIsGeneratingNew, setNewAiSuggestion)}
+                    disabled={isGeneratingNew || !newTitle}
+                    title="Beschlusstext mit KI generieren"
+                  >
+                    {isGeneratingNew ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+                  </Button>
+                </div>
+                <Textarea
+                  placeholder="Die Eigentümer beschließen..."
+                  value={newResolution}
+                  onChange={(e) => setNewResolution(e.target.value)}
+                  rows={3}
+                />
+                {renderAiSuggestion(
+                  newAiSuggestion,
+                  () => { setNewResolution(newAiSuggestion!); setNewAiSuggestion(null); },
+                  () => setNewAiSuggestion(null),
+                  setNewAiSuggestion,
+                )}
               </div>
+              {renderDoubleQualifiedCheckboxes(newRequiresDQ, setNewRequiresDQ, newDQRelevant, setNewDQRelevant)}
+            </>
+          ) : (
+            <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/30 rounded-md p-3 border">
+              <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>Dieser TOP ist rein informativ — kein Beschluss, keine Abstimmung.</span>
             </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Erläuterung</Label>
-            <Textarea
-              placeholder="Beschreibung des Tagesordnungspunkts..."
-              value={newDescription}
-              onChange={(e) => setNewDescription(e.target.value)}
-              rows={2}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-1.5">
-              <Label className="text-xs">Beschlusstext (optional)</Label>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-5 w-5 text-muted-foreground hover:text-primary"
-                onClick={() => generateResolution(newTitle, newDescription, setIsGeneratingNew, setNewAiSuggestion)}
-                disabled={isGeneratingNew || !newTitle}
-                title="Beschlusstext mit KI generieren"
-              >
-                {isGeneratingNew ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
-              </Button>
-            </div>
-            <Textarea
-              placeholder="Die Eigentümer beschließen..."
-              value={newResolution}
-              onChange={(e) => setNewResolution(e.target.value)}
-              rows={3}
-            />
-            {renderAiSuggestion(
-              newAiSuggestion,
-              () => { setNewResolution(newAiSuggestion!); setNewAiSuggestion(null); },
-              () => setNewAiSuggestion(null),
-              setNewAiSuggestion,
-            )}
-          </div>
-          {renderDoubleQualifiedCheckboxes(newRequiresDQ, setNewRequiresDQ, newDQRelevant, setNewDQRelevant)}
+          )}
           {/* File upload */}
           <div className="space-y-1.5">
             <Label className="text-xs">Anhänge (optional)</Label>

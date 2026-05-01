@@ -3699,6 +3699,7 @@ export type Database = {
           meeting_id: string
           no_count: number | null
           requires_double_qualified: boolean
+          requires_resolution: boolean
           resolution_text: string | null
           result: string | null
           sort_order: number
@@ -3722,6 +3723,7 @@ export type Database = {
           meeting_id: string
           no_count?: number | null
           requires_double_qualified?: boolean
+          requires_resolution?: boolean
           resolution_text?: string | null
           result?: string | null
           sort_order?: number
@@ -3745,6 +3747,7 @@ export type Database = {
           meeting_id?: string
           no_count?: number | null
           requires_double_qualified?: boolean
+          requires_resolution?: boolean
           resolution_text?: string | null
           result?: string | null
           sort_order?: number

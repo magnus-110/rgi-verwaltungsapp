@@ -43,6 +43,7 @@ interface AgendaItem {
   category: string | null;
   requires_double_qualified: boolean;
   double_qualified_relevant: boolean;
+  requires_resolution: boolean;
 }
 
 const votingPrincipleLabels: Record<string, string> = {
@@ -385,6 +386,20 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
     },
   });
 
+  const updateItemMutation = useMutation({
+    mutationFn: async ({ itemId, patch }: { itemId: string; patch: Record<string, any> }) => {
+      const { error } = await supabase.from("etv_agenda_items").update(patch).eq("id", itemId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["etv-agenda-items-live", meetingId] });
+      toast({ title: "TOP aktualisiert" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Fehler", description: err.message, variant: "destructive" });
+    },
+  });
+
   const saveNotesMutation = useMutation({
     mutationFn: async ({ itemId, notes }: { itemId: string; notes: string }) => {
       const { error } = await supabase.from("etv_agenda_items").update({ admin_notes: notes }).eq("id", itemId);
@@ -586,17 +601,23 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
               <CardTitle className="text-lg">TOP {selectedIdx + 1}: {selectedItem.title}</CardTitle>
               {getStatusBadge(selectedItem)}
             </div>
-            {/* Show voting method */}
-            <div className="flex items-center gap-2 mt-1">
-              <Badge variant="outline" className="text-xs">
-                {votingPrincipleLabels[selectedItem.voting_principle] || selectedItem.voting_principle}
-              </Badge>
-              {selectedItem.requires_double_qualified && (
+            {/* Show voting method / status */}
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              {selectedItem.requires_resolution === false ? (
+                <Badge variant="outline" className="text-xs border-blue-300 text-blue-700 dark:text-blue-300">
+                  Informativ — kein Beschluss
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-xs">
+                  {votingPrincipleLabels[selectedItem.voting_principle] || selectedItem.voting_principle}
+                </Badge>
+              )}
+              {selectedItem.requires_resolution !== false && selectedItem.requires_double_qualified && (
                 <Badge className="text-xs bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
                   DQ erforderlich
                 </Badge>
               )}
-              {selectedItem.double_qualified_relevant && !selectedItem.requires_double_qualified && (
+              {selectedItem.requires_resolution !== false && selectedItem.double_qualified_relevant && !selectedItem.requires_double_qualified && (
                 <Badge variant="outline" className="text-xs border-purple-300 text-purple-700 dark:text-purple-300">
                   DQ relevant
                 </Badge>
@@ -616,6 +637,62 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
               </div>
             )}
 
+            {/* Live-editable settings: Beschluss-Toggle, Abstimmungsmethode, DQ */}
+            <div className="border rounded-md p-3 bg-muted/20 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label className="text-xs font-medium flex items-center gap-1.5">
+                    <Gavel className="h-3.5 w-3.5" /> Beschluss erforderlich
+                  </Label>
+                  <p className="text-[11px] text-muted-foreground">Aus = rein informativer TOP (keine Abstimmung).</p>
+                </div>
+                <Switch
+                  checked={selectedItem.requires_resolution !== false}
+                  disabled={!!activeVoteItem}
+                  onCheckedChange={(v) => updateItemMutation.mutate({ itemId: selectedItem.id, patch: { requires_resolution: v } })}
+                />
+              </div>
+              {selectedItem.requires_resolution !== false && (
+                <>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Abstimmungsmethode</Label>
+                    <Select
+                      value={selectedItem.voting_principle}
+                      disabled={!!activeVoteItem}
+                      onValueChange={(v) => updateItemMutation.mutate({ itemId: selectedItem.id, patch: { voting_principle: v } })}
+                    >
+                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(votingPrincipleLabels).map(([k, l]) => (
+                          <SelectItem key={k} value={k}>{l}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">DQ erforderlich</Label>
+                    <Switch
+                      checked={selectedItem.requires_double_qualified}
+                      disabled={!!activeVoteItem}
+                      onCheckedChange={(v) => updateItemMutation.mutate({ itemId: selectedItem.id, patch: { requires_double_qualified: v } })}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">DQ relevant (Ergebnis anzeigen)</Label>
+                    <Switch
+                      checked={selectedItem.double_qualified_relevant}
+                      disabled={!!activeVoteItem}
+                      onCheckedChange={(v) => updateItemMutation.mutate({ itemId: selectedItem.id, patch: { double_qualified_relevant: v } })}
+                    />
+                  </div>
+                </>
+              )}
+              {!!activeVoteItem && (
+                <p className="text-[11px] text-amber-600 dark:text-amber-400">Während laufender Abstimmung gesperrt.</p>
+              )}
+            </div>
+
+            {selectedItem.requires_resolution !== false && (<>
             {/* Editable Resolution Text */}
             <div>
               <div className="flex items-center justify-between mb-1">
@@ -752,6 +829,7 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
                 </div>
               )}
             </div>
+            </>)}
 
             {/* Protocol Notes */}
             <div className="border-t pt-4">
