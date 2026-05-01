@@ -461,16 +461,44 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                                 <div className="space-y-3">
                                   <div className="flex items-center justify-between">
                                     <Label className="text-xs font-semibold">TOP bearbeiten</Label>
-                                    {renderTemplateDropdown("edit")}
+                                    {editRequiresResolution && renderTemplateDropdown("edit")}
                                   </div>
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     <div className="space-y-1.5">
                                       <Label className="text-xs">Titel *</Label>
                                       <Input value={editItemTitle} onChange={(e) => setEditItemTitle(e.target.value)} />
                                     </div>
-                                    <div className="flex gap-3">
-                                      <div className="flex-1 space-y-1.5">
-                                        <Label className="text-xs">Abstimmung</Label>
+                                    <div className="space-y-1.5">
+                                      <Label className="text-xs">Kategorie</Label>
+                                      <Select value={editItemCategory} onValueChange={setEditItemCategory}>
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                          {categories.map((c) => (
+                                            <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-xs">Beschreibung</Label>
+                                    <Textarea value={editItemDescription} onChange={(e) => setEditItemDescription(e.target.value)} rows={6} placeholder="Ausführliche Beschreibung des Tagesordnungspunkts..." />
+                                  </div>
+                                  <div className="flex items-center justify-between rounded-md border p-3 bg-muted/20">
+                                    <div className="space-y-0.5">
+                                      <Label className="text-xs font-medium flex items-center gap-1.5">
+                                        <Gavel className="h-3.5 w-3.5" /> Beschluss erforderlich
+                                      </Label>
+                                      <p className="text-[11px] text-muted-foreground">
+                                        Aktivieren, falls über diesen TOP abgestimmt werden soll. Andernfalls rein informativ.
+                                      </p>
+                                    </div>
+                                    <Switch checked={editRequiresResolution} onCheckedChange={setEditRequiresResolution} />
+                                  </div>
+                                  {editRequiresResolution ? (
+                                    <>
+                                      <div className="space-y-1.5">
+                                        <Label className="text-xs">Abstimmungsmethode</Label>
                                         <Select value={editItemPrinciple} onValueChange={setEditItemPrinciple}>
                                           <SelectTrigger><SelectValue /></SelectTrigger>
                                           <SelectContent>
@@ -480,47 +508,37 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                                           </SelectContent>
                                         </Select>
                                       </div>
-                                      <div className="flex-1 space-y-1.5">
-                                        <Label className="text-xs">Kategorie</Label>
-                                        <Select value={editItemCategory} onValueChange={setEditItemCategory}>
-                                          <SelectTrigger><SelectValue /></SelectTrigger>
-                                          <SelectContent>
-                                            {categories.map((c) => (
-                                              <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                                            ))}
-                                          </SelectContent>
-                                        </Select>
+                                      <div className="space-y-1.5">
+                                        <div className="flex items-center gap-1.5">
+                                          <Label className="text-xs">Beschlusstext</Label>
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-5 w-5 text-muted-foreground hover:text-primary"
+                                            onClick={() => generateResolution(editItemTitle, editItemDescription, setIsGeneratingEdit, setEditAiSuggestion)}
+                                            disabled={isGeneratingEdit || !editItemTitle}
+                                            title="Beschlusstext mit KI generieren"
+                                          >
+                                            {isGeneratingEdit ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+                                          </Button>
+                                        </div>
+                                        <Textarea value={editItemResolution} onChange={(e) => setEditItemResolution(e.target.value)} rows={3} placeholder="Die Eigentümer beschließen..." />
+                                        {renderAiSuggestion(
+                                          editAiSuggestion,
+                                          () => { setEditItemResolution(editAiSuggestion!); setEditAiSuggestion(null); },
+                                          () => setEditAiSuggestion(null),
+                                          setEditAiSuggestion,
+                                        )}
                                       </div>
+                                      {renderDoubleQualifiedCheckboxes(editRequiresDQ, setEditRequiresDQ, editDQRelevant, setEditDQRelevant)}
+                                    </>
+                                  ) : (
+                                    <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/30 rounded-md p-3 border">
+                                      <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                                      <span>Dieser TOP ist rein informativ — kein Beschluss, keine Abstimmung.</span>
                                     </div>
-                                  </div>
-                                  <div className="space-y-1.5">
-                                    <Label className="text-xs">Erläuterung</Label>
-                                    <Textarea value={editItemDescription} onChange={(e) => setEditItemDescription(e.target.value)} rows={2} />
-                                  </div>
-                                  <div className="space-y-1.5">
-                                    <div className="flex items-center gap-1.5">
-                                      <Label className="text-xs">Beschlusstext</Label>
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-5 w-5 text-muted-foreground hover:text-primary"
-                                        onClick={() => generateResolution(editItemTitle, editItemDescription, setIsGeneratingEdit, setEditAiSuggestion)}
-                                        disabled={isGeneratingEdit || !editItemTitle}
-                                        title="Beschlusstext mit KI generieren"
-                                      >
-                                        {isGeneratingEdit ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
-                                      </Button>
-                                    </div>
-                                    <Textarea value={editItemResolution} onChange={(e) => setEditItemResolution(e.target.value)} rows={3} placeholder="Die Eigentümer beschließen..." />
-                                    {renderAiSuggestion(
-                                      editAiSuggestion,
-                                      () => { setEditItemResolution(editAiSuggestion!); setEditAiSuggestion(null); },
-                                      () => setEditAiSuggestion(null),
-                                      setEditAiSuggestion,
-                                    )}
-                                  </div>
-                                  {renderDoubleQualifiedCheckboxes(editRequiresDQ, setEditRequiresDQ, editDQRelevant, setEditDQRelevant)}
+                                  )}
                                   {renderEditAttachments()}
                                   <div className="flex justify-end gap-2">
                                     <Button variant="outline" size="sm" onClick={() => { setEditingItemId(null); setEditAiSuggestion(null); }}>Abbrechen</Button>
