@@ -3945,9 +3945,12 @@ export type Database = {
         Row: {
           category: string | null
           created_at: string
+          description: string | null
+          double_qualified_relevant: boolean
           id: string
           requires_double_qualified: boolean
-          resolution_text: string
+          requires_resolution: boolean
+          resolution_text: string | null
           sort_order: number | null
           title: string
           updated_at: string
@@ -3956,9 +3959,12 @@ export type Database = {
         Insert: {
           category?: string | null
           created_at?: string
+          description?: string | null
+          double_qualified_relevant?: boolean
           id?: string
           requires_double_qualified?: boolean
-          resolution_text: string
+          requires_resolution?: boolean
+          resolution_text?: string | null
           sort_order?: number | null
           title: string
           updated_at?: string
@@ -3967,9 +3973,12 @@ export type Database = {
         Update: {
           category?: string | null
           created_at?: string
+          description?: string | null
+          double_qualified_relevant?: boolean
           id?: string
           requires_double_qualified?: boolean
-          resolution_text?: string
+          requires_resolution?: boolean
+          resolution_text?: string | null
           sort_order?: number | null
           title?: string
           updated_at?: string
