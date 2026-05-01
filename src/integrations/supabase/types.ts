@@ -3860,7 +3860,7 @@ export type Database = {
           location: string | null
           lock_time: string | null
           meeting_chair: string | null
-          meeting_date: string
+          meeting_date: string | null
           minutes_taker: string | null
           notes: string | null
           protocol_generated_at: string | null
@@ -3880,7 +3880,7 @@ export type Database = {
           location?: string | null
           lock_time?: string | null
           meeting_chair?: string | null
-          meeting_date: string
+          meeting_date?: string | null
           minutes_taker?: string | null
           notes?: string | null
           protocol_generated_at?: string | null
@@ -3900,7 +3900,7 @@ export type Database = {
           location?: string | null
           lock_time?: string | null
           meeting_chair?: string | null
-          meeting_date?: string
+          meeting_date?: string | null
           minutes_taker?: string | null
           notes?: string | null
           protocol_generated_at?: string | null
