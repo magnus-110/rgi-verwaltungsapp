@@ -61,8 +61,19 @@ export function DistributionKeysTab() {
     enabled: !!selectedBuilding,
   });
 
+  const { data: customShareTypes = [] } = useCustomShareTypes(selectedBuilding || undefined);
+
   const overrideMap = new Map(overrides.map(o => [o.account_id, o]));
   const categories = [...new Set(accounts.map(a => a.category))];
+
+  // Custom keys aus Overrides + aus contact_building_shares zusammenführen
+  const overrideCustomKeys = [...new Set(
+    overrides
+      .map(o => o.distribution_key)
+      .filter(k => k && !DISTRIBUTION_KEYS.some(dk => dk.value === k))
+  )] as string[];
+  const customDistKeys = [...new Set([...overrideCustomKeys, ...customShareTypes])];
+  const allDistKeys = [...DISTRIBUTION_KEYS, ...customDistKeys.map(k => ({ value: k, label: k }))];
 
   const toggleCategory = (cat: string) => {
     setCollapsedCategories(prev => {
@@ -90,7 +101,7 @@ export function DistributionKeysTab() {
     queryClient.invalidateQueries({ queryKey: ["building-account-overrides", selectedBuilding] });
   };
 
-  const getKeyLabel = (key: string | null) => DISTRIBUTION_KEYS.find(k => k.value === key)?.label || key || "–";
+  const getKeyLabel = (key: string | null) => allDistKeys.find(k => k.value === key)?.label || key || "–";
 
   return (
     <Card>
