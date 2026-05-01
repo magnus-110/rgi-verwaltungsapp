@@ -601,17 +601,23 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
               <CardTitle className="text-lg">TOP {selectedIdx + 1}: {selectedItem.title}</CardTitle>
               {getStatusBadge(selectedItem)}
             </div>
-            {/* Show voting method */}
-            <div className="flex items-center gap-2 mt-1">
-              <Badge variant="outline" className="text-xs">
-                {votingPrincipleLabels[selectedItem.voting_principle] || selectedItem.voting_principle}
-              </Badge>
-              {selectedItem.requires_double_qualified && (
+            {/* Show voting method / status */}
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
+              {selectedItem.requires_resolution === false ? (
+                <Badge variant="outline" className="text-xs border-blue-300 text-blue-700 dark:text-blue-300">
+                  Informativ — kein Beschluss
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-xs">
+                  {votingPrincipleLabels[selectedItem.voting_principle] || selectedItem.voting_principle}
+                </Badge>
+              )}
+              {selectedItem.requires_resolution !== false && selectedItem.requires_double_qualified && (
                 <Badge className="text-xs bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
                   DQ erforderlich
                 </Badge>
               )}
-              {selectedItem.double_qualified_relevant && !selectedItem.requires_double_qualified && (
+              {selectedItem.requires_resolution !== false && selectedItem.double_qualified_relevant && !selectedItem.requires_double_qualified && (
                 <Badge variant="outline" className="text-xs border-purple-300 text-purple-700 dark:text-purple-300">
                   DQ relevant
                 </Badge>
