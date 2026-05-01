@@ -133,12 +133,13 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
         sort_order: items.length + 1,
         title: newTitle,
         description: newDescription || null,
-        resolution_text: newResolution || null,
+        resolution_text: newRequiresResolution ? (newResolution || null) : null,
         voting_principle: newPrinciple,
         category: newCategory,
         attachment_paths: attachmentPaths.length > 0 ? attachmentPaths : null,
-        requires_double_qualified: newRequiresDQ,
-        double_qualified_relevant: newDQRelevant,
+        requires_double_qualified: newRequiresResolution ? newRequiresDQ : false,
+        double_qualified_relevant: newRequiresResolution ? newDQRelevant : false,
+        requires_resolution: newRequiresResolution,
       } as any);
       if (error) throw error;
     },
@@ -153,6 +154,7 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
       setNewAiSuggestion(null);
       setNewRequiresDQ(false);
       setNewDQRelevant(false);
+      setNewRequiresResolution(true);
       toast({ title: "TOP hinzugefügt" });
     },
     onError: (err: any) => {
