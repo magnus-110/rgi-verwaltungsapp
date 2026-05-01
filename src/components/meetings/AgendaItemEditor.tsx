@@ -133,7 +133,8 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
 
   const addMutation = useMutation({
     mutationFn: async () => {
-      const attachmentPaths = await uploadFiles(newFiles);
+      const uploadedPaths = await uploadFiles(newFiles);
+      const attachmentPaths = [...newDmsPaths, ...uploadedPaths];
       const { error } = await supabase.from("etv_agenda_items").insert({
         meeting_id: meetingId,
         sort_order: items.length + 1,
