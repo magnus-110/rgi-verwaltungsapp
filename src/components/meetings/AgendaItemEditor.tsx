@@ -597,12 +597,12 @@ export const AgendaItemEditor = ({ meetingId, buildingId }: AgendaItemEditorProp
                                     </div>
                                   </div>
                                   {item.description && (
-                                    <p className="text-sm text-muted-foreground">{item.description}</p>
+                                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{item.description}</p>
                                   )}
                                   {item.resolution_text && (
                                     <div className="bg-muted/50 rounded-md p-3 border">
                                       <p className="text-xs font-medium text-muted-foreground mb-1">Beschlusstext:</p>
-                                      <p className="text-sm">{item.resolution_text}</p>
+                                      <p className="text-sm whitespace-pre-wrap">{item.resolution_text}</p>
                                     </div>
                                   )}
                                   {item.attachment_paths && item.attachment_paths.length > 0 && (

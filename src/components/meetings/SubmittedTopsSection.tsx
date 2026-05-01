@@ -129,7 +129,7 @@ export const SubmittedTopsSection = ({ meetingId, buildingId }: SubmittedTopsSec
                 <div className="flex-1 min-w-0">
                   <h5 className="font-semibold text-sm">{top.title}</h5>
                   {top.description && (
-                    <p className="text-xs text-muted-foreground mt-1">{top.description}</p>
+                    <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">{top.description}</p>
                   )}
                   <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
                     <span>von {name}</span>
