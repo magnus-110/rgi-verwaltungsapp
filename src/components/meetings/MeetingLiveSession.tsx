@@ -386,6 +386,20 @@ export const MeetingLiveSession = ({ meetingId, buildingId }: MeetingLiveSession
     },
   });
 
+  const updateItemMutation = useMutation({
+    mutationFn: async ({ itemId, patch }: { itemId: string; patch: Record<string, any> }) => {
+      const { error } = await supabase.from("etv_agenda_items").update(patch).eq("id", itemId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["etv-agenda-items-live", meetingId] });
+      toast({ title: "TOP aktualisiert" });
+    },
+    onError: (err: any) => {
+      toast({ title: "Fehler", description: err.message, variant: "destructive" });
+    },
+  });
+
   const saveNotesMutation = useMutation({
     mutationFn: async ({ itemId, notes }: { itemId: string; notes: string }) => {
       const { error } = await supabase.from("etv_agenda_items").update({ admin_notes: notes }).eq("id", itemId);
