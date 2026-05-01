@@ -99,11 +99,14 @@ export function BuildingDistributionKeysTab({ buildingId }: Props) {
 
   const overrideMap = new Map(overrides.map(o => [o.account_id, o]));
 
-  const customDistKeys = [...new Set(
+  const { data: customShareTypes = [] } = useCustomShareTypes(buildingId);
+
+  const overrideCustomKeys = [...new Set(
     overrides
       .map(o => o.distribution_key)
       .filter(k => k && !DISTRIBUTION_KEYS.some(dk => dk.value === k))
-  )];
+  )] as string[];
+  const customDistKeys = [...new Set([...overrideCustomKeys, ...customShareTypes])];
   const allDistKeys = [...DISTRIBUTION_KEYS, ...customDistKeys.map(k => ({ value: k, label: k }))];
   const categories = [...new Set(accounts.map(a => a.category))];
   const overrideCount = overrides.length;
