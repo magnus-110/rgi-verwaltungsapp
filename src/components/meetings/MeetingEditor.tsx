@@ -20,11 +20,12 @@ import { Save, ChevronDown, ChevronUp, CheckCircle2, Globe } from "lucide-react"
 
 interface MeetingEditorProps {
   meetingId: string | null;
+  initialBuildingId?: string;
   onSaved: () => void;
   onCancel: () => void;
 }
 
-export const MeetingEditor = ({ meetingId, onSaved, onCancel }: MeetingEditorProps) => {
+export const MeetingEditor = ({ meetingId, initialBuildingId, onSaved, onCancel }: MeetingEditorProps) => {
   const { profile } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -34,8 +35,8 @@ export const MeetingEditor = ({ meetingId, onSaved, onCancel }: MeetingEditorPro
   const [savedMeetingId, setSavedMeetingId] = useState<string | null>(meetingId);
 
   // Form state
-  const [title, setTitle] = useState("");
-  const [buildingId, setBuildingId] = useState("");
+  const [title, setTitle] = useState("Eigentümerversammlung");
+  const [buildingId, setBuildingId] = useState(initialBuildingId || "");
   const [meetingDate, setMeetingDate] = useState("");
   const [meetingTime, setMeetingTime] = useState("18:00");
   const [location, setLocation] = useState("");
