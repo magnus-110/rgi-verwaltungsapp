@@ -413,17 +413,13 @@ export const FloatingComposeWindow = () => {
         {/* Body */}
         <div className="flex-1 overflow-y-auto">
           {/* Von */}
-          <div className="px-4 border-b">
+          <div className="px-4 border-b flex items-center gap-3">
+            <span className="text-xs text-muted-foreground w-10 shrink-0">Von</span>
             <Select value={compose.accountId} onValueChange={(v) => updateCompose({ accountId: v })}>
-              <SelectTrigger className="h-12 border-0 px-0 shadow-none focus:ring-0 text-sm">
-                <div className="flex items-center gap-3 w-full min-w-0">
-                  <span className="text-xs text-muted-foreground w-10 shrink-0">Von</span>
-                  <span className="truncate text-left flex-1">
-                    {fromAccount ? `${fromAccount.display_name} <${fromAccount.email_address}>` : "Absender wählen…"}
-                  </span>
-                </div>
+              <SelectTrigger className="h-12 border-0 px-0 shadow-none focus:ring-0 text-sm flex-1 min-w-0">
+                <SelectValue placeholder="Absender wählen…" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="z-[80]">
                 {accounts.map((acc) => (
                   <SelectItem key={acc.id} value={acc.id}>
                     {acc.display_name} &lt;{acc.email_address}&gt;
@@ -451,7 +447,7 @@ export const FloatingComposeWindow = () => {
                   <Users className="h-4 w-4" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-[calc(100vw-2rem)] p-0" align="end">
+              <PopoverContent className="w-[calc(100vw-2rem)] p-0 z-[80]" align="end">
                 <div className="p-2 border-b">
                   <div className="relative">
                     <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
@@ -472,22 +468,23 @@ export const FloatingComposeWindow = () => {
                         <div className="px-3 pt-2 pb-1">
                           <span className="text-sm font-medium">{contact.displayName}</span>
                         </div>
-                        {contact.emails.map((ce) => (
-                          <button
-                            key={ce.email}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/50"
-                            onClick={() => {
-                              addEmailToField(ce.email, "to");
-                              if (contact.emails.length === 1) setContactPickerOpen(false);
-                            }}
-                          >
-                            <Checkbox
-                              checked={compose.to.split(",").map((e) => e.trim()).includes(ce.email)}
-                              className="h-3.5 w-3.5"
-                            />
-                            <span className="text-sm text-muted-foreground truncate">{ce.email}</span>
-                          </button>
-                        ))}
+                        {contact.emails.map((ce) => {
+                          const checked = compose.to.split(",").map((e) => e.trim()).includes(ce.email);
+                          return (
+                            <button
+                              key={ce.email}
+                              type="button"
+                              className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/50"
+                              onClick={() => {
+                                addEmailToField(ce.email, "to");
+                                if (contact.emails.length === 1) setContactPickerOpen(false);
+                              }}
+                            >
+                              <Check className={cn("h-4 w-4 shrink-0", checked ? "text-primary" : "text-transparent")} />
+                              <span className="text-sm text-muted-foreground truncate">{ce.email}</span>
+                            </button>
+                          );
+                        })}
                       </div>
                     ))
                   )}
