@@ -52,6 +52,7 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
         { icon: Users, label: "Versammlungen", path: '/versammlungen', active: location.pathname.startsWith('/versammlungen') },
         { icon: Landmark, label: "Buchhaltung", path: '/finanzen', active: location.pathname.startsWith('/finanzen') },
         { icon: CreditCard, label: "Zahlungen", path: '/zahlungen', active: location.pathname.startsWith('/zahlungen') || location.pathname.startsWith('/ueberweisungen') },
+        { icon: Workflow, label: "Prozesse", path: '/prozesse', active: location.pathname.startsWith('/prozesse') },
         { icon: Settings, label: "Einstellungen", path: '/settings', active: location.pathname.startsWith('/settings'), adminOnly: true },
       ];
 
