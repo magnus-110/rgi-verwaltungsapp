@@ -45,6 +45,7 @@ export const ComposeEmailDialog = ({
   replyTo,
   forward,
 }: ComposeEmailDialogProps) => {
+  const isMobile = useIsMobile();
   const [accountId, setAccountId] = useState(replyTo?.account_id || forward?.account_id || "");
   const [to, setTo] = useState(replyTo?.from_address || "");
   const [cc, setCc] = useState("");
