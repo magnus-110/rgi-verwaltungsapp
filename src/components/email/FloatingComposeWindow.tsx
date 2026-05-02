@@ -447,7 +447,7 @@ export const FloatingComposeWindow = () => {
                   <Users className="h-4 w-4" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-[calc(100vw-2rem)] p-0" align="end">
+              <PopoverContent className="w-[calc(100vw-2rem)] p-0 z-[80]" align="end">
                 <div className="p-2 border-b">
                   <div className="relative">
                     <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
