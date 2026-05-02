@@ -38,6 +38,51 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
   const { signOut, profile } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
 
+  // Edge-Swipe von rechts nach links zum Öffnen der Navigation (mobil)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let startX: number | null = null;
+    let startY: number | null = null;
+    let startT = 0;
+    const EDGE = 24; // px from right edge to start
+    const THRESHOLD = 60; // min horizontal distance
+    const MAX_OFF_AXIS = 50; // max vertical drift
+    const MAX_TIME = 600; // ms
+
+    const onStart = (e: TouchEvent) => {
+      if (window.innerWidth >= 768) return; // mobile only
+      const t = e.touches[0];
+      if (!t) return;
+      if (window.innerWidth - t.clientX <= EDGE) {
+        startX = t.clientX;
+        startY = t.clientY;
+        startT = Date.now();
+      } else {
+        startX = null;
+      }
+    };
+    const onEnd = (e: TouchEvent) => {
+      if (startX === null || startY === null) return;
+      const t = e.changedTouches[0];
+      if (!t) return;
+      const dx = t.clientX - startX;
+      const dy = Math.abs(t.clientY - startY);
+      const dt = Date.now() - startT;
+      if (dx <= -THRESHOLD && dy <= MAX_OFF_AXIS && dt <= MAX_TIME) {
+        setIsOpen(true);
+      }
+      startX = null;
+      startY = null;
+    };
+
+    window.addEventListener("touchstart", onStart, { passive: true });
+    window.addEventListener("touchend", onEnd, { passive: true });
+    return () => {
+      window.removeEventListener("touchstart", onStart);
+      window.removeEventListener("touchend", onEnd);
+    };
+  }, []);
+
   const getNavigationItems = () => {
     if (userRole === 'admin' || userRole === 'employee') {
       const items = [
