@@ -73,12 +73,6 @@ export const MobileHeader = ({ userRole, managementMode, onModeChange }: MobileH
       const dt = Date.now() - startT;
       const absDx = Math.abs(dx);
       const absDy = Math.abs(dy);
-      if (
-        dx <= -THRESHOLD &&
-        absDx >= absDy / MAX_OFF_AXIS_RATIO === false // placeholder
-      ) {
-        // unreachable — kept for clarity
-      }
       if (dx <= -THRESHOLD && absDy <= absDx * MAX_OFF_AXIS_RATIO && dt <= MAX_TIME) {
         setIsOpen(true);
       }
