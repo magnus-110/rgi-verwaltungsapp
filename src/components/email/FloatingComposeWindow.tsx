@@ -468,22 +468,23 @@ export const FloatingComposeWindow = () => {
                         <div className="px-3 pt-2 pb-1">
                           <span className="text-sm font-medium">{contact.displayName}</span>
                         </div>
-                        {contact.emails.map((ce) => (
-                          <button
-                            key={ce.email}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/50"
-                            onClick={() => {
-                              addEmailToField(ce.email, "to");
-                              if (contact.emails.length === 1) setContactPickerOpen(false);
-                            }}
-                          >
-                            <Checkbox
-                              checked={compose.to.split(",").map((e) => e.trim()).includes(ce.email)}
-                              className="h-3.5 w-3.5"
-                            />
-                            <span className="text-sm text-muted-foreground truncate">{ce.email}</span>
-                          </button>
-                        ))}
+                        {contact.emails.map((ce) => {
+                          const checked = compose.to.split(",").map((e) => e.trim()).includes(ce.email);
+                          return (
+                            <button
+                              key={ce.email}
+                              type="button"
+                              className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/50"
+                              onClick={() => {
+                                addEmailToField(ce.email, "to");
+                                if (contact.emails.length === 1) setContactPickerOpen(false);
+                              }}
+                            >
+                              <Check className={cn("h-4 w-4 shrink-0", checked ? "text-primary" : "text-transparent")} />
+                              <span className="text-sm text-muted-foreground truncate">{ce.email}</span>
+                            </button>
+                          );
+                        })}
                       </div>
                     ))
                   )}
