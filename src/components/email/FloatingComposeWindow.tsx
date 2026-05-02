@@ -330,7 +330,295 @@ export const FloatingComposeWindow = () => {
 
   if (!compose.isOpen) return null;
 
-  // Minimized bar
+  // ===== MOBILE: Vollbild-Compose im Stil von Gmail/Outlook =====
+  if (isMobile) {
+    if (compose.isMinimized) {
+      return (
+        <div
+          className="fixed left-0 right-0 z-[60] bg-card border-t border-border shadow-lg cursor-pointer"
+          style={{ bottom: "env(safe-area-inset-bottom)" }}
+          onClick={toggleMinimize}
+        >
+          <div className="flex items-center justify-between px-4 h-12">
+            <span className="text-sm font-medium truncate flex-1">
+              {compose.replyTo ? "Antworten" : compose.forward ? "Weiterleiten" : "Neue E-Mail"}
+              {compose.subject && ` – ${compose.subject}`}
+            </span>
+            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full" onClick={(e) => { e.stopPropagation(); closeCompose(); }}>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
+    const fromAccount = accounts.find((a) => a.id === compose.accountId);
+    const title = compose.replyTo ? "Antworten" : compose.forward ? "Weiterleiten" : "Neue E-Mail";
+
+    return (
+      <div
+        className="fixed inset-0 z-[60] bg-background flex flex-col"
+        style={{
+          paddingTop: "env(safe-area-inset-top)",
+          paddingBottom: "env(safe-area-inset-bottom)",
+        }}
+      >
+        {/* App-Bar */}
+        <div className="h-14 flex items-center justify-between px-1 border-b bg-background shrink-0">
+          <div className="flex items-center gap-1 min-w-0 flex-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 rounded-full shrink-0"
+              onClick={closeCompose}
+              aria-label="Schließen"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <span className="text-base font-medium truncate">{title}</span>
+          </div>
+          <div className="flex items-center gap-0.5 shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 rounded-full"
+              onClick={() => fileInputRef.current?.click()}
+              aria-label="Anhang hinzufügen"
+            >
+              <Paperclip className="h-5 w-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 rounded-full"
+              onClick={handleImproveText}
+              disabled={isImproving || compose.bodyText.trim().length < 10}
+              aria-label="Text mit KI verbessern"
+            >
+              {isImproving ? <Loader2 className="h-5 w-5 animate-spin" /> : <Wand2 className="h-5 w-5" />}
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 rounded-full text-primary"
+              onClick={handleSend}
+              disabled={isSending || !compose.accountId || !compose.to.trim()}
+              aria-label="Senden"
+            >
+              {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+            </Button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto">
+          {/* Von */}
+          <div className="px-4 border-b">
+            <Select value={compose.accountId} onValueChange={(v) => updateCompose({ accountId: v })}>
+              <SelectTrigger className="h-12 border-0 px-0 shadow-none focus:ring-0 text-sm">
+                <div className="flex items-center gap-3 w-full min-w-0">
+                  <span className="text-xs text-muted-foreground w-10 shrink-0">Von</span>
+                  <span className="truncate text-left flex-1">
+                    {fromAccount ? `${fromAccount.display_name} <${fromAccount.email_address}>` : "Absender wählen…"}
+                  </span>
+                </div>
+              </SelectTrigger>
+              <SelectContent>
+                {accounts.map((acc) => (
+                  <SelectItem key={acc.id} value={acc.id}>
+                    {acc.display_name} &lt;{acc.email_address}&gt;
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* An */}
+          <div className="px-4 border-b flex items-center gap-2">
+            <span className="text-xs text-muted-foreground w-10 shrink-0">An</span>
+            <Input
+              value={compose.to}
+              onChange={(e) => updateCompose({ to: e.target.value })}
+              placeholder="Empfänger"
+              type="email"
+              inputMode="email"
+              autoCapitalize="none"
+              className="h-12 border-0 px-0 shadow-none focus-visible:ring-0 text-sm flex-1 min-w-0"
+            />
+            <Popover open={contactPickerOpen} onOpenChange={setContactPickerOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-full" aria-label="Kontakte">
+                  <Users className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[calc(100vw-2rem)] p-0" align="end">
+                <div className="p-2 border-b">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      placeholder="Kontakt suchen..."
+                      value={contactSearch}
+                      onChange={(e) => setContactSearch(e.target.value)}
+                      className="h-9 pl-8 text-sm"
+                    />
+                  </div>
+                </div>
+                <ScrollArea className="max-h-72">
+                  {filteredContacts.length === 0 ? (
+                    <p className="p-3 text-sm text-muted-foreground text-center">Keine Kontakte gefunden</p>
+                  ) : (
+                    filteredContacts.map((contact) => (
+                      <div key={contact.id} className="border-b last:border-0">
+                        <div className="px-3 pt-2 pb-1">
+                          <span className="text-sm font-medium">{contact.displayName}</span>
+                        </div>
+                        {contact.emails.map((ce) => (
+                          <button
+                            key={ce.email}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/50"
+                            onClick={() => {
+                              addEmailToField(ce.email, "to");
+                              if (contact.emails.length === 1) setContactPickerOpen(false);
+                            }}
+                          >
+                            <Checkbox
+                              checked={compose.to.split(",").map((e) => e.trim()).includes(ce.email)}
+                              className="h-3.5 w-3.5"
+                            />
+                            <span className="text-sm text-muted-foreground truncate">{ce.email}</span>
+                          </button>
+                        ))}
+                      </div>
+                    ))
+                  )}
+                </ScrollArea>
+              </PopoverContent>
+            </Popover>
+            <button
+              type="button"
+              onClick={() => setShowCcBcc((v) => !v)}
+              className="text-muted-foreground p-2 -mr-2 shrink-0"
+              aria-label="CC/BCC umschalten"
+            >
+              <ChevronDown className={cn("h-4 w-4 transition-transform", showCcBcc && "rotate-180")} />
+            </button>
+          </div>
+
+          {showCcBcc && (
+            <>
+              <div className="px-4 border-b flex items-center gap-2">
+                <span className="text-xs text-muted-foreground w-10 shrink-0">Cc</span>
+                <Input
+                  value={compose.cc}
+                  onChange={(e) => updateCompose({ cc: e.target.value })}
+                  type="email"
+                  inputMode="email"
+                  autoCapitalize="none"
+                  className="h-12 border-0 px-0 shadow-none focus-visible:ring-0 text-sm flex-1"
+                />
+              </div>
+              <div className="px-4 border-b flex items-center gap-2">
+                <span className="text-xs text-muted-foreground w-10 shrink-0">Bcc</span>
+                <Input
+                  value={compose.bcc}
+                  onChange={(e) => updateCompose({ bcc: e.target.value })}
+                  type="email"
+                  inputMode="email"
+                  autoCapitalize="none"
+                  className="h-12 border-0 px-0 shadow-none focus-visible:ring-0 text-sm flex-1"
+                />
+              </div>
+            </>
+          )}
+
+          {/* Betreff */}
+          <div className="px-4 border-b">
+            <Input
+              value={compose.subject}
+              onChange={(e) => updateCompose({ subject: e.target.value })}
+              placeholder="Betreff"
+              className="h-12 border-0 px-0 shadow-none focus-visible:ring-0 text-base"
+            />
+          </div>
+
+          {/* Anhänge */}
+          {compose.attachments.length > 0 && (
+            <div className="px-4 py-2 space-y-1.5 border-b bg-muted/30">
+              {compose.attachments.map((att, idx) => (
+                <div key={idx} className="flex items-center gap-2 text-sm bg-background rounded-md px-2.5 py-2 border">
+                  <Paperclip className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <span className="truncate flex-1">{att.name}</span>
+                  <span className="text-xs text-muted-foreground shrink-0">{formatFileSize(att.size)}</span>
+                  <button
+                    onClick={() => removeAttachment(idx)}
+                    className="text-muted-foreground hover:text-destructive shrink-0 p-1"
+                    aria-label="Anhang entfernen"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Nachricht */}
+          <Textarea
+            value={compose.bodyText}
+            onChange={(e) => updateCompose({ bodyText: e.target.value })}
+            placeholder="E-Mail verfassen"
+            className="min-h-[40vh] w-full border-0 rounded-none px-4 py-3 shadow-none focus-visible:ring-0 text-base resize-none"
+          />
+
+          {/* KI-Vorschlag */}
+          {aiSuggestion !== null && (
+            <div ref={aiSuggestionRef} className="mx-4 mb-4 border border-primary/30 bg-primary/5 rounded-md p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-primary flex items-center gap-1">
+                  <Wand2 className="h-3.5 w-3.5" />
+                  KI-Vorschlag
+                </span>
+                <div className="flex gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-full"
+                    onClick={() => { updateCompose({ bodyText: aiSuggestion }); setAiSuggestion(null); }}
+                    aria-label="Übernehmen"
+                  >
+                    <Check className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-full"
+                    onClick={() => setAiSuggestion(null)}
+                    aria-label="Verwerfen"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <Textarea
+                value={aiSuggestion}
+                onChange={(e) => setAiSuggestion(e.target.value)}
+                className="min-h-[120px] resize-y text-sm bg-transparent border-0 p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+              />
+            </div>
+          )}
+        </div>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={handleFileSelect}
+        />
+      </div>
+    );
+  }
+
+  // Minimized bar (Desktop)
   if (compose.isMinimized) {
     return (
       <div
