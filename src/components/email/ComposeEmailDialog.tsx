@@ -9,9 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Send, Loader2, Paperclip, X, Users, Search } from "lucide-react";
+import { Send, Loader2, Paperclip, X, Users, Search, ArrowLeft, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface ComposeEmailDialogProps {
   open: boolean;
@@ -44,6 +45,7 @@ export const ComposeEmailDialog = ({
   replyTo,
   forward,
 }: ComposeEmailDialogProps) => {
+  const isMobile = useIsMobile();
   const [accountId, setAccountId] = useState(replyTo?.account_id || forward?.account_id || "");
   const [to, setTo] = useState(replyTo?.from_address || "");
   const [cc, setCc] = useState("");
@@ -211,6 +213,230 @@ export const ComposeEmailDialog = ({
     }
   };
 
+  const title = replyTo ? "Antworten" : forward ? "Weiterleiten" : "Neue E-Mail";
+  const fromAccount = accounts.find((a) => a.id === accountId);
+
+  // ===== MOBILE: Gmail/Outlook-Style Vollbildansicht =====
+  if (isMobile && open) {
+    return (
+      <>
+        <div
+          className="fixed inset-0 z-[60] bg-background flex flex-col"
+          style={{
+            paddingTop: "env(safe-area-inset-top)",
+            paddingBottom: "env(safe-area-inset-bottom)",
+          }}
+        >
+          {/* App-Bar */}
+          <div className="h-14 flex items-center justify-between px-2 border-b bg-background shrink-0">
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 rounded-full"
+                onClick={() => onOpenChange(false)}
+                aria-label="Schließen"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+              <span className="text-base font-medium">{title}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 rounded-full"
+                onClick={() => fileInputRef.current?.click()}
+                aria-label="Anhang hinzufügen"
+              >
+                <Paperclip className="h-5 w-5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-10 w-10 rounded-full text-primary"
+                onClick={handleSend}
+                disabled={isSending || !accountId || !to.trim()}
+                aria-label="Senden"
+              >
+                {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+              </Button>
+            </div>
+          </div>
+
+          {/* Body scrollbereich */}
+          <div className="flex-1 overflow-y-auto">
+            {/* Von */}
+            <div className="px-4 py-2 border-b">
+              <Select value={accountId} onValueChange={setAccountId}>
+                <SelectTrigger className="h-10 border-0 px-0 shadow-none focus:ring-0 text-sm">
+                  <div className="flex items-center gap-2 w-full">
+                    <span className="text-xs text-muted-foreground w-10 shrink-0">Von</span>
+                    <SelectValue placeholder="Absender wählen…">
+                      {fromAccount ? `${fromAccount.display_name} <${fromAccount.email_address}>` : "Absender wählen…"}
+                    </SelectValue>
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  {accounts.map((acc) => (
+                    <SelectItem key={acc.id} value={acc.id}>
+                      {acc.display_name} &lt;{acc.email_address}&gt;
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* An */}
+            <div className="px-4 py-1 border-b flex items-center gap-2">
+              <span className="text-xs text-muted-foreground w-10 shrink-0">An</span>
+              <Input
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                placeholder="Empfänger"
+                type="email"
+                inputMode="email"
+                autoCapitalize="none"
+                className="h-10 border-0 px-0 shadow-none focus-visible:ring-0 text-sm flex-1"
+              />
+              <Popover open={contactPickerOpen} onOpenChange={setContactPickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 rounded-full" aria-label="Kontakte">
+                    <Users className="h-4 w-4" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[calc(100vw-2rem)] p-0" align="end">
+                  <div className="p-2 border-b">
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        placeholder="Kontakt suchen..."
+                        value={contactSearch}
+                        onChange={(e) => setContactSearch(e.target.value)}
+                        className="h-9 pl-8 text-sm"
+                      />
+                    </div>
+                  </div>
+                  <ScrollArea className="max-h-72">
+                    {filteredContacts.length === 0 ? (
+                      <p className="p-3 text-sm text-muted-foreground text-center">Keine Kontakte gefunden</p>
+                    ) : (
+                      filteredContacts.map((contact) => (
+                        <div key={contact.id} className="border-b last:border-0">
+                          <div className="px-3 pt-2 pb-1">
+                            <span className="text-sm font-medium">{contact.displayName}</span>
+                          </div>
+                          {contact.emails.map((ce) => (
+                            <button
+                              key={ce.email}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/50"
+                              onClick={() => {
+                                addEmailToField(ce.email, "to");
+                                if (contact.emails.length === 1) setContactPickerOpen(false);
+                              }}
+                            >
+                              <Checkbox
+                                checked={to.split(",").map((e) => e.trim()).includes(ce.email)}
+                                className="h-3.5 w-3.5"
+                              />
+                              <span className="text-sm text-muted-foreground truncate">{ce.email}</span>
+                            </button>
+                          ))}
+                        </div>
+                      ))
+                    )}
+                  </ScrollArea>
+                </PopoverContent>
+              </Popover>
+              <button
+                type="button"
+                onClick={() => setShowCcBcc((v) => !v)}
+                className="text-muted-foreground p-2 -mr-2"
+                aria-label="CC/BCC"
+              >
+                <ChevronDown className={`h-4 w-4 transition-transform ${showCcBcc ? "rotate-180" : ""}`} />
+              </button>
+            </div>
+
+            {showCcBcc && (
+              <>
+                <div className="px-4 py-1 border-b flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground w-10 shrink-0">Cc</span>
+                  <Input
+                    value={cc}
+                    onChange={(e) => setCc(e.target.value)}
+                    type="email"
+                    inputMode="email"
+                    autoCapitalize="none"
+                    className="h-10 border-0 px-0 shadow-none focus-visible:ring-0 text-sm flex-1"
+                  />
+                </div>
+                <div className="px-4 py-1 border-b flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground w-10 shrink-0">Bcc</span>
+                  <Input
+                    value={bcc}
+                    onChange={(e) => setBcc(e.target.value)}
+                    type="email"
+                    inputMode="email"
+                    autoCapitalize="none"
+                    className="h-10 border-0 px-0 shadow-none focus-visible:ring-0 text-sm flex-1"
+                  />
+                </div>
+              </>
+            )}
+
+            {/* Betreff */}
+            <div className="px-4 py-1 border-b">
+              <Input
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                placeholder="Betreff"
+                className="h-11 border-0 px-0 shadow-none focus-visible:ring-0 text-base"
+              />
+            </div>
+
+            {/* Anhänge */}
+            {attachments.length > 0 && (
+              <div className="px-4 py-2 space-y-1.5 border-b bg-muted/30">
+                {attachments.map((att, idx) => (
+                  <div key={idx} className="flex items-center gap-2 text-sm bg-background rounded-md px-2.5 py-2 border">
+                    <Paperclip className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="truncate flex-1">{att.name}</span>
+                    <span className="text-xs text-muted-foreground shrink-0">{formatFileSize(att.size)}</span>
+                    <button
+                      onClick={() => removeAttachment(idx)}
+                      className="text-muted-foreground hover:text-destructive shrink-0 p-1"
+                      aria-label="Anhang entfernen"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Nachricht */}
+            <Textarea
+              value={bodyText}
+              onChange={(e) => setBodyText(e.target.value)}
+              placeholder="E-Mail verfassen"
+              className="min-h-[40vh] w-full border-0 rounded-none px-4 py-3 shadow-none focus-visible:ring-0 text-base resize-none"
+            />
+          </div>
+
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={handleFileSelect}
+          />
+        </div>
+      </>
+    );
+  }
+
+  // ===== DESKTOP =====
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[640px] max-h-[85vh] flex flex-col">
