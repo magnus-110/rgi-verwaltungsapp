@@ -17,6 +17,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 export const FloatingComposeWindow = () => {
   const { compose, closeCompose, toggleMinimize, updateCompose, openCompose } = useComposeEmail();
+  const isMobile = useIsMobile();
   // Detect fullscreen mode via URL parameter (?compose=fullscreen)
   const [isFullscreen, setIsFullscreen] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
