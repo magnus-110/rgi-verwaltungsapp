@@ -413,17 +413,13 @@ export const FloatingComposeWindow = () => {
         {/* Body */}
         <div className="flex-1 overflow-y-auto">
           {/* Von */}
-          <div className="px-4 border-b">
+          <div className="px-4 border-b flex items-center gap-3">
+            <span className="text-xs text-muted-foreground w-10 shrink-0">Von</span>
             <Select value={compose.accountId} onValueChange={(v) => updateCompose({ accountId: v })}>
-              <SelectTrigger className="h-12 border-0 px-0 shadow-none focus:ring-0 text-sm">
-                <div className="flex items-center gap-3 w-full min-w-0">
-                  <span className="text-xs text-muted-foreground w-10 shrink-0">Von</span>
-                  <span className="truncate text-left flex-1">
-                    {fromAccount ? `${fromAccount.display_name} <${fromAccount.email_address}>` : "Absender wählen…"}
-                  </span>
-                </div>
+              <SelectTrigger className="h-12 border-0 px-0 shadow-none focus:ring-0 text-sm flex-1 min-w-0">
+                <SelectValue placeholder="Absender wählen…" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="z-[80]">
                 {accounts.map((acc) => (
                   <SelectItem key={acc.id} value={acc.id}>
                     {acc.display_name} &lt;{acc.email_address}&gt;
