@@ -8,11 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Send, Loader2, Paperclip, X, Users, Search, Minus, Maximize2, ExternalLink, Wand2, Check, ChevronDown, ChevronUp } from "lucide-react";
+import { Send, Loader2, Paperclip, X, Users, Search, Minus, Maximize2, ExternalLink, Wand2, Check, ChevronDown, ChevronUp, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useComposeEmail } from "@/contexts/ComposeEmailContext";
 import { cn } from "@/lib/utils";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export const FloatingComposeWindow = () => {
   const { compose, closeCompose, toggleMinimize, updateCompose, openCompose } = useComposeEmail();
