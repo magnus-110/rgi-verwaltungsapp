@@ -64,10 +64,20 @@ export function CashAuditAccountSheet({ buildingId, fiscalYear, progress, onProg
 
       let cumulativeSaldo = 0;
       const rows = entries.map((b) => {
-        const isDebit = b.account_id === account.id;
-        const zugang = b.amount > 0 && isDebit ? Math.abs(b.amount) : b.amount < 0 && !isDebit ? Math.abs(b.amount) : 0;
-        const abgang = b.amount < 0 && isDebit ? Math.abs(b.amount) : b.amount > 0 && !isDebit ? Math.abs(b.amount) : 0;
-        cumulativeSaldo += zugang - abgang;
+        const isMain = b.account_id === account.id;
+        const amt = Number(b.amount) || 0;
+        // Booking-type-aware: Effekt auf DIESES Konto
+        //   Hauptseite: income → +amt (Zugang), expense → -amt (Abgang)
+        //   Gegenseite: type wird gedreht, dann gleiche Regel
+        const effectiveType = isMain
+          ? (b.booking_type === "income" ? "income" : "expense")
+          : (b.booking_type === "income" ? "expense" : "income");
+        const signed = effectiveType === "income" ? amt : -amt;
+        const zugang = signed > 0 ? signed : 0;
+        const abgang = signed < 0 ? -signed : 0;
+        cumulativeSaldo += signed;
+
+        const isDebit = isMain;
 
         const counterAccount = accounts.find((a) => a.id === (isDebit ? b.counter_account_id : b.account_id));
 
