@@ -365,7 +365,7 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
         <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {step === "select" ? "Kontakt zuordnen" : "Zuordnungsdetails"}
+              {editAssignmentId ? "Zuordnung bearbeiten" : (step === "select" ? "Kontakt zuordnen" : "Zuordnungsdetails")}
             </DialogTitle>
           </DialogHeader>
 
