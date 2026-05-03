@@ -164,6 +164,7 @@ function CopyableField({ label, value }: { label: string; value: string }) {
 export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [showAssign, setShowAssign] = useState(false);
+  const [editAssignmentId, setEditAssignmentId] = useState<string | null>(null);
   
   const [deleteTarget, setDeleteTarget] = useState<ContactAssignment | null>(null);
   // For inline editing/adding custom types - { id: record id, field: 'share_type'|'cost_type', value: string, mode: 'add'|'edit' }
@@ -677,6 +678,15 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
                     size="icon"
                     variant="ghost"
                     className="h-7 w-7"
+                    title="Zuordnung bearbeiten"
+                    onClick={(e) => { e.stopPropagation(); setEditAssignmentId(a.id); setShowAssign(true); }}
+                  >
+                    <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
                     onClick={(e) => { e.stopPropagation(); setDeleteTarget(a); }}
                   >
                     <Trash2 className="h-3.5 w-3.5 text-destructive" />
@@ -1107,11 +1117,12 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
 
       <AssignContactDialog
         open={showAssign}
-        onOpenChange={setShowAssign}
+        onOpenChange={(o) => { setShowAssign(o); if (!o) setEditAssignmentId(null); }}
         buildingId={buildingId}
-        onAssigned={refetch}
+        onAssigned={() => { refetch(); setEditAssignmentId(null); }}
         existingContactIds={assignments.map(a => a.contact_id)}
         managementMode={managementMode as "weg" | "rent"}
+        editAssignmentId={editAssignmentId}
       />
     </div>
   );

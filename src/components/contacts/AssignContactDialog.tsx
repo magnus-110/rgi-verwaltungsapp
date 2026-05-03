@@ -21,6 +21,8 @@ interface Props {
   onAssigned: () => void;
   existingContactIds: string[];
   managementMode?: "weg" | "rent";
+  /** Wenn gesetzt: Dialog läuft im Edit-Modus für dieses Assignment (Kontakt ist fix). */
+  editAssignmentId?: string | null;
 }
 
 interface ContactPerson {
@@ -54,7 +56,7 @@ function formatIban(raw: string): string {
   return raw.replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim();
 }
 
-export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned, existingContactIds, managementMode = "weg" }: Props) {
+export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned, existingContactIds, managementMode = "weg", editAssignmentId = null }: Props) {
   const [contacts, setContacts] = useState<ContactOption[]>([]);
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -88,8 +90,11 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
     if (open) {
       loadContacts();
       resetForm();
+      if (editAssignmentId) {
+        loadAssignmentForEdit(editAssignmentId);
+      }
     }
-  }, [open]);
+  }, [open, editAssignmentId]);
 
   const resetForm = () => {
     setStep("select");
@@ -103,6 +108,22 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
     setEditStreet(""); setEditZip(""); setEditCity("");
     setEditPhones([]); setEditEmails([]); setEditBanks([]);
     setSendInvite(false);
+  };
+
+  const loadAssignmentForEdit = async (assignmentId: string) => {
+    const { data: a, error } = await supabase
+      .from("contact_building_assignments")
+      .select("contact_id, unit_number, floor_location, unit_kind, role_in_building")
+      .eq("id", assignmentId)
+      .maybeSingle();
+    if (error || !a) return;
+    setSelectedId(a.contact_id);
+    setUnitNumber(a.unit_number || "");
+    setFloorLocation(a.floor_location || "");
+    setUnitKind(((a as any).unit_kind || "apartment") as UnitKind);
+    setIsBeirat((a as any).role_in_building === "beirat");
+    await loadContactDetails(a.contact_id);
+    setStep("details");
   };
 
   const loadContacts = async () => {
@@ -121,7 +142,15 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
 
   // Load full contact data when moving to details step
   const loadContactDetails = async (contactId: string) => {
-    const contact = contacts.find(c => c.id === contactId);
+    let contact = contacts.find(c => c.id === contactId) as ContactOption | undefined;
+    if (!contact) {
+      const { data } = await supabase
+        .from("contacts")
+        .select("id, first_name, last_name, company_name, salutation, address_street, address_zip, address_city")
+        .eq("id", contactId)
+        .maybeSingle();
+      if (data) contact = data as ContactOption;
+    }
     if (!contact) return;
 
     // Prefill address
@@ -246,16 +275,28 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
 
     const roleValue = isBeirat ? 'beirat' : (managementMode === 'weg' ? 'eigentuemer' : 'mieter');
 
-    const { error } = await supabase.from("contact_building_assignments").insert({
-      contact_id: selectedId,
-      building_id: buildingId,
-      role_in_building: roleValue as any,
-      unit_number: unitNumber || null,
-      floor_location: floorLocation || null,
-      unit_kind: unitKind as any,
-      billing_mode: 'own_billing' as any,
-      parent_assignment_id: null,
-    } as any);
+    let error: any = null;
+    if (editAssignmentId) {
+      const res = await supabase.from("contact_building_assignments").update({
+        role_in_building: roleValue as any,
+        unit_number: unitNumber || null,
+        floor_location: floorLocation || null,
+        unit_kind: unitKind as any,
+      } as any).eq("id", editAssignmentId);
+      error = res.error;
+    } else {
+      const res = await supabase.from("contact_building_assignments").insert({
+        contact_id: selectedId,
+        building_id: buildingId,
+        role_in_building: roleValue as any,
+        unit_number: unitNumber || null,
+        floor_location: floorLocation || null,
+        unit_kind: unitKind as any,
+        billing_mode: 'own_billing' as any,
+        parent_assignment_id: null,
+      } as any);
+      error = res.error;
+    }
 
     if (error) {
       setSaving(false);
@@ -264,12 +305,32 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
     }
 
     // Check if contact has email for invitation
-    const hasEmail = addressMode === "new" 
-      ? editEmails.some(e => e.email.trim()) 
-      : selectedContact?.hasEmail;
+    const hasEmail = addressMode === "new"
+      ? editEmails.some(e => e.email.trim())
+      : (selectedContact?.hasEmail || editEmails.some(e => e.email.trim()));
 
-    // Always create auth account if contact has email, only control email sending via send_email flag
-    if (hasEmail) {
+    // Bei Edit-Modus: Account/Einladung nur wenn explizit angekreuzt.
+    // Bei Neu-Anlage: Account immer erstellen wenn E-Mail da, Versand nur bei sendInvite.
+    if (editAssignmentId) {
+      if (sendInvite && hasEmail) {
+        setInviting(true);
+        try {
+          const { error: inviteError } = await supabase.functions.invoke("invite-contact-user", {
+            body: { contact_id: selectedId, building_id: buildingId, management_mode: managementMode, send_email: true },
+          });
+          if (inviteError) {
+            toast({ title: "Aktualisiert, aber Einladung fehlgeschlagen", description: inviteError.message, variant: "destructive" });
+          } else {
+            toast({ title: "Aktualisiert & Einladung gesendet" });
+          }
+        } catch (e) {
+          toast({ title: "Aktualisiert, aber Einladung fehlgeschlagen", variant: "destructive" });
+        }
+        setInviting(false);
+      } else {
+        toast({ title: "Zuordnung aktualisiert" });
+      }
+    } else if (hasEmail) {
       setInviting(true);
       try {
         const { error: inviteError } = await supabase.functions.invoke("invite-contact-user", {
@@ -304,7 +365,7 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
         <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {step === "select" ? "Kontakt zuordnen" : "Zuordnungsdetails"}
+              {editAssignmentId ? "Zuordnung bearbeiten" : (step === "select" ? "Kontakt zuordnen" : "Zuordnungsdetails")}
             </DialogTitle>
           </DialogHeader>
 
@@ -558,7 +619,7 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
                     />
                     <div>
                       <Label htmlFor="send-invite" className="text-sm cursor-pointer">
-                        Einladung mit Zugangsdaten senden
+                        {editAssignmentId ? "Anmeldedaten erneut senden" : "Einladung mit Zugangsdaten senden"}
                       </Label>
                       <p className="text-xs text-muted-foreground">
                         Login-Daten werden per E-Mail verschickt
@@ -588,11 +649,21 @@ export function AssignContactDialog({ open, onOpenChange, buildingId, onAssigned
             )}
             {step === "details" && (
               <>
-                <Button variant="outline" onClick={() => setStep("select")} disabled={isSaving}>
-                  <ChevronLeft className="h-4 w-4 mr-1" /> Zurück
-                </Button>
+                {editAssignmentId ? (
+                  <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSaving}>
+                    Abbrechen
+                  </Button>
+                ) : (
+                  <Button variant="outline" onClick={() => setStep("select")} disabled={isSaving}>
+                    <ChevronLeft className="h-4 w-4 mr-1" /> Zurück
+                  </Button>
+                )}
                 <Button onClick={handleAssign} disabled={isSaving}>
-                  {isSaving ? "..." : sendInvite && hasEmailForInvite ? "Zuordnen & Einladen" : "Zuordnen"}
+                  {isSaving
+                    ? "..."
+                    : editAssignmentId
+                      ? (sendInvite && hasEmailForInvite ? "Speichern & Einladen" : "Speichern")
+                      : (sendInvite && hasEmailForInvite ? "Zuordnen & Einladen" : "Zuordnen")}
                 </Button>
               </>
             )}
