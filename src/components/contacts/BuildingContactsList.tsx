@@ -1117,11 +1117,12 @@ export function BuildingContactsList({ buildingId, managementMode = 'weg' }: Pro
 
       <AssignContactDialog
         open={showAssign}
-        onOpenChange={setShowAssign}
+        onOpenChange={(o) => { setShowAssign(o); if (!o) setEditAssignmentId(null); }}
         buildingId={buildingId}
-        onAssigned={refetch}
+        onAssigned={() => { refetch(); setEditAssignmentId(null); }}
         existingContactIds={assignments.map(a => a.contact_id)}
         managementMode={managementMode as "weg" | "rent"}
+        editAssignmentId={editAssignmentId}
       />
     </div>
   );
